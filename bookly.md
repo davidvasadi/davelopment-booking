@@ -28,26 +28,32 @@ Ezt be lehet rakni Instagram bio-ba, Google Cégprofil-ba, névjegykártyára.
 ## 2. Architektúra
 
 ### Repo
-- Külön GitHub repo: `bookly`
+- Külön GitHub repo: `bookly` (github.com/davelopment/bookly)
 - Nem a davelopment repo-ba, önálló projekt
-- Később SaaS-ként skálázható
+- Ágak: `main` (production), `dev` (development)
+- Deploy: Git push → GitHub Actions → VPS (pm2 restart)
+- Később SaaS-ként (domain, billing, stb.)
 
 ### Szerver
 - Ugyanaz a VPS: `46.29.142.31` (deploy@)
-- Új PM2 process: `bookly-backend` (port 3001) + `bookly-frontend` (port 3002)
+- Egy PM2 process: `bookly` (Next.js fullstack, port 3000)
 - Nginx proxy:
-  - `davelopment.hu/bookly/*` → frontend
-  - `davelopment.hu/api/bookly/*` → backend API
+  - `davelopment.hu/bookly/*` → localhost:3000
+  - `davelopment.hu/api/bookly/*` → localhost:3000/api
+- Képfeltöltés: `/var/www/bookly/public/uploads/`
+  - pm2: ecosystem.config.js-ben sync
 
 ### Stack
 | Réteg | Technológia |
 |---|---|
 | Backend/CMS | Payload CMS v3 (Next.js alapú) |
-| Frontend | Next.js 15 (App Router) |
+| Frontend | Next.js 16 (App Router) |
 | DB | PostgreSQL (külön adatbázis: `bookly`) |
-| Email | Resend / Nodemailer |
-| Auth | Payload beépített auth (szalonoknak) |
-| Styling | Tailwind CSS |
+| Email | Resend |
+| Auth | Payload beépített auth + OAuth (Google, Facebook) |
+| Image Processing | Sharp (webp konvertálás, resize) |
+| Storage | `/public/uploads/` (VPS-en) |
+| Styling | Tailwind CSS + Shadcn/ui (admin) |
 | Deployment | PM2 + Nginx (meglévő szerveren) |
 
 ---
@@ -109,11 +115,19 @@ salon (relationship → salons)
 ### `availability` — Nyitvatartás / Elérhetőség
 ```
 id
-staff (relationship → staff)
+staff (relationship → staff, optional - ha nincs, szalon szintű)
 day_of_week (0-6, 0=hétfő)
-start_time, end_time (text)
+start_time, end_time (text, pl. "09:00", "18:00")
 is_available (boolean)
+recurring (boolean - rendszeres, vagy one-time exception)
+exception_date (date, opcionális - ha egy konkrét nap más)
 ```
+
+Példa:
+- Szalon szinten: H-P 9:00-18:00
+- Anna (staff) felülírás: Sze 9:00-14:00 (csak szerdán ilyen)
+- Anna: szombat szabadság (exception: utolsó szombat)
+- Péter: K-P 13:00-20:00 (később kezd)
 
 ---
 
@@ -122,25 +136,37 @@ is_available (boolean)
 ### Publikus (ügyfél oldal)
 ```
 /bookly/[slug]                    → Szalon főoldala (bemutatkozás + "Foglalj időpontot" gomb)
-/bookly/[slug]/book               → Foglalási flow (szolgáltatás → munkatárs → időpont → adatok)
+/bookly/[slug]/book               → Foglalási flow (szolgáltatás → munkatárs → nap → időpont → adatok)
 /bookly/[slug]/book/confirm       → Foglalás megerősítése (email küldés)
 /bookly/[slug]/book/success       → Sikeres foglalás visszaigazolás
 ```
 
 ### Szalon admin (tulajdonos)
 ```
-/bookly/dashboard                 → Szalon dashboard (mai foglalások, statisztikák)
-/bookly/dashboard/bookings        → Foglalások naptár nézet
-/bookly/dashboard/services        → Szolgáltatások kezelése
-/bookly/dashboard/staff           → Munkatársak kezelése
-/bookly/dashboard/availability    → Nyitvatartás / elérhetőség beállítása
-/bookly/dashboard/settings        → Szalon profil beállítások
+/bookly/dashboard                 → Szalon dashboard (mai foglalások, heti nézet, statisztikák)
+/bookly/dashboard/bookings        → Foglalások naptár + lista nézet
+/bookly/dashboard/services        → Szolgáltatások kezelése (létrehozás, szerkesztés, törlés)
+/bookly/dashboard/staff           → Munkatársak kezelése + egyedi elérhetőség
+/bookly/dashboard/availability    → Nyitvatartás (szalon szint) + munkatárs override-ok
+/bookly/dashboard/settings        → Szalon profil szerkesztés (logo, cover, cím, telefon, stb)
+/bookly/dashboard/notifications   → Email értesítés beállítások
 ```
 
 ### Regisztráció / Auth
 ```
-/bookly/register                  → Szalon regisztráció
-/bookly/login                     → Bejelentkezés
+/bookly/register                  → Szalon regisztráció (5 lépés: adatok, logo, cover, munkatárs, nyitvatartás)
+/bookly/register/welcome-tour     → Welcome tour az első login után (Guide: mit kell csinálni)
+/bookly/login                     → Bejelentkezés (email/jelszó + Google/Facebook OAuth)
+/bookly/forgot-password           → Jelszó visszaállítás
+```
+
+### Szuperadmin (neked)
+```
+/bookly/admin                     → Szuperadmin dashboard (összes szalon, bevételek, metrics)
+/bookly/admin/salons              → Szalonok listája, státusz, módosítás lehetőség
+/bookly/admin/users               → Szalon tulajdonosok listája
+/bookly/admin/analytics           → Napi/heti/havi bevételek, foglalások trendje
+/bookly/admin/settings            → Szuperadmin beállítások (commissions, rate limits)
 ```
 
 ---
@@ -149,52 +175,126 @@ is_available (boolean)
 
 ```
 1. Ügyfél megnyitja: davelopment.hu/bookly/fodraszat-anna
-2. Látja a szalon profilját → "Foglalj időpontot" gomb
+2. Látja a szalon profilját (logo, cover, leírás, munkatársak) → "Foglalj időpontot" gomb
 3. Kiválaszt egy szolgáltatást (pl. Hajvágás — 45 perc — 4500 Ft)
 4. Kiválaszt egy munkatársat (opcionális, ha több van)
-5. Naptárban kiválaszt egy szabad napot
-6. Kiválaszt egy szabad időpontot (csak azok jelennek meg, amik szabadok)
-7. Megadja: neve, email, telefon
-8. Visszaigazolás → Email megy az ügyfélnek ÉS a szalon emailjére
-9. Szalon dashboardon látható az új foglalás
+5. Naptárban kiválaszt egy szabad NAPOT (szürke: szalon zárva; sötét: munkatárs foglalt; zöld: szabad)
+6. Kiválaszt egy szabad IDŐPONTOT (csak az éppen kiválasztott munkatárs időelemei)
+7. Megadja: neve, email, telefon (optional: megjegyzés)
+8. Megerősítésre kattint
+9. ✅ Email az ügyfélnek ÉS a szalon email-jére
+10. Szalon dashboardon azonnal megjelenik az új foglalás
 ```
 
 ---
 
-## 6. Email értesítések
+## 6. Email értesítések (Resend)
 
 **Ügyfélnek:**
-- Foglalás visszaigazolása (időpont, szolgáltatás, cím)
-- Emlékeztető (1 nappal előtte)
-- Lemondás visszaigazolása
+- 📧 Foglalás megerősítése (időpont, szolgáltatás, szalon neve, cím, térkép link)
+- 📧 Emlékeztető (1 nappal előtte)
+- 📧 Lemondás visszaigazolása
 
 **Szalonnak:**
-- Új foglalás értesítés
-- Lemondás értesítés
+- 📧 Új foglalás értesítés (ügyfél neve, időpont, szolgáltatás)
+- 📧 Lemondás értesítés
+
+**Funkciók:**
+- Minden email angol/magyar template-el
+- Szalon logo-ja az emailben
+- Unsubscribe link (GDPR compliance)
+- UTM tracking (optional, analytics-hez)
 
 ---
 
-## 7. MVP scope (1. verzió)
+## 8. MVP scope (1. verzió)
 
-Ami mindenképp kell az induláshoz:
+### ✅ KÖTELEZŐ
+- Payload CMS setup (collections + relations)
+- Email/jelszó auth (Payload beépített)
+- OAuth login (Google + Facebook)
+- Szalon regisztrációs flow (5 lépés: adatok, logo, cover, munkatárs, nyitvatartás)
+- Welcome tour (első login után)
+- Publikus szalon oldal (`/bookly/[slug]`)
+- Foglalási flow (5 lépéses: szolgáltatás → munkatárs → nap → időpont → adatok)
+- **Komplex szabad időpont logika** (szalon + munkatárs overlap)
+- Email értesítők (Resend template-kal)
+- Szalon dashboard:
+  - Napi/heti nézet
+  - Foglalások listája + naptár
+  - Szolgáltatások szerkesztése
+  - Munkatársak + egyedi elérhetőség
+  - Szalon profil (logo, cover, adatok)
+- Képfeltöltés + Sharp konvertálás
+- Szuperadmin dashboard (neked):
+  - Szalonok listája + státusz
+  - Bevétel tracking
+  - Analytics (mai, heti, havi)
 
-- [x] Payload CMS setup (salons, staff, services, bookings, availability)
-- [x] Szalon regisztrációs flow
-- [x] Publikus szalon oldal (`/bookly/[slug]`)
-- [x] Foglalási flow (4 lépéses wizard)
-- [x] Szabad időpont logika (availability + existing bookings alapján)
-- [x] Email értesítők (Resend)
-- [x] Szalon dashboard (foglalások listája)
-- [x] Szolgáltatások kezelése
-- [x] Nyitvatartás beállítása
+### 📅 V2 (Később)
+- Stripe fizetés integráció
+- SMS értesítések (Twilio)
+- Google Calendar szinkrom
+- Ügyfél értékelések
+- Saját domain support
+- Franchise / multi-salon kezelés
+- Advanced reporting
 
-Ami később jön (v2):
-- Fizetés (Stripe)
-- SMS értesítők
-- Google Calendar szinkron
-- Értékelések / vélemények
-- Saját domain (pl. foglalj.fodraszat-anna.hu)
-- Több szalon / franchise kezelés
+---
+
+## 9. Képfeltöltés & Media Handling
+
+**Backend API route: `/api/upload`**
+
+```
+BEFOGADÁS: jpg, jpeg, png, gif, webp, svg, tiff (max 10MB)
+┌─────────────────────────────────┐
+│ 1. Szerver: Sharp feldolgozás   │
+│    - Konvertál webp-re          │
+│    - Resize: tiny (100px),      │
+│            small (300px),       │
+│            medium (600px),      │
+│            large (1200px)       │
+│    - EXIF tisztítás (privát)    │
+├─────────────────────────────────┤
+│ 2. Validáció                    │
+│    - Malware scan (optional)    │
+│    - File magic szignó          │
+├─────────────────────────────────┤
+│ 3. Menti: /public/uploads/      │
+│   salons/[salon-id]/[uuid].webp │
+└─────────────────────────────────┘
+
+Info ablak: "Ajánlott: JPG vagy PNG, min. 800x600px. 
+             Átkonvertálunk WebP-re gyorsabb betöltésért."
+```
+
+**Frontend:** Drag-drop + preview, progress bar
+
+---
+
+## 10. Technikai Megjegyzések
+
+### Adatbázis stratégia
+- PostgreSQL `bookly` DB
+- Payload CMS kezeli az migrations-t
+- Seed data: 1 demo szalon (teszteléshez)
+
+### Szuperadmin hozzáférés (KRITIKUS)
+- Payload Admin UI (technikainak jó)
+- + Custom szuperadmin dashboard (neked, profitorientált)
+- Jogok szétválasztása: szalon owner csak SAJÁT adatait lássa!
+
+### Performance
+- Image lazy loading
+- Egy naptár lekérdezés max. 200 foglalás (virtualization)
+- Redis caching (optional, később)
+
+### Security
+- JWT token (Payload beépített)
+- CORS (bookly domain)
+- Rate limiting (API endpoints)
+- GDPR: user data export, delete (opcionális MVP-ből, de gondolni rá!)
 
 ---
 
