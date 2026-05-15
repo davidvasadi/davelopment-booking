@@ -6,6 +6,12 @@ export const Media: CollectionConfig = {
   admin: {
     useAsTitle: 'filename',
   },
+  access: {
+    read: () => true,
+    create: ({ req }) => !!req.user,
+    update: ({ req }) => !!req.user,
+    delete: ({ req }) => !!req.user,
+  },
   upload: {
     staticDir: path.join(process.cwd(), 'public/uploads'),
     mimeTypes: [

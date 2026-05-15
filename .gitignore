@@ -1,3 +1,9 @@
+# Project docs
+PROJECT_STATUS.md
+bookly.md
+DEPLOY_GUIDE.md
+CLAUDE.md
+
 # Environment
 .env
 .env.local

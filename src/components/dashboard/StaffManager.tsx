@@ -146,65 +146,65 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
     <>
       <div className="flex items-center justify-between mb-8">
         <div>
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Csapat</p>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900">Munkatársak</h1>
+          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Csapat</p>
+          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Munkatársak</h1>
         </div>
         <button
           onClick={openAdd}
-          className="h-10 px-5 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white text-sm font-semibold flex items-center gap-2 transition-colors"
+          className="h-10 px-5 rounded-full bg-white hover:bg-white/90 text-black text-sm font-semibold flex items-center gap-2 transition-colors"
         >
           <Plus className="h-4 w-4" />Új
         </button>
       </div>
 
       {staff.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm px-6 py-12 text-center">
-          <p className="text-zinc-400 text-sm">Még nincs munkatárs. Add hozzá az elsőt!</p>
+        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl px-6 py-12 text-center">
+          <p className="text-zinc-400 dark:text-white/30 text-sm">Még nincs munkatárs. Add hozzá az elsőt!</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
           {staff.map((m, i) => {
             const url = avatarUrl(m)
             return (
               <div
                 key={m.id}
-                className={`flex items-center justify-between px-6 py-4 ${i < staff.length - 1 ? 'border-b border-zinc-100' : ''}`}
+                className={`flex items-center justify-between px-6 py-4 ${i < staff.length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.06]' : ''}`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full overflow-hidden shrink-0 bg-zinc-950 flex items-center justify-center">
+                  <div className="h-10 w-10 rounded-full overflow-hidden shrink-0 bg-zinc-100 dark:bg-white/[0.08] flex items-center justify-center">
                     {url ? (
                       <img src={url} alt={m.name} className="h-full w-full object-cover object-top" />
                     ) : (
-                      <span className="text-xs font-bold text-white">{m.name.slice(0, 2).toUpperCase()}</span>
+                      <span className="text-xs font-bold text-zinc-500 dark:text-white/60">{m.name.slice(0, 2).toUpperCase()}</span>
                     )}
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm text-zinc-900">{m.name}</p>
+                      <p className="font-semibold text-sm text-zinc-800 dark:text-white/80">{m.name}</p>
                       {!m.is_active && (
-                        <span className="text-xs text-zinc-400 border border-zinc-200 rounded-full px-2 py-0.5">Inaktív</span>
+                        <span className="text-xs text-zinc-400 dark:text-white/30 border border-zinc-200 dark:border-white/[0.1] rounded-full px-2 py-0.5">Inaktív</span>
                       )}
                     </div>
-                    {m.bio && <p className="text-xs text-zinc-500">{m.bio}</p>}
+                    {m.bio && <p className="text-xs text-zinc-500 dark:text-white/40">{m.bio}</p>}
                   </div>
                 </div>
                 <div className="flex gap-1">
                   <button
                     onClick={() => setCalendarStaff(m)}
                     title="Elérhetőség naptár"
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors"
                   >
                     <CalendarDays className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => openEdit(m)}
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors"
                   >
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
                     onClick={() => deleteMember(m.id)}
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -256,7 +256,7 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
                   </button>
                 )}
               </div>
-              <p className="text-xs text-zinc-400">Kattints a profilkép feltöltéséhez</p>
+              <p className="text-xs text-zinc-500">Kattints a profilkép feltöltéséhez</p>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -267,17 +267,17 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-zinc-700">Név *</Label>
-              <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200" {...register('name')} />
+              <Label className="text-sm font-medium">Név *</Label>
+              <Input className="h-11 rounded-xl" {...register('name')} />
               {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-zinc-700">Bemutatkozás</Label>
-              <Textarea className="rounded-xl bg-zinc-50 border-zinc-200" {...register('bio')} rows={3} />
+              <Label className="text-sm font-medium">Bemutatkozás</Label>
+              <Textarea className="rounded-xl" {...register('bio')} rows={3} />
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" id="staff_active" className="h-4 w-4 rounded" {...register('is_active')} />
-              <Label htmlFor="staff_active" className="text-sm text-zinc-700">Aktív (foglalható)</Label>
+              <Label htmlFor="staff_active" className="text-sm">Aktív (foglalható)</Label>
             </div>
             <button
               type="submit"

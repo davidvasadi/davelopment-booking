@@ -27,7 +27,13 @@ export interface DowStat {
   bookings: number
 }
 
+export interface HourStat {
+  hour: string
+  bookings: number
+}
+
 export interface DashboardStats {
+  period: number
   revenueToday: number
   revenueTodayDiff: number
   revenueMonth: number
@@ -36,12 +42,17 @@ export interface DashboardStats {
   bookingsTodayDiff: number
   bookingsMonth: number
   bookingsMonthDiff: number
+  periodRevenue: number
+  periodRevenueDiff: number
+  periodBookings: number
+  periodBookingsDiff: number
   avgBookingValue: number
   completionRate: number
-  last30Days: DayData[]
+  trend: DayData[]
   byService: ServiceStat[]
   byStaff: StaffStat[]
   byDayOfWeek: DowStat[]
+  byHour: HourStat[]
   bestDay: string | null
   bestHour: string | null
 }
@@ -57,7 +68,13 @@ function pctDiff(curr: number, prev: number): number {
   return Math.round(((curr - prev) / prev) * 100)
 }
 
-export async function getDashboardStats(salonId: string | number): Promise<DashboardStats> {
+function dayLabel(d: string, days: number): string {
+  const date = new Date(d + 'T00:00:00')
+  if (days <= 90) return format(date, 'MMM d.', { locale: hu })
+  return format(date, 'MMM', { locale: hu })
+}
+
+export async function getDashboardStats(salonId: string | number, days = 30): Promise<DashboardStats> {
   const payload = await getPayloadClient()
 
   const today = new Date()
@@ -66,65 +83,71 @@ export async function getDashboardStats(salonId: string | number): Promise<Dashb
   const monthStartStr = format(startOfMonth(today), 'yyyy-MM-dd')
   const lastMonthStartStr = format(startOfMonth(subMonths(today, 1)), 'yyyy-MM-dd')
   const lastMonthEndStr = format(endOfMonth(subMonths(today, 1)), 'yyyy-MM-dd')
-  const thirtyDaysAgoStr = format(subDays(today, 29), 'yyyy-MM-dd')
+  const periodStartStr = format(subDays(today, days - 1), 'yyyy-MM-dd')
+  const prevPeriodStartStr = format(subDays(today, days * 2 - 1), 'yyyy-MM-dd')
 
-  // Single query: all non-cancelled bookings from last month start
-  const [revenueBookings, allBookings30] = await Promise.all([
+  // Query from the earliest needed date
+  const queryFrom = prevPeriodStartStr < lastMonthStartStr ? prevPeriodStartStr : lastMonthStartStr
+
+  const [revenueBookings, allBookingsPeriod] = await Promise.all([
     payload.find({
       collection: 'bookings',
       where: {
         and: [
           { salon: { equals: salonId } },
-          { date: { greater_than_equal: lastMonthStartStr } },
+          { date: { greater_than_equal: queryFrom } },
           { status: { not_equals: 'cancelled' } },
         ],
       },
       depth: 2,
-      limit: 2000,
+      limit: 5000,
     }),
     payload.find({
       collection: 'bookings',
       where: {
         and: [
           { salon: { equals: salonId } },
-          { date: { greater_than_equal: thirtyDaysAgoStr } },
+          { date: { greater_than_equal: periodStartStr } },
         ],
       },
       depth: 0,
-      limit: 2000,
+      limit: 5000,
     }),
   ])
 
   const docs = revenueBookings.docs as Booking[]
 
-  // Segment by period
   const todayDocs = docs.filter(b => b.date === todayStr)
   const yesterdayDocs = docs.filter(b => b.date === yesterdayStr)
   const monthDocs = docs.filter(b => b.date >= monthStartStr)
   const lastMonthDocs = docs.filter(b => b.date >= lastMonthStartStr && b.date <= lastMonthEndStr)
-  const last30Docs = docs.filter(b => b.date >= thirtyDaysAgoStr)
+  const periodDocs = docs.filter(b => b.date >= periodStartStr)
+  const prevPeriodDocs = docs.filter(b => b.date >= prevPeriodStartStr && b.date < periodStartStr)
 
-  // KPIs
   const revenueToday = todayDocs.reduce((s, b) => s + getPrice(b), 0)
   const revenueYesterday = yesterdayDocs.reduce((s, b) => s + getPrice(b), 0)
   const revenueMonth = monthDocs.reduce((s, b) => s + getPrice(b), 0)
   const revenueLastMonth = lastMonthDocs.reduce((s, b) => s + getPrice(b), 0)
+  const periodRevenue = periodDocs.reduce((s, b) => s + getPrice(b), 0)
+  const prevPeriodRevenue = prevPeriodDocs.reduce((s, b) => s + getPrice(b), 0)
+  const periodBookings = periodDocs.length
+  const prevPeriodBookings = prevPeriodDocs.length
 
-  // Last 30 days chart
-  const last30Days: DayData[] = Array.from({ length: 30 }, (_, i) => {
-    const d = format(subDays(today, 29 - i), 'yyyy-MM-dd')
+  // Trend: one entry per day
+  const trend: DayData[] = Array.from({ length: days }, (_, i) => {
+    const d = format(subDays(today, days - 1 - i), 'yyyy-MM-dd')
     const dayDocs = docs.filter(b => b.date === d)
     return {
       date: d,
-      label: format(new Date(d + 'T00:00:00'), 'MMM d.', { locale: hu }),
+      label: dayLabel(d, days),
       revenue: dayDocs.reduce((s, b) => s + getPrice(b), 0),
       bookings: dayDocs.length,
     }
   })
 
-  // By service (last 30 days)
+  // By service (current period)
   const serviceMap: Record<string, ServiceStat> = {}
-  for (const b of last30Docs) {
+  for (const b of periodDocs) {
     const svc = b.service as Service | string
     if (!svc || typeof svc !== 'object') continue
     const id = String(svc.id)
@@ -134,9 +157,9 @@ export async function getDashboardStats(salonId: string | number): Promise<Dashb
   }
   const byService = Object.values(serviceMap).sort((a, b) => b.revenue - a.revenue).slice(0, 6)
 
-  // By staff (last 30 days)
+  // By staff (current period)
   const staffMap: Record<string, StaffStat> = {}
-  for (const b of last30Docs) {
+  for (const b of periodDocs) {
     const st = b.staff as StaffMember | string
     if (!st || typeof st !== 'object') continue
     const id = String(st.id)
@@ -146,39 +169,41 @@ export async function getDashboardStats(salonId: string | number): Promise<Dashb
   }
   const byStaff = Object.values(staffMap).sort((a, b) => b.bookings - a.bookings)
 
-  // By day of week (Mon–Sun, last 30 days)
+  // By day of week (current period)
   const DOW = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap']
   const dowCount = [0, 0, 0, 0, 0, 0, 0]
-  for (const b of last30Docs) {
+  for (const b of periodDocs) {
     const dow = (new Date(b.date + 'T00:00:00').getDay() + 6) % 7
     dowCount[dow]++
   }
   const byDayOfWeek: DowStat[] = DOW.map((day, i) => ({ day, bookings: dowCount[i] }))
 
-  // Best day
   const maxDow = dowCount.indexOf(Math.max(...dowCount))
   const bestDay = dowCount[maxDow] > 0 ? DOW[maxDow] : null
 
-  // Best hour (from start_time)
-  const hourCount: Record<string, number> = {}
-  for (const b of last30Docs) {
+  // By hour (current period, 07:00–21:00)
+  const hourCountMap: Record<string, number> = {}
+  for (const b of periodDocs) {
     if (!b.start_time) continue
     const h = b.start_time.split(':')[0]
-    hourCount[h] = (hourCount[h] ?? 0) + 1
+    hourCountMap[h] = (hourCountMap[h] ?? 0) + 1
   }
-  const bestHourKey = Object.entries(hourCount).sort((a, b) => b[1] - a[1])[0]?.[0]
+  const byHour: HourStat[] = Array.from({ length: 15 }, (_, i) => {
+    const h = String(i + 7).padStart(2, '0')
+    return { hour: `${h}:00`, bookings: hourCountMap[h] ?? 0 }
+  })
+
+  const bestHourKey = Object.entries(hourCountMap).sort((a, b) => b[1] - a[1])[0]?.[0]
   const bestHour = bestHourKey ? `${bestHourKey}:00` : null
 
-  // Avg booking value (last 30 days)
-  const totalRev30 = last30Docs.reduce((s, b) => s + getPrice(b), 0)
-  const avgBookingValue = last30Docs.length > 0 ? Math.round(totalRev30 / last30Docs.length) : 0
+  const avgBookingValue = periodDocs.length > 0 ? Math.round(periodRevenue / periodDocs.length) : 0
 
-  // Completion rate (last 30 days, excluding pending)
-  const finalized = allBookings30.docs.filter(b => b.status !== 'pending')
+  const finalized = allBookingsPeriod.docs.filter(b => b.status !== 'pending')
   const completed = finalized.filter(b => b.status === 'completed')
   const completionRate = finalized.length > 0 ? Math.round((completed.length / finalized.length) * 100) : 0
 
   return {
+    period: days,
     revenueToday,
     revenueTodayDiff: pctDiff(revenueToday, revenueYesterday),
     revenueMonth,
@@ -187,12 +212,17 @@ export async function getDashboardStats(salonId: string | number): Promise<Dashb
     bookingsTodayDiff: pctDiff(todayDocs.length, yesterdayDocs.length),
     bookingsMonth: monthDocs.length,
     bookingsMonthDiff: pctDiff(monthDocs.length, lastMonthDocs.length),
+    periodRevenue,
+    periodRevenueDiff: pctDiff(periodRevenue, prevPeriodRevenue),
+    periodBookings,
+    periodBookingsDiff: pctDiff(periodBookings, prevPeriodBookings),
     avgBookingValue,
     completionRate,
-    last30Days,
+    trend,
     byService,
     byStaff,
     byDayOfWeek,
+    byHour,
     bestDay,
     bestHour,
   }

@@ -15,6 +15,10 @@ const nextConfig: NextConfig = {
         hostname: 'davelopment.hu',
         pathname: '/bookly/uploads/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
   },
   experimental: {

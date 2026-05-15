@@ -1,7 +1,19 @@
 import { type ClassValue, clsx } from 'clsx'
-import { twMerge } from 'tailwind-merge'
+import { extendTailwindMerge } from 'tailwind-merge'
 import { format, parseISO } from 'date-fns'
 import { hu } from 'date-fns/locale'
+
+// Teach tailwind-merge about shadcn custom CSS-variable colors so bg-zinc-50
+// correctly overrides bg-background (and similar) instead of both surviving.
+const twMerge = extendTailwindMerge({
+  extend: {
+    classGroups: {
+      'bg-color': [
+        { bg: ['background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground', 'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground', 'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'border', 'input', 'ring'] },
+      ],
+    },
+  },
+})
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))

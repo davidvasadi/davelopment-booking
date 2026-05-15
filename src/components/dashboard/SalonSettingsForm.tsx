@@ -26,9 +26,9 @@ type FormData = z.infer<typeof schema>
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-6 py-4 border-b border-zinc-100">
-        <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-900">{title}</h3>
+    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
+      <div className="px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06]">
+        <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-500 dark:text-white/60">{title}</h3>
       </div>
       <div className="px-6 py-5 space-y-4">{children}</div>
     </div>
@@ -160,25 +160,25 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
 
       {/* Cover image */}
       <Section title="Borítókép">
-        <p className="text-xs text-zinc-400 -mt-1">A nyilvános oldalon a felső sötét sávon jelenik meg háttérként.</p>
+        <p className="text-xs text-zinc-400 dark:text-white/30 -mt-1">A nyilvános oldalon a felső sötét sávon jelenik meg háttérként.</p>
         <div className="relative">
           <button
             type="button"
             onClick={() => coverRef.current?.click()}
-            className="relative w-full h-36 rounded-2xl overflow-hidden bg-zinc-950 flex items-center justify-center hover:opacity-90 transition-opacity"
+            className="relative w-full h-36 rounded-2xl overflow-hidden bg-zinc-50 border border-zinc-200 dark:bg-white/[0.04] dark:border-white/[0.08] flex items-center justify-center hover:opacity-90 transition-opacity"
           >
             {uploadingCover ? (
-              <Loader2 className="h-6 w-6 text-zinc-400 animate-spin" />
+              <Loader2 className="h-6 w-6 text-zinc-400 dark:text-white/40 animate-spin" />
             ) : coverPreview ? (
               <>
                 <img src={coverPreview} alt="Borítókép" className="absolute inset-0 h-full w-full object-cover opacity-40" />
-                <div className="relative flex flex-col items-center gap-1.5 text-white/60">
+                <div className="relative flex flex-col items-center gap-1.5 text-zinc-500 dark:text-white/60">
                   <ImagePlus className="h-5 w-5" />
                   <span className="text-xs font-medium">Csere</span>
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center gap-1.5 text-zinc-500">
+              <div className="flex flex-col items-center gap-1.5 text-zinc-400 dark:text-white/30">
                 <ImagePlus className="h-6 w-6" />
                 <span className="text-xs font-medium">Borítókép feltöltése</span>
               </div>
@@ -210,15 +210,15 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
       <Section title="Alap adatok">
         <div className="flex items-start gap-4">
           <div className="shrink-0 space-y-1.5">
-            <Label className="text-sm font-medium text-zinc-700">Logó</Label>
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Logó</Label>
             <div className="relative w-16">
               <button
                 type="button"
                 onClick={() => logoRef.current?.click()}
-                className="relative h-16 w-16 rounded-xl overflow-hidden bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition-colors"
+                className="relative h-16 w-16 rounded-xl overflow-hidden bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-white/[0.1] transition-colors"
               >
                 {uploadingLogo ? (
-                  <Loader2 className="h-5 w-5 text-zinc-400 animate-spin" />
+                  <Loader2 className="h-5 w-5 text-zinc-400 dark:text-white/40 animate-spin" />
                 ) : logoPreview ? (
                   <>
                     <img src={logoPreview} alt="Logó" className="h-full w-full object-cover" />
@@ -227,14 +227,14 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
                     </div>
                   </>
                 ) : (
-                  <Camera className="h-5 w-5 text-zinc-400" />
+                  <Camera className="h-5 w-5 text-zinc-400 dark:text-white/30" />
                 )}
               </button>
               {logoPreview && !uploadingLogo && (
                 <button
                   type="button"
                   onClick={() => removeImage(logoId, setLogoPreview, setLogoId, setLogoModified, logoRef)}
-                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-zinc-900 flex items-center justify-center hover:bg-red-500 transition-colors"
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
                 >
                   <X className="h-3 w-3 text-white" />
                 </button>
@@ -253,15 +253,15 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
           </div>
           <div className="flex-1 space-y-3">
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-zinc-700">Szalon neve *</Label>
-              <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200" {...register('name')} />
+              <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Szalon neve *</Label>
+              <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('name')} />
               {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-zinc-700">URL azonosító</Label>
+              <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">URL azonosító</Label>
               <div className="flex items-center gap-1">
-                <span className="text-sm text-zinc-400">/bookly/</span>
-                <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 flex-1" {...register('slug')} />
+                <span className="text-sm text-zinc-400 dark:text-white/30">/bookly/</span>
+                <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20 flex-1" {...register('slug')} />
               </div>
               {errors.slug && <p className="text-xs text-destructive">{errors.slug.message}</p>}
             </div>
@@ -272,66 +272,66 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
       <Section title="Elérhetőség">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-zinc-700">Irányítószám</Label>
-            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200" {...register('postal_code')} />
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Irányítószám</Label>
+            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('postal_code')} />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-zinc-700">Város</Label>
-            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200" {...register('city')} />
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Város</Label>
+            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('city')} />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-sm font-medium text-zinc-700">Cím</Label>
-          <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200" {...register('address')} placeholder="Utca, házszám" />
+          <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Cím</Label>
+          <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('address')} placeholder="Utca, házszám" />
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-zinc-700">Telefon</Label>
-            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200" {...register('phone')} type="tel" />
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Telefon</Label>
+            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('phone')} type="tel" />
           </div>
           <div className="space-y-1.5">
-            <Label className="text-sm font-medium text-zinc-700">Email</Label>
-            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200" {...register('email')} type="email" />
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Email</Label>
+            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('email')} type="email" />
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label className="text-sm font-medium text-zinc-700">Weboldal</Label>
-          <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200" {...register('website')} type="url" placeholder="https://" />
+          <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Weboldal</Label>
+          <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('website')} type="url" placeholder="https://" />
         </div>
       </Section>
 
       <Section title="Foglalási beállítások">
         <div className="space-y-1.5">
-          <Label className="text-sm font-medium text-zinc-700">Puffer foglalások között (perc)</Label>
+          <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Puffer foglalások között (perc)</Label>
           <Input
             type="number"
             min={0}
             max={120}
             step={5}
-            className="h-11 rounded-xl bg-zinc-50 border-zinc-200 w-32"
+            className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white w-32"
             {...register('booking_buffer_minutes', { valueAsNumber: true })}
           />
-          <p className="text-xs text-zinc-500">Mennyi szünet legyen két foglalás között</p>
+          <p className="text-xs text-zinc-400 dark:text-white/30">Mennyi szünet legyen két foglalás között</p>
         </div>
       </Section>
 
       <button
         type="submit"
         disabled={submitting || uploadingLogo || uploadingCover}
-        className="h-12 px-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm transition-colors disabled:opacity-40"
+        className="h-12 px-8 rounded-full bg-white hover:bg-white/90 text-black font-semibold text-sm transition-colors disabled:opacity-40"
       >
         {submitting ? 'Mentés...' : 'Mentés'}
       </button>
 
       {/* Danger zone */}
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-red-100">
-        <div className="px-6 py-4 border-b border-red-100">
-          <h3 className="font-bold text-sm uppercase tracking-widest text-red-500">Veszélyzóna</h3>
+      <div className="bg-red-500/[0.04] border border-red-500/20 rounded-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-red-500/20">
+          <h3 className="font-bold text-sm uppercase tracking-widest text-red-400">Veszélyzóna</h3>
         </div>
         <div className="px-6 py-5 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-zinc-900">Fiók törlése</p>
-            <p className="text-xs text-zinc-500 mt-0.5">Minden adat (szalon, foglalások, munkatársak) véglegesen törlődik.</p>
+            <p className="text-sm font-semibold text-zinc-800 dark:text-white/80">Fiók törlése</p>
+            <p className="text-xs text-zinc-500 dark:text-white/40 mt-0.5">Minden adat (szalon, foglalások, munkatársak) véglegesen törlődik.</p>
           </div>
           <button
             type="button"

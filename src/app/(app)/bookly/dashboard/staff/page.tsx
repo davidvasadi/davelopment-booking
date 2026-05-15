@@ -23,7 +23,7 @@ export default async function StaffPage() {
   })
 
   return (
-    <div className="p-5 lg:p-8 max-w-3xl">
+    <div className="p-5 lg:p-8">
       <StaffManager salonId={salon.id} initialStaff={staffResult.docs as StaffMember[]} />
     </div>
   )

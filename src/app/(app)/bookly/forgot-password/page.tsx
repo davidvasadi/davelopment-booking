@@ -17,6 +17,20 @@ export default function ForgotPasswordPage() {
     e.preventDefault()
     setLoading(true)
     try {
+      const check = await fetch('/api/bookly/check-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await check.json()
+      if (check.status === 429) {
+        toast.error(data.error ?? 'Túl sok kísérlet. Próbáld újra 1 perc múlva.')
+        return
+      }
+      if (!data.exists) {
+        toast.error('Ezzel az email címmel nincs regisztrált fiók.')
+        return
+      }
       await fetch('/api/users/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,7 +49,7 @@ export default function ForgotPasswordPage() {
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
       <div className="lg:hidden min-h-screen bg-zinc-950 flex flex-col">
         <div className="flex flex-col flex-1 px-7 pt-12 pb-10">
-          <span className="text-white font-black text-xl tracking-tight">Bookly</span>
+          <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Bookly</Link>
 
           {sent ? (
             <div className="flex flex-col justify-between flex-1 mt-12">
@@ -96,7 +110,7 @@ export default function ForgotPasswordPage() {
       {/* ── DESKTOP ────────────────────────────────────────────────── */}
       <div className="hidden lg:flex min-h-screen">
         <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-          <span className="text-white font-black text-xl tracking-tight">Bookly</span>
+          <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Bookly</Link>
           <div>
             <h1 className="text-white font-black text-[3.25rem] uppercase leading-[1.05] tracking-tighter">
               ELFELED<br />TED A<br />JELSZÓD?

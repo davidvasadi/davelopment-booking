@@ -120,6 +120,13 @@ export const Bookings: CollectionConfig = {
       type: 'textarea',
       label: 'Megjegyzések',
     },
+    {
+      name: 'cancellation_token',
+      type: 'text',
+      index: true,
+      admin: { readOnly: true, position: 'sidebar' },
+      access: { update: () => false },
+    },
   ],
   timestamps: true,
 }

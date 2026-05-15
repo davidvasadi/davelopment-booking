@@ -1,9 +1,9 @@
 import { notFound } from 'next/navigation'
 import { getPayloadClient } from '@/lib/payload'
-import { formatPrice } from '@/lib/utils'
-import type { Salon, Service, StaffMember, Media } from '@/payload/payload-types'
-import { MapPin, Phone, Mail, Globe, Clock, ChevronRight } from 'lucide-react'
+import type { Salon, Service, ServiceCategory, StaffMember, Media } from '@/payload/payload-types'
+import { MapPin, Phone, Mail, Globe, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import PublicServicesSection from '@/components/PublicServicesSection'
 
 const AVATAR_GRADIENTS = [
   'from-violet-400 to-purple-600',
@@ -33,7 +33,7 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
   if (!salonResult.docs.length) notFound()
   const salon = salonResult.docs[0] as Salon
 
-  const [servicesResult, staffResult] = await Promise.all([
+  const [servicesResult, staffResult, categoriesResult] = await Promise.all([
     payload.find({
       collection: 'services',
       where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }] },
@@ -48,10 +48,19 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
       depth: 1,
       limit: 100,
     }),
+    payload.find({
+      collection: 'service-categories',
+      where: { salon: { equals: salon.id } },
+      sort: 'sort_order',
+      depth: 1,
+      limit: 100,
+    }),
   ])
 
   const services = servicesResult.docs as Service[]
   const staff = staffResult.docs as StaffMember[]
+  const serviceCategories = categoriesResult.docs as ServiceCategory[]
+
   const coverUrl = salon.cover_image && typeof salon.cover_image === 'object'
     ? (salon.cover_image as Media).url ?? null
     : null
@@ -109,48 +118,13 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
 
       <div className="max-w-3xl mx-auto px-5 py-10 space-y-10">
 
-        {/* Services */}
+        {/* Services with category tabs */}
         {services.length > 0 && (
-          <section>
-            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Kínálatunk</p>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Szolgáltatások</h2>
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-              {services.map((s, i) => {
-                const sImgUrl = s.image && typeof s.image === 'object'
-                  ? (s.image as Media).url ?? null : null
-                return (
-                  <div
-                    key={s.id}
-                    className={`flex items-center gap-4 px-5 py-4 ${i < services.length - 1 ? 'border-b border-zinc-100' : ''}`}
-                  >
-                    {sImgUrl && (
-                      <div className="h-14 w-14 rounded-xl overflow-hidden shrink-0">
-                        <img src={sImgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-zinc-900">{s.name}</p>
-                      {s.description && (
-                        <p className="text-xs text-zinc-500 mt-0.5 line-clamp-2">{s.description}</p>
-                      )}
-                      <p className="text-xs text-zinc-400 mt-1 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />{s.duration_minutes} perc
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <p className="font-black text-sm text-zinc-900">{formatPrice(s.price, s.currency)}</p>
-                      <Link
-                        href={`/bookly/${slug}/book?serviceId=${s.id}`}
-                        className="py-3 px-4 rounded-full bg-zinc-950 text-white text-xs font-semibold hover:bg-zinc-800 transition-colors whitespace-nowrap"
-                      >
-                        Foglalás
-                      </Link>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
+          <PublicServicesSection
+            services={services}
+            serviceCategories={serviceCategories}
+            slug={slug}
+          />
         )}
 
         {/* Staff */}

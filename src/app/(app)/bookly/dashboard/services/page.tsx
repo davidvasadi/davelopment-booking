@@ -1,6 +1,6 @@
 import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-import type { Salon, Service, StaffMember } from '@/payload/payload-types'
+import type { Salon, Service, ServiceCategory, StaffMember } from '@/payload/payload-types'
 import ServicesManager from '@/components/dashboard/ServicesManager'
 
 export default async function ServicesPage() {
@@ -14,7 +14,7 @@ export default async function ServicesPage() {
   })
   const salon = salonResult.docs[0] as Salon
 
-  const [servicesResult, staffResult] = await Promise.all([
+  const [servicesResult, staffResult, categoriesResult] = await Promise.all([
     payload.find({
       collection: 'services',
       where: { salon: { equals: salon.id } },
@@ -29,14 +29,22 @@ export default async function ServicesPage() {
       depth: 0,
       limit: 100,
     }),
+    payload.find({
+      collection: 'service-categories',
+      where: { salon: { equals: salon.id } },
+      sort: 'sort_order',
+      depth: 1,
+      limit: 100,
+    }),
   ])
 
   return (
-    <div className="p-5 lg:p-8 max-w-3xl">
+    <div className="p-5 lg:p-8">
       <ServicesManager
         salonId={salon.id}
         initialServices={servicesResult.docs as Service[]}
         staffList={staffResult.docs as StaffMember[]}
+        initialCategories={categoriesResult.docs as ServiceCategory[]}
       />
     </div>
   )

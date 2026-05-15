@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { autoCompleteBookings } from '@/lib/autoComplete'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
+import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import type { Salon } from '@/payload/payload-types'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -21,11 +22,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
   autoCompleteBookings(salon.id).catch(() => null)
 
   return (
-    <div className="flex min-h-screen bg-[#F5F4F2]">
+    <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
       <DashboardNav salonName={salon.name} salonSlug={salon.slug} />
-      <main className="flex-1 overflow-auto pt-14 pb-20 lg:pt-0 lg:pb-0">
+      <main className="flex-1 pb-24 lg:pb-0">
         {children}
       </main>
+      <MobileBottomNav />
     </div>
   )
 }

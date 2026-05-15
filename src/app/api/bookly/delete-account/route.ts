@@ -29,6 +29,7 @@ export async function DELETE() {
       payload.delete({ collection: 'bookings', where: { salon: { equals: salonId } }, overrideAccess: true }),
       payload.delete({ collection: 'availability', where: { salon: { equals: salonId } }, overrideAccess: true }),
       payload.delete({ collection: 'services', where: { salon: { equals: salonId } }, overrideAccess: true }),
+      payload.delete({ collection: 'service-categories', where: { salon: { equals: salonId } }, overrideAccess: true }),
       payload.delete({ collection: 'staff', where: { salon: { equals: salonId } }, overrideAccess: true }),
     ])
 

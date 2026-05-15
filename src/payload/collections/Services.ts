@@ -31,6 +31,23 @@ export const Services: CollectionConfig = {
       label: 'Leírás',
     },
     {
+      name: 'category',
+      type: 'text',
+      required: true,
+      label: 'Fő kategória',
+      admin: {
+        placeholder: 'Pl. Fodrászat, Körmös, Fogászat',
+      },
+    },
+    {
+      name: 'subcategory',
+      type: 'text',
+      label: 'Alkategória',
+      admin: {
+        placeholder: 'Pl. Hajvágás, Balayage, Porcelán köröm',
+      },
+    },
+    {
       name: 'image',
       type: 'upload',
       relationTo: 'media',

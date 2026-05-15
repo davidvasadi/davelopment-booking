@@ -1,7 +1,20 @@
-import { CollectionConfig } from 'payload'
+import type { CollectionConfig } from 'payload'
 
 export const Salons: CollectionConfig = {
   slug: 'salons',
+  hooks: {
+    beforeDelete: [
+      async ({ req, id }) => {
+        await Promise.all([
+          req.payload.delete({ collection: 'bookings', where: { salon: { equals: id } }, overrideAccess: true }),
+          req.payload.delete({ collection: 'availability', where: { salon: { equals: id } }, overrideAccess: true }),
+          req.payload.delete({ collection: 'services', where: { salon: { equals: id } }, overrideAccess: true }),
+          req.payload.delete({ collection: 'service-categories', where: { salon: { equals: id } }, overrideAccess: true }),
+          req.payload.delete({ collection: 'staff', where: { salon: { equals: id } }, overrideAccess: true }),
+        ])
+      },
+    ],
+  },
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'slug', 'owner', 'city', 'is_active'],

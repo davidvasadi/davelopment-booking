@@ -4,6 +4,7 @@ export interface Config {
     salons: Salon
     staff: StaffMember
     services: Service
+    'service-categories': ServiceCategory
     bookings: Booking
     availability: Availability
     media: Media
@@ -68,6 +69,8 @@ export interface Service {
   id: string
   name: string
   description?: string | null
+  category?: string | null
+  subcategory?: string | null
   image?: string | Media | null
   salon: string | Salon
   staff?: (string | StaffMember)[] | null
@@ -75,6 +78,18 @@ export interface Service {
   price: number
   currency?: 'HUF' | 'EUR'
   is_active?: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ServiceCategory {
+  id: string
+  name: string
+  image?: string | Media | null
+  duration_label?: string | null
+  description?: string | null
+  sort_order?: number | null
+  salon: string | Salon
   createdAt: string
   updatedAt: string
 }

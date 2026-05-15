@@ -27,7 +27,7 @@ export function proxy(req: NextRequest) {
     const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/')
     const decoded = JSON.parse(atob(base64))
 
-    if (decoded?.role !== 'admin') {
+    if (decoded?.role !== 'admin' || decoded?.email !== 'hello@davelopment.hu') {
       return NextResponse.redirect(new URL('/bookly/dashboard', req.url))
     }
   } catch {

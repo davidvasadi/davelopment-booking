@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { getAvailableSlots } from '@/lib/availability'
@@ -80,6 +81,7 @@ export async function POST(request: NextRequest) {
         end_time,
         status: 'confirmed',
         notes: notes ?? undefined,
+        cancellation_token: randomBytes(32).toString('hex'),
       },
     })) as unknown as Booking
 

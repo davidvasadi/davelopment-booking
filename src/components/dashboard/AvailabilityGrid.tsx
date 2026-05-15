@@ -108,7 +108,7 @@ export default function AvailabilityGrid({ salonId, staffId, initialRecords }: P
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
       {DAYS.map(({ key, label }, i) => {
         const row = rows[key]
         return (
@@ -116,12 +116,12 @@ export default function AvailabilityGrid({ salonId, staffId, initialRecords }: P
             key={key}
             className={cn(
               'flex items-center gap-4 px-6 py-4 transition-colors',
-              i < DAYS.length - 1 ? 'border-b border-zinc-100' : '',
-              !row.is_available && 'opacity-50'
+              i < DAYS.length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.06]' : '',
+              !row.is_available && 'opacity-40'
             )}
           >
             <div className="w-24 shrink-0">
-              <p className="text-sm font-semibold text-zinc-900">{label}</p>
+              <p className="text-sm font-semibold text-zinc-700 dark:text-white/80">{label}</p>
             </div>
 
             <button
@@ -129,7 +129,7 @@ export default function AvailabilityGrid({ salonId, staffId, initialRecords }: P
               onClick={() => toggle(key)}
               className={cn(
                 'w-10 h-6 rounded-full transition-colors relative shrink-0',
-                row.is_available ? 'bg-zinc-950' : 'bg-zinc-200'
+                row.is_available ? 'bg-[#0099ff]' : 'bg-zinc-200 dark:bg-white/[0.1]'
               )}
             >
               <span
@@ -147,21 +147,21 @@ export default function AvailabilityGrid({ salonId, staffId, initialRecords }: P
                     type="time"
                     value={row.start_time}
                     onChange={e => setTime(key, 'start_time', e.target.value)}
-                    className="w-32 h-9 text-sm rounded-lg bg-zinc-50 border-zinc-200"
+                    className="w-32 h-9 text-sm rounded-lg bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white"
                   />
-                  <span className="text-zinc-400 text-sm">–</span>
+                  <span className="text-zinc-400 dark:text-white/30 text-sm">–</span>
                   <Input
                     type="time"
                     value={row.end_time}
                     onChange={e => setTime(key, 'end_time', e.target.value)}
-                    className="w-32 h-9 text-sm rounded-lg bg-zinc-50 border-zinc-200"
+                    className="w-32 h-9 text-sm rounded-lg bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white"
                   />
                 </div>
                 {row.dirty && (
                   <button
                     onClick={() => saveRow(key)}
                     disabled={saving === key}
-                    className="h-8 px-4 rounded-full bg-zinc-950 text-white text-xs font-semibold hover:bg-zinc-800 transition-colors"
+                    className="h-8 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-white/90 transition-colors"
                   >
                     {saving === key ? '...' : 'Mentés'}
                   </button>
@@ -169,12 +169,12 @@ export default function AvailabilityGrid({ salonId, staffId, initialRecords }: P
               </>
             ) : (
               <div className="flex-1 flex items-center justify-between">
-                <p className="text-sm text-zinc-400">Zárva</p>
+                <p className="text-sm text-zinc-400 dark:text-white/30">Zárva</p>
                 {row.dirty && (
                   <button
                     onClick={() => saveRow(key)}
                     disabled={saving === key}
-                    className="h-8 px-4 rounded-full border border-zinc-300 text-zinc-600 text-xs font-semibold hover:border-zinc-500 transition-colors"
+                    className="h-8 px-4 rounded-full border border-zinc-200 dark:border-white/[0.1] text-zinc-400 dark:text-white/50 text-xs font-semibold hover:border-zinc-400 dark:hover:border-white/[0.3] transition-colors"
                   >
                     {saving === key ? '...' : 'Mentés'}
                   </button>
