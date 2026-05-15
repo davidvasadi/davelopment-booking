@@ -3,6 +3,7 @@ import { CollectionConfig } from 'payload'
 export const Users: CollectionConfig = {
   slug: 'users',
   auth: {
+    useSessions: false,
     forgotPassword: {
       generateEmailSubject: () => 'Jelszó visszaállítás — Bookly',
       generateEmailHTML: (args?: { token?: string }) => {

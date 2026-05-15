@@ -288,10 +288,13 @@ export function RegisterWizard() {
                     MILYEN<br />VÁLLALKOZÁST<br />VEZETSZ?
                   </h2>
                   {mainCatCards(true)}
-                  <div className="mt-6">
+                  <div className="mt-6 space-y-3">
                     <button onClick={() => setStep(2)} className="w-full h-14 rounded-full border border-zinc-700 text-zinc-400 font-medium text-base">
                       Kihagyás
                     </button>
+                    <Link href="/bookly/login" className="w-full h-14 rounded-full flex items-center justify-center text-zinc-600 font-medium text-base">
+                      Van már fiókom
+                    </Link>
                   </div>
                 </>
               ) : (
@@ -352,6 +355,10 @@ export function RegisterWizard() {
                   <button onClick={() => setStep(2)} className="mt-4 w-full h-10 text-sm text-zinc-400 hover:text-zinc-600 transition-colors">
                     Kihagyás — manuálisan töltöm fel
                   </button>
+                  <p className="text-center text-sm text-zinc-400 mt-2">
+                    Van már fiókod?{' '}
+                    <Link href="/bookly/login" className="font-semibold text-zinc-700 hover:underline">Bejelentkezés</Link>
+                  </p>
                 </>
               ) : (
                 <>
@@ -498,10 +505,8 @@ export function RegisterWizard() {
                   >
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
                   </button>
-                  <Link href="/bookly/login" className="block">
-                    <button type="button" className="w-full h-14 rounded-full border border-zinc-700 text-zinc-300 font-medium text-base">
-                      Van már fiókom
-                    </button>
+                  <Link href="/bookly/login" className="w-full h-14 rounded-full border border-zinc-700 text-zinc-300 font-medium text-base flex items-center justify-center">
+                    Van már fiókom
                   </Link>
                 </div>
               </form>
