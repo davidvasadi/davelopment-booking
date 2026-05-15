@@ -8,10 +8,26 @@ export interface Config {
     bookings: Booking
     availability: Availability
     media: Media
+    subscriptions: Subscription
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
   globals: {}
+}
+
+export interface Subscription {
+  id: string
+  salon: string | Salon
+  plan: 'free' | 'starter' | 'pro'
+  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
+  trial_ends_at?: string | null
+  current_period_end?: string | null
+  amount_huf?: number | null
+  stripe_customer_id?: string | null
+  stripe_subscription_id?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 export interface User {
@@ -50,6 +66,7 @@ export interface Salon {
   website?: string | null
   booking_buffer_minutes?: number | null
   is_active?: boolean | null
+  admin_notes?: string | null
   createdAt: string
   updatedAt: string
 }

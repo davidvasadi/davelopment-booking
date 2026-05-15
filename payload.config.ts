@@ -14,6 +14,7 @@ import { ServiceCategories } from './src/payload/collections/ServiceCategories'
 import { Bookings } from './src/payload/collections/Bookings'
 import { Availability } from './src/payload/collections/Availability'
 import { Media } from './src/payload/collections/Media'
+import { Subscriptions } from './src/payload/collections/Subscriptions'
 
 export default buildConfig({
   admin: {
@@ -37,6 +38,7 @@ export default buildConfig({
     Bookings,
     Availability,
     Media,
+    Subscriptions,
   ],
   globals: [],
   editor: slateEditor({}),

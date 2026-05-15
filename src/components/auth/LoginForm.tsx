@@ -43,11 +43,11 @@ export function LoginForm() {
       const json = await res.json()
       const role = json?.user?.role
       if (role === 'admin') {
-        router.push('/admin')
-      } else {
-        const safeTo = from.startsWith('/bookly/') ? from : '/bookly/dashboard'
-        router.push(safeTo)
+        await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
+        throw new Error('Admin fiókok a Backstage-en keresztül léphetnek be')
       }
+      const safeTo = from.startsWith('/bookly/') ? from : '/bookly/dashboard'
+      router.push(safeTo)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Bejelentkezés sikertelen')
     } finally {

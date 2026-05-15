@@ -11,6 +11,7 @@ export const Salons: CollectionConfig = {
           req.payload.delete({ collection: 'services', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'service-categories', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'staff', where: { salon: { equals: id } }, overrideAccess: true }),
+          req.payload.delete({ collection: 'subscriptions', where: { salon: { equals: id } }, overrideAccess: true }),
         ])
       },
     ],
@@ -120,6 +121,12 @@ export const Salons: CollectionConfig = {
               type: 'checkbox',
               defaultValue: true,
               label: 'Aktív',
+            },
+            {
+              name: 'admin_notes',
+              type: 'textarea',
+              label: 'Admin megjegyzés (belső)',
+              admin: { description: 'Csak az operátor látja' },
             },
           ],
         },
