@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Clock, ChevronRight, ChevronLeft } from 'lucide-react'
+import { Clock, ArrowUpRight, ChevronLeft } from 'lucide-react'
 import { formatPrice } from '@/lib/utils'
 import type { Service, ServiceCategory, Media } from '@/payload/payload-types'
 
@@ -24,18 +24,18 @@ function serviceImageUrl(s: Service): string | null {
   return null
 }
 
-const CARD_GRADIENTS = [
-  'from-violet-500 to-purple-700',
-  'from-blue-500 to-cyan-700',
-  'from-emerald-500 to-teal-700',
-  'from-orange-500 to-rose-700',
-  'from-pink-500 to-fuchsia-700',
-  'from-amber-500 to-orange-700',
+const FALLBACK_GRADIENTS = [
+  'from-violet-600 to-purple-800',
+  'from-blue-600 to-cyan-700',
+  'from-emerald-600 to-teal-800',
+  'from-orange-600 to-rose-700',
+  'from-pink-600 to-fuchsia-800',
+  'from-amber-600 to-orange-700',
 ]
 function catGradient(name: string) {
   let h = 0
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
-  return CARD_GRADIENTS[h % CARD_GRADIENTS.length]
+  return FALLBACK_GRADIENTS[h % FALLBACK_GRADIENTS.length]
 }
 
 export default function PublicServicesSection({ services, serviceCategories, slug }: Props) {
@@ -49,15 +49,16 @@ export default function PublicServicesSection({ services, serviceCategories, slu
     return a.localeCompare(b, 'hu')
   })
 
-  const [active, setActive] = useState<string | null>(null)
   const hasMultipleCategories = sortedCategories.length > 1
+  const [active, setActive] = useState<string | null>(hasMultipleCategories ? null : (sortedCategories[0] ?? null))
 
-  // Multiple categories and none selected → category card grid
-  if (hasMultipleCategories && active === null) {
+  // ── Category grid ──────────────────────────────────────────────────────────
+  if (active === null) {
     return (
       <section>
         <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Kínálatunk</p>
-        <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Szolgáltatások</h2>
+        <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Válasszon kategóriát</h2>
+
         <div className="grid grid-cols-2 gap-3">
           {sortedCategories.map(cat => {
             const meta = catMetaMap.get(cat.toLowerCase())
@@ -68,30 +69,30 @@ export default function PublicServicesSection({ services, serviceCategories, slu
               <button
                 key={cat}
                 onClick={() => setActive(cat)}
-                className="relative flex flex-col items-start p-4 rounded-2xl border border-zinc-200 bg-white hover:border-zinc-400 hover:shadow-sm text-left transition-all duration-200 overflow-hidden group"
+                className="relative rounded-3xl aspect-[3/4] text-left group focus:outline-none overflow-hidden"
               >
-                {imgUrl ? (
-                  <div className="absolute inset-0 opacity-10 group-hover:opacity-15 transition-opacity">
-                    <img src={imgUrl} alt={cat} className="h-full w-full object-cover" />
-                  </div>
-                ) : (
-                  <div className={`absolute inset-0 bg-gradient-to-br ${catGradient(cat)} opacity-[0.07] group-hover:opacity-[0.12] transition-opacity`} />
-                )}
-                <div className="relative">
-                  {imgUrl && (
-                    <div className="h-10 w-10 rounded-xl overflow-hidden mb-3 ring-1 ring-zinc-200">
-                      <img src={imgUrl} alt={cat} className="h-full w-full object-cover" />
-                    </div>
+                <div className="absolute inset-0">
+                  {imgUrl ? (
+                    <img
+                      src={imgUrl}
+                      alt={cat}
+                      className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className={`h-full w-full bg-gradient-to-br ${catGradient(cat)}`} />
                   )}
-                  <p className="font-bold text-sm text-zinc-900 leading-tight">{cat}</p>
-                  {meta?.duration_label && (
-                    <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-1">
-                      <Clock className="h-3 w-3" />{meta.duration_label}
-                    </p>
-                  )}
-                  <p className="text-xs text-zinc-400 mt-1">{count} szolgáltatás</p>
                 </div>
-                <ChevronRight className="absolute bottom-3 right-3 h-4 w-4 text-zinc-300 group-hover:text-zinc-500 transition-colors" />
+
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+
+                <div className="absolute top-3 right-3 h-8 w-8 rounded-full bg-white/20 border border-white/35 flex items-center justify-center">
+                  <ArrowUpRight className="h-3.5 w-3.5 text-white" />
+                </div>
+
+                <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8">
+                  <p className="font-black text-white text-sm leading-tight">{cat}</p>
+                  <p className="text-white/70 text-xs mt-0.5">{count} szolgáltatás</p>
+                </div>
               </button>
             )
           })}
@@ -100,112 +101,61 @@ export default function PublicServicesSection({ services, serviceCategories, slu
     )
   }
 
-  // Single category or category selected → service list
-  const activeCategory = active ?? sortedCategories[0] ?? null
-  const filteredServices = activeCategory
-    ? services.filter(s => (s.category || 'Egyéb') === activeCategory)
-    : services
-
-  const subMap = filteredServices.reduce((acc, s) => {
-    const sub = s.subcategory || ''
-    if (!acc[sub]) acc[sub] = []
-    acc[sub].push(s)
-    return acc
-  }, {} as Record<string, Service[]>)
-  const subEntries = Object.entries(subMap)
-
-  const meta = activeCategory ? catMetaMap.get(activeCategory.toLowerCase()) : null
-  const imgUrl = meta ? categoryImageUrl(meta) : null
+  // ── Service list ───────────────────────────────────────────────────────────
+  const filteredServices = services.filter(s => (s.category || 'Egyéb') === active)
 
   return (
     <section>
-      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Kínálatunk</p>
-      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Szolgáltatások</h2>
-
-      {hasMultipleCategories && (
-        <button
-          onClick={() => setActive(null)}
-          className="flex items-center gap-1.5 text-zinc-500 text-sm mb-4 hover:text-zinc-800 transition-colors"
-        >
-          <ChevronLeft className="h-4 w-4" /> Összes kategória
-        </button>
-      )}
-
-      {activeCategory && (imgUrl || meta?.duration_label || meta?.description) && (
-        <div className="relative rounded-2xl overflow-hidden mb-4 h-32">
-          {imgUrl && (
-            <img src={imgUrl} alt={activeCategory} className="absolute inset-0 h-full w-full object-cover" />
-          )}
-          <div className="absolute inset-0 bg-gradient-to-r from-black/70 to-black/20" />
-          <div className="relative p-5 h-full flex flex-col justify-center">
-            <p className="text-white font-black text-lg leading-tight">{activeCategory}</p>
-            {meta?.duration_label && (
-              <p className="text-white/60 text-xs mt-1 flex items-center gap-1">
-                <Clock className="h-3 w-3" />{meta.duration_label}
-              </p>
-            )}
-            {meta?.description && (
-              <p className="text-white/60 text-xs mt-0.5 line-clamp-1">{meta.description}</p>
-            )}
-          </div>
+      <div className="flex items-center gap-3 mb-5">
+        {hasMultipleCategories && (
+          <button
+            onClick={() => setActive(null)}
+            className="h-9 w-9 rounded-full bg-white shadow-sm flex items-center justify-center hover:shadow-md transition-shadow shrink-0"
+          >
+            <ChevronLeft className="h-5 w-5 text-zinc-700" />
+          </button>
+        )}
+        <div>
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Kínálatunk</p>
+          <h2 className="text-2xl font-black tracking-tight text-zinc-900 leading-tight">{active}</h2>
         </div>
-      )}
+      </div>
 
-      <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-        {subEntries.map(([subcategory, items], si) => {
-          const isLastGroup = si === subEntries.length - 1
+      <div className="space-y-3">
+        {filteredServices.map(s => {
+          const imgUrl = serviceImageUrl(s)
           return (
-            <div key={subcategory || '__none'}>
-              {subcategory && (
-                <div className="px-5 py-2 bg-zinc-50/50 border-b border-zinc-100">
-                  <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">{subcategory}</span>
+            <div key={s.id} className="bg-white rounded-2xl overflow-hidden flex items-center gap-3 px-4 py-3.5 shadow-sm">
+              {/* Image — left, small square */}
+              {imgUrl && (
+                <div className="h-14 w-14 rounded-xl overflow-hidden shrink-0">
+                  <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
                 </div>
               )}
-              {items.map((s, i) => {
-                const sImgUrl = serviceImageUrl(s)
-                const showBorder = i < items.length - 1 || !isLastGroup
-                return (
-                  <div
-                    key={s.id}
-                    className={`flex items-center gap-4 px-5 py-4 ${showBorder ? 'border-b border-zinc-100' : ''}`}
-                  >
-                    {sImgUrl && (
-                      <div className="h-12 w-12 rounded-xl overflow-hidden shrink-0">
-                        <img src={sImgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-semibold text-sm text-zinc-900">{s.name}</p>
-                      {s.description && (
-                        <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{s.description}</p>
-                      )}
-                      <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />{s.duration_minutes} perc
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <p className="font-black text-sm text-zinc-900">{formatPrice(s.price, s.currency)}</p>
-                      <Link
-                        href={`/bookly/${slug}/book?serviceId=${s.id}`}
-                        className="py-2.5 px-4 rounded-full bg-zinc-950 text-white text-xs font-semibold hover:bg-zinc-800 transition-colors whitespace-nowrap"
-                      >
-                        Foglalás
-                      </Link>
-                    </div>
-                  </div>
-                )
-              })}
+
+              {/* Info — middle */}
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-zinc-900 text-sm leading-tight">{s.name}</p>
+                {s.description && (
+                  <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{s.description}</p>
+                )}
+                <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-1">
+                  <Clock className="h-3 w-3 shrink-0" />{s.duration_minutes} perc
+                </p>
+                <p className="font-black text-sm text-zinc-900 mt-1">{formatPrice(s.price, s.currency)}</p>
+              </div>
+
+              {/* Book button — right edge */}
+              <Link
+                href={`/bookly/${slug}/book?serviceId=${s.id}`}
+                className="shrink-0 h-10 w-10 rounded-full bg-zinc-950 flex items-center justify-center hover:bg-zinc-800 transition-colors"
+              >
+                <ArrowUpRight className="h-4 w-4 text-white" />
+              </Link>
             </div>
           )
         })}
       </div>
-
-      <Link
-        href={`/bookly/${slug}/book?category=${encodeURIComponent(activeCategory ?? '')}`}
-        className="mt-3 flex items-center justify-center gap-2 w-full h-11 rounded-full border border-zinc-200 bg-white text-zinc-700 text-sm font-semibold hover:border-zinc-400 transition-colors"
-      >
-        Összes {activeCategory && `„${activeCategory}"`} időpont <ChevronRight className="h-4 w-4" />
-      </Link>
     </section>
   )
 }

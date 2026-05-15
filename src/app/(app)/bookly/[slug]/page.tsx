@@ -141,25 +141,26 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
                   <Link
                     key={m.id}
                     href={`/bookly/${slug}/book?staffId=${m.id}`}
-                    className="relative bg-white rounded-2xl shadow-sm overflow-hidden aspect-[4/5] hover:shadow-md transition-shadow group"
+                    className="relative rounded-3xl aspect-[3/4] group block overflow-hidden"
                   >
                     <div className="absolute inset-0">
                       {avatarUrl ? (
-                        <img src={avatarUrl} alt={m.name} className="h-full w-full object-cover object-top" />
+                        <img src={avatarUrl} alt={m.name} className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105" />
                       ) : (
-                        <div className={`h-full w-full bg-gradient-to-br ${avatarGradient(m.name)} flex items-end pb-14 justify-center`}>
-                          <span className="text-7xl font-black text-white/20 select-none">
+                        <div className={`h-full w-full bg-gradient-to-br ${avatarGradient(m.name)} flex items-center justify-center`}>
+                          <span className="text-6xl font-black text-white/20 select-none">
                             {m.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
                           </span>
                         </div>
                       )}
                     </div>
-                    <div className="absolute top-3 right-3 h-7 w-7 rounded-full bg-white/90 flex items-center justify-center shadow-sm">
-                      <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                    <div className="absolute top-3 right-3 h-8 w-8 rounded-full bg-white/20 border border-white/35 flex items-center justify-center">
+                      <ChevronRight className="h-3.5 w-3.5 text-white" />
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                      <p className="text-white font-bold text-sm leading-tight">{m.name}</p>
-                      {m.bio && <p className="text-white/60 text-xs mt-0.5 line-clamp-1">{m.bio}</p>}
+                    <div className="absolute bottom-0 left-0 right-0 px-3 pb-3 pt-8">
+                      <p className="text-white font-black text-sm leading-tight">{m.name}</p>
+                      {m.bio && <p className="text-white/70 text-xs mt-0.5">{m.bio}</p>}
                     </div>
                   </Link>
                 )
