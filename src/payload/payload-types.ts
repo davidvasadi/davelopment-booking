@@ -18,7 +18,7 @@ export interface Config {
 export interface Subscription {
   id: string
   salon: string | Salon
-  plan: 'free' | 'starter' | 'pro'
+  plan: 'trial' | 'pro'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
   trial_ends_at?: string | null
   current_period_end?: string | null

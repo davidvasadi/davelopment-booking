@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Building2, MapPin, Phone, Mail, Globe, Clock, ExternalLink, LogIn } from 'lucide-react'
 
-const PLAN_LABELS: Record<string, string> = { free: 'Ingyenes', starter: 'Starter', pro: 'Pro' }
+const PLAN_LABELS: Record<string, string> = { trial: 'Trial (14 nap)', pro: 'Pro (2 900 Ft/hó)' }
 const STATUS_LABELS: Record<string, string> = {
   trialing: 'Próbaidőszak', active: 'Aktív', past_due: 'Lejárt fizetés',
   canceled: 'Megszakítva', paused: 'Szüneteltetett',

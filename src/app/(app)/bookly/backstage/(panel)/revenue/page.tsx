@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import type { Subscription } from '@/payload/payload-types'
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react'
 
-const PLAN_AMOUNTS: Record<string, number> = { free: 0, starter: 9900, pro: 19900 }
+const PLAN_AMOUNTS: Record<string, number> = { trial: 0, pro: 2900 }
 
 function formatHuf(n: number) {
   return n.toLocaleString('hu-HU') + ' Ft'
@@ -35,7 +35,6 @@ export default async function RevenuePage() {
     : '0'
 
   const byPlan = {
-    starter: { count: activeSubs.filter(s => s.plan === 'starter').length, revenue: activeSubs.filter(s => s.plan === 'starter').reduce((s, sub) => s + (sub.amount_huf ?? 0), 0) },
     pro: { count: activeSubs.filter(s => s.plan === 'pro').length, revenue: activeSubs.filter(s => s.plan === 'pro').reduce((s, sub) => s + (sub.amount_huf ?? 0), 0) },
   }
 
@@ -112,7 +111,6 @@ export default async function RevenuePage() {
           <div className="space-y-4">
             {[
               { plan: 'Pro', data: byPlan.pro, color: 'bg-violet-500', textColor: 'text-violet-400' },
-              { plan: 'Starter', data: byPlan.starter, color: 'bg-blue-500', textColor: 'text-blue-400' },
             ].map(({ plan, data, color, textColor }) => (
               <div key={plan} className="flex items-center gap-4">
                 <div className={`h-9 w-9 rounded-xl ${color} flex items-center justify-center shrink-0`}>

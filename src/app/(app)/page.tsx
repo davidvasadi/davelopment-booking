@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { motion, AnimatePresence, useScroll, useTransform, useInView, type MotionValue } from 'framer-motion'
 import { ArrowRight, TrendingUp, Users, Calendar, CheckCircle, Star, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BooklyLogo } from '@/components/BooklyLogo'
 
 function FadeUp({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null)
@@ -729,8 +730,8 @@ function CountUp({ to, suffix = '', prefix = '', duration = 1500 }: {
 }
 
 const faqItems = [
-  { q: 'Mennyibe kerül a Bookly?', a: '7 napig teljesen ingyenes, kártya nélkül. Utána 2 900 Ft/hó. Lemondható bármikor, visszamenőleges számlázás nélkül.' },
-  { q: 'Kell bankkártyaadatokat megadni a próbaidőhöz?', a: 'Nem. A 7 napos próbaidőhöz csak egy email cím és jelszó szükséges. Kártyaadatokat csak akkor kérünk, ha az ingyenes időszak után is folytatnád.' },
+  { q: 'Mennyibe kerül a Bookly?', a: '14 napig teljesen ingyenes, kártya nélkül. Utána 2 900 Ft/hó. Lemondható bármikor, visszamenőleges számlázás nélkül.' },
+  { q: 'Kell bankkártyaadatokat megadni a próbaidőhöz?', a: 'Nem. A 14 napos próbaidőhöz csak egy email cím és jelszó szükséges. Kártyaadatokat csak akkor kérünk, ha az ingyenes időszak után is folytatnád.' },
   { q: 'Mennyi ideig tart beállítani?', a: 'Az első szalon profil — névvel, szolgáltatásokkal és nyitvatartással — kb. 5 perc alatt elkészíthető. Utána máris megosztható a foglalási link.' },
   { q: 'Hány munkatársat és szolgáltatást adhatok hozzá?', a: 'Korlátlan számút. Minden munkatársnak saját elérhetőség naptárt állíthatsz be, és minden szolgáltatáshoz külön árat és időtartamot rendelhetsz.' },
   { q: 'Kapnak visszaigazolást az ügyfeleim?', a: 'Igen. Minden foglalásnál automatikusan küldünk visszaigazoló emailt az ügyfélnek a foglalás részleteivel.' },
@@ -787,11 +788,11 @@ export default function Home() {
       {/* ── NAV ─────────────────────────────────────────────────── */}
       <nav className="relative z-50 bg-[#F2F2F0] border-b border-zinc-200">
         <div className="max-w-6xl mx-auto px-6 lg:px-16 h-16 flex items-center justify-between">
-          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
-            className="relative inline-block w-fit font-black text-xl tracking-tight text-zinc-900 leading-none">
-            Bookly
-            <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="absolute -bottom-3 right-0 translate-x-1/2 text-[9px] text-zinc-400 font-normal leading-none whitespace-nowrap hover:text-zinc-600 transition-colors">by [davelopment]®</a>
-          </motion.span>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
+            <Link href="/" aria-label="Bookly">
+              <BooklyLogo variant="light" className="h-7" />
+            </Link>
+          </motion.div>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.1 }}
             className="flex items-center gap-4">
             <Link href="/bookly/login" className="text-zinc-500 hover:text-zinc-900 text-sm font-medium transition-colors hidden sm:block">
@@ -815,7 +816,7 @@ export default function Home() {
               className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-semibold text-zinc-500 border border-zinc-300 bg-white mb-8"
             >
               <span className="h-1.5 w-1.5 rounded-full bg-[#00bb88]" />
-              7 nap ingyenes · 2 900 Ft/hó
+              14 nap ingyenes · 2 900 Ft/hó
             </motion.div>
 
             <div>
@@ -996,7 +997,7 @@ export default function Home() {
                     <p className="text-white/30 text-[11px] font-semibold uppercase tracking-widest mb-5">Havi díj</p>
                     <p className="text-white font-black text-6xl lg:text-7xl tracking-tighter leading-none mb-1">2 900</p>
                     <p className="text-white/40 text-base mb-2">Ft / hó</p>
-                    <p className="text-[#00bb88] text-sm font-semibold mb-10">7 napig ingyenes · kártya nem szükséges</p>
+                    <p className="text-[#00bb88] text-sm font-semibold mb-10">14 napig ingyenes · kártya nem szükséges</p>
                   </div>
                   <Link href="/bookly/register" className="block">
                     <button className="w-full h-12 rounded-full bg-white hover:bg-zinc-100 text-zinc-900 font-semibold text-sm flex items-center justify-center gap-2 transition-colors">
@@ -1086,10 +1087,9 @@ export default function Home() {
           </FadeUp>
         </div>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/[0.06] py-8 relative">
-          <span className="relative inline-block w-fit font-black text-lg tracking-tight text-white leading-none">
-            Bookly
-            <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="absolute -bottom-3 right-0 translate-x-1/2 text-[9px] text-white/30 font-normal leading-none whitespace-nowrap hover:text-white/60 transition-colors">by [davelopment]®</a>
-          </span>
+          <Link href="/" aria-label="Bookly">
+            <BooklyLogo variant="dark" className="h-7" />
+          </Link>
           <p className="text-white/30 text-xs">© 2026 Bookly · hello@bookly.hu</p>
           <Link href="/bookly/login" className="text-white/30 hover:text-white text-sm transition-colors">Bejelentkezés</Link>
         </div>

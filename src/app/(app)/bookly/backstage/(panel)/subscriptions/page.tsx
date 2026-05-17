@@ -4,10 +4,9 @@ import type { Subscription, Salon, User } from '@/payload/payload-types'
 import { CreditCard, AlertTriangle, Clock, CheckCircle2, XCircle, PauseCircle } from 'lucide-react'
 import SubscriptionStatusSelect from './SubscriptionStatusSelect'
 
-const PLAN_LABELS: Record<string, string> = { free: 'Ingyenes', starter: 'Starter', pro: 'Pro' }
+const PLAN_LABELS: Record<string, string> = { trial: 'Trial', pro: 'Pro' }
 const PLAN_COLORS: Record<string, string> = {
-  free: 'bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500',
-  starter: 'bg-blue-500/10 text-blue-500',
+  trial: 'bg-blue-500/10 text-blue-500',
   pro: 'bg-violet-500/10 text-violet-400',
 }
 const STATUS_LABELS: Record<string, string> = {
@@ -48,8 +47,7 @@ export default async function SubscriptionsPage() {
     paused: subs.filter(s => s.status === 'paused').length,
   }
   const byPlan = {
-    free: subs.filter(s => s.plan === 'free').length,
-    starter: subs.filter(s => s.plan === 'starter').length,
+    trial: subs.filter(s => s.plan === 'trial').length,
     pro: subs.filter(s => s.plan === 'pro').length,
   }
   const mrr = subs.filter(s => s.status === 'active').reduce((sum, s) => sum + (s.amount_huf ?? 0), 0)
@@ -81,16 +79,16 @@ export default async function SubscriptionsPage() {
       </div>
 
       {/* Plan distribution */}
-      <div className="grid grid-cols-3 gap-3 mb-8">
-        {(['free', 'starter', 'pro'] as const).map(plan => (
+      <div className="grid grid-cols-2 gap-3 mb-8">
+        {(['trial', 'pro'] as const).map(plan => (
           <div key={plan} className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-xl px-5 py-4 flex items-center justify-between">
             <div>
               <p className="text-zinc-900 dark:text-white font-bold text-sm">{PLAN_LABELS[plan]}</p>
               <p className="text-zinc-400 text-xs mt-0.5">
-                {plan === 'free' ? '0 Ft' : plan === 'starter' ? '9 900 Ft/hó' : '19 900 Ft/hó'}
+                {plan === 'trial' ? '14 nap ingyenes' : '2 900 Ft/hó'}
               </p>
             </div>
-            <span className={`text-lg font-black ${PLAN_COLORS[plan].includes('text-') ? PLAN_COLORS[plan].split(' ').find(c => c.startsWith('text-')) : 'text-zinc-900 dark:text-white'}`}>
+            <span className={`text-lg font-black ${PLAN_COLORS[plan].split(' ').find(c => c.startsWith('text-'))}`}>
               {byPlan[plan]}
             </span>
           </div>

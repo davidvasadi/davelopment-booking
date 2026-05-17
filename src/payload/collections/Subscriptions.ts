@@ -26,12 +26,11 @@ export const Subscriptions: CollectionConfig = {
       name: 'plan',
       type: 'select',
       required: true,
-      defaultValue: 'free',
+      defaultValue: 'trial',
       label: 'Terv',
       options: [
-        { label: 'Ingyenes', value: 'free' },
-        { label: 'Starter (9 900 Ft/hó)', value: 'starter' },
-        { label: 'Pro (19 900 Ft/hó)', value: 'pro' },
+        { label: 'Próbaidőszak (14 nap)', value: 'trial' },
+        { label: 'Pro (2 900 Ft/hó)', value: 'pro' },
       ],
     },
     {
@@ -67,10 +66,10 @@ export const Subscriptions: CollectionConfig = {
     {
       name: 'amount_huf',
       type: 'number',
-      defaultValue: 0,
+      defaultValue: 2900,
       label: 'Havi díj (Ft)',
       admin: {
-        description: 'Havi előfizetési díj forintban',
+        description: 'Havi előfizetési díj forintban (Pro: 2 900 Ft)',
       },
     },
     {

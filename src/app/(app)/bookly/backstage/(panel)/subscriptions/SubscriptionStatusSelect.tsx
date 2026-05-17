@@ -10,11 +10,10 @@ const STATUS_OPTIONS = [
   { value: 'canceled', label: 'Megszakítva' },
 ]
 const PLAN_OPTIONS = [
-  { value: 'free', label: 'Ingyenes' },
-  { value: 'starter', label: 'Starter' },
-  { value: 'pro', label: 'Pro' },
+  { value: 'trial', label: 'Trial (14 nap)' },
+  { value: 'pro', label: 'Pro (2 900 Ft/hó)' },
 ]
-const PLAN_AMOUNTS: Record<string, number> = { free: 0, starter: 9900, pro: 19900 }
+const PLAN_AMOUNTS: Record<string, number> = { trial: 0, pro: 2900 }
 
 interface Props {
   subId: string

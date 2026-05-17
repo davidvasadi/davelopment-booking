@@ -24,9 +24,9 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, full }: { title: string; children: React.ReactNode; full?: boolean }) {
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
+    <div className={`bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden ${full ? 'lg:col-span-2' : ''}`}>
       <div className="px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06]">
         <h3 className="font-bold text-sm uppercase tracking-widest text-zinc-500 dark:text-white/60">{title}</h3>
       </div>
@@ -156,10 +156,10 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+    <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 
       {/* Cover image */}
-      <Section title="Borítókép">
+      <Section title="Borítókép" full>
         <p className="text-xs text-zinc-400 dark:text-white/30 -mt-1">A nyilvános oldalon a felső sötét sávon jelenik meg háttérként.</p>
         <div className="relative">
           <button
@@ -300,7 +300,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
         </div>
       </Section>
 
-      <Section title="Foglalási beállítások">
+      <Section title="Foglalási beállítások" full>
         <div className="space-y-1.5">
           <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Puffer foglalások között (perc)</Label>
           <Input
@@ -315,16 +315,18 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
         </div>
       </Section>
 
-      <button
-        type="submit"
-        disabled={submitting || uploadingLogo || uploadingCover}
-        className="h-12 px-8 rounded-full bg-white hover:bg-white/90 text-black font-semibold text-sm transition-colors disabled:opacity-40"
-      >
-        {submitting ? 'Mentés...' : 'Mentés'}
-      </button>
+      <div className="lg:col-span-2">
+        <button
+          type="submit"
+          disabled={submitting || uploadingLogo || uploadingCover}
+          className="h-12 px-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-white/90 dark:text-black font-semibold text-sm transition-colors disabled:opacity-40"
+        >
+          {submitting ? 'Mentés...' : 'Mentés'}
+        </button>
+      </div>
 
       {/* Danger zone */}
-      <div className="bg-red-500/[0.04] border border-red-500/20 rounded-2xl overflow-hidden">
+      <div className="lg:col-span-2 bg-red-500/[0.04] border border-red-500/20 rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-red-500/20">
           <h3 className="font-bold text-sm uppercase tracking-widest text-red-400">Veszélyzóna</h3>
         </div>

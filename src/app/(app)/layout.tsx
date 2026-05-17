@@ -9,6 +9,12 @@ const inter = Inter({ subsets: ['latin'] })
 export const metadata: Metadata = {
   title: 'Bookly - Online Időpontfoglaló',
   description: 'Egyszerű, modern időpontfoglaló rendszer kis vállalkozásoknak',
+  icons: {
+    icon: [
+      { url: '/favico_light.svg', media: '(prefers-color-scheme: light)', type: 'image/svg+xml' },
+      { url: '/favico_dark.svg', media: '(prefers-color-scheme: dark)', type: 'image/svg+xml' },
+    ],
+  },
 }
 
 export const viewport: Viewport = {

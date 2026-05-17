@@ -3,40 +3,40 @@ import { NextRequest, NextResponse } from 'next/server'
 export function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
 
-  if (!pathname.startsWith('/admin')) return NextResponse.next()
+  // Pathname header — minden route-on átmegy, layoutok / szerver komponensek olvashatják
+  const requestHeaders = new Headers(req.headers)
+  requestHeaders.set('x-pathname', pathname)
 
-  // Allow Payload's own internal requests (API, static assets)
+  // Skip static / next internal / fájl kéréseknél a role check-et, de a header-t átengedjük
   if (
     pathname.startsWith('/admin/api') ||
     pathname.startsWith('/admin/_next') ||
     pathname.includes('.')
   ) {
-    return NextResponse.next()
+    return NextResponse.next({ request: { headers: requestHeaders } })
   }
 
-  const token = req.cookies.get('payload-token')?.value
+  // Admin route protection — csak admin role mehet be a /admin-ba
+  if (pathname.startsWith('/admin')) {
+    const token = req.cookies.get('payload-token')?.value
+    if (!token) return NextResponse.next({ request: { headers: requestHeaders } })
 
-  if (!token) {
-    // Not logged in — let Payload handle its own login page
-    return NextResponse.next()
-  }
+    try {
+      const payloadB64 = token.split('.')[1]
+      const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/')
+      const decoded = JSON.parse(atob(base64))
 
-  try {
-    // Decode JWT payload (middle segment) — base64url → base64 → JSON
-    const payloadB64 = token.split('.')[1]
-    const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/')
-    const decoded = JSON.parse(atob(base64))
-
-    if (decoded?.role !== 'admin' || decoded?.email !== 'hello@davelopment.hu') {
-      return NextResponse.redirect(new URL('/bookly/dashboard', req.url))
+      if (decoded?.role !== 'admin') {
+        return NextResponse.redirect(new URL('/bookly/login', req.url))
+      }
+    } catch {
+      return NextResponse.next({ request: { headers: requestHeaders } })
     }
-  } catch {
-    return NextResponse.next()
   }
 
-  return NextResponse.next()
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\.).*)'],
 }

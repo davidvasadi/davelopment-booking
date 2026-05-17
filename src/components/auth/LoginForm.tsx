@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
+import { BooklyLogo } from '@/components/BooklyLogo'
 
 const schema = z.object({
   email: z.string().email(),
@@ -62,10 +63,9 @@ export function LoginForm() {
         {!showForm ? (
           /* Splash screen */
           <div className="flex flex-col justify-between flex-1 px-7 pt-12 pb-10">
-            <span className="relative inline-block w-fit leading-none">
-              <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Bookly</Link>
-              <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="absolute -bottom-3 right-0 translate-x-1/2 text-[10px] text-zinc-500 font-normal leading-none whitespace-nowrap hover:text-zinc-300 transition-colors">by [davelopment]®</a>
-            </span>
+            <Link href="/" aria-label="Bookly" className="w-fit hover:opacity-80 transition-opacity">
+              <BooklyLogo variant="dark" className="h-8" />
+            </Link>
             <h1 className="text-white font-black text-[3rem] uppercase leading-[1.0] tracking-tighter">
               KEZELD <br />OKOSAN<br />A SZALONOD.
             </h1>
@@ -155,12 +155,10 @@ export function LoginForm() {
       <div className="hidden lg:flex min-h-screen">
         {/* Left panel */}
         <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-<span className="relative inline-block w-fit leading-none">
-  <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Bookly</Link>
-  <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="absolute -bottom-3 right-0 translate-x-1/2 text-[10px] text-zinc-500 font-normal leading-none whitespace-nowrap hover:text-zinc-300 transition-colors">
-    by [davelopment]®
-  </a>
-</span>    <div>
+<Link href="/" aria-label="Bookly" className="w-fit hover:opacity-80 transition-opacity">
+  <BooklyLogo variant="dark" className="h-8" />
+</Link>
+    <div>
             <h1 className="text-white font-black text-[3.25rem] uppercase leading-[1.05] tracking-tighter">
               KEZELD<br />OKOSAN <br />A SZALONOD.
             </h1>
@@ -172,7 +170,7 @@ export function LoginForm() {
         </div>
 
         {/* Right form panel */}
-        <div className="flex-1 flex items-center justify-center px-6 py-16 bg-white">
+        <div className="flex-1 flex items-center justify-center px-6 py-16 bg-white [color-scheme:light]">
           <div className="w-full max-w-sm">
             <div className="mb-10">
               <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Üdv újra!</h2>
@@ -184,7 +182,7 @@ export function LoginForm() {
                 <Input
                   type="email"
                   placeholder="te@pelda.hu"
-                  className={`h-11 rounded-xl bg-zinc-50 ${errors.email ? 'border-red-500 focus-visible:ring-red-200' : 'border-zinc-200'}`}
+                  className={`h-11 rounded-xl bg-zinc-50 text-zinc-900 placeholder:text-zinc-400 [&:-webkit-autofill]:[-webkit-text-fill-color:#18181b] [&:-webkit-autofill]:[transition:background-color_5000s_ease-in-out_0s] [&:-webkit-autofill]:[box-shadow:inset_0_0_0_1000px_rgb(250_250_250)] ${errors.email ? 'border-red-500 focus-visible:ring-red-200' : 'border-zinc-200'}`}
                   {...register('email')}
                 />
                 {errors.email && <p className="text-xs text-red-500">Érvényes email szükséges</p>}
@@ -200,7 +198,7 @@ export function LoginForm() {
                   <Input
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
-                    className={`h-11 rounded-xl bg-zinc-50 pr-10 ${errors.password ? 'border-red-500 focus-visible:ring-red-200' : 'border-zinc-200'}`}
+                    className={`h-11 rounded-xl bg-zinc-50 pr-10 text-zinc-900 placeholder:text-zinc-400 [&:-webkit-autofill]:[-webkit-text-fill-color:#18181b] [&:-webkit-autofill]:[transition:background-color_5000s_ease-in-out_0s] [&:-webkit-autofill]:[box-shadow:inset_0_0_0_1000px_rgb(250_250_250)] ${errors.password ? 'border-red-500 focus-visible:ring-red-200' : 'border-zinc-200'}`}
                     {...register('password')}
                   />
                   <button

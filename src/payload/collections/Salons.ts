@@ -3,6 +3,31 @@ import type { CollectionConfig } from 'payload'
 export const Salons: CollectionConfig = {
   slug: 'salons',
   hooks: {
+    afterChange: [
+      async ({ req, doc, operation }) => {
+        if (operation !== 'create') return
+        const existing = await req.payload.find({
+          collection: 'subscriptions',
+          where: { salon: { equals: doc.id } },
+          limit: 1,
+          overrideAccess: true,
+        })
+        if (existing.docs.length > 0) return
+        const trialEnd = new Date()
+        trialEnd.setDate(trialEnd.getDate() + 14)
+        await req.payload.create({
+          collection: 'subscriptions',
+          data: {
+            salon: doc.id,
+            plan: 'trial',
+            status: 'trialing',
+            trial_ends_at: trialEnd.toISOString(),
+            amount_huf: 2900,
+          },
+          overrideAccess: true,
+        })
+      },
+    ],
     beforeDelete: [
       async ({ req, id }) => {
         await Promise.all([

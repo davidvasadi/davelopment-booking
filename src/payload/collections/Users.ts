@@ -89,6 +89,7 @@ export const Users: CollectionConfig = {
       ],
       defaultValue: 'salon_owner',
       required: true,
+      saveToJWT: true,
       access: {
         create: ({ req }) => req.user?.role === 'admin',
         update: ({ req }) => req.user?.role === 'admin',

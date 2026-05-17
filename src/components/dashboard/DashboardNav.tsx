@@ -6,8 +6,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { BooklyLogo } from '@/components/BooklyLogo'
 import {
-  LayoutDashboard, CalendarDays, Briefcase, Users, Clock, Settings, LogOut, ExternalLink, Monitor, Sun, Moon, BarChart2,
+  LayoutDashboard, CalendarDays, Briefcase, Users, Clock, Settings, LogOut, ExternalLink, Monitor, Sun, Moon, BarChart2, Lock,
 } from 'lucide-react'
 
 function ThemeToggle() {
@@ -51,7 +52,67 @@ const navItems = [
   { href: '/bookly/dashboard/settings', label: 'Beállítások', icon: Settings },
 ]
 
-export function DashboardNav({ salonName, salonSlug }: { salonName: string; salonSlug: string }) {
+type SubInfo = {
+  plan: 'trial' | 'pro'
+  status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
+  trial_ends_at?: string | null
+  current_period_end?: string | null
+} | null
+
+function daysLeft(dateStr?: string | null): number | null {
+  if (!dateStr) return null
+  const diff = new Date(dateStr).getTime() - Date.now()
+  return Math.max(0, Math.ceil(diff / 86_400_000))
+}
+
+function SubscriptionWidget({ sub }: { sub: SubInfo }) {
+  if (!sub) return null
+
+  const days = sub.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
+  const isUrgent = days !== null && days <= 3
+
+  return (
+    <div className={cn(
+      'mx-3 mb-2 p-3 rounded-xl border text-xs',
+      isUrgent
+        ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700/40'
+        : 'bg-zinc-50 border-zinc-100 dark:bg-white/[0.03] dark:border-white/[0.06]'
+    )}>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <span className="font-semibold text-zinc-900 dark:text-white">
+          {sub.plan === 'trial' ? 'Próbaidőszak' : 'Pro csomag'}
+        </span>
+        {sub.status === 'active' && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">aktív</span>
+        )}
+        {sub.status === 'past_due' && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">lejárt</span>
+        )}
+        {sub.status === 'paused' && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-white/50">szünet</span>
+        )}
+        {sub.status === 'canceled' && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">megszűnt</span>
+        )}
+      </div>
+      {days !== null && (
+        <p className={cn('mb-2', isUrgent ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-zinc-500 dark:text-white/40')}>
+          {days === 0 ? 'Ma lejár' : `${days} nap maradt`}
+        </p>
+      )}
+      {(sub.status === 'trialing' || sub.status === 'past_due' || sub.status === 'canceled') && (
+        <Link
+          href="/bookly/dashboard/subscription"
+          className="flex items-center justify-center gap-1 w-full py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-black font-medium hover:opacity-80 transition-opacity"
+        >
+          Upgrade
+        </Link>
+      )}
+    </div>
+  )
+}
+
+export function DashboardNav({ salonName, salonSlug, subscription }: { salonName: string; salonSlug: string; subscription?: SubInfo }) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -64,15 +125,17 @@ export function DashboardNav({ salonName, salonSlug }: { salonName: string; salo
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href)
 
+  const isLocked = subscription?.status === 'past_due' || subscription?.status === 'canceled' || subscription?.status === 'paused'
+  const isAllowedWhenLocked = (href: string) => href === '/bookly/dashboard/settings'
+
   return (
     <>
       {/* ── DESKTOP SIDEBAR ────────────────────────────────────── */}
       <aside className="hidden lg:flex w-56 h-screen sticky top-0 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0">
         <div className="px-6 pt-7 pb-6">
-          <span className="relative inline-block w-fit leading-none">
-            <Link href="/" className="font-black text-lg tracking-tight text-zinc-900 dark:text-white hover:opacity-70 transition-opacity">Bookly</Link>
-            <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="absolute -bottom-3 right-0 translate-x-1/2 text-[10px] text-zinc-400 dark:text-zinc-600 font-normal leading-none whitespace-nowrap hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors">by [davelopment]®</a>
-          </span>
+          <Link href="/" aria-label="Bookly" className="block w-fit hover:opacity-80 transition-opacity">
+            <BooklyLogo className="h-7" />
+          </Link>
           <div className="mt-3">
             <p className="text-zinc-700 dark:text-white/70 font-semibold text-sm truncate">{salonName}</p>
             <a
@@ -88,24 +151,34 @@ export function DashboardNav({ salonName, salonSlug }: { salonName: string; salo
         <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
 
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {navItems.map(({ href, label, icon: Icon, exact }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
-                isActive(href, exact)
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-black font-semibold'
-                  : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06]'
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {label}
-            </Link>
-          ))}
+          {navItems.map(({ href, label, icon: Icon, exact }) => {
+            const dim = isLocked && !isAllowedWhenLocked(href)
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={cn(
+                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
+                  isActive(href, exact)
+                    ? 'bg-zinc-900 text-white dark:bg-white dark:text-black font-semibold'
+                    : dim
+                      ? 'text-zinc-300 dark:text-white/15 hover:text-zinc-400 dark:hover:text-white/25'
+                      : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06]'
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1">{label}</span>
+                {dim && <Lock className="h-3 w-3 shrink-0" />}
+              </Link>
+            )
+          })}
         </nav>
 
         <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
+
+        <div className="pt-3">
+          <SubscriptionWidget sub={subscription ?? null} />
+        </div>
 
         <div className="px-3 py-4">
           <ThemeToggle />
@@ -121,11 +194,10 @@ export function DashboardNav({ salonName, salonSlug }: { salonName: string; salo
 
       {/* ── MOBILE TOP BAR ─────────────────────────────────────── */}
       <header className="lg:hidden bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0">
-        <div className="flex items-baseline gap-2">
-          <span className="relative inline-block w-fit leading-none">
-            <Link href="/" className="font-black text-base tracking-tight text-zinc-900 dark:text-white hover:opacity-70 transition-opacity">Bookly</Link>
-            <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="absolute -bottom-3 right-0 translate-x-1/2 text-[9px] text-zinc-400 dark:text-zinc-600 font-normal leading-none whitespace-nowrap hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors">by [davelopment]®</a>
-          </span>
+        <div className="flex items-center gap-3 min-w-0">
+          <Link href="/" aria-label="Bookly" className="block w-fit hover:opacity-80 transition-opacity">
+            <BooklyLogo className="h-6" />
+          </Link>
           <span className="text-xs text-zinc-400 dark:text-white/30 font-medium truncate max-w-[120px]">{salonName}</span>
         </div>
         <a

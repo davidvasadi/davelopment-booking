@@ -6,6 +6,7 @@ import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { BooklyLogo } from '@/components/BooklyLogo'
 import {
   LayoutDashboard, Building2, CreditCard, TrendingUp, LogOut,
   Monitor, Sun, Moon, MoreHorizontal, AlertTriangle, Activity,
@@ -83,8 +84,10 @@ export function BackstageSidebar({ email }: Props) {
       {/* ── DESKTOP SIDEBAR ─────────────────────────────────────── */}
       <aside className="hidden lg:flex w-56 shrink-0 flex-col bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/[0.06] px-4 py-8 h-screen sticky top-0">
         <div className="mb-8 px-2">
-          <p className="text-zinc-900 dark:text-white font-black text-lg tracking-tight">Bookly</p>
-          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 font-semibold uppercase tracking-widest mt-0.5">Backstage</p>
+          <Link href="/" aria-label="Bookly" className="block w-fit hover:opacity-80 transition-opacity">
+            <BooklyLogo className="h-7" />
+          </Link>
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 font-semibold uppercase tracking-widest mt-2">Backstage</p>
         </div>
 
         <nav className="flex-1 space-y-0.5">
@@ -120,9 +123,11 @@ export function BackstageSidebar({ email }: Props) {
 
       {/* ── MOBILE TOP BAR ──────────────────────────────────────── */}
       <header className="lg:hidden bg-white dark:bg-zinc-950 border-b border-zinc-100 dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0 fixed top-0 left-0 right-0 z-30">
-        <div>
-          <span className="font-black text-base tracking-tight text-zinc-900 dark:text-white">Bookly</span>
-          <span className="text-xs text-zinc-400 dark:text-zinc-500 font-semibold uppercase tracking-widest ml-2">Backstage</span>
+        <div className="flex items-center gap-3">
+          <Link href="/" aria-label="Bookly" className="block w-fit hover:opacity-80 transition-opacity">
+            <BooklyLogo className="h-6" />
+          </Link>
+          <span className="text-xs text-zinc-400 dark:text-zinc-500 font-semibold uppercase tracking-widest">Backstage</span>
         </div>
       </header>
 
