@@ -78,7 +78,7 @@ export const Salons: CollectionConfig = {
               label: 'URL slug',
               admin: {
                 position: 'sidebar',
-                description: 'davelopment.hu/bookly/[slug]',
+                description: 'davelopment.hu/[slug]',
               },
             },
             {

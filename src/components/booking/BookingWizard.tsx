@@ -149,7 +149,7 @@ export default function BookingWizard({
       salonId, serviceId: state.serviceId, date: state.date,
       ...(state.staffId ? { staffId: state.staffId } : {}),
     })
-    fetch(`/api/bookly/slots?${params}`)
+    fetch(`/api/slots?${params}`)
       .then(r => r.json())
       .then(d => setSlots(d.slots ?? []))
       .catch(() => toast.error('Nem sikerült betölteni az időpontokat'))
@@ -164,7 +164,7 @@ export default function BookingWizard({
 
     setSubmitting(true)
     try {
-      const res = await fetch('/api/bookly/bookings', {
+      const res = await fetch('/api/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,7 +182,7 @@ export default function BookingWizard({
         name: state.name, service: selectedService?.name ?? '',
         date: state.date, time: state.slot.start,
       })
-      router.push(`/bookly/${salonSlug}/book/success?${params}`)
+      router.push(`/${salonSlug}/book/success?${params}`)
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Hiba történt')
     } finally {
@@ -200,7 +200,7 @@ export default function BookingWizard({
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <button
             onClick={() => {
-              if (step === 0) router.push(`/bookly/${salonSlug}`)
+              if (step === 0) router.push(`/${salonSlug}`)
               else if (step === 2 && state.staffId !== null && preselectedStaffId) setStep(0)
               else setStep(step - 1)
             }}

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { motion, AnimatePresence, useScroll, useTransform, useInView, type MotionValue } from 'framer-motion'
 import { ArrowRight, TrendingUp, Users, Calendar, CheckCircle, Star, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { BooklyLogo } from '@/components/BooklyLogo'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
 
 function FadeUp({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null)
@@ -86,12 +86,12 @@ function DashboardFrame() {
         <div className="h-2.5 w-2.5 rounded-full bg-amber-400" />
         <div className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
         <div className="flex-1 flex justify-center">
-          <div className="bg-zinc-100 rounded px-3 py-0.5 text-[10px] text-zinc-400 font-mono">bookly.hu/dashboard</div>
+          <div className="bg-zinc-100 rounded px-3 py-0.5 text-[10px] text-zinc-400 font-mono">schedulio.hu/dashboard</div>
         </div>
       </div>
       <div className="flex min-h-0">
         <div className="w-40 border-r border-zinc-100 px-2 py-3 hidden sm:flex flex-col gap-0.5 shrink-0">
-          <div className="px-2 py-1 text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Bookly</div>
+          <div className="px-2 py-1 text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-1">Schedulio</div>
           {[
             { label: 'Áttekintés', active: true },
             { label: 'Foglalások', active: false },
@@ -238,7 +238,7 @@ function StepGraphic2() {
           className="bg-white border border-zinc-200 rounded-full px-5 py-2.5 shadow-sm flex items-center gap-2 z-10"
         >
           <div className="h-1.5 w-1.5 rounded-full bg-zinc-400 shrink-0" />
-          <span className="text-zinc-700 text-[11px] font-mono">bookly.hu/bellavita</span>
+          <span className="text-zinc-700 text-[11px] font-mono">schedulio.hu/bellavita</span>
           {/* copy icon */}
           <motion.svg
             initial={{ opacity: 0.4 }}
@@ -508,7 +508,7 @@ function BookingGraphic() {
         </div>
         <div className="pt-8 px-5 pb-5">
           <p className="text-white font-bold text-sm mb-0.5">Bellavita Szalon</p>
-          <p className="text-white/30 text-xs mb-4">bookly.hu/bellavita</p>
+          <p className="text-white/30 text-xs mb-4">schedulio.hu/bellavita</p>
           <div className="space-y-2">
             {[{ n: 'Hajvágás', m: '45p · 6 000 Ft' }, { n: 'Balayage', m: '120p · 18 000 Ft' }, { n: 'Manikűr', m: '60p · 8 000 Ft' }].map(s => (
               <div key={s.n} className="flex items-center justify-between bg-zinc-700 rounded-xl px-3 py-2.5">
@@ -730,7 +730,7 @@ function CountUp({ to, suffix = '', prefix = '', duration = 1500 }: {
 }
 
 const faqItems = [
-  { q: 'Mennyibe kerül a Bookly?', a: '14 napig teljesen ingyenes, kártya nélkül. Utána 2 900 Ft/hó. Lemondható bármikor, visszamenőleges számlázás nélkül.' },
+  { q: 'Mennyibe kerül a Schedulio?', a: '14 napig teljesen ingyenes, kártya nélkül. Utána 2 900 Ft/hó. Lemondható bármikor, visszamenőleges számlázás nélkül.' },
   { q: 'Kell bankkártyaadatokat megadni a próbaidőhöz?', a: 'Nem. A 14 napos próbaidőhöz csak egy email cím és jelszó szükséges. Kártyaadatokat csak akkor kérünk, ha az ingyenes időszak után is folytatnád.' },
   { q: 'Mennyi ideig tart beállítani?', a: 'Az első szalon profil — névvel, szolgáltatásokkal és nyitvatartással — kb. 5 perc alatt elkészíthető. Utána máris megosztható a foglalási link.' },
   { q: 'Hány munkatársat és szolgáltatást adhatok hozzá?', a: 'Korlátlan számút. Minden munkatársnak saját elérhetőség naptárt állíthatsz be, és minden szolgáltatáshoz külön árat és időtartamot rendelhetsz.' },
@@ -789,16 +789,16 @@ export default function Home() {
       <nav className="relative z-50 bg-[#F2F2F0] border-b border-zinc-200">
         <div className="max-w-6xl mx-auto px-6 lg:px-16 h-16 flex items-center justify-between">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}>
-            <Link href="/" aria-label="Bookly">
-              <BooklyLogo variant="light" className="h-7" />
+            <Link href="/" aria-label="Schedulio">
+              <SchedulioLogo variant="light" className="h-7" />
             </Link>
           </motion.div>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.1 }}
             className="flex items-center gap-4">
-            <Link href="/bookly/login" className="text-zinc-500 hover:text-zinc-900 text-sm font-medium transition-colors hidden sm:block">
+            <Link href="/login" className="text-zinc-500 hover:text-zinc-900 text-sm font-medium transition-colors hidden sm:block">
               Bejelentkezés
             </Link>
-            <Link href="/bookly/register"
+            <Link href="/register"
               className="h-9 px-5 rounded-full bg-zinc-900 hover:bg-zinc-700 text-white text-sm font-semibold flex items-center gap-1.5 transition-colors">
               Kipróbálom <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -841,12 +841,12 @@ export default function Home() {
             <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.68 }}
               className="flex flex-col sm:flex-row gap-3">
-              <Link href="/bookly/register">
+              <Link href="/register">
                 <button className="h-12 px-7 rounded-full bg-zinc-900 hover:bg-zinc-700 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors w-full sm:w-auto">
                   Próbáld ki ingyen <ArrowRight className="h-4 w-4" />
                 </button>
               </Link>
-              <Link href="/bookly/davelopment">
+              <Link href="/davelopment">
                 <button className="h-12 px-7 rounded-full bg-white border border-zinc-200 hover:border-zinc-400 text-zinc-700 font-medium text-sm flex items-center justify-center gap-2 transition-colors w-full sm:w-auto">
                   Demo megtekintése
                 </button>
@@ -910,7 +910,7 @@ export default function Home() {
                 style={{ background: 'linear-gradient(to bottom, transparent 65%, rgba(0,0,0,0.55) 100%)' }} />
               <div className="absolute bottom-6 left-6 right-6 flex items-end justify-between">
                 <div>
-                  <p className="text-white font-bold text-base">Bookly Dashboard</p>
+                  <p className="text-white font-bold text-base">Schedulio Dashboard</p>
                   <p className="text-white/50 text-sm">Foglalások, bevétel, munkatársak — egy helyen</p>
                 </div>
               </div>
@@ -954,7 +954,7 @@ export default function Home() {
               <p className="text-zinc-500 text-base leading-relaxed mb-8 max-w-sm">
                 Valós idejű foglalások, bevétel áttekintés, munkatárs kezelés — mobilon és desktopon.
               </p>
-              <Link href="/bookly/register">
+              <Link href="/register">
                 <button className="h-11 px-7 rounded-full bg-zinc-900 hover:bg-zinc-700 text-white font-semibold text-sm flex items-center gap-2 transition-colors">
                   Kipróbálom ingyen <ArrowRight className="h-3.5 w-3.5" />
                 </button>
@@ -999,7 +999,7 @@ export default function Home() {
                     <p className="text-white/40 text-base mb-2">Ft / hó</p>
                     <p className="text-[#00bb88] text-sm font-semibold mb-10">14 napig ingyenes · kártya nem szükséges</p>
                   </div>
-                  <Link href="/bookly/register" className="block">
+                  <Link href="/register" className="block">
                     <button className="w-full h-12 rounded-full bg-white hover:bg-zinc-100 text-zinc-900 font-semibold text-sm flex items-center justify-center gap-2 transition-colors">
                       Kipróbálom ingyen <ArrowRight className="h-4 w-4" />
                     </button>
@@ -1079,7 +1079,7 @@ export default function Home() {
           </FadeUp>
           <FadeUp delay={0.15}>
             <p className="text-white/40 text-sm mb-8">Próbáld ki kártya nélkül. Utána csak 2 900 Ft/hó. Lemondható bármikor.</p>
-            <Link href="/bookly/register">
+            <Link href="/register">
               <button className="h-12 px-8 rounded-full bg-white hover:bg-zinc-100 text-zinc-900 font-semibold text-base inline-flex items-center gap-2 transition-colors">
                 Regisztráció <ArrowRight className="h-4 w-4" />
               </button>
@@ -1087,11 +1087,11 @@ export default function Home() {
           </FadeUp>
         </div>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-white/[0.06] py-8 relative">
-          <Link href="/" aria-label="Bookly">
-            <BooklyLogo variant="dark" className="h-7" />
+          <Link href="/" aria-label="Schedulio">
+            <SchedulioLogo variant="dark" className="h-7" />
           </Link>
-          <p className="text-white/30 text-xs">© 2026 Bookly · hello@bookly.hu</p>
-          <Link href="/bookly/login" className="text-white/30 hover:text-white text-sm transition-colors">Bejelentkezés</Link>
+          <p className="text-white/30 text-xs">© 2026 Schedulio · hello@schedulio.hu</p>
+          <Link href="/login" className="text-white/30 hover:text-white text-sm transition-colors">Bejelentkezés</Link>
         </div>
       </div>
 

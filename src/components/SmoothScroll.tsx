@@ -6,7 +6,7 @@ import Lenis from 'lenis'
 
 export function SmoothScroll({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const isAppPage = pathname.startsWith('/bookly/dashboard') || pathname.startsWith('/bookly/backstage')
+  const isAppPage = pathname.startsWith('/dashboard') || pathname.startsWith('/backstage')
 
   useEffect(() => {
     if (isAppPage) return

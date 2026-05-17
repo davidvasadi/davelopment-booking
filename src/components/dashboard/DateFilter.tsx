@@ -18,7 +18,7 @@ export default function DateFilter({ currentDate }: { currentDate: string }) {
   const go = (offset: number) => {
     const d = new Date(currentDate)
     d.setDate(d.getDate() + offset)
-    router.push(`/bookly/dashboard/bookings?date=${d.toISOString().split('T')[0]}`)
+    router.push(`/dashboard/bookings?date=${d.toISOString().split('T')[0]}`)
   }
 
   const isToday = currentDate === new Date().toISOString().split('T')[0]
@@ -42,7 +42,7 @@ export default function DateFilter({ currentDate }: { currentDate: string }) {
           ref={inputRef}
           type="date"
           value={currentDate}
-          onChange={e => e.target.value && router.push(`/bookly/dashboard/bookings?date=${e.target.value}`)}
+          onChange={e => e.target.value && router.push(`/dashboard/bookings?date=${e.target.value}`)}
           className="absolute inset-0 opacity-0 w-full cursor-pointer"
           tabIndex={-1}
         />
@@ -56,7 +56,7 @@ export default function DateFilter({ currentDate }: { currentDate: string }) {
       </button>
       {!isToday && (
         <button
-          onClick={() => router.push(`/bookly/dashboard/bookings?date=${new Date().toISOString().split('T')[0]}`)}
+          onClick={() => router.push(`/dashboard/bookings?date=${new Date().toISOString().split('T')[0]}`)}
           className="h-9 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-white/90 transition-colors"
         >
           Ma

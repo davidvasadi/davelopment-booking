@@ -86,7 +86,7 @@ export function RegisterWizard() {
         const meRes = await fetch('/api/users/me', { credentials: 'include' })
         const meData = await meRes.json()
         if (meData?.user?.salon) {
-          router.push('/bookly/dashboard')
+          router.push('/dashboard')
           return
         }
       } else {
@@ -134,7 +134,7 @@ export function RegisterWizard() {
 
       // Seed templates in background — don't block the wizard
       if (selectedTypes.length > 0) {
-        fetch('/api/bookly/seed-templates', {
+        fetch('/api/seed-templates', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
@@ -168,7 +168,7 @@ export function RegisterWizard() {
     setStep(4)
   }
 
-  const finish = () => router.push('/bookly/dashboard')
+  const finish = () => router.push('/dashboard')
 
   const TOTAL_STEPS = 4
   const progressWidth = (step / TOTAL_STEPS) * 100
@@ -273,7 +273,7 @@ export function RegisterWizard() {
                   <ChevronLeft className="h-4 w-4" /> Vissza
                 </button>
               ) : (
-                <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Bookly</Link>
+                <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Schedulio</Link>
               )}
               <div className="flex gap-1.5">
                 {([1, 2, 3, 4] as const).map(s => (
@@ -292,7 +292,7 @@ export function RegisterWizard() {
                     <button onClick={() => setStep(2)} className="w-full h-14 rounded-full border border-zinc-700 text-zinc-400 font-medium text-base">
                       Kihagyás
                     </button>
-                    <Link href="/bookly/login" className="w-full h-14 rounded-full flex items-center justify-center text-zinc-600 font-medium text-base">
+                    <Link href="/login" className="w-full h-14 rounded-full flex items-center justify-center text-zinc-600 font-medium text-base">
                       Van már fiókom
                     </Link>
                   </div>
@@ -328,14 +328,14 @@ export function RegisterWizard() {
         {/* ── DESKTOP ── */}
         <div className="hidden lg:flex min-h-screen">
           <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-            <span className="text-white font-black text-xl tracking-tight">Bookly</span>
+            <span className="text-white font-black text-xl tracking-tight">Schedulio</span>
             <div>
               <h1 className="text-white font-black text-[2.25rem] uppercase leading-[1.05] tracking-tighter whitespace-pre-line">
                 {desktopLeftHeadline.h}
               </h1>
               <p className="text-zinc-500 mt-5 text-sm leading-relaxed max-w-xs">{desktopLeftHeadline.sub}</p>
             </div>
-            <p className="text-zinc-700 text-xs">© 2026 Bookly</p>
+            <p className="text-zinc-700 text-xs">© 2026 Schedulio</p>
           </div>
 
           <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white overflow-y-auto">
@@ -357,7 +357,7 @@ export function RegisterWizard() {
                   </button>
                   <p className="text-center text-sm text-zinc-400 mt-2">
                     Van már fiókod?{' '}
-                    <Link href="/bookly/login" className="font-semibold text-zinc-700 hover:underline">Bejelentkezés</Link>
+                    <Link href="/login" className="font-semibold text-zinc-700 hover:underline">Bejelentkezés</Link>
                   </p>
                 </>
               ) : (
@@ -417,7 +417,7 @@ export function RegisterWizard() {
                 <ChevronLeft className="h-4 w-4" /> Vissza
               </button>
             ) : (
-              <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Bookly</Link>
+              <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Schedulio</Link>
             )}
             <div className="flex gap-1.5">
               {([1, 2, 3, 4] as const).map(s => (
@@ -505,7 +505,7 @@ export function RegisterWizard() {
                   >
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
                   </button>
-                  <Link href="/bookly/login" className="w-full h-14 rounded-full border border-zinc-700 text-zinc-300 font-medium text-base flex items-center justify-center">
+                  <Link href="/login" className="w-full h-14 rounded-full border border-zinc-700 text-zinc-300 font-medium text-base flex items-center justify-center">
                     Van már fiókom
                   </Link>
                 </div>
@@ -589,14 +589,14 @@ export function RegisterWizard() {
       <div className="hidden lg:flex min-h-screen">
         {/* Left panel */}
         <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-          <span className="text-white font-black text-xl tracking-tight">Bookly</span>
+          <span className="text-white font-black text-xl tracking-tight">Schedulio</span>
           <div>
             <h1 className="text-white font-black text-[3.25rem] uppercase leading-[1.05] tracking-tighter whitespace-pre-line">
               {leftText.headline}
             </h1>
             <p className="text-zinc-500 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
           </div>
-          <p className="text-zinc-700 text-xs">© 2026 Bookly</p>
+          <p className="text-zinc-700 text-xs">© 2026 Schedulio</p>
         </div>
 
         {/* Right panel */}
@@ -660,7 +660,7 @@ export function RegisterWizard() {
                 </form>
                 <p className="mt-6 text-center text-sm text-zinc-500">
                   Van már fiókod?{' '}
-                  <Link href="/bookly/login" className="font-semibold text-zinc-900 hover:underline">Bejelentkezés</Link>
+                  <Link href="/login" className="font-semibold text-zinc-900 hover:underline">Bejelentkezés</Link>
                 </p>
               </>
             )}

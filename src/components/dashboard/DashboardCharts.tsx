@@ -35,7 +35,7 @@ function periodLabel(days: number) {
 function AnalyticsLink() {
   return (
     <Link
-      href="/bookly/dashboard/analytics"
+      href="/dashboard/analytics"
       className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors shrink-0"
     >
       <span className="hidden sm:inline">Részletek</span>

@@ -20,7 +20,7 @@ export default buildConfig({
   admin: {
     user: Users.slug,
     meta: {
-      titleSuffix: ' - Bookly Admin',
+      titleSuffix: ' - Schedulio Admin',
       icons: {
         icon: '/favicon.ico',
       },
@@ -52,7 +52,7 @@ export default buildConfig({
   sharp,
   email: resendAdapter({
     defaultFromAddress: process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu',
-    defaultFromName: process.env.RESEND_FROM_NAME ?? 'Bookly',
+    defaultFromName: process.env.RESEND_FROM_NAME ?? 'Schedulio',
     apiKey: process.env.RESEND_API_KEY ?? '',
   }),
   typescript: {

@@ -9,7 +9,7 @@ function getResend(): Resend | null {
 }
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
-const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'Bookly'
+const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'Schedulio'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 export interface BookingEmailData {
@@ -22,7 +22,7 @@ export interface BookingEmailData {
 // ── ICS generator ────────────────────────────────────────────────────────────
 
 function generateICS({ booking, salon, service, staff }: BookingEmailData): string {
-  const uid = `booking-${booking.id}@bookly`
+  const uid = `booking-${booking.id}@schedulio`
   const now = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z'
   const [y, m, d] = booking.date.split('-')
   const [sh, sm] = booking.start_time.split(':')
@@ -35,7 +35,7 @@ function generateICS({ booking, salon, service, staff }: BookingEmailData): stri
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Bookly//HU',
+    'PRODID:-//Schedulio//HU',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
@@ -59,7 +59,7 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
   const resend = getResend()
   if (!resend) return
   const cancelUrl = (booking as any).cancellation_token
-    ? `${APP_URL}/bookly/booking/confirm-cancel/${(booking as any).cancellation_token}`
+    ? `${APP_URL}/booking/confirm-cancel/${(booking as any).cancellation_token}`
     : null
   try {
     await resend.emails.send({
@@ -128,7 +128,7 @@ function emailWrapper(content: string): string {
             <table width="100%" cellpadding="0" cellspacing="0">
               <tr>
                 <td>
-                  <span style="color:#ffffff;font-size:18px;font-weight:900;letter-spacing:-0.5px">Bookly</span>
+                  <span style="color:#ffffff;font-size:18px;font-weight:900;letter-spacing:-0.5px">Schedulio</span>
                   <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#0099ff;margin-left:4px;vertical-align:middle"></span>
                 </td>
                 <td align="right"><a href="https://davelopment.hu" style="color:#52525b;font-size:11px;text-decoration:none">by [davelopment]®</a></td>
@@ -141,7 +141,7 @@ function emailWrapper(content: string): string {
         <!-- Footer -->
         <tr>
           <td style="background:#09090b;padding:20px 32px;text-align:center">
-            <p style="margin:0;color:#3f3f46;font-size:11px">© 2026 Bookly · Minden jog fenntartva</p>
+            <p style="margin:0;color:#3f3f46;font-size:11px">© 2026 Schedulio · Minden jog fenntartva</p>
           </td>
         </tr>
       </table>

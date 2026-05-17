@@ -125,9 +125,9 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
     if (!confirm(`Biztosan törlöd a(z) „${salon.name}" szalonhoz tartozó fiókot? Ez a művelet visszafordíthatatlan — minden adat törlődik.`)) return
     setDeleting(true)
     try {
-      const res = await fetch('/api/bookly/delete-account', { method: 'DELETE', credentials: 'include' })
+      const res = await fetch('/api/delete-account', { method: 'DELETE', credentials: 'include' })
       if (!res.ok) throw new Error()
-      router.push('/bookly/login')
+      router.push('/login')
     } catch {
       toast.error('Hiba történt a törlés során')
       setDeleting(false)
@@ -260,7 +260,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">URL azonosító</Label>
               <div className="flex items-center gap-1">
-                <span className="text-sm text-zinc-400 dark:text-white/30">/bookly/</span>
+                <span className="text-sm text-zinc-400 dark:text-white/30">/</span>
                 <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20 flex-1" {...register('slug')} />
               </div>
               {errors.slug && <p className="text-xs text-destructive">{errors.slug.message}</p>}

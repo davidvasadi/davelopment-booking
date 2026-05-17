@@ -5,11 +5,11 @@ export const Users: CollectionConfig = {
   auth: {
     useSessions: false,
     forgotPassword: {
-      generateEmailSubject: () => 'Jelszó visszaállítás — Bookly',
+      generateEmailSubject: () => 'Jelszó visszaállítás — Schedulio',
       generateEmailHTML: (args?: { token?: string }) => {
         const token = args?.token ?? ''
         const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-        const resetUrl = `${appUrl}/bookly/reset-password?token=${token}`
+        const resetUrl = `${appUrl}/reset-password?token=${token}`
         return `<!DOCTYPE html>
 <html lang="hu">
 <head><meta charset="UTF-8"></head>
@@ -20,7 +20,7 @@ export const Users: CollectionConfig = {
         <tr>
           <td style="background:#09090b;padding:24px 32px">
             <table width="100%" cellpadding="0" cellspacing="0"><tr>
-              <td><span style="color:#fff;font-size:18px;font-weight:900;letter-spacing:-0.5px">Bookly</span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#0099ff;margin-left:4px;vertical-align:middle"></span></td>
+              <td><span style="color:#fff;font-size:18px;font-weight:900;letter-spacing:-0.5px">Schedulio</span><span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#0099ff;margin-left:4px;vertical-align:middle"></span></td>
               <td align="right"><a href="https://davelopment.hu" style="color:#52525b;font-size:11px;text-decoration:none">by [davelopment]®</a></td>
             </tr></table>
           </td>
@@ -46,7 +46,7 @@ export const Users: CollectionConfig = {
         </tr>
         <tr>
           <td style="background:#09090b;padding:20px 32px;text-align:center">
-            <p style="margin:0;color:#3f3f46;font-size:11px">© 2026 Bookly · Minden jog fenntartva</p>
+            <p style="margin:0;color:#3f3f46;font-size:11px">© 2026 Schedulio · Minden jog fenntartva</p>
           </td>
         </tr>
       </table>

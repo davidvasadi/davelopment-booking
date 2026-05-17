@@ -39,7 +39,7 @@ export function BackstageLoginForm() {
         await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
         throw new Error('Csak admin fiókok férhetnek hozzá')
       }
-      router.push('/bookly/backstage')
+      router.push('/backstage')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Bejelentkezés sikertelen')
     } finally {
@@ -51,7 +51,7 @@ export function BackstageLoginForm() {
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="mb-10">
-          <p className="text-white font-black text-xl tracking-tight">Bookly</p>
+          <p className="text-white font-black text-xl tracking-tight">Schedulio</p>
           <p className="text-[11px] text-zinc-500 font-semibold uppercase tracking-widest mt-0.5">Backstage</p>
         </div>
 

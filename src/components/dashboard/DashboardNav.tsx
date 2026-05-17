@@ -6,7 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { BooklyLogo } from '@/components/BooklyLogo'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
 import {
   LayoutDashboard, CalendarDays, Briefcase, Users, Clock, Settings, LogOut, ExternalLink, Monitor, Sun, Moon, BarChart2, Lock,
 } from 'lucide-react'
@@ -43,13 +43,13 @@ function ThemeToggle() {
 }
 
 const navItems = [
-  { href: '/bookly/dashboard', label: 'Áttekintés', icon: LayoutDashboard, exact: true },
-  { href: '/bookly/dashboard/analytics', label: 'Statisztikák', icon: BarChart2 },
-  { href: '/bookly/dashboard/bookings', label: 'Foglalások', icon: CalendarDays },
-  { href: '/bookly/dashboard/services', label: 'Szolgáltatások', icon: Briefcase },
-  { href: '/bookly/dashboard/staff', label: 'Munkatársak', icon: Users },
-  { href: '/bookly/dashboard/availability', label: 'Nyitvatartás', icon: Clock },
-  { href: '/bookly/dashboard/settings', label: 'Beállítások', icon: Settings },
+  { href: '/dashboard', label: 'Áttekintés', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/analytics', label: 'Statisztikák', icon: BarChart2 },
+  { href: '/dashboard/bookings', label: 'Foglalások', icon: CalendarDays },
+  { href: '/dashboard/services', label: 'Szolgáltatások', icon: Briefcase },
+  { href: '/dashboard/staff', label: 'Munkatársak', icon: Users },
+  { href: '/dashboard/availability', label: 'Nyitvatartás', icon: Clock },
+  { href: '/dashboard/settings', label: 'Beállítások', icon: Settings },
 ]
 
 type SubInfo = {
@@ -102,7 +102,7 @@ function SubscriptionWidget({ sub }: { sub: SubInfo }) {
       )}
       {(sub.status === 'trialing' || sub.status === 'past_due' || sub.status === 'canceled') && (
         <Link
-          href="/bookly/dashboard/subscription"
+          href="/dashboard/subscription"
           className="flex items-center justify-center gap-1 w-full py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-black font-medium hover:opacity-80 transition-opacity"
         >
           Upgrade
@@ -118,7 +118,7 @@ export function DashboardNav({ salonName, salonSlug, subscription }: { salonName
 
   const handleLogout = async () => {
     await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
-    router.push('/bookly/login')
+    router.push('/login')
     toast.success('Kijelentkezve')
   }
 
@@ -126,20 +126,20 @@ export function DashboardNav({ salonName, salonSlug, subscription }: { salonName
     exact ? pathname === href : pathname.startsWith(href)
 
   const isLocked = subscription?.status === 'past_due' || subscription?.status === 'canceled' || subscription?.status === 'paused'
-  const isAllowedWhenLocked = (href: string) => href === '/bookly/dashboard/settings'
+  const isAllowedWhenLocked = (href: string) => href === '/dashboard/settings'
 
   return (
     <>
       {/* ── DESKTOP SIDEBAR ────────────────────────────────────── */}
       <aside className="hidden lg:flex w-56 h-screen sticky top-0 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0">
         <div className="px-6 pt-7 pb-6">
-          <Link href="/" aria-label="Bookly" className="block w-fit hover:opacity-80 transition-opacity">
-            <BooklyLogo className="h-7" />
+          <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
+            <SchedulioLogo className="h-7" />
           </Link>
           <div className="mt-3">
             <p className="text-zinc-700 dark:text-white/70 font-semibold text-sm truncate">{salonName}</p>
             <a
-              href={`/bookly/${salonSlug}`}
+              href={`/${salonSlug}`}
               target="_blank"
               className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 mt-0.5 transition-colors"
             >
@@ -195,13 +195,13 @@ export function DashboardNav({ salonName, salonSlug, subscription }: { salonName
       {/* ── MOBILE TOP BAR ─────────────────────────────────────── */}
       <header className="lg:hidden bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/" aria-label="Bookly" className="block w-fit hover:opacity-80 transition-opacity">
-            <BooklyLogo className="h-6" />
+          <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
+            <SchedulioLogo className="h-6" />
           </Link>
           <span className="text-xs text-zinc-400 dark:text-white/30 font-medium truncate max-w-[120px]">{salonName}</span>
         </div>
         <a
-          href={`/bookly/${salonSlug}`}
+          href={`/${salonSlug}`}
           target="_blank"
           className="text-zinc-400 hover:text-zinc-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
         >

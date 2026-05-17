@@ -4,8 +4,8 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Lock, Settings, ArrowRight } from 'lucide-react'
 
-const SETTINGS_PATH = '/bookly/dashboard/settings'
-const SUBSCRIPTION_PATH = '/bookly/dashboard/subscription'
+const SETTINGS_PATH = '/dashboard/settings'
+const SUBSCRIPTION_PATH = '/dashboard/subscription'
 
 export function DashboardLockModal({ status }: { status: 'past_due' | 'canceled' | 'paused' }) {
   const pathname = usePathname()

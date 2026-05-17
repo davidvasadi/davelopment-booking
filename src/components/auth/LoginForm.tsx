@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
-import { BooklyLogo } from '@/components/BooklyLogo'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
 
 const schema = z.object({
   email: z.string().email(),
@@ -22,7 +22,7 @@ type FormData = z.infer<typeof schema>
 export function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const from = searchParams.get('from') ?? '/bookly/dashboard'
+  const from = searchParams.get('from') ?? '/dashboard'
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
@@ -47,7 +47,7 @@ export function LoginForm() {
         await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
         throw new Error('Admin fiókok a Backstage-en keresztül léphetnek be')
       }
-      const safeTo = from.startsWith('/bookly/') ? from : '/bookly/dashboard'
+      const safeTo = from.startsWith('/') && !from.startsWith('//') ? from : '/dashboard'
       router.push(safeTo)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Bejelentkezés sikertelen')
@@ -63,8 +63,8 @@ export function LoginForm() {
         {!showForm ? (
           /* Splash screen */
           <div className="flex flex-col justify-between flex-1 px-7 pt-12 pb-10">
-            <Link href="/" aria-label="Bookly" className="w-fit hover:opacity-80 transition-opacity">
-              <BooklyLogo variant="dark" className="h-8" />
+            <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+              <SchedulioLogo variant="dark" className="h-8" />
             </Link>
             <h1 className="text-white font-black text-[3rem] uppercase leading-[1.0] tracking-tighter">
               KEZELD <br />OKOSAN<br />A SZALONOD.
@@ -76,7 +76,7 @@ export function LoginForm() {
               >
                 Bejelentkezés
               </button>
-              <Link href="/bookly/register" className="block">
+              <Link href="/register" className="block">
                 <button className="w-full h-14 rounded-full border border-zinc-700 text-zinc-300 font-medium text-base">
                   Regisztráció
                 </button>
@@ -114,7 +114,7 @@ export function LoginForm() {
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <Label className="text-zinc-400 text-sm">Jelszó</Label>
-                    <Link href="/bookly/forgot-password" className="text-xs text-zinc-500 no-underline">
+                    <Link href="/forgot-password" className="text-xs text-zinc-500 no-underline">
                       Elfelejtetted?
                     </Link>
                   </div>
@@ -155,8 +155,8 @@ export function LoginForm() {
       <div className="hidden lg:flex min-h-screen">
         {/* Left panel */}
         <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-<Link href="/" aria-label="Bookly" className="w-fit hover:opacity-80 transition-opacity">
-  <BooklyLogo variant="dark" className="h-8" />
+<Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+  <SchedulioLogo variant="dark" className="h-8" />
 </Link>
     <div>
             <h1 className="text-white font-black text-[3.25rem] uppercase leading-[1.05] tracking-tighter">
@@ -166,7 +166,7 @@ export function LoginForm() {
               Modern időpontfoglaló kis vállalkozásoknak. Egyszerű beállítás, azonnali eredmény.
             </p>
           </div>
-          <p className="text-zinc-700 text-xs">© 2026 Bookly</p>
+          <p className="text-zinc-700 text-xs">© 2026 Schedulio</p>
         </div>
 
         {/* Right form panel */}
@@ -190,7 +190,7 @@ export function LoginForm() {
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
                   <Label className="text-sm font-medium text-zinc-700">Jelszó</Label>
-                  <Link href="/bookly/forgot-password" className="text-xs text-zinc-400 hover:text-zinc-900 no-underline">
+                  <Link href="/forgot-password" className="text-xs text-zinc-400 hover:text-zinc-900 no-underline">
                     Elfelejtetted?
                   </Link>
                 </div>
@@ -224,7 +224,7 @@ export function LoginForm() {
             </form>
             <p className="mt-8 text-center text-sm text-zinc-500">
               Nincs még fiókod?{' '}
-              <Link href="/bookly/register" className="font-semibold text-zinc-900 hover:underline no-underline">
+              <Link href="/register" className="font-semibold text-zinc-900 hover:underline no-underline">
                 Regisztráció
               </Link>
             </p>

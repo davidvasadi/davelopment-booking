@@ -12,8 +12,8 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'davelopment.hu',
-        pathname: '/bookly/uploads/**',
+        hostname: 'schedulio.hu',
+        pathname: '/uploads/**',
       },
       {
         protocol: 'https',

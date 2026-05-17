@@ -19,13 +19,13 @@ type SubInfo = {
 } | null
 
 const navItems = [
-  { href: '/bookly/dashboard', label: 'Áttekintés', icon: LayoutDashboard, exact: true },
-  { href: '/bookly/dashboard/analytics', label: 'Statisztikák', icon: BarChart2 },
-  { href: '/bookly/dashboard/bookings', label: 'Foglalások', icon: CalendarDays },
-  { href: '/bookly/dashboard/services', label: 'Szolgáltatások', icon: Briefcase },
-  { href: '/bookly/dashboard/staff', label: 'Munkatársak', icon: Users },
-  { href: '/bookly/dashboard/availability', label: 'Nyitvatartás', icon: Clock },
-  { href: '/bookly/dashboard/settings', label: 'Beállítások', icon: Settings },
+  { href: '/dashboard', label: 'Áttekintés', icon: LayoutDashboard, exact: true },
+  { href: '/dashboard/analytics', label: 'Statisztikák', icon: BarChart2 },
+  { href: '/dashboard/bookings', label: 'Foglalások', icon: CalendarDays },
+  { href: '/dashboard/services', label: 'Szolgáltatások', icon: Briefcase },
+  { href: '/dashboard/staff', label: 'Munkatársak', icon: Users },
+  { href: '/dashboard/availability', label: 'Nyitvatartás', icon: Clock },
+  { href: '/dashboard/settings', label: 'Beállítások', icon: Settings },
 ]
 
 const primaryNav = navItems.slice(0, 4)
@@ -39,7 +39,7 @@ export default function MobileBottomNav({ subscription }: { subscription?: SubIn
 
   const handleLogout = async () => {
     await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
-    router.push('/bookly/login')
+    router.push('/login')
     toast.success('Kijelentkezve')
   }
 
@@ -49,7 +49,7 @@ export default function MobileBottomNav({ subscription }: { subscription?: SubIn
   const hasSecondaryActive = secondaryNav.some(({ href, exact }) => isActive(href, exact))
 
   const isLocked = subscription?.status === 'past_due' || subscription?.status === 'canceled' || subscription?.status === 'paused'
-  const isAllowedWhenLocked = (href: string) => href === '/bookly/dashboard/settings'
+  const isAllowedWhenLocked = (href: string) => href === '/dashboard/settings'
 
   return (
     <>

@@ -27,7 +27,7 @@ export function proxy(req: NextRequest) {
       const decoded = JSON.parse(atob(base64))
 
       if (decoded?.role !== 'admin') {
-        return NextResponse.redirect(new URL('/bookly/login', req.url))
+        return NextResponse.redirect(new URL('/login', req.url))
       }
     } catch {
       return NextResponse.next({ request: { headers: requestHeaders } })

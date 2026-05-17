@@ -42,7 +42,7 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
     if (!open || !salonId) return
     setData(null)
     setLoading(true)
-    fetch(`/api/bookly/backstage/salons/${salonId}/detail`)
+    fetch(`/api/backstage/salons/${salonId}/detail`)
       .then(r => r.json())
       .then(d => {
         setData(d)
@@ -55,7 +55,7 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
     if (!salonId) return
     setSaving(true)
     try {
-      await fetch(`/api/bookly/backstage/salons/${salonId}/toggle`, {
+      await fetch(`/api/backstage/salons/${salonId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ admin_notes: notes }),
@@ -101,14 +101,14 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
             {/* Actions */}
             <div className="flex items-center gap-2 flex-wrap">
               <a
-                href={`/bookly/${salon?.slug}`}
+                href={`/${salon?.slug}`}
                 target="_blank"
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 dark:border-white/[0.08] text-zinc-500 dark:text-zinc-400 text-xs hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors"
               >
                 <ExternalLink className="h-3.5 w-3.5" /> Nyilvános oldal
               </a>
               {owner && (
-                <form method="POST" action="/api/bookly/backstage/session-as" target="_blank">
+                <form method="POST" action="/api/backstage/session-as" target="_blank">
                   <input type="hidden" name="userId" value={String(owner.id)} />
                   <button
                     type="submit"
@@ -283,7 +283,7 @@ function ActiveToggle({ salonId, isActive }: { salonId: string; isActive: boolea
     setActive(next)
     setPending(true)
     try {
-      await fetch(`/api/bookly/backstage/salons/${salonId}/toggle`, {
+      await fetch(`/api/backstage/salons/${salonId}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: next }),

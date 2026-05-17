@@ -147,7 +147,7 @@ export default function PublicServicesSection({ services, serviceCategories, slu
 
               {/* Book button — right edge */}
               <Link
-                href={`/bookly/${slug}/book?serviceId=${s.id}`}
+                href={`/${slug}/book?serviceId=${s.id}`}
                 className="shrink-0 h-10 w-10 rounded-full bg-zinc-950 flex items-center justify-center hover:bg-zinc-800 transition-colors"
               >
                 <ArrowUpRight className="h-4 w-4 text-white" />

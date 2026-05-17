@@ -1,4 +1,4 @@
-# 📅 Bookly — Online Időpontfoglaló SaaS
+# 📅 Schedulio — Online Időpontfoglaló SaaS
 
 > Kis vállalkozóknak szánt, önálló időpontfoglaló rendszer.  
 > Nem kell hozzá weboldal — egy link és kész.
@@ -53,7 +53,7 @@ bookly/
 ├── src/
 │   ├── app/                  # Next.js App Router
 │   │   ├── api/             # API routes
-│   │   ├── bookly/          # Köttő frontend (publikus + admin)
+│   │   ├── (app)/           # Frontend (publikus + admin) — minden path itt
 │   │   ├── layout.tsx       # Root layout
 │   │   ├── page.tsx         # Home page
 │   │   └── globals.css      # Globális stílok

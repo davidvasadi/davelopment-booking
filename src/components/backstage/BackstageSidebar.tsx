@@ -6,19 +6,19 @@ import { useTheme } from 'next-themes'
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { BooklyLogo } from '@/components/BooklyLogo'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
 import {
   LayoutDashboard, Building2, CreditCard, TrendingUp, LogOut,
   Monitor, Sun, Moon, MoreHorizontal, AlertTriangle, Activity,
 } from 'lucide-react'
 
 const navItems = [
-  { href: '/bookly/backstage', label: 'Áttekintő', icon: LayoutDashboard, exact: true },
-  { href: '/bookly/backstage/salons', label: 'Szalonok', icon: Building2 },
-  { href: '/bookly/backstage/subscriptions', label: 'Előfizetések', icon: CreditCard },
-  { href: '/bookly/backstage/revenue', label: 'Bevétel', icon: TrendingUp },
-  { href: '/bookly/backstage/churn', label: 'Kockázat', icon: AlertTriangle },
-  { href: '/bookly/backstage/activity', label: 'Aktivitás', icon: Activity },
+  { href: '/backstage', label: 'Áttekintő', icon: LayoutDashboard, exact: true },
+  { href: '/backstage/salons', label: 'Szalonok', icon: Building2 },
+  { href: '/backstage/subscriptions', label: 'Előfizetések', icon: CreditCard },
+  { href: '/backstage/revenue', label: 'Bevétel', icon: TrendingUp },
+  { href: '/backstage/churn', label: 'Kockázat', icon: AlertTriangle },
+  { href: '/backstage/activity', label: 'Aktivitás', icon: Activity },
 ]
 
 const primaryNav = navItems.slice(0, 4)
@@ -75,7 +75,7 @@ export function BackstageSidebar({ email }: Props) {
 
   const handleLogout = async () => {
     await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
-    router.push('/bookly/backstage/login')
+    router.push('/backstage/login')
     toast.success('Kijelentkezve')
   }
 
@@ -84,8 +84,8 @@ export function BackstageSidebar({ email }: Props) {
       {/* ── DESKTOP SIDEBAR ─────────────────────────────────────── */}
       <aside className="hidden lg:flex w-56 shrink-0 flex-col bg-white dark:bg-zinc-950 border-r border-zinc-200 dark:border-white/[0.06] px-4 py-8 h-screen sticky top-0">
         <div className="mb-8 px-2">
-          <Link href="/" aria-label="Bookly" className="block w-fit hover:opacity-80 transition-opacity">
-            <BooklyLogo className="h-7" />
+          <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
+            <SchedulioLogo className="h-7" />
           </Link>
           <p className="text-[11px] text-zinc-400 dark:text-zinc-500 font-semibold uppercase tracking-widest mt-2">Backstage</p>
         </div>
@@ -124,8 +124,8 @@ export function BackstageSidebar({ email }: Props) {
       {/* ── MOBILE TOP BAR ──────────────────────────────────────── */}
       <header className="lg:hidden bg-white dark:bg-zinc-950 border-b border-zinc-100 dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0 fixed top-0 left-0 right-0 z-30">
         <div className="flex items-center gap-3">
-          <Link href="/" aria-label="Bookly" className="block w-fit hover:opacity-80 transition-opacity">
-            <BooklyLogo className="h-6" />
+          <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
+            <SchedulioLogo className="h-6" />
           </Link>
           <span className="text-xs text-zinc-400 dark:text-zinc-500 font-semibold uppercase tracking-widest">Backstage</span>
         </div>

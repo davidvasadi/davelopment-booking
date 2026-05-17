@@ -20,7 +20,7 @@ export default function PeriodFilter({ current }: { current: number }) {
         {PERIODS.map(({ label, value }) => (
           <button
             key={value}
-            onClick={() => router.push(`/bookly/dashboard/analytics?period=${value}`)}
+            onClick={() => router.push(`/dashboard/analytics?period=${value}`)}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
               current === value
                 ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm'
@@ -32,7 +32,7 @@ export default function PeriodFilter({ current }: { current: number }) {
         ))}
       </div>
       <a
-        href={`/api/bookly/export-csv?days=${current}`}
+        href={`/api/export-csv?days=${current}`}
         download
         className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-zinc-200 dark:border-white/[0.1] text-xs font-semibold text-zinc-600 dark:text-white/60 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-white/[0.3] transition-colors"
       >

@@ -22,7 +22,7 @@ export function SubscriptionBanner({ subscription }: { subscription: SubInfo }) 
   if (!subscription) return null
 
   // Beállítások és subscription oldalon ne mutassuk (ott a kártya / oldal úgyis mutatja)
-  if (pathname?.startsWith('/bookly/dashboard/settings') || pathname?.startsWith('/bookly/dashboard/subscription')) {
+  if (pathname?.startsWith('/dashboard/settings') || pathname?.startsWith('/dashboard/subscription')) {
     return null
   }
 
@@ -54,7 +54,7 @@ export function SubscriptionBanner({ subscription }: { subscription: SubInfo }) 
         {message}
       </span>
       <Link
-        href="/bookly/dashboard/subscription"
+        href="/dashboard/subscription"
         className={`ml-auto shrink-0 font-semibold hover:opacity-70 transition-opacity ${isError ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}
       >
         Részletek →

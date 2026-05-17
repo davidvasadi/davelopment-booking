@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
+import { Toaster } from 'sonner'
 import { SmoothScroll } from '@/components/SmoothScroll'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import './globals.css'
@@ -7,7 +8,7 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Bookly - Online Időpontfoglaló',
+  title: { template: '%s — Schedulio', default: 'Schedulio — Online Időpontfoglaló' },
   description: 'Egyszerű, modern időpontfoglaló rendszer kis vállalkozásoknak',
   icons: {
     icon: [
@@ -32,6 +33,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider>
           <SmoothScroll>{children}</SmoothScroll>
+          <Toaster richColors position="top-right" />
         </ThemeProvider>
       </body>
     </html>

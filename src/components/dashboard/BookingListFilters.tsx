@@ -44,7 +44,7 @@ export default function BookingListFilters({ status, range, search }: Props) {
     const params = new URLSearchParams({
       view: 'list', status, range, search: searchVal, page: '1', ...override,
     })
-    router.push(`/bookly/dashboard/bookings?${params}`)
+    router.push(`/dashboard/bookings?${params}`)
   }
 
   return (

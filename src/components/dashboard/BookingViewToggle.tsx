@@ -9,7 +9,7 @@ export default function BookingViewToggle({ current }: { current: 'day' | 'list'
   return (
     <div className="flex gap-1 bg-zinc-100 dark:bg-white/[0.06] rounded-xl p-1">
       <button
-        onClick={() => router.push('/bookly/dashboard/bookings?view=day')}
+        onClick={() => router.push('/dashboard/bookings?view=day')}
         className={cn(
           'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
           current === 'day'
@@ -20,7 +20,7 @@ export default function BookingViewToggle({ current }: { current: 'day' | 'list'
         <CalendarDays className="h-3.5 w-3.5" /> Napi
       </button>
       <button
-        onClick={() => router.push('/bookly/dashboard/bookings?view=list')}
+        onClick={() => router.push('/dashboard/bookings?view=list')}
         className={cn(
           'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
           current === 'list'
