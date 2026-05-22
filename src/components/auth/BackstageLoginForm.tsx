@@ -6,8 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
+import { ArrowRight, Loader2, Eye, EyeOff, Link } from 'lucide-react'
 import { Label } from '@/components/ui/label'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
 
 const schema = z.object({
   email: z.string().email(),
@@ -51,7 +52,8 @@ export function BackstageLoginForm() {
     <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="mb-10">
-          <p className="text-white font-black text-xl tracking-tight">Schedulio</p>
+            <SchedulioLogo variant="dark" className="h-8" />
+          
           <p className="text-[11px] text-zinc-500 font-semibold uppercase tracking-widest mt-0.5">Backstage</p>
         </div>
 

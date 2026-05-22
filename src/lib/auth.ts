@@ -17,7 +17,7 @@ export async function getCurrentUser(): Promise<User | null> {
   }
 }
 
-export async function requireAuth(role?: 'admin' | 'salon_owner'): Promise<User> {
+export async function requireAuth(role?: 'admin' | 'salon_owner' | 'restaurant_owner'): Promise<User> {
   const user = await getCurrentUser()
   if (!user) redirect('/login')
   if (role && user.role !== role && user.role !== 'admin') redirect('/login')

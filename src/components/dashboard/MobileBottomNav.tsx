@@ -6,36 +6,31 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import {
-  LayoutDashboard, CalendarDays, Briefcase, Users, Clock, Settings,
-  LogOut, Monitor, Sun, Moon, MoreHorizontal, BarChart2, Lock,
-} from 'lucide-react'
+import { LogOut, Monitor, Sun, Moon, MoreHorizontal, Lock } from 'lucide-react'
+import { getNavConfig, type DashboardVariant } from './navConfig'
 
 type SubInfo = {
-  plan: 'trial' | 'pro'
+  plan: 'trial' | 'pro' | 'restaurant_pro'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
   trial_ends_at?: string | null
   current_period_end?: string | null
 } | null
 
-const navItems = [
-  { href: '/dashboard', label: 'Áttekintés', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/analytics', label: 'Statisztikák', icon: BarChart2 },
-  { href: '/dashboard/bookings', label: 'Foglalások', icon: CalendarDays },
-  { href: '/dashboard/services', label: 'Szolgáltatások', icon: Briefcase },
-  { href: '/dashboard/staff', label: 'Munkatársak', icon: Users },
-  { href: '/dashboard/availability', label: 'Nyitvatartás', icon: Clock },
-  { href: '/dashboard/settings', label: 'Beállítások', icon: Settings },
-]
-
-const primaryNav = navItems.slice(0, 4)
-const secondaryNav = navItems.slice(4)
-
-export default function MobileBottomNav({ subscription }: { subscription?: SubInfo }) {
+export default function MobileBottomNav({
+  subscription,
+  variant = 'salon',
+}: {
+  subscription?: SubInfo
+  variant?: DashboardVariant
+}) {
+  const { items: navItems, settingsHref } = getNavConfig(variant)
   const pathname = usePathname()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
   const [moreOpen, setMoreOpen] = useState(false)
+
+  const primaryNav = navItems.slice(0, 4)
+  const secondaryNav = navItems.slice(4)
 
   const handleLogout = async () => {
     await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
@@ -49,7 +44,7 @@ export default function MobileBottomNav({ subscription }: { subscription?: SubIn
   const hasSecondaryActive = secondaryNav.some(({ href, exact }) => isActive(href, exact))
 
   const isLocked = subscription?.status === 'past_due' || subscription?.status === 'canceled' || subscription?.status === 'paused'
-  const isAllowedWhenLocked = (href: string) => href === '/dashboard/settings'
+  const isAllowedWhenLocked = (href: string) => href === settingsHref
 
   return (
     <>

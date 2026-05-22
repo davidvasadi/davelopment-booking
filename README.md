@@ -12,8 +12,8 @@
 
 ### 1. Repository klónozása
 ```bash
-git clone https://github.com/davidvasadi/bookly.git
-cd bookly
+git clone https://github.com/davidvasadi/schedulio.git
+cd schedulio
 ```
 
 ### 2. Függőségek telepítése
@@ -49,7 +49,7 @@ Server elérhető: http://localhost:3000
 ## 📁 Mappastruktúra
 
 ```
-bookly/
+schedulio/
 ├── src/
 │   ├── app/                  # Next.js App Router
 │   │   ├── api/             # API routes

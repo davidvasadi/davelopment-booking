@@ -47,7 +47,9 @@ export function LoginForm() {
         await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
         throw new Error('Admin fiókok a Backstage-en keresztül léphetnek be')
       }
-      const safeTo = from.startsWith('/') && !from.startsWith('//') ? from : '/dashboard'
+      const home = role === 'restaurant_owner' ? '/restaurant' : '/dashboard'
+      const hasFrom = searchParams.get('from')
+      const safeTo = hasFrom && from.startsWith('/') && !from.startsWith('//') ? from : home
       router.push(safeTo)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Bejelentkezés sikertelen')
@@ -166,7 +168,7 @@ export function LoginForm() {
               Modern időpontfoglaló kis vállalkozásoknak. Egyszerű beállítás, azonnali eredmény.
             </p>
           </div>
-          <p className="text-zinc-700 text-xs">© 2026 Schedulio</p>
+          <p className="text-zinc-700 text-xs">© 2026 Schedulio by [davelopment]®</p>
         </div>
 
         {/* Right form panel */}

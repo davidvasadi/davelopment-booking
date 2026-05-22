@@ -1,10 +1,49 @@
 import type { CollectionConfig } from 'payload'
 
+const MS_PER_DAY = 86_400_000
+
 export const Subscriptions: CollectionConfig = {
   slug: 'subscriptions',
+  hooks: {
+    beforeChange: [
+      ({ data, originalDoc, operation }) => {
+        if (operation !== 'update' && operation !== 'create') return data
+        const wasPlan = originalDoc?.plan
+        const newPlan = data.plan ?? wasPlan
+        const planChangedToPro = newPlan === 'pro' && wasPlan !== 'pro'
+        const isPro = newPlan === 'pro'
+
+        if (planChangedToPro) {
+          // Pro váltás: status active, period_end indítás
+          const trialEndMs = data.trial_ends_at
+            ? new Date(data.trial_ends_at).getTime()
+            : originalDoc?.trial_ends_at
+              ? new Date(originalDoc.trial_ends_at).getTime()
+              : 0
+          const now = Date.now()
+          // Ha még él a trial, megőrizzük a maradékot; egyébként most indul új ciklus
+          const baseMs = Math.max(now, trialEndMs || 0)
+          const periodEndMs = baseMs + 30 * MS_PER_DAY
+          data.status = 'active'
+          data.current_period_end = new Date(periodEndMs).toISOString()
+          data.cancel_at_period_end = false
+        } else if (isPro && data.status === 'trialing') {
+          // Pro plan de trialing státusz inkonzisztens → javítjuk
+          data.status = 'active'
+          if (!data.current_period_end && !originalDoc?.current_period_end) {
+            const trialEndMs = originalDoc?.trial_ends_at
+              ? new Date(originalDoc.trial_ends_at).getTime()
+              : Date.now()
+            data.current_period_end = new Date(Math.max(Date.now(), trialEndMs) + 30 * MS_PER_DAY).toISOString()
+          }
+        }
+        return data
+      },
+    ],
+  },
   admin: {
-    useAsTitle: 'salon',
-    defaultColumns: ['salon', 'plan', 'status', 'current_period_end'],
+    useAsTitle: 'plan',
+    defaultColumns: ['salon', 'restaurant', 'plan', 'status', 'current_period_end'],
     group: 'Billing',
   },
   access: {
@@ -18,9 +57,17 @@ export const Subscriptions: CollectionConfig = {
       name: 'salon',
       type: 'relationship',
       relationTo: 'salons',
-      required: true,
       unique: true,
       label: 'Szalon',
+      admin: { description: 'Salon-előfizetésekhez (a restaurant mezővel kizárólagos)' },
+    },
+    {
+      name: 'restaurant',
+      type: 'relationship',
+      relationTo: 'restaurants',
+      unique: true,
+      label: 'Étterem',
+      admin: { description: 'Étterem-előfizetésekhez (a salon mezővel kizárólagos)' },
     },
     {
       name: 'plan',
@@ -30,7 +77,8 @@ export const Subscriptions: CollectionConfig = {
       label: 'Terv',
       options: [
         { label: 'Próbaidőszak (14 nap)', value: 'trial' },
-        { label: 'Pro (2 900 Ft/hó)', value: 'pro' },
+        { label: 'Szalon Pro (2 900 Ft/hó)', value: 'pro' },
+        { label: 'Étterem Pro (9 900 Ft/hó)', value: 'restaurant_pro' },
       ],
     },
     {
@@ -61,6 +109,15 @@ export const Subscriptions: CollectionConfig = {
       label: 'Jelenlegi időszak vége',
       admin: {
         date: { pickerAppearance: 'dayAndTime' },
+      },
+    },
+    {
+      name: 'cancel_at_period_end',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Időszak végén lemond',
+      admin: {
+        description: 'Ha be van pipálva, a következő számlázási dátumkor automatikusan canceled státuszba kerül.',
       },
     },
     {

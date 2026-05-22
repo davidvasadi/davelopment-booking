@@ -2,7 +2,8 @@ import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import type { Salon, Subscription } from '@/payload/payload-types'
 import Link from 'next/link'
-import { CreditCard, CheckCircle2, Sparkles, Lock, Settings, ArrowRight } from 'lucide-react'
+import { CreditCard, CheckCircle2, Sparkles, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
+import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
 
 function daysLeft(dateStr?: string | null): number | null {
   if (!dateStr) return null
@@ -73,9 +74,12 @@ export default async function SubscriptionPage() {
   const sub = (subResult.docs[0] as Subscription) ?? null
   const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
 
+  const isTrial = sub?.status === 'trialing'
+  const isActivePro = sub?.status === 'active' && sub?.plan === 'pro'
+  const cancelScheduled = sub?.cancel_at_period_end === true
   const planLabel = sub?.plan === 'pro' ? 'Pro' : 'Próbaidőszak'
   const priceLabel = sub?.plan === 'pro' ? '2 900 Ft' : 'Ingyenes'
-  const periodEnd = sub?.status === 'trialing' ? sub.trial_ends_at : sub?.current_period_end
+  const periodEnd = isTrial ? sub.trial_ends_at : sub?.current_period_end
 
   return (
     <div className="p-5 lg:p-8 space-y-6">
@@ -117,19 +121,20 @@ export default async function SubscriptionPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
         <Kpi sub="Csomag" value={planLabel} label={STATUS_LABELS[sub?.status ?? ''] ?? '—'} />
         <Kpi sub="Havi díj" value={priceLabel} label={sub?.plan === 'pro' ? 'forintban' : 'a próba alatt'} />
-        {days !== null
+        {isTrial && days !== null
           ? <Kpi sub="Hátralévő idő" value={days === 0 ? 'Ma' : `${days} nap`} label="a próbából" />
-          : <Kpi sub="Időszak vége" value={formatDate(periodEnd)} label="megújulás" />
+          : <Kpi sub={cancelScheduled ? 'Hozzáférés vége' : 'Következő számlázás'} value={formatDate(periodEnd)} label={cancelScheduled ? 'utána letiltva' : 'automatikus'} />
         }
         <Kpi sub="Indulás" value={formatDate(salon?.createdAt as unknown as string)} label="regisztráció" />
       </div>
 
       {/* Status row */}
       <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl px-5 py-4 flex items-center gap-3">
-        <span className={`h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[sub?.status ?? ''] ?? 'bg-zinc-300'}`} />
+        <span className={`h-2 w-2 rounded-full shrink-0 ${cancelScheduled ? 'bg-amber-400' : (STATUS_DOT[sub?.status ?? ''] ?? 'bg-zinc-300')}`} />
         <p className="text-sm text-zinc-500 dark:text-white/50 flex-1">
           {sub?.status === 'trialing' && <>Próbaidőszakban vagy. <span className="text-zinc-900 dark:text-white font-bold">{days ?? 0} nap</span> múlva lejár — utána Pro csomagra kell váltani.</>}
-          {sub?.status === 'active' && <>Aktív <span className="text-zinc-900 dark:text-white font-bold">Pro</span> előfizetésed van. Köszönjük!</>}
+          {isActivePro && !cancelScheduled && <>Aktív <span className="text-zinc-900 dark:text-white font-bold">Pro</span> előfizetésed van. Automatikus megújulás <span className="text-zinc-900 dark:text-white font-bold">{formatDate(periodEnd)}</span>-én.</>}
+          {isActivePro && cancelScheduled && <>Az előfizetésed <span className="text-amber-600 dark:text-amber-400 font-bold">{formatDate(periodEnd)}-én megszűnik</span>. Eddig minden Pro funkció elérhető.</>}
           {sub?.status === 'past_due' && <><span className="text-red-600 dark:text-red-400 font-bold">Fizetési hiba</span> — frissítsd a számlázási adataidat.</>}
           {sub?.status === 'canceled' && <>Az előfizetésed <span className="text-red-600 dark:text-red-400 font-bold">megszűnt</span>.</>}
           {sub?.status === 'paused' && <>Az előfizetésed <span className="text-amber-600 dark:text-amber-400 font-bold">szünetel</span>.</>}
@@ -162,12 +167,28 @@ export default async function SubscriptionPage() {
             <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">Fizetés</h2>
           </div>
           <div className="p-5 lg:p-6">
-            {sub?.status === 'active' ? (
-              <>
-                <p className="text-sm text-zinc-500 dark:text-white/40 mb-3">Következő számlázás</p>
-                <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">{priceLabel}</p>
-                <p className="text-sm text-zinc-500 dark:text-white/40">{formatDate(periodEnd)}-én</p>
-              </>
+            {isActivePro ? (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-zinc-500 dark:text-white/40 mb-2">Következő számlázás</p>
+                  <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">{priceLabel}</p>
+                  <p className="text-sm text-zinc-500 dark:text-white/40">{formatDate(periodEnd)}-én</p>
+                </div>
+                <div className="flex items-start gap-2 rounded-xl bg-zinc-50 dark:bg-white/[0.03] px-3 py-2.5 border border-zinc-100 dark:border-white/[0.06]">
+                  {cancelScheduled
+                    ? <Clock className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                    : <RefreshCw className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                  }
+                  <p className="text-xs text-zinc-600 dark:text-white/60 leading-relaxed">
+                    {cancelScheduled
+                      ? 'Az előfizetés a következő számlázási dátumkor lejár. Nem kerül több levonásra.'
+                      : 'Automatikusan megújul havonta. Bármikor lemondhatod.'}
+                  </p>
+                </div>
+                <div className="pt-1">
+                  <CancelSubscriptionButton cancelScheduled={cancelScheduled} periodEndLabel={formatDate(periodEnd)} />
+                </div>
+              </div>
             ) : (
               <div className="text-center py-2">
                 <p className="text-sm font-semibold text-zinc-700 dark:text-white/70 mb-1">Online fizetés hamarosan</p>

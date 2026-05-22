@@ -7,9 +7,8 @@ import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
-import {
-  LayoutDashboard, CalendarDays, Briefcase, Users, Clock, Settings, LogOut, ExternalLink, Monitor, Sun, Moon, BarChart2, Lock,
-} from 'lucide-react'
+import { LogOut, ExternalLink, Monitor, Sun, Moon, Lock } from 'lucide-react'
+import { getNavConfig, type DashboardVariant } from './navConfig'
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
@@ -42,18 +41,9 @@ function ThemeToggle() {
   )
 }
 
-const navItems = [
-  { href: '/dashboard', label: 'Áttekintés', icon: LayoutDashboard, exact: true },
-  { href: '/dashboard/analytics', label: 'Statisztikák', icon: BarChart2 },
-  { href: '/dashboard/bookings', label: 'Foglalások', icon: CalendarDays },
-  { href: '/dashboard/services', label: 'Szolgáltatások', icon: Briefcase },
-  { href: '/dashboard/staff', label: 'Munkatársak', icon: Users },
-  { href: '/dashboard/availability', label: 'Nyitvatartás', icon: Clock },
-  { href: '/dashboard/settings', label: 'Beállítások', icon: Settings },
-]
 
 type SubInfo = {
-  plan: 'trial' | 'pro'
+  plan: 'trial' | 'pro' | 'restaurant_pro'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
   trial_ends_at?: string | null
   current_period_end?: string | null
@@ -65,7 +55,7 @@ function daysLeft(dateStr?: string | null): number | null {
   return Math.max(0, Math.ceil(diff / 86_400_000))
 }
 
-function SubscriptionWidget({ sub }: { sub: SubInfo }) {
+function SubscriptionWidget({ sub, subscriptionHref }: { sub: SubInfo; subscriptionHref: string }) {
   if (!sub) return null
 
   const days = sub.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
@@ -102,7 +92,7 @@ function SubscriptionWidget({ sub }: { sub: SubInfo }) {
       )}
       {(sub.status === 'trialing' || sub.status === 'past_due' || sub.status === 'canceled') && (
         <Link
-          href="/dashboard/subscription"
+          href={subscriptionHref}
           className="flex items-center justify-center gap-1 w-full py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-black font-medium hover:opacity-80 transition-opacity"
         >
           Upgrade
@@ -112,7 +102,18 @@ function SubscriptionWidget({ sub }: { sub: SubInfo }) {
   )
 }
 
-export function DashboardNav({ salonName, salonSlug, subscription }: { salonName: string; salonSlug: string; subscription?: SubInfo }) {
+export function DashboardNav({
+  salonName,
+  salonSlug,
+  subscription,
+  variant = 'salon',
+}: {
+  salonName: string
+  salonSlug: string
+  subscription?: SubInfo
+  variant?: DashboardVariant
+}) {
+  const { items: navItems, publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
   const pathname = usePathname()
   const router = useRouter()
 
@@ -126,7 +127,7 @@ export function DashboardNav({ salonName, salonSlug, subscription }: { salonName
     exact ? pathname === href : pathname.startsWith(href)
 
   const isLocked = subscription?.status === 'past_due' || subscription?.status === 'canceled' || subscription?.status === 'paused'
-  const isAllowedWhenLocked = (href: string) => href === '/dashboard/settings'
+  const isAllowedWhenLocked = (href: string) => href === settingsHref
 
   return (
     <>
@@ -139,7 +140,7 @@ export function DashboardNav({ salonName, salonSlug, subscription }: { salonName
           <div className="mt-3">
             <p className="text-zinc-700 dark:text-white/70 font-semibold text-sm truncate">{salonName}</p>
             <a
-              href={`/${salonSlug}`}
+              href={`/${publicUrlPrefix}${salonSlug}`}
               target="_blank"
               className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 mt-0.5 transition-colors"
             >
@@ -177,7 +178,7 @@ export function DashboardNav({ salonName, salonSlug, subscription }: { salonName
         <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
 
         <div className="pt-3">
-          <SubscriptionWidget sub={subscription ?? null} />
+          <SubscriptionWidget sub={subscription ?? null} subscriptionHref={subscriptionHref} />
         </div>
 
         <div className="px-3 py-4">

@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { AlertTriangle, XCircle } from 'lucide-react'
 
 type SubInfo = {
-  plan: 'trial' | 'pro'
+  plan: 'trial' | 'pro' | 'restaurant_pro'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
   trial_ends_at?: string | null
   current_period_end?: string | null
@@ -17,12 +17,21 @@ function daysLeft(dateStr?: string | null): number | null {
   return Math.max(0, Math.ceil(diff / 86_400_000))
 }
 
-export function SubscriptionBanner({ subscription }: { subscription: SubInfo }) {
+export function SubscriptionBanner({
+  subscription,
+  basePath = '/dashboard',
+}: {
+  subscription: SubInfo
+  /** A dashboard alap-útvonala (szalon: '/dashboard', étterem: '/restaurant'). */
+  basePath?: string
+}) {
   const pathname = usePathname()
   if (!subscription) return null
 
+  const subscriptionHref = `${basePath}/subscription`
+
   // Beállítások és subscription oldalon ne mutassuk (ott a kártya / oldal úgyis mutatja)
-  if (pathname?.startsWith('/dashboard/settings') || pathname?.startsWith('/dashboard/subscription')) {
+  if (pathname?.startsWith(`${basePath}/settings`) || pathname?.startsWith(subscriptionHref)) {
     return null
   }
 
@@ -54,7 +63,7 @@ export function SubscriptionBanner({ subscription }: { subscription: SubInfo }) 
         {message}
       </span>
       <Link
-        href="/dashboard/subscription"
+        href={subscriptionHref}
         className={`ml-auto shrink-0 font-semibold hover:opacity-70 transition-opacity ${isError ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}
       >
         Részletek →

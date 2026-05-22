@@ -4,9 +4,9 @@ import { formatDate, formatPrice } from '@/lib/utils'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { TrendChart, DowChart, ServiceChart, StaffChart } from '@/components/dashboard/DashboardCharts'
 import BookingActions from '@/components/dashboard/BookingActions'
+import { KpiCardWithDetails } from '@/components/dashboard/KpiCardWithDetails'
 import type { Salon, Booking, Service, StaffMember } from '@/payload/payload-types'
-import { TrendingUp, TrendingDown, Minus, Zap, ArrowUpRight, MessageSquare } from 'lucide-react'
-import Link from 'next/link'
+import { Zap, MessageSquare } from 'lucide-react'
 
 const statusDot: Record<string, string> = {
   pending: 'bg-amber-400',
@@ -19,41 +19,6 @@ const statusLabel: Record<string, string> = {
   confirmed: 'Megerősített',
   cancelled: 'Lemondott',
   completed: 'Befejezett',
-}
-
-function DiffBadge({ diff }: { diff: number }) {
-  if (diff > 0) return (
-    <span className="flex items-center gap-0.5 text-xs font-semibold text-[#00bb88]">
-      <TrendingUp className="h-3 w-3" />+{diff}%
-    </span>
-  )
-  if (diff < 0) return (
-    <span className="flex items-center gap-0.5 text-xs font-semibold text-red-400">
-      <TrendingDown className="h-3 w-3" />{diff}%
-    </span>
-  )
-  return <span className="flex items-center gap-0.5 text-xs font-semibold text-zinc-400 dark:text-white/30"><Minus className="h-3 w-3" />0%</span>
-}
-
-function KpiCard({ label, sub, value, diff }: {
-  label: string; sub: string; value: string; diff?: number
-}) {
-  return (
-    <Link
-      href="/dashboard/analytics"
-      className="group rounded-2xl p-5 lg:p-7 bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none hover:border-zinc-300 dark:hover:border-white/[0.16] transition-colors block"
-    >
-      <div className="flex items-start justify-between mb-1">
-        <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30">{sub}</p>
-        <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400 dark:text-white/30 group-hover:text-zinc-700 dark:group-hover:text-white/60 transition-colors shrink-0 mt-0.5" />
-      </div>
-      <p className="text-xl lg:text-4xl font-black tracking-tight leading-none mb-2 text-zinc-900 dark:text-white truncate">{value}</p>
-      <div className="flex items-center justify-between gap-1 flex-wrap">
-        <p className="text-xs text-zinc-500 dark:text-white/40">{label}</p>
-        {diff !== undefined && <DiffBadge diff={diff} />}
-      </div>
-    </Link>
-  )
 }
 
 export default async function DashboardPage() {
@@ -112,12 +77,12 @@ export default async function DashboardPage() {
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 lg:gap-3">
-        <KpiCard sub="Ma" label="Bevétel" value={formatPrice(stats.revenueToday, 'HUF')} diff={stats.revenueTodayDiff} />
-        <KpiCard sub="E hónap" label="Bevétel" value={formatPrice(stats.revenueMonth, 'HUF')} diff={stats.revenueMonthDiff} />
-        <KpiCard sub="Ma" label="Foglalás" value={String(stats.bookingsToday)} diff={stats.bookingsTodayDiff} />
-        <KpiCard sub="E hónap" label="Foglalás" value={String(stats.bookingsMonth)} diff={stats.bookingsMonthDiff} />
-        <KpiCard sub="Teljesítési arány" label="befejezett / lezárt" value={`${stats.completionRate}%`} />
-        <KpiCard sub="Átl. foglalás értéke" label="foglalásonként" value={formatPrice(stats.avgBookingValue, 'HUF')} />
+        <KpiCardWithDetails sub="Ma" label="Bevétel" value={formatPrice(stats.revenueToday, 'HUF')} diff={stats.revenueTodayDiff} metric="revenue" title="Mai bevétel" period={stats.period} data={stats.trend} />
+        <KpiCardWithDetails sub="E hónap" label="Bevétel" value={formatPrice(stats.revenueMonth, 'HUF')} diff={stats.revenueMonthDiff} metric="revenue" title="Havi bevétel" period={stats.period} data={stats.trend} />
+        <KpiCardWithDetails sub="Ma" label="Foglalás" value={String(stats.bookingsToday)} diff={stats.bookingsTodayDiff} metric="bookings" title="Mai foglalások" period={stats.period} data={stats.trend} />
+        <KpiCardWithDetails sub="E hónap" label="Foglalás" value={String(stats.bookingsMonth)} diff={stats.bookingsMonthDiff} metric="bookings" title="Havi foglalások" period={stats.period} data={stats.trend} />
+        <KpiCardWithDetails sub="Teljesítési arány" label="befejezett / lezárt" value={`${stats.completionRate}%`} metric="completion" title="Teljesítési arány" period={stats.period} data={stats.trend} />
+        <KpiCardWithDetails sub="Átl. foglalás értéke" label="foglalásonként" value={formatPrice(stats.avgBookingValue, 'HUF')} metric="avg_value" title="Átlagos foglalás értéke" period={stats.period} data={stats.trend} />
       </div>
 
       {/* Trend chart */}
@@ -125,7 +90,7 @@ export default async function DashboardPage() {
 
       {/* DoW + breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <DowChart data={stats.byDayOfWeek} period={stats.period} />
+        <DowChart data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} />
         {stats.byService.length > 0 && <ServiceChart data={stats.byService} period={stats.period} />}
       </div>
 

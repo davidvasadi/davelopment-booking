@@ -1,10 +1,13 @@
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { BackstageSidebar } from '@/components/backstage/BackstageSidebar'
+import { expireStaleTrials } from '@/lib/subscriptionSync'
 
 export default async function BackstageLayout({ children }: { children: React.ReactNode }) {
   const user = await getCurrentUser()
   if (!user || user.role !== 'admin') redirect('/backstage/login')
+
+  expireStaleTrials().catch(() => null)
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col lg:flex-row">

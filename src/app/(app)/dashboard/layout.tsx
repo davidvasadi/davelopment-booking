@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { autoCompleteBookings } from '@/lib/autoComplete'
+import { expireOneTrial } from '@/lib/subscriptionSync'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
@@ -12,6 +13,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const user = await requireAuth('salon_owner')
 
   if (user.role === 'admin') redirect('/backstage')
+  if (user.role === 'restaurant_owner') redirect('/restaurant')
 
   const payload = await getPayloadClient()
   const salonResult = await payload.find({
@@ -29,22 +31,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     limit: 1,
     overrideAccess: true,
   })
-  let subscription = (subResult.docs[0] as Subscription) ?? null
-
-  // Lazy transition: trialing → past_due ha lejárt a trial_ends_at
-  if (
-    subscription?.status === 'trialing' &&
-    subscription.trial_ends_at &&
-    new Date(subscription.trial_ends_at).getTime() < Date.now()
-  ) {
-    const updated = await payload.update({
-      collection: 'subscriptions',
-      id: subscription.id,
-      data: { status: 'past_due' },
-      overrideAccess: true,
-    })
-    subscription = updated as Subscription
-  }
+  let subscription: Subscription | null = (subResult.docs[0] as Subscription) ?? null
+  subscription = await expireOneTrial(subscription)
 
   autoCompleteBookings(salon.id).catch(() => null)
 

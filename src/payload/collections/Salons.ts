@@ -11,6 +11,7 @@ export const Salons: CollectionConfig = {
           where: { salon: { equals: doc.id } },
           limit: 1,
           overrideAccess: true,
+          req,
         })
         if (existing.docs.length > 0) return
         const trialEnd = new Date()
@@ -25,6 +26,7 @@ export const Salons: CollectionConfig = {
             amount_huf: 2900,
           },
           overrideAccess: true,
+          req,
         })
       },
     ],

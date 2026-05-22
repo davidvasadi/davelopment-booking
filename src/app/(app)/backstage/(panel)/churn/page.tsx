@@ -70,7 +70,7 @@ export default async function ChurnPage() {
 
   const salons = salonsResult.docs as Salon[]
   const subs = subsResult.docs as Subscription[]
-  const subMap = new Map(subs.map(s => [typeof s.salon === 'object' ? s.salon.id : s.salon, s]))
+  const subMap = new Map(subs.map(s => [s.salon && typeof s.salon === 'object' ? s.salon.id : s.salon, s]))
 
   // Booking counts per salon
   const bookingCounts = await Promise.all(
@@ -93,13 +93,13 @@ export default async function ChurnPage() {
     return end >= now && end <= in14
   })
   const expiringTrialSalons = expiringTrials
-    .map(sub => salons.find(s => s.id === (typeof sub.salon === 'object' ? sub.salon.id : sub.salon)))
+    .map(sub => salons.find(s => s.id === (sub.salon && typeof sub.salon === 'object' ? sub.salon.id : sub.salon)))
     .filter(Boolean) as Salon[]
 
   // 2. Past due
   const pastDueSubs = subs.filter(s => s.status === 'past_due')
   const pastDueSalons = pastDueSubs
-    .map(sub => salons.find(s => s.id === (typeof sub.salon === 'object' ? sub.salon.id : sub.salon)))
+    .map(sub => salons.find(s => s.id === (sub.salon && typeof sub.salon === 'object' ? sub.salon.id : sub.salon)))
     .filter(Boolean) as Salon[]
 
   // 3. Active salons with 0 bookings in 30 days (but have bookings overall)

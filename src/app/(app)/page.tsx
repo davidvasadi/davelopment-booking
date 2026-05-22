@@ -730,7 +730,7 @@ function CountUp({ to, suffix = '', prefix = '', duration = 1500 }: {
 }
 
 const faqItems = [
-  { q: 'Mennyibe kerül a Schedulio?', a: '14 napig teljesen ingyenes, kártya nélkül. Utána 2 900 Ft/hó. Lemondható bármikor, visszamenőleges számlázás nélkül.' },
+  { q: 'Mennyibe kerül a Schedulio?', a: 'Szalon Pro: 2 900 Ft/hó. Étterem Pro (asztalfoglalással): 9 900 Ft/hó-tól, hamarosan elérhető. Mindkettő 14 napig ingyenes, kártya nélkül. Lemondható bármikor, visszamenőleges számlázás nélkül.' },
   { q: 'Kell bankkártyaadatokat megadni a próbaidőhöz?', a: 'Nem. A 14 napos próbaidőhöz csak egy email cím és jelszó szükséges. Kártyaadatokat csak akkor kérünk, ha az ingyenes időszak után is folytatnád.' },
   { q: 'Mennyi ideig tart beállítani?', a: 'Az első szalon profil — névvel, szolgáltatásokkal és nyitvatartással — kb. 5 perc alatt elkészíthető. Utána máris megosztható a foglalási link.' },
   { q: 'Hány munkatársat és szolgáltatást adhatok hozzá?', a: 'Korlátlan számút. Minden munkatársnak saját elérhetőség naptárt állíthatsz be, és minden szolgáltatáshoz külön árat és időtartamot rendelhetsz.' },
@@ -988,29 +988,74 @@ export default function Home() {
             <h2 className="font-black text-3xl lg:text-5xl uppercase tracking-tighter leading-[0.9] text-zinc-900">
               EGYSZERŰ,<br />TISZTA ÁRAZÁS.
             </h2>
+            <p className="text-zinc-500 text-sm mt-5 max-w-xl mx-auto">
+              Válaszd ki, melyik passzol a vállalkozásodhoz. Mindkettő 14 napig ingyenes, kártya nélkül.
+            </p>
           </FadeUp>
           <FadeUp delay={0.15}>
-            <div className="border border-zinc-200 rounded-2xl overflow-hidden max-w-3xl mx-auto">
-              <div className="grid grid-cols-1 lg:grid-cols-2">
-                <div className="bg-zinc-900 p-8 lg:p-10 flex flex-col justify-between">
-                  <div>
-                    <p className="text-white/30 text-[11px] font-semibold uppercase tracking-widest mb-5">Havi díj</p>
-                    <p className="text-white font-black text-6xl lg:text-7xl tracking-tighter leading-none mb-1">2 900</p>
-                    <p className="text-white/40 text-base mb-2">Ft / hó</p>
-                    <p className="text-[#00bb88] text-sm font-semibold mb-10">14 napig ingyenes · kártya nem szükséges</p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 max-w-5xl mx-auto">
+              {/* Szalon Pro */}
+              <div className="border border-zinc-200 rounded-2xl overflow-hidden bg-white flex flex-col">
+                <div className="bg-zinc-900 p-8 lg:p-10">
+                  <p className="text-white/30 text-[11px] font-semibold uppercase tracking-widest mb-3">Szalon Pro</p>
+                  <p className="text-white/60 text-sm mb-6">Időpontfoglalás szalonoknak, fodrászoknak, masszőröknek, kozmetikusoknak.</p>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <p className="text-white font-black text-5xl lg:text-6xl tracking-tighter leading-none">2 900</p>
+                    <p className="text-white/40 text-sm">Ft / hó</p>
                   </div>
+                  <p className="text-[#00bb88] text-xs font-semibold mb-8">14 napig ingyenes · kártya nem szükséges</p>
                   <Link href="/register" className="block">
                     <button className="w-full h-12 rounded-full bg-white hover:bg-zinc-100 text-zinc-900 font-semibold text-sm flex items-center justify-center gap-2 transition-colors">
                       Kipróbálom ingyen <ArrowRight className="h-4 w-4" />
                     </button>
                   </Link>
                 </div>
-                <div className="bg-white p-8 lg:p-10">
+                <div className="p-8 lg:p-10 flex-1">
                   <p className="text-zinc-400 text-[11px] font-semibold uppercase tracking-widest mb-5">Tartalmaz</p>
-                  <ul className="space-y-3.5">
+                  <ul className="space-y-3">
                     {['Korlátlan foglalás', 'Saját foglalási oldal (URL)', 'Email értesítések', 'Munkatárs kezelés', 'Bevétel és statisztikák', 'Mobilbarát dashboard', 'Lemondható bármikor'].map(item => (
                       <li key={item} className="flex items-center gap-3 text-sm text-zinc-600">
                         <CheckCircle className="h-4 w-4 text-[#00bb88] shrink-0" />{item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* Étterem Pro */}
+              <div className="border-2 border-[#0099ff]/40 rounded-2xl overflow-hidden bg-white flex flex-col relative shadow-[0_20px_60px_-20px_rgba(0,153,255,0.25)]">
+                <div className="absolute top-5 right-5 z-10">
+                  <span className="bg-[#0099ff] text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">Hamarosan</span>
+                </div>
+                <div className="bg-zinc-950 p-8 lg:p-10">
+                  <p className="text-[#0099ff] text-[11px] font-semibold uppercase tracking-widest mb-3">Étterem Pro</p>
+                  <p className="text-white/60 text-sm mb-6">Asztalfoglalás éttermeknek — kapacitás, asztaltérkép, csoportok, előleg.</p>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <p className="text-white font-black text-5xl lg:text-6xl tracking-tighter leading-none">9 900</p>
+                    <p className="text-white/40 text-sm">Ft / hó-tól</p>
+                  </div>
+                  <p className="text-[#00bb88] text-xs font-semibold mb-8">14 napig ingyenes · kártya nem szükséges</p>
+                  <a href="mailto:hello@schedulio.hu?subject=Étterem Pro érdeklődés" className="block">
+                    <button className="w-full h-12 rounded-full bg-[#0099ff] hover:bg-[#0088ee] text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors">
+                      Érdekel — szóljatok <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </a>
+                </div>
+                <div className="p-8 lg:p-10 flex-1">
+                  <p className="text-zinc-400 text-[11px] font-semibold uppercase tracking-widest mb-5">Étterem-specifikus funkciók</p>
+                  <ul className="space-y-3">
+                    {[
+                      'Asztaltérkép + kapacitás kezelés',
+                      'Csoportos foglalás (4+ fő)',
+                      'Előleg / foglalófizetés (opcionális)',
+                      'Foglalási időablakok (turnusok)',
+                      'No-show védelem (megerősítő SMS / email)',
+                      'Vendég adatbázis és visszatérők',
+                      'Heti / havi forgalmi riportok',
+                      'Minden Szalon Pro funkció',
+                    ].map(item => (
+                      <li key={item} className="flex items-center gap-3 text-sm text-zinc-600">
+                        <CheckCircle className="h-4 w-4 text-[#0099ff] shrink-0" />{item}
                       </li>
                     ))}
                   </ul>

@@ -9,6 +9,11 @@ export interface Config {
     availability: Availability
     media: Media
     subscriptions: Subscription
+    restaurants: Restaurant
+    rooms: Room
+    tables: Table
+    'opening-hours': OpeningHour
+    reservations: Reservation
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
@@ -17,11 +22,13 @@ export interface Config {
 
 export interface Subscription {
   id: string
-  salon: string | Salon
-  plan: 'trial' | 'pro'
+  salon?: string | Salon | null
+  restaurant?: string | Restaurant | null
+  plan: 'trial' | 'pro' | 'restaurant_pro'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
   trial_ends_at?: string | null
   current_period_end?: string | null
+  cancel_at_period_end?: boolean | null
   amount_huf?: number | null
   stripe_customer_id?: string | null
   stripe_subscription_id?: string | null
@@ -30,12 +37,89 @@ export interface Subscription {
   updatedAt: string
 }
 
+export interface Restaurant {
+  id: string
+  name: string
+  slug: string
+  owner: string | User
+  description?: string | null
+  city?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  website?: string | null
+  cover_image?: string | Media | null
+  logo?: string | Media | null
+  capacity_mode: 'tables' | 'flat'
+  max_pax?: number | null
+  turn_duration_minutes?: number | null
+  slot_step_minutes?: number | null
+  lead_time_hours?: number | null
+  require_phone?: boolean | null
+  is_active?: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Room {
+  id: string
+  restaurant: string | Restaurant
+  name: string
+  is_active?: boolean | null
+  sort_order?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Table {
+  id: string
+  restaurant: string | Restaurant
+  name: string
+  capacity: number
+  room?: string | Room | null
+  is_active?: boolean | null
+  sort_order?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface OpeningHour {
+  id: string
+  restaurant: string | Restaurant
+  day_of_week: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday'
+  is_open?: boolean | null
+  open_time?: string | null
+  close_time?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Reservation {
+  id: string
+  restaurant: string | Restaurant
+  date: string
+  start_time: string
+  end_time: string
+  pax: number
+  table?: string | Table | null
+  customer_name: string
+  customer_email: string
+  customer_phone?: string | null
+  notes?: string | null
+  internal_notes?: string | null
+  status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'no_show' | 'cancelled'
+  cancel_token?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface User {
   id: string
   name: string
   email: string
-  role: 'admin' | 'salon_owner'
+  role: 'admin' | 'salon_owner' | 'restaurant_owner'
   salon?: string | Salon | null
+  restaurant?: string | Restaurant | null
   status?: 'active' | 'inactive'
   createdAt: string
   updatedAt: string

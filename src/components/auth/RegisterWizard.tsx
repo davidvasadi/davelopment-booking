@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MAIN_CATEGORIES, getSubTypesForCategory, type BusinessType, type MainCategory } from '@/lib/businessTemplates'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
 
 const MAIN_CAT_ICONS: Record<MainCategory, React.ElementType> = {
   szepseg: Sparkles,
@@ -207,18 +208,19 @@ export function RegisterWizard() {
             </button>
           )
         })}
-        {/* Étterem — soon */}
-        <button disabled className={cn(
-          'relative flex flex-col items-start p-4 rounded-2xl border text-left opacity-50 cursor-not-allowed',
-          isDark ? 'border-zinc-800 bg-zinc-900/40' : 'border-zinc-200 bg-zinc-50'
+        {/* Étterem — külön regisztrációs flow */}
+        <Link href="/register-restaurant" className={cn(
+          'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
+          isDark
+            ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 hover:bg-zinc-800/60'
+            : 'border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50'
         )}>
-          <span className={cn('absolute top-2.5 right-2.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full', isDark ? 'text-zinc-500 bg-zinc-800' : 'text-zinc-500 bg-zinc-200')}>Hamarosan</span>
-          <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? 'bg-zinc-800' : 'bg-zinc-200')}>
+          <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? 'bg-zinc-800' : 'bg-zinc-100')}>
             <ChefHat className={isDark ? 'text-zinc-300' : 'text-zinc-500'} style={{ width: 18, height: 18 }} />
           </div>
-          <p className={cn('font-bold text-sm leading-tight', isDark ? 'text-zinc-200' : 'text-zinc-700')}>Étterem</p>
-          <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-zinc-500' : 'text-zinc-400')}>Asztalfoglalás</p>
-        </button>
+          <p className={cn('font-bold text-sm leading-tight', isDark ? 'text-zinc-200' : 'text-zinc-800')}>Étterem</p>
+          <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-zinc-500' : 'text-zinc-500')}>Asztalfoglalás</p>
+        </Link>
       </div>
     )
 
@@ -273,7 +275,9 @@ export function RegisterWizard() {
                   <ChevronLeft className="h-4 w-4" /> Vissza
                 </button>
               ) : (
-                <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Schedulio</Link>
+                            <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+              <SchedulioLogo variant="dark" className="h-8" />
+            </Link>
               )}
               <div className="flex gap-1.5">
                 {([1, 2, 3, 4] as const).map(s => (
@@ -328,14 +332,15 @@ export function RegisterWizard() {
         {/* ── DESKTOP ── */}
         <div className="hidden lg:flex min-h-screen">
           <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-            <span className="text-white font-black text-xl tracking-tight">Schedulio</span>
-            <div>
+            <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+              <SchedulioLogo variant="dark" className="h-8" />
+            </Link>            <div>
               <h1 className="text-white font-black text-[2.25rem] uppercase leading-[1.05] tracking-tighter whitespace-pre-line">
                 {desktopLeftHeadline.h}
               </h1>
               <p className="text-zinc-500 mt-5 text-sm leading-relaxed max-w-xs">{desktopLeftHeadline.sub}</p>
             </div>
-            <p className="text-zinc-700 text-xs">© 2026 Schedulio</p>
+            <p className="text-zinc-700 text-xs">© 2026 Schedulio by [davelopment]®</p>
           </div>
 
           <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white overflow-y-auto">
@@ -589,14 +594,16 @@ export function RegisterWizard() {
       <div className="hidden lg:flex min-h-screen">
         {/* Left panel */}
         <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-          <span className="text-white font-black text-xl tracking-tight">Schedulio</span>
+          <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+            <SchedulioLogo variant="dark" className="h-8" />
+          </Link>
           <div>
             <h1 className="text-white font-black text-[3.25rem] uppercase leading-[1.05] tracking-tighter whitespace-pre-line">
               {leftText.headline}
             </h1>
             <p className="text-zinc-500 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
           </div>
-          <p className="text-zinc-700 text-xs">© 2026 Schedulio</p>
+          <p className="text-zinc-700 text-xs">© 2026 Schedulio by [davelopment]®</p>
         </div>
 
         {/* Right panel */}

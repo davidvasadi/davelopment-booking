@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useTheme } from 'next-themes'
-import Link from 'next/link'
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -11,6 +10,7 @@ import {
 import type { DayData, ServiceStat, StaffStat, DowStat, HourStat } from '@/lib/dashboardStats'
 import { formatPrice } from '@/lib/utils'
 import { ArrowUpRight } from 'lucide-react'
+import { KpiDetailsSheet } from './KpiDetailsSheet'
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
@@ -32,15 +32,16 @@ function periodLabel(days: number) {
   return `${days} nap`
 }
 
-function AnalyticsLink() {
+function DetailsButton({ onClick }: { onClick: () => void }) {
   return (
-    <Link
-      href="/dashboard/analytics"
+    <button
+      type="button"
+      onClick={onClick}
       className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors shrink-0"
     >
       <span className="hidden sm:inline">Részletek</span>
       <ArrowUpRight className="h-3.5 w-3.5" />
-    </Link>
+    </button>
   )
 }
 
@@ -54,6 +55,7 @@ function xAxisInterval(days: number) {
 
 export function TrendChart({ data, period = 30 }: { data: DayData[]; period?: number }) {
   const [tab, setTab] = useState<'revenue' | 'bookings'>('revenue')
+  const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
 
   const gridColor = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
@@ -82,7 +84,7 @@ export function TrendChart({ data, period = 30 }: { data: DayData[]; period?: nu
           </h3>
         </div>
         <div className="flex items-center gap-3">
-        <AnalyticsLink />
+        <DetailsButton onClick={() => setSheetOpen(true)} />
         <div className="flex gap-1 bg-zinc-100 dark:bg-white/[0.06] rounded-xl p-1">
           <button
             onClick={() => setTab('revenue')}
@@ -115,11 +117,81 @@ export function TrendChart({ data, period = 30 }: { data: DayData[]; period?: nu
           <Area type="monotone" dataKey={tab} stroke="#0099ff" strokeWidth={2} fill="url(#grad)" dot={false} activeDot={{ r: 4, fill: '#0099ff', strokeWidth: 0 }} />
         </AreaChart>
       </ResponsiveContainer>
+      <KpiDetailsSheet kind="trend" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} />
     </div>
   )
 }
 
-export function DowChart({ data, period = 30 }: { data: DowStat[]; period?: number }) {
+/**
+ * Étterem-trend: foglalás-szám / vendégszám (pax). A pax a DayData.revenue mezőben utazik
+ * (a getRestaurantStats így tölti). Nincs HUF-formázás, nincs drill-down sheet.
+ */
+export function ReservationTrendChart({ data, period = 30 }: { data: DayData[]; period?: number }) {
+  const [tab, setTab] = useState<'bookings' | 'revenue'>('bookings')
+  const dark = useIsDark()
+
+  const gridColor = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
+  const tickColor = dark ? 'rgba(255,255,255,0.25)' : '#94a3b8'
+  const cursorColor = dark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)'
+
+  const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
+    if (!active || !payload?.length) return null
+    return (
+      <div className="bg-white dark:bg-black border border-zinc-200 dark:border-white/[0.1] text-zinc-900 dark:text-white text-xs rounded-xl px-3 py-2 shadow-xl">
+        <p className="text-zinc-400 dark:text-white/40 mb-0.5">{label}</p>
+        <p className="font-black">
+          {tab === 'revenue' ? `${payload[0].value} vendég` : `${payload[0].value} foglalás`}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
+          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">
+            {tab === 'revenue' ? 'Vendégszám' : 'Foglalások'}
+          </h3>
+        </div>
+        <div className="flex gap-1 bg-zinc-100 dark:bg-white/[0.06] rounded-xl p-1">
+          <button
+            onClick={() => setTab('bookings')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === 'bookings' ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:text-white/40 dark:hover:text-white/80'}`}
+          >
+            Foglalások
+          </button>
+          <button
+            onClick={() => setTab('revenue')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === 'revenue' ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:text-white/40 dark:hover:text-white/80'}`}
+          >
+            Vendégszám
+          </button>
+        </div>
+      </div>
+
+      <ResponsiveContainer width="100%" height={220}>
+        <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+          <defs>
+            <linearGradient id="grad-res" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#0099ff" stopOpacity={0.25} />
+              <stop offset="95%" stopColor="#0099ff" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
+          <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickColor }} tickLine={false} axisLine={false} interval={xAxisInterval(period)} />
+          <YAxis tick={{ fontSize: 10, fill: tickColor }} tickLine={false} axisLine={false} allowDecimals={false} />
+          <Tooltip content={<CustomTooltip />} cursor={{ stroke: cursorColor, strokeWidth: 1, strokeDasharray: '4 4' }} />
+          <Area type="monotone" dataKey={tab} stroke="#0099ff" strokeWidth={2} fill="url(#grad-res)" dot={false} activeDot={{ r: 4, fill: '#0099ff', strokeWidth: 0 }} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
+export function DowChart({ data, period = 30, rawDays = [] }: { data: DowStat[]; period?: number; rawDays?: DayData[] }) {
+  const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
   const gridColor = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
   const tickColor = dark ? 'rgba(255,255,255,0.25)' : '#94a3b8'
@@ -131,7 +203,7 @@ export function DowChart({ data, period = 30 }: { data: DowStat[]; period?: numb
           <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
           <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Heti eloszlás</h3>
         </div>
-        <AnalyticsLink />
+        <DetailsButton onClick={() => setSheetOpen(true)} />
       </div>
       <ResponsiveContainer width="100%" height={160}>
         <BarChart data={data} margin={{ top: 0, right: 0, left: -28, bottom: 0 }} barSize={24}>
@@ -152,11 +224,13 @@ export function DowChart({ data, period = 30 }: { data: DowStat[]; period?: numb
           <Bar dataKey="bookings" fill="#0099ff" radius={[6, 6, 0, 0]} opacity={0.8} />
         </BarChart>
       </ResponsiveContainer>
+      <KpiDetailsSheet kind="dow" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={rawDays} />
     </div>
   )
 }
 
-export function HourChart({ data, period = 30 }: { data: HourStat[]; period?: number }) {
+export function HourChart({ data, period = 30, rawDays = [] }: { data: HourStat[]; period?: number; rawDays?: DayData[] }) {
+  const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
   const hasData = data.some(d => d.bookings > 0)
   if (!hasData) return null
@@ -171,7 +245,7 @@ export function HourChart({ data, period = 30 }: { data: HourStat[]; period?: nu
           <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
           <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Óránkénti forgalom</h3>
         </div>
-        <AnalyticsLink />
+        <DetailsButton onClick={() => setSheetOpen(true)} />
       </div>
       <ResponsiveContainer width="100%" height={160}>
         <BarChart data={data} margin={{ top: 0, right: 0, left: -28, bottom: 0 }} barSize={16}>
@@ -193,11 +267,13 @@ export function HourChart({ data, period = 30 }: { data: HourStat[]; period?: nu
           <Bar dataKey="bookings" fill="#a855f7" radius={[4, 4, 0, 0]} opacity={0.85} />
         </BarChart>
       </ResponsiveContainer>
+      <KpiDetailsSheet kind="hour" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} rawDays={rawDays} />
     </div>
   )
 }
 
 export function ServiceChart({ data, period = 30 }: { data: ServiceStat[]; period?: number }) {
+  const [sheetOpen, setSheetOpen] = useState(false)
   if (!data.length) return null
   const max = Math.max(...data.map(d => d.revenue))
   return (
@@ -207,7 +283,7 @@ export function ServiceChart({ data, period = 30 }: { data: ServiceStat[]; perio
           <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
           <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Szolgáltatások</h3>
         </div>
-        <AnalyticsLink />
+        <DetailsButton onClick={() => setSheetOpen(true)} />
       </div>
       <div className="space-y-3">
         {data.map((s, i) => (
@@ -223,11 +299,13 @@ export function ServiceChart({ data, period = 30 }: { data: ServiceStat[]; perio
           </div>
         ))}
       </div>
+      <KpiDetailsSheet kind="service" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} />
     </div>
   )
 }
 
 export function StaffChart({ data, period = 30 }: { data: StaffStat[]; period?: number }) {
+  const [sheetOpen, setSheetOpen] = useState(false)
   if (!data.length) return null
   const max = Math.max(...data.map(d => d.bookings))
   return (
@@ -237,7 +315,7 @@ export function StaffChart({ data, period = 30 }: { data: StaffStat[]; period?: 
           <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
           <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Munkatársak</h3>
         </div>
-        <AnalyticsLink />
+        <DetailsButton onClick={() => setSheetOpen(true)} />
       </div>
       <div className="space-y-3">
         {data.map((s, i) => (
@@ -253,6 +331,7 @@ export function StaffChart({ data, period = 30 }: { data: StaffStat[]; period?: 
           </div>
         ))}
       </div>
+      <KpiDetailsSheet kind="staff" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} />
     </div>
   )
 }

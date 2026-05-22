@@ -1,7 +1,38 @@
 import { CollectionConfig } from 'payload'
+import type { SelectFieldSingleValidation } from 'payload'
 
 export const Users: CollectionConfig = {
   slug: 'users',
+  hooks: {
+    beforeDelete: [
+      async ({ req, id }) => {
+        // A salons/restaurants.owner_id NOT NULL + FK ON DELETE SET NULL → a user közvetlen
+        // törlése elbukna (null nem megengedett). Ezért előbb töröljük a user szalonjait és
+        // éttermeit; azok saját beforeDelete hookja kaszkádol a kapcsolódó adatokra
+        // (foglalások, szolgáltatások, asztalok, előfizetés stb.).
+        const salons = await req.payload.find({
+          collection: 'salons',
+          where: { owner: { equals: id } },
+          limit: 100,
+          overrideAccess: true,
+          req,
+        })
+        for (const salon of salons.docs) {
+          await req.payload.delete({ collection: 'salons', id: salon.id, overrideAccess: true, req })
+        }
+        const restaurants = await req.payload.find({
+          collection: 'restaurants',
+          where: { owner: { equals: id } },
+          limit: 100,
+          overrideAccess: true,
+          req,
+        })
+        for (const restaurant of restaurants.docs) {
+          await req.payload.delete({ collection: 'restaurants', id: restaurant.id, overrideAccess: true, req })
+        }
+      },
+    ],
+  },
   auth: {
     useSessions: false,
     forgotPassword: {
@@ -85,15 +116,26 @@ export const Users: CollectionConfig = {
       type: 'select',
       options: [
         { label: 'Szalon tulajdonos', value: 'salon_owner' },
+        { label: 'Étterem tulajdonos', value: 'restaurant_owner' },
         { label: 'Admin', value: 'admin' },
       ],
       defaultValue: 'salon_owner',
       required: true,
       saveToJWT: true,
       access: {
-        create: ({ req }) => req.user?.role === 'admin',
+        // Regisztrációkor (nincs bejelentkezett user) a jelentkező beállíthatja a saját role-ját.
+        // Bejelentkezve csak admin módosíthat role-t. Az 'admin' role-t soha nem lehet
+        // önregisztrációval felvenni (lásd validate alább).
+        create: ({ req }) => !req.user || req.user.role === 'admin',
         update: ({ req }) => req.user?.role === 'admin',
       },
+      validate: ((value, { req }) => {
+        // Önregisztrációkor (nincs admin) tilos admin role-t kérni
+        if (value === 'admin' && req.user?.role !== 'admin') {
+          return 'Admin fiók nem hozható létre regisztrációval.'
+        }
+        return true
+      }) as SelectFieldSingleValidation,
     },
     {
       name: 'salon',
@@ -102,6 +144,15 @@ export const Users: CollectionConfig = {
       hasMany: false,
       admin: {
         condition: (data) => data?.role === 'salon_owner',
+      },
+    },
+    {
+      name: 'restaurant',
+      type: 'relationship',
+      relationTo: 'restaurants',
+      hasMany: false,
+      admin: {
+        condition: (data) => data?.role === 'restaurant_owner',
       },
     },
     {

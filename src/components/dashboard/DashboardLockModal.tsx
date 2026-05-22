@@ -4,16 +4,26 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Lock, Settings, ArrowRight } from 'lucide-react'
 
-const SETTINGS_PATH = '/dashboard/settings'
-const SUBSCRIPTION_PATH = '/dashboard/subscription'
+// Szalon és étterem dashboard egyaránt — a settings/subscription mindig elérhető marad
+const ALLOWED_PATHS = [
+  '/dashboard/settings',
+  '/dashboard/subscription',
+  '/restaurant/settings',
+  '/restaurant/subscription',
+]
 
 export function DashboardLockModal({ status }: { status: 'past_due' | 'canceled' | 'paused' }) {
   const pathname = usePathname()
 
   // Settings és subscription oldalon ne mutassuk a modalt
-  if (pathname?.startsWith(SETTINGS_PATH) || pathname?.startsWith(SUBSCRIPTION_PATH)) {
+  if (ALLOWED_PATHS.some((p) => pathname?.startsWith(p))) {
     return null
   }
+
+  // A "Tovább" gomb a megfelelő dashboard beállításai felé mutasson
+  const settingsHref = pathname?.startsWith('/restaurant')
+    ? '/restaurant/settings'
+    : '/dashboard/settings'
 
   const title = status === 'past_due'
     ? 'Lejárt a próbaidőszakod'
@@ -43,7 +53,7 @@ export function DashboardLockModal({ status }: { status: 'past_due' | 'canceled'
         </p>
 
         <Link
-          href={SETTINGS_PATH}
+          href={settingsHref}
           className="flex items-center justify-center gap-2 h-12 w-full rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity"
         >
           <Settings className="h-4 w-4" />
