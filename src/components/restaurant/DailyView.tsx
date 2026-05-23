@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
 import { List, LayoutGrid, Map as MapIcon, Plus } from 'lucide-react'
 import { ReservationActions } from './ReservationActions'
@@ -44,6 +44,23 @@ export interface DailyViewProps {
 
 function ymdLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Élő, percenként frissülő aktuális idő (perc éjféltől). null, ha a megtekintett nap nem ma van. */
+function useNowMinutes(date: string): number | null {
+  const calc = () => {
+    const now = new Date()
+    if (ymdLocal(now) !== date) return null
+    return now.getHours() * 60 + now.getMinutes()
+  }
+  const [min, setMin] = useState<number | null>(calc)
+  useEffect(() => {
+    setMin(calc())
+    const id = setInterval(() => setMin(calc()), 30_000)
+    return () => clearInterval(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date])
+  return min
 }
 
 function tableIdsOf(r: Reservation): string[] {
@@ -110,6 +127,7 @@ export function DailyView(props: DailyViewProps) {
       {view === 'list' && <ListView reservations={reservations} onEdit={openEdit} />}
       {view === 'timeline' && (
         <TimelineView
+          date={date}
           {...{ capacityMode, maxPax, reservations, rooms, tables, openMin, closeMin, turnMinutes }}
           onEdit={openEdit}
           onCreate={openCreate}
@@ -184,13 +202,25 @@ function ListView({ reservations, onEdit }: { reservations: Reservation[]; onEdi
 const pxPerMin = 2.4 // 1 perc = 2.4px → 30 perc = 72px
 
 function TimelineView({
-  capacityMode, maxPax, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate,
-}: Omit<DailyViewProps, 'date'> & {
+  date, capacityMode, maxPax, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate,
+}: DailyViewProps & {
   onEdit: (r: Reservation) => void
   onCreate: (start?: string, tableId?: string | number | null) => void
 }) {
   const totalMin = Math.max(closeMin - openMin, 60)
   const width = totalMin * pxPerMin
+
+  // megnyitáskor a görgethető nézet az aktuális időhöz ugrik (ha ma van és nyitvatartáson belül)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const nowMin = useNowMinutes(date)
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || nowMin == null || nowMin < openMin || nowMin > closeMin) return
+    const labelW = 128 // asztal-oszlop szélessége (sm:w-32)
+    const x = labelW + (nowMin - openMin) * pxPerMin
+    el.scrollTo({ left: Math.max(0, x - el.clientWidth / 2), behavior: 'smooth' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, openMin, closeMin])
   const card = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] rounded-2xl'
 
   // óránkénti rácsvonalak
@@ -255,7 +285,7 @@ function TimelineView({
   ].filter((g) => g.tables.length > 0)
 
   return (
-    <div className={`${card} overflow-x-auto`}>
+    <div ref={scrollRef} className={`${card} overflow-x-auto`}>
       <div style={{ minWidth: width + 128 }}>
         {/* idő-tengely fejléc */}
         <div className="flex sticky top-0 z-20 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.06]">
