@@ -4,6 +4,7 @@ import type { Salon, Service, ServiceCategory, StaffMember, Media } from '@/payl
 import { MapPin, Phone, Mail, Globe, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import PublicServicesSection from '@/components/PublicServicesSection'
+import { RestaurantPublicView } from '@/components/restaurant/RestaurantPublicView'
 
 const AVATAR_GRADIENTS = [
   'from-violet-400 to-purple-600',
@@ -30,7 +31,12 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
     limit: 1,
   })
 
-  if (!salonResult.docs.length) notFound()
+  // No active salon for this slug — fall through to a restaurant, then 404.
+  if (!salonResult.docs.length) {
+    const restaurantView = await RestaurantPublicView({ slug })
+    if (restaurantView) return restaurantView
+    notFound()
+  }
   const salon = salonResult.docs[0] as Salon
 
   const [servicesResult, staffResult, categoriesResult] = await Promise.all([

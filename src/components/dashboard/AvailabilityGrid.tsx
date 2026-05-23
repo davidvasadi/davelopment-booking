@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
 import type { Availability } from '@/payload/payload-types'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { TimeSelect } from '@/components/ui/time-select'
 import { cn } from '@/lib/utils'
 
 const DAYS = [
@@ -115,71 +114,78 @@ export default function AvailabilityGrid({ salonId, staffId, initialRecords }: P
           <div
             key={key}
             className={cn(
-              'flex items-center gap-4 px-6 py-4 transition-colors',
-              i < DAYS.length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.06]' : '',
-              !row.is_available && 'opacity-40'
+              'px-4 py-4 transition-colors sm:px-6',
+              i < DAYS.length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.06]' : ''
             )}
           >
-            <div className="w-24 shrink-0">
-              <p className="text-sm font-semibold text-zinc-700 dark:text-white/80">{label}</p>
-            </div>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <div className="w-20 shrink-0 sm:w-24">
+                <p className="text-sm font-semibold text-zinc-700 dark:text-white/80">{label}</p>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => toggle(key)}
-              className={cn(
-                'w-10 h-6 rounded-full transition-colors relative shrink-0',
-                row.is_available ? 'bg-[#0099ff]' : 'bg-zinc-200 dark:bg-white/[0.1]'
-              )}
-            >
-              <span
+              <button
+                type="button"
+                onClick={() => toggle(key)}
                 className={cn(
-                  'absolute top-1 w-4 h-4 rounded-full bg-white transition-all',
-                  row.is_available ? 'left-5' : 'left-1'
+                  'w-10 h-6 rounded-full transition-colors relative shrink-0',
+                  row.is_available ? 'bg-[#0099ff]' : 'bg-zinc-200 dark:bg-white/[0.1]'
                 )}
-              />
-            </button>
+              >
+                <span
+                  className={cn(
+                    'absolute top-1 w-4 h-4 rounded-full bg-white transition-all',
+                    row.is_available ? 'left-5' : 'left-1'
+                  )}
+                />
+              </button>
 
-            {row.is_available ? (
-              <>
-                <div className="flex items-center gap-2 flex-1">
-                  <Input
-                    type="time"
+              {row.is_available ? (
+                <div className="flex flex-1 items-center gap-2">
+                  <TimeSelect
                     value={row.start_time}
-                    onChange={e => setTime(key, 'start_time', e.target.value)}
-                    className="w-32 h-9 text-sm rounded-lg bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white"
+                    onChange={v => setTime(key, 'start_time', v)}
+                    className="w-full max-w-[8rem] sm:w-32"
                   />
                   <span className="text-zinc-400 dark:text-white/30 text-sm">–</span>
-                  <Input
-                    type="time"
+                  <TimeSelect
                     value={row.end_time}
-                    onChange={e => setTime(key, 'end_time', e.target.value)}
-                    className="w-32 h-9 text-sm rounded-lg bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white"
+                    onChange={v => setTime(key, 'end_time', v)}
+                    className="w-full max-w-[8rem] sm:w-32"
                   />
+                  {row.dirty && (
+                    <button
+                      onClick={() => saveRow(key)}
+                      disabled={saving === key}
+                      className="ml-auto hidden h-8 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-white/90 transition-colors shrink-0 sm:block"
+                    >
+                      {saving === key ? '...' : 'Mentés'}
+                    </button>
+                  )}
                 </div>
-                {row.dirty && (
-                  <button
-                    onClick={() => saveRow(key)}
-                    disabled={saving === key}
-                    className="h-8 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-white/90 transition-colors"
-                  >
-                    {saving === key ? '...' : 'Mentés'}
-                  </button>
-                )}
-              </>
-            ) : (
-              <div className="flex-1 flex items-center justify-between">
-                <p className="text-sm text-zinc-400 dark:text-white/30">Zárva</p>
-                {row.dirty && (
-                  <button
-                    onClick={() => saveRow(key)}
-                    disabled={saving === key}
-                    className="h-8 px-4 rounded-full border border-zinc-200 dark:border-white/[0.1] text-zinc-400 dark:text-white/50 text-xs font-semibold hover:border-zinc-400 dark:hover:border-white/[0.3] transition-colors"
-                  >
-                    {saving === key ? '...' : 'Mentés'}
-                  </button>
-                )}
-              </div>
+              ) : (
+                <div className="flex flex-1 items-center justify-between">
+                  <p className="text-sm text-zinc-400 dark:text-white/30">Zárva</p>
+                  {row.dirty && (
+                    <button
+                      onClick={() => saveRow(key)}
+                      disabled={saving === key}
+                      className="hidden h-8 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-white/90 transition-colors shrink-0 sm:block"
+                    >
+                      {saving === key ? '...' : 'Mentés'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {row.dirty && (
+              <button
+                onClick={() => saveRow(key)}
+                disabled={saving === key}
+                className="mt-3 w-full h-9 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-white/90 transition-colors sm:hidden"
+              >
+                {saving === key ? '...' : 'Mentés'}
+              </button>
             )}
           </div>
         )

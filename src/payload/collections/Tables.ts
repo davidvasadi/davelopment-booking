@@ -32,6 +32,16 @@ export const Tables: CollectionConfig = {
       label: 'Terem',
       admin: { description: 'Melyik teremben / zónában van az asztal' },
     },
+    {
+      name: 'combinable_with',
+      type: 'relationship',
+      relationTo: 'tables',
+      hasMany: true,
+      label: 'Összevonható ezekkel',
+      admin: {
+        description: 'Fizikailag összetolható szomszédos asztalok. Nagyobb társaság esetén ezek vonhatók össze.',
+      },
+    },
     { name: 'is_active', type: 'checkbox', defaultValue: true, label: 'Aktív', admin: { position: 'sidebar' } },
     { name: 'sort_order', type: 'number', defaultValue: 0, label: 'Sorrend' },
   ],

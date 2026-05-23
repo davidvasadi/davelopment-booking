@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -19,6 +20,7 @@ type Settings = {
   max_pax: number
   turn_duration_minutes: number
   slot_step_minutes: number
+  last_seating_buffer_minutes: number
   lead_time_hours: number
   require_phone: boolean
 }
@@ -66,6 +68,8 @@ export function RestaurantSettingsForm({
   const [form, setForm] = useState<Settings>(initial)
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
 
   const [logoId, setLogoId] = useState<number | null>(mediaId(logo))
   const [logoPreview, setLogoPreview] = useState<string | null>(mediaUrl(logo))
@@ -80,7 +84,7 @@ export function RestaurantSettingsForm({
   const coverRef = useRef<HTMLInputElement>(null)
 
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const publicUrl = `${origin}/r/${slug}`
+  const publicUrl = `${origin}/${slug}`
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -130,7 +134,7 @@ export function RestaurantSettingsForm({
   }
 
   const deleteAccount = async () => {
-    if (!confirm(`Biztosan törlöd a(z) „${restaurantName}" étteremhez tartozó fiókot? Ez a művelet visszafordíthatatlan — minden adat törlődik.`)) return
+    if (deleteConfirm.trim() !== restaurantName.trim()) return
     setDeleting(true)
     try {
       const res = await fetch('/api/restaurant/delete-account', { method: 'DELETE', credentials: 'include' })
@@ -166,6 +170,7 @@ export function RestaurantSettingsForm({
   }
 
   return (
+    <>
     <form onSubmit={onSubmit} className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 
       {/* Cover image */}
@@ -299,7 +304,7 @@ export function RestaurantSettingsForm({
             {publicUrl}
           </code>
           <a
-            href={`/r/${slug}`}
+            href={`/${slug}`}
             target="_blank"
             rel="noopener noreferrer"
             className="h-11 px-5 rounded-full border border-zinc-200 dark:border-white/[0.1] text-sm font-semibold text-zinc-700 dark:text-white/70 hover:border-zinc-400 transition-colors flex items-center"
@@ -369,6 +374,20 @@ export function RestaurantSettingsForm({
             />
           </div>
           <div className="space-y-1.5">
+            <Label className={labelClass}>Utolsó foglalás zárás előtt (perc)</Label>
+            <Input
+              type="number"
+              min={0}
+              step={15}
+              className={inputClass}
+              value={form.last_seating_buffer_minutes}
+              onChange={(e) => set('last_seating_buffer_minutes', parseInt(e.target.value, 10) || 0)}
+            />
+            <p className="text-xs text-zinc-400 dark:text-white/30">
+              0 = zárásig foglalható. Ha a foglalás hosszára állítod, csak az fér be, ami zárásig véget ér.
+            </p>
+          </div>
+          <div className="space-y-1.5">
             <Label className={labelClass}>Min. előfoglalás (óra)</Label>
             <Input
               type="number"
@@ -413,15 +432,66 @@ export function RestaurantSettingsForm({
           </div>
           <button
             type="button"
-            onClick={deleteAccount}
-            disabled={deleting}
-            className="h-10 px-5 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-40 shrink-0"
+            onClick={() => setDeleteOpen(true)}
+            className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center gap-2 transition-colors shrink-0"
           >
             <Trash2 className="h-4 w-4" />
-            {deleting ? 'Törlés...' : 'Fiók törlése'}
+            Fiók törlése
           </button>
         </div>
       </div>
     </form>
+
+    {deleteOpen && typeof document !== 'undefined' && createPortal(
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-2xl"
+        onClick={() => { if (!deleting) { setDeleteOpen(false); setDeleteConfirm('') } }}
+      >
+        <div
+          className="w-full max-w-md bg-white/95 dark:bg-zinc-900/90 backdrop-blur-xl rounded-3xl border border-white/40 dark:border-white/[0.08] shadow-2xl p-7 lg:p-9"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="h-12 w-12 rounded-2xl bg-red-500/10 flex items-center justify-center mb-5">
+            <Trash2 className="h-6 w-6 text-red-500" />
+          </div>
+          <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">Fiók törlése</h3>
+          <p className="text-sm text-zinc-500 dark:text-white/50 mt-2 leading-relaxed">
+            Ez a művelet <span className="font-semibold text-zinc-700 dark:text-white/70">visszafordíthatatlan</span>. Az étterem, a foglalások, asztalok és nyitvatartás véglegesen törlődik.
+          </p>
+          <p className="text-xs text-zinc-600 dark:text-white/50 mt-5 mb-2">
+            A megerősítéshez írd be az étterem nevét: <span className="font-bold text-zinc-800 dark:text-white/80">{restaurantName}</span>
+          </p>
+          <Input
+            className={inputClass}
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder={restaurantName}
+            autoComplete="off"
+            autoFocus
+          />
+          <div className="flex items-center gap-2 mt-6">
+            <button
+              type="button"
+              onClick={deleteAccount}
+              disabled={deleting || deleteConfirm.trim() !== restaurantName.trim()}
+              className="flex-1 h-11 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleting ? 'Törlés...' : 'Végleges törlés'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDeleteOpen(false); setDeleteConfirm('') }}
+              disabled={deleting}
+              className="h-11 px-5 rounded-full border border-zinc-200 dark:border-white/[0.1] text-sm font-semibold text-zinc-600 dark:text-white/60 hover:border-zinc-400 transition-colors"
+            >
+              Mégse
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
+    </>
   )
 }

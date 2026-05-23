@@ -55,7 +55,7 @@ export default function RestaurantCancelPage({
           </>
         )}
         <div>
-          <Link href={`/r/${slug}`} className="text-sm text-zinc-400 hover:text-zinc-700 dark:hover:text-white/70 transition-colors">
+          <Link href={`/${slug}`} className="text-sm text-zinc-400 hover:text-zinc-700 dark:hover:text-white/70 transition-colors">
             Vissza az étterem oldalára
           </Link>
         </div>

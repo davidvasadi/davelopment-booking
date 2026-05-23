@@ -1,4 +1,5 @@
 import type { CollectionConfig } from 'payload'
+import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 
 export const Salons: CollectionConfig = {
   slug: 'salons',
@@ -82,6 +83,7 @@ export const Salons: CollectionConfig = {
                 position: 'sidebar',
                 description: 'davelopment.hu/[slug]',
               },
+              validate: uniqueSlugAcrossTenants('salons', 'restaurants'),
             },
             {
               name: 'owner',

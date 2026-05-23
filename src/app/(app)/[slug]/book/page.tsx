@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import { getPayloadClient } from '@/lib/payload'
 import type { Salon, Service, StaffMember } from '@/payload/payload-types'
 import BookingWizard from '@/components/booking/BookingWizard'
+import { RestaurantBookView } from '@/components/restaurant/RestaurantBookView'
 
 export default async function BookPage({
   params,
@@ -19,7 +20,12 @@ export default async function BookPage({
     where: { and: [{ slug: { equals: slug } }, { is_active: { equals: true } }] },
     limit: 1,
   })
-  if (!salonResult.docs.length) notFound()
+  // No active salon for this slug — fall through to a restaurant, then 404.
+  if (!salonResult.docs.length) {
+    const restaurantView = await RestaurantBookView({ slug })
+    if (restaurantView) return restaurantView
+    notFound()
+  }
   const salon = salonResult.docs[0] as Salon
 
   const [servicesResult, staffResult] = await Promise.all([

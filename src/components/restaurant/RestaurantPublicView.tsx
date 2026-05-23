@@ -1,12 +1,16 @@
-import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getPayloadClient } from '@/lib/payload'
 import { MapPin, Phone, Mail, Globe, ChevronRight, Users, Clock, CalendarClock } from 'lucide-react'
-import { DAYS_OF_WEEK, DAY_LABELS_HU, type DayOfWeek } from '@/lib/restaurantTemplates'
 import type { Restaurant, OpeningHour, Media } from '@/payload/payload-types'
+import OpeningHoursLive from '@/components/restaurant/OpeningHoursLive'
+import NextAvailableSlots from '@/components/restaurant/NextAvailableSlots'
 
-export default async function RestaurantPublicPage({ params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+/**
+ * Renders an active restaurant's public landing page.
+ * Returns null when no active restaurant matches the slug, so callers
+ * (the shared [slug] route) can fall through to notFound().
+ */
+export async function RestaurantPublicView({ slug }: { slug: string }) {
   const payload = await getPayloadClient()
 
   const result = await payload.find({
@@ -15,7 +19,7 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
     depth: 1,
     limit: 1,
   })
-  if (!result.docs.length) notFound()
+  if (!result.docs.length) return null
   const restaurant = result.docs[0] as Restaurant
 
   const ohResult = await payload.find({
@@ -23,7 +27,12 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
     where: { restaurant: { equals: restaurant.id } },
     limit: 100,
   })
-  const byDay = new Map((ohResult.docs as OpeningHour[]).map((h) => [h.day_of_week, h]))
+  const openingHours = (ohResult.docs as OpeningHour[]).map((h) => ({
+    day_of_week: h.day_of_week,
+    is_open: h.is_open,
+    open_time: h.open_time,
+    close_time: h.close_time,
+  }))
 
   const coverUrl = restaurant.cover_image && typeof restaurant.cover_image === 'object'
     ? (restaurant.cover_image as Media).url ?? null
@@ -72,7 +81,7 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
             )}
           </div>
           <Link
-            href={`/r/${slug}/book`}
+            href={`/${slug}/book`}
             className="inline-flex items-center gap-2 mt-6 h-12 px-7 rounded-full bg-white text-zinc-950 font-bold text-sm hover:bg-zinc-100 transition-colors"
           >
             Asztalfoglalás <ChevronRight className="h-4 w-4" />
@@ -87,11 +96,17 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
           <section>
             <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Az asztalunknál</p>
             <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Rólunk</h2>
-            <div className="bg-white rounded-2xl px-5 py-5 shadow-sm">
+            <div className="rounded-2xl px-5 py-5 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
               <p className="text-zinc-600 leading-relaxed whitespace-pre-line">{restaurant.description}</p>
             </div>
           </section>
         )}
+
+        {/* Legközelebbi szabad időpontok + nyitvatartás — a "Jó tudni" felett */}
+        <div className="space-y-3">
+          <NextAvailableSlots restaurantId={restaurant.id} slug={slug} />
+          {openingHours.length > 0 && <OpeningHoursLive hours={openingHours} />}
+        </div>
 
         {/* Jó tudni — foglalási infó kártyák */}
         <section>
@@ -99,7 +114,7 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
           <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Jó tudni</h2>
           <div className="grid grid-cols-2 gap-3">
             {restaurant.max_pax != null && (
-              <div className="bg-white rounded-2xl px-4 py-4 shadow-sm">
+              <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
                 <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">
                   <Users className="h-4 w-4 text-white" />
                 </div>
@@ -108,7 +123,7 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
               </div>
             )}
             {restaurant.turn_duration_minutes != null && (
-              <div className="bg-white rounded-2xl px-4 py-4 shadow-sm">
+              <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
                 <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">
                   <Clock className="h-4 w-4 text-white" />
                 </div>
@@ -117,7 +132,7 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
               </div>
             )}
             {restaurant.lead_time_hours != null && (
-              <div className="bg-white rounded-2xl px-4 py-4 shadow-sm">
+              <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
                 <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">
                   <CalendarClock className="h-4 w-4 text-white" />
                 </div>
@@ -128,25 +143,6 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
           </div>
         </section>
 
-        {/* Nyitvatartás — kártya */}
-        <section>
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Mikor várunk</p>
-          <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Nyitvatartás</h2>
-          <div className="bg-white rounded-2xl divide-y divide-zinc-100 overflow-hidden shadow-sm">
-            {DAYS_OF_WEEK.map((d: DayOfWeek) => {
-              const h = byDay.get(d)
-              return (
-                <div key={d} className="flex items-center justify-between px-5 py-3 text-sm">
-                  <span className="text-zinc-700">{DAY_LABELS_HU[d]}</span>
-                  <span className={h?.is_open ? 'text-zinc-900 font-medium' : 'text-zinc-400'}>
-                    {h?.is_open ? `${h.open_time} – ${h.close_time}` : 'Zárva'}
-                  </span>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-
         {/* Bottom CTA */}
         <div className="bg-zinc-950 rounded-2xl p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
@@ -154,7 +150,7 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
             <p className="text-zinc-500 text-sm mt-0.5">Foglaljon asztalt online, pár kattintással</p>
           </div>
           <Link
-            href={`/r/${slug}/book`}
+            href={`/${slug}/book`}
             className="py-3 px-7 rounded-full bg-white text-zinc-950 font-bold text-sm hover:bg-zinc-100 transition-colors whitespace-nowrap"
           >
             Asztalfoglalás
@@ -165,7 +161,7 @@ export default async function RestaurantPublicPage({ params }: { params: Promise
       {/* Mobile sticky CTA */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-zinc-200 px-5 py-3">
         <Link
-          href={`/r/${slug}/book`}
+          href={`/${slug}/book`}
           className="flex items-center justify-center w-full h-12 rounded-full bg-zinc-950 text-white font-bold text-sm hover:bg-zinc-800 transition-colors"
         >
           Asztalfoglalás

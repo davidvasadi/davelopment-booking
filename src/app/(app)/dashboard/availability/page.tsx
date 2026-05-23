@@ -27,7 +27,7 @@ export default async function AvailabilityPage() {
   })
 
   return (
-    <div className="p-5 lg:p-8 max-w-2xl">
+    <div className="p-5 lg:p-8 space-y-6">
       <div className="mb-8">
         <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Időbeosztás</p>
         <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Nyitvatartás</h1>

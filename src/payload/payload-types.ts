@@ -54,6 +54,7 @@ export interface Restaurant {
   max_pax?: number | null
   turn_duration_minutes?: number | null
   slot_step_minutes?: number | null
+  last_seating_buffer_minutes?: number | null
   lead_time_hours?: number | null
   require_phone?: boolean | null
   is_active?: boolean | null
@@ -77,6 +78,7 @@ export interface Table {
   name: string
   capacity: number
   room?: string | Room | null
+  combinable_with?: (string | Table)[] | null
   is_active?: boolean | null
   sort_order?: number | null
   createdAt: string
@@ -101,7 +103,7 @@ export interface Reservation {
   start_time: string
   end_time: string
   pax: number
-  table?: string | Table | null
+  tables?: (string | Table)[] | null
   customer_name: string
   customer_email: string
   customer_phone?: string | null

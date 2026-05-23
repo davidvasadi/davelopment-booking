@@ -39,7 +39,7 @@ const restaurantNav: NavConfig = {
     { href: '/restaurant/availability', label: 'Nyitvatartás', icon: Clock },
     { href: '/restaurant/settings', label: 'Beállítások', icon: Settings },
   ],
-  publicUrlPrefix: 'r/',
+  publicUrlPrefix: '',
   settingsHref: '/restaurant/settings',
   subscriptionHref: '/restaurant/subscription',
 }

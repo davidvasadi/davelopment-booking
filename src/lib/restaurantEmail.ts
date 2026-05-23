@@ -18,9 +18,11 @@ export interface ReservationEmailData {
 }
 
 function tableName(reservation: Reservation): string | null {
-  const t = reservation.table
-  if (t && typeof t === 'object') return (t as Table).name
-  return null
+  const names = (reservation.tables ?? [])
+    .map((t) => (t && typeof t === 'object' ? (t as Table).name : null))
+    .filter((n): n is string => !!n)
+  if (names.length === 0) return null
+  return names.length > 1 ? `${names.join(' + ')} (összevont)` : names[0]
 }
 
 // ── ICS ────────────────────────────────────────────────────────────────────
@@ -59,7 +61,7 @@ export async function sendReservationConfirmation(data: ReservationEmailData) {
   const resend = getResend()
   if (!resend) return
   const cancelUrl = reservation.cancel_token
-    ? `${APP_URL}/r/${restaurant.slug}/cancel/${reservation.cancel_token}`
+    ? `${APP_URL}/${restaurant.slug}/cancel/${reservation.cancel_token}`
     : null
   try {
     await resend.emails.send({

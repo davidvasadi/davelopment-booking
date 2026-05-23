@@ -7,7 +7,7 @@ import { RestaurantKpiCard } from '@/components/dashboard/RestaurantKpiCard'
 import { ReservationTrendChart } from '@/components/dashboard/DashboardCharts'
 import { ReservationActions } from '@/components/restaurant/ReservationActions'
 import { Zap, MessageSquare, Users } from 'lucide-react'
-import type { Reservation, Table } from '@/payload/payload-types'
+import type { Reservation } from '@/payload/payload-types'
 
 const statusDot: Record<string, string> = {
   pending: 'bg-amber-400',
@@ -120,7 +120,9 @@ export default async function RestaurantDashboardPage() {
         ) : (
           <div>
             {reservations.map((r, i) => {
-              const table = r.table as Table | null
+              const tableNames = (r.tables ?? [])
+                .map((t) => (typeof t === 'object' && t ? t.name : null))
+                .filter((n): n is string => !!n)
               return (
                 <div
                   key={r.id}
@@ -133,7 +135,7 @@ export default async function RestaurantDashboardPage() {
                     <p className="font-semibold text-sm text-zinc-800 dark:text-white/80 truncate">{r.customer_name}</p>
                     <p className="text-xs text-zinc-500 dark:text-white/40 truncate">
                       {r.pax} fő
-                      {table && typeof table === 'object' ? ` · ${table.name}` : ''}
+                      {tableNames.length > 0 ? ` · ${tableNames.join(' + ')}${tableNames.length > 1 ? ' (összevont)' : ''}` : ''}
                     </p>
                     {r.notes && (
                       <p className="flex items-center gap-1 text-xs text-zinc-400 dark:text-white/30 mt-0.5 truncate">

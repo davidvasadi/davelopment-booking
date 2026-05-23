@@ -44,6 +44,7 @@ export default async function RestaurantSettingsPage() {
           max_pax: r.max_pax ?? 40,
           turn_duration_minutes: r.turn_duration_minutes ?? 120,
           slot_step_minutes: r.slot_step_minutes ?? 30,
+          last_seating_buffer_minutes: r.last_seating_buffer_minutes ?? 0,
           lead_time_hours: r.lead_time_hours ?? 2,
           require_phone: r.require_phone ?? true,
         }}

@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         start_time,
         end_time: alloc.end_time,
         pax,
-        ...(alloc.tableId !== null ? { table: Number(alloc.tableId) } : {}),
+        ...(alloc.tableIds.length > 0 ? { tables: alloc.tableIds.map(Number) } : {}),
         customer_name,
         customer_email,
         ...(customer_phone ? { customer_phone } : {}),

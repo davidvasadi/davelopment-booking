@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { format, addDays } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { toast } from 'sonner'
@@ -21,8 +21,15 @@ export function RestaurantBookingWizard({
   maxPax: number
 }) {
   const router = useRouter()
-  const [pax, setPax] = useState(2)
-  const [date, setDate] = useState(() => format(new Date(), 'yyyy-MM-dd'))
+  const searchParams = useSearchParams()
+  const initialDate = searchParams.get('date')
+  const initialPax = Number(searchParams.get('pax'))
+  const initialTime = searchParams.get('time')
+
+  const [pax, setPax] = useState(initialPax >= 1 && initialPax <= maxPax ? initialPax : 2)
+  const [date, setDate] = useState(() =>
+    initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : format(new Date(), 'yyyy-MM-dd'),
+  )
   const [slots, setSlots] = useState<{ start: string; end: string }[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [time, setTime] = useState<string | null>(null)
@@ -43,10 +50,20 @@ export function RestaurantBookingWizard({
     const q = new URLSearchParams({ restaurantId: String(restaurantId), date, pax: String(pax) })
     fetch(`/api/restaurant/slots?${q}`)
       .then((r) => r.json())
-      .then((d) => { if (!cancelled) setSlots(d.slots ?? []) })
+      .then((d) => {
+        if (cancelled) return
+        const next = d.slots ?? []
+        setSlots(next)
+        // A landingről érkező kívánt időpont előválasztása (csak ha még szabad)
+        if (initialTime && next.some((s: { start: string }) => s.start === initialTime)) {
+          setTime(initialTime)
+        }
+      })
       .catch(() => { if (!cancelled) setSlots([]) })
       .finally(() => { if (!cancelled) setLoadingSlots(false) })
     return () => { cancelled = true }
+    // initialTime szándékosan kimarad: csak a date/pax váltás triggereli újra
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurantId, date, pax])
 
   const submit = async () => {
@@ -70,7 +87,7 @@ export function RestaurantBookingWizard({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Hiba')
-      router.push(`/r/${slug}/book/success`)
+      router.push(`/${slug}/book/success`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'A foglalás sikertelen')
       setSubmitting(false)

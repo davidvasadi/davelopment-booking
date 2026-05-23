@@ -51,7 +51,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
         subscription={sub}
         variant="restaurant"
       />
-      <main className="flex-1 pb-24 lg:pb-0">
+      <main className="flex-1 min-w-0 pb-24 lg:pb-0">
         <SubscriptionBanner subscription={sub} basePath="/restaurant" />
         {children}
       </main>

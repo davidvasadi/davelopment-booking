@@ -33,7 +33,7 @@ export default async function BookingSuccessPage({
           </div>
         )}
         <Link href={`/${slug}`}>
-          <Button variant="outline" className="w-full">Vissza a szalonhoz</Button>
+          <Button variant="outline" className="w-full">Vissza a főoldalra</Button>
         </Link>
       </div>
     </div>

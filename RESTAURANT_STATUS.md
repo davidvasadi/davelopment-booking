@@ -4,11 +4,11 @@ Az éttermi asztalfoglaló modul külön státusz-dokumentuma. A fő projekt-ál
 
 ## Jelenlegi állapot
 
-**Collections + regisztráció + dashboard (alap CRUD) + dashboard-felzárkóztatás a szalon szintjére (áttekintő KPI-k, statisztikák oldal, előfizetés oldal, settings logó/borító + veszélyzóna) KÉSZ. Foglalási logika (slot-számítás, asztal-allokáció, nyilvános foglaló oldal) HÁTRAVAN.**
+**Collections + regisztráció + dashboard + foglalási logika (slot-számítás, asztal-allokáció) + nyilvános foglaló (`/[slug]`) + vizuális napi nézet (timeline/floor plan) + foglalás-szerkesztés/áthelyezés/rögzítés KÉSZ.**
 
 A build TypeScript-tiszta (`npx tsc --noEmit` átmegy).
 
-> **2026.05.22 — dashboard-felzárkóztatás:** Az éttermi `/restaurant` dashboard mostantól a szalon-`/dashboard` szintjén van vizuálisan/funkcionálisan. Új: KPI-kártyák (mai foglalás, mai vendégszám, kihasználtság %, 30 napos trend) + foglalás-trend grafikon + mai program lista; külön **Statisztikák** oldal (`/restaurant/analytics`) period-szűrővel; **Előfizetés** oldal (`/restaurant/subscription` — eddig 404-es link volt); a settingsben logó/borítókép feltöltés + veszélyzóna (fiók törlés). A foglalási logika (slot/allokáció/nyilvános oldal) továbbra is hátravan.
+> **2026.05.22 — vizuális napi nézet + foglalás-kezelés:** A `/restaurant/bookings` mostantól **3 nézetet** kínál (váltó + localStorage-perzisztálás): **Lista** (a régi), **Idővonal** (asztal × idő rács, státusz-színezett blokkok; flat módban óránkénti kapacitás-sáv), **Terem** (auto-grid floor plan idő-csúszkával, foglalt/szabad színezés). Bármelyik blokkra/sorra kattintva a **`ReservationEditSheet`** (jobbról becsúszó panel) nyílik: idő/létszám/asztal/státusz módosítás, csak szabad asztalokat kínálva. **Üres sávra kattintva új foglalás** (telefonos rögzítés). Új endpointok: `GET /api/restaurant/move-options` (szabad asztalok egy időablakra), `POST /api/restaurant/manage-reservation` (tulajdonosi create/update szerveroldali túlfoglalás-validációval). Korábbi MD tévesen jelezte hátralévőnek a foglalási logikát — az `restaurantBooking.ts`-ben rég kész.
 
 ---
 
@@ -20,7 +20,7 @@ A build TypeScript-tiszta (`npx tsc --noEmit` átmegy).
 |-------|---------|---------|
 | Operátor | `/admin` | Payload CMS (Étterem csoport: Restaurants + rejtett gyermek-collectionök) |
 | Tulajdonos | `/restaurant` | Étterem dashboard (lent részletezve) |
-| Vendég | `/r/[slug]` | **Nyilvános foglaló — még nem létezik** |
+| Vendég | `/[slug]` | **Nyilvános foglaló — még nem létezik** |
 
 A `restaurant_owner` role login/regisztráció után a `/restaurant`-ra kerül (a szalon-`/dashboard` átirányít ide).
 
@@ -47,13 +47,15 @@ A `restaurant_owner` role login/regisztráció után a `/restaurant`-ra kerül (
 | `/register-restaurant` | 3 lépéses éttermi reg (sablon → user+étterem → siker); seed-template háttérben |
 | `/restaurant` | Áttekintő dashboard — KPI-kártyák (mai foglalás/vendég/kihasználtság/30 nap), insight bar, foglalás-trend grafikon, mai program lista státusz-váltással |
 | `/restaurant/analytics` | **ÚJ** — Statisztikák: period-szűrő, KPI-k (foglalás/vendég/átl. társaság/teljesítési arány), trend + óránkénti + heti grafikonok |
-| `/restaurant/bookings` | Foglalások napi nézet (dátum-navigátor) + státusz-váltás dropdown |
+| `/restaurant/bookings` | **Vizuális napi nézet** — 3 nézet (Lista / Idővonal-rács / Terem floor plan, váltó + localStorage), kattintásra szerkesztő-sheet, üres sávra új foglalás, dátum-navigátor |
 | `/restaurant/tables` | Termek + asztalok CRUD (flat módban placeholder) |
 | `/restaurant/availability` | Nyitvatartás-szerkesztő (7 nap, nyitva/zárva + idő, mentés) |
 | `/restaurant/settings` | Étterem profil + foglalási beállítások + subscription kártya + **logó/borítókép feltöltés** + **veszélyzóna (fiók törlés)** |
 | `/restaurant/subscription` | **ÚJ** — előfizetés oldal a szalon `/dashboard/subscription` mintájára (KPI-k, státusz, Pro funkciók, fizetés/lemondás, lock notice) |
 | `/api/restaurant/seed-template` | Sablon-betöltő (capacity/turn/slot/lead beállítás + termek+asztalok+nyitvatartás) |
-| `/api/restaurant/delete-account` | **ÚJ** — étterem-tulajdonos fiók + étterem (kaszkád) + user törlése |
+| `/api/restaurant/delete-account` | étterem-tulajdonos fiók + étterem (kaszkád) + user törlése |
+| `/api/restaurant/move-options` | **ÚJ** — egy időablakra szabad+elég nagy asztalok listája (áthelyezéshez) |
+| `/api/restaurant/manage-reservation` | **ÚJ** — tulajdonosi foglalás create/update szerveroldali túlfoglalás-validációval (`validateManualReservation`) |
 
 A dashboard a Payload REST-et használja CRUD-hoz (`/api/restaurants`, `/api/rooms`, `/api/tables`, `/api/opening-hours`, `/api/reservations`) `credentials: include` cookie-auth-tal.
 
@@ -100,16 +102,28 @@ Helperek: `everyDay`, `weekHours`, `customDays`, `tablesOf`. `DAY_LABELS_HU` a m
 
 ---
 
-## Hátravan (foglalási logika — a lényeg)
+## Hátravan
 
-- **Slot/időablak-számítás**: nyitvatartás + `turn_duration_minutes` + `slot_step_minutes` + `lead_time_hours` alapján szabad időpontok
-- **Asztal-allokáció (tables mód)**: pax → megfelelő kapacitású szabad asztal adott időablakban; ütközés-ellenőrzés a meglévő foglalásokkal
-- **Flat kapacitás mód**: időablakonkénti összesített pax-limit (`max_pax`) ellenőrzése
-- **Nyilvános foglaló oldal** `/r/[slug]` + `/r/[slug]/book` + `/r/[slug]/book/success`
-- **Reservations API** (létrehozás slot-validációval, lemondás token-nel, visszaigazoló email Resend-del + ICS)
-- **Étterem dashboard finomítás**: asztaltérkép-vizualizáció, foglalások lista-nézet (nem csak napi)
+- **Drag & drop áthelyezés** a timeline-rácson (most kattintás → sheet; a D&D jó v2)
+- **Szerkeszthető floor plan** (x/y koordináta a Tables-ben az auto-grid helyett)
 - **Payload admin**: Restaurants-tab szerkezet (mint a Salons-nál) a rejtett gyermek-collectionökhöz
 - **`/register` belépőpont**: az "Étterem" kártya kösse át `/register-restaurant`-ra
+- **Visszaigazoló email** tulajdonosi rögzítésnél (a publikus úton már megy; a `manage-reservation` most nem küld)
+
+## Kész (foglalási logika + nyilvános foglaló)
+
+- ✅ Slot/időablak-számítás (nyitvatartás + turn + step + lead) — `getRestaurantSlots`
+- ✅ Asztal-allokáció (tables) + flat pax-limit + ütközés-ellenőrzés — `validateAndAllocate`
+- ✅ Nyilvános foglaló `/[slug]` + `/book` + `/success` + cancel-token + email (Resend)
+
+## Kész (2026.05.22 — vizuális napi nézet + foglalás-kezelés)
+
+- ✅ 3 nézet a `/restaurant/bookings`-on (Lista / Idővonal-rács / Terem floor plan) + váltó + localStorage
+- ✅ Idővonal: asztal × idő rács, státusz-színezett blokkok; flat módban óránkénti kapacitás-sáv
+- ✅ Floor plan: auto-grid termenként + idő-csúszka + foglalt/szabad színezés
+- ✅ Foglalás-szerkesztés/áthelyezés sheet-ben (idő/létszám/asztal/státusz), csak szabad asztalokat kínálva
+- ✅ Üres sávra kattintva új (telefonos) foglalás rögzítése
+- ✅ `move-options` + `manage-reservation` endpointok szerveroldali túlfoglalás-validációval
 
 ## Kész (2026.05.22 — dashboard-felzárkóztatás)
 
@@ -120,4 +134,4 @@ Helperek: `everyDay`, `weekHours`, `customDays`, `tablesOf`. `DAY_LABELS_HU` a m
 
 ---
 
-*Frissítve: 2026.05.22 — Claude (dashboard-felzárkóztatás a szalon szintjére: KPI-k, statisztikák, előfizetés oldal, settings logó/borító + veszélyzóna)*
+*Frissítve: 2026.05.22 — Claude (vizuális napi nézet: timeline-rács + floor plan + lista, foglalás-szerkesztés/áthelyezés/rögzítés sheet-ben, move-options + manage-reservation endpointok)*

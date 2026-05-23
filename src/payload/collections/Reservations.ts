@@ -28,12 +28,14 @@ export const Reservations: CollectionConfig = {
     { name: 'end_time', type: 'text', required: true, label: 'Vég (HH:MM)' },
     { name: 'pax', type: 'number', required: true, defaultValue: 2, label: 'Fő' },
     {
-      name: 'table',
+      name: 'tables',
       type: 'relationship',
       relationTo: 'tables',
-      label: 'Asztal',
+      hasMany: true,
+      label: 'Asztal(ok)',
       admin: {
-        description: 'Csak tables módban — az étterem rendeli hozzá vagy a foglalás automatikusan',
+        description:
+          'Csak tables módban — az étterem rendeli hozzá vagy a foglalás automatikusan. Nagyobb társaságnál több összevont asztal is lehet.',
       },
     },
     { name: 'customer_name', type: 'text', required: true, label: 'Vendég neve' },

@@ -1,4 +1,6 @@
 import type { Access, CollectionConfig } from 'payload'
+import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
+import { slugify } from '../lib/slugify'
 
 const isOwnerOrAdmin: Access = ({ req }) => {
   if (!req.user) return false
@@ -67,7 +69,19 @@ export const Restaurants: CollectionConfig = {
       required: true,
       unique: true,
       label: 'URL slug',
-      admin: { description: 'A nyilvános URL: /r/[slug]' },
+      admin: { description: 'A nyilvános URL: /[slug]. A névből generálódik, de később nem írja át magát — a kiadott linkek így nem törnek el.' },
+      validate: uniqueSlugAcrossTenants('restaurants', 'salons'),
+      hooks: {
+        // Auto-fill from the name only when the slug is empty (i.e. on create,
+        // or if the owner deliberately clears it). Editing the name later does
+        // NOT overwrite an existing slug, so public links stay stable.
+        beforeValidate: [
+          ({ value, data }) => {
+            if (value) return value
+            return data?.name ? slugify(data.name as string) : value
+          },
+        ],
+      },
     },
     {
       name: 'owner',
@@ -127,6 +141,16 @@ export const Restaurants: CollectionConfig = {
       defaultValue: 30,
       label: 'Időpont-lépték (perc)',
       admin: { description: 'Milyen sűrűn ajánljon időpontokat a nyitvatartáson belül (pl. 30 perc)' },
+    },
+    {
+      name: 'last_seating_buffer_minutes',
+      type: 'number',
+      defaultValue: 0,
+      label: 'Utolsó foglalható időpont zárás előtt (perc)',
+      admin: {
+        description:
+          'Mennyivel a zárás előtt legyen az utolsó kezdő időpont. 0 = zárásig lehet foglalni (a foglalás belelóghat a zárásba). Ha a foglalás hosszára állítod, csak az fér bele, ami zárásig véget ér.',
+      },
     },
     {
       name: 'lead_time_hours',

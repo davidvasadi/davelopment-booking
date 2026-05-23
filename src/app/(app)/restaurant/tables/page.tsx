@@ -56,6 +56,9 @@ export default async function RestaurantTablesPage() {
             capacity: t.capacity,
             room: typeof t.room === 'object' && t.room ? t.room.id : (t.room ?? null),
             sort_order: t.sort_order ?? 0,
+            combinable_with: (t.combinable_with ?? []).map((c) =>
+              typeof c === 'object' && c ? c.id : c,
+            ),
           }))}
         />
       )}

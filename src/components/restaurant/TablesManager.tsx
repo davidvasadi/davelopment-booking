@@ -15,6 +15,7 @@ type TableItem = {
   capacity: number
   room: number | string | null
   sort_order: number
+  combinable_with: (number | string)[]
 }
 
 export function TablesManager({
@@ -182,6 +183,7 @@ export function TablesManager({
 
       <TableEditSheet
         table={editing}
+        allTables={initialTables}
         onClose={() => setEditing(null)}
         onSaved={refresh}
       />
@@ -191,15 +193,18 @@ export function TablesManager({
 
 function TableEditSheet({
   table,
+  allTables,
   onClose,
   onSaved,
 }: {
   table: TableItem | null
+  allTables: TableItem[]
   onClose: () => void
   onSaved: () => void
 }) {
   const [name, setName] = useState('')
   const [capacity, setCapacity] = useState(2)
+  const [combinable, setCombinable] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -209,19 +214,53 @@ function TableEditSheet({
     setLastId(String(table.id))
     setName(table.name)
     setCapacity(table.capacity)
+    setCombinable(table.combinable_with.map(String))
   }
+
+  const toggleCombinable = (id: string) =>
+    setCombinable((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+
+  // A többi asztal, amivel ez összevonható lehet
+  const others = table ? allTables.filter((t) => String(t.id) !== String(table.id)) : []
+  const comboCapacity = capacity + others.filter((t) => combinable.includes(String(t.id))).reduce((s, t) => s + t.capacity, 0)
 
   const save = async () => {
     if (!table) return
     setSaving(true)
-    try {
-      const res = await fetch(`/api/tables/${table.id}`, {
+    const toId = (id: string | number) => (Number.isNaN(Number(id)) ? id : Number(id))
+    const patch = (id: string | number, body: unknown) =>
+      fetch(`/api/tables/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ name: name.trim() || table.name, capacity }),
+        body: JSON.stringify(body),
+      })
+    try {
+      const res = await patch(table.id, {
+        name: name.trim() || table.name,
+        capacity,
+        combinable_with: combinable.map(toId),
       })
       if (!res.ok) throw new Error()
+
+      // Szimmetria: a kapcsolatot a másik asztal rekordjába is bele- ill. kivesszük,
+      // hogy mindkét oldalon látszódjon a pipa és az adat konzisztens maradjon.
+      const before = new Set(table.combinable_with.map(String))
+      const after = new Set(combinable)
+      const added = others.filter((t) => after.has(String(t.id)) && !before.has(String(t.id)))
+      const removed = others.filter((t) => before.has(String(t.id)) && !after.has(String(t.id)))
+
+      await Promise.all([
+        ...added.map((t) => {
+          const next = Array.from(new Set([...t.combinable_with.map(String), String(table.id)]))
+          return patch(t.id, { combinable_with: next.map(toId) })
+        }),
+        ...removed.map((t) => {
+          const next = t.combinable_with.map(String).filter((x) => x !== String(table.id))
+          return patch(t.id, { combinable_with: next.map(toId) })
+        }),
+      ])
+
       toast.success('Asztal mentve')
       onSaved()
       onClose()
@@ -275,6 +314,47 @@ function TableEditSheet({
               onChange={(e) => setCapacity(parseInt(e.target.value, 10) || 1)}
             />
           </div>
+
+          {others.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className={labelClass}>Összevonható ezekkel</Label>
+              <p className="text-xs text-zinc-400 dark:text-white/30">
+                Jelöld be a fizikailag összetolható asztalokat. Nagyobb társaságnál ezeket a rendszer automatikusan
+                összevonja.
+              </p>
+              <div className="max-h-52 overflow-y-auto rounded-xl border border-zinc-200 dark:border-white/[0.1] divide-y divide-zinc-100 dark:divide-white/[0.06]">
+                {others.map((t) => {
+                  const checked = combinable.includes(String(t.id))
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => toggleCombinable(String(t.id))}
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-white/[0.03] transition-colors"
+                    >
+                      <span className="text-sm text-zinc-700 dark:text-white/80">
+                        {t.name} <span className="text-zinc-400">· {t.capacity} fő</span>
+                      </span>
+                      <span
+                        className={`h-5 w-5 shrink-0 rounded-md border flex items-center justify-center ${
+                          checked
+                            ? 'bg-zinc-900 dark:bg-white border-zinc-900 dark:border-white'
+                            : 'border-zinc-300 dark:border-white/20'
+                        }`}
+                      >
+                        {checked && <span className="text-white dark:text-black text-xs leading-none">✓</span>}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+              {combinable.length > 0 && (
+                <p className="text-xs text-emerald-600">
+                  Összevonva max <strong>{comboCapacity} fő</strong> ülhet le.
+                </p>
+              )}
+            </div>
+          )}
 
           <button
             onClick={save}
