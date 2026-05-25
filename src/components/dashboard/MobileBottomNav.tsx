@@ -57,6 +57,7 @@ export default function MobileBottomNav({
               key={href}
               href={href}
               aria-label={label}
+              data-tour={href}
               className="relative flex items-center justify-center"
             >
               <div className={cn(

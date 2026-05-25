@@ -3,6 +3,7 @@ import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
 
 export const Tables: CollectionConfig = {
   slug: 'tables',
+  labels: { singular: 'Asztal', plural: 'Asztalok' },
   admin: {
     useAsTitle: 'name',
     defaultColumns: ['name', 'capacity', 'room', 'restaurant'],

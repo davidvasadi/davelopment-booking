@@ -3,6 +3,7 @@ import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
 
 export const OpeningHours: CollectionConfig = {
   slug: 'opening-hours',
+  labels: { singular: 'Nyitvatartás', plural: 'Nyitvatartás' },
   admin: {
     useAsTitle: 'day_of_week',
     defaultColumns: ['day_of_week', 'open_time', 'close_time', 'restaurant'],

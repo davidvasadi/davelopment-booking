@@ -7,9 +7,10 @@ import { KpiCardWithDetails } from '@/components/dashboard/KpiCardWithDetails'
 import PeriodFilter from '@/components/dashboard/PeriodFilter'
 import type { Salon } from '@/payload/payload-types'
 
-const VALID_PERIODS = [7, 30, 90, 180, 365]
+const VALID_PERIODS = [1, 7, 30, 90, 180, 365]
 
 function periodLabel(days: number) {
+  if (days === 1) return 'mai'
   if (days === 7) return '7 nap'
   if (days === 30) return '30 nap'
   if (days === 90) return '90 nap'

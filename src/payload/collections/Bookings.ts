@@ -1,8 +1,11 @@
 import { CollectionConfig } from 'payload'
+import { notifyOnBooking } from '../hooks/notifyOnBooking'
 
 export const Bookings: CollectionConfig = {
   slug: 'bookings',
+  labels: { singular: 'Foglalás', plural: 'Foglalások' },
   admin: {
+    group: 'Szalon',
     useAsTitle: 'customer_name',
     defaultColumns: ['customer_name', 'salon', 'service', 'date', 'start_time', 'status'],
     hidden: true,
@@ -66,8 +69,8 @@ export const Bookings: CollectionConfig = {
     {
       name: 'customer_phone',
       type: 'text',
-      required: true,
       label: 'Ügyfél telefon',
+      admin: { description: 'Kötelezőségét a szalon „Telefonszám kötelező" beállítása vezérli a foglaló oldalon.' },
     },
     {
       name: 'date',
@@ -128,5 +131,8 @@ export const Bookings: CollectionConfig = {
       access: { update: () => false },
     },
   ],
+  hooks: {
+    afterChange: [notifyOnBooking('salon')],
+  },
   timestamps: true,
 }

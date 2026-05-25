@@ -2,11 +2,13 @@ import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { ReservationTrendChart, DowChart, HourChart } from '@/components/dashboard/DashboardCharts'
+import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
 import PeriodFilter from '@/components/dashboard/PeriodFilter'
 
-const VALID_PERIODS = [7, 30, 90, 180, 365]
+const VALID_PERIODS = [1, 7, 30, 90, 180, 365]
 
 function periodLabel(days: number) {
+  if (days === 1) return 'mai'
   if (days === 7) return '7 nap'
   if (days === 30) return '30 nap'
   if (days === 90) return '90 nap'
@@ -36,15 +38,23 @@ export default async function RestaurantAnalyticsPage({
           <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Részletes nézet</p>
           <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Statisztikák</h1>
         </div>
-        <PeriodFilter current={days} basePath="/restaurant/analytics" csvExport={false} />
+        <PeriodFilter current={days} basePath="/restaurant/analytics" module="restaurant" />
       </div>
 
       {/* Period KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard sub={`${label} foglalás`} label="előző időszakhoz képest" value={String(stats.periodReservations)} diff={stats.periodReservationsDiff} />
         <StatCard sub={`${label} vendég`} label="előző időszakhoz képest" value={`${stats.periodPax} fő`} diff={stats.periodPaxDiff} />
-        <StatCard sub="Átl. társaság" label="foglalásonként" value={`${stats.avgPartySize} fő`} />
+        <StatCard sub="Online foglalás" label={`${label} – beérkezett online`} value={String(stats.onlineReservations)} />
         <StatCard sub="Teljesítési arány" label="befejezett / lezárt" value={`${stats.completionRate}%`} />
+      </div>
+
+      {/* Status breakdown cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard sub="Lemondva" label="összes foglaláshoz" value={String(stats.cancelledCount)} pct={stats.cancellationRate} />
+        <StatCard sub="No-show" label="nem jött meg" value={String(stats.noShowCount)} pct={stats.noShowRate} />
+        <StatCard sub="Walk-in" label="beeső foglalás" value={String(stats.walkInCount)} pct={stats.walkInRate} />
+        <StatCard sub="Telefonos" label="telefonos foglalás" value={String(stats.phoneCount)} pct={stats.phoneRate} />
       </div>
 
       {/* Insight */}
@@ -56,14 +66,17 @@ export default async function RestaurantAnalyticsPage({
         </div>
       )}
 
-      {/* Trend chart */}
-      <ReservationTrendChart data={stats.trend} period={stats.period} />
+      {/* Trend + heti eloszlás csak 1 napnál nagyobb időszaknál értelmes
+          (1 napra egyetlen pont / oszlop lenne; az óránkénti forgalom mutatja a mai napot). */}
+      {days > 1 && <ReservationTrendChart data={stats.trend} period={stats.period} />}
 
       {/* Hourly distribution */}
-      <HourChart data={stats.byHour} period={stats.period} rawDays={stats.trend} />
+      <HourChart data={stats.byHour} period={stats.period} rawDays={stats.trend} moneyless />
 
-      {/* DoW breakdown */}
-      <DowChart data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} />
+      {days > 1 && <DowChart data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} moneyless />}
+
+      {/* Napi bontás – kattintható, napok között lapozható */}
+      <DailyBreakdownChart data={stats.dailyBreakdown} fullData={stats.dailyBreakdownFull} period={stats.period} />
     </div>
   )
 }

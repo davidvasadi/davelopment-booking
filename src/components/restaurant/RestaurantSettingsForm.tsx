@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Camera, Loader2, ImagePlus, X, Trash2 } from 'lucide-react'
+import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import type { Media } from '@/payload/payload-types'
 
 type Settings = {
@@ -23,6 +24,7 @@ type Settings = {
   last_seating_buffer_minutes: number
   lead_time_hours: number
   require_phone: boolean
+  notify_new_bookings: boolean
 }
 
 const inputClass =
@@ -83,7 +85,8 @@ export function RestaurantSettingsForm({
   const [coverModified, setCoverModified] = useState(false)
   const coverRef = useRef<HTMLInputElement>(null)
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const [origin, setOrigin] = useState('')
+  useEffect(() => setOrigin(window.location.origin), [])
   const publicUrl = `${origin}/${slug}`
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
@@ -399,15 +402,19 @@ export function RestaurantSettingsForm({
           </div>
         </div>
 
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
+        <div className="space-y-4 border-t border-zinc-100 dark:border-white/[0.06] pt-4">
+          <ToggleSwitch
             checked={form.require_phone}
-            onChange={(e) => set('require_phone', e.target.checked)}
-            className="h-4 w-4 rounded accent-zinc-900 dark:accent-white"
+            onChange={(v) => set('require_phone', v)}
+            label="Telefonszám kötelező a vendégnek"
           />
-          <span className="text-sm text-zinc-700 dark:text-zinc-300">Telefonszám kötelező a vendégnek</span>
-        </label>
+          <ToggleSwitch
+            checked={form.notify_new_bookings}
+            onChange={(v) => set('notify_new_bookings', v)}
+            label="Értesítés új foglalásokról"
+            description="Értesítést kapsz az alkalmazáson belül új foglalásról és lemondásról."
+          />
+        </div>
       </Section>
 
       <div className="lg:col-span-2">

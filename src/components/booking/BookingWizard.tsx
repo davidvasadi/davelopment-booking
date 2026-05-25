@@ -44,6 +44,7 @@ interface Props {
   salonId: string
   salonSlug: string
   salonName: string
+  requirePhone?: boolean
   services: Service[]
   staff: StaffMember[]
   preselectedServiceId?: string | null
@@ -119,7 +120,7 @@ function DateStrip({ selected, onChange }: { selected: string; onChange: (d: str
 }
 
 export default function BookingWizard({
-  salonId, salonSlug, salonName, services, staff, preselectedServiceId, preselectedStaffId,
+  salonId, salonSlug, salonName, requirePhone = true, services, staff, preselectedServiceId, preselectedStaffId,
 }: Props) {
   const router = useRouter()
   const [step, setStep] = useState(preselectedServiceId ? 1 : 0)
@@ -160,7 +161,7 @@ export default function BookingWizard({
     if (!state.serviceId || !state.slot || !state.staffId) return
     if (!state.name || state.name.length < 2) { toast.error('Add meg a neved'); return }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.email)) { toast.error('Érvényes email szükséges'); return }
-    if (state.phone.replace(/\s/g, '').length < 7) { toast.error('Érvényes telefonszám szükséges'); return }
+    if (requirePhone && state.phone.replace(/\s/g, '').length < 7) { toast.error('Érvényes telefonszám szükséges'); return }
 
     setSubmitting(true)
     try {
@@ -431,7 +432,7 @@ export default function BookingWizard({
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Telefonszám *</Label>
+                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Telefonszám{requirePhone ? ' *' : ''}</Label>
                 <Input
                   type="tel"
                   value={state.phone}
@@ -502,7 +503,7 @@ export default function BookingWizard({
           {step === 3 && (
             <button
               onClick={submit}
-              disabled={submitting || !state.name || !state.email || !state.phone}
+              disabled={submitting || !state.name || !state.email || (requirePhone && !state.phone)}
               className="w-full h-14 rounded-2xl bg-zinc-950 text-white font-black text-sm hover:bg-zinc-800 transition-all shadow-lg disabled:opacity-40 flex items-center justify-center gap-2"
             >
               {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Küldés...</> : 'Foglalás megerősítése →'}

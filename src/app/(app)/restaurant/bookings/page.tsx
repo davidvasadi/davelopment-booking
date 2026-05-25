@@ -2,6 +2,8 @@ import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getPayloadClient } from '@/lib/payload'
 import { ReservationDateFilter } from '@/components/restaurant/ReservationDateFilter'
 import { DailyView } from '@/components/restaurant/DailyView'
+import { PrintDayButton } from '@/components/restaurant/PrintDayButton'
+import { StatCard } from '@/components/dashboard/StatCard'
 import { hhmmToMinutes, getDayName } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 import type { Reservation, Table, Room, OpeningHour } from '@/payload/payload-types'
@@ -13,13 +15,23 @@ function ymd(d: Date) {
 export default async function RestaurantBookingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string }>
+  searchParams: Promise<{ date?: string; reservation?: string }>
 }) {
   const { restaurant } = await getOwnedRestaurant()
-  const { date } = await searchParams
-  const selectedDate = date ?? ymd(new Date())
+  const { date, reservation: reservationParam } = await searchParams
 
   const payload = await getPayloadClient()
+
+  // Értesítésből érkezve (?reservation=) a foglalás napjára ugrunk, hogy a sheet
+  // a megfelelő nézetben nyíljon ki — a kliens a query alapján nyitja meg.
+  let selectedDate = date ?? ymd(new Date())
+  if (!date && reservationParam) {
+    const r = await payload
+      .findByID({ collection: 'reservations', id: reservationParam, depth: 0, overrideAccess: true })
+      .catch(() => null)
+    if (r?.date) selectedDate = r.date
+  }
+
   const capacityMode = (restaurant.capacity_mode ?? 'tables') as 'tables' | 'flat'
   const turnMinutes = restaurant.turn_duration_minutes ?? 120
 
@@ -71,6 +83,16 @@ export default async function RestaurantBookingsPage({
     .filter((r) => r.status !== 'cancelled' && r.status !== 'no_show')
     .reduce((sum, r) => sum + (r.pax ?? 0), 0)
 
+  // ── Napi gyorskártyák ──────────────────────────────────────────
+  const activeCount = reservations.filter(
+    (r) => r.status !== 'cancelled' && r.status !== 'no_show',
+  ).length
+  const cancelledCount = reservations.filter(
+    (r) => r.status === 'cancelled' || r.status === 'no_show',
+  ).length
+  const completedCount = reservations.filter((r) => r.status === 'completed').length
+  const walkInCount = reservations.filter((r) => r.source === 'walk_in').length
+
   return (
     <div className="p-5 lg:p-8 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
@@ -80,11 +102,26 @@ export default async function RestaurantBookingsPage({
           </p>
           <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Foglalások</h1>
         </div>
-        <ReservationDateFilter currentDate={selectedDate} />
+        <div className="flex items-center gap-2">
+          <ReservationDateFilter currentDate={selectedDate} />
+          <PrintDayButton
+            date={selectedDate}
+            restaurantName={restaurant.name}
+            reservations={reservations}
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+        <StatCard sub="Aznap" label="Aktív foglalás" value={String(activeCount)} />
+        <StatCard sub="Aznap" label="Befejezett" value={String(completedCount)} />
+        <StatCard sub="Aznap" label="Lemondva / nem jött" value={String(cancelledCount)} />
+        <StatCard sub="Aznap" label="Beeső (walk-in)" value={String(walkInCount)} />
       </div>
 
       <DailyView
         date={selectedDate}
+        restaurantId={String(restaurant.id)}
         capacityMode={capacityMode}
         maxPax={restaurant.max_pax ?? 0}
         reservations={reservations}
@@ -93,6 +130,7 @@ export default async function RestaurantBookingsPage({
         openMin={openMin}
         closeMin={closeMin}
         turnMinutes={turnMinutes}
+        openReservationId={reservationParam}
       />
     </div>
   )

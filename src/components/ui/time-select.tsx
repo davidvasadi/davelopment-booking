@@ -84,14 +84,19 @@ export function TimeSelect({
   onChange,
   className,
   disabled,
+  container,
 }: {
   value: string
   onChange: (value: string) => void
   className?: string
   disabled?: boolean
+  /** Hova portálozzon a legördülő. Alapból a body; Sheet/Dialog belsejében add át
+   *  a panel saját konténerét, hogy a scroll-lock ne nyelje el a görgetést. */
+  container?: HTMLElement | null
 }) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
+  const [target, setTarget] = useState<HTMLElement | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
   const { h, m } = parse(value)
@@ -101,7 +106,13 @@ export function TimeSelect({
     if (!open || !triggerRef.current) return
     const r = triggerRef.current.getBoundingClientRect()
     setPos({ top: r.bottom + 6, left: r.left })
-  }, [open])
+    // Ha nincs explicit konténer, és Radix Dialog/Sheet-en belül vagyunk, a panelt
+    // a dialog tartalmába portáljuk (nem a body-ra). Különben a react-remove-scroll
+    // scroll-lockja a body-portált a lockolt elemen kívülinek látja és preventDefault-tal
+    // elnyeli a wheel/touch eseményeket, így nem lehetne görgetni a görgőt.
+    const dialog = triggerRef.current.closest<HTMLElement>('[role="dialog"]')
+    setTarget(container ?? dialog ?? document.body)
+  }, [open, container])
 
   useEffect(() => {
     if (!open) return
@@ -134,7 +145,7 @@ export function TimeSelect({
         <ChevronDown className={cn('h-4 w-4 opacity-50 transition-transform', open && 'rotate-180')} />
       </button>
 
-      {open && pos && createPortal(
+      {open && pos && target && createPortal(
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left }}
@@ -146,7 +157,7 @@ export function TimeSelect({
             <Wheel items={MINUTES} value={m} onChange={(nm) => onChange(`${h}:${nm}`)} />
           </div>
         </div>,
-        document.body
+        target
       )}
     </div>
   )

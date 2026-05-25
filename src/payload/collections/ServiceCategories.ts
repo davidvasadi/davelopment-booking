@@ -2,7 +2,9 @@ import { CollectionConfig } from 'payload'
 
 export const ServiceCategories: CollectionConfig = {
   slug: 'service-categories',
+  labels: { singular: 'Szolgáltatás kategória', plural: 'Szolgáltatás kategóriák' },
   admin: {
+    group: 'Szalon',
     useAsTitle: 'name',
     defaultColumns: ['name', 'salon', 'duration_label'],
     hidden: true,

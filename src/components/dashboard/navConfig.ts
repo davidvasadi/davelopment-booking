@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, CalendarDays, Briefcase, Users, Clock, Settings, BarChart2, Armchair,
+  LayoutDashboard, CalendarDays, Briefcase, Users, Clock, Settings, BarChart2, Armchair, Lightbulb,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -23,6 +23,7 @@ const salonNav: NavConfig = {
     { href: '/dashboard/services', label: 'Szolgáltatások', icon: Briefcase },
     { href: '/dashboard/staff', label: 'Munkatársak', icon: Users },
     { href: '/dashboard/availability', label: 'Nyitvatartás', icon: Clock },
+    { href: '/dashboard/tips', label: 'Tippek', icon: Lightbulb },
     { href: '/dashboard/settings', label: 'Beállítások', icon: Settings },
   ],
   publicUrlPrefix: '',
@@ -37,6 +38,7 @@ const restaurantNav: NavConfig = {
     { href: '/restaurant/bookings', label: 'Foglalások', icon: CalendarDays },
     { href: '/restaurant/tables', label: 'Asztalok', icon: Armchair },
     { href: '/restaurant/availability', label: 'Nyitvatartás', icon: Clock },
+    { href: '/restaurant/tips', label: 'Tippek', icon: Lightbulb },
     { href: '/restaurant/settings', label: 'Beállítások', icon: Settings },
   ],
   publicUrlPrefix: '',

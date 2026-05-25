@@ -55,6 +55,7 @@ export const Restaurants: CollectionConfig = {
     defaultColumns: ['name', 'slug', 'owner', 'city', 'capacity_mode', 'is_active'],
     group: 'Étterem',
   },
+  labels: { singular: 'Étterem', plural: 'Éttermek' },
   access: {
     read: () => true,
     create: ({ req }) => !!req.user,
@@ -166,6 +167,13 @@ export const Restaurants: CollectionConfig = {
       type: 'checkbox',
       defaultValue: true,
       label: 'Telefonszám kötelező a vendégnek',
+    },
+    {
+      name: 'notify_new_bookings',
+      type: 'checkbox',
+      defaultValue: true,
+      label: 'Értesítés új foglalásokról',
+      admin: { description: 'Ha be van kapcsolva, a tulajdonos értesítést kap új foglalásról és lemondásról az alkalmazáson belül.' },
     },
     {
       name: 'is_active',

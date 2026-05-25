@@ -6,6 +6,7 @@ import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import type { Restaurant, Subscription } from '@/payload/payload-types'
 
 export default async function RestaurantLayout({ children }: { children: React.ReactNode }) {
@@ -57,6 +58,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
       </main>
       <MobileBottomNav subscription={sub} variant="restaurant" />
       {lockedStatus && <DashboardLockModal status={lockedStatus} />}
+      <OnboardingTour variant="restaurant" userId={String(user.id)} />
     </div>
   )
 }

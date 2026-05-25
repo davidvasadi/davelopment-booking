@@ -44,7 +44,9 @@ export const Salons: CollectionConfig = {
       },
     ],
   },
+  labels: { singular: 'Szalon', plural: 'Szalonok' },
   admin: {
+    group: 'Szalon',
     useAsTitle: 'name',
     defaultColumns: ['name', 'slug', 'owner', 'city', 'is_active'],
   },
@@ -144,6 +146,19 @@ export const Salons: CollectionConfig = {
               type: 'number',
               defaultValue: 15,
               label: 'Foglalások közti szünet (perc)',
+            },
+            {
+              name: 'require_phone',
+              type: 'checkbox',
+              defaultValue: true,
+              label: 'Telefonszám kötelező az ügyfélnek',
+            },
+            {
+              name: 'notify_new_bookings',
+              type: 'checkbox',
+              defaultValue: true,
+              label: 'Értesítés új foglalásokról',
+              admin: { description: 'Ha be van kapcsolva, a tulajdonos értesítést kap új foglalásról és lemondásról az alkalmazáson belül.' },
             },
             {
               name: 'is_active',

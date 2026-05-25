@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
 import { List, LayoutGrid, Map as MapIcon, Plus } from 'lucide-react'
 import { ReservationActions } from './ReservationActions'
 import { ReservationEditSheet, type EditTarget } from './ReservationEditSheet'
+import { OfflineBanner } from './OfflineBanner'
+import { getDrafts, subscribeDrafts, type ReservationDraft } from '@/lib/offlineDrafts'
 import type { Reservation, Table, Room } from '@/payload/payload-types'
 
 type ViewMode = 'list' | 'timeline' | 'floor'
@@ -29,8 +31,36 @@ const statusDot: Record<string, string> = {
 }
 const ACTIVE = new Set(['pending', 'confirmed', 'seated', 'completed'])
 
+// Forrás-címke a nem-online (személyzet által rögzített) foglalásokhoz
+const sourceBadge: Record<string, string> = { walk_in: 'Beeső', phone: 'Telefon' }
+
+/** Időérzékeny sürgősség-jelzés egy foglaláshoz a jelenlegi perchez (nowMin) képest.
+ *  Csak akkor él, ha a megtekintett nap ma van (nowMin != null). A státusz mellé
+ *  ad egy figyelemfelkeltő badge-et a hostnak: késés / asztal mindjárt lejár / túlfutás. */
+type Urgency = { label: string; cls: string; pulse: boolean }
+function urgencyOf(r: Reservation, nowMin: number | null): Urgency | null {
+  if (nowMin == null) return null
+  const start = hhmmToMinutes(r.start_time)
+  const end = hhmmToMinutes(r.end_time)
+  const red = 'bg-red-500 text-white border-red-600'
+  const orange = 'bg-orange-500 text-white border-orange-600'
+
+  // Késik: megerősítve, de a kezdés ideje már elmúlt és még nem ültették le
+  if (r.status === 'confirmed' && nowMin > start) {
+    return { label: `Késik ${nowMin - start} perce`, cls: red, pulse: true }
+  }
+  if (r.status === 'seated') {
+    // Túllépte: leültetve, de a vége ideje már elmúlt — csúszik a rotáció
+    if (nowMin > end) return { label: `Túlfut ${nowMin - end} perce`, cls: red, pulse: true }
+    // Mindjárt lejár: a vége 15 percen belül — jön a következő foglalás
+    if (end - nowMin <= 15) return { label: `Lejár ${end - nowMin} perc`, cls: orange, pulse: false }
+  }
+  return null
+}
+
 export interface DailyViewProps {
   date: string
+  restaurantId: string
   capacityMode: 'tables' | 'flat'
   maxPax: number
   reservations: Reservation[]
@@ -40,7 +70,12 @@ export interface DailyViewProps {
   openMin: number
   closeMin: number
   turnMinutes: number
+  /** Értesítésből érkezve ezt a foglalást nyitjuk meg automatikusan a sheet-ben. */
+  openReservationId?: string
 }
+
+/** A belső nézetek (Timeline/Floor) propjai — restaurantId nélkül. */
+type ViewProps = Omit<DailyViewProps, 'restaurantId' | 'openReservationId'>
 
 function ymdLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -73,10 +108,53 @@ function tableNamesOf(r: Reservation): string[] {
     .filter((n): n is string => !!n)
 }
 
+/** Egy lokális vázlatból olyan "ál-foglalás" készül, ami beleilleszkedik a
+ *  meglévő nézetekbe (kapacitás/foglaltság), de a __draft jelölővel végig
+ *  vázlatként látszik. A draftId a véglegesítéshez/törléshez kell. */
+type DraftReservation = Reservation & { __draft: true; draftId: string }
+export function isDraft(r: Reservation): r is DraftReservation {
+  return (r as DraftReservation).__draft === true
+}
+
+function draftToReservation(d: ReservationDraft): DraftReservation {
+  return {
+    id: d.draftId as unknown as number,
+    customer_name: d.customer_name || 'Telefonos foglalás',
+    customer_phone: d.customer_phone || '',
+    customer_email: d.customer_email || '',
+    pax: d.pax,
+    date: d.date,
+    start_time: d.start_time,
+    end_time: d.end_time || d.start_time,
+    notes: d.notes || '',
+    status: (d.status || 'confirmed') as Reservation['status'],
+    tables: (d.tableIds ?? []).map((id, i) => ({
+      id: id as unknown as number,
+      name: d.tableNames?.[i] ?? String(id),
+    })) as unknown as Reservation['tables'],
+    __draft: true,
+    draftId: d.draftId,
+  } as unknown as DraftReservation
+}
+
 export function DailyView(props: DailyViewProps) {
-  const { date, capacityMode, maxPax, reservations, rooms, tables, openMin, closeMin, turnMinutes } = props
+  const { date, restaurantId, capacityMode, maxPax, rooms, tables, openMin, closeMin, turnMinutes, openReservationId } = props
   const [view, setView] = useState<ViewMode>('list')
   const [target, setTarget] = useState<EditTarget | null>(null)
+  const [drafts, setDrafts] = useState<ReservationDraft[]>([])
+
+  // Lokális vázlatok betöltése + élő követése (saját és más fülek).
+  useEffect(() => {
+    setDrafts(getDrafts(restaurantId))
+    return subscribeDrafts(restaurantId, setDrafts)
+  }, [restaurantId])
+
+  // A vázlatok beolvadnak a foglalások közé (kapacitásba számítanak), de
+  // jelölve maradnak. Csak az adott napra eső vázlatokat fűzzük hozzá.
+  const reservations = useMemo(() => {
+    const dayDrafts = drafts.filter((d) => d.date === date).map(draftToReservation)
+    return [...props.reservations, ...dayDrafts]
+  }, [props.reservations, drafts, date])
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as ViewMode | null
@@ -86,6 +164,19 @@ export function DailyView(props: DailyViewProps) {
     setView(v)
     localStorage.setItem(STORAGE_KEY, v)
   }
+
+  // Értesítésből érkezve (?reservation=) automatikusan megnyitjuk a sheet-et az adott
+  // foglaláshoz. Az utoljára megnyitott id-t jegyezzük: ha egy MÁSIK értesítésre
+  // kattintasz (új id), újra megnyílik — ugyanarra viszont nem nyílik fel feleslegesen.
+  const lastOpenedRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!openReservationId || lastOpenedRef.current === openReservationId) return
+    const r = props.reservations.find((x) => String(x.id) === String(openReservationId))
+    if (r) {
+      lastOpenedRef.current = openReservationId
+      setTarget({ reservation: r })
+    }
+  }, [openReservationId, props.reservations])
 
   const openEdit = (reservation: Reservation) => setTarget({ reservation })
   const openCreate = (presetStart?: string, presetTableId?: string | number | null) =>
@@ -97,8 +188,18 @@ export function DailyView(props: DailyViewProps) {
     { mode: 'floor', icon: MapIcon, label: 'Terem' },
   ]
 
+  const dayDrafts = useMemo(
+    () => drafts.filter((d) => d.date === date).sort((a, b) => a.createdAt - b.createdAt),
+    [drafts, date],
+  )
+
   return (
     <div className="space-y-4">
+      <OfflineBanner
+        restaurantId={restaurantId}
+        drafts={dayDrafts}
+        onReview={(d) => setTarget({ reservation: draftToReservation(d) })}
+      />
       <div className="flex items-center justify-between gap-3">
         <div className="inline-flex rounded-full bg-zinc-100 dark:bg-white/[0.06] p-1">
           {viewButtons.map(({ mode, icon: Icon, label }) => (
@@ -124,7 +225,7 @@ export function DailyView(props: DailyViewProps) {
         </button>
       </div>
 
-      {view === 'list' && <ListView reservations={reservations} onEdit={openEdit} />}
+      {view === 'list' && <ListView date={date} reservations={reservations} onEdit={openEdit} />}
       {view === 'timeline' && (
         <TimelineView
           date={date}
@@ -145,6 +246,7 @@ export function DailyView(props: DailyViewProps) {
         open={!!target}
         onClose={() => setTarget(null)}
         date={date}
+        restaurantId={restaurantId}
         capacityMode={capacityMode}
         target={target}
       />
@@ -153,17 +255,52 @@ export function DailyView(props: DailyViewProps) {
 }
 
 /* ---------- Lista nézet ---------- */
-function ListView({ reservations, onEdit }: { reservations: Reservation[]; onEdit: (r: Reservation) => void }) {
+function ListView({ date, reservations, onEdit }: { date: string; reservations: Reservation[]; onEdit: (r: Reservation) => void }) {
   const card = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] rounded-2xl'
+  const nowMin = useNowMinutes(date)
+  const nowRef = useRef<HTMLDivElement>(null)
+
+  // Az első foglalás indexe, ami a jelenlegi perctől kezdődik (vagy később).
+  // Ide kerül a „most” elválasztó; csak ha ma van és belefér a listába.
+  const nowIndex = nowMin == null
+    ? -1
+    : reservations.findIndex((r) => hhmmToMinutes(r.start_time) >= nowMin)
+
+  useEffect(() => {
+    const el = nowRef.current
+    if (!el) return
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }, [nowIndex, date])
+
   if (reservations.length === 0) {
     return <div className={`${card} p-12 text-center text-zinc-500 dark:text-zinc-400`}>Erre a napra nincs foglalás.</div>
   }
   return (
     <div className={`${card} divide-y divide-zinc-100 dark:divide-white/[0.06]`}>
-      {reservations.map((r) => {
+      {reservations.map((r, i) => {
         const tableNames = tableNamesOf(r)
+        const draft = isDraft(r)
+        const urgency = draft ? null : urgencyOf(r, nowMin)
+        const showNow = i === nowIndex
         return (
-          <div key={r.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 sm:py-4">
+          <Fragment key={r.id}>
+            {showNow && (
+              <div ref={nowRef} className="relative flex items-center gap-2 px-4 sm:px-5 py-1.5">
+                <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 animate-soft-pulse" />
+                <span className="text-[10px] font-bold uppercase tracking-wide text-red-500">Most · {minutesToHHMM(nowMin!)}</span>
+                <span className="h-px flex-1 bg-red-500/40" />
+              </div>
+            )}
+          <div
+            className={`relative flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 sm:py-4 ${draft ? 'border-l-2 border-dashed border-amber-400 bg-amber-50/40 dark:bg-amber-500/[0.06]' : ''}`}
+          >
+            {urgency && (
+              <span
+                className={`absolute right-2 top-2 z-10 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}
+              >
+                {urgency.label}
+              </span>
+            )}
             <button onClick={() => onEdit(r)} className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 text-left">
               <div className="w-12 sm:w-16 shrink-0">
                 <div className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white tabular-nums">{r.start_time}</div>
@@ -173,6 +310,16 @@ function ListView({ reservations, onEdit }: { reservations: Reservation[]; onEdi
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={`h-2 w-2 shrink-0 rounded-full sm:hidden ${statusDot[r.status] ?? 'bg-zinc-300'}`} />
                   <span className="font-medium text-zinc-900 dark:text-white truncate">{r.customer_name}</span>
+                  {draft && (
+                    <span className="shrink-0 rounded bg-amber-400 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+                      Vázlat
+                    </span>
+                  )}
+                  {!draft && sourceBadge[r.source] && (
+                    <span className="shrink-0 rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-600 dark:bg-white/[0.1] dark:text-white/60">
+                      {sourceBadge[r.source]}
+                    </span>
+                  )}
                 </div>
                 <div className="text-sm text-zinc-500 dark:text-zinc-400 truncate">
                   {r.pax} fő{tableNames.length > 0 ? ` · ${tableNames.join(' + ')} asztal${tableNames.length > 1 ? ' (összevont)' : ''}` : ''}{r.customer_phone ? ` · ${r.customer_phone}` : ''}
@@ -188,10 +335,11 @@ function ListView({ reservations, onEdit }: { reservations: Reservation[]; onEdi
                 </span>
               </span>
               <div className="flex items-center justify-end w-10 shrink-0">
-                <ReservationActions reservationId={r.id} status={r.status} />
+                {!draft && <ReservationActions reservationId={r.id} status={r.status} />}
               </div>
             </div>
           </div>
+          </Fragment>
         )
       })}
     </div>
@@ -203,7 +351,7 @@ const pxPerMin = 2.4 // 1 perc = 2.4px → 30 perc = 72px
 
 function TimelineView({
   date, capacityMode, maxPax, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate,
-}: DailyViewProps & {
+}: ViewProps & {
   onEdit: (r: Reservation) => void
   onCreate: (start?: string, tableId?: string | number | null) => void
 }) {
@@ -289,7 +437,7 @@ function TimelineView({
       <div style={{ minWidth: width + 128 }}>
         {/* idő-tengely fejléc */}
         <div className="flex sticky top-0 z-20 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.06]">
-          <div className="w-24 sm:w-32 shrink-0 sticky left-0 z-10 bg-white dark:bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-400">Asztal</div>
+          <div className="w-24 sm:w-32 shrink-0 sticky left-0 z-20 bg-white dark:bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-400">Asztal</div>
           <div className="relative" style={{ width }}>
             {hourMarks.map((m) => (
               <span
@@ -314,7 +462,7 @@ function TimelineView({
               const rows = active.filter((r) => tableIdsOf(r).includes(String(t.id)))
               return (
                 <div key={t.id} className="flex border-b border-zinc-50 dark:border-white/[0.04]">
-                  <div className="w-24 sm:w-32 shrink-0 sticky left-0 z-10 bg-white dark:bg-zinc-900 px-3 py-2 flex items-center justify-between gap-1">
+                  <div className="w-24 sm:w-32 shrink-0 sticky left-0 z-20 bg-white dark:bg-zinc-900 px-3 py-2 flex items-center justify-between gap-1">
                     <span className="text-sm font-medium text-zinc-900 dark:text-white truncate">{t.name}</span>
                     <span className="text-[11px] text-zinc-400 shrink-0">{t.capacity}f</span>
                   </div>
@@ -339,15 +487,24 @@ function TimelineView({
                     {rows.map((r) => {
                       const s = hhmmToMinutes(r.start_time)
                       const e = hhmmToMinutes(r.end_time)
+                      const draft = isDraft(r)
+                      const urgency = draft ? null : urgencyOf(r, nowMin)
                       return (
                         <button
                           key={r.id}
                           onClick={(ev) => { ev.stopPropagation(); onEdit(r) }}
-                          title={`${r.customer_name} · ${r.pax} fő · ${statusLabel[r.status]}`}
-                          className={`absolute top-1 bottom-1 rounded-md border px-2 text-xs font-medium overflow-hidden text-left ${statusBlock[r.status]}`}
+                          title={`${draft ? 'VÁZLAT — ' : ''}${r.customer_name} · ${r.pax} fő · ${urgency ? urgency.label : statusLabel[r.status]}`}
+                          className={`absolute top-1 bottom-1 rounded-md border px-2 text-xs font-medium overflow-hidden text-left ${draft ? 'border-2 border-dashed border-amber-500 bg-amber-100/80 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100' : statusBlock[r.status]}`}
                           style={{ left: (s - openMin) * pxPerMin + 1, width: (e - s) * pxPerMin - 2 }}
                         >
-                          <span className="block truncate leading-tight">{r.customer_name}</span>
+                          {urgency && (
+                            <span
+                              className={`absolute right-0.5 top-0.5 z-10 max-w-[calc(100%-4px)] truncate rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none shadow-sm ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}
+                            >
+                              {urgency.label}
+                            </span>
+                          )}
+                          <span className="block truncate leading-tight">{draft ? '✎ ' : ''}{r.customer_name}</span>
                           <span className="block truncate leading-tight opacity-80">{r.pax} fő</span>
                         </button>
                       )
@@ -366,7 +523,7 @@ function TimelineView({
 /* ---------- Floor plan (auto-grid + idő-csúszka) ---------- */
 function FloorView({
   date, capacityMode, reservations, rooms, tables, openMin, closeMin, onEdit,
-}: DailyViewProps & { onEdit: (r: Reservation) => void }) {
+}: ViewProps & { onEdit: (r: Reservation) => void }) {
   // Kezdőpillanat: ha a megtekintett nap ma van, az aktuális idő (a nyitvatartásra
   // szorítva); egyébként a nyitvatartás közepe.
   const initialMin = () => {
@@ -451,6 +608,7 @@ function FloorView({
               const endM = hhmmToMinutes(occ.end_time)
               const elapsedPct = Math.max(0, Math.min(100, ((atMin - startM) / Math.max(1, endM - startM)) * 100))
               const remaining = Math.max(0, endM - atMin)
+              const urgency = urgencyOf(occ, atMin)
               return (
                 <button
                   key={t.id}
@@ -458,6 +616,13 @@ function FloorView({
                   title={`${occ.customer_name} · ${occ.pax} fő · ${occ.start_time}–${occ.end_time}`}
                   className={cls}
                 >
+                  {urgency && (
+                    <span
+                      className={`absolute right-1 top-1 z-10 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none shadow-sm ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}
+                    >
+                      {urgency.label}
+                    </span>
+                  )}
                   <span className="text-sm font-bold leading-tight">{t.name}</span>
                   <span className="text-[11px] leading-tight">{occ.pax}/{t.capacity} fő</span>
                   <span className="text-[10px] font-medium tabular-nums leading-tight opacity-90">

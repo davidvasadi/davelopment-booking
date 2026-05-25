@@ -28,6 +28,16 @@ interface Body {
   notes?: string
   internal_notes?: string
   status?: Reservation['status']
+  source?: Reservation['source']
+  /** Egyedi ülésidő (perc). Üres → az étterem alap turnusa. */
+  duration_minutes?: number | null
+}
+
+/** Üres név esetén a forrás szerinti alapnév, hogy telt ház alatt ne kelljen nevet gépelni. */
+const defaultNameForSource: Record<NonNullable<Reservation['source']>, string> = {
+  walk_in: 'Beeső',
+  phone: 'Telefon',
+  online: 'Foglalás',
 }
 
 /**
@@ -70,6 +80,7 @@ export async function POST(req: NextRequest) {
     pax,
     preferredTableIds: body.tableIds ?? null,
     excludeReservationId: reservationId,
+    durationMinutes: body.duration_minutes ?? null,
   })
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: 409 })
@@ -84,10 +95,12 @@ export async function POST(req: NextRequest) {
   }
   if (body.customer_name !== undefined) data.customer_name = body.customer_name
   if (body.customer_phone !== undefined) data.customer_phone = body.customer_phone
-  if (body.customer_email !== undefined) data.customer_email = body.customer_email
+  // Üres email-t ne küldjünk: a Payload 'email' mezője az üres stringet is validálja → hiba.
+  if (body.customer_email) data.customer_email = body.customer_email
   if (body.notes !== undefined) data.notes = body.notes
   if (body.internal_notes !== undefined) data.internal_notes = body.internal_notes
   if (body.status !== undefined) data.status = body.status
+  if (body.source !== undefined) data.source = body.source
 
   if (reservationId != null) {
     const updated = await payload.update({
@@ -99,14 +112,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, reservation: updated })
   }
 
+  // Forrás-alapú default név: walk-in → „Beeső", telefon → „Telefon".
+  const source = body.source ?? 'walk_in'
   const created = await payload.create({
     collection: 'reservations',
     data: {
       ...data,
       restaurant: restaurant.id,
-      customer_name: body.customer_name || 'Telefonos foglalás',
-      customer_email: body.customer_email || '',
+      customer_name: body.customer_name?.trim() || defaultNameForSource[source] || 'Foglalás',
       status: body.status ?? 'confirmed',
+      source,
     } as Reservation,
     overrideAccess: true,
   })

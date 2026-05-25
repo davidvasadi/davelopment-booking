@@ -13,7 +13,9 @@ export interface Config {
     rooms: Room
     tables: Table
     'opening-hours': OpeningHour
+    'opening-hours-exceptions': OpeningHoursException
     reservations: Reservation
+    notifications: Notification
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
@@ -57,6 +59,7 @@ export interface Restaurant {
   last_seating_buffer_minutes?: number | null
   lead_time_hours?: number | null
   require_phone?: boolean | null
+  notify_new_bookings?: boolean | null
   is_active?: boolean | null
   createdAt: string
   updatedAt: string
@@ -96,6 +99,19 @@ export interface OpeningHour {
   updatedAt: string
 }
 
+export interface OpeningHoursException {
+  id: string
+  restaurant: string | Restaurant
+  label?: string | null
+  start_date: string
+  end_date: string
+  is_closed?: boolean | null
+  open_time?: string | null
+  close_time?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Reservation {
   id: string
   restaurant: string | Restaurant
@@ -110,7 +126,22 @@ export interface Reservation {
   notes?: string | null
   internal_notes?: string | null
   status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'no_show' | 'cancelled'
+  source: 'online' | 'walk_in' | 'phone'
   cancel_token?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Notification {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  type: 'new_booking' | 'cancellation'
+  title: string
+  body?: string | null
+  read?: boolean | null
+  reservation?: string | Reservation | null
+  booking?: string | Booking | null
   createdAt: string
   updatedAt: string
 }
@@ -151,6 +182,8 @@ export interface Salon {
   email?: string | null
   website?: string | null
   booking_buffer_minutes?: number | null
+  require_phone?: boolean | null
+  notify_new_bookings?: boolean | null
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string
@@ -204,7 +237,7 @@ export interface Booking {
   staff: string | StaffMember
   customer_name: string
   customer_email: string
-  customer_phone: string
+  customer_phone?: string | null
   date: string
   start_time: string
   end_time: string

@@ -19,7 +19,9 @@ import { Restaurants } from './src/payload/collections/Restaurants'
 import { Rooms } from './src/payload/collections/Rooms'
 import { Tables } from './src/payload/collections/Tables'
 import { OpeningHours } from './src/payload/collections/OpeningHours'
+import { OpeningHoursExceptions } from './src/payload/collections/OpeningHoursExceptions'
 import { Reservations } from './src/payload/collections/Reservations'
+import { Notifications } from './src/payload/collections/Notifications'
 
 export default buildConfig({
   admin: {
@@ -48,7 +50,9 @@ export default buildConfig({
     Rooms,
     Tables,
     OpeningHours,
+    OpeningHoursExceptions,
     Reservations,
+    Notifications,
   ],
   globals: [],
   editor: slateEditor({}),

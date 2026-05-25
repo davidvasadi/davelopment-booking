@@ -24,6 +24,7 @@ function useIsDark() {
 }
 
 function periodLabel(days: number) {
+  if (days === 1) return 'mai'
   if (days === 7) return '7 nap'
   if (days === 30) return '30 nap'
   if (days === 90) return '90 nap'
@@ -190,7 +191,7 @@ export function ReservationTrendChart({ data, period = 30 }: { data: DayData[]; 
   )
 }
 
-export function DowChart({ data, period = 30, rawDays = [] }: { data: DowStat[]; period?: number; rawDays?: DayData[] }) {
+export function DowChart({ data, period = 30, rawDays = [], moneyless = false }: { data: DowStat[]; period?: number; rawDays?: DayData[]; moneyless?: boolean }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
   const gridColor = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
@@ -224,16 +225,22 @@ export function DowChart({ data, period = 30, rawDays = [] }: { data: DowStat[];
           <Bar dataKey="bookings" fill="#0099ff" radius={[6, 6, 0, 0]} opacity={0.8} />
         </BarChart>
       </ResponsiveContainer>
-      <KpiDetailsSheet kind="dow" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={rawDays} />
+      <KpiDetailsSheet kind="dow" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={rawDays} moneyless={moneyless} />
     </div>
   )
 }
 
-export function HourChart({ data, period = 30, rawDays = [] }: { data: HourStat[]; period?: number; rawDays?: DayData[] }) {
+export function HourChart({ data, period = 30, rawDays = [], moneyless = false }: { data: HourStat[]; period?: number; rawDays?: DayData[]; moneyless?: boolean }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
   const hasData = data.some(d => d.bookings > 0)
   if (!hasData) return null
+
+  // Csak a tényleges forgalmat tartalmazó óratartományt mutatjuk (első–utolsó foglalt óra),
+  // így a hajnali nyitvatartás is látszik, de nem tölti a tengelyt üres órák tucatja.
+  const first = data.findIndex(d => d.bookings > 0)
+  const last = data.length - 1 - [...data].reverse().findIndex(d => d.bookings > 0)
+  const visible = data.slice(first, last + 1)
 
   const gridColor = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
   const tickColor = dark ? 'rgba(255,255,255,0.25)' : '#94a3b8'
@@ -248,9 +255,9 @@ export function HourChart({ data, period = 30, rawDays = [] }: { data: HourStat[
         <DetailsButton onClick={() => setSheetOpen(true)} />
       </div>
       <ResponsiveContainer width="100%" height={160}>
-        <BarChart data={data} margin={{ top: 0, right: 0, left: -28, bottom: 0 }} barSize={16}>
+        <BarChart data={visible} margin={{ top: 0, right: 0, left: -28, bottom: 0 }} barSize={16}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
-          <XAxis dataKey="hour" tick={{ fontSize: 9, fill: tickColor }} tickLine={false} axisLine={false} interval={1} />
+          <XAxis dataKey="hour" tick={{ fontSize: 9, fill: tickColor }} tickLine={false} axisLine={false} interval={visible.length > 12 ? 1 : 0} />
           <YAxis tick={{ fontSize: 10, fill: tickColor }} tickLine={false} axisLine={false} allowDecimals={false} />
           <Tooltip
             cursor={{ fill: dark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)', radius: 6 }}
@@ -267,7 +274,7 @@ export function HourChart({ data, period = 30, rawDays = [] }: { data: HourStat[
           <Bar dataKey="bookings" fill="#a855f7" radius={[4, 4, 0, 0]} opacity={0.85} />
         </BarChart>
       </ResponsiveContainer>
-      <KpiDetailsSheet kind="hour" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} rawDays={rawDays} />
+      <KpiDetailsSheet kind="hour" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} rawDays={rawDays} moneyless={moneyless} />
     </div>
   )
 }

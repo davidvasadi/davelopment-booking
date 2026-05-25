@@ -6,7 +6,7 @@ import { formatDate } from '@/lib/utils'
 import { RestaurantKpiCard } from '@/components/dashboard/RestaurantKpiCard'
 import { ReservationTrendChart } from '@/components/dashboard/DashboardCharts'
 import { ReservationActions } from '@/components/restaurant/ReservationActions'
-import { Zap, MessageSquare, Users } from 'lucide-react'
+import { Zap, MessageSquare, Users, ChevronRight } from 'lucide-react'
 import type { Reservation } from '@/payload/payload-types'
 
 const statusDot: Record<string, string> = {
@@ -132,7 +132,10 @@ export default async function RestaurantDashboardPage() {
                     {r.start_time}<br /><span className="text-zinc-300 dark:text-white/20">{r.end_time}</span>
                   </span>
                   <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-sm text-zinc-800 dark:text-white/80 truncate">{r.customer_name}</p>
+                    <p className="flex items-center gap-2 min-w-0 font-semibold text-sm text-zinc-800 dark:text-white/80">
+                      <span className={`h-2 w-2 shrink-0 rounded-full sm:hidden ${statusDot[r.status] ?? 'bg-zinc-300'}`} />
+                      <span className="truncate">{r.customer_name}</span>
+                    </p>
                     <p className="text-xs text-zinc-500 dark:text-white/40 truncate">
                       {r.pax} fő
                       {tableNames.length > 0 ? ` · ${tableNames.join(' + ')}${tableNames.length > 1 ? ' (összevont)' : ''}` : ''}
@@ -143,10 +146,14 @@ export default async function RestaurantDashboardPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${statusDot[r.status] ?? 'bg-zinc-300'}`} />
-                    <span className="hidden sm:block text-xs text-zinc-500 dark:text-white/40">{statusLabel[r.status]}</span>
-                    <ReservationActions reservationId={r.id} status={r.status} />
+                  <div className="flex items-center shrink-0">
+                    <span className="hidden sm:flex items-center gap-2 w-32 shrink-0">
+                      <span className={`h-2 w-2 shrink-0 rounded-full ${statusDot[r.status] ?? 'bg-zinc-300'}`} />
+                      <span className="text-xs text-zinc-500 dark:text-white/40 truncate">{statusLabel[r.status]}</span>
+                    </span>
+                    <div className="flex items-center justify-end w-10 shrink-0">
+                      <ReservationActions reservationId={r.id} status={r.status} />
+                    </div>
                   </div>
                 </div>
               )
@@ -155,9 +162,13 @@ export default async function RestaurantDashboardPage() {
         )}
       </div>
 
-      <div className="text-center">
-        <Link href="/restaurant/bookings" className="text-sm text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors">
-          Összes foglalás megtekintése →
+      <div className="flex justify-center">
+        <Link
+          href="/restaurant/bookings"
+          className="group inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] text-sm font-semibold text-zinc-700 dark:text-white/80 hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors"
+        >
+          Összes foglalás megtekintése
+          <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </div>
     </div>

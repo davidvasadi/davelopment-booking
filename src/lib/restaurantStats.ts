@@ -5,6 +5,16 @@ import { hhmmToMinutes, getDayName } from './utils'
 import type { DayData, DowStat, HourStat } from './dashboardStats'
 import type { Reservation, Restaurant, Table, OpeningHour } from '@/payload/payload-types'
 
+export interface RestaurantDayBreakdown {
+  date: string
+  label: string
+  active: number
+  cancelled: number
+  completed: number
+  walkIn: number
+  pax: number
+}
+
 export interface RestaurantStats {
   period: number
   // ma
@@ -22,9 +32,24 @@ export interface RestaurantStats {
   periodPax: number
   periodPaxDiff: number
   avgPartySize: number
+  onlineReservations: number
   completionRate: number
+  // státusz-bontás (időszak)
+  cancellationRate: number
+  noShowRate: number
+  walkInRate: number
+  phoneRate: number
+  // státusz-bontás nyers darabszámok (a kártyák fő értéke)
+  cancelledCount: number
+  noShowCount: number
+  walkInCount: number
+  phoneCount: number
   // grafikonok
   trend: DayData[]
+  dailyBreakdown: RestaurantDayBreakdown[]
+  /** Mindig legalább 30 napnyi bontás, hogy a napi-részletek sheet szabadon lapozható legyen
+   *  rövid (pl. 1 napos) időszaknál is. A chart-oszlopok a dailyBreakdown-t használják. */
+  dailyBreakdownFull: RestaurantDayBreakdown[]
   byDayOfWeek: DowStat[]
   byHour: HourStat[]
   bestDay: string | null
@@ -102,6 +127,8 @@ export async function getRestaurantStats(
       },
       depth: 0,
       limit: 5000,
+      // Csak a számításhoz használt mezők – kevesebb adat a DB-ből és a hidratálásból.
+      select: { date: true, status: true, source: true, pax: true, start_time: true },
       overrideAccess: true,
     }),
     payload.find({
@@ -149,16 +176,51 @@ export async function getRestaurantStats(
     : 0
 
   // ── Trend (period) ───────────────────────────────────────────────
-  const trend: DayData[] = Array.from({ length: days }, (_, i) => {
-    const d = format(subDays(today, days - 1 - i), 'yyyy-MM-dd')
-    const dayDocs = active.filter(r => r.date === d)
+  // Dátum szerint egyszer csoportosítunk, hogy a napi bontás lineáris legyen
+  // (korábban minden nap végigszűrte a teljes `all` tömböt → O(napok × foglalások)).
+  const allByDate = new Map<string, Reservation[]>()
+  const activeByDate = new Map<string, Reservation[]>()
+  for (const r of all) {
+    ;(allByDate.get(r.date) ?? allByDate.set(r.date, []).get(r.date)!).push(r)
+  }
+  for (const r of active) {
+    ;(activeByDate.get(r.date) ?? activeByDate.set(r.date, []).get(r.date)!).push(r)
+  }
+
+  const breakdownFor = (d: string): RestaurantDayBreakdown => {
+    const activeDay = activeByDate.get(d) ?? []
+    const allDay = allByDate.get(d) ?? []
     return {
       date: d,
       label: dayLabel(d, days),
-      revenue: dayDocs.reduce((s, r) => s + paxOf(r), 0), // a "revenue" mezőt pax-ként használjuk
-      bookings: dayDocs.length,
+      active: activeDay.length,
+      cancelled: allDay.filter(r => r.status === 'cancelled' || r.status === 'no_show').length,
+      completed: allDay.filter(r => r.status === 'completed').length,
+      walkIn: allDay.filter(r => r.source === 'walk_in').length,
+      pax: activeDay.reduce((s, r) => s + paxOf(r), 0),
     }
-  })
+  }
+
+  const trend: DayData[] = []
+  const dailyBreakdown: RestaurantDayBreakdown[] = []
+  for (let i = 0; i < days; i++) {
+    const d = format(subDays(today, days - 1 - i), 'yyyy-MM-dd')
+    const bd = breakdownFor(d)
+    trend.push({
+      date: d,
+      label: bd.label,
+      revenue: bd.pax, // a "revenue" mezőt pax-ként használjuk
+      bookings: bd.active,
+    })
+    dailyBreakdown.push(bd)
+  }
+
+  // Mindig legalább 30 napnyi bontás a sheet lapozásához (rövid időszaknál is).
+  const breakdownDays = Math.max(days, 30)
+  const dailyBreakdownFull: RestaurantDayBreakdown[] = []
+  for (let i = 0; i < breakdownDays; i++) {
+    dailyBreakdownFull.push(breakdownFor(format(subDays(today, breakdownDays - 1 - i), 'yyyy-MM-dd')))
+  }
 
   // ── Heti eloszlás ────────────────────────────────────────────────
   const DOW = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap']
@@ -178,18 +240,32 @@ export async function getRestaurantStats(
     const h = r.start_time.split(':')[0]
     hourCountMap[h] = (hourCountMap[h] ?? 0) + 1
   }
-  const byHour: HourStat[] = Array.from({ length: 17 }, (_, i) => {
-    const h = String(i + 7).padStart(2, '0')
+  // Teljes 24 órás kör, hogy a hajnali/éjszakai nyitvatartás (pl. bár) is lefedett legyen.
+  // A HourChart a tényleges adat alapján vágja le az üres széleket.
+  const byHour: HourStat[] = Array.from({ length: 24 }, (_, i) => {
+    const h = String(i).padStart(2, '0')
     return { hour: `${h}:00`, bookings: hourCountMap[h] ?? 0 }
   })
   const bestHourKey = Object.entries(hourCountMap).sort((a, b) => b[1] - a[1])[0]?.[0]
   const bestHour = bestHourKey ? `${bestHourKey}:00` : null
 
   const avgPartySize = periodDocs.length > 0 ? Math.round(periodPax / periodDocs.length) : 0
+  const onlineReservations = periodDocs.filter(r => r.source === 'online').length
 
   const finalized = periodDocs.filter(r => r.status !== 'pending')
   const completed = finalized.filter(r => r.status === 'completed')
   const completionRate = finalized.length > 0 ? Math.round((completed.length / finalized.length) * 100) : 0
+
+  // ── Státusz-bontás (cancelled/no_show nincs az active-ban, ezért all-ból) ──
+  const allPeriod = all.filter(r => r.date >= periodStartStr)
+  const cancelledCount = allPeriod.filter(r => r.status === 'cancelled').length
+  const noShowCount = allPeriod.filter(r => r.status === 'no_show').length
+  const walkInCount = allPeriod.filter(r => r.source === 'walk_in').length
+  const phoneCount = allPeriod.filter(r => r.source === 'phone').length
+  const cancellationRate = allPeriod.length > 0 ? Math.round((cancelledCount / allPeriod.length) * 100) : 0
+  const noShowRate = allPeriod.length > 0 ? Math.round((noShowCount / allPeriod.length) * 100) : 0
+  const walkInRate = allPeriod.length > 0 ? Math.round((walkInCount / allPeriod.length) * 100) : 0
+  const phoneRate = allPeriod.length > 0 ? Math.round((phoneCount / allPeriod.length) * 100) : 0
 
   return {
     period: days,
@@ -205,8 +281,19 @@ export async function getRestaurantStats(
     periodPax,
     periodPaxDiff: pctDiff(periodPax, prevPeriodPax),
     avgPartySize,
+    onlineReservations,
     completionRate,
+    cancellationRate,
+    noShowRate,
+    walkInRate,
+    phoneRate,
+    cancelledCount,
+    noShowCount,
+    walkInCount,
+    phoneCount,
     trend,
+    dailyBreakdown,
+    dailyBreakdownFull,
     byDayOfWeek,
     byHour,
     bestDay,

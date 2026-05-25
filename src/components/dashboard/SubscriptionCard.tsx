@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowUpRight, Sparkles, AlertTriangle } from 'lucide-react'
+import { ArrowUpRight, Rocket, AlertTriangle } from 'lucide-react'
 import type { Subscription } from '@/payload/payload-types'
 
 function daysLeft(dateStr?: string | null): number | null {
@@ -46,11 +46,11 @@ export function SubscriptionCard({
     >
       <div className="flex items-center gap-4">
         <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${
-          isAlert ? 'bg-red-500/15 dark:bg-red-500/10' : 'bg-gradient-to-br from-[#0099ff] to-[#00bb88]'
+          isAlert ? 'bg-red-500/15 dark:bg-red-500/10' : 'bg-amber-50 dark:bg-amber-500/10'
         }`}>
           {isAlert
             ? <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-            : <Sparkles className="h-5 w-5 text-white" />}
+            : <Rocket className="h-5 w-5 text-orange-500 dark:text-amber-400" />}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">

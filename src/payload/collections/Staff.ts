@@ -2,7 +2,9 @@ import { CollectionConfig } from 'payload'
 
 export const Staff: CollectionConfig = {
   slug: 'staff',
+  labels: { singular: 'Munkatárs', plural: 'Munkatársak' },
   admin: {
+    group: 'Szalon',
     useAsTitle: 'name',
     defaultColumns: ['name', 'salon', 'is_active'],
     hidden: true,

@@ -2,7 +2,9 @@ import { CollectionConfig } from 'payload'
 
 export const Availability: CollectionConfig = {
   slug: 'availability',
+  labels: { singular: 'Elérhetőség', plural: 'Elérhetőségek' },
   admin: {
+    group: 'Szalon',
     useAsTitle: 'salon',
     defaultColumns: ['salon', 'staff', 'day_of_week', 'start_time', 'end_time'],
     hidden: true,

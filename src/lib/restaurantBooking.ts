@@ -43,8 +43,33 @@ export async function getRestaurantSlots(params: {
   const oh = ohRes.docs[0] as OpeningHour | undefined
   if (!oh || !oh.is_open || !oh.open_time || !oh.close_time) return []
 
-  const openMin = hhmmToMinutes(oh.open_time)
-  const closeMin = hhmmToMinutes(oh.close_time)
+  let openMin = hhmmToMinutes(oh.open_time)
+  let closeMin = hhmmToMinutes(oh.close_time)
+
+  // 1b. Nyitvatartási kivétel: a `date`-et tartalmazó tartomány felülírja a heti rendet.
+  // Zárva → nincs slot; módosított idő → felülírja a nyitás/zárást.
+  const excRes = await payload.find({
+    collection: 'opening-hours-exceptions',
+    where: {
+      and: [
+        { restaurant: { equals: restaurantId } },
+        { start_date: { less_than_equal: date } },
+        { end_date: { greater_than_equal: date } },
+      ],
+    },
+    limit: 1,
+    overrideAccess: true,
+  })
+  const exc = excRes.docs[0] as
+    | { is_closed?: boolean; open_time?: string | null; close_time?: string | null }
+    | undefined
+  if (exc) {
+    if (exc.is_closed) return []
+    if (exc.open_time && exc.close_time) {
+      openMin = hhmmToMinutes(exc.open_time)
+      closeMin = hhmmToMinutes(exc.close_time)
+    }
+  }
 
   // 2. Jelölt kezdési időpontok (lépésenként), úgy hogy a teljes turnus záróráig férjen
   // Az utolsó kezdő időpont a zárás - buffer (0 = zárásig lehet kezdeni).
@@ -486,11 +511,13 @@ export async function validateManualReservation(params: {
   pax: number
   preferredTableIds?: (string | number)[] | null
   excludeReservationId?: string | number
+  /** Egyedi ülésidő (perc). Ha nincs megadva, az étterem alap turnusa (turn_duration_minutes ?? 120). */
+  durationMinutes?: number | null
 }): Promise<
   | { ok: true; tableIds: (number | string)[]; end_time: string }
   | { ok: false; error: string }
 > {
-  const { restaurantId, date, start_time, pax, preferredTableIds, excludeReservationId } = params
+  const { restaurantId, date, start_time, pax, preferredTableIds, excludeReservationId, durationMinutes } = params
   const payload = await getPayloadClient()
 
   const restaurant = (await payload.findByID({
@@ -499,7 +526,7 @@ export async function validateManualReservation(params: {
     overrideAccess: true,
   })) as Restaurant
 
-  const turn = restaurant.turn_duration_minutes ?? 120
+  const turn = durationMinutes && durationMinutes > 0 ? durationMinutes : restaurant.turn_duration_minutes ?? 120
   const slotStart = hhmmToMinutes(start_time)
   const slotEnd = slotStart + turn
   const end_time = minutesToHHMM(slotEnd)

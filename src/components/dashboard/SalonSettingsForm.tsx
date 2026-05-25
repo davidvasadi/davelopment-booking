@@ -10,6 +10,7 @@ import type { Salon, Media } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Camera, Loader2, ImagePlus, X, Trash2 } from 'lucide-react'
+import { ToggleSwitch } from '@/components/ui/toggle-switch'
 
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
@@ -21,6 +22,8 @@ const schema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   website: z.string().optional(),
   booking_buffer_minutes: z.number().min(0).max(120),
+  require_phone: z.boolean(),
+  notify_new_bookings: z.boolean(),
 })
 type FormData = z.infer<typeof schema>
 
@@ -62,7 +65,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
   const [coverModified, setCoverModified] = useState(false)
   const coverRef = useRef<HTMLInputElement>(null)
 
-  const { register, handleSubmit, formState: { errors, isDirty } } = useForm<FormData>({
+  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       name: salon.name,
@@ -74,6 +77,8 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
       email: salon.email ?? '',
       website: salon.website ?? '',
       booking_buffer_minutes: salon.booking_buffer_minutes ?? 0,
+      require_phone: salon.require_phone ?? true,
+      notify_new_bookings: salon.notify_new_bookings ?? true,
     },
   })
 
@@ -312,6 +317,19 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
             {...register('booking_buffer_minutes', { valueAsNumber: true })}
           />
           <p className="text-xs text-zinc-400 dark:text-white/30">Mennyi szünet legyen két foglalás között</p>
+        </div>
+        <div className="space-y-4 border-t border-zinc-100 dark:border-white/[0.06] pt-4">
+          <ToggleSwitch
+            checked={watch('require_phone')}
+            onChange={(v) => setValue('require_phone', v, { shouldDirty: true })}
+            label="Telefonszám kötelező az ügyfélnek"
+          />
+          <ToggleSwitch
+            checked={watch('notify_new_bookings')}
+            onChange={(v) => setValue('notify_new_bookings', v, { shouldDirty: true })}
+            label="Értesítés új foglalásokról"
+            description="Értesítést kapsz az alkalmazáson belül új foglalásról és lemondásról."
+          />
         </div>
       </Section>
 

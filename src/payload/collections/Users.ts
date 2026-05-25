@@ -88,9 +88,11 @@ export const Users: CollectionConfig = {
       },
     },
   },
+  labels: { singular: 'Felhasználó', plural: 'Felhasználók' },
   admin: {
+    group: 'Rendszer',
     useAsTitle: 'email',
-    defaultColumns: ['email', 'name', 'role', 'salon'],
+    defaultColumns: ['email', 'name', 'role', 'place'],
   },
   access: {
     create: () => true,
@@ -142,6 +144,7 @@ export const Users: CollectionConfig = {
       type: 'relationship',
       relationTo: 'salons',
       hasMany: false,
+      label: 'Szalon',
       admin: {
         condition: (data) => data?.role === 'salon_owner',
       },
@@ -151,8 +154,45 @@ export const Users: CollectionConfig = {
       type: 'relationship',
       relationTo: 'restaurants',
       hasMany: false,
+      label: 'Étterem',
       admin: {
         condition: (data) => data?.role === 'restaurant_owner',
+      },
+    },
+    {
+      // Virtuális, csak megjelenítésre szolgáló oszlop: a role-tól függően a szalon VAGY
+      // az étterem nevét mutatja, így a Felhasználók listában sosem jelenik meg "No salon".
+      // Nem tárolódik az adatbázisban, csak olvasáskor töltődik fel.
+      name: 'place',
+      type: 'text',
+      virtual: true,
+      label: 'Hely',
+      admin: {
+        readOnly: true,
+        // A szerkesztő (edit) nézetben elrejtjük, mert a salon/restaurant mező már ott van;
+        // a `condition: () => false` csak a form-mezőt rejti, a listaoszlop megmarad.
+        condition: () => false,
+      },
+      hooks: {
+        afterRead: [
+          async ({ data, req }) => {
+            try {
+              if (data?.role === 'salon_owner' && data?.salon) {
+                const id = typeof data.salon === 'object' ? data.salon.id : data.salon
+                const doc = await req.payload.findByID({ collection: 'salons', id, depth: 0, overrideAccess: true, req })
+                return doc?.name ?? null
+              }
+              if (data?.role === 'restaurant_owner' && data?.restaurant) {
+                const id = typeof data.restaurant === 'object' ? data.restaurant.id : data.restaurant
+                const doc = await req.payload.findByID({ collection: 'restaurants', id, depth: 0, overrideAccess: true, req })
+                return doc?.name ?? null
+              }
+            } catch {
+              return null
+            }
+            return null
+          },
+        ],
       },
     },
     {

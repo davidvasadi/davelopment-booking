@@ -7,6 +7,7 @@ import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
+import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import type { Salon, Subscription } from '@/payload/payload-types'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -54,6 +55,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </main>
       <MobileBottomNav subscription={sub} />
       {lockedStatus && <DashboardLockModal status={lockedStatus} />}
+      <OnboardingTour variant="salon" userId={String(user.id)} />
     </div>
   )
 }

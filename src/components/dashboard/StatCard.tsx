@@ -27,11 +27,14 @@ export function StatCard({
   label,
   value,
   diff,
+  pct,
 }: {
   sub: string
   label: string
   value: string
   diff?: number
+  /** Az értékhez tartozó arány, kis pirulában a fő szám mellett (pl. "12%"). */
+  pct?: number
 }) {
   return (
     <div className="rounded-2xl p-5 lg:p-7 bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none">
@@ -40,6 +43,11 @@ export function StatCard({
       <div className="flex items-center justify-between gap-1 flex-wrap">
         <p className="text-xs text-zinc-500 dark:text-white/40">{label}</p>
         {diff !== undefined && <DiffBadge diff={diff} />}
+        {pct !== undefined && (
+          <span className="flex items-center gap-0.5 text-xs font-semibold text-[#0099ff] bg-[#0099ff]/10 rounded-full px-1.5 py-0.5">
+            {pct}%
+          </span>
+        )}
       </div>
     </div>
   )

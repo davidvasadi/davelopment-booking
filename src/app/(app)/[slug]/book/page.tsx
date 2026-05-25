@@ -50,6 +50,7 @@ export default async function BookPage({
       salonId={salon.id}
       salonSlug={slug}
       salonName={salon.name}
+      requirePhone={salon.require_phone ?? true}
       services={servicesResult.docs as Service[]}
       staff={staffResult.docs as StaffMember[]}
       preselectedServiceId={serviceId ?? null}

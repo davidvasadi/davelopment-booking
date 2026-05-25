@@ -4,6 +4,7 @@ const MS_PER_DAY = 86_400_000
 
 export const Subscriptions: CollectionConfig = {
   slug: 'subscriptions',
+  labels: { singular: 'Előfizetés', plural: 'Előfizetések' },
   hooks: {
     beforeChange: [
       ({ data, originalDoc, operation }) => {
@@ -44,7 +45,7 @@ export const Subscriptions: CollectionConfig = {
   admin: {
     useAsTitle: 'plan',
     defaultColumns: ['salon', 'restaurant', 'plan', 'status', 'current_period_end'],
-    group: 'Billing',
+    group: 'Rendszer',
   },
   access: {
     read: ({ req }) => req.user?.role === 'admin',

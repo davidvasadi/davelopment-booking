@@ -7,8 +7,32 @@ import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
-import { LogOut, ExternalLink, Monitor, Sun, Moon, Lock } from 'lucide-react'
+import { LogOut, ExternalLink, Monitor, Sun, Moon, Lock, WifiOff } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
+import { NotificationBell } from './NotificationBell'
+import { useOnline } from '@/lib/useOnline'
+
+/** Globális offline-jelző a navban — bárhol látszik a dashboardon, ha elment a net. */
+function OfflineIndicator({ compact = false }: { compact?: boolean }) {
+  const online = useOnline()
+  if (online) return null
+  if (compact) {
+    return (
+      <span
+        title="Nincs internetkapcsolat"
+        className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+      >
+        <WifiOff className="h-4 w-4" />
+      </span>
+    )
+  }
+  return (
+    <div className="mx-3 mb-2 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+      <WifiOff className="h-3.5 w-3.5 shrink-0" />
+      Nincs internet — vázlat módban dolgozol
+    </div>
+  )
+}
 
 function ThemeToggle() {
   const { theme, setTheme } = useTheme()
@@ -132,11 +156,14 @@ export function DashboardNav({
   return (
     <>
       {/* ── DESKTOP SIDEBAR ────────────────────────────────────── */}
-      <aside className="hidden lg:flex w-56 h-screen sticky top-0 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0">
+      <aside className="hidden lg:flex w-56 h-screen sticky top-0 z-40 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0">
         <div className="px-6 pt-7 pb-6">
-          <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
-            <SchedulioLogo className="h-7" />
-          </Link>
+          <div className="flex items-center justify-between">
+            <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
+              <SchedulioLogo className="h-7" />
+            </Link>
+            <NotificationBell align="left" />
+          </div>
           <div className="mt-3">
             <p className="text-zinc-700 dark:text-white/70 font-semibold text-sm truncate">{salonName}</p>
             <a
@@ -158,6 +185,7 @@ export function DashboardNav({
               <Link
                 key={href}
                 href={href}
+                data-tour={href}
                 className={cn(
                   'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
                   isActive(href, exact)
@@ -178,6 +206,7 @@ export function DashboardNav({
         <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
 
         <div className="pt-3">
+          <OfflineIndicator />
           <SubscriptionWidget sub={subscription ?? null} subscriptionHref={subscriptionHref} />
         </div>
 
@@ -194,20 +223,24 @@ export function DashboardNav({
       </aside>
 
       {/* ── MOBILE TOP BAR ─────────────────────────────────────── */}
-      <header className="lg:hidden bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0">
+      <header className="lg:hidden relative z-40 bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
             <SchedulioLogo className="h-6" />
           </Link>
           <span className="text-xs text-zinc-400 dark:text-white/30 font-medium truncate max-w-[120px]">{salonName}</span>
         </div>
-        <a
-          href={`/${salonSlug}`}
-          target="_blank"
-          className="text-zinc-400 hover:text-zinc-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
-        >
-          <ExternalLink className="h-4 w-4" />
-        </a>
+        <div className="flex items-center gap-1">
+          <OfflineIndicator compact />
+          <NotificationBell />
+          <a
+            href={`/${salonSlug}`}
+            target="_blank"
+            className="text-zinc-400 hover:text-zinc-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
       </header>
     </>
   )

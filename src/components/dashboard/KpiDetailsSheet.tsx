@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import {
   AreaChart, Area, BarChart, Bar,
@@ -15,13 +16,17 @@ type Kind = 'trend' | 'dow' | 'hour' | 'kpi' | 'service' | 'staff'
 type Metric = 'revenue' | 'bookings' | 'completion' | 'avg_value'
 type DayFilter = 'all' | 'weekday' | 'weekend'
 
+/**
+ * moneyless: étterem-mód. A DayData.revenue mező itt vendégszámot (pax) hordoz, nem pénzt,
+ * ezért a "bevétel" feliratokat vendégszámra váltjuk és nincs HUF-formázás.
+ */
 type Props =
-  | { kind: 'trend'; open: boolean; onClose: () => void; period: number; data: DayData[] }
-  | { kind: 'dow'; open: boolean; onClose: () => void; period: number; data: DayData[] }
-  | { kind: 'hour'; open: boolean; onClose: () => void; period: number; data: HourStat[]; rawDays?: DayData[] }
-  | { kind: 'kpi'; open: boolean; onClose: () => void; period: number; metric: Metric; title: string; currentValue: string; currentDiff?: number; data: DayData[] }
-  | { kind: 'service'; open: boolean; onClose: () => void; period: number; data: ServiceStat[] }
-  | { kind: 'staff'; open: boolean; onClose: () => void; period: number; data: StaffStat[] }
+  | { kind: 'trend'; open: boolean; onClose: () => void; period: number; data: DayData[]; moneyless?: boolean }
+  | { kind: 'dow'; open: boolean; onClose: () => void; period: number; data: DayData[]; moneyless?: boolean }
+  | { kind: 'hour'; open: boolean; onClose: () => void; period: number; data: HourStat[]; rawDays?: DayData[]; moneyless?: boolean }
+  | { kind: 'kpi'; open: boolean; onClose: () => void; period: number; metric: Metric; title: string; currentValue: string; currentDiff?: number; data: DayData[]; moneyless?: boolean }
+  | { kind: 'service'; open: boolean; onClose: () => void; period: number; data: ServiceStat[]; moneyless?: boolean }
+  | { kind: 'staff'; open: boolean; onClose: () => void; period: number; data: StaffStat[]; moneyless?: boolean }
 
 const KIND_TITLE: Record<Exclude<Kind, 'kpi'>, string> = {
   trend: 'Trend részletek',
@@ -32,6 +37,7 @@ const KIND_TITLE: Record<Exclude<Kind, 'kpi'>, string> = {
 }
 
 const PERIODS = [
+  { value: 1, label: 'Ma' },
   { value: 7, label: '7 nap' },
   { value: 30, label: '30 nap' },
   { value: 90, label: '90 nap' },
@@ -66,19 +72,29 @@ function dayOfWeekIndex(iso: string): number {
 
 const DOW_LABELS = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']
 
-function setPeriodInUrl(value: number) {
-  const url = new URL(window.location.href)
-  url.searchParams.set('days', String(value))
-  window.location.href = url.toString()
-}
-
 function valueKey(metric: Metric): 'revenue' | 'bookings' {
   return metric === 'bookings' ? 'bookings' : 'revenue'
 }
 
 export function KpiDetailsSheet(props: Props) {
   const { kind, open, onClose, period } = props
+  const moneyless = props.moneyless ?? false
   const dark = useIsDark()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Nagyobb időszakhoz több adat kell a szerverről: soft navigation (nem full reload),
+  // a Sheet nyitva marad, a period prop frissül és az innerPeriod szinkronizál.
+  const loadLargerPeriod = (value: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('period', String(value))
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }
+
+  // A "revenue" mező formázása: pénz (salon) vagy vendégszám (étterem).
+  const revLabel = moneyless ? 'Vendégszám' : 'Bevétel'
+  const fmtRev = (n: number) => (moneyless ? `${Math.round(n)} fő` : formatPrice(Math.round(n), 'HUF'))
+  const fmtRevAxis = moneyless ? undefined : fmt
   const initialMetric: Metric = kind === 'kpi' ? (props as Extract<Props, { kind: 'kpi' }>).metric : 'revenue'
   const [metric, setMetric] = useState<Metric>(initialMetric)
   const [dayFilter, setDayFilter] = useState<DayFilter>('all')
@@ -117,7 +133,13 @@ export function KpiDetailsSheet(props: Props) {
     return buckets.map((bookings, i) => ({ day: DOW_LABELS[i], bookings }))
   }, [filteredDays])
 
-  const hourData = kind === 'hour' ? (props as Extract<Props, { kind: 'hour' }>).data : []
+  const allHourData = kind === 'hour' ? (props as Extract<Props, { kind: 'hour' }>).data : []
+  // Üres széli órák levágása (a HourChart-tal megegyező logika), hogy a 24-órás
+  // tartomány ne töltse fel a tengelyt nullás oszlopokkal.
+  const hourFirst = allHourData.findIndex(d => d.bookings > 0)
+  const hourData = hourFirst === -1
+    ? allHourData
+    : allHourData.slice(hourFirst, allHourData.length - [...allHourData].reverse().findIndex(d => d.bookings > 0))
 
   const gridColor = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
   const tickColor = dark ? 'rgba(255,255,255,0.25)' : '#94a3b8'
@@ -161,7 +183,7 @@ export function KpiDetailsSheet(props: Props) {
                   type="button"
                   onClick={() => {
                     if (p.value > period) {
-                      setPeriodInUrl(p.value)
+                      loadLargerPeriod(p.value)
                     } else {
                       setInnerPeriod(p.value)
                     }
@@ -209,9 +231,9 @@ export function KpiDetailsSheet(props: Props) {
           {/* KPI mini sor */}
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-xl p-3.5 bg-zinc-50 dark:bg-white/[0.03] border border-zinc-100 dark:border-white/[0.06]">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-1">Összes bevétel</p>
-              <p className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">{formatPrice(sumRevenue, 'HUF')}</p>
-              <p className="text-xs text-zinc-400 dark:text-white/30 mt-0.5">napi átlag {formatPrice(Math.round(avgRevenue), 'HUF')}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-1">{moneyless ? 'Összes vendég' : 'Összes bevétel'}</p>
+              <p className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">{fmtRev(sumRevenue)}</p>
+              <p className="text-xs text-zinc-400 dark:text-white/30 mt-0.5">napi átlag {fmtRev(avgRevenue)}</p>
             </div>
             <div className="rounded-xl p-3.5 bg-zinc-50 dark:bg-white/[0.03] border border-zinc-100 dark:border-white/[0.06]">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-1">Összes foglalás</p>
@@ -224,12 +246,12 @@ export function KpiDetailsSheet(props: Props) {
           {(kind === 'trend' || kind === 'kpi') && (
             <div className="rounded-2xl border border-zinc-100 dark:border-white/[0.06] p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-bold text-zinc-700 dark:text-white/80">{vkey === 'revenue' ? 'Bevétel napi bontás' : 'Foglalások napi bontás'}</h3>
+                <h3 className="text-sm font-bold text-zinc-700 dark:text-white/80">{vkey === 'revenue' ? `${revLabel} napi bontás` : 'Foglalások napi bontás'}</h3>
                 <div className="flex gap-1 bg-zinc-100 dark:bg-white/[0.06] rounded-lg p-0.5">
                   <button
                     onClick={() => setMetric('revenue')}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${vkey === 'revenue' ? 'bg-white text-zinc-900 dark:bg-white dark:text-black shadow-sm' : 'text-zinc-500 dark:text-white/40'}`}
-                  >Bevétel</button>
+                  >{revLabel}</button>
                   <button
                     onClick={() => setMetric('bookings')}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-semibold ${vkey === 'bookings' ? 'bg-white text-zinc-900 dark:bg-white dark:text-black shadow-sm' : 'text-zinc-500 dark:text-white/40'}`}
@@ -246,14 +268,14 @@ export function KpiDetailsSheet(props: Props) {
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                   <XAxis dataKey="label" tick={{ fontSize: 10, fill: tickColor }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: tickColor }} tickLine={false} axisLine={false} tickFormatter={vkey === 'revenue' ? fmt : undefined} />
+                  <YAxis tick={{ fontSize: 10, fill: tickColor }} tickLine={false} axisLine={false} tickFormatter={vkey === 'revenue' ? fmtRevAxis : undefined} />
                   <Tooltip
                     content={({ active, payload, label }) => {
                       if (!active || !payload?.length) return null
                       return (
                         <div className="bg-white dark:bg-black border border-zinc-200 dark:border-white/[0.1] text-zinc-900 dark:text-white text-xs rounded-xl px-3 py-2 shadow-xl">
                           <p className="text-zinc-400 dark:text-white/40 mb-0.5">{label}</p>
-                          <p className="font-black">{vkey === 'revenue' ? formatPrice(Number(payload[0].value), 'HUF') : `${payload[0].value} foglalás`}</p>
+                          <p className="font-black">{vkey === 'revenue' ? fmtRev(Number(payload[0].value)) : `${payload[0].value} foglalás`}</p>
                         </div>
                       )
                     }}
