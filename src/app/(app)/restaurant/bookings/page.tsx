@@ -3,7 +3,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { ReservationDateFilter } from '@/components/restaurant/ReservationDateFilter'
 import { DailyView } from '@/components/restaurant/DailyView'
 import { PrintDayButton } from '@/components/restaurant/PrintDayButton'
-import { StatCard } from '@/components/dashboard/StatCard'
+import { DayKpiBar } from '@/components/restaurant/DayKpiBar'
 import { hhmmToMinutes, getDayName } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 import type { Reservation, Table, Room, OpeningHour } from '@/payload/payload-types'
@@ -32,7 +32,6 @@ export default async function RestaurantBookingsPage({
     if (r?.date) selectedDate = r.date
   }
 
-  const capacityMode = (restaurant.capacity_mode ?? 'tables') as 'tables' | 'flat'
   const turnMinutes = restaurant.turn_duration_minutes ?? 120
 
   const [resResult, roomsResult, tablesResult, ohResult] = await Promise.all([
@@ -112,18 +111,16 @@ export default async function RestaurantBookingsPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-        <StatCard sub="Aznap" label="Aktív foglalás" value={String(activeCount)} />
-        <StatCard sub="Aznap" label="Befejezett" value={String(completedCount)} />
-        <StatCard sub="Aznap" label="Lemondva / nem jött" value={String(cancelledCount)} />
-        <StatCard sub="Aznap" label="Beeső (walk-in)" value={String(walkInCount)} />
-      </div>
+      <DayKpiBar
+        activeCount={activeCount}
+        completedCount={completedCount}
+        cancelledCount={cancelledCount}
+        walkInCount={walkInCount}
+      />
 
       <DailyView
         date={selectedDate}
         restaurantId={String(restaurant.id)}
-        capacityMode={capacityMode}
-        maxPax={restaurant.max_pax ?? 0}
         reservations={reservations}
         rooms={rooms}
         tables={tables}

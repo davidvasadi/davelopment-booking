@@ -75,11 +75,10 @@ interface Props {
   onClose: () => void
   date: string
   restaurantId: string
-  capacityMode: 'tables' | 'flat'
   target: EditTarget | null
 }
 
-export function ReservationEditSheet({ open, onClose, date, restaurantId, capacityMode, target }: Props) {
+export function ReservationEditSheet({ open, onClose, date, restaurantId, target }: Props) {
   const router = useRouter()
   const online = useOnline()
   const reservation = target?.reservation ?? null
@@ -131,9 +130,9 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, capaci
     )
   }, [open, target])
 
-  // Szabad asztalok lekérése (tables módban) idő/létszám változásra
+  // Szabad asztalok lekérése idő/létszám változásra
   const loadOptions = useCallback(async () => {
-    if (capacityMode !== 'tables' || !startTime || !pax) {
+    if (!startTime || !pax) {
       setOptions([])
       setSuggestedCombo(null)
       return
@@ -152,13 +151,13 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, capaci
     } finally {
       setOptionsLoading(false)
     }
-  }, [capacityMode, startTime, pax, date, reservation])
+  }, [startTime, pax, date, reservation])
 
   useEffect(() => {
     if (open) void loadOptions()
   }, [open, loadOptions])
 
-  const selectedTableIds = capacityMode === 'tables' && tableId ? tableId.split(',') : null
+  const selectedTableIds = tableId ? tableId.split(',') : null
 
   const draftFields = () => {
     const tableNames = (selectedTableIds ?? [])
@@ -370,11 +369,10 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, capaci
             <p className="text-xs text-zinc-400">Ha üresen hagyod, az étterem alapja (általában 2 óra) érvényes.</p>
           </div>
 
-          {capacityMode === 'tables' && (
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-2">
-                Asztal {optionsLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-              </Label>
+          <div className="space-y-1.5">
+            <Label className="flex items-center gap-2">
+              Asztal {optionsLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+            </Label>
               <select
                 value={tableId.includes(',') ? '' : tableId}
                 onChange={(e) => setTableId(e.target.value)}
@@ -404,8 +402,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, capaci
               {!optionsLoading && options.length === 0 && !suggestedCombo && (
                 <p className="text-xs text-amber-600">Nincs szabad asztal erre az időpontra/létszámra.</p>
               )}
-            </div>
-          )}
+          </div>
 
           {isEdit && (
             <div className="space-y-1.5">

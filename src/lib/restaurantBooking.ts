@@ -6,6 +6,8 @@ import type { Restaurant, OpeningHour, Table, Reservation } from '@/payload/payl
 export interface RestaurantTimeSlot {
   start: string
   end: string
+  /** Igaz, ha erre a slotra már csak kültéri (terasz) asztal foglalható — a beltéri megtelt. */
+  onlyOutdoor?: boolean
 }
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated', 'completed'] as const
@@ -104,25 +106,7 @@ export async function getRestaurantSlots(params: {
   })
   const reservations = resRes.docs as Reservation[]
 
-  if (restaurant.capacity_mode === 'flat') {
-    const maxPax = restaurant.max_pax ?? 0
-    return candidates
-      .filter((c) => c >= earliestMin)
-      .filter((slotStart) => {
-        const slotEnd = slotStart + turn
-        const overlappingPax = reservations
-          .filter((r) => {
-            const rs = hhmmToMinutes(r.start_time)
-            const re = hhmmToMinutes(r.end_time)
-            return slotStart < re && slotEnd > rs
-          })
-          .reduce((s, r) => s + (r.pax ?? 0), 0)
-        return overlappingPax + pax <= maxPax
-      })
-      .map((s) => ({ start: minutesToHHMM(s), end: minutesToHHMM(s + turn) }))
-  }
-
-  // tables mód — kell legyen szabad, megfelelő kapacitású asztal
+  // Kell legyen szabad, megfelelő kapacitású asztal
   const tablesRes = await payload.find({
     collection: 'tables',
     where: {
@@ -134,10 +118,34 @@ export async function getRestaurantSlots(params: {
   })
   const tables = tablesRes.docs as Table[]
 
+  // Kültéri termek azonosítása, hogy slot-onként jelezhessük: csak kültéri maradt-e.
+  const roomsRes = await payload.find({
+    collection: 'rooms',
+    where: { restaurant: { equals: restaurantId } },
+    depth: 0,
+    limit: 100,
+    overrideAccess: true,
+  })
+  const outdoorRoomIds = new Set(
+    roomsRes.docs.filter((r) => (r as { is_outdoor?: boolean }).is_outdoor).map((r) => String(r.id)),
+  )
+  const isIndoorTable = (t: Table) => {
+    const rid = t.room ? (typeof t.room === 'object' ? t.room.id : t.room) : null
+    return rid == null || !outdoorRoomIds.has(String(rid))
+  }
+  const indoorTables = tables.filter(isIndoorTable)
+  const hasOutdoor = outdoorRoomIds.size > 0 && tables.length > indoorTables.length
+
   return candidates
     .filter((c) => c >= earliestMin)
     .filter((slotStart) => findAllocation(slotStart, slotStart + turn, tables, reservations, pax) !== null)
-    .map((s) => ({ start: minutesToHHMM(s), end: minutesToHHMM(s + turn) }))
+    .map((s) => {
+      const slotEnd = s + turn
+      // Csak kültéri marad, ha a beltériek közt nincs allokáció, de összességében van.
+      const onlyOutdoor =
+        hasOutdoor && findAllocation(s, slotEnd, indoorTables, reservations, pax) === null
+      return { start: minutesToHHMM(s), end: minutesToHHMM(slotEnd), onlyOutdoor }
+    })
 }
 
 /** Egy foglalás által elfoglalt asztal-ID-k (string-re normalizálva). */
@@ -295,20 +303,12 @@ export interface ComboOption {
 }
 
 /**
- * Az étterem maximálisan foglalható létszáma.
- * flat módban a max_pax. tables módban a legnagyobb elérhető kapacitás:
- * a legnagyobb egyedi asztal, vagy a legnagyobb összevonható (combinable_with) asztalcsoport
- * összkapacitása — amelyik nagyobb.
+ * Az étterem maximálisan foglalható létszáma: a legnagyobb elérhető kapacitás —
+ * a legnagyobb egyedi asztal, vagy a legnagyobb összevonható (combinable_with)
+ * asztalcsoport összkapacitása, amelyik nagyobb.
  */
 export async function getMaxPax(restaurantId: string | number): Promise<number> {
   const payload = await getPayloadClient()
-  const restaurant = (await payload.findByID({
-    collection: 'restaurants',
-    id: restaurantId,
-    overrideAccess: true,
-  })) as Restaurant
-
-  if (restaurant.capacity_mode === 'flat') return restaurant.max_pax ?? 0
 
   const tablesRes = await payload.find({
     collection: 'tables',
@@ -374,8 +374,6 @@ export async function getMoveOptions(params: {
   const slotStart = hhmmToMinutes(start_time)
   const slotEnd = slotStart + turn
   const end_time = minutesToHHMM(slotEnd)
-
-  if (restaurant.capacity_mode === 'flat') return { end_time, tables: [], suggestedCombo: null }
 
   const [tablesRes, resRes] = await Promise.all([
     payload.find({
@@ -464,11 +462,7 @@ export async function validateAndAllocate(params: {
     return { ok: false, error: 'Ez az időpont már nem foglalható' }
   }
 
-  if (restaurant.capacity_mode === 'flat') {
-    return { ok: true, tableIds: [], end_time }
-  }
-
-  // tables mód — konkrét asztal(ok) lefoglalása
+  // Konkrét asztal(ok) lefoglalása
   const [tablesRes, resRes] = await Promise.all([
     payload.find({
       collection: 'tables',
@@ -530,29 +524,6 @@ export async function validateManualReservation(params: {
   const slotStart = hhmmToMinutes(start_time)
   const slotEnd = slotStart + turn
   const end_time = minutesToHHMM(slotEnd)
-
-  if (restaurant.capacity_mode === 'flat') {
-    const maxPax = restaurant.max_pax ?? 0
-    const resRes = await payload.find({
-      collection: 'reservations',
-      where: {
-        and: [
-          { restaurant: { equals: restaurantId } },
-          { date: { equals: date } },
-          { status: { in: ACTIVE_STATUSES.join(',') } },
-        ],
-      },
-      depth: 0,
-      limit: 500,
-      overrideAccess: true,
-    })
-    const overlappingPax = (resRes.docs as Reservation[])
-      .filter((r) => String(r.id) !== String(excludeReservationId))
-      .filter((r) => slotStart < hhmmToMinutes(r.end_time) && slotEnd > hhmmToMinutes(r.start_time))
-      .reduce((s, r) => s + (r.pax ?? 0), 0)
-    if (overlappingPax + pax > maxPax) return { ok: false, error: 'Ez az időablak már megtelt' }
-    return { ok: true, tableIds: [], end_time }
-  }
 
   const [tablesRes, resRes] = await Promise.all([
     payload.find({

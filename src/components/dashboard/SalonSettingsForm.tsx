@@ -8,9 +8,42 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import type { Salon, Media } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Camera, Loader2, ImagePlus, X, Trash2 } from 'lucide-react'
+import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
+import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
+import { EmailVariablesHelp } from '@/components/settings/EmailVariablesHelp'
 import { ToggleSwitch } from '@/components/ui/toggle-switch'
+import { SettingsTabsNav } from '@/components/ui/settings-tabs'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { TermsSectionsEditor } from '@/components/settings/TermsSectionsEditor'
+
+/** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás. */
+function SaveBar({ dirty, submitting, onSave, onPreview }: { dirty: boolean; submitting: boolean; onSave: () => void; onPreview?: () => void }) {
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={!dirty || submitting}
+        className="h-11 px-6 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-white/90 dark:text-black font-semibold text-sm transition-colors disabled:opacity-40"
+      >
+        {submitting ? 'Mentés...' : 'Mentés'}
+      </button>
+      {onPreview && (
+        <button
+          type="button"
+          onClick={onPreview}
+          className="h-11 px-5 rounded-full border border-zinc-200 dark:border-white/15 text-zinc-700 dark:text-white/80 hover:bg-zinc-50 dark:hover:bg-white/[0.06] font-semibold text-sm transition-colors inline-flex items-center gap-2"
+        >
+          <Eye className="h-4 w-4" />
+          Előnézet
+        </button>
+      )}
+      {dirty && <span className="text-xs font-medium text-amber-600 dark:text-amber-400">Mentetlen változások</span>}
+    </div>
+  )
+}
 
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
@@ -24,6 +57,19 @@ const schema = z.object({
   booking_buffer_minutes: z.number().min(0).max(120),
   require_phone: z.boolean(),
   notify_new_bookings: z.boolean(),
+  booking_email_subject: z.string().optional(),
+  booking_email_intro: z.string().optional(),
+  email_show_phone: z.boolean(),
+  email_contact_phone: z.string().optional(),
+  email_show_email: z.boolean(),
+  email_show_address: z.boolean(),
+  email_show_directions: z.boolean(),
+  email_directions_address: z.string().optional(),
+  legal_name: z.string().optional(),
+  tax_number: z.string().optional(),
+  company_reg_number: z.string().optional(),
+  registered_seat: z.string().optional(),
+  terms_sections: z.array(z.object({ title: z.string(), body: z.string() })),
 })
 type FormData = z.infer<typeof schema>
 
@@ -48,6 +94,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
 
   const [logoId, setLogoId] = useState<number | null>(
     salon.logo && typeof salon.logo === 'object' ? Number((salon.logo as Media).id) : null
@@ -65,22 +112,101 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
   const [coverModified, setCoverModified] = useState(false)
   const coverRef = useRef<HTMLInputElement>(null)
 
-  const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<FormData>({
+  const initialValues: FormData = {
+    name: salon.name,
+    slug: salon.slug,
+    address: salon.address ?? '',
+    city: salon.city ?? '',
+    postal_code: salon.postal_code ?? '',
+    phone: salon.phone ?? '',
+    email: salon.email ?? '',
+    website: salon.website ?? '',
+    booking_buffer_minutes: salon.booking_buffer_minutes ?? 0,
+    require_phone: salon.require_phone ?? true,
+    notify_new_bookings: salon.notify_new_bookings ?? true,
+    booking_email_subject: salon.booking_email_subject ?? '',
+    booking_email_intro: salon.booking_email_intro ?? '',
+    email_show_phone: salon.email_show_phone ?? true,
+    email_contact_phone: salon.email_contact_phone ?? '',
+    email_show_email: salon.email_show_email ?? false,
+    email_show_address: salon.email_show_address ?? false,
+    email_show_directions: salon.email_show_directions ?? false,
+    email_directions_address: salon.email_directions_address ?? '',
+    legal_name: salon.legal_name ?? '',
+    tax_number: salon.tax_number ?? '',
+    company_reg_number: salon.company_reg_number ?? '',
+    registered_seat: salon.registered_seat ?? '',
+    terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
+  }
+  const { register, handleSubmit, watch, setValue, getValues, reset, formState: { errors, dirtyFields } } = useForm<FormData>({
     resolver: zodResolver(schema),
-    defaultValues: {
-      name: salon.name,
-      slug: salon.slug,
-      address: salon.address ?? '',
-      city: salon.city ?? '',
-      postal_code: salon.postal_code ?? '',
-      phone: salon.phone ?? '',
-      email: salon.email ?? '',
-      website: salon.website ?? '',
-      booking_buffer_minutes: salon.booking_buffer_minutes ?? 0,
-      require_phone: salon.require_phone ?? true,
-      notify_new_bookings: salon.notify_new_bookings ?? true,
-    },
+    defaultValues: initialValues,
   })
+  // Utoljára elmentett baseline (az „Elvetés"-hez fülenként). Mentéskor frissül.
+  const defaultsRef = useRef<FormData>(initialValues)
+
+  // ── Fülek + mentetlen-változás védelem ──────────────────────────
+  const TAB_FIELDS: Record<string, (keyof FormData)[]> = {
+    general: ['name', 'slug', 'postal_code', 'city', 'address', 'phone', 'email', 'website'],
+    booking: ['booking_buffer_minutes', 'require_phone', 'notify_new_bookings'],
+    email: ['booking_email_subject', 'booking_email_intro', 'email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
+    documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat', 'terms_sections'],
+  }
+  const [activeTab, setActiveTab] = useState('general')
+  const [pendingTab, setPendingTab] = useState<string | null>(null)
+
+  const tabDirty = (tab: string): boolean => {
+    const fieldDirty = (TAB_FIELDS[tab] ?? []).some((k) => dirtyFields[k])
+    if (tab === 'general') return fieldDirty || logoModified || coverModified
+    return fieldDirty
+  }
+
+  // Az adott fül mezőit (+ az „Általános" fülön a médiát) menti.
+  const persist = async (fields: (keyof FormData)[], includeMedia: boolean): Promise<boolean> => {
+    setSubmitting(true)
+    try {
+      const values = getValues()
+      const body: Record<string, unknown> = {}
+      for (const k of fields) body[k] = values[k]
+      if (includeMedia && logoModified) body.logo = logoId ?? null
+      if (includeMedia && coverModified) body.cover_image = coverId ?? null
+      const res = await fetch(`/api/salons/${salon.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error()
+      // A baseline frissítése: a mentett értékekkel resetelünk (dirty nullázódik).
+      reset(values, { keepValues: true })
+      defaultsRef.current = values
+      if (includeMedia) { setLogoModified(false); setCoverModified(false) }
+      toast.success('Beállítások mentve')
+      router.refresh()
+      return true
+    } catch {
+      toast.error('Hiba történt')
+      return false
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const saveTab = (tab: string) => persist(TAB_FIELDS[tab] ?? [], tab === 'general')
+
+  const requestTab = (id: string) => {
+    if (id === activeTab) return
+    if (tabDirty(activeTab)) setPendingTab(id)
+    else setActiveTab(id)
+  }
+
+  const tabs = [
+    { id: 'general', label: 'Általános', dirty: tabDirty('general') },
+    { id: 'booking', label: 'Foglalás', dirty: tabDirty('booking') },
+    { id: 'email', label: 'Email', dirty: tabDirty('email') },
+    { id: 'documents', label: 'Dokumentumok', dirty: tabDirty('documents') },
+    { id: 'danger', label: 'Veszélyzóna' },
+  ]
 
   const uploadImage = async (
     file: File,
@@ -127,7 +253,6 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
   }
 
   const deleteAccount = async () => {
-    if (!confirm(`Biztosan törlöd a(z) „${salon.name}" szalonhoz tartozó fiókot? Ez a művelet visszafordíthatatlan — minden adat törlődik.`)) return
     setDeleting(true)
     try {
       const res = await fetch('/api/delete-account', { method: 'DELETE', credentials: 'include' })
@@ -139,29 +264,16 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
     }
   }
 
-  const onSubmit = async (data: FormData) => {
-    setSubmitting(true)
-    try {
-      const body: Record<string, unknown> = { ...data }
-      if (logoModified) body.logo = logoId ?? null
-      if (coverModified) body.cover_image = coverId ?? null
-      const res = await fetch(`/api/salons/${salon.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Beállítások mentve')
-    } catch {
-      toast.error('Hiba történt')
-    } finally {
-      setSubmitting(false)
-    }
-  }
+  // Globális mentés: minden fül mezője egyben.
+  const onSubmit = () => persist(Object.values(TAB_FIELDS).flat(), true)
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+    <>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
+      <SettingsTabsNav tabs={tabs} active={activeTab} onSelect={requestTab} />
+
+      {activeTab === 'general' && (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
 
       {/* Cover image */}
       <Section title="Borítókép" full>
@@ -213,7 +325,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
 
       {/* Logo + basic info */}
       <Section title="Alap adatok">
-        <div className="flex items-start gap-4">
+        <div className="flex flex-col gap-4">
           <div className="shrink-0 space-y-1.5">
             <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Logó</Label>
             <div className="relative w-16">
@@ -256,7 +368,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
               }}
             />
           </div>
-          <div className="flex-1 space-y-3">
+          <div className="w-full space-y-3">
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Szalon neve *</Label>
               <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('name')} />
@@ -305,7 +417,15 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
         </div>
       </Section>
 
-      <Section title="Foglalási beállítások" full>
+      <div className="lg:col-span-2">
+        <SaveBar dirty={tabDirty('general')} submitting={submitting} onSave={() => saveTab('general')} />
+      </div>
+      </div>
+      )}
+
+      {activeTab === 'booking' && (
+      <div className="space-y-4 lg:space-y-6">
+      <Section title="Foglalási beállítások">
         <div className="space-y-1.5">
           <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Puffer foglalások között (perc)</Label>
           <Input
@@ -333,18 +453,121 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
         </div>
       </Section>
 
-      <div className="lg:col-span-2">
-        <button
-          type="submit"
-          disabled={submitting || uploadingLogo || uploadingCover}
-          className="h-12 px-8 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white dark:bg-white dark:hover:bg-white/90 dark:text-black font-semibold text-sm transition-colors disabled:opacity-40"
-        >
-          {submitting ? 'Mentés...' : 'Mentés'}
-        </button>
+      <SaveBar dirty={tabDirty('booking')} submitting={submitting} onSave={() => saveTab('booking')} />
       </div>
+      )}
 
-      {/* Danger zone */}
-      <div className="lg:col-span-2 bg-red-500/[0.04] border border-red-500/20 rounded-2xl overflow-hidden">
+      {activeTab === 'email' && (
+      <div className="space-y-4 lg:space-y-6">
+        {/* Tartalom */}
+        <Section title="Tartalom">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Email tárgya</Label>
+            <Input
+              className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20"
+              {...register('booking_email_subject')}
+              placeholder="Foglalás visszaigazolva — {{name}}"
+            />
+            <p className="text-xs text-zinc-400 dark:text-white/30">Üresen hagyva az alapértelmezett tárgy jelenik meg.</p>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Bevezető szöveg</Label>
+            <Textarea
+              className="min-h-28 py-3 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20"
+              {...register('booking_email_intro')}
+              placeholder={'Kedves {{name}}!\n\nKöszönjük a foglalást, várunk szeretettel!'}
+            />
+            <p className="text-xs text-zinc-400 dark:text-white/30">A visszaigazoló email tetejére, a foglalás részletei elé kerül.</p>
+          </div>
+          <EmailVariablesHelp type="salon" />
+        </Section>
+
+        {/* Kapcsolat & útvonal */}
+        <Section title="Kapcsolat & útvonal">
+          <p className="text-xs text-zinc-400 dark:text-white/30">
+            A visszaigazoló email alján egy „Módosítanád a foglalást? Keress minket" blokk jelenik meg a bekapcsolt elemekkel.
+          </p>
+
+          <div className="rounded-xl border border-zinc-100 dark:border-white/[0.06] divide-y divide-zinc-100 dark:divide-white/[0.06]">
+            <div className="px-4 py-3.5">
+              <ToggleSwitch checked={watch('email_show_phone')} onChange={(v) => setValue('email_show_phone', v, { shouldDirty: true })} label="Telefonszám" />
+              {watch('email_show_phone') && (
+                <div className="space-y-1.5 mt-3">
+                  <Input
+                    className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20"
+                    {...register('email_contact_phone')}
+                    placeholder="Módosítási telefonszám (ha üres, a nyilvános)"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="px-4 py-3.5">
+              <ToggleSwitch checked={watch('email_show_email')} onChange={(v) => setValue('email_show_email', v, { shouldDirty: true })} label="Email cím" />
+            </div>
+            <div className="px-4 py-3.5">
+              <ToggleSwitch checked={watch('email_show_address')} onChange={(v) => setValue('email_show_address', v, { shouldDirty: true })} label="Cím" />
+            </div>
+            <div className="px-4 py-3.5">
+              <ToggleSwitch checked={watch('email_show_directions')} onChange={(v) => setValue('email_show_directions', v, { shouldDirty: true })} label="Útvonaltervezés gomb" description="Google Mapsben nyitja meg a helyet." />
+              {watch('email_show_directions') && (
+                <div className="space-y-1.5 mt-3">
+                  <Input
+                    className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20"
+                    {...register('email_directions_address')}
+                    placeholder="Cím vagy Google Maps-link (ha üres, a fenti cím)"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        </Section>
+
+        <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('salon', watch()), '_blank', 'noopener')} />
+      </div>
+      )}
+
+      {activeTab === 'documents' && (
+      <div className="space-y-4 lg:space-y-6">
+      <Section title="Cégadatok">
+        <p className="text-xs text-zinc-400 dark:text-white/30">
+          A „Szolgáltató adatai" blokk ezekből áll össze a Foglalási feltételek elején (a foglaló oldalon és emailben). Üres mezők kimaradnak.
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Hivatalos cégnév</Label>
+            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('legal_name')} placeholder="pl. Példa Kft." />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Adószám</Label>
+            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('tax_number')} placeholder="12345678-2-42" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Cégjegyzékszám</Label>
+            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('company_reg_number')} placeholder="01-09-123456" />
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Székhely</Label>
+            <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('registered_seat')} placeholder="1051 Budapest, Példa u. 1." />
+          </div>
+        </div>
+      </Section>
+
+      <Section title="Foglalási feltételek">
+        <p className="text-xs text-zinc-400 dark:text-white/30">
+          Szakaszonként add meg a feltételeket (cím + szöveg). Megjelenik a nyilvános foglaló oldalon és a visszaigazoló emailben. Hagyd üresen, ha nincs.
+        </p>
+        <TermsSectionsEditor
+          value={watch('terms_sections')}
+          onChange={(v) => setValue('terms_sections', v, { shouldDirty: true })}
+        />
+      </Section>
+
+      <SaveBar dirty={tabDirty('documents')} submitting={submitting} onSave={() => saveTab('documents')} />
+      </div>
+      )}
+
+      {activeTab === 'danger' && (
+      <div className="bg-red-500/[0.04] border border-red-500/20 rounded-2xl overflow-hidden">
         <div className="px-6 py-4 border-b border-red-500/20">
           <h3 className="font-bold text-sm uppercase tracking-widest text-red-400">Veszélyzóna</h3>
         </div>
@@ -355,7 +578,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
           </div>
           <button
             type="button"
-            onClick={deleteAccount}
+            onClick={() => setDeleteOpen(true)}
             disabled={deleting}
             className="h-10 px-5 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-40 shrink-0"
           >
@@ -364,6 +587,43 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
           </button>
         </div>
       </div>
+      )}
     </form>
+
+    {/* Fülváltás mentetlen változással — Mentés / Elvetés / Mégse */}
+    <ConfirmDialog
+      open={pendingTab !== null}
+      title="Mentetlen változások"
+      description="Ezen a fülön van mentetlen módosításod. Mit szeretnél tenni, mielőtt átváltasz?"
+      destructive={false}
+      confirmLabel="Mentés"
+      tertiaryLabel="Elvetés"
+      cancelLabel="Mégse"
+      busy={submitting}
+      onConfirm={async () => {
+        const ok = await saveTab(activeTab)
+        if (ok && pendingTab) { setActiveTab(pendingTab); setPendingTab(null) }
+      }}
+      onTertiary={() => {
+        // Elvetés: az aktuális fül mezőit visszaállítjuk az utoljára mentett állapotra.
+        for (const k of (TAB_FIELDS[activeTab] ?? [])) {
+          setValue(k, defaultsRef.current[k], { shouldDirty: false })
+        }
+        if (activeTab === 'general') { setLogoModified(false); setCoverModified(false) }
+        if (pendingTab) { setActiveTab(pendingTab); setPendingTab(null) }
+      }}
+      onCancel={() => setPendingTab(null)}
+    />
+
+    <ConfirmDialog
+      open={deleteOpen}
+      title="Fiók törlése"
+      description={`Biztosan törlöd a(z) „${salon.name}” szalonhoz tartozó fiókot? Ez visszafordíthatatlan — minden adat (szalon, foglalások, munkatársak) véglegesen törlődik.`}
+      confirmLabel="Végleges törlés"
+      busy={deleting}
+      onConfirm={deleteAccount}
+      onCancel={() => setDeleteOpen(false)}
+    />
+    </>
   )
 }

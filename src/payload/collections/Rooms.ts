@@ -25,6 +25,13 @@ export const Rooms: CollectionConfig = {
       label: 'Étterem',
     },
     { name: 'name', type: 'text', required: true, label: 'Terem neve' },
+    {
+      name: 'is_outdoor',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Kültéri (terasz/kert)',
+      admin: { description: 'Ha be van pipálva, ez egy kültéri terem (pl. terasz).' },
+    },
     { name: 'is_active', type: 'checkbox', defaultValue: true, label: 'Aktív', admin: { position: 'sidebar' } },
     { name: 'sort_order', type: 'number', defaultValue: 0, label: 'Sorrend' },
   ],

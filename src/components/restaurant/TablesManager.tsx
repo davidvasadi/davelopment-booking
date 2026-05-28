@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Plus, Trash2, Users } from 'lucide-react'
+import { Plus, Trash2, Users, ChevronDown, GripVertical, Trees, Home, Pencil } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { ToggleSwitch } from '@/components/ui/toggle-switch'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-type RoomItem = { id: number | string; name: string; sort_order: number }
+type RoomItem = { id: number | string; name: string; sort_order: number; is_outdoor: boolean }
 type TableItem = {
   id: number | string
   name: string
@@ -29,8 +31,42 @@ export function TablesManager({
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
-  const [newRoomName, setNewRoomName] = useState('')
   const [editing, setEditing] = useState<TableItem | null>(null)
+  const [editingRoom, setEditingRoom] = useState<RoomItem | null>(null)
+  // Új terem létrehozása ugyanabban a sidebarban (room=null → create mód).
+  const [creatingRoom, setCreatingRoom] = useState(false)
+  // Megerősítő dialógus (glass/blur) a natív confirm() helyett.
+  const [confirmState, setConfirmState] = useState<{
+    title: string
+    description?: string
+    onConfirm: () => void
+  } | null>(null)
+
+  // Összecsukott termek (localStorage, böngészőnként). Kulcs: terem-id sztringként.
+  const COLLAPSE_KEY = `tables-collapsed-${restaurantId}`
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]') as string[]
+      setCollapsed(new Set(saved))
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const toggleCollapsed = (roomId: number | string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      const key = String(roomId)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  // Drag & drop sorrend: melyik asztalt húzzuk épp.
+  const [dragId, setDragId] = useState<string | null>(null)
 
   const refresh = () => router.refresh()
 
@@ -46,17 +82,17 @@ export function TablesManager({
   }
 
   // ---- Terem műveletek ----
-  const addRoom = async () => {
-    const name = newRoomName.trim()
-    if (!name) return
+  const addRoom = async (name: string, isOutdoor: boolean) => {
+    if (!name.trim()) return
     setBusy(true)
     try {
       await api('/api/rooms', 'POST', {
         restaurant: restaurantId,
-        name,
+        name: name.trim(),
+        is_outdoor: isOutdoor,
         sort_order: initialRooms.length + 1,
       })
-      setNewRoomName('')
+      setCreatingRoom(false)
       toast.success('Terem hozzáadva')
       refresh()
     } catch {
@@ -66,8 +102,29 @@ export function TablesManager({
     }
   }
 
-  const deleteRoom = async (roomId: number | string) => {
-    if (!confirm('Biztosan törlöd a termet és a benne lévő asztalokat?')) return
+  const saveRoom = async (roomId: number | string, name: string, isOutdoor: boolean) => {
+    setBusy(true)
+    try {
+      await api(`/api/rooms/${roomId}`, 'PATCH', { name: name.trim(), is_outdoor: isOutdoor })
+      toast.success('Terem módosítva')
+      setEditingRoom(null)
+      refresh()
+    } catch {
+      toast.error('Nem sikerült a terem módosítása')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteRoom = (roomId: number | string) => {
+    setConfirmState({
+      title: 'Terem törlése',
+      description: 'Biztosan törlöd a termet és a benne lévő összes asztalt? Ez nem vonható vissza.',
+      onConfirm: () => runDeleteRoom(roomId),
+    })
+  }
+
+  const runDeleteRoom = async (roomId: number | string) => {
     setBusy(true)
     try {
       const roomTables = initialTables.filter((t) => String(t.room) === String(roomId))
@@ -76,6 +133,22 @@ export function TablesManager({
       }
       await api(`/api/rooms/${roomId}`, 'DELETE')
       toast.success('Terem törölve')
+      setConfirmState(null)
+      refresh()
+    } catch {
+      toast.error('Nem sikerült a törlés')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const runDeleteTable = async (tableId: number | string) => {
+    setBusy(true)
+    try {
+      await api(`/api/tables/${tableId}`, 'DELETE')
+      toast.success('Asztal törölve')
+      setConfirmState(null)
+      setEditing(null)
       refresh()
     } catch {
       toast.error('Nem sikerült a törlés')
@@ -105,89 +178,249 @@ export function TablesManager({
     }
   }
 
+  // ---- Drag & drop sorrend (termen belül) ----
+  // A húzott asztalt a célasztal elé szúrjuk, majd az érintett asztalok új
+  // sort_order-jét elmentjük. Csak az azonos termen belüli átrendezés érvényes.
+  const reorder = async (roomId: number | string, draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return
+    const list = initialTables
+      .filter((t) => String(t.room) === String(roomId))
+      .sort((a, b) => a.sort_order - b.sort_order)
+    const from = list.findIndex((t) => String(t.id) === draggedId)
+    const to = list.findIndex((t) => String(t.id) === targetId)
+    if (from === -1 || to === -1) return
+    const next = [...list]
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+
+    setBusy(true)
+    try {
+      // Minden érintettnek (akinek változott a pozíciója) új sort_order = index+1.
+      await Promise.all(
+        next.map((t, i) =>
+          t.sort_order === i + 1
+            ? null
+            : api(`/api/tables/${t.id}`, 'PATCH', { sort_order: i + 1 }),
+        ),
+      )
+      refresh()
+    } catch {
+      toast.error('Nem sikerült a sorrend mentése')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const cardClass =
     'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] rounded-2xl'
 
   return (
     <div className="space-y-5">
+      <div className="flex justify-end">
+        <button
+          onClick={() => setCreatingRoom(true)}
+          disabled={busy}
+          className="h-11 px-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-2"
+        >
+          <Plus className="h-4 w-4" />
+          Terem
+        </button>
+      </div>
+
       {initialRooms.map((room) => {
         const roomTables = initialTables
           .filter((t) => String(t.room) === String(room.id))
           .sort((a, b) => a.sort_order - b.sort_order)
         const seats = roomTables.reduce((s, t) => s + t.capacity, 0)
+        const isCollapsed = collapsed.has(String(room.id))
         return (
           <div key={room.id} className={`${cardClass} p-5`}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-semibold text-zinc-900 dark:text-white">{room.name}</h2>
-                <p className="text-xs text-zinc-400">
-                  {roomTables.length} asztal · {seats} férőhely
-                </p>
-              </div>
+            <div className="flex items-center justify-between gap-2 mb-4">
               <button
-                onClick={() => deleteRoom(room.id)}
-                disabled={busy}
-                className="text-zinc-400 hover:text-red-500 transition-colors p-2"
-                title="Terem törlése"
+                onClick={() => toggleCollapsed(room.id)}
+                className="flex items-center gap-2 min-w-0 text-left group"
+                title={isCollapsed ? 'Kibontás' : 'Összecsukás'}
               >
-                <Trash2 className="h-4 w-4" />
+                <ChevronDown
+                  className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                />
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2">
+                    <h2 className="font-semibold text-zinc-900 dark:text-white truncate">{room.name}</h2>
+                    <span
+                      className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        room.is_outdoor
+                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
+                          : 'bg-zinc-100 text-zinc-600 dark:bg-white/[0.08] dark:text-white/60'
+                      }`}
+                    >
+                      {room.is_outdoor ? <Trees className="h-3 w-3" /> : <Home className="h-3 w-3" />}
+                      {room.is_outdoor ? 'Kültéri' : 'Beltéri'}
+                    </span>
+                  </span>
+                  <span className="block text-xs text-zinc-400">
+                    {roomTables.length} asztal · {seats} férőhely
+                  </span>
+                </span>
               </button>
+              <div className="flex items-center shrink-0">
+                <button
+                  onClick={() => setEditingRoom(room)}
+                  disabled={busy}
+                  className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors p-2"
+                  title="Terem szerkesztése"
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => deleteRoom(room.id)}
+                  disabled={busy}
+                  className="text-zinc-400 hover:text-red-500 transition-colors p-2"
+                  title="Terem törlése"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {roomTables.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => setEditing(t)}
-                  className="text-left border border-zinc-200 dark:border-white/[0.08] rounded-xl p-3 hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors"
-                >
-                  <p className="font-semibold text-zinc-900 dark:text-white text-sm truncate">{t.name}</p>
-                  <div className="flex items-center gap-1 mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                    <Users className="h-3 w-3" />
-                    <span className="tabular-nums">{t.capacity} fő</span>
+            {!isCollapsed && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                {roomTables.map((t) => (
+                  <div
+                    key={t.id}
+                    draggable
+                    onDragStart={() => setDragId(String(t.id))}
+                    onDragEnd={() => setDragId(null)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault()
+                      if (dragId) reorder(room.id, dragId, String(t.id))
+                      setDragId(null)
+                    }}
+                    className={`group relative text-left border rounded-xl p-3 transition-all cursor-grab active:cursor-grabbing ${
+                      dragId === String(t.id)
+                        ? 'border-zinc-400 dark:border-white/[0.3] opacity-50'
+                        : 'border-zinc-200 dark:border-white/[0.08] hover:border-zinc-400 dark:hover:border-white/[0.2]'
+                    }`}
+                  >
+                    <button onClick={() => setEditing(t)} className="block w-full text-left">
+                      <p className="font-semibold text-zinc-900 dark:text-white text-sm truncate pr-4">{t.name}</p>
+                      <div className="flex items-center gap-1 mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        <Users className="h-3 w-3" />
+                        <span className="tabular-nums">{t.capacity} fő</span>
+                      </div>
+                    </button>
+                    <GripVertical className="absolute right-1.5 top-1.5 h-4 w-4 text-zinc-300 dark:text-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </div>
+                ))}
+                <button
+                  onClick={() => addTable(room.id)}
+                  disabled={busy}
+                  className="border border-dashed border-zinc-300 dark:border-white/[0.12] rounded-xl p-3 flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 transition-colors min-h-[68px]"
+                >
+                  <Plus className="h-4 w-4" />
                 </button>
-              ))}
-              <button
-                onClick={() => addTable(room.id)}
-                disabled={busy}
-                className="border border-dashed border-zinc-300 dark:border-white/[0.12] rounded-xl p-3 flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 transition-colors min-h-[68px]"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
+              </div>
+            )}
           </div>
         )
       })}
-
-      {/* Új terem */}
-      <div className={`${cardClass} p-5`}>
-        <div className="flex items-center gap-3">
-          <input
-            value={newRoomName}
-            onChange={(e) => setNewRoomName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && addRoom()}
-            placeholder="Új terem neve (pl. Terasz)"
-            className="flex-1 h-11 rounded-xl bg-zinc-50 dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.08] px-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400"
-          />
-          <button
-            onClick={addRoom}
-            disabled={busy || !newRoomName.trim()}
-            className="h-11 px-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-2"
-          >
-            <Plus className="h-4 w-4" />
-            Terem
-          </button>
-        </div>
-      </div>
 
       <TableEditSheet
         table={editing}
         allTables={initialTables}
         onClose={() => setEditing(null)}
         onSaved={refresh}
+        onRequestDelete={(t) =>
+          setConfirmState({
+            title: 'Asztal törlése',
+            description: `Biztosan törlöd a(z) „${t.name}” asztalt? Ez nem vonható vissza.`,
+            onConfirm: () => runDeleteTable(t.id),
+          })
+        }
+      />
+
+      <RoomEditSheet
+        room={editingRoom}
+        creating={creatingRoom}
+        busy={busy}
+        onClose={() => { setEditingRoom(null); setCreatingRoom(false) }}
+        onSave={(id, name, outdoor) => (id == null ? addRoom(name, outdoor) : saveRoom(id, name, outdoor))}
+      />
+
+      <ConfirmDialog
+        open={!!confirmState}
+        title={confirmState?.title ?? ''}
+        description={confirmState?.description}
+        confirmLabel="Törlés"
+        busy={busy}
+        onConfirm={() => confirmState?.onConfirm()}
+        onCancel={() => setConfirmState(null)}
       />
     </div>
+  )
+}
+
+function RoomEditSheet({
+  room,
+  creating,
+  busy,
+  onClose,
+  onSave,
+}: {
+  room: RoomItem | null
+  creating: boolean
+  busy: boolean
+  onClose: () => void
+  // roomId === null → új terem létrehozása.
+  onSave: (roomId: number | string | null, name: string, isOutdoor: boolean) => void
+}) {
+  const open = !!room || creating
+  const [name, setName] = useState('')
+  const [outdoor, setOutdoor] = useState(false)
+
+  // Helyi állapot szinkronizálása, amikor másik terem (vagy create mód) nyílik.
+  const [lastKey, setLastKey] = useState<string | null>(null)
+  const key = room ? String(room.id) : creating ? 'new' : null
+  if (open && key !== lastKey) {
+    setLastKey(key)
+    setName(room?.name ?? '')
+    setOutdoor(room?.is_outdoor ?? false)
+  }
+
+  const inputClass =
+    'h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white'
+  const labelClass = 'text-sm font-medium text-zinc-600 dark:text-white/60'
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <SheetContent className="w-full sm:max-w-md bg-white dark:bg-zinc-950">
+        <SheetHeader>
+          <SheetTitle>{room ? 'Terem szerkesztése' : 'Új terem'}</SheetTitle>
+        </SheetHeader>
+        <div className="mt-6 space-y-5">
+          <div className="space-y-1.5">
+            <Label className={labelClass}>Terem neve</Label>
+            <Input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="pl. Terasz" />
+          </div>
+          <div className="rounded-xl border border-zinc-200 dark:border-white/[0.1] p-4">
+            <ToggleSwitch
+              checked={outdoor}
+              onChange={setOutdoor}
+              label="Kültéri terem"
+              description="Terasz, kert vagy egyéb kültéri rész. Alapból beltéri."
+            />
+          </div>
+          <button
+            onClick={() => onSave(room?.id ?? null, name, outdoor)}
+            disabled={busy || !name.trim()}
+            className="w-full h-12 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            {busy ? 'Mentés…' : room ? 'Mentés' : 'Terem létrehozása'}
+          </button>
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }
 
@@ -196,17 +429,19 @@ function TableEditSheet({
   allTables,
   onClose,
   onSaved,
+  onRequestDelete,
 }: {
   table: TableItem | null
   allTables: TableItem[]
   onClose: () => void
   onSaved: () => void
+  /** A törlés megerősítését a szülő közös (sheeten kívüli) dialógusa intézi. */
+  onRequestDelete: (table: TableItem) => void
 }) {
   const [name, setName] = useState('')
   const [capacity, setCapacity] = useState(2)
   const [combinable, setCombinable] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
-  const [deleting, setDeleting] = useState(false)
 
   // Sync local state when a new table is opened
   const [lastId, setLastId] = useState<string | null>(null)
@@ -268,23 +503,6 @@ function TableEditSheet({
       toast.error('Nem sikerült a mentés')
     } finally {
       setSaving(false)
-    }
-  }
-
-  const remove = async () => {
-    if (!table) return
-    if (!confirm(`Biztosan törlöd a(z) „${table.name}" asztalt?`)) return
-    setDeleting(true)
-    try {
-      const res = await fetch(`/api/tables/${table.id}`, { method: 'DELETE', credentials: 'include' })
-      if (!res.ok) throw new Error()
-      toast.success('Asztal törölve')
-      onSaved()
-      onClose()
-    } catch {
-      toast.error('Nem sikerült a törlés')
-    } finally {
-      setDeleting(false)
     }
   }
 
@@ -365,12 +583,11 @@ function TableEditSheet({
           </button>
 
           <button
-            onClick={remove}
-            disabled={deleting}
+            onClick={() => { if (table) { onClose(); onRequestDelete(table) } }}
             className="w-full h-11 rounded-full border border-red-500/30 text-red-500 hover:bg-red-500/[0.06] font-semibold text-sm transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
           >
             <Trash2 className="h-4 w-4" />
-            {deleting ? 'Törlés…' : 'Asztal törlése'}
+            Asztal törlése
           </button>
         </div>
       </SheetContent>

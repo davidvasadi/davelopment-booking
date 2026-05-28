@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, Check, Clock, Loader2, ChevronLeft, ChevronRight, User } from 'lucide-react'
+import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 
 const AVATAR_GRADIENTS = [
   'from-violet-400 to-purple-600',
@@ -49,6 +50,8 @@ interface Props {
   staff: StaffMember[]
   preselectedServiceId?: string | null
   preselectedStaffId?: string | null
+  termsSections?: { title?: string | null; body?: string | null }[] | null
+  company?: CompanyInfo | null
 }
 
 const HU_DAYS = ['V', 'H', 'K', 'Sz', 'Cs', 'P', 'Szo']
@@ -120,7 +123,7 @@ function DateStrip({ selected, onChange }: { selected: string; onChange: (d: str
 }
 
 export default function BookingWizard({
-  salonId, salonSlug, salonName, requirePhone = true, services, staff, preselectedServiceId, preselectedStaffId,
+  salonId, salonSlug, salonName, requirePhone = true, services, staff, preselectedServiceId, preselectedStaffId, termsSections, company,
 }: Props) {
   const router = useRouter()
   const [step, setStep] = useState(preselectedServiceId ? 1 : 0)
@@ -501,6 +504,7 @@ export default function BookingWizard({
             )
           )}
           {step === 3 && (
+            <>
             <button
               onClick={submit}
               disabled={submitting || !state.name || !state.email || (requirePhone && !state.phone)}
@@ -508,6 +512,13 @@ export default function BookingWizard({
             >
               {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Küldés...</> : 'Foglalás megerősítése →'}
             </button>
+            {((termsSections && termsSections.length > 0) || company) && (
+              <p className="mt-3 text-center text-xs text-zinc-400">
+                A foglalás megerősítésével elfogadod a{' '}
+                <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
+              </p>
+            )}
+            </>
           )}
         </div>
       </div>

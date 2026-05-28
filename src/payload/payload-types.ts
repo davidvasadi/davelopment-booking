@@ -52,14 +52,25 @@ export interface Restaurant {
   website?: string | null
   cover_image?: string | Media | null
   logo?: string | Media | null
-  capacity_mode: 'tables' | 'flat'
-  max_pax?: number | null
   turn_duration_minutes?: number | null
   slot_step_minutes?: number | null
   last_seating_buffer_minutes?: number | null
   lead_time_hours?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
+  booking_email_subject?: string | null
+  booking_email_intro?: string | null
+  email_show_phone?: boolean | null
+  email_contact_phone?: string | null
+  email_show_email?: boolean | null
+  email_show_address?: boolean | null
+  email_show_directions?: boolean | null
+  email_directions_address?: string | null
+  legal_name?: string | null
+  tax_number?: string | null
+  company_reg_number?: string | null
+  registered_seat?: string | null
+  terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   is_active?: boolean | null
   createdAt: string
   updatedAt: string
@@ -69,6 +80,7 @@ export interface Room {
   id: string
   restaurant: string | Restaurant
   name: string
+  is_outdoor?: boolean | null
   is_active?: boolean | null
   sort_order?: number | null
   createdAt: string
@@ -184,6 +196,19 @@ export interface Salon {
   booking_buffer_minutes?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
+  booking_email_subject?: string | null
+  booking_email_intro?: string | null
+  email_show_phone?: boolean | null
+  email_contact_phone?: string | null
+  email_show_email?: boolean | null
+  email_show_address?: boolean | null
+  email_show_directions?: boolean | null
+  email_directions_address?: string | null
+  legal_name?: string | null
+  tax_number?: string | null
+  company_reg_number?: string | null
+  registered_seat?: string | null
+  terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string

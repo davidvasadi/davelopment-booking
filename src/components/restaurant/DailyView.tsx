@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
-import { List, LayoutGrid, Map as MapIcon, Plus } from 'lucide-react'
+import { List, LayoutGrid, Map as MapIcon, Plus, Users, Clock } from 'lucide-react'
 import { ReservationActions } from './ReservationActions'
 import { ReservationEditSheet, type EditTarget } from './ReservationEditSheet'
 import { OfflineBanner } from './OfflineBanner'
+import { useRestaurantUI } from './RestaurantUIContext'
 import { getDrafts, subscribeDrafts, type ReservationDraft } from '@/lib/offlineDrafts'
 import type { Reservation, Table, Room } from '@/payload/payload-types'
 
@@ -61,8 +62,6 @@ function urgencyOf(r: Reservation, nowMin: number | null): Urgency | null {
 export interface DailyViewProps {
   date: string
   restaurantId: string
-  capacityMode: 'tables' | 'flat'
-  maxPax: number
   reservations: Reservation[]
   rooms: Room[]
   tables: Table[]
@@ -138,10 +137,11 @@ function draftToReservation(d: ReservationDraft): DraftReservation {
 }
 
 export function DailyView(props: DailyViewProps) {
-  const { date, restaurantId, capacityMode, maxPax, rooms, tables, openMin, closeMin, turnMinutes, openReservationId } = props
+  const { date, restaurantId, rooms, tables, openMin, closeMin, turnMinutes, openReservationId } = props
   const [view, setView] = useState<ViewMode>('list')
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<ReservationDraft[]>([])
+  const { enterFocus, exitFocus } = useRestaurantUI()
 
   // Lokális vázlatok betöltése + élő követése (saját és más fülek).
   useEffect(() => {
@@ -158,11 +158,19 @@ export function DailyView(props: DailyViewProps) {
 
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY) as ViewMode | null
-    if (saved === 'list' || saved === 'timeline' || saved === 'floor') setView(saved)
+    if (saved === 'list' || saved === 'timeline' || saved === 'floor') {
+      setView(saved)
+      // Perzisztált timeline nézettel betöltve rögtön fókusz módba lépünk.
+      if (saved === 'timeline') enterFocus()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const pick = (v: ViewMode) => {
     setView(v)
     localStorage.setItem(STORAGE_KEY, v)
+    // Timeline-ra váltás → fókusz mód (nav csuk + KPI rejt); egyébként normál.
+    if (v === 'timeline') enterFocus()
+    else exitFocus()
   }
 
   // Értesítésből érkezve (?reservation=) automatikusan megnyitjuk a sheet-et az adott
@@ -229,7 +237,7 @@ export function DailyView(props: DailyViewProps) {
       {view === 'timeline' && (
         <TimelineView
           date={date}
-          {...{ capacityMode, maxPax, reservations, rooms, tables, openMin, closeMin, turnMinutes }}
+          {...{ reservations, rooms, tables, openMin, closeMin, turnMinutes }}
           onEdit={openEdit}
           onCreate={openCreate}
         />
@@ -237,7 +245,7 @@ export function DailyView(props: DailyViewProps) {
       {view === 'floor' && (
         <FloorView
           date={date}
-          {...{ capacityMode, maxPax, reservations, rooms, tables, openMin, closeMin, turnMinutes }}
+          {...{ reservations, rooms, tables, openMin, closeMin, turnMinutes }}
           onEdit={openEdit}
         />
       )}
@@ -247,7 +255,6 @@ export function DailyView(props: DailyViewProps) {
         onClose={() => setTarget(null)}
         date={date}
         restaurantId={restaurantId}
-        capacityMode={capacityMode}
         target={target}
       />
     </div>
@@ -347,28 +354,15 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
 }
 
 /* ---------- Timeline (asztal × idő rács) ---------- */
-const pxPerMin = 2.4 // 1 perc = 2.4px → 30 perc = 72px
-
 function TimelineView({
-  date, capacityMode, maxPax, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate,
+  date, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate,
 }: ViewProps & {
   onEdit: (r: Reservation) => void
   onCreate: (start?: string, tableId?: string | number | null) => void
 }) {
   const totalMin = Math.max(closeMin - openMin, 60)
-  const width = totalMin * pxPerMin
-
-  // megnyitáskor a görgethető nézet az aktuális időhöz ugrik (ha ma van és nyitvatartáson belül)
-  const scrollRef = useRef<HTMLDivElement>(null)
   const nowMin = useNowMinutes(date)
-  useEffect(() => {
-    const el = scrollRef.current
-    if (!el || nowMin == null || nowMin < openMin || nowMin > closeMin) return
-    const labelW = 128 // asztal-oszlop szélessége (sm:w-32)
-    const x = labelW + (nowMin - openMin) * pxPerMin
-    el.scrollTo({ left: Math.max(0, x - el.clientWidth / 2), behavior: 'smooth' })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, openMin, closeMin])
+  const nowVisible = nowMin != null && nowMin >= openMin && nowMin <= closeMin
   const card = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] rounded-2xl'
 
   // óránkénti rácsvonalak
@@ -377,44 +371,7 @@ function TimelineView({
 
   const active = reservations.filter((r) => ACTIVE.has(r.status))
 
-  if (capacityMode === 'flat') {
-    // óránkénti kapacitás-sáv
-    const slots: { min: number; pax: number }[] = []
-    for (let m = openMin; m < closeMin; m += 60) {
-      const pax = active
-        .filter((r) => m < hhmmToMinutes(r.end_time) && m + 60 > hhmmToMinutes(r.start_time))
-        .reduce((s, r) => s + (r.pax ?? 0), 0)
-      slots.push({ min: m, pax })
-    }
-    return (
-      <div className={`${card} p-5 space-y-2`}>
-        <p className="text-xs text-zinc-400 mb-3">Óránkénti kihasználtság (max {maxPax} fő)</p>
-        {slots.map((s) => {
-          const pct = maxPax ? Math.min(100, (s.pax / maxPax) * 100) : 0
-          return (
-            <button
-              key={s.min}
-              onClick={() => onCreate(minutesToHHMM(s.min))}
-              className="flex items-center gap-3 w-full group"
-            >
-              <span className="w-12 text-xs tabular-nums text-zinc-500 shrink-0">{minutesToHHMM(s.min)}</span>
-              <span className="flex-1 h-7 rounded-md bg-zinc-100 dark:bg-white/[0.06] overflow-hidden relative">
-                <span
-                  className={`absolute inset-y-0 left-0 ${pct >= 100 ? 'bg-red-400' : pct >= 75 ? 'bg-amber-400' : 'bg-emerald-500'}`}
-                  style={{ width: `${pct}%` }}
-                />
-                <span className="absolute inset-0 flex items-center px-2 text-xs font-semibold text-zinc-700 dark:text-white">
-                  {s.pax} / {maxPax} fő
-                </span>
-              </span>
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-
-  // tables mód — sorok termenként csoportosítva
+  // sorok termenként csoportosítva
   const roomOrder = [...rooms].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
   const tablesByRoom = new Map<string, Table[]>()
   const noRoom: Table[] = []
@@ -433,79 +390,198 @@ function TimelineView({
   ].filter((g) => g.tables.length > 0)
 
   return (
-    <div ref={scrollRef} className={`${card} overflow-x-auto`}>
-      <div style={{ minWidth: width + 128 }}>
+    <>
+      {/* Mobil: az eredeti, vízszintesen görgethető fix-px idővonal */}
+      <div className="lg:hidden">
+        <TableGrid
+          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate }}
+          mode="scroll"
+        />
+      </div>
+      {/* Desktop: a teljes nap egy nézetben (százalékos) */}
+      <div className="hidden lg:block">
+        <TableGrid
+          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate }}
+          mode="fit"
+        />
+      </div>
+    </>
+  )
+}
+
+/** Asztal × idő rács. `mode='scroll'`: fix px/perc, vízszintesen görgethető
+ *  (mobil). `mode='fit'`: a teljes nap egy nézetbe fér százalékos pozícióval
+ *  (desktop). A foglalás-blokkok tartalma közös. */
+const PX_PER_MIN = 2.4 // scroll módban 1 perc = 2.4px → 30 perc = 72px
+function TableGrid({
+  groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, mode, onEdit, onCreate,
+}: {
+  groups: { name: string | null; tables: Table[] }[]
+  active: Reservation[]
+  hourMarks: number[]
+  openMin: number
+  closeMin: number
+  totalMin: number
+  turnMinutes: number
+  nowMin: number | null
+  nowVisible: boolean
+  card: string
+  mode: 'scroll' | 'fit'
+  onEdit: (r: Reservation) => void
+  onCreate: (start?: string, tableId?: string | number | null) => void
+}) {
+  const fit = mode === 'fit'
+  const labelW = 'w-24 sm:w-32'
+  // A foglalás-sáv vízszintes geometriája — fit: %, scroll: px.
+  const left = (min: number) => (fit ? `${((min - openMin) / totalMin) * 100}%` : `${(min - openMin) * PX_PER_MIN}px`)
+  const span = (min: number) => (fit ? `${(min / totalMin) * 100}%` : `${min * PX_PER_MIN}px`)
+  const axisWidth = fit ? undefined : totalMin * PX_PER_MIN
+
+  return (
+    <div className={`${card} ${fit ? 'overflow-hidden' : 'overflow-x-auto'}`}>
+      <div style={fit ? undefined : { minWidth: (axisWidth ?? 0) + 128 }}>
         {/* idő-tengely fejléc */}
-        <div className="flex sticky top-0 z-20 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.06]">
-          <div className="w-24 sm:w-32 shrink-0 sticky left-0 z-20 bg-white dark:bg-zinc-900 px-3 py-2 text-xs font-semibold text-zinc-400">Asztal</div>
-          <div className="relative" style={{ width }}>
+        <div className="flex z-20 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.06]">
+          <div className={`${labelW} shrink-0 px-4 py-2.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-400`}>
+            Asztal
+          </div>
+          <div className="relative flex-1 min-w-0 py-2.5" style={fit ? undefined : { width: axisWidth }}>
             {hourMarks.map((m) => (
               <span
                 key={m}
-                className="absolute top-2 text-xs tabular-nums text-zinc-400"
-                style={{ left: (m - openMin) * pxPerMin }}
+                className="absolute top-2.5 -translate-x-1/2 text-[11px] font-medium tabular-nums text-zinc-400 dark:text-white/40"
+                style={{ left: left(m) }}
               >
                 {minutesToHHMM(m)}
               </span>
             ))}
+            {nowVisible && (
+              <span
+                className="absolute top-1 -translate-x-1/2 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm"
+                style={{ left: left(nowMin!) }}
+              >
+                {minutesToHHMM(nowMin!)}
+              </span>
+            )}
           </div>
         </div>
 
         {groups.map((g) => (
           <div key={g.name ?? 'none'}>
             {g.name && (
-              <div className="sticky left-0 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-50 dark:bg-white/[0.03] w-fit">
+              <div className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400 bg-zinc-50 dark:bg-white/[0.04] border-b border-zinc-100 dark:border-white/[0.06]">
                 {g.name}
               </div>
             )}
             {g.tables.map((t) => {
               const rows = active.filter((r) => tableIdsOf(r).includes(String(t.id)))
               return (
-                <div key={t.id} className="flex border-b border-zinc-50 dark:border-white/[0.04]">
-                  <div className="w-24 sm:w-32 shrink-0 sticky left-0 z-20 bg-white dark:bg-zinc-900 px-3 py-2 flex items-center justify-between gap-1">
+                <div
+                  key={t.id}
+                  className="flex min-h-[4.5rem] border-b border-zinc-50 dark:border-white/[0.04] hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors"
+                >
+                  <div className={`${labelW} shrink-0 px-4 flex items-center justify-between gap-1 border-r border-zinc-50 dark:border-white/[0.04]`}>
                     <span className="text-sm font-medium text-zinc-900 dark:text-white truncate">{t.name}</span>
-                    <span className="text-[11px] text-zinc-400 shrink-0">{t.capacity}f</span>
+                    <span className="flex items-center gap-0.5 text-[11px] text-zinc-400 shrink-0 tabular-nums">
+                      <Users className="h-3 w-3 shrink-0" />{t.capacity}
+                    </span>
                   </div>
                   <div
-                    className="relative h-12"
-                    style={{ width }}
+                    className="relative flex-1 min-w-0 cursor-pointer"
+                    style={fit ? undefined : { width: axisWidth }}
                     onClick={(e) => {
-                      // üres sávra kattintva új foglalás az adott időpontra+asztalra
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      const min = openMin + Math.round((e.clientX - rect.left) / pxPerMin / 15) * 15
+                      const min = openMin + Math.round((e.clientX - rect.left) / rect.width * totalMin / 15) * 15
                       onCreate(minutesToHHMM(Math.max(openMin, Math.min(min, closeMin - turnMinutes))), t.id)
                     }}
                   >
-                    {/* óránkénti rácsvonalak */}
                     {hourMarks.map((m) => (
                       <span
                         key={m}
-                        className="absolute inset-y-0 w-px bg-zinc-100 dark:bg-white/[0.05]"
-                        style={{ left: (m - openMin) * pxPerMin }}
+                        className="absolute inset-y-0 w-px bg-zinc-100/70 dark:bg-white/[0.04]"
+                        style={{ left: left(m) }}
                       />
                     ))}
+                    {nowVisible && (
+                      <span
+                        className="pointer-events-none absolute inset-y-0 z-10 w-0.5 bg-red-500/80"
+                        style={{ left: left(nowMin!) }}
+                      />
+                    )}
                     {rows.map((r) => {
                       const s = hhmmToMinutes(r.start_time)
                       const e = hhmmToMinutes(r.end_time)
+                      const dur = e - s
                       const draft = isDraft(r)
                       const urgency = draft ? null : urgencyOf(r, nowMin)
+                      // ≥ 2 óra: van vízszintes hely → név | badge egy sorban, létszám | idő egy sorban.
+                      // < 2 óra: keskeny blokk → minden egymás alatt (semmi nem csonkul a min-h miatt).
+                      const wide = dur >= 120
+
+                      const badge = urgency ? (
+                        <span
+                          className={`w-fit max-w-full shrink-0 truncate rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}
+                        >
+                          {urgency.label}
+                        </span>
+                      ) : null
+                      const name = (
+                        <span className="min-w-0 flex-1 truncate font-semibold leading-tight">
+                          {draft ? '✎ ' : ''}{r.customer_name}
+                        </span>
+                      )
+                      const pax = (
+                        <span className="flex shrink-0 items-center gap-1 text-[10px] opacity-75 leading-tight">
+                          <Users className="h-2.5 w-2.5 shrink-0" />{r.pax}
+                        </span>
+                      )
+                      const time = (
+                        <span className="min-w-0 truncate text-[10px] opacity-75 tabular-nums leading-tight">
+                          {r.start_time}–{r.end_time}
+                        </span>
+                      )
+                      // Keskeny blokkon a pontos időpont helyett kompakt időtartam (🕐 1,5ó),
+                      // így a létszám mellé fér egy sorba.
+                      const durLabel = `${(dur / 60).toFixed(dur % 60 === 0 ? 0 : 1).replace('.', ',')}ó`
+                      const durChip = (
+                        <span className="flex shrink-0 items-center gap-1 text-[10px] opacity-75 leading-tight">
+                          <Clock className="h-2.5 w-2.5 shrink-0" />{durLabel}
+                        </span>
+                      )
+
                       return (
                         <button
                           key={r.id}
                           onClick={(ev) => { ev.stopPropagation(); onEdit(r) }}
-                          title={`${draft ? 'VÁZLAT — ' : ''}${r.customer_name} · ${r.pax} fő · ${urgency ? urgency.label : statusLabel[r.status]}`}
-                          className={`absolute top-1 bottom-1 rounded-md border px-2 text-xs font-medium overflow-hidden text-left ${draft ? 'border-2 border-dashed border-amber-500 bg-amber-100/80 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100' : statusBlock[r.status]}`}
-                          style={{ left: (s - openMin) * pxPerMin + 1, width: (e - s) * pxPerMin - 2 }}
+                          title={`${draft ? 'VÁZLAT — ' : ''}${r.customer_name} · ${r.pax} fő · ${r.start_time}–${r.end_time} · ${urgency ? urgency.label : statusLabel[r.status]}`}
+                          className={`absolute top-1/2 -translate-y-1/2 max-h-[calc(100%-0.5rem)] rounded-md border px-2 py-1.5 text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 shadow-sm hover:brightness-105 transition-all ${draft ? 'border-2 border-dashed border-amber-500 bg-amber-100/80 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100' : statusBlock[r.status]}`}
+                          style={{ left: `calc(${left(s)} + 2px)`, width: `calc(${span(dur)} - 4px)` }}
                         >
-                          {urgency && (
-                            <span
-                              className={`absolute right-0.5 top-0.5 z-10 max-w-[calc(100%-4px)] truncate rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none shadow-sm ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}
-                            >
-                              {urgency.label}
-                            </span>
+                          {wide ? (
+                            <>
+                              {/* széles blokk: név | badge, alatta létszám | idő (vízszintes párok) */}
+                              <span className="flex min-w-0 items-center gap-1.5">
+                                {name}
+                                {badge}
+                              </span>
+                              <span className="flex min-w-0 items-center gap-2">
+                                {pax}
+                                {time}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              {/* keskeny blokk: badge, név, majd létszám + időtartam egy sorban */}
+                              {badge}
+                              <span className="block w-full min-w-0 shrink-0 truncate font-semibold leading-tight">
+                                {draft ? '✎ ' : ''}{r.customer_name}
+                              </span>
+                              <span className="flex min-w-0 shrink-0 items-center gap-2">
+                                {pax}
+                                {durChip}
+                              </span>
+                            </>
                           )}
-                          <span className="block truncate leading-tight">{draft ? '✎ ' : ''}{r.customer_name}</span>
-                          <span className="block truncate leading-tight opacity-80">{r.pax} fő</span>
                         </button>
                       )
                     })}
@@ -522,7 +598,7 @@ function TimelineView({
 
 /* ---------- Floor plan (auto-grid + idő-csúszka) ---------- */
 function FloorView({
-  date, capacityMode, reservations, rooms, tables, openMin, closeMin, onEdit,
+  date, reservations, rooms, tables, openMin, closeMin, onEdit,
 }: ViewProps & { onEdit: (r: Reservation) => void }) {
   // Kezdőpillanat: ha a megtekintett nap ma van, az aktuális idő (a nyitvatartásra
   // szorítva); egyébként a nyitvatartás közepe.
@@ -535,10 +611,6 @@ function FloorView({
   }
   const [atMin, setAtMin] = useState(initialMin)
   const card = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] rounded-2xl'
-
-  if (capacityMode === 'flat') {
-    return <div className={`${card} p-12 text-center text-zinc-500`}>A teremnézet csak asztalos módban érhető el.</div>
-  }
 
   const active = reservations.filter((r) => ACTIVE.has(r.status))
   // melyik asztal foglalt az adott pillanatban + ki ül ott

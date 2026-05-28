@@ -102,17 +102,45 @@ export function TimeSelect({
   const { h, m } = parse(value)
   const display = `${h}:${m}`
 
+  const PANEL_H = 180 // a görgő magassága (Wheel h-[180px])
+  const PANEL_W = 140
+
+  // A panel pozíciója a triggerhez képest, a viewporthoz igazítva: ha alul nincs
+  // elég hely, fölé csúszik (flip); vízszintesen a képernyőn belül marad.
+  const place = useCallback(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - r.bottom
+    const openUp = spaceBelow < PANEL_H + 12 && r.top > PANEL_H + 12
+    const top = openUp ? r.top - PANEL_H - 6 : r.bottom + 6
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - PANEL_W - 8)
+    setPos({ top, left })
+  }, [])
+
   useLayoutEffect(() => {
     if (!open || !triggerRef.current) return
-    const r = triggerRef.current.getBoundingClientRect()
-    setPos({ top: r.bottom + 6, left: r.left })
+    place()
     // Ha nincs explicit konténer, és Radix Dialog/Sheet-en belül vagyunk, a panelt
     // a dialog tartalmába portáljuk (nem a body-ra). Különben a react-remove-scroll
     // scroll-lockja a body-portált a lockolt elemen kívülinek látja és preventDefault-tal
     // elnyeli a wheel/touch eseményeket, így nem lehetne görgetni a görgőt.
     const dialog = triggerRef.current.closest<HTMLElement>('[role="dialog"]')
     setTarget(container ?? dialog ?? document.body)
-  }, [open, container])
+  }, [open, container, place])
+
+  // Görgetés / átméretezés közben a panel kövesse a triggert (különben elcsúszik,
+  // és kieshet a képernyőből). A görgőn belüli görgetést (data-lenis-prevent) ez nem érinti.
+  useEffect(() => {
+    if (!open) return
+    const onScrollOrResize = () => place()
+    window.addEventListener('scroll', onScrollOrResize, true)
+    window.addEventListener('resize', onScrollOrResize)
+    return () => {
+      window.removeEventListener('scroll', onScrollOrResize, true)
+      window.removeEventListener('resize', onScrollOrResize)
+    }
+  }, [open, place])
 
   useEffect(() => {
     if (!open) return

@@ -1,5 +1,17 @@
 import { Resend } from 'resend'
-import type { Restaurant, Reservation, Table } from '@/payload/payload-types'
+import type { Restaurant, Reservation, Media } from '@/payload/payload-types'
+import {
+  emailLayout,
+  heroBlock,
+  detailsCard,
+  infoRow,
+  introBlock,
+  cancelBlock,
+  footerInfoBlock,
+  bottomSpacer,
+  renderSubject,
+  COLORS,
+} from './emailLayout'
 
 let _resend: Resend | null = null
 function getResend(): Resend | null {
@@ -17,12 +29,34 @@ export interface ReservationEmailData {
   restaurant: Restaurant
 }
 
-function tableName(reservation: Reservation): string | null {
-  const names = (reservation.tables ?? [])
-    .map((t) => (t && typeof t === 'object' ? (t as Table).name : null))
-    .filter((n): n is string => !!n)
-  if (names.length === 0) return null
-  return names.length > 1 ? `${names.join(' + ')} (összevont)` : names[0]
+/** Egy Media mező abszolút URL-je (emailhez teljes URL kell). */
+function mediaUrl(field: Restaurant['logo']): string | null {
+  const url = field && typeof field === 'object' ? (field as Media).url : null
+  if (!url) return null
+  return url.startsWith('http') ? url : `${APP_URL}${url}`
+}
+
+function emailVars(data: ReservationEmailData): Record<string, string> {
+  const { reservation } = data
+  return {
+    name: reservation.customer_name,
+    date: reservation.date,
+    time: `${reservation.start_time} – ${reservation.end_time}`,
+    pax: String(reservation.pax),
+  }
+}
+
+function hasTerms(restaurant: Restaurant): boolean {
+  return (restaurant.terms_sections ?? []).some((s) => s?.title || s?.body)
+}
+
+function wrap(restaurant: Restaurant, content: string): string {
+  return emailLayout({
+    brandName: restaurant.name,
+    brandLogoUrl: mediaUrl(restaurant.logo),
+    brandCoverUrl: mediaUrl(restaurant.cover_image),
+    content,
+  })
 }
 
 // ── ICS ────────────────────────────────────────────────────────────────────
@@ -63,11 +97,16 @@ export async function sendReservationConfirmation(data: ReservationEmailData) {
   const cancelUrl = reservation.cancel_token
     ? `${APP_URL}/${restaurant.slug}/cancel/${reservation.cancel_token}`
     : null
+  const vars = emailVars(data)
+  const subjectTpl = restaurant.booking_email_subject?.trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, vars)
+    : `Asztalfoglalás visszaigazolva — ${restaurant.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: reservation.customer_email,
-      subject: `Asztalfoglalás visszaigazolva — ${restaurant.name}`,
+      subject,
       html: confirmationHtml(data, cancelUrl),
       attachments: [{ filename: 'foglalas.ics', content: Buffer.from(generateICS(data)) }],
     })
@@ -110,86 +149,77 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
 }
 
 // ── HTML ───────────────────────────────────────────────────────────────────
-function emailWrapper(content: string): string {
-  return `<!DOCTYPE html>
-<html lang="hu"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px"><tr><td align="center">
-    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-      <tr><td style="background:#09090b;padding:24px 32px">
-        <table width="100%" cellpadding="0" cellspacing="0"><tr>
-          <td><span style="color:#fff;font-size:18px;font-weight:900;letter-spacing:-0.5px">Schedulio</span>
-            <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#0099ff;margin-left:4px;vertical-align:middle"></span></td>
-          <td align="right"><a href="https://davelopment.hu" style="color:#52525b;font-size:11px;text-decoration:none">by [davelopment]®</a></td>
-        </tr></table>
-      </td></tr>
-      ${content}
-      <tr><td style="background:#09090b;padding:20px 32px;text-align:center">
-        <p style="margin:0;color:#3f3f46;font-size:11px">© 2026 Schedulio · Minden jog fenntartva</p>
-      </td></tr>
-    </table>
-  </td></tr></table>
-</body></html>`
-}
-
-function infoRow(label: string, value: string): string {
-  return `<tr>
-    <td style="padding:8px 0;color:#71717a;font-size:13px;white-space:nowrap;width:110px">${label}</td>
-    <td style="padding:8px 0;color:#09090b;font-size:13px;font-weight:600">${value}</td>
-  </tr>`
-}
-
-function detailsTable(data: ReservationEmailData): string {
+function detailRows(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
   const location = restaurant.address ? `${restaurant.address}${restaurant.city ? ', ' + restaurant.city : ''}` : null
-  const tn = tableName(reservation)
-  return `<table width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;border-radius:12px;padding:16px 20px;margin:8px 0 24px">
-    ${infoRow('Étterem', restaurant.name)}
-    ${infoRow('Dátum', reservation.date)}
-    ${infoRow('Időpont', `${reservation.start_time} – ${reservation.end_time}`)}
-    ${infoRow('Létszám', `${reservation.pax} fő`)}
-    ${tn ? infoRow('Asztal', tn) : ''}
-    ${location ? infoRow('Cím', location) : ''}
-    ${restaurant.phone ? infoRow('Telefon', restaurant.phone) : ''}
-  </table>`
+  return [
+    infoRow('user', 'Név', reservation.customer_name),
+    infoRow('mail', 'Email', reservation.customer_email),
+    infoRow('calendar', 'Dátum', reservation.date),
+    infoRow('clock', 'Időpont', `${reservation.start_time} – ${reservation.end_time}`),
+    infoRow('people', 'Létszám', `${reservation.pax} fő`),
+    location ? infoRow('pin', 'Cím', location) : '',
+  ].filter(Boolean).join('')
 }
 
 function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null): string {
-  const { reservation } = data
-  return emailWrapper(`
-    <tr><td style="background:#fff;padding:32px 32px 0">
-      <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding-bottom:24px">
-        <div style="display:inline-block;width:48px;height:48px;border-radius:50%;background:#00bb8818;text-align:center;line-height:48px;font-size:22px;margin-bottom:12px">✓</div>
-        <h1 style="margin:8px 0 4px;font-size:22px;font-weight:900;color:#09090b;letter-spacing:-0.5px">Asztalfoglalás visszaigazolva!</h1>
-        <p style="margin:0;color:#71717a;font-size:14px">Kedves <strong>${reservation.customer_name}</strong>, foglalásodat rögzítettük.</p>
-      </td></tr></table>
-      ${detailsTable(data)}
-      ${reservation.notes ? `<p style="color:#71717a;font-size:13px;margin:0 0 24px"><strong>Megjegyzés:</strong> ${reservation.notes}</p>` : ''}
-      ${cancelUrl ? `<p style="text-align:center;margin:0 0 24px"><a href="${cancelUrl}" style="color:#71717a;font-size:12px;text-decoration:underline">Foglalás lemondása</a></p>` : ''}
-    </td></tr>`)
+  const { reservation, restaurant } = data
+  return wrap(restaurant, `
+    ${heroBlock({
+      icon: 'success',
+      title: 'Asztalfoglalás visszaigazolva',
+      subtitle: `Kedves ${reservation.customer_name}, foglalásodat rögzítettük.`,
+    })}
+    ${introBlock(restaurant.booking_email_intro, emailVars(data))}
+    ${detailsCard(detailRows(data))}
+    ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 32px 0">
+      <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>Megjegyzés:</strong> ${reservation.notes}</p>
+    </td></tr>` : ''}
+    ${footerInfoBlock({
+      hasTerms: hasTerms(restaurant),
+      bookingUrl: `${APP_URL}/${restaurant.slug}/feltetelek`,
+      phone: restaurant.email_show_phone ? (restaurant.email_contact_phone?.trim() || restaurant.phone) : null,
+      email: restaurant.email_show_email ? restaurant.email : null,
+      address: restaurant.email_show_address ? contactAddress(restaurant) : null,
+      directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
+    })}
+    ${cancelBlock(cancelUrl)}
+    ${bottomSpacer()}
+  `)
+}
+
+function contactAddress(restaurant: Restaurant): string | null {
+  return restaurant.address ? `${restaurant.address}${restaurant.city ? ', ' + restaurant.city : ''}` : null
 }
 
 function notificationHtml(data: ReservationEmailData): string {
-  const { reservation } = data
-  return emailWrapper(`
-    <tr><td style="background:#fff;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;font-weight:900;color:#09090b;letter-spacing:-0.5px">Új asztalfoglalás 🎉</h1>
-      <p style="margin:0 0 16px;color:#71717a;font-size:14px"><strong>${reservation.customer_name}</strong> foglalt asztalt.</p>
-      ${detailsTable(data)}
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#fafafa;border-radius:12px;padding:16px 20px">
-        ${infoRow('Email', reservation.customer_email)}
-        ${reservation.customer_phone ? infoRow('Telefon', reservation.customer_phone) : ''}
-        ${reservation.notes ? infoRow('Megjegyzés', reservation.notes) : ''}
-      </table>
-    </td></tr>`)
+  const { reservation, restaurant } = data
+  const contactRows = [
+    infoRow('mail', 'Email', reservation.customer_email),
+    reservation.customer_phone ? infoRow('phone', 'Telefon', reservation.customer_phone) : '',
+    reservation.notes ? infoRow('note', 'Megjegyzés', reservation.notes) : '',
+  ].filter(Boolean).join('')
+  return wrap(restaurant, `
+    ${heroBlock({
+      icon: 'bell',
+      title: 'Új asztalfoglalás',
+      subtitle: `${reservation.customer_name} asztalt foglalt.`,
+    })}
+    ${detailsCard(detailRows(data))}
+    ${detailsCard(contactRows)}
+    ${bottomSpacer()}
+  `)
 }
 
 function cancellationHtml(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
-  return emailWrapper(`
-    <tr><td style="background:#fff;padding:32px">
-      <h1 style="margin:0 0 4px;font-size:20px;font-weight:900;color:#09090b;letter-spacing:-0.5px">Foglalás lemondva</h1>
-      <p style="margin:0 0 16px;color:#71717a;font-size:14px">Kedves <strong>${reservation.customer_name}</strong>, a(z) <strong>${restaurant.name}</strong> étteremhez tartozó foglalásodat lemondtuk.</p>
-      ${detailsTable(data)}
-    </td></tr>`)
+  return wrap(restaurant, `
+    ${heroBlock({
+      icon: 'cancel',
+      title: 'Foglalás lemondva',
+      subtitle: `Kedves ${reservation.customer_name}, a(z) ${restaurant.name} étteremhez tartozó foglalásodat lemondtuk.`,
+    })}
+    ${detailsCard(detailRows(data))}
+    ${bottomSpacer()}
+  `)
 }

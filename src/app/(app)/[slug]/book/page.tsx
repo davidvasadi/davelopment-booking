@@ -55,6 +55,16 @@ export default async function BookPage({
       staff={staffResult.docs as StaffMember[]}
       preselectedServiceId={serviceId ?? null}
       preselectedStaffId={staffId ?? null}
+      termsSections={salon.terms_sections}
+      company={{
+        name: salon.name,
+        legal_name: salon.legal_name,
+        tax_number: salon.tax_number,
+        company_reg_number: salon.company_reg_number,
+        registered_seat: salon.registered_seat,
+        email: salon.email,
+        phone: salon.phone,
+      }}
     />
   )
 }

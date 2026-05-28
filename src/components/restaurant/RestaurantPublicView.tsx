@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { getPayloadClient } from '@/lib/payload'
-import { MapPin, Phone, Mail, Globe, ChevronRight, Users, Clock, CalendarClock } from 'lucide-react'
+import { MapPin, Phone, Mail, Globe, ChevronRight, Clock, CalendarClock } from 'lucide-react'
 import type { Restaurant, OpeningHour, Media } from '@/payload/payload-types'
 import OpeningHoursLive from '@/components/restaurant/OpeningHoursLive'
 import NextAvailableSlots from '@/components/restaurant/NextAvailableSlots'
@@ -113,15 +113,6 @@ export async function RestaurantPublicView({ slug }: { slug: string }) {
           <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Mielőtt jön</p>
           <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Jó tudni</h2>
           <div className="grid grid-cols-2 gap-3">
-            {restaurant.max_pax != null && (
-              <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
-                <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">
-                  <Users className="h-4 w-4 text-white" />
-                </div>
-                <p className="font-black text-zinc-900 text-sm leading-tight">Max {restaurant.max_pax} fő</p>
-                <p className="text-xs text-zinc-500 mt-0.5">egy foglaláshoz</p>
-              </div>
-            )}
             {restaurant.turn_duration_minutes != null && (
               <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
                 <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">

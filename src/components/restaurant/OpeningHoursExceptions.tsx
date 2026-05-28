@@ -1,13 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isBefore, isToday } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { TimeSelect } from '@/components/ui/time-select'
-import { ChevronLeft, ChevronRight, CalendarDays, CalendarOff, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, CalendarDays, CalendarOff, Clock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DAY_LABELS = ['H', 'K', 'Sz', 'Cs', 'P', 'Szo', 'V']
@@ -143,6 +143,46 @@ export function OpeningHoursExceptions({
     .sort((a, b) => a.start_date.localeCompare(b.start_date))
   const exceptionCount = sortedExceptions.length
 
+  // Hónap szerinti csoportosítás az oldali listához (sok kivételnél átlátható marad).
+  const groups = (() => {
+    const map = new Map<string, { label: string; items: Exception[] }>()
+    for (const x of sortedExceptions) {
+      const d = new Date(x.start_date + 'T00:00:00')
+      const key = format(d, 'yyyy-MM')
+      if (!map.has(key)) map.set(key, { label: format(d, 'yyyy. MMMM', { locale: hu }), items: [] })
+      map.get(key)!.items.push(x)
+    }
+    return [...map.entries()].map(([key, v]) => ({ key, ...v }))
+  })()
+
+  // Összecsukott hónap-szekciók (localStorage, böngészőnként) — mint a TablesManagernél.
+  const COLLAPSE_KEY = `exc-collapsed-${restaurantId}`
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    try {
+      setCollapsed(new Set(JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]') as string[]))
+    } catch {
+      /* ignore */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const toggleGroup = (key: string) => {
+    setCollapsed((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      localStorage.setItem(COLLAPSE_KEY, JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  const openOnDay = (dateStr: string) => {
+    setOpen(true)
+    selectDay(new Date(dateStr + 'T00:00:00'))
+  }
+
+  const card = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] rounded-2xl'
+
   return (
     <>
       <button
@@ -157,6 +197,59 @@ export function OpeningHoursExceptions({
           </span>
         )}
       </button>
+
+      {/* Oldali, hónap szerint csoportosított, összecsukható lista — sok kivételnél is átlátható.
+          A lista görgethető (max-h), ezért nem folyik le a képernyőről. */}
+      {groups.length > 0 && (
+        <div className="mt-4 space-y-3">
+          {groups.map((g) => {
+            const isCollapsed = collapsed.has(g.key)
+            return (
+              <div key={g.key} className={`${card} overflow-hidden`}>
+                <button
+                  onClick={() => toggleGroup(g.key)}
+                  className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
+                  title={isCollapsed ? 'Kibontás' : 'Összecsukás'}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                    <span className="font-semibold text-sm text-zinc-900 capitalize dark:text-white truncate">{g.label}</span>
+                  </span>
+                  <span className="shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-100 px-1.5 text-[11px] font-bold text-zinc-600 dark:bg-white/[0.08] dark:text-white/60">
+                    {g.items.length}
+                  </span>
+                </button>
+                {!isCollapsed && (
+                  <div className="max-h-72 overflow-y-auto border-t border-zinc-100 dark:border-white/[0.06] divide-y divide-zinc-50 dark:divide-white/[0.04]">
+                    {g.items.map((x) => (
+                      <button
+                        key={x.id}
+                        onClick={() => openOnDay(x.start_date)}
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-white/[0.03]"
+                      >
+                        <span className={cn(
+                          'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
+                          x.is_closed ? 'bg-red-50 text-red-500 dark:bg-red-500/10' : 'bg-[#0099ff]/10 text-[#0099ff]',
+                        )}>
+                          {x.is_closed ? <CalendarOff className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold capitalize text-zinc-800 dark:text-white/90">
+                            {format(new Date(x.start_date + 'T00:00:00'), 'MMMM d., EEEE', { locale: hu })}
+                          </span>
+                          <span className="block text-xs text-zinc-500 dark:text-white/40">
+                            {x.is_closed ? 'Zárva' : `${x.open_time}–${x.close_time}`}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <Sheet open={open} onOpenChange={(v) => { if (!v) setOpen(false) }}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
@@ -304,7 +397,7 @@ export function OpeningHoursExceptions({
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30">
                   Hozzáadott kivételek
                 </p>
-                <div className="space-y-1">
+                <div className="space-y-1 max-h-64 overflow-y-auto -mr-2 pr-2">
                   {sortedExceptions.map((x) => (
                     <button
                       key={x.id}

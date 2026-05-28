@@ -33,11 +33,9 @@ export async function POST(req: Request) {
     collection: 'restaurants',
     id: body.restaurantId,
     data: {
-      capacity_mode: template.capacity_mode,
       turn_duration_minutes: template.turn_duration_minutes,
       slot_step_minutes: template.slot_step_minutes,
       lead_time_hours: template.lead_time_hours,
-      ...(template.max_pax ? { max_pax: template.max_pax } : {}),
     },
     overrideAccess: true,
   })

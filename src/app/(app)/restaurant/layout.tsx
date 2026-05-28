@@ -7,7 +7,8 @@ import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
-import type { Restaurant, Subscription } from '@/payload/payload-types'
+import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContext'
+import type { Restaurant, Subscription, Media } from '@/payload/payload-types'
 
 export default async function RestaurantLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth('restaurant_owner')
@@ -44,21 +45,28 @@ export default async function RestaurantLayout({ children }: { children: React.R
       ? sub.status
       : null
 
+  // Az étterem saját brand-logója a nav tetejére (a Schedulio logó a Kijelentkezés alá kerül).
+  const logo = restaurant.logo as Media | undefined
+  const brandLogoUrl = typeof logo === 'object' && logo?.url ? logo.url : null
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
-      <DashboardNav
-        salonName={restaurant.name}
-        salonSlug={restaurant.slug}
-        subscription={sub}
-        variant="restaurant"
-      />
-      <main className="flex-1 min-w-0 pb-24 lg:pb-0">
-        <SubscriptionBanner subscription={sub} basePath="/restaurant" />
-        {children}
-      </main>
-      <MobileBottomNav subscription={sub} variant="restaurant" />
-      {lockedStatus && <DashboardLockModal status={lockedStatus} />}
-      <OnboardingTour variant="restaurant" userId={String(user.id)} />
-    </div>
+    <RestaurantUIProvider>
+      <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
+        <DashboardNav
+          salonName={restaurant.name}
+          salonSlug={restaurant.slug}
+          subscription={sub}
+          variant="restaurant"
+          brandLogoUrl={brandLogoUrl}
+        />
+        <main className="flex-1 min-w-0 pb-24 lg:pb-0">
+          <SubscriptionBanner subscription={sub} basePath="/restaurant" />
+          {children}
+        </main>
+        <MobileBottomNav subscription={sub} variant="restaurant" />
+        {lockedStatus && <DashboardLockModal status={lockedStatus} />}
+        <OnboardingTour variant="restaurant" userId={String(user.id)} />
+      </div>
+    </RestaurantUIProvider>
   )
 }

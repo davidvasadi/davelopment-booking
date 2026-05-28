@@ -7,10 +7,11 @@ import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
-import { LogOut, ExternalLink, Monitor, Sun, Moon, Lock, WifiOff } from 'lucide-react'
+import { LogOut, ExternalLink, Monitor, Sun, Moon, Lock, WifiOff, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
 import { NotificationBell } from './NotificationBell'
 import { useOnline } from '@/lib/useOnline'
+import { useRestaurantUI } from '@/components/restaurant/RestaurantUIContext'
 
 /** Globális offline-jelző a navban — bárhol látszik a dashboardon, ha elment a net. */
 function OfflineIndicator({ compact = false }: { compact?: boolean }) {
@@ -131,15 +132,23 @@ export function DashboardNav({
   salonSlug,
   subscription,
   variant = 'salon',
+  brandLogoUrl = null,
 }: {
   salonName: string
   salonSlug: string
   subscription?: SubInfo
   variant?: DashboardVariant
+  /** Étterem variánsban a saját brand-logó URL-je (a nav tetejére). */
+  brandLogoUrl?: string | null
 }) {
   const { items: navItems, publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
   const pathname = usePathname()
   const router = useRouter()
+
+  // Összecsukás csak az étterem navban él (a salon nav változatlan).
+  const collapsible = variant === 'restaurant'
+  const { navCollapsed, toggleNav } = useRestaurantUI()
+  const collapsed = collapsible && navCollapsed
 
   const handleLogout = async () => {
     await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
@@ -156,29 +165,62 @@ export function DashboardNav({
   return (
     <>
       {/* ── DESKTOP SIDEBAR ────────────────────────────────────── */}
-      <aside className="hidden lg:flex w-56 h-screen sticky top-0 z-40 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0">
-        <div className="px-6 pt-7 pb-6">
-          <div className="flex items-center justify-between">
-            <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
-              <SchedulioLogo className="h-7" />
+      <aside
+        className={cn(
+          'hidden lg:flex h-screen sticky top-0 z-40 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0 transition-[width] duration-200',
+          collapsed ? 'w-16' : 'w-56',
+        )}
+      >
+        <div className={cn('pt-7 pb-6', collapsed ? 'px-3' : 'px-6')}>
+          <div className={cn('flex items-center', collapsed ? 'flex-col gap-3' : 'justify-between')}>
+            {/* Étterem variánsban a saját brand-logó, ha van; egyébként a Schedulio logó. */}
+            <Link
+              href="/"
+              aria-label={variant === 'restaurant' ? salonName : 'Schedulio'}
+              className="block w-fit hover:opacity-80 transition-opacity"
+            >
+              {variant === 'restaurant' && brandLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={brandLogoUrl} alt={salonName} className={cn('object-contain', collapsed ? 'h-8 w-8' : 'h-8')} />
+              ) : (
+                <SchedulioLogo className="h-7" />
+              )}
             </Link>
             <NotificationBell align="left" />
           </div>
-          <div className="mt-3">
-            <p className="text-zinc-700 dark:text-white/70 font-semibold text-sm truncate">{salonName}</p>
-            <a
-              href={`/${publicUrlPrefix}${salonSlug}`}
-              target="_blank"
-              className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 mt-0.5 transition-colors"
-            >
-              Nyilvános oldal <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-          </div>
+          {!collapsed && (
+            <div className="mt-3">
+              <p className="text-zinc-700 dark:text-white/70 font-semibold text-sm truncate">{salonName}</p>
+              <a
+                href={`/${publicUrlPrefix}${salonSlug}`}
+                target="_blank"
+                className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 mt-0.5 transition-colors"
+              >
+                Nyilvános oldal <ExternalLink className="h-2.5 w-2.5" />
+              </a>
+            </div>
+          )}
         </div>
+
+        {/* Összecsukás-gomb (csak étterem navban) */}
+        {collapsible && (
+          <button
+            onClick={toggleNav}
+            title={collapsed ? 'Menü kinyitása' : 'Menü összecsukása'}
+            aria-label={collapsed ? 'Menü kinyitása' : 'Menü összecsukása'}
+            className={cn(
+              'mx-3 mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors',
+              collapsed ? 'justify-center' : '',
+            )}
+          >
+            {collapsed ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
+            {!collapsed && <span>Összecsukás</span>}
+          </button>
+        )}
 
         <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
 
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+        <nav className={cn('flex-1 py-4 space-y-0.5 overflow-y-auto', collapsed ? 'px-2' : 'px-3')}>
           {navItems.map(({ href, label, icon: Icon, exact }) => {
             const dim = isLocked && !isAllowedWhenLocked(href)
             return (
@@ -186,8 +228,10 @@ export function DashboardNav({
                 key={href}
                 href={href}
                 data-tour={href}
+                title={collapsed ? label : undefined}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors',
+                  'flex items-center gap-3 rounded-lg text-sm transition-colors',
+                  collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
                   isActive(href, exact)
                     ? 'bg-zinc-900 text-white dark:bg-white dark:text-black font-semibold'
                     : dim
@@ -196,8 +240,8 @@ export function DashboardNav({
                 )}
               >
                 <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1">{label}</span>
-                {dim && <Lock className="h-3 w-3 shrink-0" />}
+                {!collapsed && <span className="flex-1">{label}</span>}
+                {!collapsed && dim && <Lock className="h-3 w-3 shrink-0" />}
               </Link>
             )
           })}
@@ -205,20 +249,39 @@ export function DashboardNav({
 
         <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
 
-        <div className="pt-3">
-          <OfflineIndicator />
-          <SubscriptionWidget sub={subscription ?? null} subscriptionHref={subscriptionHref} />
-        </div>
+        {!collapsed && (
+          <div className="pt-3">
+            <OfflineIndicator />
+            <SubscriptionWidget sub={subscription ?? null} subscriptionHref={subscriptionHref} />
+          </div>
+        )}
 
-        <div className="px-3 py-4">
-          <ThemeToggle />
+        <div className={cn('py-4', collapsed ? 'px-2' : 'px-3')}>
+          {!collapsed && <ThemeToggle />}
           <button
             onClick={handleLogout}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] w-full transition-colors"
+            title={collapsed ? 'Kijelentkezés' : undefined}
+            className={cn(
+              'flex items-center gap-3 rounded-lg text-sm text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] w-full transition-colors',
+              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
+            )}
           >
-            <LogOut className="h-4 w-4" />
-            Kijelentkezés
+            <LogOut className="h-4 w-4 shrink-0" />
+            {!collapsed && 'Kijelentkezés'}
           </button>
+
+          {/* Étterem navban a Schedulio logó a Kijelentkezés alá kerül („powered by”). */}
+          {variant === 'restaurant' && !collapsed && (
+            <a
+              href="https://schedulio.hu"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex items-center gap-1.5 px-3 text-[10px] text-zinc-300 dark:text-white/20 hover:text-zinc-500 dark:hover:text-white/40 transition-colors"
+            >
+              <span>powered by</span>
+              <SchedulioLogo className="h-3.5" />
+            </a>
+          )}
         </div>
       </aside>
 

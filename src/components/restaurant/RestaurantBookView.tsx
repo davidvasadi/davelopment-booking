@@ -40,6 +40,16 @@ export async function RestaurantBookView({ slug }: { slug: string }) {
           slug={restaurant.slug}
           requirePhone={restaurant.require_phone ?? true}
           maxPax={maxPax || 20}
+          termsSections={restaurant.terms_sections}
+          company={{
+            name: restaurant.name,
+            legal_name: restaurant.legal_name,
+            tax_number: restaurant.tax_number,
+            company_reg_number: restaurant.company_reg_number,
+            registered_seat: restaurant.registered_seat,
+            email: restaurant.email,
+            phone: restaurant.phone,
+          }}
         />
       </div>
     </main>

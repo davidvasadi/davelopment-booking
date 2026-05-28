@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { format, addDays } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { toast } from 'sonner'
-import { Minus, Plus, Loader2 } from 'lucide-react'
+import { Minus, Plus, Loader2, Trees } from 'lucide-react'
+import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 
 const DAY_COUNT = 30
 
@@ -14,11 +15,15 @@ export function RestaurantBookingWizard({
   slug,
   requirePhone,
   maxPax,
+  termsSections,
+  company,
 }: {
   restaurantId: string | number
   slug: string
   requirePhone: boolean
   maxPax: number
+  termsSections?: { title?: string | null; body?: string | null }[] | null
+  company?: CompanyInfo | null
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -30,7 +35,7 @@ export function RestaurantBookingWizard({
   const [date, setDate] = useState(() =>
     initialDate && /^\d{4}-\d{2}-\d{2}$/.test(initialDate) ? initialDate : format(new Date(), 'yyyy-MM-dd'),
   )
-  const [slots, setSlots] = useState<{ start: string; end: string }[]>([])
+  const [slots, setSlots] = useState<{ start: string; end: string; onlyOutdoor?: boolean }[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [time, setTime] = useState<string | null>(null)
 
@@ -158,15 +163,26 @@ export function RestaurantBookingWizard({
               <button
                 key={s.start}
                 onClick={() => setTime(s.start)}
-                className={`h-10 rounded-xl border text-sm font-medium tabular-nums transition-colors ${
+                title={s.onlyOutdoor ? 'Erre az időpontra már csak teraszra (kültéri) foglalható' : undefined}
+                className={`relative h-10 rounded-xl border text-sm font-medium tabular-nums transition-colors ${
                   time === s.start
                     ? 'bg-zinc-900 dark:bg-white text-white dark:text-black border-zinc-900 dark:border-white'
                     : 'bg-zinc-50 dark:bg-white/[0.04] border-zinc-200 dark:border-white/[0.08] text-zinc-700 dark:text-white/70 hover:border-zinc-400'
                 }`}
               >
                 {s.start}
+                {s.onlyOutdoor && (
+                  <Trees className={`absolute right-1 top-1 h-2.5 w-2.5 ${time === s.start ? 'text-white/70 dark:text-black/60' : 'text-emerald-500'}`} />
+                )}
               </button>
             ))}
+          </div>
+        )}
+        {/* Felirat: ha a kiválasztott időpontra csak kültéri (terasz) asztal foglalható */}
+        {time && slots.find((s) => s.start === time)?.onlyOutdoor && (
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+            <Trees className="h-4 w-4 shrink-0" />
+            Erre az időpontra a beltér megtelt — a foglalás teraszra (kültéri) szól.
           </div>
         )}
       </div>
@@ -186,6 +202,12 @@ export function RestaurantBookingWizard({
           >
             {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Foglalás…</> : `Foglalás véglegesítése · ${pax} fő · ${time}`}
           </button>
+          {((termsSections && termsSections.length > 0) || company) && (
+            <p className="text-center text-xs text-zinc-400 dark:text-white/30">
+              A foglalás véglegesítésével elfogadod a{' '}
+              <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-white/60" />
+            </p>
+          )}
         </div>
       )}
     </div>

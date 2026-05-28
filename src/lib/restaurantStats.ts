@@ -75,7 +75,7 @@ function paxOf(r: Reservation): number {
 
 /**
  * Egy nap elérhető pax-kapacitása: hány turnus fér bele a nyitvatartásba ×
- * a hely befogadóképessége (flat: max_pax, tables: aktív asztalok összkapacitása).
+ * a hely befogadóképessége (aktív asztalok összkapacitása).
  * Csak a mai kihasználtsághoz, durva becslés a foglaltság kontextusba helyezésére.
  */
 function dailyCapacity(
@@ -150,9 +150,7 @@ export async function getRestaurantStats(
   const all = reservationsRes.docs as Reservation[]
   const active = all.filter(r => ACTIVE_STATUSES.includes(r.status))
 
-  const seats = restaurant.capacity_mode === 'flat'
-    ? (restaurant.max_pax || 0)
-    : (tablesRes.docs as Table[]).reduce((s, t) => s + (t.capacity ?? 0), 0)
+  const seats = (tablesRes.docs as Table[]).reduce((s, t) => s + (t.capacity ?? 0), 0)
 
   const todayDayName = getDayName(today)
   const todayOpening = (openingHoursRes.docs as OpeningHour[]).find(o => o.day_of_week === todayDayName)

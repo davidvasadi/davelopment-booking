@@ -35,8 +35,6 @@ export interface RestaurantTemplate {
   id: string
   label: string
   description: string
-  capacity_mode: 'tables' | 'flat'
-  max_pax?: number
   turn_duration_minutes: number
   slot_step_minutes: number
   lead_time_hours: number
@@ -96,7 +94,6 @@ export const RESTAURANT_TEMPLATES: RestaurantTemplate[] = [
     label: 'Klasszikus étterem',
     description:
       'Belső terem + terasz, à la carte. Kétfős, négyfős és nagyobb asztalok, ebéd–vacsora nyitvatartás, hétfőn zárva.',
-    capacity_mode: 'tables',
     turn_duration_minutes: 120,
     slot_step_minutes: 30,
     lead_time_hours: 2,
@@ -137,7 +134,6 @@ export const RESTAURANT_TEMPLATES: RestaurantTemplate[] = [
     label: 'Nagy étterem (több terem)',
     description:
       'Földszint, emelet, terasz és külön rendezvényterem. Sok asztal, nagy társaságoknak is. Egész napos nyitvatartás.',
-    capacity_mode: 'tables',
     turn_duration_minutes: 120,
     slot_step_minutes: 30,
     lead_time_hours: 3,
@@ -187,7 +183,6 @@ export const RESTAURANT_TEMPLATES: RestaurantTemplate[] = [
     label: 'Kávézó / Bisztró',
     description:
       'Egy nyitott tér ablak melletti és bárpult-helyekkel. Reggeltől estig, sűrű (15 perces) időpont-léptékkel, rövid foglalási idővel.',
-    capacity_mode: 'tables',
     turn_duration_minutes: 90,
     slot_step_minutes: 15,
     lead_time_hours: 1,
@@ -215,8 +210,6 @@ export const RESTAURANT_TEMPLATES: RestaurantTemplate[] = [
     label: 'Egyszerű (csak főszám)',
     description:
       'Nincs asztaltérkép — időpontonként összesített főszám-limit. Pubok, kisebb helyek, gyors beültetés. Hétvégén tovább nyitva.',
-    capacity_mode: 'flat',
-    max_pax: 50,
     turn_duration_minutes: 120,
     slot_step_minutes: 30,
     lead_time_hours: 1,
