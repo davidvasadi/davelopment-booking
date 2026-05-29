@@ -62,9 +62,9 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
     return () => document.removeEventListener('mousedown', onClick)
   }, [open])
 
-  // A megnyitás NEM jelöl semmit olvasottnak — egy értesítés csak akkor lesz
-  // olvasott, ha rákattintasz (openItem) vagy törlöd (remove). Így a badge addig
-  // marad, amíg ténylegesen foglalkozol a tételekkel.
+  // A harang megnyitása önmagában nem nyúl a listához — egy értesítés akkor kerül le,
+  // ha rákattintasz (openItem) vagy törlöd (remove). Így a badge addig marad, amíg
+  // ténylegesen foglalkozol a tételekkel.
   const toggle = () => setOpen((o) => !o)
 
   const remove = async (id: number | string) => {
@@ -96,8 +96,8 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
   // ismét kattintva is új URL keletkezzen, így a sheet biztosan újranyílik.
   const openItem = (n: Notification) => {
     setOpen(false)
-    const clickable = n.reservation != null || n.booking != null
-    if (!clickable) return
+    // Megnyitáskor az értesítés MINDIG lekerül a listáról (elintézettnek tekintjük),
+    // akkor is, ha nincs hozzá kapcsolódó foglalás (csak eltűnik, navigáció nélkül).
     remove(n.id)
     const t = Date.now()
     if (n.reservation != null) {
@@ -110,7 +110,6 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
   // Sor-renderelő — egyetlen értesítés. Kattintásra navigál + eltünteti (openItem).
   const renderRow = (n: Notification) => {
     const Icon = n.type === 'cancellation' ? CalendarX : CalendarPlus
-    const clickable = n.reservation != null || n.booking != null
     return (
       <div
         key={n.id}
@@ -127,9 +126,8 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
         />
         <button
           type="button"
-          disabled={!clickable}
           onClick={() => openItem(n)}
-          className={cn('min-w-0 flex-1 text-left', clickable && 'cursor-pointer')}
+          className="min-w-0 flex-1 text-left cursor-pointer"
         >
           <p className="text-sm font-medium text-zinc-900 dark:text-white pr-5">{n.title}</p>
           {n.body && <p className="text-xs text-zinc-500 dark:text-white/40 truncate">{n.body}</p>}

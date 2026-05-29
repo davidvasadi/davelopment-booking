@@ -328,18 +328,19 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
         <div className="flex flex-col gap-4">
           <div className="shrink-0 space-y-1.5">
             <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Logó</Label>
-            <div className="relative w-16">
+            {/* object-contain + rugalmas szélesség: a teljes logó látszik (nem négyzetbe vágva). */}
+            <div className="relative inline-block">
               <button
                 type="button"
                 onClick={() => logoRef.current?.click()}
-                className="relative h-16 w-16 rounded-xl overflow-hidden bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-white/[0.1] transition-colors"
+                className="group relative flex h-16 min-w-16 max-w-[220px] items-center justify-center rounded-xl overflow-hidden bg-zinc-100 dark:bg-white/[0.06] px-3 hover:bg-zinc-200 dark:hover:bg-white/[0.1] transition-colors"
               >
                 {uploadingLogo ? (
                   <Loader2 className="h-5 w-5 text-zinc-400 dark:text-white/40 animate-spin" />
                 ) : logoPreview ? (
                   <>
-                    <img src={logoPreview} alt="Logó" className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <img src={logoPreview} alt="Logó" className="h-full w-auto max-w-full object-contain" />
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                       <Camera className="h-4 w-4 text-white" />
                     </div>
                   </>

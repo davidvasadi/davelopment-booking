@@ -29,6 +29,7 @@ interface Body {
   internal_notes?: string
   status?: Reservation['status']
   source?: Reservation['source']
+  is_birthday?: boolean
   /** Egyedi ülésidő (perc). Üres → az étterem alap turnusa. */
   duration_minutes?: number | null
 }
@@ -101,6 +102,7 @@ export async function POST(req: NextRequest) {
   if (body.internal_notes !== undefined) data.internal_notes = body.internal_notes
   if (body.status !== undefined) data.status = body.status
   if (body.source !== undefined) data.source = body.source
+  if (body.is_birthday !== undefined) data.is_birthday = body.is_birthday
 
   if (reservationId != null) {
     const updated = await payload.update({

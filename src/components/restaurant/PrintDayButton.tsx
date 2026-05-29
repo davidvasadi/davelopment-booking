@@ -3,7 +3,7 @@
 import { Printer } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { hu } from 'date-fns/locale'
-import type { Reservation, Table } from '@/payload/payload-types'
+import type { Reservation } from '@/payload/payload-types'
 
 const STATUS_LABEL: Record<string, string> = {
   pending: 'Függő',
@@ -18,13 +18,6 @@ const SOURCE_LABEL: Record<string, string> = {
   online: 'Online',
   walk_in: 'Beeső',
   phone: 'Telefon',
-}
-
-function tableNames(r: Reservation): string {
-  return (r.tables ?? [])
-    .map((t) => (typeof t === 'object' && t ? (t as Table).name : ''))
-    .filter(Boolean)
-    .join(' + ')
 }
 
 function esc(s: string | number | null | undefined): string {
@@ -60,7 +53,6 @@ export function PrintDayButton({
           <td class="c">${esc(r.pax)}</td>
           <td>${esc(r.customer_name)}</td>
           <td>${esc(r.customer_phone)}</td>
-          <td>${esc(tableNames(r))}</td>
           <td>${esc(SOURCE_LABEL[r.source] ?? r.source)}</td>
           <td>${esc(STATUS_LABEL[r.status] ?? r.status)}</td>
           <td class="n">${esc(r.notes)}</td>
@@ -92,9 +84,9 @@ export function PrintDayButton({
       </header>
       <table>
         <thead><tr>
-          <th>Idő</th><th>Fő</th><th>Vendég</th><th>Telefon</th><th>Asztal</th><th>Forrás</th><th>Státusz</th><th>Megjegyzés</th>
+          <th>Idő</th><th>Fő</th><th>Vendég</th><th>Telefon</th><th>Forrás</th><th>Státusz</th><th>Megjegyzés</th>
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="8" style="text-align:center;padding:24px;color:#a1a1aa">Nincs foglalás erre a napra.</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:24px;color:#a1a1aa">Nincs foglalás erre a napra.</td></tr>'}</tbody>
       </table>
       </body></html>`
 

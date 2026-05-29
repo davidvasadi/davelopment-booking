@@ -14,6 +14,7 @@ import { EmailVariablesHelp } from '@/components/settings/EmailVariablesHelp'
 import { SettingsTabsNav } from '@/components/ui/settings-tabs'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor, type TermsSection } from '@/components/settings/TermsSectionsEditor'
+import { GoodToKnowEditor, type GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
 import type { Media } from '@/payload/payload-types'
 
 /** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás.
@@ -70,6 +71,7 @@ type Settings = {
   company_reg_number: string
   registered_seat: string
   terms_sections: TermsSection[]
+  good_to_know: GoodToKnowItem[]
 }
 
 const inputClass =
@@ -122,7 +124,7 @@ export function RestaurantSettingsForm({
   // ── Fülek + mentetlen-változás védelem ──────────────────────────
   // Melyik mező melyik fülhöz tartozik (dirty-követés + per-tab mentés).
   const TAB_FIELDS: Record<string, (keyof Settings)[]> = {
-    general: ['name', 'city', 'address', 'phone', 'email', 'website'],
+    general: ['name', 'city', 'address', 'phone', 'email', 'website', 'good_to_know'],
     booking: [
       'turn_duration_minutes', 'slot_step_minutes', 'last_seating_buffer_minutes',
       'lead_time_hours', 'require_phone', 'notify_new_bookings',
@@ -285,36 +287,39 @@ export function RestaurantSettingsForm({
 
       {/* Cover image */}
       <Section title="Borítókép" full>
-        <button
-          type="button"
-          onClick={() => coverRef.current?.click()}
-          className="relative w-full h-40 rounded-xl overflow-hidden bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-white/[0.1] transition-colors"
-        >
-          {uploadingCover ? (
-            <Loader2 className="h-6 w-6 text-zinc-400 dark:text-white/40 animate-spin" />
-          ) : coverPreview ? (
-            <>
-              <img src={coverPreview} alt="Borítókép" className="h-full w-full object-cover" />
-              <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity">
-                <Camera className="h-5 w-5 text-white" />
-              </div>
-            </>
-          ) : (
-            <div className="flex flex-col items-center gap-1 text-zinc-400 dark:text-white/30">
-              <ImagePlus className="h-6 w-6" />
-              <span className="text-xs">Borítókép feltöltése</span>
-            </div>
-          )}
-        </button>
-        {coverPreview && !uploadingCover && (
+        <div className="relative">
           <button
             type="button"
-            onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
-            className="text-xs text-red-500 hover:text-red-600 font-medium"
+            onClick={() => coverRef.current?.click()}
+            className="group relative w-full h-40 rounded-xl overflow-hidden bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-white/[0.1] transition-colors"
           >
-            Borítókép eltávolítása
+            {uploadingCover ? (
+              <Loader2 className="h-6 w-6 text-zinc-400 dark:text-white/40 animate-spin" />
+            ) : coverPreview ? (
+              <>
+                <img src={coverPreview} alt="Borítókép" className="h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                  <Camera className="h-5 w-5 text-white" />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-1 text-zinc-400 dark:text-white/30">
+                <ImagePlus className="h-6 w-6" />
+                <span className="text-xs">Borítókép feltöltése</span>
+              </div>
+            )}
           </button>
-        )}
+          {coverPreview && !uploadingCover && (
+            <button
+              type="button"
+              aria-label="Borítókép eltávolítása"
+              onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
+              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
+            >
+              <X className="h-3 w-3 text-white" />
+            </button>
+          )}
+        </div>
         <input
           ref={coverRef}
           type="file"
@@ -329,37 +334,48 @@ export function RestaurantSettingsForm({
 
       {/* Logo + name */}
       <Section title="Alap adatok">
-        <div className="flex flex-col gap-4">
-          <div className="shrink-0 space-y-1.5">
+        <div className="space-y-5">
+          <div className="space-y-2">
             <Label className={labelClass}>Logó</Label>
-            <div className="relative w-16">
-              <button
-                type="button"
-                onClick={() => logoRef.current?.click()}
-                className="relative h-16 w-16 rounded-xl overflow-hidden bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-white/[0.1] transition-colors"
-              >
-                {uploadingLogo ? (
-                  <Loader2 className="h-5 w-5 text-zinc-400 dark:text-white/40 animate-spin" />
-                ) : logoPreview ? (
-                  <>
-                    <img src={logoPreview} alt="Logó" className="h-full w-full object-cover" />
-                    <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <Camera className="h-4 w-4 text-white" />
-                    </div>
-                  </>
-                ) : (
-                  <Camera className="h-5 w-5 text-zinc-400 dark:text-white/30" />
-                )}
-              </button>
-              {logoPreview && !uploadingLogo && (
+            <div className="flex items-center gap-4">
+              {/* object-contain előnézet egy elhatárolt kártyában: a teljes logó látszik,
+                  a host tudja hogyan jelenik meg a foglaló oldalon/emailben. */}
+              <div className="relative shrink-0">
                 <button
                   type="button"
-                  onClick={() => removeImage(logoId, setLogoPreview, setLogoId, setLogoModified, logoRef)}
-                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
+                  onClick={() => logoRef.current?.click()}
+                  className="group relative flex h-20 w-40 items-center justify-center rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50 px-4 hover:border-zinc-300 dark:border-white/[0.1] dark:bg-white/[0.04] dark:hover:border-white/[0.2] transition-colors"
                 >
-                  <X className="h-3 w-3 text-white" />
+                  {uploadingLogo ? (
+                    <Loader2 className="h-5 w-5 text-zinc-400 dark:text-white/40 animate-spin" />
+                  ) : logoPreview ? (
+                    <>
+                      <img src={logoPreview} alt="Logó" className="max-h-full max-w-full object-contain" />
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <Camera className="h-5 w-5 text-white" />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex flex-col items-center gap-1 text-zinc-400 dark:text-white/30">
+                      <Camera className="h-5 w-5" />
+                      <span className="text-[11px] font-medium">Feltöltés</span>
+                    </div>
+                  )}
                 </button>
-              )}
+                {logoPreview && !uploadingLogo && (
+                  <button
+                    type="button"
+                    onClick={() => removeImage(logoId, setLogoPreview, setLogoId, setLogoModified, logoRef)}
+                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
+                  >
+                    <X className="h-3 w-3 text-white" />
+                  </button>
+                )}
+              </div>
+              <p className="text-xs text-zinc-400 dark:text-white/30 leading-relaxed">
+                Így jelenik meg a foglaló oldal fejlécében és a visszaigazoló emailben.<br className="hidden sm:block" />
+                PNG vagy SVG, áttetsző háttérrel a legjobb.
+              </p>
             </div>
             <input
               ref={logoRef}
@@ -372,7 +388,7 @@ export function RestaurantSettingsForm({
               }}
             />
           </div>
-          <div className="w-full space-y-1.5">
+          <div className="space-y-1.5">
             <Label className={labelClass}>Étterem neve *</Label>
             <Input className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} />
           </div>
@@ -422,6 +438,13 @@ export function RestaurantSettingsForm({
             Megnyitás
           </a>
         </div>
+      </Section>
+
+      <Section title="Jó tudni (foglaló oldal)" full>
+        <p className="text-xs text-zinc-400 dark:text-white/30">
+          Saját „Jó tudni" pontok (cím + szöveg) a nyilvános foglaló oldalon, az automatikus kártyák (foglalási idő, legkorábbi foglalás) alatt. Pl. „Módosítás: az adott napon csak telefonon".
+        </p>
+        <GoodToKnowEditor value={form.good_to_know} onChange={(v) => set('good_to_know', v)} />
       </Section>
 
       <div className="lg:col-span-2">

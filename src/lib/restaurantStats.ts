@@ -52,8 +52,20 @@ export interface RestaurantStats {
   dailyBreakdownFull: RestaurantDayBreakdown[]
   byDayOfWeek: DowStat[]
   byHour: HourStat[]
+  /** Napi×órás nyers bontás (dátum → 24 elemű, óránkénti foglalás-darab). A részletek
+   *  sheet ebből számolja újra az óránkéntit a kiválasztott időszakra/napszűrőre,
+   *  napi ÁTLAGként (nem összegként). */
+  hourlyByDate: Record<string, number[]>
   bestDay: string | null
   bestHour: string | null
+  /** Átlagos foglalási idő (perc) létszám-csoportonként, a befejezett foglalások
+   *  tényleges hosszából (end_time − start_time). `count` = a mintaszám (hány foglalásból). */
+  avgDwell: { group: string; avgMinutes: number; count: number }[]
+  /** Összesített átlagos foglalási idő (perc) — minden befejezett foglalás. */
+  avgDwellOverall: number
+  /** Nyers dwell-adat a részletek sidebarhoz: minden befejezett foglalás dátuma, létszáma
+   *  és tényleges hossza (perc). A sheet ebből szűr időszakra és csoportosít újra. */
+  dwellRaw: { date: string; pax: number; minutes: number }[]
 }
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated', 'completed']
@@ -128,7 +140,7 @@ export async function getRestaurantStats(
       depth: 0,
       limit: 5000,
       // Csak a számításhoz használt mezők – kevesebb adat a DB-ből és a hidratálásból.
-      select: { date: true, status: true, source: true, pax: true, start_time: true },
+      select: { date: true, status: true, source: true, pax: true, start_time: true, end_time: true },
       overrideAccess: true,
     }),
     payload.find({
@@ -247,8 +259,48 @@ export async function getRestaurantStats(
   const bestHourKey = Object.entries(hourCountMap).sort((a, b) => b[1] - a[1])[0]?.[0]
   const bestHour = bestHourKey ? `${bestHourKey}:00` : null
 
+  // ── Átlagos foglalási idő (dwell) létszám-csoportonként ──────────
+  // A BEFEJEZETT foglalások tényleges hosszát mérjük (end_time − start_time). Korai
+  // befejezéskor az end_time a valós távozásra rövidült (lásd Reservations beforeChange),
+  // így ez a tényleges asztal-foglaltsági időt tükrözi. Csoportok létszám szerint.
+  const dwellGroups: { group: string; min: (p: number) => boolean }[] = [
+    { group: '1–2 fő', min: (p) => p <= 2 },
+    { group: '3–4 fő', min: (p) => p >= 3 && p <= 4 },
+    { group: '5+ fő', min: (p) => p >= 5 },
+  ]
+  const completedPeriod = all.filter((r) => r.date >= periodStartStr && r.status === 'completed' && r.start_time && r.end_time)
+  const dwellMinutes = (r: Reservation) => {
+    const d = hhmmToMinutes(r.end_time) - hhmmToMinutes(r.start_time)
+    return d > 0 ? d : 0
+  }
+  const avgDwell = dwellGroups.map(({ group, min }) => {
+    const rs = completedPeriod.filter((r) => min(r.pax ?? 0))
+    const total = rs.reduce((s, r) => s + dwellMinutes(r), 0)
+    return { group, avgMinutes: rs.length ? Math.round(total / rs.length) : 0, count: rs.length }
+  })
+  const allDwell = completedPeriod.reduce((s, r) => s + dwellMinutes(r), 0)
+  const avgDwellOverall = completedPeriod.length ? Math.round(allDwell / completedPeriod.length) : 0
+
+  // Nyers dwell-adat a sidebar szűréshez — a teljes lekért tartományra (a sheet
+  // ebből szűr a kiválasztott időszakra és csoportosít létszám szerint újra).
+  const dwellRaw = all
+    .filter((r) => r.status === 'completed' && r.start_time && r.end_time)
+    .map((r) => ({ date: r.date, pax: r.pax ?? 0, minutes: dwellMinutes(r) }))
+    .filter((d) => d.minutes > 0)
+
+  // Napi×órás nyers bontás a részletek sheethez (dátum → 24 elemű óránkénti darab).
+  // A sheet ebből szűr a kiválasztott időszakra/napra és napi ÁTLAGot számol.
+  const hourlyByDate: Record<string, number[]> = {}
+  for (const r of periodDocs) {
+    if (!r.start_time) continue
+    const h = parseInt(r.start_time.split(':')[0], 10)
+    if (Number.isNaN(h) || h < 0 || h > 23) continue
+    const arr = hourlyByDate[r.date] ?? (hourlyByDate[r.date] = Array.from({ length: 24 }, () => 0))
+    arr[h]++
+  }
+
   const avgPartySize = periodDocs.length > 0 ? Math.round(periodPax / periodDocs.length) : 0
-  const onlineReservations = periodDocs.filter(r => r.source === 'online').length
+  const onlineReservations = periodDocs.filter(r => r.source === 'online').reduce((s, r) => s + paxOf(r), 0)
 
   const finalized = periodDocs.filter(r => r.status !== 'pending')
   const completed = finalized.filter(r => r.status === 'completed')
@@ -256,14 +308,19 @@ export async function getRestaurantStats(
 
   // ── Státusz-bontás (cancelled/no_show nincs az active-ban, ezért all-ból) ──
   const allPeriod = all.filter(r => r.date >= periodStartStr)
-  const cancelledCount = allPeriod.filter(r => r.status === 'cancelled').length
-  const noShowCount = allPeriod.filter(r => r.status === 'no_show').length
-  const walkInCount = allPeriod.filter(r => r.source === 'walk_in').length
-  const phoneCount = allPeriod.filter(r => r.source === 'phone').length
-  const cancellationRate = allPeriod.length > 0 ? Math.round((cancelledCount / allPeriod.length) * 100) : 0
-  const noShowRate = allPeriod.length > 0 ? Math.round((noShowCount / allPeriod.length) * 100) : 0
-  const walkInRate = allPeriod.length > 0 ? Math.round((walkInCount / allPeriod.length) * 100) : 0
-  const phoneRate = allPeriod.length > 0 ? Math.round((phoneCount / allPeriod.length) * 100) : 0
+  // A státusz-/forrás-bontás kártyák LÉTSZÁM (pax) szerint mérnek, nem foglalás-darab
+  // szerint — a vendéglátásban a fő-szám a releváns. A % arány az időszak összes
+  // pax-ához viszonyít (nem a foglalás-darabhoz).
+  const sumPax = (rs: Reservation[]) => rs.reduce((s, r) => s + paxOf(r), 0)
+  const periodTotalPax = sumPax(allPeriod)
+  const cancelledCount = sumPax(allPeriod.filter(r => r.status === 'cancelled'))
+  const noShowCount = sumPax(allPeriod.filter(r => r.status === 'no_show'))
+  const walkInCount = sumPax(allPeriod.filter(r => r.source === 'walk_in'))
+  const phoneCount = sumPax(allPeriod.filter(r => r.source === 'phone'))
+  const cancellationRate = periodTotalPax > 0 ? Math.round((cancelledCount / periodTotalPax) * 100) : 0
+  const noShowRate = periodTotalPax > 0 ? Math.round((noShowCount / periodTotalPax) * 100) : 0
+  const walkInRate = periodTotalPax > 0 ? Math.round((walkInCount / periodTotalPax) * 100) : 0
+  const phoneRate = periodTotalPax > 0 ? Math.round((phoneCount / periodTotalPax) * 100) : 0
 
   return {
     period: days,
@@ -294,7 +351,11 @@ export async function getRestaurantStats(
     dailyBreakdownFull,
     byDayOfWeek,
     byHour,
+    hourlyByDate,
     bestDay,
     bestHour,
+    avgDwell,
+    avgDwellOverall,
+    dwellRaw,
   }
 }

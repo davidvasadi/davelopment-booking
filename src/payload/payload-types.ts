@@ -71,6 +71,7 @@ export interface Restaurant {
   company_reg_number?: string | null
   registered_seat?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
+  good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
   is_active?: boolean | null
   createdAt: string
   updatedAt: string
@@ -82,6 +83,9 @@ export interface Room {
   name: string
   is_outdoor?: boolean | null
   is_active?: boolean | null
+  seasonal?: boolean | null
+  season_start?: string | null
+  season_end?: string | null
   sort_order?: number | null
   createdAt: string
   updatedAt: string
@@ -137,6 +141,7 @@ export interface Reservation {
   customer_phone?: string | null
   notes?: string | null
   internal_notes?: string | null
+  is_birthday?: boolean | null
   status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'no_show' | 'cancelled'
   source: 'online' | 'walk_in' | 'phone'
   cancel_token?: string | null
@@ -209,6 +214,7 @@ export interface Salon {
   company_reg_number?: string | null
   registered_seat?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
+  good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string

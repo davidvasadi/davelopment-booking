@@ -11,10 +11,11 @@ import { Input } from '@/components/ui/input'
 import { TimeSelect } from '@/components/ui/time-select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, AlertTriangle } from 'lucide-react'
-import { hhmmToMinutes } from '@/lib/utils'
+import { Loader2, Trash2, AlertTriangle, Cake } from 'lucide-react'
+import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
 import { addDraft, updateDraft, removeDraft } from '@/lib/offlineDrafts'
 import { useOnline } from '@/lib/useOnline'
+import { urgencyOf } from './DailyView'
 import type { Reservation } from '@/payload/payload-types'
 
 /** A nézetekből érkező "ál-foglalás" lehet lokális vázlat (__draft jelölővel). */
@@ -47,6 +48,18 @@ const statusOptions: { value: Reservation['status']; label: string }[] = [
   { value: 'cancelled', label: 'Lemondva' },
 ]
 
+// A sidebar fejléc-badge színei — egyezzenek a foglalási nézet (DailyView) palettájával.
+const statusBadge: Record<string, string> = {
+  pending: 'bg-amber-400 text-amber-950',
+  confirmed: 'bg-amber-400 text-amber-950',
+  seated: 'bg-indigo-500 text-white',
+  completed: 'bg-emerald-500 text-white',
+  no_show: 'bg-red-500 text-white',
+  cancelled: 'bg-zinc-200 text-zinc-500 line-through',
+}
+const statusLabelOf = (s: string) => statusOptions.find((o) => o.value === s)?.label ?? s
+const sourceLabelOf: Record<string, string> = { walk_in: 'Beeső', phone: 'Telefon', online: 'Online' }
+
 const sourceOptions: { value: Reservation['source']; label: string }[] = [
   { value: 'walk_in', label: 'Beeső' },
   { value: 'phone', label: 'Telefon' },
@@ -76,9 +89,12 @@ interface Props {
   date: string
   restaurantId: string
   target: EditTarget | null
+  /** A nap nyitvatartása (perc) — a TimeSelect ezt a tartományt kínálja (kemény korlát). */
+  openMin?: number
+  closeMin?: number
 }
 
-export function ReservationEditSheet({ open, onClose, date, restaurantId, target }: Props) {
+export function ReservationEditSheet({ open, onClose, date, restaurantId, target, openMin, closeMin }: Props) {
   const router = useRouter()
   const online = useOnline()
   const reservation = target?.reservation ?? null
@@ -95,6 +111,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState<Reservation['status']>('confirmed')
   const [source, setSource] = useState<Reservation['source']>('walk_in')
+  const [isBirthday, setIsBirthday] = useState(false)
   // Ülésidő percben. null = az étterem alap turnusa (alapból 2 óra).
   const [duration, setDuration] = useState<number | null>(null)
 
@@ -104,11 +121,44 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
   const [saving, setSaving] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
 
+  // Sürgősség-badge (késik / túlfut / mindjárt lejár) — csak meglévő foglalásnál és
+  // ha a nézett nap MA van. A foglalási nézet ugyanezt a logikát használja (urgencyOf).
+  // A státusz a (szerkeszthető) state-ből jön, hogy státuszváltáskor azonnal frissüljön.
+  const nowMin = (() => {
+    const now = new Date()
+    const ymd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    return ymd === date ? now.getHours() * 60 + now.getMinutes() : null
+  })()
+  const urgency = reservation && !isDraft ? urgencyOf({ ...reservation, status }, nowMin) : null
+
+  // A kiválasztott ülésidő záráshoz vágása. Ha a turnus túllógna a záráson, a foglalás
+  // valójában csak zárásig tart — ezt a hostnak jelezzük (nem néma vágás). A „null"
+  // ülésidő az étterem alap turnusa; itt a kijelzéshez 120 percet feltételezünk.
+  const startMin = startTime ? hhmmToMinutes(startTime) : null
+  const wantedDuration = duration ?? 120
+  const clip =
+    startMin != null && closeMin != null && startMin + wantedDuration > closeMin
+      ? { actualEnd: minutesToHHMM(closeMin), wantedEnd: minutesToHHMM(startMin + wantedDuration) }
+      : null
+
   // Form inicializálás nyitáskor
   useEffect(() => {
     if (!open || !target) return
     const r = target.reservation
-    setStartTime(r?.start_time ?? target.presetStart ?? '')
+    // Új foglalásnál (nincs meglévő idő és nincs preset) a jelenlegi órára állunk,
+    // de csak ha a megtekintett nap MA van — így nem kell sokat görgetni a wheel-ben.
+    // A perc nem számít (00), csak az óra adjon kapaszkodót.
+    const nowStart = (() => {
+      const now = new Date()
+      const ymd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      if (ymd !== date) return ''
+      // Az aktuális (egész) órát a nyitvatartásra szorítjuk (kemény korlát), perc nélkül.
+      let mins = now.getHours() * 60
+      if (openMin != null) mins = Math.max(mins, openMin)
+      if (closeMin != null) mins = Math.min(mins, closeMin)
+      return minutesToHHMM(mins)
+    })()
+    setStartTime(r?.start_time ?? target.presetStart ?? nowStart)
     setPax(r?.pax ?? 2)
     const currentTables = r?.tables?.length
       ? r.tables.map((t) => (typeof t === 'object' && t ? t.id : t))
@@ -122,6 +172,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
     setNotes(r?.notes ?? '')
     setStatus(r?.status ?? 'confirmed')
     setSource(r?.source ?? 'walk_in')
+    setIsBirthday(r?.is_birthday ?? false)
     // Meglévő foglalásnál a tárolt hossz; újnál null (= étterem alap turnusa).
     setDuration(
       r?.start_time && r?.end_time
@@ -173,6 +224,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
       customer_email: email,
       notes,
       status,
+      is_birthday: isBirthday,
       tableNames,
     }
   }
@@ -224,6 +276,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
           notes,
           status,
           source,
+          is_birthday: isBirthday,
           duration_minutes: duration,
         }),
       })
@@ -299,6 +352,23 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
             {date}
             {isDraft && ' · még nem véglegesített offline vázlat'}
           </SheetDescription>
+          {isEdit && !isDraft && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-zinc-600'}`}>
+                {statusLabelOf(status)}
+              </span>
+              {source && source !== 'online' && (
+                <span className="rounded-full bg-zinc-100 dark:bg-white/[0.08] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600 dark:text-white/60">
+                  {sourceLabelOf[source]}
+                </span>
+              )}
+              {urgency && (
+                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}>
+                  {urgency.label}
+                </span>
+              )}
+            </div>
+          )}
         </SheetHeader>
 
         <div className="space-y-5 py-5">
@@ -314,17 +384,46 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Időpont</Label>
-              <TimeSelect value={startTime} onChange={setStartTime} />
+              <TimeSelect
+                value={startTime}
+                onChange={setStartTime}
+                minTime={openMin != null ? minutesToHHMM(openMin) : undefined}
+                maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
+              />
             </div>
             <div className="space-y-1.5">
               <Label>Létszám</Label>
-              <Input
-                type="number"
-                min={1}
-                max={50}
-                value={pax}
-                onChange={(e) => setPax(Math.max(1, Number(e.target.value)))}
-              />
+              {/* Érintőbarát stepper a natív number-input (egymásba csúszó fel/le nyilak)
+                  helyett — nagy +/− gombok, tableten kényelmes. 1–50 fő. */}
+              <div className="flex h-9 items-center rounded-lg border border-zinc-200 bg-zinc-50 dark:border-white/[0.1] dark:bg-white/[0.06]">
+                <button
+                  type="button"
+                  aria-label="Kevesebb fő"
+                  onClick={() => setPax((p) => Math.max(1, p - 1))}
+                  disabled={pax <= 1}
+                  className="flex h-full w-10 shrink-0 items-center justify-center text-lg font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+                >
+                  −
+                </button>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={50}
+                  value={pax}
+                  onChange={(e) => setPax(Math.min(50, Math.max(1, Number(e.target.value) || 1)))}
+                  className="h-full min-w-0 flex-1 border-0 bg-transparent text-center text-sm font-bold tabular-nums text-zinc-900 outline-none dark:text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <button
+                  type="button"
+                  aria-label="Több fő"
+                  onClick={() => setPax((p) => Math.min(50, p + 1))}
+                  disabled={pax >= 50}
+                  className="flex h-full w-10 shrink-0 items-center justify-center text-lg font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+                >
+                  +
+                </button>
+              </div>
             </div>
           </div>
 
@@ -367,6 +466,15 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
               ))}
             </div>
             <p className="text-xs text-zinc-400">Ha üresen hagyod, az étterem alapja (általában 2 óra) érvényes.</p>
+            {clip && (
+              <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 dark:border-red-500/30 dark:bg-red-500/10">
+                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">!</span>
+                <p className="text-xs text-red-700 dark:text-red-300">
+                  Ennyi időre nem fér bele — záráskor ({clip.actualEnd}) zártok.
+                  A foglalás <strong>{clip.actualEnd}</strong>-ig tart (nem {clip.wantedEnd}-ig).
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="space-y-1.5">
@@ -434,6 +542,30 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
             <Label>Megjegyzés</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsBirthday((b) => !b)}
+            aria-pressed={isBirthday}
+            className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+              isBirthday
+                ? 'border-pink-300 bg-pink-50 dark:border-pink-500/40 dark:bg-pink-500/10'
+                : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300 dark:border-white/[0.1] dark:bg-white/[0.04] dark:hover:border-white/[0.2]'
+            }`}
+          >
+            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isBirthday ? 'bg-pink-500 text-white' : 'bg-zinc-200 text-zinc-500 dark:bg-white/[0.1] dark:text-white/50'}`}>
+              <Cake className="h-4 w-4" />
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-sm font-semibold text-zinc-900 dark:text-white">Szülinapos foglalás</span>
+              <span className="block text-xs text-zinc-500 dark:text-white/50">
+                {isBirthday ? 'Megjelölve — a foglalási nézetben is látszik' : 'Kapcsold be, ha szülinapot ünnepelnek'}
+              </span>
+            </span>
+            <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${isBirthday ? 'bg-pink-500' : 'bg-zinc-300 dark:bg-white/20'}`}>
+              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${isBirthday ? 'translate-x-[1.375rem]' : 'translate-x-0.5'}`} />
+            </span>
+          </button>
         </div>
 
         <SheetFooter className="flex-col gap-2 sm:flex-col">

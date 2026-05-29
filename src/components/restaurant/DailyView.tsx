@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
-import { List, LayoutGrid, Map as MapIcon, Plus, Users, Clock } from 'lucide-react'
+import { List, LayoutGrid, Map as MapIcon, Plus, Users, Clock, Cake } from 'lucide-react'
 import { ReservationActions } from './ReservationActions'
 import { ReservationEditSheet, type EditTarget } from './ReservationEditSheet'
 import { OfflineBanner } from './OfflineBanner'
@@ -17,18 +17,20 @@ const statusLabel: Record<string, string> = {
   pending: 'Megerősítésre vár', confirmed: 'Megerősítve', seated: 'Leültetve',
   completed: 'Befejezett', no_show: 'Nem jött meg', cancelled: 'Lemondva',
 }
-// Tömör blokk-színek (háttér) + pont-színek
+// Tömör blokk-színek (háttér). Kiosztás: confirmed=sárga (alap, leggyakoribb — "várjuk"),
+// seated=indigó/lila (MOST a teremben ül), completed=zöld (sikeresen befejezett),
+// no_show=piros (probléma), pending (ritka)=ugyanaz mint confirmed, cancelled=fakó áthúzott.
 const statusBlock: Record<string, string> = {
   pending: 'bg-amber-400/90 text-amber-950 border-amber-500',
-  confirmed: 'bg-emerald-500/90 text-white border-emerald-600',
-  seated: 'bg-blue-500/90 text-white border-blue-600',
-  completed: 'bg-zinc-400/80 text-white border-zinc-500',
-  no_show: 'bg-red-400/80 text-white border-red-500',
+  confirmed: 'bg-amber-400/90 text-amber-950 border-amber-500',
+  seated: 'bg-indigo-500/90 text-white border-indigo-600',
+  completed: 'bg-emerald-500/90 text-white border-emerald-600',
+  no_show: 'bg-red-500/90 text-white border-red-600',
   cancelled: 'bg-zinc-200 text-zinc-400 border-zinc-300 line-through',
 }
 const statusDot: Record<string, string> = {
-  pending: 'bg-amber-400', confirmed: 'bg-emerald-500', seated: 'bg-blue-500',
-  completed: 'bg-zinc-400', no_show: 'bg-red-400', cancelled: 'bg-red-500',
+  pending: 'bg-amber-400', confirmed: 'bg-amber-400', seated: 'bg-indigo-500',
+  completed: 'bg-emerald-500', no_show: 'bg-red-500', cancelled: 'bg-zinc-300',
 }
 const ACTIVE = new Set(['pending', 'confirmed', 'seated', 'completed'])
 
@@ -38,8 +40,8 @@ const sourceBadge: Record<string, string> = { walk_in: 'Beeső', phone: 'Telefon
 /** Időérzékeny sürgősség-jelzés egy foglaláshoz a jelenlegi perchez (nowMin) képest.
  *  Csak akkor él, ha a megtekintett nap ma van (nowMin != null). A státusz mellé
  *  ad egy figyelemfelkeltő badge-et a hostnak: késés / asztal mindjárt lejár / túlfutás. */
-type Urgency = { label: string; cls: string; pulse: boolean }
-function urgencyOf(r: Reservation, nowMin: number | null): Urgency | null {
+export type Urgency = { label: string; cls: string; pulse: boolean }
+export function urgencyOf(r: Reservation, nowMin: number | null): Urgency | null {
   if (nowMin == null) return null
   const start = hhmmToMinutes(r.start_time)
   const end = hhmmToMinutes(r.end_time)
@@ -127,6 +129,7 @@ function draftToReservation(d: ReservationDraft): DraftReservation {
     end_time: d.end_time || d.start_time,
     notes: d.notes || '',
     status: (d.status || 'confirmed') as Reservation['status'],
+    is_birthday: d.is_birthday ?? false,
     tables: (d.tableIds ?? []).map((id, i) => ({
       id: id as unknown as number,
       name: d.tableNames?.[i] ?? String(id),
@@ -256,6 +259,8 @@ export function DailyView(props: DailyViewProps) {
         date={date}
         restaurantId={restaurantId}
         target={target}
+        openMin={openMin}
+        closeMin={closeMin}
       />
     </div>
   )
@@ -299,7 +304,7 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
               </div>
             )}
           <div
-            className={`relative flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3.5 sm:py-4 ${draft ? 'border-l-2 border-dashed border-amber-400 bg-amber-50/40 dark:bg-amber-500/[0.06]' : ''}`}
+            className={`relative flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 ${draft ? 'border-l-2 border-dashed border-amber-400 bg-amber-50/40 dark:bg-amber-500/[0.06]' : ''}`}
           >
             {urgency && (
               <span
@@ -308,10 +313,10 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
                 {urgency.label}
               </span>
             )}
-            <button onClick={() => onEdit(r)} className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0 text-left">
-              <div className="w-12 sm:w-16 shrink-0">
-                <div className="text-base sm:text-lg font-bold text-zinc-900 dark:text-white tabular-nums">{r.start_time}</div>
-                <div className="text-xs text-zinc-400">{r.end_time}</div>
+            <button onClick={() => onEdit(r)} className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 text-left">
+              <div className="w-11 sm:w-12 shrink-0">
+                <div className="text-sm sm:text-base font-bold text-zinc-900 dark:text-white tabular-nums leading-tight">{r.start_time}</div>
+                <div className="text-[11px] text-zinc-400 tabular-nums">{r.end_time}</div>
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 min-w-0">
@@ -325,6 +330,11 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
                   {!draft && sourceBadge[r.source] && (
                     <span className="shrink-0 rounded bg-zinc-200 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-600 dark:bg-white/[0.1] dark:text-white/60">
                       {sourceBadge[r.source]}
+                    </span>
+                  )}
+                  {r.is_birthday && (
+                    <span className="inline-flex shrink-0 items-center gap-1 rounded bg-pink-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-pink-700 dark:bg-pink-500/20 dark:text-pink-300">
+                      <Cake className="h-3 w-3" /> Szülinap
                     </span>
                   )}
                 </div>
@@ -478,7 +488,7 @@ function TableGrid({
               return (
                 <div
                   key={t.id}
-                  className="flex min-h-[4.5rem] border-b border-zinc-50 dark:border-white/[0.04] hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors"
+                  className="flex min-h-[3.25rem] border-b border-zinc-50 dark:border-white/[0.04] hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors"
                 >
                   <div className={`${labelW} shrink-0 px-4 flex items-center justify-between gap-1 border-r border-zinc-50 dark:border-white/[0.04]`}>
                     <span className="text-sm font-medium text-zinc-900 dark:text-white truncate">{t.name}</span>
@@ -535,15 +545,22 @@ function TableGrid({
                           <Users className="h-2.5 w-2.5 shrink-0" />{r.pax}
                         </span>
                       )
+                      const birthday = !!r.is_birthday
+                      const cakeChip = birthday ? (
+                        <span className="flex shrink-0 items-center gap-1 rounded bg-pink-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
+                          <Cake className="h-2.5 w-2.5 shrink-0" />Szülinap
+                        </span>
+                      ) : null
                       const time = (
-                        <span className="min-w-0 truncate text-[10px] opacity-75 tabular-nums leading-tight">
-                          {r.start_time}–{r.end_time}
+                        <span className="flex min-w-0 items-center gap-1.5 text-[10px] leading-tight">
+                          {cakeChip}
+                          <span className="truncate tabular-nums opacity-75">{r.start_time}–{r.end_time}</span>
                         </span>
                       )
                       // Keskeny blokkon a pontos időpont helyett kompakt időtartam (🕐 1,5ó),
                       // így a létszám mellé fér egy sorba.
                       const durLabel = `${(dur / 60).toFixed(dur % 60 === 0 ? 0 : 1).replace('.', ',')}ó`
-                      const durChip = (
+                      const durChip = cakeChip ?? (
                         <span className="flex shrink-0 items-center gap-1 text-[10px] opacity-75 leading-tight">
                           <Clock className="h-2.5 w-2.5 shrink-0" />{durLabel}
                         </span>

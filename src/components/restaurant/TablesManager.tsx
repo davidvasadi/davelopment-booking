@@ -10,7 +10,32 @@ import { Label } from '@/components/ui/label'
 import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
-type RoomItem = { id: number | string; name: string; sort_order: number; is_outdoor: boolean }
+type RoomItem = {
+  id: number | string
+  name: string
+  sort_order: number
+  is_outdoor: boolean
+  seasonal?: boolean
+  season_start?: string | null
+  season_end?: string | null
+}
+/** A szezon-mezők együtt — az onSave/addRoom/saveRoom ezt adja tovább. */
+type SeasonFields = { seasonal: boolean; season_start: string | null; season_end: string | null }
+
+/** Igaz, ha a megadott szezon-beállítás mellett a `date` (YYYY-MM-DD) foglalható.
+ *  (Kliens-oldali párja a restaurantBooking.isRoomAvailableOnDate-nek — év-független
+ *  hónap-nap tartomány, év-átfordulót is kezel.) */
+function inSeason(season: SeasonFields, date: string): boolean {
+  if (!season.seasonal) return true
+  const s = season.season_start ? season.season_start.slice(5) : null
+  const e = season.season_end ? season.season_end.slice(5) : null
+  if (!s && !e) return true
+  const day = date.slice(5)
+  if (s && e) return s <= e ? day >= s && day <= e : day >= s || day <= e
+  if (s) return day >= s
+  if (e) return day <= e
+  return true
+}
 type TableItem = {
   id: number | string
   name: string
@@ -82,7 +107,7 @@ export function TablesManager({
   }
 
   // ---- Terem műveletek ----
-  const addRoom = async (name: string, isOutdoor: boolean) => {
+  const addRoom = async (name: string, isOutdoor: boolean, season: SeasonFields) => {
     if (!name.trim()) return
     setBusy(true)
     try {
@@ -90,6 +115,9 @@ export function TablesManager({
         restaurant: restaurantId,
         name: name.trim(),
         is_outdoor: isOutdoor,
+        seasonal: season.seasonal,
+        season_start: season.season_start,
+        season_end: season.season_end,
         sort_order: initialRooms.length + 1,
       })
       setCreatingRoom(false)
@@ -102,10 +130,16 @@ export function TablesManager({
     }
   }
 
-  const saveRoom = async (roomId: number | string, name: string, isOutdoor: boolean) => {
+  const doSaveRoom = async (roomId: number | string, name: string, isOutdoor: boolean, season: SeasonFields) => {
     setBusy(true)
     try {
-      await api(`/api/rooms/${roomId}`, 'PATCH', { name: name.trim(), is_outdoor: isOutdoor })
+      await api(`/api/rooms/${roomId}`, 'PATCH', {
+        name: name.trim(),
+        is_outdoor: isOutdoor,
+        seasonal: season.seasonal,
+        season_start: season.season_start,
+        season_end: season.season_end,
+      })
       toast.success('Terem módosítva')
       setEditingRoom(null)
       refresh()
@@ -113,6 +147,53 @@ export function TablesManager({
       toast.error('Nem sikerült a terem módosítása')
     } finally {
       setBusy(false)
+    }
+  }
+
+  /** Mentés előtt: ha a terem szezonálissá vált, megszámoljuk hány jövőbeli foglalás
+   *  esne a szezonon KÍVÜLRE az adott terem asztalain — és figyelmeztetünk rá (a meglévő
+   *  foglalások érintetlenek maradnak, a host kezeli ki). */
+  const saveRoom = async (roomId: number | string, name: string, isOutdoor: boolean, season: SeasonFields) => {
+    if (season.seasonal) {
+      const affected = await countAffectedReservations(roomId, season)
+      if (affected > 0) {
+        setConfirmState({
+          title: 'Szezonon kívüli foglalások',
+          description: `${affected} jövőbeli foglalás esik a megadott szezonon kívülre ebben a teremben. Ezek a foglalások megmaradnak — kérlek kezeld őket külön (pl. áthelyezés, értesítés). Folytatod a mentést?`,
+          onConfirm: () => {
+            setConfirmState(null)
+            void doSaveRoom(roomId, name, isOutdoor, season)
+          },
+        })
+        return
+      }
+    }
+    void doSaveRoom(roomId, name, isOutdoor, season)
+  }
+
+  /** Jövőbeli (mától), aktív foglalások száma az adott terem asztalain, amelyek a megadott
+   *  szezonon kívülre esnek. A terem asztalait az initialTables-ből szűrjük. */
+  const countAffectedReservations = async (roomId: number | string, season: SeasonFields): Promise<number> => {
+    const roomTableIds = new Set(
+      initialTables.filter((t) => String(t.room) === String(roomId)).map((t) => String(t.id)),
+    )
+    if (roomTableIds.size === 0) return 0
+    const today = new Date()
+    const ymd = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    try {
+      const res = await fetch(
+        `/api/reservations?where[date][greater_than_equal]=${ymd}&where[status][in]=pending,confirmed,seated&limit=500&depth=0`,
+        { credentials: 'include' },
+      )
+      if (!res.ok) return 0
+      const data = await res.json()
+      const docs: { date: string; tables?: (number | string | { id: number | string })[] }[] = data.docs ?? []
+      return docs.filter((r) => {
+        const onRoomTable = (r.tables ?? []).some((t) => roomTableIds.has(String(typeof t === 'object' && t ? t.id : t)))
+        return onRoomTable && !inSeason(season, r.date)
+      }).length
+    } catch {
+      return 0
     }
   }
 
@@ -345,7 +426,7 @@ export function TablesManager({
         creating={creatingRoom}
         busy={busy}
         onClose={() => { setEditingRoom(null); setCreatingRoom(false) }}
-        onSave={(id, name, outdoor) => (id == null ? addRoom(name, outdoor) : saveRoom(id, name, outdoor))}
+        onSave={(id, name, outdoor, season) => (id == null ? addRoom(name, outdoor, season) : saveRoom(id, name, outdoor, season))}
       />
 
       <ConfirmDialog
@@ -373,11 +454,14 @@ function RoomEditSheet({
   busy: boolean
   onClose: () => void
   // roomId === null → új terem létrehozása.
-  onSave: (roomId: number | string | null, name: string, isOutdoor: boolean) => void
+  onSave: (roomId: number | string | null, name: string, isOutdoor: boolean, season: SeasonFields) => void
 }) {
   const open = !!room || creating
   const [name, setName] = useState('')
   const [outdoor, setOutdoor] = useState(false)
+  const [seasonal, setSeasonal] = useState(false)
+  const [seasonStart, setSeasonStart] = useState('')
+  const [seasonEnd, setSeasonEnd] = useState('')
 
   // Helyi állapot szinkronizálása, amikor másik terem (vagy create mód) nyílik.
   const [lastKey, setLastKey] = useState<string | null>(null)
@@ -386,6 +470,9 @@ function RoomEditSheet({
     setLastKey(key)
     setName(room?.name ?? '')
     setOutdoor(room?.is_outdoor ?? false)
+    setSeasonal(room?.seasonal ?? false)
+    setSeasonStart(room?.season_start ?? '')
+    setSeasonEnd(room?.season_end ?? '')
   }
 
   const inputClass =
@@ -411,8 +498,34 @@ function RoomEditSheet({
               description="Terasz, kert vagy egyéb kültéri rész. Alapból beltéri."
             />
           </div>
+
+          <div className="rounded-xl border border-zinc-200 dark:border-white/[0.1] p-4 space-y-4">
+            <ToggleSwitch
+              checked={seasonal}
+              onChange={setSeasonal}
+              label="Szezonális"
+              description="Csak a megadott időszakban foglalható (pl. terasz nyáron). Az időszakon kívül kiesik a foglalható asztalok közül a foglaló oldalon is."
+            />
+            {seasonal && (
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Szezon kezdete</Label>
+                  <Input className={inputClass} type="date" value={seasonStart} onChange={(e) => setSeasonStart(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className={labelClass}>Szezon vége</Label>
+                  <Input className={inputClass} type="date" value={seasonEnd} onChange={(e) => setSeasonEnd(e.target.value)} />
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
-            onClick={() => onSave(room?.id ?? null, name, outdoor)}
+            onClick={() => onSave(room?.id ?? null, name, outdoor, {
+              seasonal,
+              season_start: seasonal && seasonStart ? seasonStart : null,
+              season_end: seasonal && seasonEnd ? seasonEnd : null,
+            })}
             disabled={busy || !name.trim()}
             className="w-full h-12 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
           >
@@ -523,14 +636,37 @@ function TableEditSheet({
           </div>
           <div className="space-y-1.5">
             <Label className={labelClass}>Hány fős</Label>
-            <Input
-              className={inputClass}
-              type="number"
-              min={1}
-              max={20}
-              value={capacity}
-              onChange={(e) => setCapacity(parseInt(e.target.value, 10) || 1)}
-            />
+            {/* Érintőbarát stepper (mint a foglalás-sidebar létszámánál): nagy +/− gombok,
+                tableten kényelmes, nincs egymásba csúszó natív nyíl. 1–20 fő. */}
+            <div className="flex h-11 items-center rounded-xl border border-zinc-200 bg-zinc-50 dark:border-white/[0.1] dark:bg-white/[0.06]">
+              <button
+                type="button"
+                aria-label="Kevesebb fő"
+                onClick={() => setCapacity((c) => Math.max(1, c - 1))}
+                disabled={capacity <= 1}
+                className="flex h-full w-12 shrink-0 items-center justify-center text-xl font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={20}
+                value={capacity}
+                onChange={(e) => setCapacity(Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 1)))}
+                className="h-full min-w-0 flex-1 border-0 bg-transparent text-center text-base font-bold tabular-nums text-zinc-900 outline-none dark:text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              />
+              <button
+                type="button"
+                aria-label="Több fő"
+                onClick={() => setCapacity((c) => Math.min(20, c + 1))}
+                disabled={capacity >= 20}
+                className="flex h-full w-12 shrink-0 items-center justify-center text-xl font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+              >
+                +
+              </button>
+            </div>
           </div>
 
           {others.length > 0 && (

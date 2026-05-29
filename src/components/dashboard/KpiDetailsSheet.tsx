@@ -23,7 +23,7 @@ type DayFilter = 'all' | 'weekday' | 'weekend'
 type Props =
   | { kind: 'trend'; open: boolean; onClose: () => void; period: number; data: DayData[]; moneyless?: boolean }
   | { kind: 'dow'; open: boolean; onClose: () => void; period: number; data: DayData[]; moneyless?: boolean }
-  | { kind: 'hour'; open: boolean; onClose: () => void; period: number; data: HourStat[]; rawDays?: DayData[]; moneyless?: boolean }
+  | { kind: 'hour'; open: boolean; onClose: () => void; period: number; data: HourStat[]; rawDays?: DayData[]; hourlyByDate?: Record<string, number[]>; moneyless?: boolean }
   | { kind: 'kpi'; open: boolean; onClose: () => void; period: number; metric: Metric; title: string; currentValue: string; currentDiff?: number; data: DayData[]; moneyless?: boolean }
   | { kind: 'service'; open: boolean; onClose: () => void; period: number; data: ServiceStat[]; moneyless?: boolean }
   | { kind: 'staff'; open: boolean; onClose: () => void; period: number; data: StaffStat[]; moneyless?: boolean }
@@ -133,7 +133,24 @@ export function KpiDetailsSheet(props: Props) {
     return buckets.map((bookings, i) => ({ day: DOW_LABELS[i], bookings }))
   }, [filteredDays])
 
-  const allHourData = kind === 'hour' ? (props as Extract<Props, { kind: 'hour' }>).data : []
+  // Óránkénti forgalom a kiválasztott időszakra/napszűrőre, napi ÁTLAGként. A napi×órás
+  // nyers adatból (hourlyByDate) a filteredDays dátumaira összegezünk óránként, majd
+  // elosztunk a napok számával → így az óránkénti is reagál a sheet szűrőjére (nem a
+  // kívülről kapott, fix period-összeget mutatja). Ha nincs hourlyByDate, a régi
+  // (összeg-alapú, fix) data-ra esünk vissza.
+  const hourlyByDate = kind === 'hour' ? (props as Extract<Props, { kind: 'hour' }>).hourlyByDate : undefined
+  const allHourData = useMemo<HourStat[]>(() => {
+    if (kind !== 'hour') return []
+    if (!hourlyByDate) return (props as Extract<Props, { kind: 'hour' }>).data
+    const dates = filteredDays.map(d => d.date)
+    const sums = Array.from({ length: 24 }, () => 0)
+    for (const date of dates) {
+      const arr = hourlyByDate[date]
+      if (arr) for (let h = 0; h < 24; h++) sums[h] += arr[h] ?? 0
+    }
+    const dayCount = Math.max(1, dates.length)
+    return sums.map((total, h) => ({ hour: `${String(h).padStart(2, '0')}:00`, bookings: total / dayCount }))
+  }, [kind, hourlyByDate, props, filteredDays])
   // Üres széli órák levágása (a HourChart-tal megegyező logika), hogy a 24-órás
   // tartomány ne töltse fel a tengelyt nullás oszlopokkal.
   const hourFirst = allHourData.findIndex(d => d.bookings > 0)
@@ -328,7 +345,12 @@ export function KpiDetailsSheet(props: Props) {
 
           {kind === 'hour' && (
             <div className="rounded-2xl border border-zinc-100 dark:border-white/[0.06] p-4">
-              <h3 className="text-sm font-bold text-zinc-700 dark:text-white/80 mb-3">Óránkénti forgalom (teljes időszak)</h3>
+              <h3 className="text-sm font-bold text-zinc-700 dark:text-white/80 mb-1">Óránkénti forgalom · napi átlag</h3>
+              <p className="text-[11px] text-zinc-400 dark:text-white/30 mb-3">
+                {PERIODS.find(p => p.value === innerPeriod)?.label ?? `${innerPeriod} nap`}
+                {dayFilter === 'weekday' ? ' · hétköznap' : dayFilter === 'weekend' ? ' · hétvége' : ''}
+                {` · ${filteredDays.length} nap átlaga`}
+              </p>
               <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={hourData} margin={{ top: 4, right: 4, left: -28, bottom: 0 }} barSize={14}>
                   <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
@@ -341,7 +363,7 @@ export function KpiDetailsSheet(props: Props) {
                       return (
                         <div className="bg-white dark:bg-black border border-zinc-200 dark:border-white/[0.1] text-zinc-900 dark:text-white text-xs rounded-xl px-3 py-2 shadow-xl">
                           <p className="text-zinc-400 dark:text-white/40 mb-0.5">{label}</p>
-                          <p className="font-black">{payload[0].value} foglalás</p>
+                          <p className="font-black">{Math.round(Number(payload[0].value) * 10) / 10} foglalás / nap</p>
                         </div>
                       )
                     }}

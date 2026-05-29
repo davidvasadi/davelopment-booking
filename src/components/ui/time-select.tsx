@@ -79,12 +79,22 @@ function Wheel({
   )
 }
 
+/** "HH:MM" → perc; érvénytelen/üres esetén null. */
+function hhmmToMin(v?: string | null): number | null {
+  if (!v) return null
+  const [h, m] = v.slice(0, 5).split(':').map((x) => parseInt(x, 10))
+  if (Number.isNaN(h) || Number.isNaN(m)) return null
+  return h * 60 + m
+}
+
 export function TimeSelect({
   value,
   onChange,
   className,
   disabled,
   container,
+  minTime,
+  maxTime,
 }: {
   value: string
   onChange: (value: string) => void
@@ -93,6 +103,9 @@ export function TimeSelect({
   /** Hova portálozzon a legördülő. Alapból a body; Sheet/Dialog belsejében add át
    *  a panel saját konténerét, hogy a scroll-lock ne nyelje el a görgetést. */
   container?: HTMLElement | null
+  /** Választható tartomány (HH:MM, inkluzív). A nyitvatartáshoz kötjük a wheel-t. */
+  minTime?: string | null
+  maxTime?: string | null
 }) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null)
@@ -101,6 +114,24 @@ export function TimeSelect({
   const panelRef = useRef<HTMLDivElement>(null)
   const { h, m } = parse(value)
   const display = `${h}:${m}`
+
+  const minMin = hhmmToMin(minTime)
+  const maxMin = hhmmToMin(maxTime)
+  // A választható órák a tartományon belül; ha nincs korlát, mind a 24.
+  const hours = HOURS.filter((hh) => {
+    const hi = parseInt(hh, 10)
+    if (minMin != null && hi < Math.floor(minMin / 60)) return false
+    if (maxMin != null && hi > Math.floor(maxMin / 60)) return false
+    return true
+  })
+  // A percek a kiválasztott órán belül szűkülnek a határokhoz (pl. zárás 22:30 → 22-nél csak 00,15,30).
+  const curH = parseInt(h, 10)
+  const minutesFor = MINUTES.filter((mm) => {
+    const t = curH * 60 + parseInt(mm, 10)
+    if (minMin != null && t < minMin) return false
+    if (maxMin != null && t > maxMin) return false
+    return true
+  })
 
   const PANEL_H = 180 // a görgő magassága (Wheel h-[180px])
   const PANEL_W = 140
@@ -180,9 +211,9 @@ export function TimeSelect({
           className="z-[100] w-[140px] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-white/[0.1] dark:bg-zinc-900"
         >
           <div className="flex">
-            <Wheel items={HOURS} value={h} onChange={(nh) => onChange(`${nh}:${m}`)} />
+            <Wheel items={hours.length ? hours : HOURS} value={h} onChange={(nh) => onChange(`${nh}:${m}`)} />
             <div className="flex items-center text-base font-bold text-zinc-300 dark:text-white/20">:</div>
-            <Wheel items={MINUTES} value={m} onChange={(nm) => onChange(`${h}:${nm}`)} />
+            <Wheel items={minutesFor.length ? minutesFor : MINUTES} value={m} onChange={(nm) => onChange(`${h}:${nm}`)} />
           </div>
         </div>,
         target

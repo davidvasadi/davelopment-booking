@@ -59,6 +59,7 @@ export default async function RestaurantSettingsPage() {
           company_reg_number: r.company_reg_number ?? '',
           registered_seat: r.registered_seat ?? '',
           terms_sections: (r.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
+          good_to_know: (r.good_to_know ?? []).map((s) => ({ icon: s.icon ?? 'info', title: s.title ?? '', body: s.body ?? '' })),
         }}
       />
     </div>

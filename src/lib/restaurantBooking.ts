@@ -12,6 +12,85 @@ export interface RestaurantTimeSlot {
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated', 'completed'] as const
 
+type SeasonRoom = {
+  id: string | number
+  seasonal?: boolean | null
+  season_start?: string | null
+  season_end?: string | null
+}
+
+/** Igaz, ha a terem az adott napon (YYYY-MM-DD) foglalható a szezon szempontjából.
+ *  Nem szezonális terem mindig elérhető. Szezonálisnál a [season_start, season_end]
+ *  inkluzív tartományba kell esnie a dátumnak; támogatja az év-átfordulós tartományt is
+ *  (pl. start=2024-11-01, end=2024-03-31 → tél). Hiányzó határ → nyitott azon az oldalon. */
+export function isRoomAvailableOnDate(room: SeasonRoom, date: string): boolean {
+  if (!room.seasonal) return true
+  const start = room.season_start || null
+  const end = room.season_end || null
+  if (!start && !end) return true
+  // Csak a hónap-napot hasonlítjuk (a tartomány év-független, évente ismétlődik).
+  const md = (d: string) => d.slice(5) // "MM-DD"
+  const day = md(date)
+  const s = start ? md(start) : null
+  const e = end ? md(end) : null
+  if (s && e) {
+    return s <= e ? day >= s && day <= e : day >= s || day <= e // év-átfordulós eset
+  }
+  if (s) return day >= s
+  if (e) return day <= e
+  return true
+}
+
+/** Azoknak a termeknek az ID-jei, amelyek az adott napon szezon miatt NEM foglalhatók. */
+function unavailableRoomIds(rooms: SeasonRoom[], date: string): Set<string> {
+  return new Set(rooms.filter((r) => !isRoomAvailableOnDate(r, date)).map((r) => String(r.id)))
+}
+
+/** Egy adott nap nyitvatartási ablaka (perc), a heti rend + kivétel figyelembevételével.
+ *  null = zárva (vagy nincs beállítva nyitvatartás). A kivétel (opening-hours-exceptions)
+ *  felülírja a heti rendet: is_closed → zárva, módosított idő → új ablak. */
+export async function getOpeningWindow(
+  restaurantId: string | number,
+  date: string,
+): Promise<{ openMin: number; closeMin: number } | null> {
+  const payload = await getPayloadClient()
+  const dayName = getDayName(parseISO(date))
+  const ohRes = await payload.find({
+    collection: 'opening-hours',
+    where: { and: [{ restaurant: { equals: restaurantId } }, { day_of_week: { equals: dayName } }] },
+    limit: 1,
+    overrideAccess: true,
+  })
+  const oh = ohRes.docs[0] as OpeningHour | undefined
+  if (!oh || !oh.is_open || !oh.open_time || !oh.close_time) return null
+  let openMin = hhmmToMinutes(oh.open_time)
+  let closeMin = hhmmToMinutes(oh.close_time)
+
+  const excRes = await payload.find({
+    collection: 'opening-hours-exceptions',
+    where: {
+      and: [
+        { restaurant: { equals: restaurantId } },
+        { start_date: { less_than_equal: date } },
+        { end_date: { greater_than_equal: date } },
+      ],
+    },
+    limit: 1,
+    overrideAccess: true,
+  })
+  const exc = excRes.docs[0] as
+    | { is_closed?: boolean; open_time?: string | null; close_time?: string | null }
+    | undefined
+  if (exc) {
+    if (exc.is_closed) return null
+    if (exc.open_time && exc.close_time) {
+      openMin = hhmmToMinutes(exc.open_time)
+      closeMin = hhmmToMinutes(exc.close_time)
+    }
+  }
+  return { openMin, closeMin }
+}
+
 /** Egy adott napra szabad időpontokat ad vissza adott létszámra (pax). */
 export async function getRestaurantSlots(params: {
   restaurantId: string | number
@@ -32,46 +111,10 @@ export async function getRestaurantSlots(params: {
   const leadHours = restaurant.lead_time_hours ?? 0
   const lastSeatingBuffer = restaurant.last_seating_buffer_minutes ?? 0
 
-  // 1. Nyitvatartás az adott napra
-  const dayName = getDayName(parseISO(date))
-  const ohRes = await payload.find({
-    collection: 'opening-hours',
-    where: {
-      and: [{ restaurant: { equals: restaurantId } }, { day_of_week: { equals: dayName } }],
-    },
-    limit: 1,
-    overrideAccess: true,
-  })
-  const oh = ohRes.docs[0] as OpeningHour | undefined
-  if (!oh || !oh.is_open || !oh.open_time || !oh.close_time) return []
-
-  let openMin = hhmmToMinutes(oh.open_time)
-  let closeMin = hhmmToMinutes(oh.close_time)
-
-  // 1b. Nyitvatartási kivétel: a `date`-et tartalmazó tartomány felülírja a heti rendet.
-  // Zárva → nincs slot; módosított idő → felülírja a nyitás/zárást.
-  const excRes = await payload.find({
-    collection: 'opening-hours-exceptions',
-    where: {
-      and: [
-        { restaurant: { equals: restaurantId } },
-        { start_date: { less_than_equal: date } },
-        { end_date: { greater_than_equal: date } },
-      ],
-    },
-    limit: 1,
-    overrideAccess: true,
-  })
-  const exc = excRes.docs[0] as
-    | { is_closed?: boolean; open_time?: string | null; close_time?: string | null }
-    | undefined
-  if (exc) {
-    if (exc.is_closed) return []
-    if (exc.open_time && exc.close_time) {
-      openMin = hhmmToMinutes(exc.open_time)
-      closeMin = hhmmToMinutes(exc.close_time)
-    }
-  }
+  // 1. Nyitvatartás az adott napra (heti rend + kivétel). Zárva → nincs slot.
+  const window = await getOpeningWindow(restaurantId, date)
+  if (!window) return []
+  const { openMin, closeMin } = window
 
   // 2. Jelölt kezdési időpontok (lépésenként), úgy hogy a teljes turnus záróráig férjen
   // Az utolsó kezdő időpont a zárás - buffer (0 = zárásig lehet kezdeni).
@@ -116,7 +159,7 @@ export async function getRestaurantSlots(params: {
     limit: 500,
     overrideAccess: true,
   })
-  const tables = tablesRes.docs as Table[]
+  const allActiveTables = tablesRes.docs as Table[]
 
   // Kültéri termek azonosítása, hogy slot-onként jelezhessük: csak kültéri maradt-e.
   const roomsRes = await payload.find({
@@ -125,6 +168,14 @@ export async function getRestaurantSlots(params: {
     depth: 0,
     limit: 100,
     overrideAccess: true,
+  })
+
+  // Szezonális szűrés: az adott napon szezonon kívüli termek asztalai kiesnek
+  // a foglalható kapacitásból (a landing így kevesebb asztallal számol).
+  const offSeason = unavailableRoomIds(roomsRes.docs as SeasonRoom[], date)
+  const tables = allActiveTables.filter((t) => {
+    const rid = t.room ? (typeof t.room === 'object' ? t.room.id : t.room) : null
+    return rid == null || !offSeason.has(String(rid))
   })
   const outdoorRoomIds = new Set(
     roomsRes.docs.filter((r) => (r as { is_outdoor?: boolean }).is_outdoor).map((r) => String(r.id)),
@@ -140,7 +191,8 @@ export async function getRestaurantSlots(params: {
     .filter((c) => c >= earliestMin)
     .filter((slotStart) => findAllocation(slotStart, slotStart + turn, tables, reservations, pax) !== null)
     .map((s) => {
-      const slotEnd = s + turn
+      // A turnus nem lóghat túl a záráson — a vége a zárásig vágódik.
+      const slotEnd = Math.min(s + turn, closeMin)
       // Csak kültéri marad, ha a beltériek közt nincs allokáció, de összességében van.
       const onlyOutdoor =
         hasOutdoor && findAllocation(s, slotEnd, indoorTables, reservations, pax) === null
@@ -451,16 +503,18 @@ export async function validateAndAllocate(params: {
 
   if (restaurant.is_active === false) return { ok: false, error: 'Ez az étterem jelenleg nem fogad foglalást' }
 
-  const turn = restaurant.turn_duration_minutes ?? 120
   const slotStart = hhmmToMinutes(start_time)
-  const slotEnd = slotStart + turn
-  const end_time = minutesToHHMM(slotEnd)
 
-  // Múlt + nyitvatartás-ellenőrzés a slot-listán keresztül (egyetlen forrás az igazságra)
+  // Múlt + nyitvatartás-ellenőrzés a slot-listán keresztül (egyetlen forrás az igazságra).
+  // A slot már a záráshoz vágott end-et adja — onnan vesszük az end_time-ot, hogy a
+  // turnus ne lóghasson túl a záráson (pl. 21:00 + 2ó, 22:00 zárás → 22:00).
   const slots = await getRestaurantSlots({ restaurantId, date, pax })
-  if (!slots.some((s) => s.start === start_time)) {
+  const slot = slots.find((s) => s.start === start_time)
+  if (!slot) {
     return { ok: false, error: 'Ez az időpont már nem foglalható' }
   }
+  const end_time = slot.end
+  const slotEnd = hhmmToMinutes(end_time)
 
   // Konkrét asztal(ok) lefoglalása
   const [tablesRes, resRes] = await Promise.all([
@@ -522,7 +576,21 @@ export async function validateManualReservation(params: {
 
   const turn = durationMinutes && durationMinutes > 0 ? durationMinutes : restaurant.turn_duration_minutes ?? 120
   const slotStart = hhmmToMinutes(start_time)
-  const slotEnd = slotStart + turn
+
+  // Kemény nyitvatartás-korlát: a host sem foglalhat a nyitvatartáson kívülre.
+  // A kezdésnek a nyitás és a zárás közé kell esnie. Zárva → elutasít.
+  const window = await getOpeningWindow(restaurantId, date)
+  if (!window) return { ok: false, error: 'Ezen a napon az étterem zárva tart' }
+  if (slotStart < window.openMin || slotStart > window.closeMin) {
+    return {
+      ok: false,
+      error: `A megadott időpont a nyitvatartáson kívül esik (${minutesToHHMM(window.openMin)}–${minutesToHHMM(window.closeMin)})`,
+    }
+  }
+
+  // A turnus nem lóghat túl a záráson: a vége a zárásig vágódik. Pl. 21:00 + 2ó,
+  // de 22:00-kor zár → a foglalás vége 22:00 (nem 23:00), mert akkor már zárva.
+  const slotEnd = Math.min(slotStart + turn, window.closeMin)
   const end_time = minutesToHHMM(slotEnd)
 
   const [tablesRes, resRes] = await Promise.all([
@@ -562,8 +630,21 @@ export async function validateManualReservation(params: {
     return { ok: true, tableIds: chosen.map((t) => t.id), end_time }
   }
 
-  // Auto-allokáció — egyetlen asztal preferálva, szükség esetén összevonás
-  const tableIds = findAllocation(slotStart, slotEnd, allTables, reservations, pax, excludeReservationId)
+  // Auto-allokáció — a szezonon kívüli termek asztalai kiesnek (a host konkrét asztalt
+  // a fenti ágon még szándékosan választhat, de a rendszer nem allokál szezonon kívülre).
+  const roomsRes = await payload.find({
+    collection: 'rooms',
+    where: { restaurant: { equals: restaurantId } },
+    depth: 0,
+    limit: 100,
+    overrideAccess: true,
+  })
+  const offSeason = unavailableRoomIds(roomsRes.docs as SeasonRoom[], date)
+  const inSeasonTables = allTables.filter((t) => {
+    const rid = t.room ? (typeof t.room === 'object' ? t.room.id : t.room) : null
+    return rid == null || !offSeason.has(String(rid))
+  })
+  const tableIds = findAllocation(slotStart, slotEnd, inSeasonTables, reservations, pax, excludeReservationId)
   if (tableIds === null) return { ok: false, error: 'Nincs szabad asztal erre az időpontra' }
   return { ok: true, tableIds, end_time }
 }

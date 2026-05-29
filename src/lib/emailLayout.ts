@@ -116,21 +116,27 @@ function brandHeader(opts: {
     : ''
 
   // Logó ráülve a borítóra: a logó a saját arányát/méretét tartja (semmi
-  // levágás, semmi extra padding). Nincs fehér kártya — sok logónak már van saját
-  // háttere, a dupla keret csúnya. Csak finom árnyék, hogy elváljon a borítótól.
+  // A logó egy „üveges" (glass-szerű) kártyában ül, ráúszva a borítóra. Email-kliensek
+  // nem támogatják a backdrop-blurt, ezért féláttetsző világos háttér + lekerekített
+  // keret + finom árnyék adja az üveges benyomást (minden kliensben megbízható, inline).
   if (brandCoverUrl && brandLogoUrl) {
     return `${cover}
     <tr><td style="background:${COLORS.surface};padding:0 32px;text-align:center">
-      <img src="${brandLogoUrl}" alt="${alt}" height="56" style="margin-top:-28px;height:56px;max-height:56px;max-width:220px;width:auto;object-fit:contain;display:inline-block;border:0;filter:drop-shadow(0 4px 10px rgba(9,9,11,0.25))" />
+      <div style="display:inline-block;margin-top:-32px;padding:10px 18px;background:rgba(255,255,255,0.82);border:1px solid rgba(255,255,255,0.6);border-radius:16px;box-shadow:0 6px 20px rgba(9,9,11,0.18)">
+        <img src="${brandLogoUrl}" alt="${alt}" height="48" style="height:48px;max-height:48px;max-width:200px;width:auto;object-fit:contain;display:block;border:0" />
+      </div>
     </td></tr>`
   }
 
   // Csak borító (logó nélkül): a borító önmagában áll.
   if (brandCoverUrl) return cover
 
-  // Borító nélkül: logó vagy cégnév fehér sávon.
+  // Borító nélkül: logó halvány, lekerekített kártyában (üveges-szerű, fehér sávon
+  // a féláttetsző fehér nem látszana, ezért muted háttér), vagy cégnév szöveg.
   const logoOrName = brandLogoUrl
-    ? `<img src="${brandLogoUrl}" alt="${alt}" height="52" style="height:52px;max-width:260px;object-fit:contain;display:inline-block;border:0" />`
+    ? `<div style="display:inline-block;padding:12px 20px;background:${COLORS.muted};border:1px solid ${COLORS.border};border-radius:16px">
+        <img src="${brandLogoUrl}" alt="${alt}" height="48" style="height:48px;max-width:220px;object-fit:contain;display:block;border:0" />
+      </div>`
     : `<p style="margin:0;font-size:22px;font-weight:800;letter-spacing:-0.5px;color:${COLORS.text}">${alt}</p>`
   return `<tr><td style="background:${COLORS.surface};padding:32px 32px 0;text-align:center">${logoOrName}</td></tr>`
 }

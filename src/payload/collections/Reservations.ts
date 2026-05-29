@@ -46,6 +46,7 @@ export const Reservations: CollectionConfig = {
     { name: 'customer_phone', type: 'text', label: 'Telefon' },
     { name: 'notes', type: 'textarea', label: 'Megjegyzés (vendégtől)' },
     { name: 'internal_notes', type: 'textarea', label: 'Belső megjegyzés' },
+    { name: 'is_birthday', type: 'checkbox', defaultValue: false, label: 'Szülinapos foglalás' },
     {
       name: 'status',
       type: 'select',
@@ -81,6 +82,33 @@ export const Reservations: CollectionConfig = {
     },
   ],
   hooks: {
+    beforeChange: [
+      // Korai befejezés: ha a foglalás MA „Befejezett"-re vált és az aktuális idő a
+      // foglalás idején belül (start..end) van, az end_time a tényleges távozásra (most)
+      // rövidül — így az asztal korábban felszabadul és újra foglalható. A tárolt valós
+      // end_time-ból mérhető az átlagos foglalási idő (lásd restaurantStats avgDwell).
+      ({ data, originalDoc, operation }) => {
+        if (operation !== 'update') return data
+        const becameCompleted = data.status === 'completed' && originalDoc?.status !== 'completed'
+        if (!becameCompleted) return data
+        const date = data.date ?? originalDoc?.date
+        const start = data.start_time ?? originalDoc?.start_time
+        const end = data.end_time ?? originalDoc?.end_time
+        if (!date || !start || !end) return data
+        const now = new Date()
+        const ymd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+        if (ymd !== date) return data // csak a mai napra értelmezett a „most”
+        const nowMin = now.getHours() * 60 + now.getMinutes()
+        const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + m }
+        const startMin = toMin(start)
+        const endMin = toMin(end)
+        // Csak ha tényleg félúton vagyunk (a kezdés után, az eredeti vége előtt).
+        if (nowMin > startMin && nowMin < endMin) {
+          data.end_time = `${String(Math.floor(nowMin / 60)).padStart(2, '0')}:${String(nowMin % 60).padStart(2, '0')}`
+        }
+        return data
+      },
+    ],
     afterChange: [notifyOnBooking('restaurant'), revalidateOnReservationChange],
     afterDelete: [revalidateOnReservationDelete],
   },

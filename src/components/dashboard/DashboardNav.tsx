@@ -95,7 +95,9 @@ function SubscriptionWidget({ sub, subscriptionHref }: { sub: SubInfo; subscript
     )}>
       <div className="flex items-center justify-between gap-2 mb-1">
         <span className="font-semibold text-zinc-900 dark:text-white">
-          {sub.plan === 'trial' ? 'Próbaidőszak' : 'Pro csomag'}
+          {/* A státusz a megbízható jelző: csak trialing alatt „Próbaidőszak".
+              Aktív/Pro csomagnál a plan lehet 'pro' vagy 'restaurant_pro' — mindkettő Pro. */}
+          {sub.status === 'trialing' ? 'Próbaidőszak' : 'Pro csomag'}
         </span>
         {sub.status === 'active' && (
           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">aktív</span>
@@ -270,17 +272,21 @@ export function DashboardNav({
             {!collapsed && 'Kijelentkezés'}
           </button>
 
-          {/* Étterem navban a Schedulio logó a Kijelentkezés alá kerül („powered by”). */}
+          {/* Étterem navban a Schedulio + davelopment logók egy sorban a Kijelentkezés alá. */}
           {variant === 'restaurant' && !collapsed && (
-            <a
-              href="https://schedulio.hu"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 flex items-center gap-1.5 px-3 text-[10px] text-zinc-300 dark:text-white/20 hover:text-zinc-500 dark:hover:text-white/40 transition-colors"
-            >
+            <div className="mt-3 flex items-center gap-1.5 px-3 text-[10px] text-zinc-300 dark:text-white/20">
               <span>powered by</span>
-              <SchedulioLogo className="h-3.5" />
-            </a>
+              <a href="https://schedulio.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
+                <SchedulioLogo className="h-3.5" />
+              </a>
+              <span className="text-zinc-200 dark:text-white/10">·</span>
+              <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
+                {/* FIGYELEM: a fájlnevek félrevezetők — a *_dark.svg* sötét tintás (világos
+                    témára), a *_light.svg* világos (sötét témára). Ezért fordítva kötjük. */}
+                <img src="/logo_davelopment_dark.svg" alt="davelopment" className="h-3 w-auto block dark:hidden" />
+                <img src="/logo_davelopment_light.svg" alt="davelopment" className="h-3 w-auto hidden dark:block" />
+              </a>
+            </div>
           )}
         </div>
       </aside>

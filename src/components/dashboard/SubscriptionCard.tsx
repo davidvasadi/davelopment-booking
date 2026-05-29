@@ -32,7 +32,7 @@ export function SubscriptionCard({
   if (isPastDue) subtitle = 'Fizetési probléma — frissítsd az előfizetést a folytatáshoz'
   else if (isCanceled) subtitle = 'Az előfizetésed megszűnt — aktiváld újra a Pro csomagot'
   else if (days !== null) subtitle = days === 0 ? 'Ma lejár a próbaidőszak' : `${days} nap maradt — ${proPriceLabel}`
-  else if (sub.plan === 'pro') subtitle = proPriceLabel
+  else if (sub.status !== 'trialing') subtitle = proPriceLabel
   else subtitle = 'Előfizetés kezelése'
 
   return (
@@ -55,7 +55,7 @@ export function SubscriptionCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-0.5">
             <p className={`font-semibold ${isAlert ? 'text-red-700 dark:text-red-300' : 'text-zinc-900 dark:text-white'}`}>
-              {sub.plan === 'pro' ? 'Pro csomag' : 'Próbaidőszak'}
+              {sub.status === 'trialing' ? 'Próbaidőszak' : 'Pro csomag'}
             </p>
             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
               sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :

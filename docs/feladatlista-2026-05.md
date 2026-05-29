@@ -7,6 +7,19 @@
 
 ---
 
+## ⚠️ Ismert környezeti probléma — `payload generate:types` nem fut
+
+A `npm run generate:types` (payload CLI) ezen a gépen elhasal:
+`TypeError: Illegal constructor` az undici `CacheStorage`-nál (undici/node verzió-ütközés).
+**Következmény:** új/módosított Payload-mező után a `payload-types.ts` NEM generálódik automatikusan.
+
+**Workaround (amíg a CLI nem javul):** a típust **kézzel** kell felvenni a
+`src/payload/payload-types.ts`-be, a séma-módosítással egy időben. Pl. új `Restaurant`/
+`Room`/`Reservation` mező → kézzel a megfelelő interface-be ugyanazzal a típussal.
+**Tartós javítás (külön feladat):** node-verzió igazítása vagy undici-pin, hogy a CLI fusson.
+
+---
+
 ## 🥇 PRIORITÁS #1 — Foglalási kártyák (idővonal): színek + gap
 
 Ez az **első** feladat, mielőtt bármi máshoz nyúlunk.
@@ -150,9 +163,83 @@ Szövegek, amiket a foglalónak meg kell jeleníteni:
 
 ## Foglalások (marketing / növekedés)
 
-- **Google-értékelés auto-email CTA**: foglalás után **1 nappal**, vagy **közvetlenül a foglalást követően**? *(eldöntendő)*
+- **Google-értékelés auto-email CTA** — ⏳ NYITOTT, később bekötni (salon + restaurant).
+  - **Időzítés (ELDÖNTVE):** azonnal a foglalás **„Befejezett"-re állításakor** (nincs cron).
+  - **Kapcsoló (ELDÖNTVE):** az adott cég admin be/ki kapcsolhatja a saját helyén.
+    Csak akkor megy, ha **be van kapcsolva ÉS van értékelő-link**.
+  - **Spec / teendők:**
+    - Séma (Restaurants + **Salons** is!): `review_email_enabled` (checkbox) + `review_url` (text).
+      Reservations: `review_email_sent` (checkbox, readOnly) — hogy ne menjen kétszer.
+    - Email-sablon: `sendReviewRequest()` az `emailLayout`-ra építve, CTA gomb a `review_url`-re.
+      Két helyre: `email.ts` (salon) + `restaurantEmail.ts` (restaurant).
+    - Trigger: a státusz `completed`-re váltásakor (manage-reservation route / reservations PATCH)
+      → ha enabled + van url + még nem ment → küld + `review_email_sent=true`.
+    - Settings UI: a kapcsoló + link mező az **Email** fülre (mindkét form) + initial-mapping.
+    - Típusokat **kézzel** a payload-types.ts-be (lásd a CLI-figyelmeztetést fent).
+  - **Becslés:** ~30–45 perc (restaurant) + ~15 perc (salon). Resend már be van kötve.
+  - **2026-05-29: elkezdtem, majd visszavontam** (prezentáció előtt nem fejeztük be). Tiszta állapot.
 
 ---
+
+## Haladás napló
+
+- [x] **PRIO #1 — Foglalási kártyák színe + gap** ✅ (2026-05-28)
+  - Szín-kiosztás (telt színek): confirmed=sárga (alap), seated=zöld (élő vendég),
+    completed=szürke (lezárt), no_show=piros, pending=ugyanaz mint confirmed, cancelled=fakó.
+    Forrás (beeső/telefon) marad badge. `DailyView` `statusBlock`/`statusDot`.
+  - Gap/sűrűség: lista sorok `py-2.5`, idő-oszlop szűkítve; idővonal sor `min-h-3.5rem`.
+- [x] **Sidebar (ReservationEditSheet) badge-ek + idő** ✅ (2026-05-28)
+  - Fejléc badge-ek: státusz + forrás + urgency (késik/túlfut/lejár), státuszváltásra élő.
+  - Új foglalás kezdő-idő = aktuális óra (nyitvatartásra szorítva).
+- [x] **Nyitvatartás kemény korlát + turnus-vágás** ✅ (2026-05-28)
+  - `getOpeningWindow()` helper (heti rend + kivétel), egy forrás az igazságra.
+  - `TimeSelect` wheel a nyitvatartásra szűkül (`minTime`/`maxTime`).
+  - Szerveroldal: nyitvatartáson kívüli manuális foglalás elutasítva.
+  - Turnus a záráshoz vágódik (21:00+2ó, 22:00 zárás → 22:00) — online + manuális.
+  - Sidebar piros figyelmeztető sáv, ha a választott ülésidő túllógna a záráson.
+  - ⚠️ Ezek a változások (DailyView, ReservationEditSheet, time-select, restaurantBooking)
+    **még nincsenek commitolva**.
+
+- [x] **KPI / Statisztika** ✅ (2026-05-28)
+  - **Cél 1 — létszám (pax) szerinti mérés:** a Statisztika oldal státusz-/forrás-kártyái
+    (Lemondva / No-show / Walk-in / Telefonos) + az Online kártya mostantól **főt (pax)**
+    mutatnak, nem foglalás-darabot. A %-arányok az időszak összes pax-ához viszonyítanak.
+    `restaurantStats.ts` (`sumPax`, `periodTotalPax`, `onlineReservations` pax),
+    `analytics/page.tsx` kártya-feliratok „… fő".
+  - **Cél 2 — óránkénti sheet szűr + átlagol:** új `hourlyByDate` (dátum→24 órás darab)
+    a szerverről; a `KpiDetailsSheet` (hour) ebből a `filteredDays` dátumaira összegez
+    óránként és **napi átlagot** számol → az óránkénti diagram mostantól reagál az
+    `innerPeriod`/`dayFilter` szűrőre. Cím dinamikus (időszak · nap-szűrő · N nap átlaga),
+    tooltip „X foglalás / nap". Fallback a régi (összeg) adatra, ha nincs hourlyByDate.
+  - ⚠️ Még nincs commitolva (restaurantStats, analytics/page, KpiDetailsSheet, DashboardCharts).
+
+- [x] **Napi export: asztal oszlop kivéve** ✅ (2026-05-28)
+  - `PrintDayButton.tsx`: Asztal oszlop (fejléc + cella) törölve, colspan 8→7,
+    `tableNames` helper + `Table` import eltávolítva.
+- [x] **Szülinapos foglalás (kapcsoló + jelölés)** ✅ (2026-05-28)
+  - Séma: `is_birthday` checkbox (Reservations) + típus (kézzel a payload-types-ba,
+    mert a `generate:types` CLI undici/node hibára fut — külön rendezni).
+  - Sidebar: szép toggle gomb `Cake` (lucide) ikonnal, rózsaszín aktív állapot.
+  - Szerver: `manage-reservation` route fogadja/menti `is_birthday`.
+  - Jelölés: idővonal kártyán az időpont (HH:MM–HH:MM) helyén szülinap-ikon,
+    lista nézetben rózsaszín „Szülinap" badge.
+  - Idővonal kártyán az időpont MARAD, a 🎂 ikon mellé kerül (nem helyette).
+  - Vázlatmód (offline draft) is támogatja: `ReservationDraft.is_birthday`,
+    `draftFields`, `draftToReservation` bekötve; jelölés vázlatnál is látszik.
+  - Idővonal sűrűbb: asztalsor `min-h` 3.5rem → 2.75rem.
+
+- [x] **Értesítés: megnyitott eltűnik a listáról** ✅ (2026-05-28)
+  - `NotificationBell.tsx`: bármely értesítésre kattintva azonnal lekerül (remove),
+    nem csak a foglaláshoz kötöttek; clickable-nél navigál is. `disabled` korlát ki.
+
+- [x] **„Jó tudni" szerkeszthető (foglaló landing)** ✅ (2026-05-29)
+  - Séma: `good_to_know` array (cím + szöveg) Restaurants + Salons + típusok (kézzel).
+  - Settings „Dokumentumok" fül: `TermsSectionsEditor` újrahasználva a pontokhoz.
+  - Landing: az auto-kártyák (turnus, lead-time) maradnak, a saját pontok alattuk.
+  - Init-mapping + mentés (TAB_FIELDS `documents`-be) bekötve.
+- [x] **Landing logó levágás javítva** ✅ (2026-05-29)
+  - `RestaurantPublicView`: `h-12 w-12 object-cover` → fehér kártya + `object-contain`
+    `h-full w-auto max-w-[200px]`. A logó teljes egészében látszik, nem vágódik.
 
 ## Összegzés — javasolt sorrend
 

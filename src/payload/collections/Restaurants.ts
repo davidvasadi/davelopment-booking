@@ -220,6 +220,17 @@ export const Restaurants: CollectionConfig = {
       ],
     },
     {
+      name: 'good_to_know',
+      type: 'array',
+      label: 'Jó tudni pontok',
+      admin: { description: 'Saját „Jó tudni" pontok (ikon + cím + szöveg) a foglaló oldalon.' },
+      fields: [
+        { name: 'icon', type: 'text', label: 'Ikon kulcs', defaultValue: 'info' },
+        { name: 'title', type: 'text', label: 'Pont címe' },
+        { name: 'body', type: 'textarea', label: 'Pont szövege' },
+      ],
+    },
+    {
       name: 'is_active',
       type: 'checkbox',
       defaultValue: true,

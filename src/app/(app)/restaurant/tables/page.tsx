@@ -39,7 +39,7 @@ export default async function RestaurantTablesPage() {
 
       <TablesManager
         restaurantId={restaurant.id}
-        initialRooms={rooms.map((r) => ({ id: r.id, name: r.name, sort_order: r.sort_order ?? 0, is_outdoor: r.is_outdoor ?? false }))}
+        initialRooms={rooms.map((r) => ({ id: r.id, name: r.name, sort_order: r.sort_order ?? 0, is_outdoor: r.is_outdoor ?? false, seasonal: r.seasonal ?? false, season_start: r.season_start ?? null, season_end: r.season_end ?? null }))}
         initialTables={tables.map((t) => ({
           id: t.id,
           name: t.name,

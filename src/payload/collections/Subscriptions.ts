@@ -9,10 +9,13 @@ export const Subscriptions: CollectionConfig = {
     beforeChange: [
       ({ data, originalDoc, operation }) => {
         if (operation !== 'update' && operation !== 'create') return data
+        // Fizetős planok: salon 'pro' ÉS étterem 'restaurant_pro' is. (Korábban csak a
+        // 'pro'-t ismerte fel → restaurant_pro-nál a status trialing maradt = bug.)
+        const PAID_PLANS = ['pro', 'restaurant_pro']
         const wasPlan = originalDoc?.plan
         const newPlan = data.plan ?? wasPlan
-        const planChangedToPro = newPlan === 'pro' && wasPlan !== 'pro'
-        const isPro = newPlan === 'pro'
+        const isPro = PAID_PLANS.includes(newPlan)
+        const planChangedToPro = isPro && !PAID_PLANS.includes(wasPlan)
 
         if (planChangedToPro) {
           // Pro váltás: status active, period_end indítás

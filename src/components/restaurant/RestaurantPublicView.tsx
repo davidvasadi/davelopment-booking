@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getPayloadClient } from '@/lib/payload'
-import { MapPin, Phone, Mail, Globe, ChevronRight, Clock, CalendarClock } from 'lucide-react'
+import { MapPin, Phone, Mail, Globe, ChevronRight, type LucideIcon } from 'lucide-react'
+import { iconByKey } from '@/components/settings/goodToKnowIcons'
 import type { Restaurant, OpeningHour, Media } from '@/payload/payload-types'
 import OpeningHoursLive from '@/components/restaurant/OpeningHoursLive'
 import NextAvailableSlots from '@/components/restaurant/NextAvailableSlots'
@@ -53,7 +54,11 @@ export async function RestaurantPublicView({ slug }: { slug: string }) {
         )}
         <div className="relative max-w-3xl mx-auto px-5 pt-12 pb-10">
           {logoUrl && (
-            <img src={logoUrl} alt={restaurant.name} className="h-12 w-12 rounded-xl object-cover mb-4 ring-1 ring-white/10" />
+            <div className="mb-4 inline-flex h-16 max-w-[200px] items-center justify-center rounded-2xl bg-white/10 px-4 py-2.5 ring-1 ring-white/20 backdrop-blur-md shadow-lg">
+              {/* Üveges keret (glass): áttetsző háttér + blur, a logó object-contain-nel
+                  teljes egészében látszik (nem vágódik), tetszőleges képaránnyal. */}
+              <img src={logoUrl} alt={restaurant.name} className="h-full w-auto object-contain" />
+            </div>
           )}
           <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">Asztalfoglalás</p>
           <h1 className="text-4xl font-black tracking-tight text-white leading-tight">{restaurant.name}</h1>
@@ -108,31 +113,21 @@ export async function RestaurantPublicView({ slug }: { slug: string }) {
           {openingHours.length > 0 && <OpeningHoursLive hours={openingHours} />}
         </div>
 
-        {/* Jó tudni — foglalási infó kártyák */}
-        <section>
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Mielőtt jön</p>
-          <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Jó tudni</h2>
-          <div className="grid grid-cols-2 gap-3">
-            {restaurant.turn_duration_minutes != null && (
-              <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
-                <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">
-                  <Clock className="h-4 w-4 text-white" />
-                </div>
-                <p className="font-black text-zinc-900 text-sm leading-tight">{restaurant.turn_duration_minutes} perc</p>
-                <p className="text-xs text-zinc-500 mt-0.5">az asztal foglalási ideje</p>
-              </div>
-            )}
-            {restaurant.lead_time_hours != null && (
-              <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
-                <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">
-                  <CalendarClock className="h-4 w-4 text-white" />
-                </div>
-                <p className="font-black text-zinc-900 text-sm leading-tight">{restaurant.lead_time_hours} órával előbb</p>
-                <p className="text-xs text-zinc-500 mt-0.5">legkorábbi foglalás</p>
-              </div>
-            )}
-          </div>
-        </section>
+        {/* Jó tudni — kizárólag a host által megadott pontok (nincs auto-kártya).
+            Csak akkor jelenik meg, ha van legalább egy kitöltött pont. */}
+        {(restaurant.good_to_know ?? []).filter((p) => p?.title || p?.body).length > 0 && (
+          <section>
+            <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Mielőtt jön</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Jó tudni</h2>
+            <div className="grid grid-cols-2 gap-3">
+              {(restaurant.good_to_know ?? [])
+                .filter((p) => p?.title || p?.body)
+                .map((p, i) => (
+                  <GoodToKnowCard key={p?.id ?? i} icon={iconByKey(p?.icon)} title={p?.title ?? ''} body={p?.body ?? ''} />
+                ))}
+            </div>
+          </section>
+        )}
 
         {/* Bottom CTA */}
         <div className="bg-zinc-950 rounded-2xl p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -159,6 +154,20 @@ export async function RestaurantPublicView({ slug }: { slug: string }) {
         </Link>
       </div>
       <div className="h-20 lg:hidden" />
+    </div>
+  )
+}
+
+/** Egységes „Jó tudni" csempe: kerek ikon-kör + cím + leírás. Az auto-kártyák és a
+ *  host által megadott pontok is ezt használják, hogy a rács egységes legyen. */
+function GoodToKnowCard({ icon: Icon, title, body }: { icon: LucideIcon; title: string; body: string }) {
+  return (
+    <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
+      <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">
+        <Icon className="h-4 w-4 text-white" />
+      </div>
+      {title && <p className="font-black text-zinc-900 text-sm leading-tight">{title}</p>}
+      {body && <p className="text-xs text-zinc-500 mt-0.5 whitespace-pre-line">{body}</p>}
     </div>
   )
 }

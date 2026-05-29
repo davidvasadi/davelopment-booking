@@ -230,7 +230,7 @@ export function DowChart({ data, period = 30, rawDays = [], moneyless = false }:
   )
 }
 
-export function HourChart({ data, period = 30, rawDays = [], moneyless = false }: { data: HourStat[]; period?: number; rawDays?: DayData[]; moneyless?: boolean }) {
+export function HourChart({ data, period = 30, rawDays = [], hourlyByDate, moneyless = false }: { data: HourStat[]; period?: number; rawDays?: DayData[]; hourlyByDate?: Record<string, number[]>; moneyless?: boolean }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
   const hasData = data.some(d => d.bookings > 0)
@@ -274,7 +274,7 @@ export function HourChart({ data, period = 30, rawDays = [], moneyless = false }
           <Bar dataKey="bookings" fill="#a855f7" radius={[4, 4, 0, 0]} opacity={0.85} />
         </BarChart>
       </ResponsiveContainer>
-      <KpiDetailsSheet kind="hour" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} rawDays={rawDays} moneyless={moneyless} />
+      <KpiDetailsSheet kind="hour" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} rawDays={rawDays} hourlyByDate={hourlyByDate} moneyless={moneyless} />
     </div>
   )
 }
