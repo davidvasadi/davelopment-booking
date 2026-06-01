@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Plus, Trash2, Users, ChevronDown, GripVertical, Trees, Home, Pencil } from 'lucide-react'
@@ -19,12 +19,8 @@ type RoomItem = {
   season_start?: string | null
   season_end?: string | null
 }
-/** A szezon-mezők együtt — az onSave/addRoom/saveRoom ezt adja tovább. */
 type SeasonFields = { seasonal: boolean; season_start: string | null; season_end: string | null }
 
-/** Igaz, ha a megadott szezon-beállítás mellett a `date` (YYYY-MM-DD) foglalható.
- *  (Kliens-oldali párja a restaurantBooking.isRoomAvailableOnDate-nek — év-független
- *  hónap-nap tartomány, év-átfordulót is kezel.) */
 function inSeason(season: SeasonFields, date: string): boolean {
   if (!season.seasonal) return true
   const s = season.season_start ? season.season_start.slice(5) : null
@@ -36,6 +32,7 @@ function inSeason(season: SeasonFields, date: string): boolean {
   if (e) return day <= e
   return true
 }
+
 type TableItem = {
   id: number | string
   name: string
@@ -58,27 +55,33 @@ export function TablesManager({
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState<TableItem | null>(null)
   const [editingRoom, setEditingRoom] = useState<RoomItem | null>(null)
-  // Új terem létrehozása ugyanabban a sidebarban (room=null → create mód).
   const [creatingRoom, setCreatingRoom] = useState(false)
-  // Megerősítő dialógus (glass/blur) a natív confirm() helyett.
   const [confirmState, setConfirmState] = useState<{
     title: string
     description?: string
     onConfirm: () => void
   } | null>(null)
 
-  // Összecsukott termek (localStorage, böngészőnként). Kulcs: terem-id sztringként.
+  // Lokális terem-sorrend state — ez frissül drag közben azonnal (optimistic UI)
+  const [localRooms, setLocalRooms] = useState<RoomItem[]>(() =>
+    [...initialRooms].sort((a, b) => a.sort_order - b.sort_order)
+  )
+
+  // Ha a szülő új initialRooms-t ad (pl. refresh után), szinkronizálunk
+  useEffect(() => {
+    setLocalRooms([...initialRooms].sort((a, b) => a.sort_order - b.sort_order))
+  }, [initialRooms])
+
   const COLLAPSE_KEY = `tables-collapsed-${restaurantId}`
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   useEffect(() => {
     try {
       const saved = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || '[]') as string[]
       setCollapsed(new Set(saved))
-    } catch {
-      /* ignore */
-    }
+    } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
   const toggleCollapsed = (roomId: number | string) => {
     setCollapsed((prev) => {
       const next = new Set(prev)
@@ -90,8 +93,14 @@ export function TablesManager({
     })
   }
 
-  // Drag & drop sorrend: melyik asztalt húzzuk épp.
+  // Asztal drag state
   const [dragId, setDragId] = useState<string | null>(null)
+
+  // Terem drag state (külön az asztal-drag-től, hogy a kettő ne keveredjen)
+  const [dragRoomId, setDragRoomId] = useState<string | null>(null)
+  // Ref hogy az onDrop-ban mindig a friss localRooms-t lássuk
+  const localRoomsRef = useRef(localRooms)
+  useEffect(() => { localRoomsRef.current = localRooms }, [localRooms])
 
   const refresh = () => router.refresh()
 
@@ -150,9 +159,6 @@ export function TablesManager({
     }
   }
 
-  /** Mentés előtt: ha a terem szezonálissá vált, megszámoljuk hány jövőbeli foglalás
-   *  esne a szezonon KÍVÜLRE az adott terem asztalain — és figyelmeztetünk rá (a meglévő
-   *  foglalások érintetlenek maradnak, a host kezeli ki). */
   const saveRoom = async (roomId: number | string, name: string, isOutdoor: boolean, season: SeasonFields) => {
     if (season.seasonal) {
       const affected = await countAffectedReservations(roomId, season)
@@ -171,8 +177,6 @@ export function TablesManager({
     void doSaveRoom(roomId, name, isOutdoor, season)
   }
 
-  /** Jövőbeli (mától), aktív foglalások száma az adott terem asztalain, amelyek a megadott
-   *  szezonon kívülre esnek. A terem asztalait az initialTables-ből szűrjük. */
   const countAffectedReservations = async (roomId: number | string, season: SeasonFields): Promise<number> => {
     const roomTableIds = new Set(
       initialTables.filter((t) => String(t.room) === String(roomId)).map((t) => String(t.id)),
@@ -259,9 +263,7 @@ export function TablesManager({
     }
   }
 
-  // ---- Drag & drop sorrend (termen belül) ----
-  // A húzott asztalt a célasztal elé szúrjuk, majd az érintett asztalok új
-  // sort_order-jét elmentjük. Csak az azonos termen belüli átrendezés érvényes.
+  // ---- Drag & drop asztaloknál (termen belül) ----
   const reorder = async (roomId: number | string, draggedId: string, targetId: string) => {
     if (draggedId === targetId) return
     const list = initialTables
@@ -273,15 +275,11 @@ export function TablesManager({
     const next = [...list]
     const [moved] = next.splice(from, 1)
     next.splice(to, 0, moved)
-
     setBusy(true)
     try {
-      // Minden érintettnek (akinek változott a pozíciója) új sort_order = index+1.
       await Promise.all(
         next.map((t, i) =>
-          t.sort_order === i + 1
-            ? null
-            : api(`/api/tables/${t.id}`, 'PATCH', { sort_order: i + 1 }),
+          t.sort_order === i + 1 ? null : api(`/api/tables/${t.id}`, 'PATCH', { sort_order: i + 1 }),
         ),
       )
       refresh()
@@ -289,6 +287,38 @@ export function TablesManager({
       toast.error('Nem sikerült a sorrend mentése')
     } finally {
       setBusy(false)
+    }
+  }
+
+  // ---- Drag & drop termeknél ----
+  // onDragOver közben frissítjük a lokális sorrendet → azonnal látszik az új pozíció.
+  const reorderRoomsLocal = (draggedId: string, targetId: string) => {
+    if (draggedId === targetId) return
+    setLocalRooms((prev) => {
+      const from = prev.findIndex((r) => String(r.id) === draggedId)
+      const to = prev.findIndex((r) => String(r.id) === targetId)
+      if (from === -1 || to === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      next.splice(to, 0, moved)
+      return next
+    })
+  }
+
+  // onDrop után menti az új sorrendet az API-ba (a localRoomsRef aktuális értékével)
+  const saveRoomOrder = async () => {
+    const current = localRoomsRef.current
+    try {
+      await Promise.all(
+        current.map((r, i) =>
+          r.sort_order === i + 1 ? null : api(`/api/rooms/${r.id}`, 'PATCH', { sort_order: i + 1 }),
+        ),
+      )
+      // Nincs router.refresh() — a lokális state már helyes, felesleges újrarenderelni
+    } catch {
+      toast.error('Nem sikerült a sorrend mentése')
+      // Hiba esetén visszaállítjuk az eredeti sorrendet
+      setLocalRooms([...initialRooms].sort((a, b) => a.sort_order - b.sort_order))
     }
   }
 
@@ -308,18 +338,54 @@ export function TablesManager({
         </button>
       </div>
 
-      {initialRooms.map((room) => {
+      {localRooms.map((room) => {
         const roomTables = initialTables
           .filter((t) => String(t.room) === String(room.id))
           .sort((a, b) => a.sort_order - b.sort_order)
         const seats = roomTables.reduce((s, t) => s + t.capacity, 0)
         const isCollapsed = collapsed.has(String(room.id))
+        const isDraggingThis = dragRoomId === String(room.id)
+
         return (
-          <div key={room.id} className={`${cardClass} p-5`}>
+          <div
+            key={room.id}
+            draggable
+            onDragStart={(e) => {
+              e.stopPropagation()
+              setDragRoomId(String(room.id))
+            }}
+            onDragEnd={() => {
+              setDragRoomId(null)
+            }}
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              // Élőben frissítjük a sorrendet drag közben
+              if (dragRoomId && dragRoomId !== String(room.id)) {
+                reorderRoomsLocal(dragRoomId, String(room.id))
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setDragRoomId(null)
+              // Csak terem drag esetén mentünk
+              if (dragRoomId) {
+                void saveRoomOrder()
+              }
+            }}
+            className={`${cardClass} p-5 transition-opacity cursor-grab active:cursor-grabbing ${
+              isDraggingThis ? 'opacity-40' : 'opacity-100'
+            }`}
+          >
             <div className="flex items-center justify-between gap-2 mb-4">
+              <GripVertical
+                className="h-4 w-4 shrink-0 text-zinc-300 dark:text-white/20"
+                aria-label="Húzd át a terem áthelyezéséhez"
+              />
               <button
                 onClick={() => toggleCollapsed(room.id)}
-                className="flex items-center gap-2 min-w-0 text-left group"
+                className="flex items-center gap-2 min-w-0 flex-1 text-left group"
                 title={isCollapsed ? 'Kibontás' : 'Összecsukás'}
               >
                 <ChevronDown
@@ -344,9 +410,10 @@ export function TablesManager({
                   </span>
                 </span>
               </button>
-              <div className="flex items-center shrink-0">
+              <div className="flex items-center shrink-0 gap-1">
+                <GripVertical className="h-4 w-4 text-zinc-300 dark:text-white/20" />
                 <button
-                  onClick={() => setEditingRoom(room)}
+                  onClick={(e) => { e.stopPropagation(); setEditingRoom(room) }}
                   disabled={busy}
                   className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors p-2"
                   title="Terem szerkesztése"
@@ -354,7 +421,7 @@ export function TablesManager({
                   <Pencil className="h-4 w-4" />
                 </button>
                 <button
-                  onClick={() => deleteRoom(room.id)}
+                  onClick={(e) => { e.stopPropagation(); deleteRoom(room.id) }}
                   disabled={busy}
                   className="text-zinc-400 hover:text-red-500 transition-colors p-2"
                   title="Terem törlése"
@@ -370,12 +437,17 @@ export function TablesManager({
                   <div
                     key={t.id}
                     draggable
-                    onDragStart={() => setDragId(String(t.id))}
+                    onDragStart={(e) => {
+                      e.stopPropagation()
+                      setDragId(String(t.id))
+                      setDragRoomId(null)
+                    }}
                     onDragEnd={() => setDragId(null)}
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => {
                       e.preventDefault()
-                      if (dragId) reorder(room.id, dragId, String(t.id))
+                      e.stopPropagation()
+                      if (dragId) void reorder(room.id, dragId, String(t.id))
                       setDragId(null)
                     }}
                     className={`group relative text-left border rounded-xl p-3 transition-all cursor-grab active:cursor-grabbing ${
@@ -415,7 +487,7 @@ export function TablesManager({
         onRequestDelete={(t) =>
           setConfirmState({
             title: 'Asztal törlése',
-            description: `Biztosan törlöd a(z) „${t.name}” asztalt? Ez nem vonható vissza.`,
+            description: `Biztosan törlöd a(z) „${t.name}" asztalt? Ez nem vonható vissza.`,
             onConfirm: () => runDeleteTable(t.id),
           })
         }
@@ -453,7 +525,6 @@ function RoomEditSheet({
   creating: boolean
   busy: boolean
   onClose: () => void
-  // roomId === null → új terem létrehozása.
   onSave: (roomId: number | string | null, name: string, isOutdoor: boolean, season: SeasonFields) => void
 }) {
   const open = !!room || creating
@@ -463,7 +534,6 @@ function RoomEditSheet({
   const [seasonStart, setSeasonStart] = useState('')
   const [seasonEnd, setSeasonEnd] = useState('')
 
-  // Helyi állapot szinkronizálása, amikor másik terem (vagy create mód) nyílik.
   const [lastKey, setLastKey] = useState<string | null>(null)
   const key = room ? String(room.id) : creating ? 'new' : null
   if (open && key !== lastKey) {
@@ -548,7 +618,6 @@ function TableEditSheet({
   allTables: TableItem[]
   onClose: () => void
   onSaved: () => void
-  /** A törlés megerősítését a szülő közös (sheeten kívüli) dialógusa intézi. */
   onRequestDelete: (table: TableItem) => void
 }) {
   const [name, setName] = useState('')
@@ -556,7 +625,6 @@ function TableEditSheet({
   const [combinable, setCombinable] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
 
-  // Sync local state when a new table is opened
   const [lastId, setLastId] = useState<string | null>(null)
   if (table && String(table.id) !== lastId) {
     setLastId(String(table.id))
@@ -568,7 +636,6 @@ function TableEditSheet({
   const toggleCombinable = (id: string) =>
     setCombinable((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
-  // A többi asztal, amivel ez összevonható lehet
   const others = table ? allTables.filter((t) => String(t.id) !== String(table.id)) : []
   const comboCapacity = capacity + others.filter((t) => combinable.includes(String(t.id))).reduce((s, t) => s + t.capacity, 0)
 
@@ -591,8 +658,6 @@ function TableEditSheet({
       })
       if (!res.ok) throw new Error()
 
-      // Szimmetria: a kapcsolatot a másik asztal rekordjába is bele- ill. kivesszük,
-      // hogy mindkét oldalon látszódjon a pipa és az adat konzisztens maradjon.
       const before = new Set(table.combinable_with.map(String))
       const after = new Set(combinable)
       const added = others.filter((t) => after.has(String(t.id)) && !before.has(String(t.id)))
@@ -636,8 +701,6 @@ function TableEditSheet({
           </div>
           <div className="space-y-1.5">
             <Label className={labelClass}>Hány fős</Label>
-            {/* Érintőbarát stepper (mint a foglalás-sidebar létszámánál): nagy +/− gombok,
-                tableten kényelmes, nincs egymásba csúszó natív nyíl. 1–20 fő. */}
             <div className="flex h-11 items-center rounded-xl border border-zinc-200 bg-zinc-50 dark:border-white/[0.1] dark:bg-white/[0.06]">
               <button
                 type="button"

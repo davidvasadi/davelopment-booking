@@ -44,6 +44,7 @@ export const Reservations: CollectionConfig = {
     { name: 'customer_name', type: 'text', required: true, label: 'Vendég neve' },
     { name: 'customer_email', type: 'email', label: 'Email' },
     { name: 'customer_phone', type: 'text', label: 'Telefon' },
+    { name: 'country', type: 'text', label: 'Ország (ISO kód, pl. HU)', admin: { description: 'A foglaló országa a telefon-előhívó választóból (statisztikához).' } },
     { name: 'notes', type: 'textarea', label: 'Megjegyzés (vendégtől)' },
     { name: 'internal_notes', type: 'textarea', label: 'Belső megjegyzés' },
     { name: 'is_birthday', type: 'checkbox', defaultValue: false, label: 'Szülinapos foglalás' },

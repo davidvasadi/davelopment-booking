@@ -1,6 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
+import { createPortal } from 'react-dom'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
 import { List, LayoutGrid, Map as MapIcon, Plus, Users, Clock, Cake } from 'lucide-react'
 import { ReservationActions } from './ReservationActions'
@@ -189,9 +192,46 @@ export function DailyView(props: DailyViewProps) {
     }
   }, [openReservationId, props.reservations])
 
+  const router = useRouter()
   const openEdit = (reservation: Reservation) => setTarget({ reservation })
   const openCreate = (presetStart?: string, presetTableId?: string | number | null) =>
     setTarget({ reservation: null, presetStart, presetTableId })
+
+  // Foglalás áthelyezése drag&drop-ból: új időpont és/vagy asztal. A szerver validál
+  // (ütközés, nyitvatartás, kapacitás) — hibánál a router.refresh visszaállítja az
+  // eredeti pozíciót, és toast jelzi az okot. Vázlatot (offline draft) nem mozgatunk.
+  const moveReservation = async (r: Reservation, newStart: string, newTableId: string | number) => {
+    if (isDraft(r)) return
+    try {
+      const res = await fetch('/api/restaurant/manage-reservation', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          reservationId: r.id,
+          date,
+          start_time: newStart,
+          pax: r.pax,
+          tableIds: [newTableId],
+          customer_name: r.customer_name,
+          customer_phone: r.customer_phone ?? '',
+          customer_email: r.customer_email ?? '',
+          notes: r.notes ?? '',
+          status: r.status,
+          source: r.source,
+          is_birthday: r.is_birthday ?? false,
+          duration_minutes: hhmmToMinutes(r.end_time) - hhmmToMinutes(r.start_time),
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Az áthelyezés nem sikerült')
+      toast.success('Foglalás áthelyezve')
+      router.refresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Az áthelyezés nem sikerült')
+      router.refresh() // visszaállítja az eredeti pozíciót
+    }
+  }
 
   const viewButtons: { mode: ViewMode; icon: typeof List; label: string }[] = [
     { mode: 'list', icon: List, label: 'Lista' },
@@ -243,6 +283,7 @@ export function DailyView(props: DailyViewProps) {
           {...{ reservations, rooms, tables, openMin, closeMin, turnMinutes }}
           onEdit={openEdit}
           onCreate={openCreate}
+          onMove={moveReservation}
         />
       )}
       {view === 'floor' && (
@@ -365,10 +406,11 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
 
 /* ---------- Timeline (asztal × idő rács) ---------- */
 function TimelineView({
-  date, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate,
+  date, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate, onMove,
 }: ViewProps & {
   onEdit: (r: Reservation) => void
   onCreate: (start?: string, tableId?: string | number | null) => void
+  onMove: (r: Reservation, newStart: string, newTableId: string | number) => void
 }) {
   const totalMin = Math.max(closeMin - openMin, 60)
   const nowMin = useNowMinutes(date)
@@ -404,14 +446,14 @@ function TimelineView({
       {/* Mobil: az eredeti, vízszintesen görgethető fix-px idővonal */}
       <div className="lg:hidden">
         <TableGrid
-          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate }}
+          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate, onMove }}
           mode="scroll"
         />
       </div>
       {/* Desktop: a teljes nap egy nézetben (százalékos) */}
       <div className="hidden lg:block">
         <TableGrid
-          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate }}
+          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate, onMove }}
           mode="fit"
         />
       </div>
@@ -424,7 +466,7 @@ function TimelineView({
  *  (desktop). A foglalás-blokkok tartalma közös. */
 const PX_PER_MIN = 2.4 // scroll módban 1 perc = 2.4px → 30 perc = 72px
 function TableGrid({
-  groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, mode, onEdit, onCreate,
+  groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, mode, onEdit, onCreate, onMove,
 }: {
   groups: { name: string | null; tables: Table[] }[]
   active: Reservation[]
@@ -439,6 +481,7 @@ function TableGrid({
   mode: 'scroll' | 'fit'
   onEdit: (r: Reservation) => void
   onCreate: (start?: string, tableId?: string | number | null) => void
+  onMove: (r: Reservation, newStart: string, newTableId: string | number) => void
 }) {
   const fit = mode === 'fit'
   const labelW = 'w-24 sm:w-32'
@@ -447,8 +490,90 @@ function TableGrid({
   const span = (min: number) => (fit ? `${(min / totalMin) * 100}%` : `${min * PX_PER_MIN}px`)
   const axisWidth = fit ? undefined : totalMin * PX_PER_MIN
 
+  // ── Drag & drop: foglalás-blokk áthelyezése (időpont + asztal) ──
+  // Húzás közben egy fixed overlay-blokk követi az egeret (vízszintesen + függőlegesen),
+  // és kiemeljük a cél asztal-sort. Elengedéskor onMove → szerver (15 perces rács).
+  type DragState = {
+    r: Reservation
+    dur: number
+    previewMin: number // a blokk kezdete (perc, 15-re kerekítve) a cél-soron
+    tableId: string | number // cél asztal (amelyik sor fölött az egér van)
+    cx: number; cy: number // élő kurzor pozíció (fixed overlay-hez)
+    grabDx: number // a fogáspont eltolása a blokk elejétől (px), hogy ne ugorjon
+    widthPx: number // a húzott blokk szélessége px-ben
+  }
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const dragRef = useRef<DragState | null>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+
+  const xToMin = (clientX: number, rowEl: HTMLElement): number => {
+    const rect = rowEl.getBoundingClientRect()
+    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+    return Math.round((openMin + ratio * totalMin) / 15) * 15
+  }
+
+  useEffect(() => {
+    if (!drag) return
+    const onMoveEvt = (e: PointerEvent) => {
+      const cur = dragRef.current
+      if (!cur) return
+      // Melyik asztal-sor fölött vagyunk? Az overlay pointer-events:none, így az
+      // elementFromPoint az ALATTA lévő sort találja meg (nem a húzott blokkot).
+      const el = document.elementFromPoint(e.clientX, e.clientY)
+      const axis = el?.closest<HTMLElement>('[data-axis-table]')
+      const tableId = axis?.dataset.axisTable ?? cur.tableId
+      const rowAxis = axis ?? gridRef.current?.querySelector<HTMLElement>(`[data-axis-table="${cur.tableId}"]`)
+      // Az időpont a blokk ELEJÉHEZ igazodik: a fogáspont (grabDx) korrekciójával.
+      let previewMin = cur.previewMin
+      if (rowAxis) {
+        previewMin = xToMin(e.clientX - cur.grabDx, rowAxis)
+        previewMin = Math.max(openMin, Math.min(previewMin, closeMin - cur.dur))
+      }
+      const next = { ...cur, previewMin, tableId, cx: e.clientX, cy: e.clientY }
+      dragRef.current = next
+      setDrag(next)
+    }
+    const onUp = () => {
+      const cur = dragRef.current
+      dragRef.current = null
+      setDrag(null)
+      if (!cur) return
+      const newStart = minutesToHHMM(cur.previewMin)
+      const origTableId = firstTableId(cur.r)
+      const changed = newStart !== cur.r.start_time || String(cur.tableId) !== String(origTableId)
+      if (changed) onMove(cur.r, newStart, cur.tableId)
+    }
+    window.addEventListener('pointermove', onMoveEvt)
+    window.addEventListener('pointerup', onUp)
+    return () => {
+      window.removeEventListener('pointermove', onMoveEvt)
+      window.removeEventListener('pointerup', onUp)
+    }
+  }, [drag, openMin, closeMin, totalMin, onMove])
+
+  const firstTableId = (r: Reservation): string | number => {
+    const t = r.tables?.[0]
+    return (t && typeof t === 'object' ? t.id : t) ?? ''
+  }
+  const startDrag = (r: Reservation, e: React.PointerEvent) => {
+    if (isDraft(r)) return
+    const s = hhmmToMinutes(r.start_time)
+    const dur = hhmmToMinutes(r.end_time) - s
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+    const init: DragState = {
+      r, dur, previewMin: s, tableId: firstTableId(r),
+      cx: e.clientX, cy: e.clientY,
+      grabDx: e.clientX - rect.left, // hol fogtuk meg a blokkot (a bal szélétől)
+      widthPx: rect.width,
+    }
+    dragRef.current = init
+    setDrag(init)
+    e.preventDefault()
+  }
+
   return (
-    <div className={`${card} ${fit ? 'overflow-hidden' : 'overflow-x-auto'}`}>
+    <>
+    <div ref={gridRef} className={`${card} ${fit ? 'overflow-hidden' : 'overflow-x-auto'}`}>
       <div style={fit ? undefined : { minWidth: (axisWidth ?? 0) + 128 }}>
         {/* idő-tengely fejléc */}
         <div className="flex z-20 bg-white dark:bg-zinc-900 border-b border-zinc-100 dark:border-white/[0.06]">
@@ -485,10 +610,13 @@ function TableGrid({
             )}
             {g.tables.map((t) => {
               const rows = active.filter((r) => tableIdsOf(r).includes(String(t.id)))
+              const isDropTarget = drag && String(drag.tableId) === String(t.id)
               return (
                 <div
                   key={t.id}
-                  className="flex min-h-[3.25rem] border-b border-zinc-50 dark:border-white/[0.04] hover:bg-zinc-50/50 dark:hover:bg-white/[0.02] transition-colors"
+                  className={`flex min-h-[3.25rem] border-b border-zinc-50 dark:border-white/[0.04] transition-colors ${
+                    isDropTarget ? 'bg-amber-100/60 dark:bg-amber-500/[0.12]' : 'hover:bg-zinc-50/50 dark:hover:bg-white/[0.02]'
+                  }`}
                 >
                   <div className={`${labelW} shrink-0 px-4 flex items-center justify-between gap-1 border-r border-zinc-50 dark:border-white/[0.04]`}>
                     <span className="text-sm font-medium text-zinc-900 dark:text-white truncate">{t.name}</span>
@@ -497,9 +625,11 @@ function TableGrid({
                     </span>
                   </div>
                   <div
+                    data-axis-table={t.id}
                     className="relative flex-1 min-w-0 cursor-pointer"
                     style={fit ? undefined : { width: axisWidth }}
                     onClick={(e) => {
+                      if (drag) return // húzás közben ne hozzon létre újat
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                       const min = openMin + Math.round((e.clientX - rect.left) / rect.width * totalMin / 15) * 15
                       onCreate(minutesToHHMM(Math.max(openMin, Math.min(min, closeMin - turnMinutes))), t.id)
@@ -566,13 +696,18 @@ function TableGrid({
                         </span>
                       )
 
+                      // Húzás közben az eredeti blokk a helyén marad halványan, és
+                      // pointer-events:none, hogy az elementFromPoint az alatta lévő sort lássa.
+                      // A kurzort egy külön fixed overlay-blokk követi (lásd lent).
+                      const isDragging = drag?.r.id === r.id
                       return (
                         <button
                           key={r.id}
-                          onClick={(ev) => { ev.stopPropagation(); onEdit(r) }}
-                          title={`${draft ? 'VÁZLAT — ' : ''}${r.customer_name} · ${r.pax} fő · ${r.start_time}–${r.end_time} · ${urgency ? urgency.label : statusLabel[r.status]}`}
-                          className={`absolute top-1/2 -translate-y-1/2 max-h-[calc(100%-0.5rem)] rounded-md border px-2 py-1.5 text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 shadow-sm hover:brightness-105 transition-all ${draft ? 'border-2 border-dashed border-amber-500 bg-amber-100/80 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100' : statusBlock[r.status]}`}
-                          style={{ left: `calc(${left(s)} + 2px)`, width: `calc(${span(dur)} - 4px)` }}
+                          onPointerDown={(ev) => { if (!draft) { ev.stopPropagation(); startDrag(r, ev) } }}
+                          onClick={(ev) => { ev.stopPropagation(); if (!drag) onEdit(r) }}
+                          title={`${draft ? 'VÁZLAT — ' : 'Húzd át másik időpontra/asztalra · '}${r.customer_name} · ${r.pax} fő · ${r.start_time}–${r.end_time} · ${urgency ? urgency.label : statusLabel[r.status]}`}
+                          className={`absolute top-1/2 -translate-y-1/2 max-h-[calc(100%-0.5rem)] rounded-md border px-2 py-1.5 text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 shadow-sm transition-all ${draft ? 'border-2 border-dashed border-amber-500 bg-amber-100/80 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100 cursor-default' : `${statusBlock[r.status]} cursor-grab active:cursor-grabbing hover:brightness-105`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
+                          style={{ left: `calc(${left(s)} + 2px)`, width: `calc(${span(dur)} - 4px)`, touchAction: 'none' }}
                         >
                           {wide ? (
                             <>
@@ -610,6 +745,27 @@ function TableGrid({
         ))}
       </div>
     </div>
+
+    {/* Húzott blokk — fixed overlay, követi a kurzort (pointer-events:none, hogy az
+        elementFromPoint az alatta lévő sort lássa). A cél időpont + asztal a fejlécben. */}
+    {drag && typeof document !== 'undefined' && createPortal(
+      <div
+        className="pointer-events-none fixed z-[200] rounded-md border border-black/10 bg-amber-400 px-2 py-1.5 text-xs font-bold text-amber-950 shadow-2xl ring-2 ring-amber-500"
+        style={{
+          left: drag.cx - drag.grabDx,
+          top: drag.cy - 18,
+          width: drag.widthPx,
+          opacity: 0.95,
+        }}
+      >
+        <div className="truncate">{drag.r.customer_name}</div>
+        <div className="tabular-nums opacity-80">
+          {minutesToHHMM(drag.previewMin)}–{minutesToHHMM(drag.previewMin + drag.dur)}
+        </div>
+      </div>,
+      document.body,
+    )}
+    </>
   )
 }
 

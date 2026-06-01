@@ -66,6 +66,14 @@ export interface RestaurantStats {
   /** Nyers dwell-adat a részletek sidebarhoz: minden befejezett foglalás dátuma, létszáma
    *  és tényleges hossza (perc). A sheet ebből szűr időszakra és csoportosít újra. */
   dwellRaw: { date: string; pax: number; minutes: number }[]
+  /** Nemzetiség-bontás (időszak, aktív foglalások): belföldi (HU) vs külföldi darab,
+   *  és a top külföldi országok (ISO kód + darab). */
+  domesticCount: number
+  foreignCount: number
+  topCountries: { code: string; count: number }[]
+  /** Nyers nemzetiség-adat a részletek sidebarhoz: aktív foglalások dátuma + ország (ISO)
+   *  + létszám (pax). A sheet ebből szűr időszakra és számol LÉTSZÁM-alapú arányt. */
+  nationalityRaw: { date: string; country: string; pax: number }[]
 }
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated', 'completed']
@@ -140,7 +148,7 @@ export async function getRestaurantStats(
       depth: 0,
       limit: 5000,
       // Csak a számításhoz használt mezők – kevesebb adat a DB-ből és a hidratálásból.
-      select: { date: true, status: true, source: true, pax: true, start_time: true, end_time: true },
+      select: { date: true, status: true, source: true, pax: true, start_time: true, end_time: true, country: true },
       overrideAccess: true,
     }),
     payload.find({
@@ -288,6 +296,31 @@ export async function getRestaurantStats(
     .map((r) => ({ date: r.date, pax: r.pax ?? 0, minutes: dwellMinutes(r) }))
     .filter((d) => d.minutes > 0)
 
+  // ── Nemzetiség-bontás (időszak, aktív foglalások) ────────────────
+  // HU (vagy hiányzó country = régi/belföldi) → belföldi, minden más → külföldi.
+  let domesticCount = 0
+  let foreignCount = 0
+  const countryCount: Record<string, number> = {}
+  for (const r of periodDocs) {
+    const c = (r as Reservation & { country?: string | null }).country
+    const p = r.pax ?? 0 // LÉTSZÁM-alapú mérés (nem foglalás-darab)
+    if (!c || c === 'HU') {
+      domesticCount += p
+    } else {
+      foreignCount += p
+      countryCount[c] = (countryCount[c] ?? 0) + p
+    }
+  }
+  const topCountries = Object.entries(countryCount)
+    .map(([code, count]) => ({ code, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
+  // Nyers nemzetiség-adat a sidebar szűréshez (a teljes lekért tartományra, aktív foglalások).
+  const nationalityRaw = all
+    .filter((r) => ACTIVE_STATUSES.includes(r.status))
+    .map((r) => ({ date: r.date, country: (r as Reservation & { country?: string | null }).country || 'HU', pax: r.pax ?? 0 }))
+
   // Napi×órás nyers bontás a részletek sheethez (dátum → 24 elemű óránkénti darab).
   // A sheet ebből szűr a kiválasztott időszakra/napra és napi ÁTLAGot számol.
   const hourlyByDate: Record<string, number[]> = {}
@@ -357,5 +390,9 @@ export async function getRestaurantStats(
     avgDwell,
     avgDwellOverall,
     dwellRaw,
+    domesticCount,
+    foreignCount,
+    topCountries,
+    nationalityRaw,
   }
 }

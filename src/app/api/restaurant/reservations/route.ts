@@ -14,6 +14,7 @@ const schema = z.object({
   customer_name: z.string().min(2),
   customer_email: z.string().email(),
   customer_phone: z.string().optional(),
+  country: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -29,7 +30,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, notes } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, country, notes } = parsed.data
 
   try {
     const payload = await getPayloadClient()
@@ -64,6 +65,7 @@ export async function POST(request: NextRequest) {
         customer_name,
         customer_email,
         ...(customer_phone ? { customer_phone } : {}),
+        ...(country ? { country } : {}),
         ...(notes ? { notes } : {}),
         status: 'confirmed',
         cancel_token: cancelToken,

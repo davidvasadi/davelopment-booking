@@ -4,6 +4,7 @@ import { StatCard } from '@/components/dashboard/StatCard'
 import { ReservationTrendChart, DowChart, HourChart } from '@/components/dashboard/DashboardCharts'
 import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
 import { DwellCard } from '@/components/restaurant/DwellCard'
+import { NationalityCard } from '@/components/restaurant/NationalityCard'
 import { Reveal } from '@/components/ui/reveal'
 import PeriodFilter from '@/components/dashboard/PeriodFilter'
 
@@ -88,6 +89,19 @@ export default async function RestaurantAnalyticsPage({
             avgDwell={stats.avgDwell}
             avgDwellOverall={stats.avgDwellOverall}
             dwellRaw={stats.dwellRaw}
+            periodLabel={label}
+          />
+        </Reveal>
+      )}
+
+      {/* Vendégek nemzetisége — belföldi/külföldi arány + top országok */}
+      {(stats.domesticCount + stats.foreignCount) > 0 && (
+        <Reveal mountOnReveal minHeight={240}>
+          <NationalityCard
+            domesticCount={stats.domesticCount}
+            foreignCount={stats.foreignCount}
+            topCountries={stats.topCountries}
+            nationalityRaw={stats.nationalityRaw}
             periodLabel={label}
           />
         </Reveal>

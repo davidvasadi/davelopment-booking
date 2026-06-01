@@ -7,8 +7,10 @@ import { hu } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { Minus, Plus, Loader2, Trees } from 'lucide-react'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
+import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
 
 const DAY_COUNT = 30
+const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.dial]))
 
 export function RestaurantBookingWizard({
   restaurantId,
@@ -42,6 +44,7 @@ export function RestaurantBookingWizard({
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [country, setCountry] = useState('HU')
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -86,7 +89,9 @@ export function RestaurantBookingWizard({
           restaurantId, date, start_time: time, pax,
           customer_name: name.trim(),
           customer_email: email.trim(),
-          customer_phone: phone.trim() || undefined,
+          // A teljes nemzetközi szám (előhívó + helyi), és az ország ISO-kódja külön.
+          customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : undefined,
+          country,
           notes: notes.trim() || undefined,
         }),
       })
@@ -193,7 +198,14 @@ export function RestaurantBookingWizard({
           <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30">Adataid</p>
           <input className={inputClass} placeholder="Teljes név" value={name} onChange={(e) => setName(e.target.value)} />
           <input className={inputClass} type="email" placeholder="Email cím" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input className={inputClass} type="tel" placeholder={`Telefonszám${requirePhone ? '' : ' (opcionális)'}`} value={phone} onChange={(e) => setPhone(e.target.value)} />
+          <PhoneCountryInput
+            country={country}
+            phone={phone}
+            onCountryChange={setCountry}
+            onPhoneChange={setPhone}
+            required={requirePhone}
+            inputClass="h-11 rounded-xl bg-zinc-50 dark:bg-white/[0.06] border border-zinc-200 dark:border-white/[0.1] px-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400"
+          />
           <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder="Megjegyzés (opcionális)" value={notes} onChange={(e) => setNotes(e.target.value)} />
           <button
             onClick={submit}

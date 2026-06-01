@@ -139,6 +139,7 @@ export interface Reservation {
   customer_name: string
   customer_email: string
   customer_phone?: string | null
+  country?: string | null
   notes?: string | null
   internal_notes?: string | null
   is_birthday?: boolean | null
