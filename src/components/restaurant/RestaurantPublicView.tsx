@@ -54,11 +54,7 @@ export async function RestaurantPublicView({ slug }: { slug: string }) {
         )}
         <div className="relative max-w-3xl mx-auto px-5 pt-12 pb-10">
           {logoUrl && (
-            <div className="mb-4 inline-flex h-16 max-w-[200px] items-center justify-center rounded-2xl bg-white/10 px-4 py-2.5 ring-1 ring-white/20 backdrop-blur-md shadow-lg">
-              {/* Üveges keret (glass): áttetsző háttér + blur, a logó object-contain-nel
-                  teljes egészében látszik (nem vágódik), tetszőleges képaránnyal. */}
-              <img src={logoUrl} alt={restaurant.name} className="h-full w-auto object-contain" />
-            </div>
+            <img src={logoUrl} alt={restaurant.name} className="h-12 w-12 rounded-xl object-cover mb-4 ring-1 ring-white/10" />
           )}
           <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest mb-2">Asztalfoglalás</p>
           <h1 className="text-4xl font-black tracking-tight text-white leading-tight">{restaurant.name}</h1>

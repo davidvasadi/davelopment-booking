@@ -33,7 +33,7 @@ export default function MobileBottomNav({
   const secondaryNav = navItems.slice(4)
 
   const handleLogout = async () => {
-    await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
+    await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
     router.push('/login')
     toast.success('Kijelentkezve')
   }

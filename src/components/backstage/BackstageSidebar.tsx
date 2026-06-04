@@ -74,7 +74,7 @@ export function BackstageSidebar({ email }: Props) {
     exact ? pathname === href : pathname.startsWith(href)
 
   const handleLogout = async () => {
-    await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
+    await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
     router.push('/backstage/login')
     toast.success('Kijelentkezve')
   }

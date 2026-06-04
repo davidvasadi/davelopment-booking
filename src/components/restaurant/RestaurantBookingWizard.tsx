@@ -215,10 +215,10 @@ export function RestaurantBookingWizard({
             {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Foglalás…</> : `Foglalás véglegesítése · ${pax} fő · ${time}`}
           </button>
           {((termsSections && termsSections.length > 0) || company) && (
-            <p className="text-center text-xs text-zinc-400 dark:text-white/30">
+            <div className="text-center text-xs text-zinc-400 dark:text-white/30">
               A foglalás véglegesítésével elfogadod a{' '}
               <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-white/60" />
-            </p>
+            </div>
           )}
         </div>
       )}

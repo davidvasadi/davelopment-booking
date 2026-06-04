@@ -513,10 +513,10 @@ export default function BookingWizard({
               {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Küldés...</> : 'Foglalás megerősítése →'}
             </button>
             {((termsSections && termsSections.length > 0) || company) && (
-              <p className="mt-3 text-center text-xs text-zinc-400">
+              <div className="mt-3 text-center text-xs text-zinc-400">
                 A foglalás megerősítésével elfogadod a{' '}
                 <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
-              </p>
+              </div>
             )}
             </>
           )}

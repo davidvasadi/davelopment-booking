@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams } from 'next/navigation'
 import { FileText, X } from 'lucide-react'
 import { TermsContent, buildTermsItems, type Section, type CompanyInfo } from './TermsContent'
@@ -23,7 +24,21 @@ export function TermsModal({
   triggerClassName?: string
 }) {
   const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const searchParams = useSearchParams()
+
+  useEffect(() => setMounted(true), [])
+
+  // Amíg a modal nyitva van, a háttér (body) ne görögjön — különben a
+  // görgetés a lapon landol, nem a modal tartalmán.
+  useEffect(() => {
+    if (!open) return
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [open])
 
   // Az emailből érkező link (?terms=1) betöltéskor azonnal felnyitja a modált.
   useEffect(() => {
@@ -44,13 +59,13 @@ export function TermsModal({
         Foglalási feltételek
       </button>
 
-      {open && (
+      {open && mounted && createPortal(
         <div
           className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
           onClick={() => setOpen(false)}
         >
           <div
-            className="w-full max-w-lg max-h-[80vh] flex flex-col rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/[0.08] shadow-2xl"
+            className="w-full max-w-lg h-[80dvh] flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/[0.08] shadow-2xl"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
@@ -65,11 +80,12 @@ export function TermsModal({
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="overflow-y-auto px-6 py-5">
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-5" data-lenis-prevent>
               <TermsContent items={items} />
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

@@ -88,18 +88,27 @@ const REOPEN_EVENT = 'schedulio:open-onboarding'
 
 type Rect = { top: number; left: number; width: number; height: number }
 
-/** A teljes képernyős réteghez egy téglalap-lyukat vág a megadott területen,
- *  `clip-path` evenodd polygonnal: a külső kontúr a teljes viewport, a belső
- *  (ellentétes körüljárású) a lyuk. Így a réteg (sötét + backdrop-blur) a lyukon
- *  kívül érvényesül, a lyukban nem — ott a nav elem élesen látszik. */
-function rectHoleMask(hl: Rect): React.CSSProperties {
-  const x1 = hl.left
-  const y1 = hl.top
-  const x2 = hl.left + hl.width
-  const y2 = hl.top + hl.height
-  // Külső téglalap (CW) → vissza a kezdőpontba → belső téglalap (CCW) = lyuk.
-  const path = `polygon(evenodd, 0 0, 100% 0, 100% 100%, 0 100%, 0 0, ${x1}px ${y1}px, ${x1}px ${y2}px, ${x2}px ${y2}px, ${x2}px ${y1}px, ${x1}px ${y1}px)`
-  return { clipPath: path, WebkitClipPath: path } as React.CSSProperties
+/** A blur-réteghez egy LEKEREKÍTETT téglalap-lyukat vág `mask`-kal: a teljes felület
+ *  látható (blur érvényesül), kivéve a célelem helyén lévő kerek-sarkú téglalapot
+ *  (ott a blur kimaszkolva → a kiemelt elem éles és kerek marad, nem szögletes). */
+function holeMaskStyle(hl: Rect): React.CSSProperties {
+  const r = 16 // a lyuk sarok-lekerekítése (≈ rounded-2xl)
+  const hole = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='${hl.width}' height='${hl.height}'%3E%3Crect width='${hl.width}' height='${hl.height}' rx='${r}' ry='${r}' fill='%23000'/%3E%3C/svg%3E")`
+  const full = 'linear-gradient(#000 0 0)'
+  return {
+    WebkitMaskImage: `${full}, ${hole}`,
+    WebkitMaskPosition: `0 0, ${hl.left}px ${hl.top}px`,
+    WebkitMaskSize: `auto, ${hl.width}px ${hl.height}px`,
+    WebkitMaskRepeat: 'no-repeat, no-repeat',
+    WebkitMaskComposite: 'destination-out',
+    maskImage: `${full}, ${hole}`,
+    maskPosition: `0 0, ${hl.left}px ${hl.top}px`,
+    maskSize: `auto, ${hl.width}px ${hl.height}px`,
+    maskRepeat: 'no-repeat, no-repeat',
+    maskComposite: 'exclude',
+    // (a `pos` rövidített forma egyes böngészőkben nem áll össze megbízhatóan,
+    //  ezért a hosszú, szétbontott mask-* tulajdonságokat használjuk fent.)
+  } as React.CSSProperties & Record<string, string>
 }
 
 export function OnboardingTour({ variant, userId }: { variant: Variant; userId?: string }) {
@@ -237,35 +246,36 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
       aria-modal="true"
       aria-label="Bevezető körbevezetés"
     >
-      {/* Blur + sötétítő réteg, a kiemelt nav elemnél kimaszkolva — ott a nav éles. */}
-      <div
-        className="absolute inset-0 bg-zinc-950/55 backdrop-blur-md transition-all duration-300"
-        style={hl ? rectHoleMask(hl) : undefined}
-        onClick={() => (isLast ? close() : setIndex((i) => i + 1))}
-      />
+      {/* Sötétítő réteg kattintható háttérként. Ha van kiemelt elem, ezt a kerek
+          „lyuk" (lentebb, box-shadow spread) takarja le — itt csak a cél nélküli
+          (középre tett kártya) esetben sötétít, blurral. */}
+      {!hl && (
+        <div
+          className="absolute inset-0 bg-zinc-950/55 backdrop-blur-md transition-all duration-300"
+          onClick={() => (isLast ? close() : setIndex((i) => i + 1))}
+        />
+      )}
 
-      {/* Kiemelő gyűrű a célelem körül: lágy fehér ring + pulzáló külső gyűrű. */}
+      {/* Kiemelő keret + sötétítés + blur, KEREK lyukkal:
+          1) box-shadow spread sötétíti a környezetet, a „lyuk" éles és kerek;
+          2) egy külön backdrop-blur réteget a célelem körül lekerekített téglalap
+             maszkkal kivágunk, így a háttér homályos, de a kiemelt elem éles+kerek. */}
       {hl && (
         <>
           <div
-            className="absolute rounded-xl pointer-events-none transition-all duration-300 ease-out"
+            className="absolute inset-0 backdrop-blur-md"
+            style={holeMaskStyle(hl)}
+            onClick={() => (isLast ? close() : setIndex((i) => i + 1))}
+          />
+          <div
+            className="absolute rounded-2xl pointer-events-none transition-all duration-300 ease-out"
             style={{
               top: hl.top,
               left: hl.left,
               width: hl.width,
               height: hl.height,
               boxShadow:
-                '0 0 0 2px rgba(255,255,255,0.9), 0 0 0 5px rgba(255,255,255,0.18), 0 8px 30px 2px rgba(0,0,0,0.35)',
-            }}
-          />
-          <div
-            className="absolute rounded-xl pointer-events-none ring-1 ring-white/40 animate-ping"
-            style={{
-              top: hl.top,
-              left: hl.left,
-              width: hl.width,
-              height: hl.height,
-              animationDuration: '2.2s',
+                '0 0 0 9999px rgba(9,9,11,0.55), 0 0 0 1px rgba(255,255,255,0.25), 0 8px 30px 2px rgba(0,0,0,0.30)',
             }}
           />
         </>
@@ -273,20 +283,20 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
 
       {/* Magyarázó buborék */}
       <div
-        className="absolute rounded-2xl border border-white/[0.16] bg-white/95 dark:bg-zinc-900/90 backdrop-blur-2xl shadow-2xl shadow-black/50 p-5 animate-in fade-in zoom-in-95 duration-200"
+        className="absolute rounded-2xl border border-zinc-200 dark:border-white/[0.08] bg-white dark:bg-zinc-900 shadow-2xl shadow-black/40 p-5 animate-in fade-in zoom-in-95 duration-200"
         style={{ ...bubbleStyle, width: `min(${BUBBLE_W}px, calc(100vw - 24px))` }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Csőr — a kiemelt elemre mutat */}
         {arrow?.side === 'left' && (
           <span
-            className="absolute h-3 w-3 rotate-45 bg-white/95 dark:bg-zinc-900/90 border-l border-b border-white/[0.16]"
+            className="absolute h-3 w-3 rotate-45 bg-white dark:bg-zinc-900 border-l border-b border-zinc-200 dark:border-white/[0.08]"
             style={{ left: -6, top: Math.max(14, Math.min(arrow.offset - 6, 999)) }}
           />
         )}
         {arrow?.side === 'bottom' && (
           <span
-            className="absolute h-3 w-3 rotate-45 bg-white/95 dark:bg-zinc-900/90 border-r border-b border-white/[0.16]"
+            className="absolute h-3 w-3 rotate-45 bg-white dark:bg-zinc-900 border-r border-b border-zinc-200 dark:border-white/[0.08]"
             style={{ bottom: -6, left: Math.max(14, Math.min(arrow.offset - 6, BUBBLE_W - 22)) }}
           />
         )}
@@ -300,7 +310,7 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
         </button>
 
         <div className="flex items-center gap-2.5 mb-3">
-          <span className="flex items-center justify-center h-8 w-8 rounded-xl bg-gradient-to-b from-amber-400 to-orange-500 text-white shadow-lg shadow-orange-500/25">
+          <span className="flex items-center justify-center h-8 w-8 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-black">
             <Sparkles className="h-4 w-4" />
           </span>
           <span className="text-[11px] font-bold text-zinc-400 dark:text-white/40 uppercase tracking-[0.12em]">
@@ -317,7 +327,7 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
         <div className="mt-4 mb-4">
           <div className="h-1 w-full rounded-full bg-zinc-200/80 dark:bg-white/10 overflow-hidden">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-300 ease-out"
+              className="h-full rounded-full bg-zinc-900 dark:bg-white transition-all duration-300 ease-out"
               style={{ width: `${((index + 1) / steps.length) * 100}%` }}
             />
           </div>

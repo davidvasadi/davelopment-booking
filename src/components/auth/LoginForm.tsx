@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 
 const schema = z.object({
   email: z.string().email(),
@@ -44,7 +45,7 @@ export function LoginForm() {
       const json = await res.json()
       const role = json?.user?.role
       if (role === 'admin') {
-        await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
+        await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
         throw new Error('Admin fiókok a Backstage-en keresztül léphetnek be')
       }
       const home = role === 'restaurant_owner' ? '/restaurant' : '/dashboard'
@@ -83,6 +84,11 @@ export function LoginForm() {
                   Regisztráció
                 </button>
               </Link>
+              {/* VAGY elválasztó + Google ikon a splash-en is, hogy egy érintéssel beléphessen. */}
+              <div className="flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-600 pt-1">
+                <span className="h-px flex-1 bg-zinc-800" />vagy<span className="h-px flex-1 bg-zinc-800" />
+              </div>
+              <GoogleSignInButton variant="dark" callbackUrl="/" label="Bejelentkezés Google-lel" />
               <p className="text-zinc-600 text-xs text-center pt-1">
                 A folytatással elfogadod az{' '}
                 <span className="text-zinc-500 underline">ÁSZF</span>-et
@@ -147,6 +153,13 @@ export function LoginForm() {
                   </button>
                 </div>
               </form>
+              {/* Google-bejelentkezés a form ALATT — VAGY elválasztó + széles social-pill. */}
+              <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-600">
+                <span className="h-px flex-1 bg-zinc-800" />vagy<span className="h-px flex-1 bg-zinc-800" />
+              </div>
+              <div className="mt-3">
+                <GoogleSignInButton variant="dark" callbackUrl="/" label="Bejelentkezés Google-lel" />
+              </div>
             </div>
             <p className="text-zinc-600 text-xs text-center" />
           </div>
@@ -174,7 +187,7 @@ export function LoginForm() {
         {/* Right form panel */}
         <div className="flex-1 flex items-center justify-center px-6 py-16 bg-white [color-scheme:light]">
           <div className="w-full max-w-sm">
-            <div className="mb-10">
+            <div className="mb-8">
               <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Üdv újra!</h2>
               <p className="text-zinc-500 text-sm mt-1">Jelentkezz be a fiókodba</p>
             </div>
@@ -224,6 +237,13 @@ export function LoginForm() {
                 }
               </Button>
             </form>
+            {/* Google-bejelentkezés a form ALATT — VAGY elválasztó + széles social-pill. */}
+            <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-400">
+              <span className="h-px flex-1 bg-zinc-200" />vagy<span className="h-px flex-1 bg-zinc-200" />
+            </div>
+            <div className="mt-3">
+              <GoogleSignInButton variant="light" callbackUrl="/" label="Bejelentkezés Google-lel" />
+            </div>
             <p className="mt-8 text-center text-sm text-zinc-500">
               Nincs még fiókod?{' '}
               <Link href="/register" className="font-semibold text-zinc-900 hover:underline no-underline">

@@ -17,6 +17,8 @@ import {
 import { cn } from '@/lib/utils'
 import { MAIN_CATEGORIES, getSubTypesForCategory, type BusinessType, type MainCategory } from '@/lib/businessTemplates'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { signIn } from 'next-auth/react'
+import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 
 const MAIN_CAT_ICONS: Record<MainCategory, React.ElementType> = {
   szepseg: Sparkles,
@@ -48,9 +50,46 @@ export function RegisterWizard() {
   const [token, setToken] = useState('')
   const [staffName, setStaffName] = useState('')
 
-  const { register, handleSubmit, formState: { errors } } = useForm<Step2Data>({
+  const { register, handleSubmit, formState: { errors }, getValues, trigger } = useForm<Step2Data>({
     resolver: zodResolver(step2Schema),
   })
+
+  /**
+   * „Folytatás Google-lel" a 2. lépés végén: a cégadatok (név, város, telefon, sajátnév)
+   * pending-cookie-ba mennek, majd indítjuk a Google OAuth-flow-t. A flow után a
+   * /api/auth/complete-registration létrehozza a szalont és userhez kapcsolja.
+   * A jelszó-mező itt nem kell — a Google adja az emailt és identifies a usert.
+   */
+  const continueWithGoogle = async () => {
+    // Validáljuk a Google-fluxhoz szükséges mezőket (a `password` nem kell)
+    const ok = await trigger(['salonName', 'ownerName', 'city', 'phone'])
+    if (!ok) {
+      toast.error('Töltsd ki a kötelező mezőket')
+      return
+    }
+    const v = getValues()
+    try {
+      const res = await fetch('/api/auth/prepare-registration', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: 'salon_owner',
+          ownerName: v.ownerName,
+          placeName: v.salonName,
+          city: v.city,
+          phone: v.phone,
+        }),
+      })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        toast.error(json?.error ?? 'Nem sikerült előkészíteni a regisztrációt')
+        return
+      }
+      await signIn('google', { callbackUrl: '/api/auth/complete-registration' })
+    } catch {
+      toast.error('Nem sikerült elindítani a Google-bejelentkezést')
+    }
+  }
 
   const generateSlug = (name: string) =>
     name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -513,6 +552,15 @@ export function RegisterWizard() {
                   <Link href="/login" className="w-full h-14 rounded-full border border-zinc-700 text-zinc-300 font-medium text-base flex items-center justify-center">
                     Van már fiókom
                   </Link>
+                  {/* Alternatív: Google-fiókkal folytatás (jelszó nélkül) — a wizard alján. */}
+                  <div className="pt-2 flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-600">
+                    <span className="h-px flex-1 bg-zinc-800" />vagy<span className="h-px flex-1 bg-zinc-800" />
+                  </div>
+                  <GoogleSignInButton
+                    variant="dark"
+                    label="Folytatás Google-lel"
+                    onClick={continueWithGoogle}
+                  />
                 </div>
               </form>
             </div>
@@ -665,6 +713,17 @@ export function RegisterWizard() {
                     {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="flex items-center gap-2">Tovább <ChevronRight className="h-4 w-4" /></span>}
                   </Button>
                 </form>
+                {/* Alternatív: Google-folytatás (jelszó nélkül) — a regisztráció alján. */}
+                <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-400">
+                  <span className="h-px flex-1 bg-zinc-200" />vagy<span className="h-px flex-1 bg-zinc-200" />
+                </div>
+                <div className="mt-3">
+                  <GoogleSignInButton
+                    variant="light"
+                    label="Folytatás Google-lel"
+                    onClick={continueWithGoogle}
+                  />
+                </div>
                 <p className="mt-6 text-center text-sm text-zinc-500">
                   Van már fiókod?{' '}
                   <Link href="/login" className="font-semibold text-zinc-900 hover:underline">Bejelentkezés</Link>

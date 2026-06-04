@@ -37,7 +37,7 @@ export function BackstageLoginForm() {
       if (!res.ok) throw new Error('Hibás email vagy jelszó')
       const json = await res.json()
       if (json?.user?.role !== 'admin') {
-        await fetch('/api/users/logout', { method: 'POST', credentials: 'include' })
+        await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
         throw new Error('Csak admin fiókok férhetnek hozzá')
       }
       router.push('/backstage')
