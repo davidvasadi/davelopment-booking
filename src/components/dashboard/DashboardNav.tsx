@@ -8,7 +8,6 @@ import { SchedulioLogo } from '@/components/SchedulioLogo'
 import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
 import { UserMenu } from './UserMenu'
-import { NotificationBell } from './NotificationBell'
 import { CommandPalette } from './CommandPalette'
 import { StoreSwitcher } from './StoreSwitcher'
 import { useOnline } from '@/lib/useOnline'
@@ -274,9 +273,7 @@ export function DashboardNav({
             collapsed={collapsed}
             subscriptionHref={subscriptionHref}
             settingsHref={settingsHref}
-          >
-            <NotificationBell direction="up" />
-          </UserMenu>
+          />
         </div>
 
         <div className={cn('py-4', collapsed ? 'px-2' : 'px-3')}>

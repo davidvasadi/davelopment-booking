@@ -5,11 +5,12 @@ import { useState, useRef } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
+import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { LogOut, Monitor, Sun, Moon, MoreHorizontal, Lock, Plus, Loader2 } from 'lucide-react'
+import { LogOut, Monitor, Sun, Moon, MoreHorizontal, Lock, Plus, Loader2, CalendarPlus, CalendarX, X } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
-import { NotificationBell } from './NotificationBell'
 import { UserAvatar } from './UserAvatar'
+import { useNotifications, timeAgo } from '@/lib/useNotifications'
 
 type SubInfo = {
   plan: 'trial' | 'pro' | 'restaurant_pro'
@@ -38,6 +39,7 @@ export default function MobileBottomNav({
   const [moreOpen, setMoreOpen] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const { items, unread, groups, remove, clearAll, openItem } = useNotifications(() => setMoreOpen(false))
 
   // A kiválasztott képet a Payload Media-ba töltjük (mint a desktopon / Beállításokban),
   // majd a kapott URL-t mentjük a felhasználó avatar_url mezőjébe.
@@ -70,10 +72,9 @@ export default function MobileBottomNav({
     }
   }
 
-  // A harang elfoglal egy helyet a sávban, ezért csak 3 fő nav-elem fér ki;
-  // a 4. (és a többi) a „Több" menübe kerül.
-  const primaryNav = navItems.slice(0, 3)
-  const secondaryNav = navItems.slice(3)
+  // A sávban 4 fő nav-elem + a „Több" gomb fér ki; a többi a „Több" menübe kerül.
+  const primaryNav = navItems.slice(0, 4)
+  const secondaryNav = navItems.slice(4)
 
   const handleLogout = async () => {
     await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
@@ -124,7 +125,6 @@ export default function MobileBottomNav({
             </Link>
           )
         })}
-        <NotificationBell variant="sheet" />
         <button
           onClick={() => setMoreOpen(true)}
           aria-label="Több"
@@ -143,6 +143,10 @@ export default function MobileBottomNav({
                 : 'h-5 w-5 text-zinc-400 dark:text-white/30'
             )} />
           </div>
+          {/* Piros pötty, ha van olvasatlan értesítés (az értesítések a „Több" menüben). */}
+          {unread > 0 && (
+            <span className="absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white dark:ring-zinc-900" />
+          )}
         </button>
       </nav>
 
@@ -189,6 +193,49 @@ export default function MobileBottomNav({
 
             <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
 
+            {/* Értesítések — egybeépítve a „Több" menübe. */}
+            <div className="flex items-center justify-between px-5 py-2">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/30">Értesítések{items.length > 0 && ` (${items.length})`}</p>
+              {items.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAll}
+                  className="text-xs font-medium text-zinc-400 hover:text-zinc-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
+                >
+                  Összes törlése
+                </button>
+              )}
+            </div>
+            <div className="max-h-[35vh] overflow-y-auto overscroll-contain px-2 pb-1" data-lenis-prevent>
+              {items.length === 0 ? (
+                <p className="px-3 pb-3 text-center text-xs text-zinc-400 dark:text-white/30">Nincs új értesítés</p>
+              ) : (
+                groups.map(({ label, rows }) => (
+                  <div key={label}>
+                    <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 dark:text-white/20">{label}</p>
+                    {rows.map((n) => {
+                      const Icon = n.type === 'cancellation' ? CalendarX : CalendarPlus
+                      return (
+                        <div key={n.id} className={cn('group relative flex gap-2.5 rounded-xl px-3 py-2.5', !n.read && 'bg-zinc-50 dark:bg-white/[0.03]')}>
+                          <Icon className={cn('h-4 w-4 mt-0.5 shrink-0', n.type === 'cancellation' ? 'text-red-500' : 'text-green-600 dark:text-green-400')} />
+                          <button type="button" onClick={() => openItem(n)} className="min-w-0 flex-1 text-left">
+                            <p className="truncate text-sm font-medium text-zinc-900 dark:text-white pr-6">{n.title}</p>
+                            {n.body && <p className="truncate text-xs text-zinc-500 dark:text-white/40">{n.body}</p>}
+                            <p className="text-[11px] text-zinc-400 dark:text-white/25 mt-0.5">{timeAgo(n.createdAt)}</p>
+                          </button>
+                          <button type="button" aria-label="Törlés" onClick={() => remove(n.id)} className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-md text-zinc-300 hover:bg-zinc-100 hover:text-zinc-600 dark:text-white/20 dark:hover:bg-white/[0.08] dark:hover:text-white/70">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
+
             <div className="px-3 py-2">
               {secondaryNav.map(({ href, label, icon: Icon, exact }) => {
                 const dim = isLocked && !isAllowedWhenLocked(href)
@@ -220,20 +267,28 @@ export default function MobileBottomNav({
                   { value: 'system', icon: Monitor },
                   { value: 'light', icon: Sun },
                   { value: 'dark', icon: Moon },
-                ] as const).map(({ value, icon: Icon }) => (
-                  <button
-                    key={value}
-                    onClick={() => setTheme(value)}
-                    className={cn(
-                      'flex-1 flex items-center justify-center h-7 rounded-md transition-colors',
-                      theme === value
-                        ? 'bg-zinc-100 text-zinc-900 dark:bg-white/[0.1] dark:text-white'
-                        : 'text-zinc-400 hover:text-zinc-600 dark:text-white/25 dark:hover:text-white/50'
-                    )}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                  </button>
-                ))}
+                ] as const).map(({ value, icon: Icon }) => {
+                  const active = theme === value
+                  return (
+                    <button
+                      key={value}
+                      onClick={() => setTheme(value)}
+                      className={cn(
+                        'relative flex-1 flex items-center justify-center h-8 rounded-md transition-colors',
+                        active ? 'text-zinc-900 dark:text-white' : 'text-zinc-400 hover:text-zinc-600 dark:text-white/25 dark:hover:text-white/50',
+                      )}
+                    >
+                      {active && (
+                        <motion.span
+                          layoutId="theme-pill-mobile"
+                          className="absolute inset-0 -z-0 rounded-md bg-zinc-100 dark:bg-white/[0.1]"
+                          transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                        />
+                      )}
+                      <Icon className="relative z-10 h-3.5 w-3.5" />
+                    </button>
+                  )
+                })}
               </div>
             </div>
             <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
