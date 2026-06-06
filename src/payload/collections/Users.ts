@@ -114,6 +114,14 @@ export const Users: CollectionConfig = {
       label: 'Teljes név',
     },
     {
+      // A felhasználó profilképének URL-je. Google-belépéskor a Google `picture`
+      // töltődik ide (a finalize route), e-mailes regisztrálók a Beállításokban
+      // adhatják meg. Üresnél a felületen monogramos fallback jelenik meg.
+      name: 'avatar_url',
+      type: 'text',
+      label: 'Profilkép URL',
+    },
+    {
       name: 'role',
       type: 'select',
       options: [

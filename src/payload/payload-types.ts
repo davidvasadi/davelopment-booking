@@ -168,6 +168,7 @@ export interface User {
   id: string
   name: string
   email: string
+  avatar_url?: string | null
   role: 'admin' | 'salon_owner' | 'restaurant_owner'
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null

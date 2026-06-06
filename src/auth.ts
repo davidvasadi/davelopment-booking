@@ -49,7 +49,11 @@ async function issuePayloadToken(userId: number | string, email: string, role?: 
  * hanem a `jwt` callbackben tároljuk az Auth.js session JWT-ben, és az `/api/auth/finalize`
  * route handler hajtja be a böngészőbe (cookie). Visszaad: a Payload user id-t és email-t.
  */
-async function findOrCreatePayloadUser(email: string, name: string | null | undefined): Promise<{ id: number | string; email: string } | null> {
+async function findOrCreatePayloadUser(
+  email: string,
+  name: string | null | undefined,
+  image?: string | null,
+): Promise<{ id: number | string; email: string } | null> {
   if (!email) return null
   const emailLc = email.toLowerCase()
   const payload = await getPayloadClient()
@@ -62,7 +66,18 @@ async function findOrCreatePayloadUser(email: string, name: string | null | unde
   })
 
   if (existing.docs.length > 0) {
-    return { id: existing.docs[0].id, email: emailLc }
+    const doc = existing.docs[0]
+    // A Google-profilképet csak akkor mentjük, ha a usernek még nincs avatarja —
+    // így nem írjuk felül azt, amit ő maga állított be a Beállításokban.
+    if (image && !(doc as { avatar_url?: string | null }).avatar_url) {
+      await payload.update({
+        collection: 'users',
+        id: doc.id,
+        data: { avatar_url: image },
+        overrideAccess: true,
+      }).catch(() => null)
+    }
+    return { id: doc.id, email: emailLc }
   }
   // Új user: random jelszót adunk (a user nem fogja használni). A role a séma defaultja
   // (salon_owner) — az onboarding-folyamatban tudja váltani.
@@ -73,6 +88,7 @@ async function findOrCreatePayloadUser(email: string, name: string | null | unde
       email: emailLc,
       name: name || emailLc.split('@')[0],
       password,
+      ...(image ? { avatar_url: image } : {}),
     },
     overrideAccess: true,
   })
@@ -101,7 +117,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async signIn({ user }) {
       if (!user.email) return false
       try {
-        const pUser = await findOrCreatePayloadUser(user.email, user.name)
+        const pUser = await findOrCreatePayloadUser(user.email, user.name, user.image)
         if (!pUser) return false
         // A JWT callback olvassa ezt és teszi az Auth.js sessionjébe (lásd lent).
         ;(user as { payloadId?: string | number; payloadEmail?: string }).payloadId = pUser.id

@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { Bell, CalendarPlus, CalendarX, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -27,12 +29,21 @@ function timeAgo(dateStr: string): string {
   return `${d} napja`
 }
 
-export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right' } = {}) {
+export function NotificationBell({
+  variant = 'popover',
+  direction = 'down',
+}: {
+  variant?: 'popover' | 'sheet'
+  /** A popover lefelé (header) vagy felfelé (sidebar alja) nyíljon-e. */
+  direction?: 'down' | 'up'
+} = {}) {
   const router = useRouter()
   const [items, setItems] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  // A portálos popover képernyő-koordinátái (a trigger gombhoz igazítva).
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -52,20 +63,23 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
     return () => clearInterval(t)
   }, [load])
 
-  // Kattintás kívülre → bezár
-  useEffect(() => {
-    if (!open) return
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [open])
-
   // A harang megnyitása önmagában nem nyúl a listához — egy értesítés akkor kerül le,
   // ha rákattintasz (openItem) vagy törlöd (remove). Így a badge addig marad, amíg
   // ténylegesen foglalkozol a tételekkel.
-  const toggle = () => setOpen((o) => !o)
+  // Megnyitáskor (popover módban) kiszámoljuk a panel képernyő-pozícióját a trigger
+  // gombból, mert a panelt a body-ra portáljuk (a sidebar overflow-ja különben levágná).
+  const toggle = () => {
+    setOpen((o) => {
+      const next = !o
+      if (next && variant === 'popover' && triggerRef.current) {
+        const r = triggerRef.current.getBoundingClientRect()
+        const PANEL_W = 320
+        const left = Math.min(Math.max(8, r.left), window.innerWidth - PANEL_W - 8)
+        setPos(direction === 'up' ? { left, bottom: window.innerHeight - r.top + 8 } : { left, top: r.bottom + 8 })
+      }
+      return next
+    })
+  }
 
   const remove = async (id: number | string) => {
     setItems((prev) => prev.filter((n) => n.id !== id))
@@ -153,9 +167,97 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
     { label: 'Korábbi', rows: items.filter((n) => n.read) },
   ].filter((g) => g.rows.length > 0)
 
+  // A panel belseje (fejléc + lista) — mindkét variáns (popover, sheet) ezt mutatja.
+  const panelBody = (
+    <>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-white/[0.06]">
+        <p className="text-sm font-semibold text-zinc-900 dark:text-white">Értesítések</p>
+        {items.length > 0 && (
+          <button
+            type="button"
+            onClick={clearAll}
+            className="text-xs font-medium text-zinc-400 hover:text-zinc-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
+          >
+            Összes törlése
+          </button>
+        )}
+      </div>
+      <div className={cn('overflow-y-auto', variant === 'sheet' ? 'max-h-[60vh]' : 'max-h-96')}>
+        {items.length === 0 ? (
+          <p className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-white/30">
+            Nincs értesítés
+          </p>
+        ) : (
+          groups.map(({ label, rows }) => (
+            <div key={label}>
+              <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/25">
+                {label}
+              </p>
+              {rows.map(renderRow)}
+            </div>
+          ))
+        )}
+      </div>
+    </>
+  )
+
+  // Mobil bottom-nav változat: nav-elem stílusú gomb + alulról felcsúszó teljes sheet.
+  if (variant === 'sheet') {
+    return (
+      <>
+        <button
+          onClick={toggle}
+          aria-label="Értesítések"
+          className="relative flex items-center justify-center"
+        >
+          <div className={cn(
+            'h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-300 ease-out',
+            open ? 'bg-zinc-900 dark:bg-white shadow-md shadow-black/20' : 'hover:bg-zinc-100 dark:hover:bg-white/[0.08]'
+          )}>
+            <Bell className={cn(
+              'transition-all duration-300 ease-out',
+              open ? 'h-6 w-6 text-white dark:text-black' : 'h-[22px] w-[22px] text-zinc-400 dark:text-white/30'
+            )} />
+          </div>
+          <AnimatePresence>
+            {unread > 0 && (
+              <motion.span
+                key="badge"
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0 }}
+                transition={{ type: 'spring', stiffness: 600, damping: 18 }}
+                className="absolute top-1 right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-semibold leading-none"
+              >
+                {unread > 9 ? '9+' : unread}
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
+
+        {open && typeof document !== 'undefined' && createPortal(
+          <>
+            <div
+              className="lg:hidden fixed inset-0 z-50 bg-black/40 dark:bg-black/60"
+              onClick={() => setOpen(false)}
+            />
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-950 rounded-t-2xl border border-zinc-100 dark:border-white/[0.08] border-b-0 pb-8">
+              <div className="w-10 h-1 bg-zinc-200 dark:bg-white/[0.1] rounded-full mx-auto mt-3 mb-1" />
+              {panelBody}
+            </div>
+          </>,
+          document.body,
+        )}
+      </>
+    )
+  }
+
+  // Desktop / header változat: a panelt a body-ra portáljuk (a sidebar overflow-ja
+  // különben levágná), a trigger gomb képernyő-pozíciójához igazítva.
   return (
-    <div ref={ref} className={cn('relative', open && 'z-[100]')}>
+    <div className="relative">
       <button
+        ref={triggerRef}
         onClick={toggle}
         aria-label="Értesítések"
         className="relative flex items-center justify-center h-9 w-9 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
@@ -168,42 +270,17 @@ export function NotificationBell({ align = 'right' }: { align?: 'left' | 'right'
         )}
       </button>
 
-      {open && (
-        <div
-          className={cn(
-            'absolute mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-xl border border-zinc-100 bg-white shadow-lg dark:bg-zinc-950 dark:border-white/[0.08] z-[100] overflow-hidden',
-            align === 'left' ? 'left-0' : 'right-0'
-          )}
-        >
-          <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-100 dark:border-white/[0.06]">
-            <p className="text-sm font-semibold text-zinc-900 dark:text-white">Értesítések</p>
-            {items.length > 0 && (
-              <button
-                type="button"
-                onClick={clearAll}
-                className="text-xs font-medium text-zinc-400 hover:text-zinc-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
-              >
-                Összes törlése
-              </button>
-            )}
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <>
+          <div className="fixed inset-0 z-[99]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed w-80 max-w-[calc(100vw-1rem)] rounded-xl border border-zinc-100 bg-white shadow-lg dark:bg-zinc-950 dark:border-white/[0.08] z-[100] overflow-hidden"
+            style={{ left: pos.left, top: pos.top, bottom: pos.bottom }}
+          >
+            {panelBody}
           </div>
-          <div className="max-h-96 overflow-y-auto">
-            {items.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-zinc-400 dark:text-white/30">
-                Nincs értesítés
-              </p>
-            ) : (
-              groups.map(({ label, rows }) => (
-                <div key={label}>
-                  <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/25">
-                    {label}
-                  </p>
-                  {rows.map(renderRow)}
-                </div>
-              ))
-            )}
-          </div>
-        </div>
+        </>,
+        document.body,
       )}
     </div>
   )

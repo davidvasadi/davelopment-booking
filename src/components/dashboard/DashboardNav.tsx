@@ -1,15 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
-import { toast } from 'sonner'
+import { motion, AnimatePresence } from 'framer-motion'
+import { usePathname } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
-import { LogOut, ExternalLink, Monitor, Sun, Moon, Lock, WifiOff, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
+import { UserMenu } from './UserMenu'
 import { NotificationBell } from './NotificationBell'
+import { CommandPalette } from './CommandPalette'
+import { StoreSwitcher } from './StoreSwitcher'
 import { useOnline } from '@/lib/useOnline'
 import { useRestaurantUI } from '@/components/restaurant/RestaurantUIContext'
 
@@ -35,37 +36,6 @@ function OfflineIndicator({ compact = false }: { compact?: boolean }) {
   )
 }
 
-function ThemeToggle() {
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-  if (!mounted) return <div className="h-7" />
-  const options = [
-    { value: 'system', icon: Monitor },
-    { value: 'light', icon: Sun },
-    { value: 'dark', icon: Moon },
-  ] as const
-  return (
-    <div className="flex gap-0.5 mb-1 px-0.5">
-      {options.map(({ value, icon: Icon }) => (
-        <button
-          key={value}
-          onClick={() => setTheme(value)}
-          className={cn(
-            'flex-1 flex items-center justify-center h-7 rounded-md transition-colors',
-            theme === value
-              ? 'bg-zinc-100 text-zinc-900 dark:bg-white/[0.1] dark:text-white'
-              : 'text-zinc-400 hover:text-zinc-600 dark:text-white/25 dark:hover:text-white/50'
-          )}
-          title={value}
-        >
-          <Icon className="h-3.5 w-3.5" />
-        </button>
-      ))}
-    </div>
-  )
-}
-
 
 type SubInfo = {
   plan: 'trial' | 'pro' | 'restaurant_pro'
@@ -74,60 +44,26 @@ type SubInfo = {
   current_period_end?: string | null
 } | null
 
-function daysLeft(dateStr?: string | null): number | null {
-  if (!dateStr) return null
-  const diff = new Date(dateStr).getTime() - Date.now()
-  return Math.max(0, Math.ceil(diff / 86_400_000))
+type SubStatus = NonNullable<SubInfo>['status']
+
+// Egységes belépő-animáció a sidebar összes blokkjához (store-switcher, kereső,
+// nav-elemek): a konténer lépcsőzi a gyermekeket, a gyermekek balról úsznak be.
+const navStagger = { show: { transition: { staggerChildren: 0.035, delayChildren: 0.04 } } }
+const navItemVariants = { hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }
+const navItemSpring = { type: 'spring' as const, stiffness: 500, damping: 34 }
+
+/** A csomag-státusz rövid címkéje a brand alatti pill-hez. */
+function subStatusLabel(status: SubStatus): string {
+  switch (status) {
+    case 'trialing': return 'Próbaidőszak'
+    case 'active': return 'Pro csomag'
+    case 'past_due': return 'Lejárt'
+    case 'paused': return 'Szüneteltetve'
+    case 'canceled': return 'Megszűnt'
+    default: return 'Csomag'
+  }
 }
 
-function SubscriptionWidget({ sub, subscriptionHref }: { sub: SubInfo; subscriptionHref: string }) {
-  if (!sub) return null
-
-  const days = sub.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
-  const isUrgent = days !== null && days <= 3
-
-  return (
-    <div className={cn(
-      'mx-3 mb-2 p-3 rounded-xl border text-xs',
-      isUrgent
-        ? 'bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-700/40'
-        : 'bg-zinc-50 border-zinc-100 dark:bg-white/[0.03] dark:border-white/[0.06]'
-    )}>
-      <div className="flex items-center justify-between gap-2 mb-1">
-        <span className="font-semibold text-zinc-900 dark:text-white">
-          {/* A státusz a megbízható jelző: csak trialing alatt „Próbaidőszak".
-              Aktív/Pro csomagnál a plan lehet 'pro' vagy 'restaurant_pro' — mindkettő Pro. */}
-          {sub.status === 'trialing' ? 'Próbaidőszak' : 'Pro csomag'}
-        </span>
-        {sub.status === 'active' && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">aktív</span>
-        )}
-        {sub.status === 'past_due' && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">lejárt</span>
-        )}
-        {sub.status === 'paused' && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-zinc-100 text-zinc-500 dark:bg-white/10 dark:text-white/50">szünet</span>
-        )}
-        {sub.status === 'canceled' && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">megszűnt</span>
-        )}
-      </div>
-      {days !== null && (
-        <p className={cn('mb-2', isUrgent ? 'text-amber-700 dark:text-amber-400 font-medium' : 'text-zinc-500 dark:text-white/40')}>
-          {days === 0 ? 'Ma lejár' : `${days} nap maradt`}
-        </p>
-      )}
-      {(sub.status === 'trialing' || sub.status === 'past_due' || sub.status === 'canceled') && (
-        <Link
-          href={subscriptionHref}
-          className="flex items-center justify-center gap-1 w-full py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-white dark:text-black font-medium hover:opacity-80 transition-opacity"
-        >
-          Upgrade
-        </Link>
-      )}
-    </div>
-  )
-}
 
 export function DashboardNav({
   salonName,
@@ -135,28 +71,28 @@ export function DashboardNav({
   subscription,
   variant = 'salon',
   brandLogoUrl = null,
+  userName = null,
+  userEmail = null,
+  userAvatarUrl = null,
 }: {
   salonName: string
   salonSlug: string
   subscription?: SubInfo
   variant?: DashboardVariant
-  /** Étterem variánsban a saját brand-logó URL-je (a nav tetejére). */
+  /** Az üzlet logója a fejléc store-switcher blokkjához. */
   brandLogoUrl?: string | null
+  /** A bejelentkezett felhasználó adatai a sidebar alján lévő fiók-blokkhoz. */
+  userName?: string | null
+  userEmail?: string | null
+  userAvatarUrl?: string | null
 }) {
   const { items: navItems, publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
   const pathname = usePathname()
-  const router = useRouter()
 
   // Összecsukás csak az étterem navban él (a salon nav változatlan).
   const collapsible = variant === 'restaurant'
   const { navCollapsed, toggleNav } = useRestaurantUI()
   const collapsed = collapsible && navCollapsed
-
-  const handleLogout = async () => {
-    await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
-    router.push('/login')
-    toast.success('Kijelentkezve')
-  }
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href)
@@ -169,123 +105,197 @@ export function DashboardNav({
       {/* ── DESKTOP SIDEBAR ────────────────────────────────────── */}
       <aside
         className={cn(
-          'hidden lg:flex h-screen sticky top-0 z-40 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0 transition-[width] duration-200',
+          'hidden lg:flex relative h-screen sticky top-0 z-40 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0 transition-[width] duration-200',
           collapsed ? 'w-16' : 'w-56',
         )}
       >
-        <div className={cn('pt-7 pb-6', collapsed ? 'px-3' : 'px-6')}>
-          <div className={cn('flex items-center', collapsed ? 'flex-col gap-3' : 'justify-between')}>
-            {/* Étterem variánsban a saját brand-logó, ha van; egyébként a Schedulio logó. */}
-            <Link
-              href="/"
-              aria-label={variant === 'restaurant' ? salonName : 'Schedulio'}
-              className="block w-fit hover:opacity-80 transition-opacity"
-            >
-              {variant === 'restaurant' && brandLogoUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={brandLogoUrl} alt={salonName} className={cn('object-contain', collapsed ? 'h-8 w-8' : 'h-8')} />
-              ) : (
-                <SchedulioLogo className="h-7" />
-              )}
-            </Link>
-            <NotificationBell align="left" />
-          </div>
-          {!collapsed && (
-            <div className="mt-3">
-              <p className="text-zinc-700 dark:text-white/70 font-semibold text-sm truncate">{salonName}</p>
-              <a
-                href={`/${publicUrlPrefix}${salonSlug}`}
-                target="_blank"
-                className="inline-flex items-center gap-1 text-xs text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 mt-0.5 transition-colors"
-              >
-                Nyilvános oldal <ExternalLink className="h-2.5 w-2.5" />
-              </a>
-            </div>
-          )}
-        </div>
-
-        {/* Összecsukás-gomb (csak étterem navban) */}
+        {/* Összecsukás-fül a sidebar jobb szélén, a határvonalon lebegve. */}
         {collapsible && (
-          <button
+          <motion.button
             onClick={toggleNav}
             title={collapsed ? 'Menü kinyitása' : 'Menü összecsukása'}
             aria-label={collapsed ? 'Menü kinyitása' : 'Menü összecsukása'}
-            className={cn(
-              'mx-3 mb-2 flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors',
-              collapsed ? 'justify-center' : '',
-            )}
+            initial={false}
+            whileHover={{ scale: 1.15 }}
+            whileTap={{ scale: 0.9 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+            className="absolute top-3 -right-3 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-400 shadow-sm hover:text-zinc-900 dark:border-white/[0.1] dark:bg-zinc-900 dark:text-white/40 dark:hover:text-white"
           >
-            {collapsed ? <PanelLeftOpen className="h-4 w-4 shrink-0" /> : <PanelLeftClose className="h-4 w-4 shrink-0" />}
-            {!collapsed && <span>Összecsukás</span>}
-          </button>
+            <motion.span animate={{ rotate: collapsed ? 180 : 0 }} transition={{ type: 'spring', stiffness: 400, damping: 26 }}>
+              <ChevronsLeft className="h-3.5 w-3.5" />
+            </motion.span>
+          </motion.button>
         )}
-
-        <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
-
-        <nav className={cn('flex-1 py-4 space-y-0.5 overflow-y-auto', collapsed ? 'px-2' : 'px-3')}>
-          {navItems.map(({ href, label, icon: Icon, exact }) => {
-            const dim = isLocked && !isAllowedWhenLocked(href)
-            return (
-              <Link
-                key={href}
-                href={href}
-                data-tour={href}
-                title={collapsed ? label : undefined}
-                className={cn(
-                  'flex items-center gap-3 rounded-lg text-sm transition-colors',
-                  collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
-                  isActive(href, exact)
-                    ? 'bg-zinc-900 text-white dark:bg-white dark:text-black font-semibold'
-                    : dim
-                      ? 'text-zinc-300 dark:text-white/15 hover:text-zinc-400 dark:hover:text-white/25'
-                      : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06]'
+        {/* Egységes stagger-konténer: a fejléc, a kereső és a nav-elemek mind ugyanazzal
+            a belépő-animációval (balról beúszva, lépcsőzve) jelennek meg. */}
+        <motion.div
+          className="flex flex-1 flex-col min-h-0"
+          initial="hidden"
+          animate="show"
+          variants={navStagger}
+        >
+          {/* Fejléc: store-switcher (logó + név + csomag + ⇅). Felül üres sáv (pt-12)
+              a jobb szélen lebegő összecsukás-fülnek. */}
+          <motion.div variants={navItemVariants} transition={navItemSpring} className={cn('pt-12 pb-4', collapsed ? 'px-2' : 'px-3')}>
+            {collapsed ? (
+              <div className="flex flex-col items-center gap-2">
+                {brandLogoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={brandLogoUrl} alt={salonName} className="h-9 w-9 rounded-full object-cover bg-zinc-100 dark:bg-white/[0.06]" />
+                ) : (
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-white dark:text-black text-sm font-bold">
+                    {salonName?.trim()?.[0]?.toUpperCase() ?? '?'}
+                  </span>
                 )}
+              </div>
+            ) : (
+              <StoreSwitcher
+                name={salonName}
+                logoUrl={brandLogoUrl}
+                planLabel={subscription ? subStatusLabel(subscription.status) : null}
+              />
+            )}
+          </motion.div>
+
+          {/* Kereső a menü fölött (⌘K command-palette). */}
+          <motion.div variants={navItemVariants} transition={navItemSpring} className={cn('pb-1', collapsed ? 'px-2' : 'px-3')}>
+            {collapsed ? (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('schedulio:open-command'))}
+                aria-label="Keresés"
+                title="Keresés"
+                className="group flex w-full items-center justify-center rounded-lg px-2 py-2.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
               >
-                <Icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="flex-1">{label}</span>}
-                {!collapsed && dim && <Lock className="h-3 w-3 shrink-0" />}
-              </Link>
+                <Search className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('schedulio:open-command'))}
+                aria-label="Keresés"
+                className="group flex h-9 w-full items-center gap-2.5 rounded-xl border border-zinc-200 dark:border-white/[0.08] px-3 text-sm text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] dark:hover:border-white/[0.16] transition-colors"
+              >
+                <Search className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                <span className="flex-1 text-left">Keresés…</span>
+                <kbd className="inline-flex items-center rounded-md border border-zinc-200 dark:border-white/[0.1] px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">⌘K</kbd>
+              </button>
+            )}
+          </motion.div>
+
+          <motion.div variants={navItemVariants} transition={navItemSpring} className="mt-3 mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
+
+          <nav className={cn('flex-1 py-4 space-y-0.5 overflow-y-auto', collapsed ? 'px-2' : 'px-3')}>
+            {navItems.map(({ href, label, icon: Icon, exact }) => {
+              const dim = isLocked && !isAllowedWhenLocked(href)
+              const active = isActive(href, exact)
+              return (
+                <motion.div
+                  key={href}
+                  variants={navItemVariants}
+                  transition={navItemSpring}
+                >
+                <Link
+                  href={href}
+                  data-tour={href}
+                  title={collapsed ? label : undefined}
+                  className={cn(
+                    'group relative flex items-center gap-3 rounded-lg text-sm transition-colors',
+                    collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
+                    active
+                      ? 'text-white dark:text-black font-semibold'
+                      : dim
+                        ? 'text-zinc-300 dark:text-white/15 hover:text-zinc-400 dark:hover:text-white/25'
+                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06]'
+                  )}
+                >
+                  {/* Mozgó aktív-pill: layoutId-vel átcsúszik az új aktív elemre. */}
+                  {active && (
+                    <motion.span
+                      layoutId="nav-active-pill"
+                      className="absolute inset-0 -z-0 rounded-lg bg-zinc-900 dark:bg-white"
+                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                    />
+                  )}
+                  <Icon className="relative z-10 h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                  <AnimatePresence initial={false}>
+                    {!collapsed && (
+                      <motion.span
+                        key="label"
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="relative z-10 flex-1 overflow-hidden whitespace-nowrap"
+                      >
+                        {label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                  {!collapsed && dim && <Lock className="relative z-10 h-3 w-3 shrink-0" />}
+                </Link>
+              </motion.div>
             )
           })}
-        </nav>
+
+            {/* Nyilvános oldal — a menüpontokkal egy oszlopban, azonos stílussal. */}
+            <motion.div variants={navItemVariants} transition={navItemSpring}>
+              <a
+                href={`/${publicUrlPrefix}${salonSlug}`}
+                target="_blank"
+                title={collapsed ? 'Nyilvános oldal' : undefined}
+                className={cn(
+                  'group flex items-center gap-3 rounded-lg text-sm text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors',
+                  collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
+                )}
+              >
+                <ExternalLink className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                {!collapsed && <span className="flex-1">Nyilvános oldal</span>}
+              </a>
+            </motion.div>
+          </nav>
+        </motion.div>
 
         <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
 
         {!collapsed && (
           <div className="pt-3">
             <OfflineIndicator />
-            <SubscriptionWidget sub={subscription ?? null} subscriptionHref={subscriptionHref} />
           </div>
         )}
 
-        <div className={cn('py-4', collapsed ? 'px-2' : 'px-3')}>
-          {!collapsed && <ThemeToggle />}
-          <button
-            onClick={handleLogout}
-            title={collapsed ? 'Kijelentkezés' : undefined}
-            className={cn(
-              'flex items-center gap-3 rounded-lg text-sm text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] w-full transition-colors',
-              collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
-            )}
+        {/* Fiók-blokk: avatar + név + harang + „⋯". Az avatarra/„⋯"-ra kattintva nyílik
+            a fiók-popover (profil, profilkép, téma, kijelentkezés). */}
+        <div className={cn('pt-3', collapsed ? 'px-2' : 'px-3')}>
+          <UserMenu
+            name={userName}
+            email={userEmail}
+            avatarUrl={userAvatarUrl}
+            collapsed={collapsed}
+            subscriptionHref={subscriptionHref}
+            settingsHref={settingsHref}
           >
-            <LogOut className="h-4 w-4 shrink-0" />
-            {!collapsed && 'Kijelentkezés'}
-          </button>
+            <NotificationBell direction="up" />
+          </UserMenu>
+        </div>
 
-          {/* Étterem navban a Schedulio + davelopment logók egy sorban a Kijelentkezés alá. */}
+        <div className={cn('py-4', collapsed ? 'px-2' : 'px-3')}>
+          {/* Étterem navban: „powered by" felirat, ALATTA a Schedulio + davelopment logók. */}
           {variant === 'restaurant' && !collapsed && (
-            <div className="mt-3 flex items-center gap-1.5 px-3 text-[10px] text-zinc-300 dark:text-white/20">
-              <span>powered by</span>
-              <a href="https://schedulio.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
-                <SchedulioLogo className="h-3.5" />
-              </a>
-              <span className="text-zinc-200 dark:text-white/10">·</span>
-              <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
-                {/* FIGYELEM: a fájlnevek félrevezetők — a *_dark.svg* sötét tintás (világos
-                    témára), a *_light.svg* világos (sötét témára). Ezért fordítva kötjük. */}
-                <img src="/logo_davelopment_dark.svg" alt="davelopment" className="h-3 w-auto block dark:hidden" />
-                <img src="/logo_davelopment_light.svg" alt="davelopment" className="h-3 w-auto hidden dark:block" />
-              </a>
+            <div className="mt-3 px-3">
+              <p className="text-[10px] text-zinc-300 dark:text-white/20">powered by</p>
+              <div className="mt-1.5 flex items-center justify-between gap-2">
+                <a href="https://schedulio.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
+                  <SchedulioLogo className="h-5" />
+                </a>
+                <span className="text-zinc-200 dark:text-white/10">·</span>
+                <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
+                  {/* FIGYELEM: a fájlnevek félrevezetők — a *_dark.svg* sötét tintás (világos
+                      témára), a *_light.svg* világos (sötét témára). Ezért fordítva kötjük. */}
+                  <img src="/logo_davelopment_dark.svg" alt="davelopment" className="h-[18px] w-auto block dark:hidden" />
+                  <img src="/logo_davelopment_light.svg" alt="davelopment" className="h-[18px] w-auto hidden dark:block" />
+                </a>
+              </div>
             </div>
           )}
         </div>
@@ -299,18 +309,29 @@ export function DashboardNav({
           </Link>
           <span className="text-xs text-zinc-400 dark:text-white/30 font-medium truncate max-w-[120px]">{salonName}</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
           <OfflineIndicator compact />
-          <NotificationBell />
+          {/* Kereső — a ⌘K command-palette-et nyitja (az értesítések harangja a lenti navban van). */}
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event('schedulio:open-command'))}
+            aria-label="Keresés"
+            className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
+          >
+            <Search className="h-[18px] w-[18px]" />
+          </button>
           <a
             href={`/${salonSlug}`}
             target="_blank"
-            className="text-zinc-400 hover:text-zinc-700 dark:text-white/30 dark:hover:text-white/70 transition-colors"
+            className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
           >
             <ExternalLink className="h-4 w-4" />
           </a>
         </div>
       </header>
+
+      {/* A ⌘K kereső-palette — desktopon a sidebar keresője, mobilon a header ikonja nyitja. */}
+      <CommandPalette variant={variant} />
     </>
   )
 }

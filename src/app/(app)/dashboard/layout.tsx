@@ -6,6 +6,7 @@ import { expireOneTrial } from '@/lib/subscriptionSync'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
+import { Reveal } from '@/components/ui/reveal'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import type { Salon, Subscription } from '@/payload/payload-types'
@@ -48,12 +49,20 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
-      <DashboardNav salonName={salon.name} salonSlug={salon.slug} subscription={sub} />
+      <DashboardNav
+        salonName={salon.name}
+        salonSlug={salon.slug}
+        subscription={sub}
+        brandLogoUrl={typeof salon.logo === 'object' && salon.logo?.url ? salon.logo.url : null}
+        userName={user.name}
+        userEmail={user.email}
+        userAvatarUrl={user.avatar_url ?? null}
+      />
       <main className="flex-1 pb-24 lg:pb-0">
         <SubscriptionBanner subscription={sub} />
-        {children}
+        <Reveal>{children}</Reveal>
       </main>
-      <MobileBottomNav subscription={sub} />
+      <MobileBottomNav subscription={sub} userName={user.name} userEmail={user.email} userAvatarUrl={user.avatar_url ?? null} />
       {lockedStatus && <DashboardLockModal status={lockedStatus} />}
       <OnboardingTour variant="salon" userId={String(user.id)} />
     </div>

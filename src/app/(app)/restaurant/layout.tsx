@@ -5,10 +5,11 @@ import { expireOneTrial } from '@/lib/subscriptionSync'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
+import { Reveal } from '@/components/ui/reveal'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContext'
-import type { Restaurant, Subscription, Media } from '@/payload/payload-types'
+import type { Restaurant, Subscription } from '@/payload/payload-types'
 
 export default async function RestaurantLayout({ children }: { children: React.ReactNode }) {
   const user = await requireAuth('restaurant_owner')
@@ -45,8 +46,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
       ? sub.status
       : null
 
-  // Az étterem saját brand-logója a nav tetejére (a Schedulio logó a Kijelentkezés alá kerül).
-  const logo = restaurant.logo as Media | undefined
+  const logo = restaurant.logo
   const brandLogoUrl = typeof logo === 'object' && logo?.url ? logo.url : null
 
   return (
@@ -58,12 +58,15 @@ export default async function RestaurantLayout({ children }: { children: React.R
           subscription={sub}
           variant="restaurant"
           brandLogoUrl={brandLogoUrl}
+          userName={user.name}
+          userEmail={user.email}
+          userAvatarUrl={user.avatar_url ?? null}
         />
         <main className="flex-1 min-w-0 pb-24 lg:pb-0">
           <SubscriptionBanner subscription={sub} basePath="/restaurant" />
-          {children}
+          <Reveal>{children}</Reveal>
         </main>
-        <MobileBottomNav subscription={sub} variant="restaurant" />
+        <MobileBottomNav subscription={sub} variant="restaurant" userName={user.name} userEmail={user.email} userAvatarUrl={user.avatar_url ?? null} />
         {lockedStatus && <DashboardLockModal status={lockedStatus} />}
         <OnboardingTour variant="restaurant" userId={String(user.id)} />
       </div>
