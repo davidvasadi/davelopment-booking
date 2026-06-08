@@ -1,4 +1,4 @@
-import type { CollectionConfig } from 'payload'
+import type { Access, CollectionConfig } from 'payload'
 
 // App-on belüli értesítések (e-mail nélkül). A tulajdonos a harang ikon alatt látja őket.
 // A rekordokat a Reservations / Bookings afterChange hook hozza létre.
@@ -13,7 +13,7 @@ export const Notifications: CollectionConfig = {
   },
   access: {
     // Csak a saját helyhez (étterem/szalon) tartozó értesítések, kivéve admin.
-    read: ({ req }) => {
+    read: (({ req }) => {
       if (req.user?.role === 'admin') return true
       if (req.user?.role === 'restaurant_owner') {
         const restaurantId =
@@ -32,7 +32,7 @@ export const Notifications: CollectionConfig = {
         return { salon: { equals: salonId } }
       }
       return false
-    },
+    }) as Access,
     // Hook hozza létre, overrideAccess-szel.
     create: ({ req }) => req.user?.role === 'admin',
     // A tulaj csak olvasottnak jelölheti (read mező); a hozzáférést a read where szűri.
