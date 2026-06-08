@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Geist, Martian_Mono } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { SmoothScroll } from '@/components/SmoothScroll'
 import { ThemeProvider } from '@/components/ThemeProvider'
@@ -7,6 +7,9 @@ import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
+// A landing oldal saját tipográfiája (csak ott használjuk, CSS-változóként).
+const geist = Geist({ subsets: ['latin'], variable: '--font-geist' })
+const martianMono = Martian_Mono({ subsets: ['latin'], variable: '--font-martian' })
 
 export const metadata: Metadata = {
   title: { template: '%s — Schedulio', default: 'Schedulio — Online Időpontfoglaló' },
@@ -31,7 +34,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="hu" suppressHydrationWarning>
-      <body className={inter.className}>
+      <body className={`${inter.className} ${geist.variable} ${martianMono.variable}`}>
         <ThemeProvider>
           <SmoothScroll>{children}</SmoothScroll>
           <Toaster richColors position="top-right" />

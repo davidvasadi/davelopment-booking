@@ -11,6 +11,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Schedulio landing brand-paletta (a kapott design-referenciából).
+        // Külön névtér, hogy ne ütközzön a shadcn `accent`/`primary` tokenekkel.
+        brand: {
+          ink: '#191314',
+          accent: '#ecf95a',
+          surface: '#f4f4f4',
+          bg: '#F4F2EE',
+        },
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -78,6 +86,8 @@ const config: Config = {
       },
       fontFamily: {
         sans: ['var(--font-sans)', ...defaultTheme.fontFamily.sans],
+        geist: ['var(--font-geist)', 'sans-serif'],
+        martian: ['var(--font-martian)', 'monospace'],
       },
     },
   },
