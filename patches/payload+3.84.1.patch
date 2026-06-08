@@ -1,0 +1,14 @@
+diff --git a/node_modules/payload/dist/bin/loadEnv.js b/node_modules/payload/dist/bin/loadEnv.js
+index b61ecc1..216653e 100644
+--- a/node_modules/payload/dist/bin/loadEnv.js
++++ b/node_modules/payload/dist/bin/loadEnv.js
+@@ -1,5 +1,8 @@
+-import nextEnvImport from '@next/env';
++import * as nextEnvNs from '@next/env';
+ import { findUpSync } from '../utilities/findUp.js';
++// Interop fix: Next 16 alatt a @next/env hol default-, hol named-exportként adja a
++// loadEnvConfig-ot. Mindkét alakot kezeljük, különben "Cannot destructure ... undefined".
++const nextEnvImport = nextEnvNs.default ?? nextEnvNs;
+ const { loadEnvConfig } = nextEnvImport;
+ /**
+  * Try to find user's env files and load it. Uses the same algorithm next.js uses to parse env files, meaning this also supports .env.local, .env.development, .env.production, etc.
