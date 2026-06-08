@@ -99,6 +99,10 @@ async function findOrCreatePayloadUser(
 export { issuePayloadToken, PAYLOAD_COOKIE, TOKEN_TTL_SECONDS }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // trustHost: a reverse-proxy (nginx) mögött a kérés-host (schedulio.hu) megbízható.
+  // Nélküle az Auth.js v5 "UntrustedHost" hibát dob prod-ban, és az auth-flow elhasal
+  // → a felhasználó visszakerül a loginra. (Lokálisan is biztonságos: egyetlen ismert host.)
+  trustHost: true,
   // Auth.js JWT session — ide tesszük a Payload user id-t és emailt, a finalize route
   // ebből generál payload-token cookie-t (a signIn callback-ből a cookies().set()
   // nem kerül a 302 response-ba — ezért megy a finalize közbeiktatása).
