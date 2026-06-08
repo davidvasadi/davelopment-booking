@@ -62,6 +62,10 @@ export default buildConfig({
     // a query") → a tranzakció megsérül és rollback-el (pl. admin user-törlés több elemen).
     // A tranzakciók kikapcsolásával minden query saját kapcsolaton fut, így nincs ütközés.
     transactionOptions: false,
+    // Séma-szinkron (push) prod-ban is — nincsenek megírt migrációk, és a CLI undici-hibás.
+    // Egyetlen környezet, a séma a kódból jön → a push biztonságos. (TODO: később áttérni
+    // rendes migrációkra, ha a payload CLI undici-hibája megoldódik.)
+    push: true,
     pool: {
       connectionString:
         process.env.DATABASE_URI || 'postgresql://user:password@localhost:5432/dbname',
