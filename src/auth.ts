@@ -34,7 +34,11 @@ const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7 // 7 nap
 async function issuePayloadToken(userId: number | string, email: string, role?: string): Promise<string> {
   const secret = process.env.PAYLOAD_SECRET
   if (!secret) throw new Error('PAYLOAD_SECRET hiányzik a környezetből')
-  const key = new TextEncoder().encode(secret)
+  // A Payload 3 a JWT-kulcsot a PAYLOAD_SECRET SHA-256 hash-ének első 32 hex-karakteréből
+  // deriválja — a natív login is így ír alá. Ugyanezt használjuk, hogy a getCurrentUser
+  // (és a Payload) verify-olni tudja a tokent.
+  const derived = crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)
+  const key = new TextEncoder().encode(derived)
   const now = Math.floor(Date.now() / 1000)
   return new SignJWT({ id: userId, email, collection: 'users', role: role ?? 'salon_owner' })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })

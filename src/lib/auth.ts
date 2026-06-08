@@ -15,8 +15,15 @@ export async function getCurrentUser(): Promise<User | null> {
   // mint amit a Payload natív login is használ.
   try {
     const { jwtVerify } = await import('jose')
-    const secret = process.env.PAYLOAD_SECRET ?? 'your-secret-key-here'
-    const key = new TextEncoder().encode(secret)
+    const crypto = await import('crypto')
+    // FONTOS: a Payload 3 a JWT-t NEM a nyers PAYLOAD_SECRET-tel írja alá, hanem annak
+    // SHA-256 hash-éből vett első 32 hex-karakterrel (lásd Payload sanitizeConfig).
+    // Ezért a verify-hoz is ezt a derivált kulcsot kell használni, különben
+    // "signature verification failed". (A natív Payload login így ír; a Google-úton
+    // az issuePayloadToken is ezt használja — egységesen.)
+    const rawSecret = process.env.PAYLOAD_SECRET ?? 'your-secret-key-here'
+    const derived = crypto.createHash('sha256').update(rawSecret).digest('hex').slice(0, 32)
+    const key = new TextEncoder().encode(derived)
     const { payload: decoded } = await jwtVerify(token.value, key)
     const userId = (decoded as { id?: number | string }).id
     if (!userId) {
