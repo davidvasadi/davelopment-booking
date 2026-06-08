@@ -1,25 +1,29 @@
 /**
  * Standalone Payload init — séma-push / DB-szinkron prod-ban.
  *
- * A Payload `next start` prod-runtime NEM futtatja a postgres `push`-t, és a
- * `payload` CLI a tsx ESM/CJS interop miatt elakad. Ez a szkript a hivatalosan
- * támogatott `getPayload({ config })` úton tölti be a configot (ugyanúgy ahogy
- * az app), aminek az init-je lefuttatja a push-t (push:true a payload.config.ts-ben),
- * így létrehozza/szinkronizálja a sémát a DB-ben.
+ * Miért így: a Payload `next start` prod-runtime NEM futtatja a postgres `push`-t,
+ * a `payload` CLI pedig a tsx ESM/CJS interopon (loadEnv / next loadEnvConfig) elakad.
+ * Ez a szkript MEGKERÜLI a payload `loadEnv` wrapperét: az env-et közvetlenül dotenv-vel
+ * töltjük, a configot dinamikusan importáljuk, és a `getPayload`-ot hívjuk (push:true a
+ * configban → az init létrehozza/szinkronizálja a sémát).
  *
  * Futtatás (Node 22 + tsx, a szerveren):
- *   node --import tsx/esm scripts/db-push.ts
+ *   npx tsx scripts/db-push.ts
  *
  * Újrahasználható később seed-eléshez és migráció-futtatáshoz is.
  */
-import { getPayload } from 'payload'
-import config from '../payload.config'
+import { config as loadDotenv } from 'dotenv'
+loadDotenv() // .env betöltése MIELŐTT a payload bármit importálna
 
 const run = async () => {
+  // Dinamikus importok: a dotenv már lefutott, így a config a helyes env-et látja.
+  const { getPayload } = await import('payload')
+  const { default: config } = await import('../payload.config')
+
   console.log('[db-push] Payload init indul — séma-szinkron (push)…')
   const payload = await getPayload({ config })
   console.log('[db-push] Payload init kész. A séma szinkronizálva.')
-  // Egy egyszerű query, hogy biztosan inicializálódjon a DB-réteg.
+
   const { totalDocs } = await payload.count({ collection: 'users' })
   console.log(`[db-push] users tábla elérhető, dokumentumok: ${totalDocs}`)
   process.exit(0)
