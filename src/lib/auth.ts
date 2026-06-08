@@ -19,7 +19,10 @@ export async function getCurrentUser(): Promise<User | null> {
     const key = new TextEncoder().encode(secret)
     const { payload: decoded } = await jwtVerify(token.value, key)
     const userId = (decoded as { id?: number | string }).id
-    if (!userId) return null
+    if (!userId) {
+      console.error('[getCurrentUser] nincs id a tokenben. decoded mezők:', Object.keys(decoded as object))
+      return null
+    }
 
     const payload = await getPayloadClient()
     const user = await payload.findByID({
@@ -28,7 +31,8 @@ export async function getCurrentUser(): Promise<User | null> {
       overrideAccess: true,
     })
     return user as User | null
-  } catch {
+  } catch (e) {
+    console.error('[getCurrentUser] jwtVerify/findByID HIBA:', e instanceof Error ? e.message : e)
     return null
   }
 }
