@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { motion, AnimatePresence, useScroll, useTransform, useInView, type MotionValue } from 'framer-motion'
 import { ArrowUpRight, ArrowDown, Plus, Minus, CalendarCheck, Bell, BarChart3, LayoutDashboard } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -25,6 +26,7 @@ function SplitRegisterButton({ href, label }: { href: string; label: string }) {
       onHoverStart={() => setHover(true)}
       onHoverEnd={() => setHover(false)}
       className="inline-flex items-center"
+      style={{ gap: 5 }}
       animate={{ gap: hover ? 0 : 5 }}
       transition={{ type: 'spring', stiffness: 380, damping: 30 }}
     >
@@ -134,48 +136,6 @@ function PhoneMockup({ className }: { className?: string }) {
   )
 }
 
-/** Sötét keretes telefon az analytics-mockuppal (a hero jobb oldalához). */
-function PhoneDashboardMockup() {
-  const kpis: [string, string][] = [['98', 'Performance Score'], ['42%', 'Organic Traffic'], ['32%', 'Conversion Rate'], ['-18%', 'Bounce Rate']]
-  return (
-    <div className="relative w-[280px] select-none">
-      <div className="relative w-[280px] h-[560px] rounded-[3rem] bg-brand-ink p-[9px] shadow-2xl shadow-black/30">
-        <div className="absolute top-[14px] left-1/2 -translate-x-1/2 w-20 h-5 bg-black rounded-full z-10" />
-        <div className="w-full h-full rounded-[2.5rem] bg-white overflow-hidden flex flex-col">
-          {/* fejléc */}
-          <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <span className="text-zinc-300">‹</span>
-            <span className="text-[13px] font-semibold text-brand-ink">Launch &amp; Optimization</span>
-            <span className="text-zinc-300">···</span>
-          </div>
-          {/* brand-kép */}
-          <div className="px-4">
-            <div className="relative rounded-2xl bg-zinc-900 h-44 flex items-center justify-center overflow-hidden">
-              <p className="text-2xl font-black tracking-tight text-white">[davelopment]®</p>
-              <p className="absolute bottom-3 text-[10px] text-white/40">davelopment.hu</p>
-            </div>
-          </div>
-          {/* Performance Overview */}
-          <div className="px-4 pt-4">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-[13px] font-bold text-brand-ink">Performance Overview</p>
-              <span className="text-[10px] text-zinc-400 rounded-md border border-zinc-200 px-2 py-0.5">This Month ▾</span>
-            </div>
-            <div className="grid grid-cols-4 gap-1.5">
-              {kpis.map(([v, l]) => (
-                <div key={l} className="rounded-lg bg-brand-surface px-1.5 py-2 text-center">
-                  <p className="text-[13px] font-black text-brand-ink leading-none">{v}</p>
-                  <p className="mt-1 text-[7px] leading-tight text-zinc-400">{l}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /* ─────────────────────────  „Görgess lejjebb" notch (Figma 22:758)  ───────────────────────── */
 
 /**
@@ -187,43 +147,32 @@ function PhoneDashboardMockup() {
 function ScrollCue() {
   const text = '✳ GÖRGESS LEJJEBB '.repeat(2)
   return (
-    <div className="relative w-[260px] h-[150px] select-none pointer-events-none">
-      {/* a brand-bg színű forma — felső dudor + alsó, kártyák felé ívelő sarkok */}
-      <svg viewBox="0 0 288 174" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
+    <div className="relative w-[216px] h-[128px] select-none pointer-events-none">
+      {/* A Figma pontos notch-formája (Rectangle 2, 22:758) — a háttér (brand-bg)
+          színű idom, ami a két kártya közös alsó élére ül: felül kis kupola nyúlik
+          a kártyák közé, a test a kör-feliratot tartja, az alsó sarkok visszaívelnek
+          a kártyák aljához (konkáv). A test teteje (y≈44) = a kártyák alsó éle. */}
+      <svg viewBox="0 0 288 171.119" className="absolute inset-0 h-full w-full" preserveAspectRatio="xMidYMin meet">
         <path
           fill="#F4F2EE"
-          d="
-            M0,30
-            Q0,30 0,30
-            L108,30
-            Q124,30 130,16
-            Q138,0 144,0
-            Q150,0 158,16
-            Q164,30 180,30
-            L288,30
-            L288,174
-            Q288,144 258,144
-            L30,144
-            Q0,144 0,174
-            Z
-          "
+          d="M43.5757 74.4283C43.5757 57.8597 57.0071 44.4283 73.5757 44.4283H106.005C118.338 44.4283 128.396 34.5451 128.611 22.2142L128.823 10.1092C128.921 4.49766 133.498 0 139.111 0C144.635 0 149.173 4.36189 149.392 9.88151L149.881 22.2142C150.373 34.6226 160.575 44.4283 172.993 44.4283H208.414C224.982 44.4283 238.414 57.8598 238.414 74.4283V141.116C238.414 158.769 253.581 172.606 271.16 170.99L288 169.442H0L10.4548 170.536C28.1613 172.388 43.5757 158.502 43.5757 140.698V74.4283Z"
         />
       </svg>
-      {/* forgó körfelirat + nyíl, a forma közepén */}
-      <div className="absolute left-1/2 top-[58px] -translate-x-1/2 h-24 w-24">
+      {/* forgó körfelirat + nyíl, a notch testének közepén (a y≈44–141 test közepe) */}
+      <div className="absolute left-1/2 top-[40px] -translate-x-1/2 h-[72px] w-[72px]">
         <motion.div className="absolute inset-0" animate={{ rotate: 360 }} transition={{ duration: 16, ease: 'linear', repeat: Infinity }}>
           <svg viewBox="0 0 100 100" className="h-full w-full">
             <defs>
               <path id="cue-circle" d="M 50,50 m -36,0 a 36,36 0 1,1 72,0 a 36,36 0 1,1 -72,0" />
             </defs>
-            <text className="fill-brand-ink/70 text-[8px] font-medium uppercase" style={{ letterSpacing: '0.22em' }}>
+            <text className="fill-brand-ink/70 text-[9px] font-medium uppercase" style={{ letterSpacing: '0.18em' }}>
               <textPath href="#cue-circle" startOffset="0">{text}</textPath>
             </text>
           </svg>
         </motion.div>
         <div className="absolute inset-0 flex items-center justify-center">
           <motion.div animate={{ y: [0, 4, 0] }} transition={{ duration: 1.6, ease: 'easeInOut', repeat: Infinity }}>
-            <ArrowDown className="h-5 w-5 text-brand-ink" />
+            <ArrowDown className="h-6 w-6 text-brand-ink" />
           </motion.div>
         </div>
       </div>
@@ -384,7 +333,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
           <Link href="/" aria-label="Schedulio"><SchedulioLogo variant="light" className="h-7" /></Link>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-zinc-500 bg-white/60 px-4 py-2 rounded-full ">
-            <a href="#szolgaltatasok" className="hover:text-brand-ink transition-colors hover:bg-[#f4f2ee]">Szolgáltatások</a>
+            <a href="#szolgaltatasok" className="hover:text-brand-ink transition-colors hover:bg-[#f4f2ee] ">Szolgáltatások</a>
             <a href="#arazas" className="hover:text-brand-ink transition-colors">Árazás</a>
             <a href="#gyik" className="hover:text-brand-ink transition-colors">GYIK</a>
           </div>
@@ -465,30 +414,46 @@ export default function Home() {
               </motion.div>
             </motion.div>
 
-            {/* dashboard-telefon, jobb alsó sarokból kilógva */}
+            {/* dashboard-telefon — valódi app-screenshot, fekete kerettel.
+                Jobbra-lefelé lóg ki (Figma: x149 a 680-as kártyán → ~22% balról),
+                a kártya overflow-hidden levágja az alját és jobb szélét. */}
             <motion.div
               initial={{ opacity: 0, y: 36 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
-              className="absolute right-4 lg:right-10 top-28 lg:top-36 z-10"
+              className="absolute left-[24%] sm:left-[30%] top-32 lg:top-[30%] z-10"
             >
-              <motion.div {...float(12, 7, 0.5)}>
-                <PhoneDashboardMockup />
+              <motion.div {...float(12, 7, 0.5)} className="w-[260px] lg:w-[320px] rounded-[2.8rem] border-[7px] border-black bg-black shadow-2xl shadow-black/30 overflow-hidden">
+                <Image
+                  src="/hero-app-screen.png"
+                  alt="Schedulio dashboard"
+                  width={853}
+                  height={1844}
+                  priority
+                  className="w-full h-auto rounded-[2.3rem]"
+                />
               </motion.div>
             </motion.div>
 
-            {/* alsó-jobb sarokban: Martian Mono szöveg */}
-            <p className="absolute bottom-7 right-7 z-20 hidden lg:block text-right font-martian text-base leading-6 text-brand-ink">
-              Regisztrálj és<br />próbáld ki ingyen
-            </p>
+            {/* jobb-alsó sarok: Rectangle 3 forma (brand-bg) a Martian Mono szöveg mögött,
+                a sarok befelé ível. SVG, reszponzív (skálázódik a wrapperrel). */}
+            <div className="absolute bottom-0 right-0 z-20 hidden lg:block w-[260px] h-[114px]">
+              <svg viewBox="0 0 260 114" className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
+                <path
+                  fill="#F4F2EE"
+                  d="M55.7409 53.3418C61.4249 46.0385 70.1614 41.7672 79.4159 41.7672H230C246.569 41.7672 260 28.3358 260 11.7672V0V84C260 100.569 246.569 114 230 114H60.2317H0C5.38405 114 10.4667 111.515 13.7735 107.266L55.7409 53.3418Z"
+                />
+              </svg>
+              <p className="absolute bottom-5 right-6 text-right font-martian text-base leading-6 text-brand-ink">
+                Regisztrálj és<br />próbáld ki ingyen
+              </p>
+            </div>
           </motion.div>
 
-          {/* „Görgess lejjebb" notch — a két kártya közös alján, középen.
-              A felső dudor a kártyák közé nyúlik, a notch teste a kártyák alja alá lóg. */}
-          <motion.div
-            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.8 }}
-            className="hidden lg:block absolute left-1/2 bottom-[-118px] -translate-x-1/2 z-30"
-          >
+          {/* „Görgess lejjebb" notch — DINAMIKUSAN a két kártya közös aljához ragad.
+              Nincs saját belépő-animáció: a kártyákkal együtt jön be (egy egységként),
+              így nem tűnik különálló elemnek. A test teteje a kártyák alsó élénél ül. */}
+          <div className="hidden lg:block absolute left-1/2 top-full -mt-[120px] -translate-x-1/2 z-30">
             <ScrollCue />
-          </motion.div>
+          </div>
         </div>
       </section>
 
