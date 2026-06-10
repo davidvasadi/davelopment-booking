@@ -28,6 +28,8 @@ export function BackstageLoginForm() {
   const onSubmit = async (data: FormData) => {
     setLoading(true)
     try {
+      // DEBUG (ideiglenes): mit küld a böngésző ténylegesen?
+      console.log('[backstage-login] email:', JSON.stringify(data.email), '| jelszó hossz:', data.password?.length, '| utolsó char:', JSON.stringify(data.password?.slice(-1)))
       const res = await fetch('/api/users/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
