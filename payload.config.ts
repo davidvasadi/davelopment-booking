@@ -23,7 +23,17 @@ import { OpeningHoursExceptions } from './src/payload/collections/OpeningHoursEx
 import { Reservations } from './src/payload/collections/Reservations'
 import { Notifications } from './src/payload/collections/Notifications'
 
+// A publikus app-URL (prod: https://schedulio.hu). A CSRF/CORS/serverURL ehhez igazodik,
+// különben az nginx-proxy mögött a böngésző-eredetű login CSRF-blokkolt → 401
+// (a curl átmegy, mert nincs Origin headere). Lokálban a localhost a fallback.
+const SERVER_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+
 export default buildConfig({
+  serverURL: SERVER_URL,
+  // CSRF: mely origin-ekről fogadunk el auth-kéréseket (cookie-set). A proxy mögött
+  // a publikus domaint kell engedni, különben a böngésző-login 401-et kap.
+  csrf: [SERVER_URL],
+  cors: [SERVER_URL],
   admin: {
     user: Users.slug,
     meta: {
