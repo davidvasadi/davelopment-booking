@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -27,6 +27,19 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  // Csak az aktív eszköz form-ját rendereljük (mobil VAGY desktop), különben két azonos
+  // name-ű input kerülne a DOM-ba, és a react-hook-form a rossz (rejtett) mezőt olvasná
+  // → üres adat → néma "hibás adatok" visszadobás. mounted: SSR-hidratációs eltérés ellen.
+  const [mounted, setMounted] = useState(false)
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    setMounted(true)
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const update = () => setIsDesktop(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
 
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -59,10 +72,17 @@ export function LoginForm() {
     }
   }
 
+  // Mount előtt egy semleges sötét hátteret adunk (megegyezik mindkét layout alap-bg-jével),
+  // hogy ne legyen villanás és ne renderelődjön egyik form sem a kliens-detektálás előtt.
+  if (!mounted) {
+    return <div className="min-h-screen bg-zinc-950" />
+  }
+
   return (
     <>
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
-      <div className="lg:hidden min-h-screen bg-zinc-950 flex flex-col">
+      {!isDesktop && (
+      <div className="min-h-screen bg-zinc-950 flex flex-col">
         {!showForm ? (
           /* Splash screen */
           <div className="flex flex-col justify-between flex-1 px-7 pt-12 pb-10">
@@ -165,9 +185,11 @@ export function LoginForm() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── DESKTOP ────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex min-h-screen">
+      {isDesktop && (
+      <div className="flex min-h-screen">
         {/* Left panel */}
         <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
 <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
@@ -253,6 +275,7 @@ export function LoginForm() {
           </div>
         </div>
       </div>
+      )}
     </>
   )
 }
