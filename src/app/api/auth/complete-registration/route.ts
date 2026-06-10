@@ -24,13 +24,15 @@ import { getPayloadClient } from '@/lib/payload'
 import { readPendingRegistration, clearPendingRegistration } from '@/lib/pendingRegistration'
 
 export async function GET(_req: NextRequest) {
+  // Publikus origin a redirectekhez (nginx-proxy mögött a _req.url localhost lenne).
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || _req.url
   const user = await getCurrentUser()
-  if (!user) return NextResponse.redirect(new URL('/login?error=session', _req.url))
+  if (!user) return NextResponse.redirect(new URL('/login?error=session', baseUrl))
 
   const pending = await readPendingRegistration()
   if (!pending) {
     // Nincs függő regisztráció → ez egy sima Google-login volt. Mehet a dashboardba.
-    return NextResponse.redirect(new URL('/', _req.url))
+    return NextResponse.redirect(new URL('/', baseUrl))
   }
 
   const payload = await getPayloadClient()
@@ -97,5 +99,5 @@ export async function GET(_req: NextRequest) {
 
   // 3. Redirect a megfelelő dashboardra
   const dest = pending.role === 'restaurant_owner' ? '/restaurant' : '/dashboard'
-  return NextResponse.redirect(new URL(dest, _req.url))
+  return NextResponse.redirect(new URL(dest, baseUrl))
 }

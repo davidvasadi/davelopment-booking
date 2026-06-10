@@ -23,6 +23,10 @@ import { issuePayloadToken, PAYLOAD_COOKIE, TOKEN_TTL_SECONDS } from '@/auth'
 import { getPayloadClient } from '@/lib/payload'
 
 export async function GET(req: NextRequest) {
+  // A redirectekhez a PUBLIKUS origin-t használjuk (nginx-proxy mögött a req.url
+  // http://localhost:3001 lenne → a böngésző localhost-ra navigálna). A NEXT_PUBLIC_APP_URL
+  // a https://schedulio.hu; fallback a req.url, ha valamiért nincs beállítva.
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.url
   const session = await auth()
   console.log('[finalize] session:', JSON.stringify(session))
   const sessionToken = session as unknown as { payloadId?: string | number; payloadEmail?: string; user?: { email?: string; name?: string } } | null
@@ -33,7 +37,7 @@ export async function GET(req: NextRequest) {
     // Fallback: ha az Auth.js session-ben van email, próbáljuk azzal megtalálni a Payload usert.
     const fallbackEmail = sessionToken?.user?.email
     if (!fallbackEmail) {
-      return NextResponse.redirect(new URL('/login?error=session', req.url))
+      return NextResponse.redirect(new URL('/login?error=session', baseUrl))
     }
     const payload = await getPayloadClient()
     const found = await payload.find({
@@ -43,7 +47,7 @@ export async function GET(req: NextRequest) {
       overrideAccess: true,
     })
     if (found.docs.length === 0) {
-      return NextResponse.redirect(new URL('/login?error=no-user', req.url))
+      return NextResponse.redirect(new URL('/login?error=no-user', baseUrl))
     }
     sessionToken!.payloadId = found.docs[0].id
     sessionToken!.payloadEmail = fallbackEmail.toLowerCase()
@@ -78,7 +82,7 @@ export async function GET(req: NextRequest) {
   if (!dest.startsWith('/')) dest = '/dashboard'
 
   // 3. Redirect + cookie beállítás (a NextResponse.cookies.set garantáltan a Set-Cookie headerre megy)
-  const res = NextResponse.redirect(new URL(dest, req.url))
+  const res = NextResponse.redirect(new URL(dest, baseUrl))
   res.cookies.set(PAYLOAD_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
