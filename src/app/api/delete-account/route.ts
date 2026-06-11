@@ -23,17 +23,11 @@ export async function DELETE() {
   const salon = salonResult.docs[0]
 
   if (salon) {
-    const salonId = salon.id
-
-    await Promise.all([
-      payload.delete({ collection: 'bookings', where: { salon: { equals: salonId } }, overrideAccess: true }),
-      payload.delete({ collection: 'availability', where: { salon: { equals: salonId } }, overrideAccess: true }),
-      payload.delete({ collection: 'services', where: { salon: { equals: salonId } }, overrideAccess: true }),
-      payload.delete({ collection: 'service-categories', where: { salon: { equals: salonId } }, overrideAccess: true }),
-      payload.delete({ collection: 'staff', where: { salon: { equals: salonId } }, overrideAccess: true }),
-    ])
-
-    await payload.delete({ collection: 'salons', where: { id: { equals: salonId } }, overrideAccess: true })
+    // A salon törlése a Salons collection `beforeDelete` hookját futtatja, ami kaszkádban
+    // törli az ÖSSZES kapcsolódó rekordot: bookings, availability, services,
+    // service-categories, staff ÉS subscriptions. Nem duplikáljuk itt kézzel (a korábbi
+    // route kihagyta a subscriptions-t → árva előfizetések maradtak). Egy forrás = a hook.
+    await payload.delete({ collection: 'salons', where: { id: { equals: salon.id } }, overrideAccess: true })
   }
 
   await payload.delete({ collection: 'users', where: { id: { equals: user.id } }, overrideAccess: true })
