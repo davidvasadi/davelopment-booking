@@ -45,10 +45,12 @@ const FEATURES = [
 
 function Kpi({ sub, value, label }: { sub: string; value: string; label?: string }) {
   return (
-    <div className="rounded-2xl p-5 lg:p-7 bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-1">{sub}</p>
-      <p className="text-xl lg:text-4xl font-black tracking-tight leading-none mb-2 text-zinc-900 dark:text-white truncate">{value}</p>
-      {label && <p className="text-xs text-zinc-500 dark:text-white/40">{label}</p>}
+    <div className="rounded-2xl p-4 sm:p-5 lg:p-6 bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none min-w-0">
+      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-1.5">{sub}</p>
+      {/* Reszponzív, tördelhető érték: hosszú szöveges értékek (pl. „Próbaidőszak",
+          dátum) is kiférnek tableten — nincs túlcsorduló 4xl és nincs truncate. */}
+      <p className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight leading-tight mb-1.5 text-zinc-900 dark:text-white break-words [overflow-wrap:anywhere]">{value}</p>
+      {label && <p className="text-xs text-zinc-500 dark:text-white/40 leading-snug">{label}</p>}
     </div>
   )
 }
