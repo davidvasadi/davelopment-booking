@@ -46,10 +46,10 @@ export const Subscriptions: CollectionConfig = {
     ],
   },
   admin: {
-    // Az 'owner' virtuális mező egyértelmű címet ad ("Szalon: X" / "Étterem: Y") a sima
-    // 'plan' (trial/pro) helyett, és első oszlopként azonnal látszik melyik helyhez tartozik
-    // — nem kell a salon/restaurant relationship <No ...> jelöléseit fejtegetni.
-    useAsTitle: 'owner',
+    // useAsTitle NEM lehet virtuális mező (Payload tiltja, ha nincs relationshiphez kötve)
+    // → 'plan' marad a cím. Az 'owner' virtuális mező viszont LISTAOSZLOPKÉNT remek:
+    // első oszlopként "Szalon: X" / "Étterem: Y", egyértelmű melyik helyhez tartozik.
+    useAsTitle: 'plan',
     defaultColumns: ['owner', 'plan', 'status', 'current_period_end'],
     group: 'Rendszer',
   },
