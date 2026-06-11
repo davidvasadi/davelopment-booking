@@ -46,8 +46,11 @@ export const Subscriptions: CollectionConfig = {
     ],
   },
   admin: {
-    useAsTitle: 'plan',
-    defaultColumns: ['salon', 'restaurant', 'plan', 'status', 'current_period_end'],
+    // Az 'owner' virtuális mező egyértelmű címet ad ("Szalon: X" / "Étterem: Y") a sima
+    // 'plan' (trial/pro) helyett, és első oszlopként azonnal látszik melyik helyhez tartozik
+    // — nem kell a salon/restaurant relationship <No ...> jelöléseit fejtegetni.
+    useAsTitle: 'owner',
+    defaultColumns: ['owner', 'plan', 'status', 'current_period_end'],
     group: 'Rendszer',
   },
   access: {
@@ -57,6 +60,40 @@ export const Subscriptions: CollectionConfig = {
     delete: ({ req }) => req.user?.role === 'admin',
   },
   fields: [
+    {
+      // Virtuális cím-oszlop: "Szalon: X" vagy "Étterem: Y" — egyértelmű melyik helyhez
+      // tartozik az előfizetés, nem kell a salon/restaurant <No ...> jelöléseit nézni.
+      // Nem tárolódik, csak olvasáskor töltődik (a Users.place mintájára).
+      name: 'owner',
+      type: 'text',
+      virtual: true,
+      label: 'Tulajdonos',
+      admin: {
+        readOnly: true,
+        condition: () => false, // csak listaoszlop, a szerkesztőben rejtve (salon/restaurant ott van)
+      },
+      hooks: {
+        afterRead: [
+          async ({ data, req }) => {
+            try {
+              if (data?.salon) {
+                const id = typeof data.salon === 'object' ? data.salon.id : data.salon
+                const doc = await req.payload.findByID({ collection: 'salons', id, depth: 0, overrideAccess: true, req })
+                return doc?.name ? `Szalon: ${doc.name}` : null
+              }
+              if (data?.restaurant) {
+                const id = typeof data.restaurant === 'object' ? data.restaurant.id : data.restaurant
+                const doc = await req.payload.findByID({ collection: 'restaurants', id, depth: 0, overrideAccess: true, req })
+                return doc?.name ? `Étterem: ${doc.name}` : null
+              }
+            } catch {
+              return null
+            }
+            return null
+          },
+        ],
+      },
+    },
     {
       name: 'salon',
       type: 'relationship',
