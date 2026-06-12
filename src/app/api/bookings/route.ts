@@ -61,14 +61,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ez az időpont már foglalt' }, { status: 409 })
     }
 
+    // overrideAccess: a publikus foglalás-flow (bejelentkezetlen vendég) — a route
+    // a jogosultságot maga validálja (slot szabad, nem múltbeli). A create utáni
+    // visszaolvasás és e három find a szigorított read-en máskülönben elhasalna.
     const [salon, service, staff] = await Promise.all([
-      payload.findByID({ collection: 'salons', id: salonId }) as Promise<Salon>,
-      payload.findByID({ collection: 'services', id: serviceId }) as Promise<Service>,
-      payload.findByID({ collection: 'staff', id: staffId }) as Promise<StaffMember>,
+      payload.findByID({ collection: 'salons', id: salonId, overrideAccess: true }) as Promise<Salon>,
+      payload.findByID({ collection: 'services', id: serviceId, overrideAccess: true }) as Promise<Service>,
+      payload.findByID({ collection: 'staff', id: staffId, overrideAccess: true }) as Promise<StaffMember>,
     ])
 
     const booking = (await payload.create({
       collection: 'bookings',
+      overrideAccess: true,
       data: {
         salon: Number(salonId),
         service: Number(serviceId),
