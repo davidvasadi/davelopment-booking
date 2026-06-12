@@ -1,7 +1,12 @@
 import { CollectionConfig } from 'payload'
+import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
 
 export const Staff: CollectionConfig = {
   slug: 'staff',
+  hooks: {
+    afterChange: [revalidateChildOnChange('salon', 'salon')],
+    afterDelete: [revalidateChildOnDelete('salon', 'salon')],
+  },
   labels: { singular: 'Munkatárs', plural: 'Munkatársak' },
   admin: {
     group: 'Szalon',

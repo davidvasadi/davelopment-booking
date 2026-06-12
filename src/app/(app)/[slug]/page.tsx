@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation'
-import { getPayloadClient } from '@/lib/payload'
-import type { Salon, Service, ServiceCategory, StaffMember, Media } from '@/payload/payload-types'
+import { getPublicSalon } from '@/lib/publicPlace'
+import type { Media } from '@/payload/payload-types'
 import { MapPin, Phone, Mail, Globe, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import PublicServicesSection from '@/components/PublicServicesSection'
@@ -22,50 +22,16 @@ function avatarGradient(name: string) {
 
 export default async function SalonPublicPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
-  const payload = await getPayloadClient()
 
-  const salonResult = await payload.find({
-    collection: 'salons',
-    where: { and: [{ slug: { equals: slug } }, { is_active: { equals: true } }] },
-    depth: 2,
-    limit: 1,
-  })
+  const salonData = await getPublicSalon(slug)
 
   // No active salon for this slug — fall through to a restaurant, then 404.
-  if (!salonResult.docs.length) {
+  if (!salonData) {
     const restaurantView = await RestaurantPublicView({ slug })
     if (restaurantView) return restaurantView
     notFound()
   }
-  const salon = salonResult.docs[0] as Salon
-
-  const [servicesResult, staffResult, categoriesResult] = await Promise.all([
-    payload.find({
-      collection: 'services',
-      where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }] },
-      sort: 'name',
-      depth: 1,
-      limit: 100,
-    }),
-    payload.find({
-      collection: 'staff',
-      where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }] },
-      sort: 'name',
-      depth: 1,
-      limit: 100,
-    }),
-    payload.find({
-      collection: 'service-categories',
-      where: { salon: { equals: salon.id } },
-      sort: 'sort_order',
-      depth: 1,
-      limit: 100,
-    }),
-  ])
-
-  const services = servicesResult.docs as Service[]
-  const staff = staffResult.docs as StaffMember[]
-  const serviceCategories = categoriesResult.docs as ServiceCategory[]
+  const { salon, services, staff, serviceCategories } = salonData
 
   const coverUrl = salon.cover_image && typeof salon.cover_image === 'object'
     ? (salon.cover_image as Media).url ?? null

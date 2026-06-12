@@ -1,8 +1,13 @@
 import type { CollectionConfig } from 'payload'
 import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
+import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
 
 export const OpeningHours: CollectionConfig = {
   slug: 'opening-hours',
+  hooks: {
+    afterChange: [revalidateChildOnChange('restaurant', 'restaurant')],
+    afterDelete: [revalidateChildOnDelete('restaurant', 'restaurant')],
+  },
   labels: { singular: 'Nyitvatartás', plural: 'Nyitvatartás' },
   admin: {
     useAsTitle: 'day_of_week',

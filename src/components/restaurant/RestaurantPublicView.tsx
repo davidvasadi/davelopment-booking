@@ -1,8 +1,8 @@
 import Link from 'next/link'
-import { getPayloadClient } from '@/lib/payload'
+import { getPublicRestaurant } from '@/lib/publicPlace'
 import { MapPin, Phone, Mail, Globe, ChevronRight, type LucideIcon } from 'lucide-react'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
-import type { Restaurant, OpeningHour, Media } from '@/payload/payload-types'
+import type { Media } from '@/payload/payload-types'
 import OpeningHoursLive from '@/components/restaurant/OpeningHoursLive'
 import NextAvailableSlots from '@/components/restaurant/NextAvailableSlots'
 
@@ -12,23 +12,11 @@ import NextAvailableSlots from '@/components/restaurant/NextAvailableSlots'
  * (the shared [slug] route) can fall through to notFound().
  */
 export async function RestaurantPublicView({ slug }: { slug: string }) {
-  const payload = await getPayloadClient()
+  const data = await getPublicRestaurant(slug)
+  if (!data) return null
+  const { restaurant } = data
 
-  const result = await payload.find({
-    collection: 'restaurants',
-    where: { and: [{ slug: { equals: slug } }, { is_active: { not_equals: false } }] },
-    depth: 1,
-    limit: 1,
-  })
-  if (!result.docs.length) return null
-  const restaurant = result.docs[0] as Restaurant
-
-  const ohResult = await payload.find({
-    collection: 'opening-hours',
-    where: { restaurant: { equals: restaurant.id } },
-    limit: 100,
-  })
-  const openingHours = (ohResult.docs as OpeningHour[]).map((h) => ({
+  const openingHours = data.openingHours.map((h) => ({
     day_of_week: h.day_of_week,
     is_open: h.is_open,
     open_time: h.open_time,

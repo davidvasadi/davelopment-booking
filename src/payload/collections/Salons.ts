@@ -1,10 +1,12 @@
 import type { CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
+import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 
 export const Salons: CollectionConfig = {
   slug: 'salons',
   hooks: {
     afterChange: [
+      revalidatePlaceOnChange('salon'),
       async ({ req, doc, operation }) => {
         if (operation !== 'create') return
         const existing = await req.payload.find({
@@ -64,6 +66,7 @@ export const Salons: CollectionConfig = {
         ])
       },
     ],
+    afterDelete: [revalidatePlaceOnDelete('salon')],
   },
   labels: { singular: 'Szalon', plural: 'Szalonok' },
   admin: {

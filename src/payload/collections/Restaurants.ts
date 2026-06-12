@@ -1,6 +1,7 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { slugify } from '../lib/slugify'
+import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 
 const isOwnerOrAdmin: Access = ({ req }) => {
   if (!req.user) return false
@@ -12,6 +13,7 @@ export const Restaurants: CollectionConfig = {
   slug: 'restaurants',
   hooks: {
     afterChange: [
+      revalidatePlaceOnChange('restaurant'),
       async ({ req, doc, operation }) => {
         if (operation !== 'create') return
         const existing = await req.payload.find({
@@ -70,6 +72,7 @@ export const Restaurants: CollectionConfig = {
         ])
       },
     ],
+    afterDelete: [revalidatePlaceOnDelete('restaurant')],
   },
   admin: {
     useAsTitle: 'name',
