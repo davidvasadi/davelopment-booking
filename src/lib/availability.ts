@@ -122,7 +122,9 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   const bookingWhere: Where = staffId
     ? { and: [{ staff: { equals: staffId } }, { date: { equals: date } }, { status: { not_equals: 'cancelled' } }] }
     : { and: [{ salon: { equals: salonId } }, { date: { equals: date } }, { status: { not_equals: 'cancelled' } }] }
-  const existing = await payload.find({ collection: 'bookings', where: bookingWhere })
+  // overrideAccess: a slot-számítás publikus (bejelentkezetlen vendég) — a szigorított
+  // Bookings.read máskülönben üres listát adna, és minden időpont szabadnak látszana.
+  const existing = await payload.find({ collection: 'bookings', where: bookingWhere, overrideAccess: true })
 
   // 7. Filter out conflicting slots + past slots for today
   const occupied = existing.docs.map((b) => ({

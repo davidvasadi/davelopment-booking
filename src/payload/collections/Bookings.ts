@@ -11,9 +11,18 @@ export const Bookings: CollectionConfig = {
     hidden: true,
   },
   access: {
-    read: ({ req, data }) => {
+    // A read access where-filtert ad vissza (NEM data-összehasonlítást: a `data`
+    // listázásnál undefined, ami kiszivárogtatná más szalon foglalásait). A tulaj
+    // csak a saját szalonja foglalásait látja; kívülálló semmit.
+    read: ({ req }) => {
       if (req.user?.role === 'admin') return true
-      return req.user?.salon?.id === data?.salon?.id
+      if (!req.user) return false
+      const userSalonId =
+        req.user.salon && typeof req.user.salon === 'object'
+          ? (req.user.salon as { id: number | string }).id
+          : req.user.salon
+      if (!userSalonId) return false
+      return { salon: { equals: userSalonId } }
     },
     create: () => true, // Publikus: ügyfél hozza létre
     update: async ({ req, id }) => {

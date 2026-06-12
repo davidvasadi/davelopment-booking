@@ -13,7 +13,11 @@ export const Reservations: CollectionConfig = {
     hidden: true,
   },
   access: {
-    read: () => true,
+    // A read csak a saját étterem foglalásait engedi (tenant-szűrő where-filter,
+    // mint az update/delete). Korábban () => true volt → BÁRKI lekérhette az összes
+    // étterem összes asztalfoglalását (vendégnév, telefon) bejelentkezés nélkül.
+    // A vendég-foglalási flow nem ezen át olvas (overrideAccess), a create marad nyilvános.
+    read: isRestaurantOwnerOrAdmin,
     create: () => true,
     update: isRestaurantOwnerOrAdmin,
     delete: isRestaurantOwnerOrAdmin,
