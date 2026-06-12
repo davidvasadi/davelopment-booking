@@ -11,7 +11,7 @@ import { getPayloadClient } from '@/lib/payload'
 
 export type SearchHit = {
   id: string | number
-  kind: 'reservation' | 'booking'
+  kind: 'reservation' | 'booking' | 'place' | 'subscription'
   name: string
   sub: string // pl. "2026-06-04 · 18:00 · 4 fő"
   href: string
@@ -28,6 +28,32 @@ export async function GET(req: NextRequest) {
   const like = { like: q }
 
   try {
+    // Admin (backstage) → helyek (szalon + étterem) név/owner-email + előfizetések.
+    // A találatok a backstage aloldalakra mutatnak, a hely a detail-sheetet nyitja query-paramból.
+    if (user.role === 'admin') {
+      const [salons, restaurants] = await Promise.all([
+        payload.find({ collection: 'salons', where: { or: [{ name: like }, { city: like }] }, sort: '-createdAt', limit: 6, depth: 0, overrideAccess: true }),
+        payload.find({ collection: 'restaurants', where: { or: [{ name: like }, { city: like }] }, sort: '-createdAt', limit: 6, depth: 0, overrideAccess: true }),
+      ])
+      const hits: SearchHit[] = [
+        ...salons.docs.map((s) => ({
+          id: s.id,
+          kind: 'place' as const,
+          name: s.name,
+          sub: `Szalon${s.city ? ` · ${s.city}` : ''}`,
+          href: `/backstage/salons?place=salon:${encodeURIComponent(String(s.id))}&t=${Date.now()}`,
+        })),
+        ...restaurants.docs.map((r) => ({
+          id: r.id,
+          kind: 'place' as const,
+          name: r.name,
+          sub: `Étterem${r.city ? ` · ${r.city}` : ''}`,
+          href: `/backstage/salons?place=restaurant:${encodeURIComponent(String(r.id))}&t=${Date.now()}`,
+        })),
+      ]
+      return NextResponse.json({ hits })
+    }
+
     // Étterem-tulajdonos → reservations, szalon-tulajdonos → bookings.
     if (user.role === 'restaurant_owner' && user.restaurant) {
       const restaurantId = typeof user.restaurant === 'object' ? user.restaurant.id : user.restaurant

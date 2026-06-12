@@ -2,16 +2,27 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { CalendarPlus, CalendarX, UserPlus, Sparkles, type LucideIcon } from 'lucide-react'
 
 export type Notification = {
   id: number | string
-  type: 'new_booking' | 'cancellation'
+  type: 'new_booking' | 'cancellation' | 'new_signup' | 'new_subscriber'
   title: string
   body?: string | null
   read?: boolean | null
   createdAt: string
   reservation?: number | string | null
   booking?: number | string | null
+}
+
+/** Egy értesítés-típushoz tartozó ikon + szín (a harang-soroknál, owner és admin típusra is). */
+export function notificationVisual(type: Notification['type']): { Icon: LucideIcon; color: string } {
+  switch (type) {
+    case 'cancellation': return { Icon: CalendarX, color: 'text-red-500' }
+    case 'new_signup': return { Icon: UserPlus, color: 'text-violet-500' }
+    case 'new_subscriber': return { Icon: Sparkles, color: 'text-amber-500' }
+    default: return { Icon: CalendarPlus, color: 'text-green-600 dark:text-green-400' } // new_booking
+  }
 }
 
 export function timeAgo(dateStr: string): string {
@@ -87,6 +98,10 @@ export function useNotifications(onNavigate?: () => void) {
       router.push(`/restaurant/bookings?reservation=${encodeURIComponent(String(n.reservation))}&t=${t}`)
     } else if (n.booking != null) {
       router.push(`/dashboard/bookings?booking=${encodeURIComponent(String(n.booking))}&t=${t}`)
+    } else if (n.type === 'new_signup') {
+      router.push(`/backstage/salons?t=${t}`)
+    } else if (n.type === 'new_subscriber') {
+      router.push(`/backstage/subscriptions?t=${t}`)
     }
   }, [onNavigate, remove, router])
 

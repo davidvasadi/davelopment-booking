@@ -88,8 +88,13 @@ export function DashboardNav({
   const { items: navItems, publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
   const pathname = usePathname()
 
-  // Összecsukás csak az étterem navban él (a salon nav változatlan).
-  const collapsible = variant === 'restaurant'
+  // Backstage (admin): nincs üzlet/előfizetés/nyilvános oldal/store-switcher — ezeket
+  // elrejtjük, a fejlécben admin-email + „Backstage" badge van. A nav-elemek, a kereső,
+  // a fiók-blokk és a teljes layout viszont UGYANAZ mint a szalon/étterem dashboardon.
+  const isBackstage = variant === 'backstage'
+
+  // Összecsukás az étterem ÉS a backstage navban él (a salon nav változatlan).
+  const collapsible = variant === 'restaurant' || variant === 'backstage'
   const { navCollapsed, toggleNav } = useRestaurantUI()
   const collapsed = collapsible && navCollapsed
 
@@ -145,6 +150,21 @@ export function DashboardNav({
                   <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-white dark:text-black text-sm font-bold">
                     {salonName?.trim()?.[0]?.toUpperCase() ?? '?'}
                   </span>
+                )}
+              </div>
+            ) : isBackstage ? (
+              // Backstage fejléc: Schedulio logó + „Backstage" badge + admin email.
+              <div className="flex flex-col gap-2">
+                <Link href="/backstage" aria-label="Schedulio Backstage" className="block w-fit hover:opacity-80 transition-opacity">
+                  <SchedulioLogo className="h-6" />
+                </Link>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-white dark:text-black">
+                    Backstage
+                  </span>
+                </div>
+                {userEmail && (
+                  <p className="text-xs text-zinc-400 dark:text-white/30 truncate" title={userEmail}>{userEmail}</p>
                 )}
               </div>
             ) : (
@@ -237,7 +257,9 @@ export function DashboardNav({
             )
           })}
 
-            {/* Nyilvános oldal — a menüpontokkal egy oszlopban, azonos stílussal. */}
+            {/* Nyilvános oldal — a menüpontokkal egy oszlopban. Backstage-en NINCS publikus
+                oldal (admin-eszköz), ezért ott elrejtjük. */}
+            {!isBackstage && (
             <motion.div variants={navItemVariants} transition={navItemSpring}>
               <a
                 href={`/${publicUrlPrefix}${salonSlug}`}
@@ -252,6 +274,7 @@ export function DashboardNav({
                 {!collapsed && <span className="flex-1">Nyilvános oldal</span>}
               </a>
             </motion.div>
+            )}
           </nav>
         </motion.div>
 
@@ -301,10 +324,14 @@ export function DashboardNav({
       {/* ── MOBILE TOP BAR ─────────────────────────────────────── */}
       <header className="lg:hidden relative z-40 bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/" aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
+          <Link href={isBackstage ? '/backstage' : '/'} aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
             <SchedulioLogo className="h-6" />
           </Link>
-          <span className="text-xs text-zinc-400 dark:text-white/30 font-medium truncate max-w-[120px]">{salonName}</span>
+          {isBackstage ? (
+            <span className="inline-flex items-center rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-white dark:text-black">Backstage</span>
+          ) : (
+            <span className="text-xs text-zinc-400 dark:text-white/30 font-medium truncate max-w-[120px]">{salonName}</span>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <OfflineIndicator compact />
@@ -317,13 +344,15 @@ export function DashboardNav({
           >
             <Search className="h-[18px] w-[18px]" />
           </button>
-          <a
-            href={`/${salonSlug}`}
-            target="_blank"
-            className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
-          >
-            <ExternalLink className="h-4 w-4" />
-          </a>
+          {!isBackstage && (
+            <a
+              href={`/${salonSlug}`}
+              target="_blank"
+              className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
+            >
+              <ExternalLink className="h-4 w-4" />
+            </a>
+          )}
         </div>
       </header>
 

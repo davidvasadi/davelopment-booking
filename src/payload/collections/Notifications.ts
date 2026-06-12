@@ -12,9 +12,10 @@ export const Notifications: CollectionConfig = {
     hidden: true,
   },
   access: {
-    // Csak a saját helyhez (étterem/szalon) tartozó értesítések, kivéve admin.
+    // Admin csak az admin-közönségű (audience: 'admin') értesítéseket látja a harangban;
+    // a tulajok a saját helyük owner-értesítéseit. (Admin a /admin-ban mindent lát overrideAccess-szel.)
     read: (({ req }) => {
-      if (req.user?.role === 'admin') return true
+      if (req.user?.role === 'admin') return { audience: { equals: 'admin' } }
       if (req.user?.role === 'restaurant_owner') {
         const restaurantId =
           req.user.restaurant && typeof req.user.restaurant === 'object'
@@ -55,6 +56,20 @@ export const Notifications: CollectionConfig = {
       label: 'Szalon',
     },
     {
+      // Kinek szól: owner (a tulaj harangja) vagy admin (a backstage harangja). Az új admin-
+      // értesítések (regisztráció, előfizető) 'admin', a foglalás-értesítések 'owner'.
+      name: 'audience',
+      type: 'select',
+      required: true,
+      defaultValue: 'owner',
+      index: true,
+      label: 'Közönség',
+      options: [
+        { label: 'Tulajdonos', value: 'owner' },
+        { label: 'Admin (backstage)', value: 'admin' },
+      ],
+    },
+    {
       name: 'type',
       type: 'select',
       required: true,
@@ -62,6 +77,8 @@ export const Notifications: CollectionConfig = {
       options: [
         { label: 'Új foglalás', value: 'new_booking' },
         { label: 'Lemondás', value: 'cancellation' },
+        { label: 'Új regisztráció', value: 'new_signup' },
+        { label: 'Új előfizető', value: 'new_subscriber' },
       ],
     },
     { name: 'title', type: 'text', required: true, label: 'Cím' },

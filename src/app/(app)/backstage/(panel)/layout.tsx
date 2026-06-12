@@ -1,6 +1,9 @@
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
-import { BackstageSidebar } from '@/components/backstage/BackstageSidebar'
+import { DashboardNav } from '@/components/dashboard/DashboardNav'
+import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
+import { Reveal } from '@/components/ui/reveal'
+import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContext'
 import { expireStaleTrials } from '@/lib/subscriptionSync'
 
 export default async function BackstageLayout({ children }: { children: React.ReactNode }) {
@@ -9,12 +12,28 @@ export default async function BackstageLayout({ children }: { children: React.Re
 
   expireStaleTrials().catch(() => null)
 
+  // Ugyanaz a layout-keret mint a szalon/étterem dashboardon (DashboardNav + MobileBottomNav),
+  // `backstage` varianttal — így egységes az érzés. A backstage-nek nincs szalonja/előfizetése,
+  // ezért a salon-prop placeholder, a subscription null (a nav elrejti a store/sub részeket).
+  // A RestaurantUIProvider az étterivel azonos összecsukható sidebar állapotát (navCollapsed)
+  // szolgálja ki — nélküle a nav összecsukás-gombja no-op lenne.
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col lg:flex-row">
-      <BackstageSidebar email={user.email} />
-      <main className="flex-1 pt-14 pb-28 lg:pt-0 lg:pb-0">
-        {children}
-      </main>
-    </div>
+    <RestaurantUIProvider>
+      <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
+        <DashboardNav
+          variant="backstage"
+          salonName="Backstage"
+          salonSlug=""
+          subscription={null}
+          userName={user.name}
+          userEmail={user.email}
+          userAvatarUrl={user.avatar_url ?? null}
+        />
+        <main className="flex-1 min-w-0 pb-24 lg:pb-0">
+          <Reveal>{children}</Reveal>
+        </main>
+        <MobileBottomNav variant="backstage" userName={user.name} userEmail={user.email} userAvatarUrl={user.avatar_url ?? null} />
+      </div>
+    </RestaurantUIProvider>
   )
 }

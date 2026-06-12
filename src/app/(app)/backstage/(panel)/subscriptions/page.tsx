@@ -1,25 +1,13 @@
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
-import type { Subscription, Salon, User } from '@/payload/payload-types'
-import { CreditCard, AlertTriangle, Clock, CheckCircle2, XCircle, PauseCircle } from 'lucide-react'
+import type { Subscription } from '@/payload/payload-types'
+import { CreditCard, AlertTriangle, Clock, CheckCircle2, XCircle, PauseCircle, Building2, UtensilsCrossed } from 'lucide-react'
 import SubscriptionStatusSelect from './SubscriptionStatusSelect'
+import {
+  getPlaceFromSubscription, subAmountHuf, PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS, textColorOf,
+} from '@/lib/backstagePlaces'
+import { getPricing } from '@/lib/pricing'
 
-const PLAN_LABELS: Record<string, string> = { trial: 'Trial', pro: 'Pro' }
-const PLAN_COLORS: Record<string, string> = {
-  trial: 'bg-blue-500/10 text-blue-500',
-  pro: 'bg-violet-500/10 text-violet-400',
-}
-const STATUS_LABELS: Record<string, string> = {
-  trialing: 'Próbaidőszak', active: 'Aktív', past_due: 'Lejárt fizetés',
-  canceled: 'Megszakítva', paused: 'Szüneteltetett',
-}
-const STATUS_COLORS: Record<string, string> = {
-  trialing: 'bg-blue-500/10 text-blue-400',
-  active: 'bg-emerald-500/10 text-emerald-400',
-  past_due: 'bg-red-500/10 text-red-400',
-  canceled: 'bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500',
-  paused: 'bg-amber-500/10 text-amber-400',
-}
 const STATUS_ICONS: Record<string, React.ElementType> = {
   trialing: Clock, active: CheckCircle2, past_due: AlertTriangle,
   canceled: XCircle, paused: PauseCircle,
@@ -29,13 +17,10 @@ export default async function SubscriptionsPage() {
   await requireAuth('admin')
   const payload = await getPayloadClient()
 
-  const subsResult = await payload.find({
-    collection: 'subscriptions',
-    sort: '-createdAt',
-    limit: 200,
-    depth: 2,
-    overrideAccess: true,
-  })
+  const [subsResult, pricing] = await Promise.all([
+    payload.find({ collection: 'subscriptions', sort: '-createdAt', limit: 200, depth: 2, overrideAccess: true }),
+    getPricing(),
+  ])
 
   const subs = subsResult.docs as Subscription[]
 
@@ -49,116 +34,143 @@ export default async function SubscriptionsPage() {
   const byPlan = {
     trial: subs.filter(s => s.plan === 'trial').length,
     pro: subs.filter(s => s.plan === 'pro').length,
+    restaurant_pro: subs.filter(s => s.plan === 'restaurant_pro').length,
   }
-  const mrr = subs.filter(s => s.status === 'active').reduce((sum, s) => sum + (s.amount_huf ?? 0), 0)
+  const mrr = subs.filter(s => s.status === 'active').reduce((sum, s) => sum + subAmountHuf(s), 0)
 
   const now = new Date()
   const in14 = new Date(); in14.setDate(now.getDate() + 14)
 
+  const cardBase = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl'
+
+  const planMeta = [
+    { plan: 'trial' as const, note: `${pricing.trial_days} nap ingyenes` },
+    { plan: 'pro' as const, note: `Szalon · ${pricing.salon_pro_huf.toLocaleString('hu-HU')} Ft/hó` },
+    { plan: 'restaurant_pro' as const, note: `Étterem · ${pricing.restaurant_pro_huf.toLocaleString('hu-HU')} Ft/hó` },
+  ]
+
   return (
-    <div className="px-4 lg:px-8 py-6 lg:py-10">
-      <div className="mb-8">
-        <h1 className="text-zinc-900 dark:text-white font-black text-2xl tracking-tight">Előfizetések</h1>
-        <p className="text-zinc-500 text-sm mt-1">{subs.length} előfizetés összesen</p>
+    <div className="p-5 lg:p-8 space-y-6">
+      <div>
+        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Backstage</p>
+        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Előfizetések</h1>
+        <p className="text-zinc-500 dark:text-white/40 text-sm mt-1">{subs.length} előfizetés összesen (szalon + étterem)</p>
       </div>
 
-      {/* Summary row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Summary row — étteri stílus (visszafogott szám, a státuszt apró színpötty jelzi). */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Aktív', value: byStatus.active, color: 'text-emerald-400' },
-          { label: 'Próbaidőszak', value: byStatus.trialing, color: 'text-blue-400' },
-          { label: 'Lejárt fizetés', value: byStatus.past_due, color: 'text-red-400' },
-          { label: 'MRR', value: `${mrr.toLocaleString('hu-HU')} Ft`, color: 'text-violet-400' },
+          { label: 'Aktív', value: String(byStatus.active), dot: 'bg-emerald-500' },
+          { label: 'Próbaidőszak', value: String(byStatus.trialing), dot: 'bg-blue-500' },
+          { label: 'Lejárt fizetés', value: String(byStatus.past_due), dot: 'bg-red-500' },
+          { label: 'MRR', value: `${mrr.toLocaleString('hu-HU')} Ft`, dot: null },
         ].map(item => (
-          <div key={item.label} className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-5">
-            <CreditCard className={`h-5 w-5 mb-3 ${item.color}`} />
-            <p className={`font-black text-2xl ${item.color}`}>{item.value}</p>
-            <p className="text-zinc-400 dark:text-zinc-600 text-[11px] mt-1 uppercase tracking-wider">{item.label}</p>
+          <div key={item.label} className={`${cardBase} p-5`}>
+            <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-2">
+              {item.dot && <span className={`h-1.5 w-1.5 rounded-full ${item.dot}`} />}
+              {item.label}
+            </p>
+            <p className="text-zinc-900 dark:text-white font-black text-2xl leading-none">{item.value}</p>
           </div>
         ))}
       </div>
 
       {/* Plan distribution */}
-      <div className="grid grid-cols-2 gap-3 mb-8">
-        {(['trial', 'pro'] as const).map(plan => (
-          <div key={plan} className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-xl px-5 py-4 flex items-center justify-between">
-            <div>
-              <p className="text-zinc-900 dark:text-white font-bold text-sm">{PLAN_LABELS[plan]}</p>
-              <p className="text-zinc-400 text-xs mt-0.5">
-                {plan === 'trial' ? '14 nap ingyenes' : '2 900 Ft/hó'}
-              </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {planMeta.map(({ plan, note }) => (
+          <div key={plan} className={`${cardBase} px-5 py-4 flex items-center justify-between`}>
+            <div className="min-w-0">
+              <p className="text-zinc-900 dark:text-white font-bold text-sm truncate">{PLAN_LABELS[plan]}</p>
+              <p className="text-zinc-400 text-xs mt-0.5 truncate">{note}</p>
             </div>
-            <span className={`text-lg font-black ${PLAN_COLORS[plan].split(' ').find(c => c.startsWith('text-'))}`}>
-              {byPlan[plan]}
-            </span>
+            <span className={`text-lg font-black shrink-0 ${textColorOf(PLAN_COLORS[plan])}`}>{byPlan[plan]}</span>
           </div>
         ))}
       </div>
 
-      {/* Subscription list */}
-      <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-zinc-100 dark:border-white/[0.06]">
-          <div className="grid grid-cols-[1fr_100px_120px_140px_130px] gap-4">
-            {['Szalon / Tulajdonos', 'Terv', 'Státusz', 'Időszak vége', 'Módosítás'].map(h => (
-              <span key={h} className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">{h}</span>
-            ))}
-          </div>
-        </div>
-
+      {/* Subscription list — mobilon kártya-stack, asztalin táblázat (overflow-x a kis ablakhoz). */}
+      <div className={`${cardBase} overflow-hidden`}>
         {subs.length === 0 ? (
           <p className="px-5 py-10 text-zinc-400 dark:text-zinc-600 text-sm text-center">Nincs egyetlen előfizetés sem.</p>
         ) : (
-          <div>
+          <div className="overflow-x-auto">
+            {/* Desktop header */}
+            <div className="hidden lg:grid grid-cols-[minmax(200px,1fr)_110px_140px_150px_220px] gap-4 px-5 py-3 border-b border-zinc-100 dark:border-white/[0.06] min-w-[820px]">
+              {['Hely / Tulajdonos', 'Terv', 'Státusz', 'Időszak vége', 'Módosítás'].map(h => (
+                <span key={h} className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">{h}</span>
+              ))}
+            </div>
+
             {subs.map((sub, i) => {
-              const salon = typeof sub.salon === 'object' ? (sub.salon as Salon) : null
-              const owner = salon && typeof salon.owner === 'object' ? (salon.owner as User) : null
+              const place = getPlaceFromSubscription(sub)
+              const PlaceIcon = place?.kind === 'restaurant' ? UtensilsCrossed : Building2
               const periodEnd = sub.status === 'trialing' && sub.trial_ends_at
                 ? new Date(sub.trial_ends_at)
                 : sub.current_period_end ? new Date(sub.current_period_end) : null
               const isExpiringSoon = sub.status === 'trialing' && periodEnd && periodEnd >= now && periodEnd <= in14
               const StatusIcon = STATUS_ICONS[sub.status] ?? CreditCard
               const showBorder = i < subs.length - 1
+              const periodEndNode = periodEnd ? (
+                <>
+                  <p className={`text-xs ${isExpiringSoon ? 'text-amber-500 font-semibold' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                    {periodEnd.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                  {isExpiringSoon && <p className="text-[10px] text-amber-500">⚠ Lejár hamarosan</p>}
+                </>
+              ) : <span className="text-zinc-400 dark:text-zinc-600 text-xs">—</span>
+              const planBadge = (
+                <span className={`inline-flex w-fit text-[11px] font-semibold px-2 py-0.5 rounded-full ${PLAN_COLORS[sub.plan]}`}>
+                  {PLAN_LABELS[sub.plan] ?? sub.plan}
+                </span>
+              )
+              const statusBadge = (
+                <span className="flex items-center gap-1.5">
+                  <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${textColorOf(STATUS_COLORS[sub.status])}`} />
+                  <span className={`text-[11px] font-semibold ${textColorOf(STATUS_COLORS[sub.status])}`}>{STATUS_LABELS[sub.status] ?? sub.status}</span>
+                </span>
+              )
+              const placeNode = (
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="h-8 w-8 rounded-lg bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
+                    <PlaceIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-zinc-900 dark:text-white text-sm font-medium truncate">{place?.name ?? '— (árva előfizetés)'}</span>
+                      {place && (
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                          {place.kind === 'restaurant' ? 'Étterem' : 'Szalon'}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-zinc-400 text-xs truncate mt-0.5">{place?.owner?.email ?? '—'}</p>
+                  </div>
+                </div>
+              )
 
               return (
-                <div
-                  key={sub.id}
-                  className={`grid grid-cols-[1fr_100px_120px_140px_130px] gap-4 items-center px-5 py-3.5 ${showBorder ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''} ${isExpiringSoon ? 'bg-amber-50 dark:bg-amber-500/[0.04]' : ''}`}
-                >
-                  {/* Salon */}
-                  <div className="min-w-0">
-                    <p className="text-zinc-900 dark:text-white text-sm font-medium truncate">{salon?.name ?? '—'}</p>
-                    <p className="text-zinc-400 text-xs truncate mt-0.5">{owner?.email ?? '—'}</p>
+                <div key={sub.id}>
+                  {/* Desktop row */}
+                  <div className={`hidden lg:grid grid-cols-[minmax(200px,1fr)_110px_140px_150px_220px] gap-4 items-center px-5 py-3.5 min-w-[820px] ${showBorder ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''} ${isExpiringSoon ? 'bg-amber-50 dark:bg-amber-500/[0.04]' : ''}`}>
+                    {placeNode}
+                    {planBadge}
+                    {statusBadge}
+                    <div>{periodEndNode}</div>
+                    <SubscriptionStatusSelect subId={sub.id} currentStatus={sub.status} currentPlan={sub.plan} />
                   </div>
 
-                  {/* Plan */}
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full w-fit ${PLAN_COLORS[sub.plan]}`}>
-                    {PLAN_LABELS[sub.plan]}
-                  </span>
-
-                  {/* Status */}
-                  <div className="flex items-center gap-1.5">
-                    <StatusIcon className={`h-3.5 w-3.5 shrink-0 ${STATUS_COLORS[sub.status].split(' ').find(c => c.startsWith('text-'))}`} />
-                    <span className={`text-[11px] font-semibold ${STATUS_COLORS[sub.status].split(' ').find(c => c.startsWith('text-'))}`}>
-                      {STATUS_LABELS[sub.status]}
-                    </span>
+                  {/* Mobile card */}
+                  <div className={`lg:hidden px-4 py-4 space-y-3 ${showBorder ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''} ${isExpiringSoon ? 'bg-amber-50 dark:bg-amber-500/[0.04]' : ''}`}>
+                    {placeNode}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {planBadge}
+                      {statusBadge}
+                    </div>
+                    <div className="flex items-center justify-between gap-2">
+                      <div>{periodEndNode}</div>
+                      <SubscriptionStatusSelect subId={sub.id} currentStatus={sub.status} currentPlan={sub.plan} />
+                    </div>
                   </div>
-
-                  {/* Period end */}
-                  <div>
-                    {periodEnd ? (
-                      <>
-                        <p className={`text-xs ${isExpiringSoon ? 'text-amber-500 font-semibold' : 'text-zinc-500 dark:text-zinc-400'}`}>
-                          {periodEnd.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric', year: 'numeric' })}
-                        </p>
-                        {isExpiringSoon && <p className="text-[10px] text-amber-500">⚠ Lejár hamarosan</p>}
-                      </>
-                    ) : (
-                      <span className="text-zinc-400 dark:text-zinc-600 text-xs">—</span>
-                    )}
-                  </div>
-
-                  {/* Status change */}
-                  <SubscriptionStatusSelect subId={sub.id} currentStatus={sub.status} currentPlan={sub.plan} />
                 </div>
               )
             })}

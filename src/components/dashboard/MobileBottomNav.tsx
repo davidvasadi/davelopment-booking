@@ -7,10 +7,10 @@ import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { LogOut, Monitor, Sun, Moon, MoreHorizontal, Lock, Plus, Loader2, CalendarPlus, CalendarX, X } from 'lucide-react'
+import { LogOut, Monitor, Sun, Moon, MoreHorizontal, Lock, Plus, Loader2, X } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
 import { UserAvatar } from './UserAvatar'
-import { useNotifications, timeAgo } from '@/lib/useNotifications'
+import { useNotifications, timeAgo, notificationVisual } from '@/lib/useNotifications'
 
 type SubInfo = {
   plan: 'trial' | 'pro' | 'restaurant_pro'
@@ -214,10 +214,10 @@ export default function MobileBottomNav({
                   <div key={label}>
                     <p className="px-3 pt-1.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 dark:text-white/20">{label}</p>
                     {rows.map((n) => {
-                      const Icon = n.type === 'cancellation' ? CalendarX : CalendarPlus
+                      const { Icon, color } = notificationVisual(n.type)
                       return (
                         <div key={n.id} className={cn('group relative flex gap-2.5 rounded-xl px-3 py-2.5', !n.read && 'bg-zinc-50 dark:bg-white/[0.03]')}>
-                          <Icon className={cn('h-4 w-4 mt-0.5 shrink-0', n.type === 'cancellation' ? 'text-red-500' : 'text-green-600 dark:text-green-400')} />
+                          <Icon className={cn('h-4 w-4 mt-0.5 shrink-0', color)} />
                           <button type="button" onClick={() => openItem(n)} className="min-w-0 flex-1 text-left">
                             <p className="truncate text-sm font-medium text-zinc-900 dark:text-white pr-6">{n.title}</p>
                             {n.body && <p className="truncate text-xs text-zinc-500 dark:text-white/40">{n.body}</p>}

@@ -7,22 +7,10 @@ import {
   ArrowLeft, ExternalLink, Clock,
 } from 'lucide-react'
 import Link from 'next/link'
-import SalonToggle from '../SalonToggle'
+import PlaceToggle from '../PlaceToggle'
 import SalonNotesForm from './SalonNotesForm'
 import ImpersonateButton from './ImpersonateButton'
-
-const PLAN_LABELS: Record<string, string> = { free: 'Ingyenes', starter: 'Starter', pro: 'Pro' }
-const STATUS_LABELS: Record<string, string> = {
-  trialing: 'Próbaidőszak', active: 'Aktív', past_due: 'Lejárt fizetés',
-  canceled: 'Megszakítva', paused: 'Szüneteltetett',
-}
-const STATUS_COLORS: Record<string, string> = {
-  trialing: 'bg-blue-500/10 text-blue-500',
-  active: 'bg-emerald-500/10 text-emerald-500',
-  past_due: 'bg-red-500/10 text-red-500',
-  canceled: 'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-500',
-  paused: 'bg-amber-500/10 text-amber-500',
-}
+import { PLAN_LABELS, STATUS_LABELS, STATUS_COLORS } from '@/lib/backstagePlaces'
 
 export default async function SalonDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuth('admin')
@@ -200,7 +188,7 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
               <p className="text-zinc-900 dark:text-white text-sm font-medium">Szalon aktív</p>
               <p className="text-zinc-400 text-xs mt-0.5">Látható az ügyfeleknek</p>
             </div>
-            <SalonToggle salonId={salon.id} isActive={salon.is_active ?? false} />
+            <PlaceToggle kind="salon" placeId={salon.id} isActive={salon.is_active ?? false} />
           </div>
           <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-white/[0.06]">
             <p className="text-zinc-400 dark:text-zinc-600 text-xs">

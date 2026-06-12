@@ -7,10 +7,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
-import { Loader2, Plus, MoreHorizontal, Monitor, Sun, Moon, LogOut, CreditCard, Settings, CalendarPlus, CalendarX, X } from 'lucide-react'
+import { Loader2, Plus, MoreHorizontal, Monitor, Sun, Moon, LogOut, CreditCard, Settings, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { UserAvatar } from './UserAvatar'
-import { useNotifications, timeAgo, type Notification } from '@/lib/useNotifications'
+import { useNotifications, timeAgo, notificationVisual, type Notification } from '@/lib/useNotifications'
 
 /**
  * A desktop sidebar aljára szánt fiók-blokk: avatar + név + „⋯". Az avatarra VAGY a
@@ -293,10 +293,10 @@ export function UserMenu({
 
 /** Egyetlen értesítés sor a fiók-popoverben: ikon + cím/idő + törlés (hoverre). */
 function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () => void; onRemove: () => void }) {
-  const Icon = n.type === 'cancellation' ? CalendarX : CalendarPlus
+  const { Icon, color } = notificationVisual(n.type)
   return (
     <div className={cn('group relative flex gap-2.5 rounded-xl px-3 py-2.5', !n.read && 'bg-zinc-50 dark:bg-white/[0.03]')}>
-      <Icon className={cn('h-4 w-4 mt-0.5 shrink-0', n.type === 'cancellation' ? 'text-red-500' : 'text-green-600 dark:text-green-400')} />
+      <Icon className={cn('h-4 w-4 mt-0.5 shrink-0', color)} />
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
         <p className="truncate text-sm font-medium text-zinc-900 dark:text-white pr-6">{n.title}</p>
         {n.body && <p className="truncate text-xs text-zinc-500 dark:text-white/40">{n.body}</p>}

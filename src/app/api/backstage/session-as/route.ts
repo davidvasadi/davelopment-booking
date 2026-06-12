@@ -50,7 +50,13 @@ export async function POST(req: NextRequest) {
     .setExpirationTime(issuedAt + TOKEN_EXPIRATION)
     .sign(secretKey)
 
-  const res = NextResponse.redirect(new URL('/dashboard', req.url), { status: 303 })
+  // A cél a belépett user szerepe szerint: étterem-owner → /restaurant, szalon-owner → /dashboard,
+  // admin → /backstage. Korábban MINDIG /dashboard volt → étterem-owner-ként nem lehetett belépni
+  // (a /dashboard visszadobta, mert nincs szalonja).
+  const role = (user as { role?: string }).role
+  const dest = role === 'restaurant_owner' ? '/restaurant' : role === 'admin' ? '/backstage' : '/dashboard'
+
+  const res = NextResponse.redirect(new URL(dest, req.url), { status: 303 })
   res.cookies.set('payload-token', token, {
     httpOnly: true,
     path: '/',

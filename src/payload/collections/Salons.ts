@@ -15,8 +15,11 @@ export const Salons: CollectionConfig = {
           req,
         })
         if (existing.docs.length > 0) return
+        // Próbaidő hossza + ár a GLOBÁLIS árazásból (backstage-ben szerkeszthető).
+        const pricing = (await req.payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true, req })) as { trial_days?: number; salon_pro_huf?: number }
+        const trialDays = pricing?.trial_days ?? 14
         const trialEnd = new Date()
-        trialEnd.setDate(trialEnd.getDate() + 14)
+        trialEnd.setDate(trialEnd.getDate() + trialDays)
         await req.payload.create({
           collection: 'subscriptions',
           data: {
@@ -24,11 +27,29 @@ export const Salons: CollectionConfig = {
             plan: 'trial',
             status: 'trialing',
             trial_ends_at: trialEnd.toISOString(),
-            amount_huf: 2900,
+            amount_huf: pricing?.salon_pro_huf ?? 2900,
           },
           overrideAccess: true,
           req,
         })
+        // Admin-értesítés a backstage harangba (best-effort).
+        try {
+          await req.payload.create({
+            collection: 'notifications',
+            overrideAccess: true,
+            req,
+            data: {
+              audience: 'admin',
+              type: 'new_signup',
+              title: `Új szalon: ${doc.name}`,
+              body: `${doc.city ? doc.city + ' · ' : ''}próbaidőszak elindult`,
+              salon: doc.id,
+              read: false,
+            },
+          })
+        } catch (err) {
+          req.payload.logger.error(`admin új-szalon értesítés hiba: ${String(err)}`)
+        }
       },
     ],
     beforeDelete: [

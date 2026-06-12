@@ -45,6 +45,7 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
         req,
         data: {
           [kind]: placeId,
+          audience: 'owner',
           type,
           title,
           body,

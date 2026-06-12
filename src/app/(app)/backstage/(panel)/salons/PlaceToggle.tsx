@@ -1,21 +1,28 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import type { PlaceKind } from '@/lib/backstagePlaces'
 
 interface Props {
-  salonId: string
+  kind: PlaceKind
+  placeId: string
   isActive: boolean
 }
 
-export default function SalonToggle({ salonId, isActive }: Props) {
+/** Aktív/inaktív kapcsoló szalonra ÉS étteremre — a megfelelő backstage toggle-végpontra POST-ol. */
+export default function PlaceToggle({ kind, placeId, isActive }: Props) {
   const [active, setActive] = useState(isActive)
   const [isPending, startTransition] = useTransition()
+
+  const endpoint = kind === 'restaurant'
+    ? `/api/backstage/restaurants/${placeId}/toggle`
+    : `/api/backstage/salons/${placeId}/toggle`
 
   function toggle() {
     const next = !active
     setActive(next)
     startTransition(async () => {
-      const res = await fetch(`/api/backstage/salons/${salonId}/toggle`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: next }),

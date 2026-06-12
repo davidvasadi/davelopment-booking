@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { PLAN_LABELS } from '@/lib/backstagePlaces'
 
 const STATUS_OPTIONS = [
   { value: 'trialing', label: 'Próbaidőszak' },
@@ -9,11 +10,13 @@ const STATUS_OPTIONS = [
   { value: 'paused', label: 'Szüneteltetett' },
   { value: 'canceled', label: 'Megszakítva' },
 ]
-const PLAN_OPTIONS = [
-  { value: 'trial', label: 'Trial (14 nap)' },
-  { value: 'pro', label: 'Pro (2 900 Ft/hó)' },
-]
-const PLAN_AMOUNTS: Record<string, number> = { trial: 0, pro: 2900 }
+// `restaurant_pro` is — étterem-előfizetésnél eddig hiányzott, ezért rossz volt a választó.
+// Az ár NEM itt dől el: a Subscriptions beforeChange hook a GLOBÁLIS árat fagyasztja be
+// plan-váltáskor, ezért a kliens nem küld amount_huf-ot (különben felülírná a globálist).
+const PLAN_OPTIONS = (['trial', 'pro', 'restaurant_pro'] as const).map(value => ({
+  value,
+  label: PLAN_LABELS[value],
+}))
 
 interface Props {
   subId: string
@@ -33,11 +36,7 @@ export default function SubscriptionStatusSelect({ subId, currentStatus, current
       await fetch(`/api/backstage/subscriptions/${subId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          status: newStatus,
-          plan: newPlan,
-          amount_huf: PLAN_AMOUNTS[newPlan] ?? 0,
-        }),
+        body: JSON.stringify({ status: newStatus, plan: newPlan }),
       })
     })
   }

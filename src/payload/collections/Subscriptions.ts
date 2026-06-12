@@ -2,12 +2,24 @@ import type { CollectionConfig } from 'payload'
 
 const MS_PER_DAY = 86_400_000
 
+/** Egy plan aktuális globális ára a `pricing-settings` globalből (fallback a régi fix árakra). */
+async function currentPlanPrice(req: { payload: { findGlobal: (a: { slug: string; overrideAccess?: boolean }) => Promise<unknown> } }, plan: string): Promise<number> {
+  if (plan !== 'pro' && plan !== 'restaurant_pro') return 0 // trial / ismeretlen
+  try {
+    const g = (await req.payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true })) as { salon_pro_huf?: number; restaurant_pro_huf?: number }
+    if (plan === 'pro') return g?.salon_pro_huf ?? 2900
+    return g?.restaurant_pro_huf ?? 9900
+  } catch {
+    return plan === 'pro' ? 2900 : 9900
+  }
+}
+
 export const Subscriptions: CollectionConfig = {
   slug: 'subscriptions',
   labels: { singular: 'Előfizetés', plural: 'Előfizetések' },
   hooks: {
     beforeChange: [
-      ({ data, originalDoc, operation }) => {
+      async ({ data, originalDoc, operation, req }) => {
         if (operation !== 'update' && operation !== 'create') return data
         // Fizetős planok: salon 'pro' ÉS étterem 'restaurant_pro' is. (Korábban csak a
         // 'pro'-t ismerte fel → restaurant_pro-nál a status trialing maradt = bug.)
@@ -16,6 +28,21 @@ export const Subscriptions: CollectionConfig = {
         const newPlan = data.plan ?? wasPlan
         const isPro = PAID_PLANS.includes(newPlan)
         const planChangedToPro = isPro && !PAID_PLANS.includes(wasPlan)
+
+        // Az ár a GLOBÁLIS árazásból (backstage-ben szerkeszthető), a planhez igazítva.
+        // Modell: a már fizető ügyfél a current_period_end-ig a befagyott árát tartja; az
+        // árat csak akkor frissítjük, ha a plan változik VAGY a ciklus megújul (lentebb).
+        if (data.plan && data.plan !== wasPlan) {
+          data.amount_huf = await currentPlanPrice(req, newPlan)
+        }
+
+        // Újraaktiválás (past_due/canceled/paused → active) UGYANAZON a fizetős planon: új
+        // ciklus indul, ezért a friss GLOBÁLIS árat fagyasztjuk be (ez a „ciklus végén új ár").
+        const wasInactive = originalDoc && originalDoc.status !== 'active'
+        const reactivating = isPro && !planChangedToPro && wasInactive && data.status === 'active'
+        if (reactivating) {
+          data.amount_huf = await currentPlanPrice(req, newPlan)
+        }
 
         if (planChangedToPro) {
           // Pro váltás: status active, period_end indítás
@@ -42,6 +69,42 @@ export const Subscriptions: CollectionConfig = {
           }
         }
         return data
+      },
+    ],
+    afterChange: [
+      // Admin-értesítés, amikor egy előfizetés FIZETŐVÉ válik (status → active). Best-effort.
+      async ({ req, doc, previousDoc, operation }) => {
+        const becameActive = doc.status === 'active' && (operation === 'create' || previousDoc?.status !== 'active')
+        if (!becameActive) return doc
+        try {
+          const salonId = doc.salon && typeof doc.salon === 'object' ? doc.salon.id : doc.salon
+          const restaurantId = doc.restaurant && typeof doc.restaurant === 'object' ? doc.restaurant.id : doc.restaurant
+          let name = '—'
+          if (salonId) {
+            const s = await req.payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true, req }).catch(() => null)
+            name = s?.name ? `Szalon: ${s.name}` : 'Szalon'
+          } else if (restaurantId) {
+            const r = await req.payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 0, overrideAccess: true, req }).catch(() => null)
+            name = r?.name ? `Étterem: ${r.name}` : 'Étterem'
+          }
+          await req.payload.create({
+            collection: 'notifications',
+            overrideAccess: true,
+            req,
+            data: {
+              audience: 'admin',
+              type: 'new_subscriber',
+              title: `Új előfizető 🎉`,
+              body: `${name} fizető előfizető lett`,
+              ...(salonId ? { salon: salonId } : {}),
+              ...(restaurantId ? { restaurant: restaurantId } : {}),
+              read: false,
+            },
+          })
+        } catch (err) {
+          req.payload.logger.error(`admin új-előfizető értesítés hiba: ${String(err)}`)
+        }
+        return doc
       },
     ],
   },

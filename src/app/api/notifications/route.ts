@@ -6,13 +6,17 @@ import { getPayloadClient } from '@/lib/payload'
 function placeFilter(user: { role: string; restaurant?: unknown; salon?: unknown }): Where | null {
   const idOf = (ref: unknown) =>
     ref && typeof ref === 'object' ? (ref as { id: number | string }).id : ref
+  // Admin (backstage): az admin-közönségű értesítések (regisztráció, új előfizető).
+  if (user.role === 'admin') {
+    return { audience: { equals: 'admin' } }
+  }
   if (user.role === 'restaurant_owner') {
     const id = idOf(user.restaurant)
-    return id ? { restaurant: { equals: id } } : null
+    return id ? { and: [{ restaurant: { equals: id } }, { audience: { equals: 'owner' } }] } : null
   }
   if (user.role === 'salon_owner') {
     const id = idOf(user.salon)
-    return id ? { salon: { equals: id } } : null
+    return id ? { and: [{ salon: { equals: id } }, { audience: { equals: 'owner' } }] } : null
   }
   return null
 }

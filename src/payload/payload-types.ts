@@ -19,7 +19,18 @@ export interface Config {
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
-  globals: {}
+  globals: {
+    'pricing-settings': PricingSetting
+  }
+}
+
+export interface PricingSetting {
+  id: string
+  salon_pro_huf: number
+  restaurant_pro_huf: number
+  trial_days: number
+  updatedAt?: string | null
+  createdAt?: string | null
 }
 
 export interface Subscription {
@@ -73,6 +84,7 @@ export interface Restaurant {
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
   is_active?: boolean | null
+  admin_notes?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -154,7 +166,8 @@ export interface Notification {
   id: string
   restaurant?: string | Restaurant | null
   salon?: string | Salon | null
-  type: 'new_booking' | 'cancellation'
+  audience: 'owner' | 'admin'
+  type: 'new_booking' | 'cancellation' | 'new_signup' | 'new_subscriber'
   title: string
   body?: string | null
   read?: boolean | null

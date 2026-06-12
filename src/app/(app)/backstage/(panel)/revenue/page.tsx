@@ -1,9 +1,9 @@
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
 import type { Subscription } from '@/payload/payload-types'
-import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react'
-
-const PLAN_AMOUNTS: Record<string, number> = { trial: 0, pro: 2900 }
+import { Building2, UtensilsCrossed } from 'lucide-react'
+import { subAmountHuf } from '@/lib/backstagePlaces'
+import { getPricing, planPrice } from '@/lib/pricing'
 
 function formatHuf(n: number) {
   return n.toLocaleString('hu-HU') + ' Ft'
@@ -13,12 +13,10 @@ export default async function RevenuePage() {
   await requireAuth('admin')
   const payload = await getPayloadClient()
 
-  const subsResult = await payload.find({
-    collection: 'subscriptions',
-    limit: 500,
-    depth: 1,
-    overrideAccess: true,
-  })
+  const [subsResult, pricing] = await Promise.all([
+    payload.find({ collection: 'subscriptions', limit: 500, depth: 1, overrideAccess: true }),
+    getPricing(),
+  ])
   const subs = subsResult.docs as Subscription[]
 
   const activeSubs = subs.filter(s => s.status === 'active')
@@ -26,60 +24,71 @@ export default async function RevenuePage() {
   const canceledSubs = subs.filter(s => s.status === 'canceled')
   const pastDueSubs = subs.filter(s => s.status === 'past_due')
 
-  const mrr = activeSubs.reduce((sum, s) => sum + (s.amount_huf ?? 0), 0)
+  const mrr = activeSubs.reduce((sum, s) => sum + subAmountHuf(s), 0)
   const arr = mrr * 12
-  const potentialMrr = [...activeSubs, ...trialingSubs].reduce((sum, s) => sum + (PLAN_AMOUNTS[s.plan] ?? 0), 0)
+  // Potenciális MRR: ha minden aktív+trial a JELENLEGI globális áron fizetne (trial áttér pro-ra).
+  const potentialMrr = [...activeSubs, ...trialingSubs].reduce((sum, s) => {
+    const plan = s.plan === 'trial' ? (s.restaurant ? 'restaurant_pro' : 'pro') : s.plan
+    return sum + planPrice(pricing, plan)
+  }, 0)
   const churnRate = subs.length > 0 ? ((canceledSubs.length / subs.length) * 100).toFixed(1) : '0.0'
   const conversionRate = (activeSubs.length + trialingSubs.length) > 0
     ? ((activeSubs.length / (activeSubs.length + trialingSubs.length)) * 100).toFixed(0)
     : '0'
 
+  const revenueOfPlan = (plan: string) => ({
+    count: activeSubs.filter(s => s.plan === plan).length,
+    revenue: activeSubs.filter(s => s.plan === plan).reduce((s, sub) => s + subAmountHuf(sub), 0),
+  })
   const byPlan = {
-    pro: { count: activeSubs.filter(s => s.plan === 'pro').length, revenue: activeSubs.filter(s => s.plan === 'pro').reduce((s, sub) => s + (sub.amount_huf ?? 0), 0) },
+    pro: revenueOfPlan('pro'),
+    restaurant_pro: revenueOfPlan('restaurant_pro'),
   }
 
   // Revenue by month (based on createdAt of active subs as approximation)
   const monthlyMap: Record<string, number> = {}
   activeSubs.forEach(sub => {
     const month = new Date(sub.createdAt).toLocaleDateString('hu-HU', { year: 'numeric', month: 'short' })
-    monthlyMap[month] = (monthlyMap[month] ?? 0) + (sub.amount_huf ?? 0)
+    monthlyMap[month] = (monthlyMap[month] ?? 0) + subAmountHuf(sub)
   })
   const months = Object.entries(monthlyMap).slice(-6)
   const maxMonthRevenue = Math.max(...months.map(([, v]) => v), 1)
 
   const kpis = [
-    { label: 'MRR', value: formatHuf(mrr), sub: 'havi visszatérő bevétel', icon: DollarSign, color: 'text-violet-400', positive: true },
-    { label: 'ARR', value: formatHuf(arr), sub: 'éves vetítve', icon: TrendingUp, color: 'text-emerald-400', positive: true },
-    { label: 'Potenciális MRR', value: formatHuf(potentialMrr), sub: 'aktív + próbaidőszak', icon: BarChart3, color: 'text-blue-400', positive: true },
-    { label: 'Churn ráta', value: `${churnRate}%`, sub: `${canceledSubs.length} lemondás`, icon: TrendingDown, color: 'text-red-400', positive: false },
+    { label: 'MRR', value: formatHuf(mrr), sub: 'havi visszatérő bevétel', danger: false },
+    { label: 'ARR', value: formatHuf(arr), sub: 'éves vetítve', danger: false },
+    { label: 'Potenciális MRR', value: formatHuf(potentialMrr), sub: 'aktív + próbaidőszak', danger: false },
+    { label: 'Churn ráta', value: `${churnRate}%`, sub: `${canceledSubs.length} lemondás`, danger: canceledSubs.length > 0 },
   ]
 
+  const cardBase = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl'
+
   return (
-    <div className="px-4 lg:px-8 py-6 lg:py-10">
-      <div className="mb-8">
-        <h1 className="text-zinc-900 dark:text-white font-black text-2xl tracking-tight">Bevétel</h1>
-        <p className="text-zinc-500 text-sm mt-1">Előfizetési bevételek és konverzió</p>
+    <div className="p-5 lg:p-8 space-y-6">
+      <div>
+        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Backstage</p>
+        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Bevétel</h1>
+        <p className="text-zinc-500 dark:text-white/40 text-sm mt-1">Előfizetési bevételek és konverzió (szalon + étterem)</p>
       </div>
 
-      {/* KPI grid */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* KPI grid — étteri stílus (visszafogott, nincs színes ikon) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map(k => (
-          <div key={k.label} className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-5">
-            <k.icon className={`h-5 w-5 mb-3 ${k.color}`} />
-            <p className="text-zinc-900 dark:text-white font-black text-xl leading-tight">{k.value}</p>
+          <div key={k.label} className={`${cardBase} p-5`}>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-2">{k.label}</p>
+            <p className={`font-black text-xl leading-tight ${k.danger ? 'text-red-500 dark:text-red-400' : 'text-zinc-900 dark:text-white'}`}>{k.value}</p>
             <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-1">{k.sub}</p>
-            <p className="text-zinc-400 dark:text-zinc-600 text-[11px] mt-0.5 uppercase tracking-wider">{k.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Conversion funnel */}
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-6">
+        <div className={`${cardBase} p-6`}>
           <h2 className="text-zinc-900 dark:text-white font-bold text-sm mb-5">Konverziós tölcsér</h2>
           <div className="space-y-3">
             {[
-              { label: 'Összes szalon', value: subs.length, color: 'bg-zinc-200 dark:bg-zinc-600' },
+              { label: 'Összes előfizetés', value: subs.length, color: 'bg-zinc-200 dark:bg-zinc-600' },
               { label: 'Próbaidőszak', value: trialingSubs.length, color: 'bg-blue-400' },
               { label: 'Aktív előfizető', value: activeSubs.length, color: 'bg-emerald-400' },
               { label: 'Lejárt fizetés', value: pastDueSubs.length, color: 'bg-red-400' },
@@ -106,15 +115,16 @@ export default async function RevenuePage() {
         </div>
 
         {/* Plan revenue breakdown */}
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-6">
+        <div className={`${cardBase} p-6`}>
           <h2 className="text-zinc-900 dark:text-white font-bold text-sm mb-5">Bevétel tervenként</h2>
           <div className="space-y-4">
             {[
-              { plan: 'Pro', data: byPlan.pro, color: 'bg-violet-500', textColor: 'text-violet-400' },
-            ].map(({ plan, data, color, textColor }) => (
+              { plan: 'Szalon Pro', icon: Building2, data: byPlan.pro, color: 'bg-violet-500', textColor: 'text-violet-400' },
+              { plan: 'Étterem Pro', icon: UtensilsCrossed, data: byPlan.restaurant_pro, color: 'bg-amber-500', textColor: 'text-amber-400' },
+            ].map(({ plan, icon: Icon, data, color, textColor }) => (
               <div key={plan} className="flex items-center gap-4">
                 <div className={`h-9 w-9 rounded-xl ${color} flex items-center justify-center shrink-0`}>
-                  <span className="text-white font-black text-xs">{plan[0]}</span>
+                  <Icon className="h-4 w-4 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
@@ -140,7 +150,7 @@ export default async function RevenuePage() {
 
       {/* Monthly revenue bars */}
       {months.length > 0 && (
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-6">
+        <div className={`${cardBase} p-6`}>
           <h2 className="text-zinc-900 dark:text-white font-bold text-sm mb-6">Aktív előfizetők belépési hónapja</h2>
           <div className="flex items-end gap-3 h-32">
             {months.map(([month, revenue]) => (

@@ -1,5 +1,6 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getPayloadClient } from '@/lib/payload'
+import { getPricing } from '@/lib/pricing'
 import { SubscriptionCard } from '@/components/dashboard/SubscriptionCard'
 import { RestaurantSettingsForm } from '@/components/restaurant/RestaurantSettingsForm'
 import type { Restaurant, Subscription } from '@/payload/payload-types'
@@ -8,12 +9,10 @@ export default async function RestaurantSettingsPage() {
   const { restaurant } = await getOwnedRestaurant()
   const payload = await getPayloadClient()
 
-  const subResult = await payload.find({
-    collection: 'subscriptions',
-    where: { restaurant: { equals: restaurant.id } },
-    limit: 1,
-    overrideAccess: true,
-  })
+  const [subResult, pricing] = await Promise.all([
+    payload.find({ collection: 'subscriptions', where: { restaurant: { equals: restaurant.id } }, limit: 1, overrideAccess: true }),
+    getPricing(),
+  ])
   const sub = (subResult.docs[0] as Subscription) ?? null
 
   const r = restaurant as Restaurant
@@ -25,7 +24,7 @@ export default async function RestaurantSettingsPage() {
         <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Beállítások</h1>
       </div>
 
-      <SubscriptionCard sub={sub} href="/restaurant/subscription" proPriceLabel="Étterem Pro: 9 900 Ft/hó" />
+      <SubscriptionCard sub={sub} href="/restaurant/subscription" proPriceLabel={`Étterem Pro: ${pricing.restaurant_pro_huf.toLocaleString('hu-HU')} Ft/hó`} />
 
       <RestaurantSettingsForm
         restaurantId={r.id}

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ArrowUpRight, Sparkles, AlertTriangle } from 'lucide-react'
 import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { getPricing } from '@/lib/pricing'
 import type { Salon, Subscription } from '@/payload/payload-types'
 import SalonSettingsForm from '@/components/dashboard/SalonSettingsForm'
 
@@ -23,14 +24,14 @@ export default async function SettingsPage() {
   })
   const salon = salonResult.docs[0] as Salon
 
-  const subResult = await payload.find({
-    collection: 'subscriptions',
-    where: { salon: { equals: salon.id } },
-    limit: 1,
-    overrideAccess: true,
-  })
+  const [subResult, pricing] = await Promise.all([
+    payload.find({ collection: 'subscriptions', where: { salon: { equals: salon.id } }, limit: 1, overrideAccess: true }),
+    getPricing(),
+  ])
   const sub = (subResult.docs[0] as Subscription) ?? null
   const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
+  // Aktív Pro-nál a tényleges (befagyott) díj, egyébként a globális ajánlott ár.
+  const salonProLabel = `${(sub?.plan === 'pro' ? (sub?.amount_huf ?? pricing.salon_pro_huf) : pricing.salon_pro_huf).toLocaleString('hu-HU')} Ft`
 
   return (
     <div className="p-5 lg:p-8 space-y-6">
@@ -47,8 +48,8 @@ export default async function SettingsPage() {
         let subtitle = ''
         if (isPastDue) subtitle = 'Fizetési probléma — frissítsd az előfizetést a folytatáshoz'
         else if (isCanceled) subtitle = 'Az előfizetésed megszűnt — aktiváld újra a Pro csomagot'
-        else if (days !== null) subtitle = days === 0 ? 'Ma lejár a próbaidőszak' : `${days} nap maradt — Pro: 2 900 Ft/hó`
-        else if (sub.plan === 'pro') subtitle = '2 900 Ft / hó'
+        else if (days !== null) subtitle = days === 0 ? 'Ma lejár a próbaidőszak' : `${days} nap maradt — Pro: ${salonProLabel}/hó`
+        else if (sub.plan === 'pro') subtitle = `${salonProLabel} / hó`
         else subtitle = 'Előfizetés kezelése'
 
         return (

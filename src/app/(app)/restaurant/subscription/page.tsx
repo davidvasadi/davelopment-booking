@@ -1,5 +1,6 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getPayloadClient } from '@/lib/payload'
+import { getPricing } from '@/lib/pricing'
 import type { Subscription } from '@/payload/payload-types'
 import Link from 'next/link'
 import { CreditCard, CheckCircle2, Sparkles, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
@@ -59,12 +60,10 @@ export default async function RestaurantSubscriptionPage() {
   const { restaurant } = await getOwnedRestaurant()
   const payload = await getPayloadClient()
 
-  const subResult = await payload.find({
-    collection: 'subscriptions',
-    where: { restaurant: { equals: restaurant.id } },
-    limit: 1,
-    overrideAccess: true,
-  })
+  const [subResult, pricing] = await Promise.all([
+    payload.find({ collection: 'subscriptions', where: { restaurant: { equals: restaurant.id } }, limit: 1, overrideAccess: true }),
+    getPricing(),
+  ])
   const sub = (subResult.docs[0] as Subscription) ?? null
   const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
 
@@ -75,7 +74,9 @@ export default async function RestaurantSubscriptionPage() {
   const isActivePro = sub?.status === 'active'
   const cancelScheduled = sub?.cancel_at_period_end === true
   const planLabel = isPro ? 'Étterem Pro' : 'Próbaidőszak'
-  const priceLabel = isPro ? '9 900 Ft' : 'Ingyenes'
+  // Aktív előfizetőnél a TÉNYLEGES (befagyott) díj, egyébként a jelenlegi globális ár ajánlatként.
+  const proPriceHuf = isPro ? (sub?.amount_huf ?? pricing.restaurant_pro_huf) : pricing.restaurant_pro_huf
+  const priceLabel = isPro ? `${proPriceHuf.toLocaleString('hu-HU')} Ft` : 'Ingyenes'
   const periodEnd = isTrial ? sub.trial_ends_at : sub?.current_period_end
 
   return (

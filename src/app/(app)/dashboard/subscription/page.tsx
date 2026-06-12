@@ -1,5 +1,6 @@
 import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { getPricing } from '@/lib/pricing'
 import type { Salon, Subscription } from '@/payload/payload-types'
 import Link from 'next/link'
 import { CreditCard, CheckCircle2, Sparkles, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
@@ -67,12 +68,10 @@ export default async function SubscriptionPage() {
   const salon = salonResult.docs[0] as Salon | undefined
   if (!salon) return null
 
-  const subResult = await payload.find({
-    collection: 'subscriptions',
-    where: { salon: { equals: salon.id } },
-    limit: 1,
-    overrideAccess: true,
-  })
+  const [subResult, pricing] = await Promise.all([
+    payload.find({ collection: 'subscriptions', where: { salon: { equals: salon.id } }, limit: 1, overrideAccess: true }),
+    getPricing(),
+  ])
   const sub = (subResult.docs[0] as Subscription) ?? null
   const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
 
@@ -80,7 +79,9 @@ export default async function SubscriptionPage() {
   const isActivePro = sub?.status === 'active' && sub?.plan === 'pro'
   const cancelScheduled = sub?.cancel_at_period_end === true
   const planLabel = sub?.plan === 'pro' ? 'Pro' : 'Próbaidőszak'
-  const priceLabel = sub?.plan === 'pro' ? '2 900 Ft' : 'Ingyenes'
+  // Aktív Pro-nál a TÉNYLEGES (befagyott) díj, egyébként a jelenlegi globális ár ajánlatként.
+  const proPriceHuf = sub?.plan === 'pro' ? (sub?.amount_huf ?? pricing.salon_pro_huf) : pricing.salon_pro_huf
+  const priceLabel = sub?.plan === 'pro' ? `${proPriceHuf.toLocaleString('hu-HU')} Ft` : 'Ingyenes'
   const periodEnd = isTrial ? sub.trial_ends_at : sub?.current_period_end
 
   return (

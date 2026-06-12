@@ -2,23 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Building2, MapPin, Phone, Mail, Globe, Clock, ExternalLink, LogIn } from 'lucide-react'
-
-const PLAN_LABELS: Record<string, string> = { trial: 'Trial (14 nap)', pro: 'Pro (2 900 Ft/hó)' }
-const STATUS_LABELS: Record<string, string> = {
-  trialing: 'Próbaidőszak', active: 'Aktív', past_due: 'Lejárt fizetés',
-  canceled: 'Megszakítva', paused: 'Szüneteltetett',
-}
-const STATUS_COLORS: Record<string, string> = {
-  trialing: 'bg-blue-500/10 text-blue-500',
-  active: 'bg-emerald-500/10 text-emerald-500',
-  past_due: 'bg-red-500/10 text-red-500',
-  canceled: 'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-500',
-  paused: 'bg-amber-500/10 text-amber-500',
-}
+import { Building2, UtensilsCrossed, MapPin, Phone, Mail, Globe, Clock, ExternalLink, LogIn } from 'lucide-react'
+import {
+  PLAN_LABELS, STATUS_LABELS, STATUS_COLORS, type PlaceKind,
+} from '@/lib/backstagePlaces'
 
 type DetailData = {
-  salon: any
+  salon: any // a hely-objektum (szalon VAGY étterem) — közös mezőkkel
   subscription: any | null
   totalBookings: number
   monthBookings: number
@@ -26,36 +16,42 @@ type DetailData = {
 }
 
 interface Props {
-  salonId: string | null
+  place: { id: string; kind: PlaceKind } | null
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props) {
+export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
   const [data, setData] = useState<DetailData | null>(null)
   const [loading, setLoading] = useState(false)
   const [notes, setNotes] = useState('')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  const kind = place?.kind ?? 'salon'
+  const isRestaurant = kind === 'restaurant'
+  const typeLabel = isRestaurant ? 'Étterem' : 'Szalon'
+  const TypeIcon = isRestaurant ? UtensilsCrossed : Building2
+  const apiBase = isRestaurant ? '/api/backstage/restaurants' : '/api/backstage/salons'
+
   useEffect(() => {
-    if (!open || !salonId) return
+    if (!open || !place) return
     setData(null)
     setLoading(true)
-    fetch(`/api/backstage/salons/${salonId}/detail`)
+    fetch(`${apiBase}/${place.id}/detail`)
       .then(r => r.json())
       .then(d => {
         setData(d)
         setNotes(d.salon?.admin_notes ?? '')
       })
       .finally(() => setLoading(false))
-  }, [open, salonId])
+  }, [open, place, apiBase])
 
   async function saveNotes() {
-    if (!salonId) return
+    if (!place) return
     setSaving(true)
     try {
-      await fetch(`/api/backstage/salons/${salonId}/toggle`, {
+      await fetch(`${apiBase}/${place.id}/toggle`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ admin_notes: notes }),
@@ -67,9 +63,9 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
     }
   }
 
-  const salon = data?.salon
+  const placeDoc = data?.salon
   const sub = data?.subscription
-  const owner = salon?.owner && typeof salon.owner === 'object' ? salon.owner : null
+  const owner = placeDoc?.owner && typeof placeDoc.owner === 'object' ? placeDoc.owner : null
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -77,13 +73,16 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
         <SheetHeader className="mb-6">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-xl bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
-              <Building2 className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
+              <TypeIcon className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
             </div>
             <div>
-              <SheetTitle className="text-left">{salon?.name ?? '—'}</SheetTitle>
-              {salon?.city && (
+              <SheetTitle className="text-left flex items-center gap-2">
+                {placeDoc?.name ?? '—'}
+                <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{typeLabel}</span>
+              </SheetTitle>
+              {placeDoc?.city && (
                 <p className="flex items-center gap-1 text-zinc-400 text-xs mt-0.5">
-                  <MapPin className="h-3 w-3" />{salon.city}
+                  <MapPin className="h-3 w-3" />{placeDoc.city}
                 </p>
               )}
             </div>
@@ -101,7 +100,7 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
             {/* Actions */}
             <div className="flex items-center gap-2 flex-wrap">
               <a
-                href={`/${salon?.slug}`}
+                href={`/${placeDoc?.slug}`}
                 target="_blank"
                 className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 dark:border-white/[0.08] text-zinc-500 dark:text-zinc-400 text-xs hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors"
               >
@@ -114,8 +113,8 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
                     type="submit"
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 dark:border-white/[0.08] text-zinc-500 dark:text-zinc-400 text-xs hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors"
                   >
-                  <LogIn className="h-3.5 w-3.5" />
-                  Belépés owner-ként
+                    <LogIn className="h-3.5 w-3.5" />
+                    Belépés owner-ként
                   </button>
                 </form>
               )}
@@ -153,9 +152,9 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
               {sub ? (
                 <div>
                   <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-zinc-900 dark:text-white font-bold text-sm">{PLAN_LABELS[sub.plan]}</span>
+                    <span className="text-zinc-900 dark:text-white font-bold text-sm">{PLAN_LABELS[sub.plan] ?? sub.plan}</span>
                     <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[sub.status]}`}>
-                      {STATUS_LABELS[sub.status]}
+                      {STATUS_LABELS[sub.status] ?? sub.status}
                     </span>
                   </div>
                   {sub.amount_huf != null && sub.amount_huf > 0 && (
@@ -176,28 +175,28 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
             </div>
 
             {/* Contact */}
-            {(salon?.phone || salon?.email || salon?.website || salon?.address) && (
+            {(placeDoc?.phone || placeDoc?.email || placeDoc?.website || placeDoc?.address) && (
               <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
                 <p className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider mb-3">Elérhetőség</p>
                 <div className="space-y-2">
-                  {salon.phone && (
+                  {placeDoc.phone && (
                     <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                      <Phone className="h-3.5 w-3.5 text-zinc-400" />{salon.phone}
+                      <Phone className="h-3.5 w-3.5 text-zinc-400" />{placeDoc.phone}
                     </p>
                   )}
-                  {salon.email && (
+                  {placeDoc.email && (
                     <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                      <Mail className="h-3.5 w-3.5 text-zinc-400" />{salon.email}
+                      <Mail className="h-3.5 w-3.5 text-zinc-400" />{placeDoc.email}
                     </p>
                   )}
-                  {salon.website && (
+                  {placeDoc.website && (
                     <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                      <Globe className="h-3.5 w-3.5 text-zinc-400" />{salon.website}
+                      <Globe className="h-3.5 w-3.5 text-zinc-400" />{placeDoc.website}
                     </p>
                   )}
-                  {salon.address && (
+                  {placeDoc.address && (
                     <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                      <MapPin className="h-3.5 w-3.5 text-zinc-400" />{salon.address}
+                      <MapPin className="h-3.5 w-3.5 text-zinc-400" />{placeDoc.address}
                     </p>
                   )}
                 </div>
@@ -208,13 +207,13 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
             <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-zinc-900 dark:text-white text-sm font-medium">Szalon aktív</p>
+                  <p className="text-zinc-900 dark:text-white text-sm font-medium">{typeLabel} aktív</p>
                   <p className="text-zinc-400 text-xs mt-0.5">Látható az ügyfeleknek</p>
                 </div>
-                <ActiveToggle salonId={salon.id} isActive={salon.is_active ?? false} />
+                <ActiveToggle kind={kind} placeId={placeDoc.id} isActive={placeDoc.is_active ?? false} />
               </div>
               <p className="text-zinc-400 dark:text-zinc-600 text-xs mt-3 pt-3 border-t border-zinc-200 dark:border-white/[0.06]">
-                Regisztrált: {new Date(salon.createdAt).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })}
+                Regisztrált: {new Date(placeDoc.createdAt).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             </div>
 
@@ -225,7 +224,9 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
                   Legutóbbi foglalások
                 </p>
                 {data.recentBookings.map((b: any, i: number) => {
+                  // Szalon-foglalásnál `service`, étterem-foglalásnál `pax` van — mindkettő kezelve.
                   const service = typeof b.service === 'object' ? b.service : null
+                  const detail = service?.name ?? (b.pax != null ? `${b.pax} fő` : '—')
                   return (
                     <div
                       key={b.id}
@@ -233,11 +234,11 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
                     >
                       <div>
                         <p className="text-zinc-900 dark:text-white text-sm font-medium">{b.customer_name}</p>
-                        <p className="text-zinc-500 text-xs mt-0.5">{service?.name ?? '—'} · {b.date} {b.start_time}</p>
+                        <p className="text-zinc-500 text-xs mt-0.5">{detail} · {b.date} {b.start_time}</p>
                       </div>
                       <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                         b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-500'
-                        : b.status === 'cancelled' ? 'bg-red-500/10 text-red-500'
+                        : b.status === 'cancelled' || b.status === 'no_show' ? 'bg-red-500/10 text-red-500'
                         : b.status === 'completed' ? 'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-500'
                         : 'bg-amber-500/10 text-amber-500'
                       }`}>
@@ -274,16 +275,19 @@ export default function SalonDetailSheet({ salonId, open, onOpenChange }: Props)
   )
 }
 
-function ActiveToggle({ salonId, isActive }: { salonId: string; isActive: boolean }) {
+function ActiveToggle({ kind, placeId, isActive }: { kind: PlaceKind; placeId: string; isActive: boolean }) {
   const [active, setActive] = useState(isActive)
   const [pending, setPending] = useState(false)
+  const endpoint = kind === 'restaurant'
+    ? `/api/backstage/restaurants/${placeId}/toggle`
+    : `/api/backstage/salons/${placeId}/toggle`
 
   async function toggle() {
     const next = !active
     setActive(next)
     setPending(true)
     try {
-      await fetch(`/api/backstage/salons/${salonId}/toggle`, {
+      await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: next }),

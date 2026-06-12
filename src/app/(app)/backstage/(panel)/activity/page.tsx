@@ -1,12 +1,17 @@
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
-import type { Salon, User, Booking, Subscription } from '@/payload/payload-types'
-import { CalendarCheck, CreditCard, UserPlus } from 'lucide-react'
+import type { Salon, Restaurant, User, Subscription } from '@/payload/payload-types'
+import { CreditCard, UserPlus, Clock, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react'
 import Link from 'next/link'
+import { getPlaceFromSubscription } from '@/lib/backstagePlaces'
+
+// Eladási fókuszú aktivitás: KIZÁRÓLAG regisztrációk és előfizetés/próbaidő-események.
+// Foglalásokat NEM monitorozunk itt (felesleges ehhez a nézethez).
+type ActivityType = 'place_registered' | 'sub_trial' | 'sub_active' | 'sub_past_due' | 'sub_canceled' | 'sub_other'
 
 type ActivityItem = {
   id: string
-  type: 'salon_registered' | 'booking_created' | 'subscription_changed'
+  type: ActivityType
   title: string
   sub: string
   date: Date
@@ -22,44 +27,39 @@ function timeAgo(date: Date): string {
   return date.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })
 }
 
-const TYPE_CONFIG = {
-  salon_registered: { icon: UserPlus, color: 'bg-violet-500/10 text-violet-500' },
-  booking_created: { icon: CalendarCheck, color: 'bg-emerald-500/10 text-emerald-500' },
-  subscription_changed: { icon: CreditCard, color: 'bg-blue-500/10 text-blue-500' },
+const TYPE_CONFIG: Record<ActivityType, { icon: React.ElementType; color: string }> = {
+  place_registered: { icon: UserPlus, color: 'bg-violet-500/10 text-violet-500' },
+  sub_trial: { icon: Clock, color: 'bg-blue-500/10 text-blue-500' },
+  sub_active: { icon: CheckCircle2, color: 'bg-emerald-500/10 text-emerald-500' },
+  sub_past_due: { icon: AlertTriangle, color: 'bg-red-500/10 text-red-500' },
+  sub_canceled: { icon: XCircle, color: 'bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500' },
+  sub_other: { icon: CreditCard, color: 'bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500' },
+}
+
+function subEvent(status: string): { type: ActivityType; label: string } {
+  switch (status) {
+    case 'trialing': return { type: 'sub_trial', label: 'Próbaidőszak indult' }
+    case 'active': return { type: 'sub_active', label: 'Előfizető lett (fizető)' }
+    case 'past_due': return { type: 'sub_past_due', label: 'Lejárt fizetés' }
+    case 'canceled': return { type: 'sub_canceled', label: 'Lemondott' }
+    case 'paused': return { type: 'sub_other', label: 'Szüneteltetve' }
+    default: return { type: 'sub_other', label: 'Előfizetés módosult' }
+  }
 }
 
 export default async function ActivityPage() {
   await requireAuth('admin')
   const payload = await getPayloadClient()
 
-  const since30 = new Date()
-  since30.setDate(since30.getDate() - 30)
+  // Tágabb ablak (90 nap) — eladási események ritkábbak, mint a foglalások.
+  const since = new Date()
+  since.setDate(since.getDate() - 90)
+  const sinceISO = since.toISOString()
 
-  const [salonsResult, bookingsResult, subsResult] = await Promise.all([
-    payload.find({
-      collection: 'salons',
-      where: { createdAt: { greater_than: since30.toISOString() } },
-      sort: '-createdAt',
-      limit: 50,
-      depth: 1,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'bookings',
-      where: { createdAt: { greater_than: since30.toISOString() } },
-      sort: '-createdAt',
-      limit: 80,
-      depth: 2,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'subscriptions',
-      where: { updatedAt: { greater_than: since30.toISOString() } },
-      sort: '-updatedAt',
-      limit: 50,
-      depth: 1,
-      overrideAccess: true,
-    }),
+  const [salonsResult, restaurantsResult, subsResult] = await Promise.all([
+    payload.find({ collection: 'salons', where: { createdAt: { greater_than: sinceISO } }, sort: '-createdAt', limit: 100, depth: 1, overrideAccess: true }),
+    payload.find({ collection: 'restaurants', where: { createdAt: { greater_than: sinceISO } }, sort: '-createdAt', limit: 100, depth: 1, overrideAccess: true }),
+    payload.find({ collection: 'subscriptions', where: { updatedAt: { greater_than: sinceISO } }, sort: '-updatedAt', limit: 100, depth: 1, overrideAccess: true }),
   ])
 
   const items: ActivityItem[] = []
@@ -69,7 +69,7 @@ export default async function ActivityPage() {
     const owner = typeof s.owner === 'object' ? (s.owner as User) : null
     items.push({
       id: `salon-${s.id}`,
-      type: 'salon_registered',
+      type: 'place_registered',
       title: `Új szalon: ${s.name}`,
       sub: owner?.email ?? '—',
       date: new Date(s.createdAt),
@@ -77,30 +77,30 @@ export default async function ActivityPage() {
     })
   }
 
-  for (const doc of bookingsResult.docs) {
-    const b = doc as Booking
-    const salonName = typeof b.salon === 'object' ? (b.salon as Salon).name : b.salon
+  for (const doc of restaurantsResult.docs) {
+    const r = doc as Restaurant
+    const owner = typeof r.owner === 'object' ? (r.owner as User) : null
     items.push({
-      id: `booking-${b.id}`,
-      type: 'booking_created',
-      title: `Foglalás: ${b.customer_name}`,
-      sub: `${salonName} · ${b.date} ${b.start_time}`,
-      date: new Date(b.createdAt),
+      id: `restaurant-${r.id}`,
+      type: 'place_registered',
+      title: `Új étterem: ${r.name}`,
+      sub: owner?.email ?? '—',
+      date: new Date(r.createdAt),
+      href: `/backstage/salons?place=restaurant:${r.id}`,
     })
   }
 
-  const STATUS_LABELS: Record<string, string> = {
-    trialing: 'Próbaidőszak', active: 'Aktív', past_due: 'Lejárt fizetés',
-    canceled: 'Megszakítva', paused: 'Szüneteltetett',
-  }
   for (const doc of subsResult.docs) {
     const s = doc as Subscription
-    const salonName = typeof s.salon === 'object' ? (s.salon as Salon).name : String(s.salon)
+    const place = getPlaceFromSubscription(s)
+    const placeName = place?.name ?? '— (árva előfizetés)'
+    const placeType = place ? (place.kind === 'restaurant' ? 'Étterem' : 'Szalon') : ''
+    const { type, label } = subEvent(s.status)
     items.push({
       id: `sub-${s.id}`,
-      type: 'subscription_changed',
-      title: `Előfizetés módosult: ${salonName}`,
-      sub: `${s.plan} · ${STATUS_LABELS[s.status] ?? s.status}`,
+      type,
+      title: `${label}: ${placeName}`,
+      sub: [placeType, place?.owner?.email].filter(Boolean).join(' · ') || '—',
       date: new Date(s.updatedAt),
     })
   }
@@ -115,23 +115,26 @@ export default async function ActivityPage() {
     groups[key].push(item)
   }
 
+  const cardBase = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl'
+
   return (
-    <div className="px-4 lg:px-8 py-6 lg:py-10">
-      <div className="mb-8">
-        <h1 className="text-zinc-900 dark:text-white font-black text-2xl tracking-tight">Aktivitás</h1>
-        <p className="text-zinc-500 text-sm mt-1">Platformesemények az elmúlt 30 napból</p>
+    <div className="p-5 lg:p-8 space-y-6">
+      <div>
+        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Backstage</p>
+        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Aktivitás</h1>
+        <p className="text-zinc-500 dark:text-white/40 text-sm mt-1">Regisztrációk és előfizetés-események (elmúlt 90 nap)</p>
       </div>
 
       {items.length === 0 ? (
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl px-6 py-12 text-center">
-          <p className="text-zinc-400 dark:text-zinc-600 text-sm">Nincs aktivitás az elmúlt 30 napban.</p>
+        <div className={`${cardBase} px-6 py-12 text-center`}>
+          <p className="text-zinc-400 dark:text-zinc-600 text-sm">Nincs regisztráció vagy előfizetés-esemény az elmúlt 90 napban.</p>
         </div>
       ) : (
         <div className="space-y-8">
           {Object.entries(groups).map(([date, dayItems]) => (
             <div key={date}>
               <p className="text-zinc-400 dark:text-zinc-600 text-xs font-semibold uppercase tracking-wider mb-3">{date}</p>
-              <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl overflow-hidden">
+              <div className={`${cardBase} overflow-hidden`}>
                 {dayItems.map((item, i) => {
                   const { icon: Icon, color } = TYPE_CONFIG[item.type]
                   const showBorder = i < dayItems.length - 1

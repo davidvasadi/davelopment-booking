@@ -1,11 +1,12 @@
 import {
   LayoutDashboard, CalendarDays, Briefcase, Users, Clock, Settings, BarChart2, Armchair, Lightbulb,
+  Store, CreditCard, TrendingUp, AlertTriangle, Activity,
   type LucideIcon,
 } from 'lucide-react'
 
 export type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean }
 
-export type DashboardVariant = 'salon' | 'restaurant'
+export type DashboardVariant = 'salon' | 'restaurant' | 'backstage'
 
 export type NavConfig = {
   items: NavItem[]
@@ -46,6 +47,25 @@ const restaurantNav: NavConfig = {
   subscriptionHref: '/restaurant/subscription',
 }
 
+// Backstage (admin) menüpontjai — a backstage UGYANAZT a DashboardNav layoutot
+// kapja mint a szalon/étterem (egységes kinézet), nincs külön sidebar-komponense.
+const backstageNav: NavConfig = {
+  items: [
+    { href: '/backstage', label: 'Áttekintő', icon: LayoutDashboard, exact: true },
+    { href: '/backstage/salons', label: 'Helyek', icon: Store },
+    { href: '/backstage/subscriptions', label: 'Előfizetések', icon: CreditCard },
+    { href: '/backstage/revenue', label: 'Bevétel', icon: TrendingUp },
+    { href: '/backstage/churn', label: 'Kockázat', icon: AlertTriangle },
+    { href: '/backstage/activity', label: 'Aktivitás', icon: Activity },
+    { href: '/backstage/settings', label: 'Beállítások', icon: Settings },
+  ],
+  publicUrlPrefix: '',
+  settingsHref: '/backstage/settings',
+  subscriptionHref: '/backstage/subscriptions',
+}
+
 export function getNavConfig(variant: DashboardVariant): NavConfig {
-  return variant === 'restaurant' ? restaurantNav : salonNav
+  if (variant === 'restaurant') return restaurantNav
+  if (variant === 'backstage') return backstageNav
+  return salonNav
 }

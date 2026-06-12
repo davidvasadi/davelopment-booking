@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { Search, CornerDownLeft, Calendar, User as UserIcon, type LucideIcon } from 'lucide-react'
+import { Search, CornerDownLeft, Calendar, User as UserIcon, Store, CreditCard, type LucideIcon } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
 import type { SearchHit } from '@/app/api/search/route'
 
@@ -71,13 +71,23 @@ export function CommandPalette({ variant }: { variant: DashboardVariant }) {
     .filter((n) => !query.trim() || n.label.toLowerCase().includes(query.trim().toLowerCase()))
     .map((n) => ({ id: `nav-${n.href}`, label: n.label, href: n.href, icon: n.icon }))
 
+  const resultIcon = (kind: SearchHit['kind']): LucideIcon => {
+    if (kind === 'place') return Store
+    if (kind === 'subscription') return CreditCard
+    if (kind === 'reservation' || kind === 'booking') return Calendar
+    return UserIcon
+  }
   const resultCmds: Cmd[] = hits.map((h) => ({
     id: `${h.kind}-${h.id}`,
     label: h.name,
     sub: h.sub,
     href: h.href,
-    icon: h.kind === 'reservation' || h.kind === 'booking' ? Calendar : UserIcon,
+    icon: resultIcon(h.kind),
   }))
+
+  // Admin (backstage) kereső találatai „Helyek", a tulajoknál „Foglalások".
+  const isBackstage = variant === 'backstage'
+  const resultGroupLabel = isBackstage ? 'Helyek' : 'Foglalások'
 
   const all = [...navCmds, ...resultCmds]
 
@@ -113,7 +123,7 @@ export function CommandPalette({ variant }: { variant: DashboardVariant }) {
             ref={inputRef}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Keresés oldalakra, foglalásokra, vendégekre…"
+            placeholder={isBackstage ? 'Keresés oldalakra, helyekre (szalon/étterem)…' : 'Keresés oldalakra, foglalásokra, vendégekre…'}
             className="flex-1 h-12 bg-transparent text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-white/30 focus:outline-none"
           />
           <kbd className="hidden sm:inline-flex items-center rounded-md border border-zinc-200 dark:border-white/[0.1] px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">ESC</kbd>
@@ -128,7 +138,7 @@ export function CommandPalette({ variant }: { variant: DashboardVariant }) {
             <>
               {navCmds.length > 0 && <p className="px-4 pt-1 pb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/25">Oldalak</p>}
               {navCmds.map((c) => <Row key={c.id} cmd={c} active={all[active]?.id === c.id} onClick={() => go(c.href)} />)}
-              {resultCmds.length > 0 && <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/25">Foglalások</p>}
+              {resultCmds.length > 0 && <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/25">{resultGroupLabel}</p>}
               {resultCmds.map((c) => <Row key={c.id} cmd={c} active={all[active]?.id === c.id} onClick={() => go(c.href)} />)}
             </>
           )}

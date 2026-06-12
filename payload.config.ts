@@ -23,6 +23,9 @@ import { OpeningHoursExceptions } from './src/payload/collections/OpeningHoursEx
 import { Reservations } from './src/payload/collections/Reservations'
 import { Notifications } from './src/payload/collections/Notifications'
 
+// Globals
+import { PricingSettings } from './src/payload/globals/PricingSettings'
+
 // A publikus app-URL (prod: https://schedulio.hu). A CSRF/CORS/serverURL ehhez igazodik,
 // különben az nginx-proxy mögött a böngésző-eredetű login CSRF-blokkolt → 401
 // (a curl átmegy, mert nincs Origin headere). Lokálban a localhost a fallback.
@@ -64,7 +67,7 @@ export default buildConfig({
     Reservations,
     Notifications,
   ],
-  globals: [],
+  globals: [PricingSettings],
   editor: slateEditor({}),
   db: postgresAdapter({
     // A Payload bulk-delete (több dokumentum egyszerre) párhuzamos query-ket futtat egy
