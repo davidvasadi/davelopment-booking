@@ -7,14 +7,18 @@ import { getCurrentUser } from '@/lib/auth'
 const TOKEN_EXPIRATION = 60 * 60 * 2 // 2 hours in seconds
 
 export async function POST(req: NextRequest) {
+  // A redirect-bázis a PUBLIKUS URL — az nginx-proxy mögött a req.url http://localhost:3001
+  // lenne, így a böngésző localhostra navigálna (ugyanaz a bug, mint a Google-loginnál volt).
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.url
+
   const admin = await getCurrentUser()
   if (!admin || admin.role !== 'admin') {
-    return NextResponse.redirect(new URL('/backstage/login', req.url), { status: 303 })
+    return NextResponse.redirect(new URL('/backstage/login', baseUrl), { status: 303 })
   }
 
   const formData = await req.formData()
   const userId = formData.get('userId') as string | null
-  if (!userId) return NextResponse.redirect(new URL('/backstage', req.url), { status: 303 })
+  if (!userId) return NextResponse.redirect(new URL('/backstage', baseUrl), { status: 303 })
 
   const payload = await getPayloadClient()
   const user = await payload.findByID({
@@ -24,7 +28,7 @@ export async function POST(req: NextRequest) {
     depth: 0,
   }).catch(() => null)
 
-  if (!user) return NextResponse.redirect(new URL('/backstage', req.url), { status: 303 })
+  if (!user) return NextResponse.redirect(new URL('/backstage', baseUrl), { status: 303 })
 
   // Create a real Payload session so the JWT is valid with useSessions: true/false
   const sid = uuid()
@@ -56,7 +60,7 @@ export async function POST(req: NextRequest) {
   const role = (user as { role?: string }).role
   const dest = role === 'restaurant_owner' ? '/restaurant' : role === 'admin' ? '/backstage' : '/dashboard'
 
-  const res = NextResponse.redirect(new URL(dest, req.url), { status: 303 })
+  const res = NextResponse.redirect(new URL(dest, baseUrl), { status: 303 })
   res.cookies.set('payload-token', token, {
     httpOnly: true,
     path: '/',
