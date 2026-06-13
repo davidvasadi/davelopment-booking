@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
+import { EASE, DUR, stepSlide, stepSlideTransition, staggerDelay } from '@/lib/motion'
 import type { Service, StaffMember, Media } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -11,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { ArrowLeft, Check, Clock, Loader2, ChevronLeft, ChevronRight, User } from 'lucide-react'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
+import { BookCtaButton } from '@/components/booking/BookCtaButton'
 
 const AVATAR_GRADIENTS = [
   'from-violet-400 to-purple-600',
@@ -84,11 +87,11 @@ function DateStrip({ selected, onChange }: { selected: string; onChange: (d: str
   return (
     <div>
       <div className="flex items-center justify-between mb-3 px-1">
-        <button onClick={() => shiftMonth(-1)} className="h-7 w-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
+        <button onClick={() => shiftMonth(-1)} className="h-7 w-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors">
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <p className="text-sm font-bold text-zinc-900 capitalize">{month}</p>
-        <button onClick={() => shiftMonth(1)} className="h-7 w-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
+        <p className="text-sm font-bold text-zinc-900 dark:text-white capitalize">{month}</p>
+        <button onClick={() => shiftMonth(1)} className="h-7 w-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors">
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -104,10 +107,10 @@ function DateStrip({ selected, onChange }: { selected: string; onChange: (d: str
               className={cn(
                 'flex flex-col items-center gap-1 py-3 px-3 rounded-2xl shrink-0 snap-center transition-all min-w-[52px]',
                 isSelected
-                  ? 'bg-zinc-950 text-white'
+                  ? 'bg-zinc-950 dark:bg-white text-white dark:text-black'
                   : today
-                    ? 'bg-zinc-100 text-zinc-900'
-                    : 'bg-white text-zinc-600 hover:bg-zinc-50'
+                    ? 'bg-zinc-100 dark:bg-white/[0.08] text-zinc-900 dark:text-white'
+                    : 'bg-white dark:bg-white/[0.04] text-zinc-600 dark:text-white/60 hover:bg-zinc-50 dark:hover:bg-white/[0.08]'
               )}
             >
               <span className={cn('text-[10px] font-semibold uppercase', isSelected ? 'text-zinc-400' : 'text-zinc-400')}>
@@ -127,6 +130,12 @@ export default function BookingWizard({
 }: Props) {
   const router = useRouter()
   const [step, setStep] = useState(preselectedServiceId ? 1 : 0)
+  // A lépés-átmenet iránya (+1 előre, -1 vissza) a slide-animációhoz.
+  const [dir, setDir] = useState(1)
+  const goStep = (next: number) => {
+    setDir(next >= step ? 1 : -1)
+    setStep(next)
+  }
   const [slots, setSlots] = useState<Slot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -197,24 +206,24 @@ export default function BookingWizard({
   const STEPS = ['Szolgáltatás', 'Munkatárs', 'Dátum & Időpont', 'Adatok']
 
   return (
-    <div className="min-h-screen bg-[#F5F4F2] flex flex-col">
+    <div className="min-h-screen bg-[#F5F4F2] dark:bg-zinc-950 flex flex-col">
 
       {/* Header */}
-      <header className="bg-[#F5F4F2] px-5 pt-12 pb-4">
+      <header className="bg-[#F5F4F2] dark:bg-zinc-950 px-5 pt-12 pb-4">
         <div className="max-w-lg mx-auto flex items-center justify-between">
           <button
             onClick={() => {
               if (step === 0) router.push(`/${salonSlug}`)
-              else if (step === 2 && state.staffId !== null && preselectedStaffId) setStep(0)
-              else setStep(step - 1)
+              else if (step === 2 && state.staffId !== null && preselectedStaffId) goStep(0)
+              else goStep(step - 1)
             }}
-            className="h-10 w-10 rounded-full bg-white shadow-sm flex items-center justify-center text-zinc-700 hover:bg-zinc-50 transition-colors"
+            className="h-10 w-10 rounded-full bg-white dark:bg-white/[0.08] shadow-sm flex items-center justify-center text-zinc-700 dark:text-white/70 hover:bg-zinc-50 dark:hover:bg-white/[0.12] transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
           </button>
           <div className="text-center">
             <p className="text-xs text-zinc-400 font-medium">{salonName}</p>
-            <p className="text-sm font-bold text-zinc-900">{STEPS[step]}</p>
+            <p className="text-sm font-bold text-zinc-900 dark:text-white">{STEPS[step]}</p>
           </div>
           <div className="h-10 w-10" />
         </div>
@@ -235,33 +244,44 @@ export default function BookingWizard({
         </div>
       </header>
 
-      <div className="flex-1 max-w-lg mx-auto w-full px-5 pb-32 pt-2 space-y-4">
+      <div className="flex-1 max-w-lg mx-auto w-full px-5 pt-2 pb-4">
+       <AnimatePresence mode="wait" custom={dir} initial={false}>
+        <motion.div
+          key={step}
+          custom={dir}
+          variants={stepSlide}
+          initial="enter"
+          animate="center"
+          exit="exit"
+          transition={stepSlideTransition}
+          className="space-y-4"
+        >
 
         {/* Step 0: Service */}
         {step === 0 && (
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">Melyik<br />szolgáltatást?</h2>
-            <p className="text-sm text-zinc-500 mb-6">Válassz az elérhető szolgáltatások közül</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">Melyik<br />szolgáltatást?</h2>
+            <p className="text-sm text-zinc-500 dark:text-white/50 mb-6">Válassz az elérhető szolgáltatások közül</p>
             <div className="space-y-3">
               {services.map(s => (
                 <button
                   key={s.id}
-                  onClick={() => { set({ serviceId: s.id, slot: null }); setStep(1) }}
+                  onClick={() => { set({ serviceId: s.id, slot: null }); goStep(1) }}
                   className={cn(
-                    'w-full text-left bg-white rounded-2xl shadow-sm p-5 transition-all hover:shadow-md',
+                    'w-full text-left bg-white dark:bg-white/[0.04] rounded-2xl shadow-sm p-5 transition-all hover:shadow-md',
                     state.serviceId === s.id ? 'ring-2 ring-zinc-950' : ''
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-sm text-zinc-900">{s.name}</p>
+                      <p className="font-bold text-sm text-zinc-900 dark:text-white">{s.name}</p>
                       {s.description && <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{s.description}</p>}
                       <p className="text-xs text-zinc-400 mt-2 flex items-center gap-1">
                         <Clock className="h-3 w-3" />{s.duration_minutes} perc
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="font-black text-base text-zinc-900">{formatPrice(s.price, s.currency)}</p>
+                      <p className="font-black text-base text-zinc-900 dark:text-white">{formatPrice(s.price, s.currency)}</p>
                     </div>
                   </div>
                 </button>
@@ -273,14 +293,14 @@ export default function BookingWizard({
         {/* Step 1: Staff */}
         {step === 1 && (
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">Válassz<br />munkatársat</h2>
-            <p className="text-sm text-zinc-500 mb-6">Kivel szeretnél foglalni?</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">Válassz<br />munkatársat</h2>
+            <p className="text-sm text-zinc-500 dark:text-white/50 mb-6">Kivel szeretnél foglalni?</p>
 
             {/* Any staff card */}
             <button
-              onClick={() => { set({ staffId: null, slot: null }); setStep(2) }}
+              onClick={() => { set({ staffId: null, slot: null }); goStep(2) }}
               className={cn(
-                'w-full text-left bg-white rounded-2xl shadow-sm p-5 flex items-center gap-4 mb-3 transition-all hover:shadow-md',
+                'w-full text-left bg-white dark:bg-white/[0.04] rounded-2xl shadow-sm p-5 flex items-center gap-4 mb-3 transition-all hover:shadow-md',
                 state.staffId === null ? 'ring-2 ring-zinc-950' : ''
               )}
             >
@@ -288,7 +308,7 @@ export default function BookingWizard({
                 <User className="h-5 w-5 text-zinc-400" />
               </div>
               <div>
-                <p className="font-bold text-sm text-zinc-900">Bármelyik szabad</p>
+                <p className="font-bold text-sm text-zinc-900 dark:text-white">Bármelyik szabad</p>
                 <p className="text-xs text-zinc-400 mt-0.5">A legelső szabad időpontot ajánljuk</p>
               </div>
               {state.staffId === null && <Check className="h-4 w-4 text-zinc-950 ml-auto shrink-0" />}
@@ -303,9 +323,9 @@ export default function BookingWizard({
                 return (
                   <button
                     key={m.id}
-                    onClick={() => { set({ staffId: m.id, slot: null }); setStep(2) }}
+                    onClick={() => { set({ staffId: m.id, slot: null }); goStep(2) }}
                     className={cn(
-                      'relative bg-white rounded-2xl shadow-sm overflow-hidden aspect-[4/5] transition-all hover:shadow-md',
+                      'relative bg-white dark:bg-white/[0.04] rounded-2xl shadow-sm overflow-hidden aspect-[4/5] transition-all hover:shadow-md',
                       isSelected ? 'ring-2 ring-zinc-950' : ''
                     )}
                   >
@@ -343,11 +363,11 @@ export default function BookingWizard({
         {/* Step 2: Date + Time */}
         {step === 2 && (
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">Mikor<br />legyen?</h2>
-            <p className="text-sm text-zinc-500 mb-6">Válassz napot és szabad időpontot</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">Mikor<br />legyen?</h2>
+            <p className="text-sm text-zinc-500 dark:text-white/50 mb-6">Válassz napot és szabad időpontot</p>
 
             {/* Date strip */}
-            <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
+            <div className="bg-white dark:bg-white/[0.04] rounded-2xl shadow-sm p-4 mb-4">
               <DateStrip
                 selected={state.date}
                 onChange={(d) => set({ date: d, slot: null })}
@@ -355,8 +375,8 @@ export default function BookingWizard({
             </div>
 
             {/* Time slots */}
-            <div className="bg-white rounded-2xl shadow-sm p-5">
-              <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4">
+            <div className="bg-white dark:bg-white/[0.04] rounded-2xl shadow-sm p-5">
+              <p className="text-xs font-bold text-zinc-400 dark:text-white/40 uppercase tracking-widest mb-4">
                 {format(selectedDate, 'EEEE, MMMM d.', { locale: hu })}
               </p>
               {loadingSlots ? (
@@ -370,20 +390,23 @@ export default function BookingWizard({
                   <p className="text-xs text-zinc-400 mt-1">Válassz másik napot.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-2">
-                  {slots.map(slot => (
-                    <button
+                <div key={state.date} className="grid grid-cols-4 gap-2">
+                  {slots.map((slot, i) => (
+                    <motion.button
                       key={slot.start}
-                      onClick={() => { set({ slot }); setStep(3) }}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: DUR.fast, delay: staggerDelay(i, 0.02), ease: EASE }}
+                      onClick={() => { set({ slot }); goStep(3) }}
                       className={cn(
-                        'py-3 rounded-xl text-sm font-bold transition-all',
+                        'py-3 rounded-xl text-sm font-bold transition-colors',
                         state.slot?.start === slot.start
-                          ? 'bg-zinc-950 text-white shadow-md'
-                          : 'bg-zinc-50 text-zinc-700 hover:bg-zinc-100'
+                          ? 'bg-zinc-950 dark:bg-white text-white dark:text-black shadow-md'
+                          : 'bg-zinc-50 dark:bg-white/[0.06] text-zinc-700 dark:text-white/70 hover:bg-zinc-100 dark:hover:bg-white/[0.12]'
                       )}
                     >
                       {slot.start}
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
               )}
@@ -394,8 +417,8 @@ export default function BookingWizard({
         {/* Step 3: Customer info */}
         {step === 3 && (
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">Az adataid</h2>
-            <p className="text-sm text-zinc-500 mb-6">Töltsd ki az adataidat a foglalás megerősítéséhez</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">Az adataid</h2>
+            <p className="text-sm text-zinc-500 dark:text-white/50 mb-6">Töltsd ki az adataidat a foglalás megerősítéséhez</p>
 
             {/* Booking summary card */}
             <div className="bg-zinc-950 rounded-2xl p-5 mb-5 flex items-start justify-between gap-3">
@@ -414,14 +437,14 @@ export default function BookingWizard({
               )}
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+            <div className="bg-white dark:bg-white/[0.04] rounded-2xl shadow-sm p-5 space-y-4">
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Teljes név *</Label>
                 <Input
                   value={state.name}
                   onChange={e => set({ name: e.target.value })}
                   placeholder="Kovács János"
-                  className="h-12 rounded-xl bg-zinc-50 border-0 text-sm font-medium focus-visible:ring-1 focus-visible:ring-zinc-900"
+                  className="h-12 rounded-xl bg-zinc-50 dark:bg-white/[0.06] border-0 text-sm font-medium text-zinc-900 dark:text-white placeholder:text-zinc-400 focus-visible:ring-1 focus-visible:ring-zinc-900"
                 />
               </div>
               <div className="space-y-1.5">
@@ -431,7 +454,7 @@ export default function BookingWizard({
                   value={state.email}
                   onChange={e => set({ email: e.target.value })}
                   placeholder="nev@email.hu"
-                  className="h-12 rounded-xl bg-zinc-50 border-0 text-sm font-medium focus-visible:ring-1 focus-visible:ring-zinc-900"
+                  className="h-12 rounded-xl bg-zinc-50 dark:bg-white/[0.06] border-0 text-sm font-medium text-zinc-900 dark:text-white placeholder:text-zinc-400 focus-visible:ring-1 focus-visible:ring-zinc-900"
                 />
               </div>
               <div className="space-y-1.5">
@@ -441,7 +464,7 @@ export default function BookingWizard({
                   value={state.phone}
                   onChange={e => set({ phone: e.target.value })}
                   placeholder="+36 30 123 4567"
-                  className="h-12 rounded-xl bg-zinc-50 border-0 text-sm font-medium focus-visible:ring-1 focus-visible:ring-zinc-900"
+                  className="h-12 rounded-xl bg-zinc-50 dark:bg-white/[0.06] border-0 text-sm font-medium text-zinc-900 dark:text-white placeholder:text-zinc-400 focus-visible:ring-1 focus-visible:ring-zinc-900"
                 />
               </div>
               <div className="space-y-1.5">
@@ -451,22 +474,39 @@ export default function BookingWizard({
                   onChange={e => set({ notes: e.target.value })}
                   placeholder="Pl. allergiák, különleges kérések..."
                   rows={3}
-                  className="rounded-xl bg-zinc-50 border-0 text-sm font-medium resize-none focus-visible:ring-1 focus-visible:ring-zinc-900"
+                  className="rounded-xl bg-zinc-50 dark:bg-white/[0.06] border-0 text-sm font-medium text-zinc-900 dark:text-white placeholder:text-zinc-400 resize-none focus-visible:ring-1 focus-visible:ring-zinc-900"
                 />
               </div>
             </div>
+
+            {/* Véglegesítő gomb — a tartalom végén (NEM sticky). Közös BookCtaButton. */}
+            <BookCtaButton
+              label="Foglalás megerősítése"
+              onClick={submit}
+              disabled={submitting || !state.name || !state.email || (requirePhone && !state.phone)}
+              loading={submitting}
+              className="mt-5"
+            />
+            {((termsSections && termsSections.length > 0) || company) && (
+              <div className="mt-3 text-center text-xs text-zinc-400">
+                A foglalás megerősítésével elfogadod a{' '}
+                <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-white/60" />
+              </div>
+            )}
           </div>
         )}
+        </motion.div>
+       </AnimatePresence>
       </div>
 
-      {/* Sticky bottom CTA */}
-      <div className="fixed bottom-0 left-0 right-0 bg-[#F5F4F2] px-5 py-5 border-t border-zinc-200/50">
-        <div className="max-w-lg mx-auto">
+      {/* CTA — normál folyásban a tartalom végén (a step 3 gombja a tartalom belsejében van) */}
+      {step !== 3 && (
+      <div className="max-w-lg mx-auto w-full px-5 pb-10">
           {step === 0 && (
             state.serviceId ? (
               <button
-                onClick={() => setStep(state.staffId !== null ? 2 : 1)}
-                className="w-full h-14 rounded-2xl bg-zinc-950 text-white font-black text-sm hover:bg-zinc-800 transition-all shadow-lg flex items-center justify-between px-6"
+                onClick={() => goStep(state.staffId !== null ? 2 : 1)}
+                className="w-full h-14 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-black font-black text-sm hover:bg-zinc-800 dark:hover:bg-white/90 transition-all shadow-lg flex items-center justify-between px-6"
               >
                 <span>{selectedService?.name}</span>
                 <span className="flex items-center gap-2 text-zinc-400">
@@ -474,15 +514,15 @@ export default function BookingWizard({
                 </span>
               </button>
             ) : (
-              <div className="w-full h-14 rounded-2xl bg-zinc-200 flex items-center justify-center">
+              <div className="w-full h-14 rounded-2xl bg-zinc-200 dark:bg-white/[0.08] flex items-center justify-center">
                 <p className="text-sm text-zinc-400 font-medium">Válassz egy szolgáltatást</p>
               </div>
             )
           )}
           {step === 1 && (
             <button
-              onClick={() => setStep(2)}
-              className="w-full h-14 rounded-2xl bg-zinc-950 text-white font-black text-sm hover:bg-zinc-800 transition-all shadow-lg flex items-center justify-between px-6"
+              onClick={() => goStep(2)}
+              className="w-full h-14 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-black font-black text-sm hover:bg-zinc-800 dark:hover:bg-white/90 transition-all shadow-lg flex items-center justify-between px-6"
             >
               <span>{state.staffId === null ? 'Bármelyik munkatárs' : selectedStaff?.name}</span>
               <ChevronRight className="h-4 w-4 text-zinc-400" />
@@ -491,37 +531,20 @@ export default function BookingWizard({
           {step === 2 && (
             state.slot ? (
               <button
-                onClick={() => setStep(3)}
-                className="w-full h-14 rounded-2xl bg-zinc-950 text-white font-black text-sm hover:bg-zinc-800 transition-all shadow-lg flex items-center justify-between px-6"
+                onClick={() => goStep(3)}
+                className="w-full h-14 rounded-2xl bg-zinc-950 dark:bg-white text-white dark:text-black font-black text-sm hover:bg-zinc-800 dark:hover:bg-white/90 transition-all shadow-lg flex items-center justify-between px-6"
               >
                 <span>{format(selectedDate, 'MMM d.', { locale: hu })} · {state.slot.start}</span>
                 <ChevronRight className="h-4 w-4 text-zinc-400" />
               </button>
             ) : (
-              <div className="w-full h-14 rounded-2xl bg-zinc-200 flex items-center justify-center">
+              <div className="w-full h-14 rounded-2xl bg-zinc-200 dark:bg-white/[0.08] flex items-center justify-center">
                 <p className="text-sm text-zinc-400 font-medium">Válassz időpontot</p>
               </div>
             )
           )}
-          {step === 3 && (
-            <>
-            <button
-              onClick={submit}
-              disabled={submitting || !state.name || !state.email || (requirePhone && !state.phone)}
-              className="w-full h-14 rounded-2xl bg-zinc-950 text-white font-black text-sm hover:bg-zinc-800 transition-all shadow-lg disabled:opacity-40 flex items-center justify-center gap-2"
-            >
-              {submitting ? <><Loader2 className="h-4 w-4 animate-spin" /> Küldés...</> : 'Foglalás megerősítése →'}
-            </button>
-            {((termsSections && termsSections.length > 0) || company) && (
-              <div className="mt-3 text-center text-xs text-zinc-400">
-                A foglalás megerősítésével elfogadod a{' '}
-                <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
-              </div>
-            )}
-            </>
-          )}
-        </div>
       </div>
+      )}
     </div>
   )
 }
