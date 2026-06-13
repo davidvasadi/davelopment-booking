@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { Minus, Plus, Loader2, Trees } from 'lucide-react'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
+import { HoverArrow } from '@/components/ui/HoverArrow'
 
 const DAY_COUNT = 30
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.dial]))
@@ -210,9 +211,16 @@ export function RestaurantBookingWizard({
           <button
             onClick={submit}
             disabled={submitting}
-            className="w-full h-12 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+            className="group w-full h-12 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
           >
-            {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Foglalás…</> : `Foglalás véglegesítése · ${pax} fő · ${time}`}
+            {submitting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />Foglalás…</>
+            ) : (
+              <>
+                Foglalás véglegesítése · {pax} fő · {time}
+                <HoverArrow className="h-4 w-4" />
+              </>
+            )}
           </button>
           {((termsSections && termsSections.length > 0) || company) && (
             <div className="text-center text-xs text-zinc-400 dark:text-white/30">

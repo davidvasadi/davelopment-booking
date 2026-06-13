@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { getPublicRestaurant } from '@/lib/publicPlace'
-import { MapPin, Phone, Mail, Globe, ChevronRight, type LucideIcon } from 'lucide-react'
+import { MapPin, Phone, Mail, Globe, type LucideIcon } from 'lucide-react'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
+import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
+import { BookCtaButton } from '@/components/booking/BookCtaButton'
 import type { Media } from '@/payload/payload-types'
 import OpeningHoursLive from '@/components/restaurant/OpeningHoursLive'
 import NextAvailableSlots from '@/components/restaurant/NextAvailableSlots'
@@ -69,12 +71,7 @@ export async function RestaurantPublicView({ slug }: { slug: string }) {
               </a>
             )}
           </div>
-          <Link
-            href={`/${slug}/book`}
-            className="inline-flex items-center gap-2 mt-6 h-12 px-7 rounded-full bg-white text-zinc-950 font-bold text-sm hover:bg-zinc-100 transition-colors"
-          >
-            Asztalfoglalás <ChevronRight className="h-4 w-4" />
-          </Link>
+          <BookCtaMorph className="mt-6" href={`/${slug}/book`} label="Asztalfoglalás" />
         </div>
       </div>
 
@@ -119,12 +116,7 @@ export async function RestaurantPublicView({ slug }: { slug: string }) {
             <p className="text-white font-black text-lg">{restaurant.name}</p>
             <p className="text-zinc-500 text-sm mt-0.5">Foglaljon asztalt online, pár kattintással</p>
           </div>
-          <Link
-            href={`/${slug}/book`}
-            className="py-3 px-7 rounded-full bg-white text-zinc-950 font-bold text-sm hover:bg-zinc-100 transition-colors whitespace-nowrap"
-          >
-            Asztalfoglalás
-          </Link>
+          <BookCtaButton href={`/${slug}/book`} label="Asztalfoglalás" variant="light" className="sm:w-auto sm:px-8 shrink-0" />
         </div>
       </div>
 
