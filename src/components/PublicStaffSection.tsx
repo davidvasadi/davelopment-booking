@@ -2,27 +2,13 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight, User } from 'lucide-react'
 import { EASE, DUR, STAGGER } from '@/lib/motion'
 import type { StaffMember, Media } from '@/payload/payload-types'
 
 interface Props {
   staff: StaffMember[]
   slug: string
-}
-
-const AVATAR_GRADIENTS = [
-  'from-violet-400 to-purple-600',
-  'from-blue-400 to-cyan-600',
-  'from-emerald-400 to-teal-600',
-  'from-orange-400 to-rose-600',
-  'from-pink-400 to-fuchsia-600',
-  'from-amber-400 to-orange-600',
-]
-function avatarGradient(name: string) {
-  let h = 0
-  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff
-  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length]
 }
 
 function avatarUrlOf(m: StaffMember): string | null {
@@ -69,9 +55,9 @@ export default function PublicStaffSection({ staff, slug }: Props) {
                       className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
-                    <div className={`h-full w-full bg-gradient-to-br ${avatarGradient(m.name)} flex items-center justify-center`}>
-                      <span className="text-6xl font-black text-white/20 select-none">
-                        {m.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()}
+                    <div className="h-full w-full bg-zinc-400 dark:bg-zinc-800 flex items-center justify-center">
+                      <span className="h-16 w-16 rounded-full bg-zinc-500/40 dark:bg-white/[0.08] flex items-center justify-center">
+                        <User className="h-8 w-8 text-white/80 dark:text-white/30" />
                       </span>
                     </div>
                   )}
