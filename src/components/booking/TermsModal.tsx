@@ -55,7 +55,7 @@ export function TermsModal({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={triggerClassName ?? 'text-sm font-medium text-zinc-500 hover:text-zinc-800 dark:text-white/50 dark:hover:text-white underline underline-offset-2 transition-colors'}
+        className={triggerClassName ?? 'text-sm font-medium text-zinc-500 hover:text-zinc-800 underline underline-offset-2 transition-colors'}
       >
         Foglalási feltételek
       </button>
@@ -72,7 +72,7 @@ export function TermsModal({
               transition={{ duration: DUR.fast, ease: EASE }}
             >
               <motion.div
-                className="w-full max-w-lg h-[88dvh] sm:h-[80dvh] flex flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl bg-white/90 dark:bg-zinc-900/80 backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-inset ring-white/30 dark:ring-white/[0.08] shadow-2xl"
+                className="w-full max-w-lg h-[88dvh] sm:h-[80dvh] flex flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl bg-white/90 backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-inset ring-white/30 shadow-2xl"
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
@@ -83,18 +83,18 @@ export function TermsModal({
               >
                 {/* Fogantyú (mobil, lefelé-húzás vizuális jelzés) */}
                 <div className="sm:hidden flex justify-center pt-3 pb-1">
-                  <div className="h-1 w-10 rounded-full bg-zinc-300 dark:bg-white/20" />
+                  <div className="h-1 w-10 rounded-full bg-zinc-300" />
                 </div>
                 <div className="flex items-center justify-between gap-3 px-6 pt-4 pb-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30">Jó tudni</p>
-                    <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">Foglalási feltételek</h3>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">Jó tudni</p>
+                    <h3 className="text-xl font-black tracking-tight text-zinc-900">Foglalási feltételek</h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
                     aria-label="Bezárás"
-                    className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center bg-zinc-100/70 dark:bg-white/[0.08] text-zinc-500 dark:text-white/60 hover:bg-zinc-200 dark:hover:bg-white/[0.14] transition-colors"
+                    className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center bg-zinc-100/70 text-zinc-500 hover:bg-zinc-200 transition-colors"
                   >
                     <X className="h-4 w-4" />
                   </button>

@@ -23,8 +23,8 @@ export default function PublicStaffSection({ staff, slug }: Props) {
       viewport={{ once: true, margin: '-60px' }}
       transition={{ duration: DUR.base, ease: EASE }}
     >
-      <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Csapatunk</p>
-      <h2 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-5">Munkatársak</h2>
+      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Csapatunk</p>
+      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Munkatársak</h2>
 
       <motion.div
         className="grid grid-cols-2 sm:grid-cols-3 gap-3"
@@ -55,9 +55,9 @@ export default function PublicStaffSection({ staff, slug }: Props) {
                       className="h-full w-full object-cover object-top transition-transform duration-500 group-hover:scale-105"
                     />
                   ) : (
-                    <div className="h-full w-full bg-zinc-400 dark:bg-zinc-800 flex items-center justify-center">
-                      <span className="h-16 w-16 rounded-full bg-zinc-500/40 dark:bg-white/[0.08] flex items-center justify-center">
-                        <User className="h-8 w-8 text-white/80 dark:text-white/30" />
+                    <div className="h-full w-full bg-zinc-500 flex items-center justify-center">
+                      <span className="h-16 w-16 rounded-full bg-zinc-600/40 flex items-center justify-center">
+                        <User className="h-8 w-8 text-white/80" />
                       </span>
                     </div>
                   )}

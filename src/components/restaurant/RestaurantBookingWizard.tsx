@@ -105,25 +105,25 @@ export function RestaurantBookingWizard({
     }
   }
 
-  const cardClass = 'bg-white dark:bg-white/[0.04] border border-zinc-100 dark:border-white/[0.08] rounded-2xl p-5'
-  const inputClass = 'w-full h-11 rounded-xl bg-zinc-50 dark:bg-white/[0.06] border border-zinc-200 dark:border-white/[0.1] px-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400'
+  const cardClass = 'bg-white border border-zinc-100 rounded-2xl p-5'
+  const inputClass = 'w-full h-11 rounded-xl bg-zinc-50 border border-zinc-200 px-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400'
 
   return (
     <div className="space-y-5">
       {/* Létszám */}
       <div className={cardClass}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-3">Hányan jöttök?</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">Hányan jöttök?</p>
         <div className="flex items-center justify-center gap-6">
           <button
             onClick={() => setPax((p) => Math.max(1, p - 1))}
-            className="h-11 w-11 rounded-full border border-zinc-200 dark:border-white/[0.1] flex items-center justify-center text-zinc-700 dark:text-white/70 hover:border-zinc-400 transition-colors"
+            className="h-11 w-11 rounded-full border border-zinc-200 flex items-center justify-center text-zinc-700 hover:border-zinc-400 transition-colors"
           >
             <Minus className="h-4 w-4" />
           </button>
-          <span className="text-3xl font-black tabular-nums text-zinc-900 dark:text-white w-16 text-center">{pax}</span>
+          <span className="text-3xl font-black tabular-nums text-zinc-900 w-16 text-center">{pax}</span>
           <button
             onClick={() => setPax((p) => Math.min(maxPax, p + 1))}
-            className="h-11 w-11 rounded-full border border-zinc-200 dark:border-white/[0.1] flex items-center justify-center text-zinc-700 dark:text-white/70 hover:border-zinc-400 transition-colors"
+            className="h-11 w-11 rounded-full border border-zinc-200 flex items-center justify-center text-zinc-700 hover:border-zinc-400 transition-colors"
           >
             <Plus className="h-4 w-4" />
           </button>
@@ -132,7 +132,7 @@ export function RestaurantBookingWizard({
 
       {/* Dátum */}
       <div className={cardClass}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-3">Mikor?</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">Mikor?</p>
         <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
           {days.map((d) => {
             const ds = format(d, 'yyyy-MM-dd')
@@ -143,8 +143,8 @@ export function RestaurantBookingWizard({
                 onClick={() => setDate(ds)}
                 className={`shrink-0 w-14 py-2 rounded-xl border text-center transition-colors ${
                   active
-                    ? 'bg-zinc-900 dark:bg-white text-white dark:text-black border-zinc-900 dark:border-white'
-                    : 'bg-zinc-50 dark:bg-white/[0.04] border-zinc-200 dark:border-white/[0.08] text-zinc-600 dark:text-white/60 hover:border-zinc-400'
+                    ? 'bg-zinc-900 text-white border-zinc-900'
+                    : 'bg-zinc-50 border-zinc-200 text-zinc-600 hover:border-zinc-400'
                 }`}
               >
                 <span className="block text-[10px] uppercase">{format(d, 'EEE', { locale: hu })}</span>
@@ -158,11 +158,11 @@ export function RestaurantBookingWizard({
 
       {/* Időpont */}
       <div className={cardClass}>
-        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-3">Időpont</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">Időpont</p>
         {loadingSlots ? (
           <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-zinc-400" /></div>
         ) : slots.length === 0 ? (
-          <p className="text-sm text-zinc-400 dark:text-white/30 text-center py-6">Erre a napra/létszámra nincs szabad időpont</p>
+          <p className="text-sm text-zinc-400 text-center py-6">Erre a napra/létszámra nincs szabad időpont</p>
         ) : (
           <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
             {slots.map((s) => (
@@ -172,13 +172,13 @@ export function RestaurantBookingWizard({
                 title={s.onlyOutdoor ? 'Erre az időpontra már csak teraszra (kültéri) foglalható' : undefined}
                 className={`relative h-10 rounded-xl border text-sm font-medium tabular-nums transition-colors ${
                   time === s.start
-                    ? 'bg-zinc-900 dark:bg-white text-white dark:text-black border-zinc-900 dark:border-white'
-                    : 'bg-zinc-50 dark:bg-white/[0.04] border-zinc-200 dark:border-white/[0.08] text-zinc-700 dark:text-white/70 hover:border-zinc-400'
+                    ? 'bg-zinc-900 text-white border-zinc-900'
+                    : 'bg-zinc-50 border-zinc-200 text-zinc-700 hover:border-zinc-400'
                 }`}
               >
                 {s.start}
                 {s.onlyOutdoor && (
-                  <Trees className={`absolute right-1 top-1 h-2.5 w-2.5 ${time === s.start ? 'text-white/70 dark:text-black/60' : 'text-emerald-500'}`} />
+                  <Trees className={`absolute right-1 top-1 h-2.5 w-2.5 ${time === s.start ? 'text-white/70' : 'text-emerald-500'}`} />
                 )}
               </button>
             ))}
@@ -186,7 +186,7 @@ export function RestaurantBookingWizard({
         )}
         {/* Felirat: ha a kiválasztott időpontra csak kültéri (terasz) asztal foglalható */}
         {time && slots.find((s) => s.start === time)?.onlyOutdoor && (
-          <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-200">
+          <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-800">
             <Trees className="h-4 w-4 shrink-0" />
             Erre az időpontra a beltér megtelt — a foglalás teraszra (kültéri) szól.
           </div>
@@ -196,7 +196,7 @@ export function RestaurantBookingWizard({
       {/* Adatok */}
       {time && (
         <div className={`${cardClass} space-y-3`}>
-          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30">Adataid</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Adataid</p>
           <input className={inputClass} placeholder="Teljes név" value={name} onChange={(e) => setName(e.target.value)} />
           <input className={inputClass} type="email" placeholder="Email cím" value={email} onChange={(e) => setEmail(e.target.value)} />
           <PhoneCountryInput
@@ -205,13 +205,13 @@ export function RestaurantBookingWizard({
             onCountryChange={setCountry}
             onPhoneChange={setPhone}
             required={requirePhone}
-            inputClass="h-11 rounded-xl bg-zinc-50 dark:bg-white/[0.06] border border-zinc-200 dark:border-white/[0.1] px-4 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400"
+            inputClass="h-11 rounded-xl bg-zinc-50 border border-zinc-200 px-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400"
           />
           <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder="Megjegyzés (opcionális)" value={notes} onChange={(e) => setNotes(e.target.value)} />
           <button
             onClick={submit}
             disabled={submitting}
-            className="group w-full h-12 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+            className="group w-full h-12 rounded-full bg-zinc-900 text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
           >
             {submitting ? (
               <><Loader2 className="h-4 w-4 animate-spin" />Foglalás…</>
@@ -223,9 +223,9 @@ export function RestaurantBookingWizard({
             )}
           </button>
           {((termsSections && termsSections.length > 0) || company) && (
-            <div className="text-center text-xs text-zinc-400 dark:text-white/30">
+            <div className="text-center text-xs text-zinc-400">
               A foglalás véglegesítésével elfogadod a{' '}
-              <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700 dark:hover:text-white/60" />
+              <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
             </div>
           )}
         </div>
