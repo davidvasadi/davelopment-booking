@@ -159,3 +159,6 @@ public/videos/
 
 .claude/
 .DS_Store
+
+# Next.js auto-generated (never commit)
+next-env.d.ts
