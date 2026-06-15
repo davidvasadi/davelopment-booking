@@ -57,16 +57,70 @@ export async function buildNewPlaceSubscription(
     }
   }
 
-  // Egyébként szokásos próbaidő.
-  const trialDays = pricing?.trial_days ?? 14
-  const trialEnd = new Date()
-  trialEnd.setDate(trialEnd.getDate() + trialDays)
+  // Próbaidő: ha a fióknak MÁR van futó (trialing) próbaideje egy másik üzletén, az ÚJ üzlet
+  // ahhoz IGAZODIK — egy közös, párhuzamos próbaidő a fiók szintjén (nem indul külön 14 nap).
+  // Ha nincs még futó trial (ez az első üzlet), a szokásos trial_days.
+  const existingTrialEnd = await earliestActiveTrialEnd({ payload, req }, ownerId)
+  let trialEndIso: string
+  if (existingTrialEnd) {
+    trialEndIso = existingTrialEnd
+  } else {
+    const trialDays = pricing?.trial_days ?? 14
+    const trialEnd = new Date()
+    trialEnd.setDate(trialEnd.getDate() + trialDays)
+    trialEndIso = trialEnd.toISOString()
+  }
   return {
     plan: 'trial',
     status: 'trialing',
     amount_huf: price,
-    trial_ends_at: trialEnd.toISOString(),
+    trial_ends_at: trialEndIso,
   }
+}
+
+/**
+ * A fiók (owner) jelenleg FUTÓ (status=trialing, jövőbeli lejárat) próbaidői közül a
+ * legkorábbi `trial_ends_at`-jét adja vissza ISO-stringként, vagy null-t ha nincs ilyen.
+ * Erre igazodik egy újonnan hozzáadott üzlet próbaideje (közös fiók-szintű trial).
+ */
+async function earliestActiveTrialEnd(
+  { payload, req }: Ctx,
+  ownerId: string | number | { id: string | number } | null | undefined,
+): Promise<string | null> {
+  const rawId = ownerId && typeof ownerId === 'object' ? ownerId.id : ownerId
+  const oid = typeof rawId === 'string' && /^\d+$/.test(rawId) ? Number(rawId) : rawId
+  if (oid == null || (typeof oid === 'number' && Number.isNaN(oid))) return null
+
+  const [salons, restaurants] = await Promise.all([
+    payload.find({ collection: 'salons', where: { owner: { equals: oid } }, limit: 100, depth: 0, overrideAccess: true, req }),
+    payload.find({ collection: 'restaurants', where: { owner: { equals: oid } }, limit: 100, depth: 0, overrideAccess: true, req }),
+  ])
+  const salonIds = salons.docs.map((d) => d.id)
+  const restaurantIds = restaurants.docs.map((d) => d.id)
+  if (salonIds.length === 0 && restaurantIds.length === 0) return null
+
+  const orClauses: Where[] = []
+  if (salonIds.length) orClauses.push({ salon: { in: salonIds } })
+  if (restaurantIds.length) orClauses.push({ restaurant: { in: restaurantIds } })
+
+  const now = new Date().toISOString()
+  const subs = await payload.find({
+    collection: 'subscriptions',
+    where: {
+      and: [
+        { status: { equals: 'trialing' } },
+        { trial_ends_at: { greater_than: now } },
+        { or: orClauses },
+      ],
+    },
+    sort: 'trial_ends_at', // növekvő → az első a legkorábbi lejárat
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+    req,
+  })
+  const first = subs.docs[0] as { trial_ends_at?: string | null } | undefined
+  return first?.trial_ends_at ?? null
 }
 
 /** Van-e a usernek legalább egy aktív + fizetős előfizetése (bármely üzletén)? */
