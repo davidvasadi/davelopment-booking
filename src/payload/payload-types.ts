@@ -67,6 +67,7 @@ export interface Restaurant {
   slot_step_minutes?: number | null
   last_seating_buffer_minutes?: number | null
   lead_time_hours?: number | null
+  booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
   booking_email_subject?: string | null
@@ -214,6 +215,7 @@ export interface Salon {
   email?: string | null
   website?: string | null
   booking_buffer_minutes?: number | null
+  booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
   booking_email_subject?: string | null

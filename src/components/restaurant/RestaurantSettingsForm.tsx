@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
 import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
 import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
@@ -56,6 +57,7 @@ type Settings = {
   slot_step_minutes: number
   last_seating_buffer_minutes: number
   lead_time_hours: number
+  booking_window_days: number
   require_phone: boolean
   notify_new_bookings: boolean
   booking_email_subject: string
@@ -127,7 +129,7 @@ export function RestaurantSettingsForm({
     general: ['name', 'city', 'address', 'phone', 'email', 'website', 'good_to_know'],
     booking: [
       'turn_duration_minutes', 'slot_step_minutes', 'last_seating_buffer_minutes',
-      'lead_time_hours', 'require_phone', 'notify_new_bookings',
+      'lead_time_hours', 'booking_window_days', 'require_phone', 'notify_new_bookings',
     ],
     email: ['booking_email_subject', 'booking_email_intro', 'email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
     documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat', 'terms_sections'],
@@ -502,6 +504,14 @@ export function RestaurantSettingsForm({
               value={form.lead_time_hours}
               onChange={(e) => set('lead_time_hours', parseInt(e.target.value, 10) || 0)}
             />
+          </div>
+          <div className="space-y-1.5">
+            <Label className={labelClass}>Foglalható napok előre</Label>
+            <BookingWindowPicker
+              value={form.booking_window_days}
+              onChange={(days) => set('booking_window_days', days)}
+            />
+            <p className="text-xs text-zinc-400 dark:text-white/30">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
           </div>
         </div>
 

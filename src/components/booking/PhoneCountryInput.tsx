@@ -152,9 +152,9 @@ export function PhoneCountryInput({
       <button
         type="button"
         onClick={() => { setOpen((o) => !o); setQuery('') }}
-        className={`flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm dark:border-white/[0.1] dark:bg-white/[0.06] ${inputClass}`}
+        className={`flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm ${inputClass}`}
       >
-        <span className="tabular-nums font-medium text-zinc-700 dark:text-white/70">{selected.dial}</span>
+        <span className="tabular-nums font-semibold text-zinc-900">{selected.dial}</span>
         <ChevronDown className={`h-3.5 w-3.5 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <input
@@ -169,31 +169,31 @@ export function PhoneCountryInput({
       {open && (
         <div
           data-lenis-prevent
-          className="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-white/[0.1] dark:bg-zinc-900"
+          className="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl"
         >
-          <div className="p-2 border-b border-zinc-100 dark:border-white/[0.06]">
+          <div className="p-2 border-b border-zinc-100">
             <input
               autoFocus
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Ország keresése…"
-              className="w-full h-9 rounded-lg bg-zinc-50 dark:bg-white/[0.06] border border-zinc-200 dark:border-white/[0.1] px-3 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 focus:outline-none"
+              className="w-full h-9 rounded-lg bg-zinc-50 border border-zinc-200 px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
             />
           </div>
           <div className="max-h-60 overflow-y-auto overscroll-contain">
             {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-center text-sm text-zinc-400 dark:text-white/30">Nincs találat</p>
+              <p className="px-3 py-4 text-center text-sm text-zinc-400">Nincs találat</p>
             ) : filtered.map((c) => (
               <button
                 key={c.code}
                 type="button"
                 onClick={() => { onCountryChange(c.code); setOpen(false); setQuery('') }}
-                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-zinc-50 dark:hover:bg-white/[0.06] ${
-                  c.code === selected.code ? 'bg-zinc-50 dark:bg-white/[0.04] font-semibold' : ''
+                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-zinc-50 ${
+                  c.code === selected.code ? 'bg-zinc-50 font-semibold' : ''
                 }`}
               >
-                <span className="flex-1 min-w-0 truncate text-zinc-700 dark:text-white/70">{c.name}</span>
-                <span className="shrink-0 tabular-nums text-xs text-zinc-400 dark:text-white/30">{c.dial}</span>
+                <span className="flex-1 min-w-0 truncate text-zinc-700">{c.name}</span>
+                <span className="shrink-0 tabular-nums text-xs text-zinc-400">{c.dial}</span>
               </button>
             ))}
           </div>

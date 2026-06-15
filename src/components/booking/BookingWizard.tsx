@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -11,11 +11,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { ArrowLeft, Check, Clock, Loader2, ChevronLeft, ChevronRight, User } from 'lucide-react'
+import { ArrowLeft, Check, Clock, Loader2, ChevronRight, User } from 'lucide-react'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import { BookCtaButton } from '@/components/booking/BookCtaButton'
+import { DateStrip } from '@/components/booking/DateStrip'
 
-import { format, addDays, isSameDay, isToday } from 'date-fns'
+import { format } from 'date-fns'
 import { hu } from 'date-fns/locale'
 
 type Slot = { start: string; end: string }
@@ -36,6 +37,7 @@ interface Props {
   salonSlug: string
   salonName: string
   requirePhone?: boolean
+  bookingWindowDays?: number
   services: Service[]
   staff: StaffMember[]
   preselectedServiceId?: string | null
@@ -44,76 +46,8 @@ interface Props {
   company?: CompanyInfo | null
 }
 
-const HU_DAYS = ['V', 'H', 'K', 'Sz', 'Cs', 'P', 'Szo']
-
-function generateDays(count = 60): Date[] {
-  return Array.from({ length: count }, (_, i) => addDays(new Date(), i))
-}
-
-function DateStrip({ selected, onChange }: { selected: string; onChange: (d: string) => void }) {
-  const days = generateDays(60)
-  const selectedDate = new Date(selected + 'T00:00:00')
-  const [month, setMonth] = useState(format(selectedDate, 'MMMM', { locale: hu }))
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const idx = days.findIndex(d => isSameDay(d, selectedDate))
-    if (scrollRef.current && idx >= 0) {
-      const el = scrollRef.current.children[idx] as HTMLElement
-      el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
-    }
-    setMonth(format(selectedDate, 'MMMM yyyy', { locale: hu }))
-  }, [selected])
-
-  const shiftMonth = (dir: 1 | -1) => {
-    const cur = days.findIndex(d => isSameDay(d, selectedDate))
-    const next = days.find((d, i) => i > cur + 20 * dir && d.getMonth() !== selectedDate.getMonth())
-    if (next) onChange(format(next, 'yyyy-MM-dd'))
-  }
-
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-3 px-1">
-        <button onClick={() => shiftMonth(-1)} className="h-7 w-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
-          <ChevronLeft className="h-4 w-4" />
-        </button>
-        <p className="text-sm font-bold text-zinc-900 capitalize">{month}</p>
-        <button onClick={() => shiftMonth(1)} className="h-7 w-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
-      <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-        {days.map((d) => {
-          const str = format(d, 'yyyy-MM-dd')
-          const isSelected = isSameDay(d, selectedDate)
-          const today = isToday(d)
-          return (
-            <button
-              key={str}
-              onClick={() => onChange(str)}
-              className={cn(
-                'flex flex-col items-center gap-1 py-3 px-3 rounded-2xl shrink-0 snap-center transition-all min-w-[52px]',
-                isSelected
-                  ? 'bg-zinc-950 text-white'
-                  : today
-                    ? 'bg-zinc-100 text-zinc-900'
-                    : 'bg-white text-zinc-600 hover:bg-zinc-50'
-              )}
-            >
-              <span className={cn('text-[10px] font-semibold uppercase', isSelected ? 'text-zinc-400' : 'text-zinc-400')}>
-                {HU_DAYS[d.getDay()]}
-              </span>
-              <span className="text-base font-black leading-none">{format(d, 'd')}</span>
-            </button>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 export default function BookingWizard({
-  salonId, salonSlug, salonName, requirePhone = true, services, staff, preselectedServiceId, preselectedStaffId, termsSections, company,
+  salonId, salonSlug, salonName, requirePhone = true, bookingWindowDays = 60, services, staff, preselectedServiceId, preselectedStaffId, termsSections, company,
 }: Props) {
   const router = useRouter()
   const [step, setStep] = useState(preselectedServiceId ? 1 : 0)
@@ -358,6 +292,7 @@ export default function BookingWizard({
               <DateStrip
                 selected={state.date}
                 onChange={(d) => set({ date: d, slot: null })}
+                dayCount={bookingWindowDays}
               />
             </div>
 

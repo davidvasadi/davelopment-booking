@@ -43,6 +43,7 @@ export default async function RestaurantSettingsPage() {
           slot_step_minutes: r.slot_step_minutes ?? 30,
           last_seating_buffer_minutes: r.last_seating_buffer_minutes ?? 0,
           lead_time_hours: r.lead_time_hours ?? 2,
+          booking_window_days: r.booking_window_days ?? 60,
           require_phone: r.require_phone ?? true,
           notify_new_bookings: r.notify_new_bookings ?? true,
           booking_email_subject: r.booking_email_subject ?? '',

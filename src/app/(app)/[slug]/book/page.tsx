@@ -51,6 +51,7 @@ export default async function BookPage({
       salonSlug={slug}
       salonName={salon.name}
       requirePhone={salon.require_phone ?? true}
+      bookingWindowDays={salon.booking_window_days ?? 60}
       services={servicesResult.docs as Service[]}
       staff={staffResult.docs as StaffMember[]}
       preselectedServiceId={serviceId ?? null}

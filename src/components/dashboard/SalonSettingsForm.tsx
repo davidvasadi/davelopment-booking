@@ -10,6 +10,7 @@ import type { Salon, Media } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
+import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
 import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
 import { EmailVariablesHelp } from '@/components/settings/EmailVariablesHelp'
@@ -55,6 +56,7 @@ const schema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   website: z.string().optional(),
   booking_buffer_minutes: z.number().min(0).max(120),
+  booking_window_days: z.number().min(1).max(365),
   require_phone: z.boolean(),
   notify_new_bookings: z.boolean(),
   booking_email_subject: z.string().optional(),
@@ -122,6 +124,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
     email: salon.email ?? '',
     website: salon.website ?? '',
     booking_buffer_minutes: salon.booking_buffer_minutes ?? 0,
+    booking_window_days: salon.booking_window_days ?? 60,
     require_phone: salon.require_phone ?? true,
     notify_new_bookings: salon.notify_new_bookings ?? true,
     booking_email_subject: salon.booking_email_subject ?? '',
@@ -148,7 +151,7 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
   // ── Fülek + mentetlen-változás védelem ──────────────────────────
   const TAB_FIELDS: Record<string, (keyof FormData)[]> = {
     general: ['name', 'slug', 'postal_code', 'city', 'address', 'phone', 'email', 'website'],
-    booking: ['booking_buffer_minutes', 'require_phone', 'notify_new_bookings'],
+    booking: ['booking_buffer_minutes', 'booking_window_days', 'require_phone', 'notify_new_bookings'],
     email: ['booking_email_subject', 'booking_email_intro', 'email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
     documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat', 'terms_sections'],
   }
@@ -438,6 +441,14 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
             {...register('booking_buffer_minutes', { valueAsNumber: true })}
           />
           <p className="text-xs text-zinc-400 dark:text-white/30">Mennyi szünet legyen két foglalás között</p>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Foglalható napok előre</Label>
+          <BookingWindowPicker
+            value={watch('booking_window_days') ?? 60}
+            onChange={(days) => setValue('booking_window_days', days, { shouldDirty: true })}
+          />
+          <p className="text-xs text-zinc-400 dark:text-white/30">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
         </div>
         <div className="space-y-4 border-t border-zinc-100 dark:border-white/[0.06] pt-4">
           <ToggleSwitch

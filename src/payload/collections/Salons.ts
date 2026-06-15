@@ -172,6 +172,15 @@ export const Salons: CollectionConfig = {
               label: 'Foglalások közti szünet (perc)',
             },
             {
+              name: 'booking_window_days',
+              type: 'number',
+              defaultValue: 60,
+              label: 'Foglalható napok előre',
+              admin: {
+                description: 'Hány napra előre foglalhatnak a vendégek (pl. 30, 60, 90).',
+              },
+            },
+            {
               name: 'require_phone',
               type: 'checkbox',
               defaultValue: true,
