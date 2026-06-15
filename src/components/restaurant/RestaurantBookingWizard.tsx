@@ -11,7 +11,7 @@ import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
 import { HoverArrow } from '@/components/ui/HoverArrow'
 import { DateStrip } from '@/components/booking/DateStrip'
-import { EASE, DUR, staggerDelay, stepSlide, stepSlideTransition } from '@/lib/motion'
+import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
 
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.dial]))
 
@@ -199,13 +199,17 @@ export function RestaurantBookingWizard({
                 ) : slots.length === 0 ? (
                   <p className="text-sm text-zinc-400 text-center py-6">Erre a napra/létszámra nincs szabad időpont</p>
                 ) : (
-                  <div key={date} className="grid grid-cols-4 sm:grid-cols-5 gap-2">
-                    {slots.map((s, i) => (
+                  <motion.div
+                    key={`${date}-${slots.length}`}
+                    variants={staggerContainer}
+                    initial="hidden"
+                    animate="show"
+                    className="grid grid-cols-4 sm:grid-cols-5 gap-2"
+                  >
+                    {slots.map((s) => (
                       <motion.button
                         key={s.start}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: DUR.fast, delay: staggerDelay(i, 0.02), ease: EASE }}
+                        variants={fadeUp}
                         onClick={() => { setTime(s.start); goStep(1) }}
                         title={s.onlyOutdoor ? 'Erre az időpontra már csak teraszra (kültéri) foglalható' : undefined}
                         className={`relative h-10 rounded-xl border text-sm font-medium tabular-nums transition-colors ${
@@ -220,7 +224,7 @@ export function RestaurantBookingWizard({
                         )}
                       </motion.button>
                     ))}
-                  </div>
+                  </motion.div>
                 )}
               </div>
             </>

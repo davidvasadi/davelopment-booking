@@ -5,6 +5,7 @@ import { CreditCard, AlertTriangle, Clock, CheckCircle2, XCircle, PauseCircle, B
 import SubscriptionStatusSelect from './SubscriptionStatusSelect'
 import {
   getPlaceFromSubscription, subAmountHuf, PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS, textColorOf,
+  buildOwnerBusinessCount,
 } from '@/lib/backstagePlaces'
 import { getPricing } from '@/lib/pricing'
 
@@ -23,6 +24,12 @@ export default async function SubscriptionsPage() {
   ])
 
   const subs = subsResult.docs as Subscription[]
+
+  // Több-üzlet: ownerId → üzletszám (a subscription-ökhöz kötött helyek owner-éből), hogy
+  // a sornál jelezhessük, ha egy fiókhoz több üzlet tartozik.
+  const ownerCounts = buildOwnerBusinessCount(
+    subs.map((s) => getPlaceFromSubscription(s)).filter((p): p is NonNullable<typeof p> => p !== null),
+  )
 
   const byStatus = {
     active: subs.filter(s => s.status === 'active').length,
@@ -143,7 +150,18 @@ export default async function SubscriptionsPage() {
                         </span>
                       )}
                     </p>
-                    <p className="text-zinc-400 text-xs truncate mt-0.5">{place?.owner?.email ?? '—'}</p>
+                    <p className="text-zinc-400 text-xs truncate mt-0.5 flex items-center gap-1.5">
+                      <span className="truncate">{place?.owner?.email ?? '—'}</span>
+                      {(() => {
+                        const oid = place?.owner?.id != null ? String(place.owner.id) : null
+                        const n = oid ? (ownerCounts.get(oid) ?? 0) : 0
+                        return n > 1 ? (
+                          <span className="shrink-0 text-[10px] font-bold rounded-full bg-violet-500/10 text-violet-500 px-1.5 py-0.5">
+                            {n} üzletből
+                          </span>
+                        ) : null
+                      })()}
+                    </p>
                   </div>
                 </div>
               )

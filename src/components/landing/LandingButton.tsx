@@ -9,9 +9,9 @@ type Variant = 'dark' | 'yellow' | 'light'
 type Size = 'md' | 'lg'
 
 const VARIANT: Record<Variant, string> = {
-  dark: 'bg-brand-ink text-white hover:opacity-90',
-  yellow: 'bg-brand-accent text-brand-ink hover:brightness-95',
-  light: 'bg-brand-surface text-brand-ink hover:bg-zinc-200 dark:hover:bg-zinc-200',
+  dark: 'bg-brand-ink text-white',
+  yellow: 'bg-brand-accent text-brand-ink',
+  light: 'bg-brand-surface text-brand-ink',
 }
 
 const SIZE: Record<Size, { pill: string; icon: string }> = {
@@ -19,22 +19,18 @@ const SIZE: Record<Size, { pill: string; icon: string }> = {
   lg: { pill: 'h-12 px-7 text-[15px] gap-2.5', icon: 'h-12 w-12' },
 }
 
-type CommonProps = {
+type Props = {
   variant?: Variant
   size?: Size
-  /** Megjelenjen-e a ↗ (ArrowUpRight) ikon. */
   icon?: boolean
-  /** Csak ikon (kör alakú gomb), szöveg nélkül. */
   iconOnly?: boolean
   className?: string
   children?: React.ReactNode
+  href?: string
+  onClick?: () => void
+  type?: 'button' | 'submit'
 }
 
-/**
- * A landing egységes pill-gombja a design-referencia szerint: 3 variáns
- * (dark / yellow / light) × szöveg / ikon (↗) / csak-ikon kör. Renderelhető
- * linkként (`href`) vagy gombként (`onClick`).
- */
 export function LandingButton({
   variant = 'dark',
   size = 'md',
@@ -46,41 +42,67 @@ export function LandingButton({
   onClick,
   type = 'button',
   ...rest
-}: CommonProps & {
-  href?: string
-  onClick?: () => void
-  type?: 'button' | 'submit'
-}) {
+}: Props) {
   const s = SIZE[size]
-  const classes = cn(
-    'inline-flex items-center justify-center font-semibold rounded-full transition-all active:scale-[0.98] shrink-0',
+
+  const base = cn(
+    'inline-flex items-center justify-center font-semibold rounded-full shrink-0',
     VARIANT[variant],
     iconOnly ? cn(s.icon, 'rounded-full') : s.pill,
     className,
   )
 
-  // A „group" osztály + a gomb whileHover/whileTap: a teljes gomb skálázódik,
-  // és a ↗ ikon CSS-sel kifelé csúszik (jobbra-fel) hoverre — tiszta, nincs variant-keveredés.
-  const iconCls = 'h-[18px] w-[18px] shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5'
+  const hoverMotion = {
+    whileHover: 'hover',
+    initial: 'rest',
+    animate: 'rest',
+  }
+
+  const textVariants = {
+    rest: { x: 0 },
+    hover: { x: -4 },
+  }
+
+  const iconVariants = {
+    rest: { x: 0, rotate: 0 },
+    hover: { x: 4, rotate: 45 },
+  }
+
   const content = iconOnly ? (
-    <ArrowUpRight className={iconCls} />
+    <motion.span variants={iconVariants}>
+      <ArrowUpRight className="h-[18px] w-[18px]" />
+    </motion.span>
   ) : (
     <>
-      {children}
-      {icon && <ArrowUpRight className={iconCls} />}
+      <motion.span variants={textVariants}>{children}</motion.span>
+      {icon && (
+        <motion.span variants={iconVariants}>
+          <ArrowUpRight className="h-[18px] w-[18px]" />
+        </motion.span>
+      )}
     </>
   )
-  const motionProps = { whileHover: { scale: 1.03 }, whileTap: { scale: 0.97 }, transition: { type: 'spring' as const, stiffness: 400, damping: 25 } }
 
   if (href) {
     return (
-      <MotionLink href={href} className={cn('group', classes)} aria-label={iconOnly ? 'Tovább' : undefined} {...motionProps} {...rest}>
+      <MotionLink
+        href={href}
+        className={cn(base, 'overflow-hidden')}
+        {...hoverMotion}
+        {...rest}
+      >
         {content}
       </MotionLink>
     )
   }
+
   return (
-    <motion.button type={type} onClick={onClick} className={cn('group', classes)} aria-label={iconOnly ? 'Tovább' : undefined} {...motionProps}>
+    <motion.button
+      type={type}
+      onClick={onClick}
+      className={cn(base, 'overflow-hidden')}
+      {...hoverMotion}
+    >
       {content}
     </motion.button>
   )

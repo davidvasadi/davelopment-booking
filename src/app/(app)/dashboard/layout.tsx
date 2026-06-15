@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { autoCompleteBookings } from '@/lib/autoComplete'
 import { expireOneTrial } from '@/lib/subscriptionSync'
+import { getActiveBusiness } from '@/lib/activeBusiness'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
@@ -12,20 +13,22 @@ import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import type { Salon, Subscription } from '@/payload/payload-types'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireAuth('salon_owner')
+  const user = await requireAuth()
 
   if (user.role === 'admin') redirect('/backstage')
-  if (user.role === 'restaurant_owner') redirect('/restaurant')
+
+  // Több-üzlet: a NÉZETET az aktív üzlet típusa dönti el (nem a role). Ha az aktív
+  // üzlet étterem, a felhasználó a /restaurant nézetre tartozik.
+  const { active, businesses } = await getActiveBusiness(user)
+  if (!active) redirect('/register')
+  if (active.type !== 'salon') redirect('/restaurant')
 
   const payload = await getPayloadClient()
-  const salonResult = await payload.find({
+  const salon = (await payload.findByID({
     collection: 'salons',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-  })
-
-  if (!salonResult.docs.length) redirect('/register')
-  const salon = salonResult.docs[0] as Salon
+    id: active.id,
+    overrideAccess: true,
+  })) as Salon
 
   const subResult = await payload.find({
     collection: 'subscriptions',
@@ -57,6 +60,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         userName={user.name}
         userEmail={user.email}
         userAvatarUrl={user.avatar_url ?? null}
+        businesses={businesses}
+        activeBusinessKey={`${active.type}:${active.id}`}
       />
       <main className="flex-1 pb-24 lg:pb-0">
         <SubscriptionBanner subscription={sub} />

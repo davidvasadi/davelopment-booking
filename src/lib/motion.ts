@@ -56,3 +56,28 @@ export const stepSlideTransition: Transition = { duration: DUR.fast, ease: EASE 
 
 /** Index-alapú stagger delay (akkordeon-mintára: 0.08 + i*STAGGER). */
 export const staggerDelay = (i: number, base = 0.08) => base + i * STAGGER
+
+
+/** Hero landingre */
+export const buttonHover = {
+  rest: { x: 0 },
+  hover: {
+    x: -6,
+    transition: {
+      duration: 0.35,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+}
+
+export const iconHover = {
+  rest: { rotate: 0, x: 0 },
+  hover: {
+    rotate: 45,
+    x: 6,
+    transition: {
+      duration: 0.35,
+      ease: [0.22, 1, 0.36, 1],
+    },
+  },
+}

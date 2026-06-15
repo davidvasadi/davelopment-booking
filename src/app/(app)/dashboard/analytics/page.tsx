@@ -1,11 +1,10 @@
-import { requireAuth } from '@/lib/auth'
+import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { formatPrice } from '@/lib/utils'
 import { TrendChart, DowChart, ServiceChart, StaffChart, HourChart } from '@/components/dashboard/DashboardCharts'
 import { KpiCardWithDetails } from '@/components/dashboard/KpiCardWithDetails'
 import PeriodFilter from '@/components/dashboard/PeriodFilter'
-import type { Salon } from '@/payload/payload-types'
 
 const VALID_PERIODS = [1, 7, 30, 90, 180, 365]
 
@@ -25,15 +24,8 @@ export default async function AnalyticsPage({
   searchParams: Promise<{ period?: string }>
 }) {
   const { period: periodParam } = await searchParams
-  const user = await requireAuth('salon_owner')
+  const { salon } = await getOwnedSalon()
   const payload = await getPayloadClient()
-
-  const salonResult = await payload.find({
-    collection: 'salons',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-  })
-  const salon = salonResult.docs[0] as Salon
 
   const days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
   const stats = await getDashboardStats(salon.id, days)

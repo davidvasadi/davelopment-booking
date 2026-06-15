@@ -9,7 +9,7 @@ import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
 import { UserMenu } from './UserMenu'
 import { CommandPalette } from './CommandPalette'
-import { StoreSwitcher } from './StoreSwitcher'
+import { StoreSwitcher, type SwitcherBusiness } from './StoreSwitcher'
 import { useOnline } from '@/lib/useOnline'
 import { useRestaurantUI } from '@/components/restaurant/RestaurantUIContext'
 
@@ -73,6 +73,8 @@ export function DashboardNav({
   userName = null,
   userEmail = null,
   userAvatarUrl = null,
+  businesses = [],
+  activeBusinessKey = null,
 }: {
   salonName: string
   salonSlug: string
@@ -84,6 +86,10 @@ export function DashboardNav({
   userName?: string | null
   userEmail?: string | null
   userAvatarUrl?: string | null
+  /** Több-üzlet: a felhasználó összes üzlete a store-switcherhez. */
+  businesses?: SwitcherBusiness[]
+  /** Az aktív üzlet "<type>:<id>" kulcsa. */
+  activeBusinessKey?: string | null
 }) {
   const { items: navItems, publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
   const pathname = usePathname()
@@ -172,6 +178,8 @@ export function DashboardNav({
                 name={salonName}
                 logoUrl={brandLogoUrl}
                 planLabel={subscription ? subStatusLabel(subscription.status) : null}
+                businesses={businesses}
+                activeKey={activeBusinessKey}
               />
             )}
           </motion.div>

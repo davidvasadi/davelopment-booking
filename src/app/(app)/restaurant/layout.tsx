@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { expireOneTrial } from '@/lib/subscriptionSync'
+import { getActiveBusiness } from '@/lib/activeBusiness'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
@@ -12,21 +13,22 @@ import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContex
 import type { Restaurant, Subscription } from '@/payload/payload-types'
 
 export default async function RestaurantLayout({ children }: { children: React.ReactNode }) {
-  const user = await requireAuth('restaurant_owner')
+  const user = await requireAuth()
 
   if (user.role === 'admin') redirect('/backstage')
-  if (user.role === 'salon_owner') redirect('/dashboard')
+
+  // Több-üzlet: a NÉZETET az aktív üzlet típusa dönti el (nem a role). Ha az aktív
+  // üzlet szalon, a felhasználó a /dashboard nézetre tartozik.
+  const { active, businesses } = await getActiveBusiness(user)
+  if (!active) redirect('/register-restaurant')
+  if (active.type !== 'restaurant') redirect('/dashboard')
 
   const payload = await getPayloadClient()
-  const result = await payload.find({
+  const restaurant = (await payload.findByID({
     collection: 'restaurants',
-    where: { owner: { equals: user.id } },
-    limit: 1,
+    id: active.id,
     overrideAccess: true,
-  })
-
-  if (!result.docs.length) redirect('/register-restaurant')
-  const restaurant = result.docs[0] as Restaurant
+  })) as Restaurant
 
   const subResult = await payload.find({
     collection: 'subscriptions',
@@ -61,6 +63,8 @@ export default async function RestaurantLayout({ children }: { children: React.R
           userName={user.name}
           userEmail={user.email}
           userAvatarUrl={user.avatar_url ?? null}
+          businesses={businesses}
+          activeBusinessKey={`${active.type}:${active.id}`}
         />
         <main className="flex-1 min-w-0 pb-24 lg:pb-0">
           <SubscriptionBanner subscription={sub} basePath="/restaurant" />

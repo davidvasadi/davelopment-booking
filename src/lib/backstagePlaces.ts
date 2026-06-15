@@ -99,3 +99,18 @@ export const STATUS_COLORS: Record<string, string> = {
 export function textColorOf(classes: string | undefined): string {
   return classes?.split(' ').find(c => c.startsWith('text-')) ?? 'text-zinc-500'
 }
+
+/**
+ * Több-üzlet (multi-tenant) áttekintés a backstage listákhoz: `ownerId → üzletszám` map.
+ * A helyek (szalon+étterem) owner-e alapján számolja, hány üzlet tartozik egy fiókhoz.
+ * Így a listákban jelezhető „N üzletből", amikor egy owner több üzletet birtokol.
+ */
+export function buildOwnerBusinessCount(places: Pick<Place, 'owner'>[]): Map<string, number> {
+  const map = new Map<string, number>()
+  for (const p of places) {
+    const id = p.owner?.id != null ? String(p.owner.id) : null
+    if (!id) continue
+    map.set(id, (map.get(id) ?? 0) + 1)
+  }
+  return map
+}

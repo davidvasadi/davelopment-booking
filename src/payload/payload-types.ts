@@ -186,6 +186,10 @@ export interface User {
   role: 'admin' | 'salon_owner' | 'restaurant_owner'
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null
+  /** Több-üzlet: utoljára aktív üzlet `"<type>:<id>"` (pl. "restaurant:12"). */
+  last_active_business?: string | null
+  /** Virtuális, csak olvasható admin-összegzés (nem tárolódik). */
+  businesses_summary?: string | null
   status?: 'active' | 'inactive'
   createdAt: string
   updatedAt: string

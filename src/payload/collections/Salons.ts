@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
+import { buildNewPlaceSubscription } from '../lib/newPlaceSubscription'
 
 export const Salons: CollectionConfig = {
   slug: 'salons',
@@ -17,23 +18,17 @@ export const Salons: CollectionConfig = {
           req,
         })
         if (existing.docs.length > 0) return
-        // Próbaidő hossza + ár a GLOBÁLIS árazásból (backstage-ben szerkeszthető).
-        const pricing = (await req.payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true, req })) as { trial_days?: number; salon_pro_huf?: number }
-        const trialDays = pricing?.trial_days ?? 14
-        const trialEnd = new Date()
-        trialEnd.setDate(trialEnd.getDate() + trialDays)
+        // Több-üzlet szabály: ha a tulajdonosnak MÁR van aktív fizető előfizetése, az új
+        // szalon egyből fizetős (próbaidő nélkül); egyébként szokásos próbaidő. Az ár a
+        // GLOBÁLIS árazásból jön (backstage-ben szerkeszthető).
+        const subData = await buildNewPlaceSubscription({ payload: req.payload, req }, doc.owner, 'salon')
         await req.payload.create({
           collection: 'subscriptions',
-          data: {
-            salon: doc.id,
-            plan: 'trial',
-            status: 'trialing',
-            trial_ends_at: trialEnd.toISOString(),
-            amount_huf: pricing?.salon_pro_huf ?? 2900,
-          },
+          data: { salon: doc.id, ...subData },
           overrideAccess: true,
           req,
         })
+        const startedPaid = subData.status === 'active'
         // Admin-értesítés a backstage harangba (best-effort).
         try {
           await req.payload.create({
@@ -44,7 +39,7 @@ export const Salons: CollectionConfig = {
               audience: 'admin',
               type: 'new_signup',
               title: `Új szalon: ${doc.name}`,
-              body: `${doc.city ? doc.city + ' · ' : ''}próbaidőszak elindult`,
+              body: `${doc.city ? doc.city + ' · ' : ''}${startedPaid ? 'fizető előfizetéssel indult (meglévő fiók)' : 'próbaidőszak elindult'}`,
               salon: doc.id,
               read: false,
             },

@@ -1,11 +1,11 @@
-import { requireAuth } from '@/lib/auth'
+import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
 import { formatDate, formatPrice } from '@/lib/utils'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { TrendChart, DowChart, ServiceChart, StaffChart } from '@/components/dashboard/DashboardCharts'
 import BookingActions from '@/components/dashboard/BookingActions'
 import { KpiCardWithDetails } from '@/components/dashboard/KpiCardWithDetails'
-import type { Salon, Booking, Service, StaffMember } from '@/payload/payload-types'
+import type { Booking, Service, StaffMember } from '@/payload/payload-types'
 import { Zap, MessageSquare } from 'lucide-react'
 
 const statusDot: Record<string, string> = {
@@ -22,15 +22,8 @@ const statusLabel: Record<string, string> = {
 }
 
 export default async function DashboardPage() {
-  const user = await requireAuth('salon_owner')
+  const { salon } = await getOwnedSalon()
   const payload = await getPayloadClient()
-
-  const salonResult = await payload.find({
-    collection: 'salons',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-  })
-  const salon = salonResult.docs[0] as Salon
 
   const today = new Date().toISOString().split('T')[0]
   const hour = new Date().getHours()

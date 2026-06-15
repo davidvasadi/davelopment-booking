@@ -30,8 +30,17 @@ export default async function BackstagePlacesPage() {
   const salonCountMap = new Map(salonCounts)
   const restaurantCountMap = new Map(restaurantCounts)
 
+  // Több-üzlet: ownerId → üzletszám (szalon + étterem owner-éből), hogy a sornál jelezhessük,
+  // ha egy fiókhoz több üzlet tartozik.
+  const ownerBizCount = new Map<string, number>()
+  for (const doc of [...salonDocs, ...restaurantDocs]) {
+    const oid = typeof doc.owner === 'object' && doc.owner ? String((doc.owner as User).id) : null
+    if (oid) ownerBizCount.set(oid, (ownerBizCount.get(oid) ?? 0) + 1)
+  }
+
   const toRow = (kind: 'salon' | 'restaurant', doc: Salon | Restaurant, count: number): PlaceRow => {
     const owner = typeof doc.owner === 'object' ? (doc.owner as User) : null
+    const oid = owner?.id != null ? String(owner.id) : null
     return {
       kind,
       id: String(doc.id),
@@ -42,6 +51,7 @@ export default async function BackstagePlacesPage() {
       createdAt: doc.createdAt,
       ownerEmail: owner?.email,
       ownerName: owner?.name,
+      ownerBusinessCount: oid ? (ownerBizCount.get(oid) ?? 1) : 1,
       bookingCount: count,
     }
   }

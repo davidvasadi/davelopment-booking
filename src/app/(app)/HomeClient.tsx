@@ -8,6 +8,8 @@ import { ArrowUpRight, ArrowDown, Plus, Minus, CalendarCheck, Bell, BarChart3, L
 import { cn } from '@/lib/utils'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
 import { LandingButton } from '@/components/landing/LandingButton'
+import { buttonHover, iconHover } from '@/lib/motion'
+import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
 
 /** A nyilvános árazás (a backstage-ben szerkeszthető globalből, szerver-oldalon betöltve). */
 export type LandingPricing = { salon_pro_huf: number; restaurant_pro_huf: number; trial_days: number }
@@ -51,22 +53,32 @@ function SplitRegisterButton({ href, label }: { href: string; label: string }) {
 /** Hero másodlagos gomb (egyben): hoverre nyíl 90°-ot fordul + szöveg egyet körbefordul. */
 function SpinButton({ href, label, variant }: { href: string; label: string; variant: 'dark' | 'light' }) {
   const [hover, setHover] = useState(false)
-  const cls = variant === 'dark' ? 'bg-brand-ink text-brand-bg' : 'bg-white text-brand-ink'
+
   return (
     <Link
       href={href}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className={cn('inline-flex h-14 items-center gap-4 rounded-[30px] px-6 text-[22px] font-medium', cls)}
+      className={cn(
+        'inline-flex h-14 items-center gap-3 rounded-[30px] px-6 text-[22px] font-medium overflow-hidden',
+        variant === 'dark' ? 'bg-brand-ink text-brand-bg' : 'bg-white text-brand-ink'
+      )}
     >
-      <motion.span animate={{ rotate: hover ? 45 : 0 }} transition={{ type: 'tween', duration: 0.6, ease: [0.16, 1, 0.3, 1] }} className="inline-block">
+      <motion.span
+        animate={{ x: hover ? -6 : 0 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="inline-block"
+      >
         {label}
       </motion.span>
-      {variant === 'dark' && (
-        <motion.span animate={{ rotate: hover ? 45 : 0 }} transition={{ type: 'spring', stiffness: 360, damping: 26 }}>
-          <ArrowUpRight className="h-6 w-6" />
-        </motion.span>
-      )}
+
+      <motion.span
+        animate={{ rotate: hover ? 45 : 0, x: hover ? 6 : 0 }}
+        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="inline-block"
+      >
+        <ArrowUpRight className="h-6 w-6" />
+      </motion.span>
     </Link>
   )
 }
@@ -388,7 +400,8 @@ export default function HomeClient({ pricing }: { pricing: LandingPricing }) {
 
               {/* elsődleges gomb: sárga pill + kör ikon (összefolyik hoverre) */}
               <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.55 }} className="mt-8">
-                <SplitRegisterButton href="/register" label="Regisztrálj ingyen" />
+                <BookCtaMorph  href="/register" label="Regisztrálj ingyen" />
+                <SplitRegisterButton  href="/register" label="Regisztrálj ingyen" />
               </motion.div>
             </div>
 

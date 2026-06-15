@@ -1,18 +1,11 @@
-import { requireAuth } from '@/lib/auth'
+import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
-import type { Salon, StaffMember } from '@/payload/payload-types'
+import type { StaffMember } from '@/payload/payload-types'
 import StaffManager from '@/components/dashboard/StaffManager'
 
 export default async function StaffPage() {
-  const user = await requireAuth('salon_owner')
+  const { salon } = await getOwnedSalon()
   const payload = await getPayloadClient()
-
-  const salonResult = await payload.find({
-    collection: 'salons',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-  })
-  const salon = salonResult.docs[0] as Salon
 
   const staffResult = await payload.find({
     collection: 'staff',

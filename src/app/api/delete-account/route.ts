@@ -1,39 +1,43 @@
 import { NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { requireAuth } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
+import { getActiveBusiness, ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
 import { cookies } from 'next/headers'
 
+/**
+ * DELETE /api/delete-account  (szalon-dashboard „Veszélyzóna")
+ *
+ * Több-üzlet (multi-tenant) törlés-logika:
+ *  - Ha a felhasználónak TÖBB üzlete van → CSAK az AKTÍV üzletet töröljük (a hozzá tartozó
+ *    foglalásokkal/munkatársakkal/előfizetéssel — a collection beforeDelete hookja kaszkádol).
+ *    A fiók és a többi üzlet megmarad; az aktív cookie-t töröljük, a feloldás a következő
+ *    üzletre esik.
+ *  - Ha ez az UTOLSÓ üzlet → a teljes fiókot (usert) töröljük (a Users hook mindent visz).
+ *
+ * (A role-t NEM nézzük — a több-üzlet modellben a nézet/művelet az aktív üzlethez kötött.)
+ */
 export async function DELETE() {
-  let user: Awaited<ReturnType<typeof requireAuth>>
-  try {
-    user = await requireAuth('salon_owner')
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const payload = await getPayloadClient()
-
-  const salonResult = await payload.find({
-    collection: 'salons',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-    overrideAccess: true,
-    depth: 0,
-  })
-  const salon = salonResult.docs[0]
-
-  if (salon) {
-    // A salon törlése a Salons collection `beforeDelete` hookját futtatja, ami kaszkádban
-    // törli az ÖSSZES kapcsolódó rekordot: bookings, availability, services,
-    // service-categories, staff ÉS subscriptions. Nem duplikáljuk itt kézzel (a korábbi
-    // route kihagyta a subscriptions-t → árva előfizetések maradtak). Egy forrás = a hook.
-    await payload.delete({ collection: 'salons', where: { id: { equals: salon.id } }, overrideAccess: true })
-  }
-
-  await payload.delete({ collection: 'users', where: { id: { equals: user.id } }, overrideAccess: true })
+  const { active, businesses } = await getActiveBusiness(user)
+  if (!active) return NextResponse.json({ error: 'No active business' }, { status: 400 })
 
   const cookieStore = await cookies()
-  cookieStore.delete('payload-token')
 
-  return NextResponse.json({ ok: true })
+  if (businesses.length > 1) {
+    // Több üzlet → csak az aktívat töröljük. A salons/restaurants beforeDelete hook kaszkádol.
+    const collection = active.type === 'salon' ? 'salons' : 'restaurants'
+    await payload.delete({ collection, id: active.id, overrideAccess: true })
+    // Az aktív cookie érvénytelen lett → töröljük, a feloldás a következő üzletre esik.
+    cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
+    return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: false })
+  }
+
+  // Utolsó üzlet → teljes fiók-törlés (a Users beforeDelete hook mindent kaszkádol).
+  await payload.delete({ collection: 'users', where: { id: { equals: user.id } }, overrideAccess: true })
+  cookieStore.delete('payload-token')
+  cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
+  return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: true })
 }

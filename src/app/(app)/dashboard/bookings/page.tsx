@@ -1,4 +1,4 @@
-import { requireAuth } from '@/lib/auth'
+import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
 import { formatDate } from '@/lib/utils'
 import { format, subDays, startOfWeek, startOfMonth } from 'date-fns'
@@ -7,7 +7,7 @@ import DateFilter from '@/components/dashboard/DateFilter'
 import BookingViewToggle from '@/components/dashboard/BookingViewToggle'
 import BookingListFilters from '@/components/dashboard/BookingListFilters'
 import BookingActions from '@/components/dashboard/BookingActions'
-import type { Salon, Booking, Service, StaffMember } from '@/payload/payload-types'
+import type { Booking, Service, StaffMember } from '@/payload/payload-types'
 import type { Where } from 'payload'
 import { MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
@@ -55,15 +55,8 @@ export default async function BookingsPage({
   const { view, date: dateParam, status = 'all', range = '30', search = '', page = '1' } = await searchParams
   const isListView = view === 'list'
 
-  const user = await requireAuth('salon_owner')
+  const { salon } = await getOwnedSalon()
   const payload = await getPayloadClient()
-
-  const salonResult = await payload.find({
-    collection: 'salons',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-  })
-  const salon = salonResult.docs[0] as Salon
 
   // ── DAY VIEW ─────────────────────────────────────────────────
   if (!isListView) {

@@ -2,6 +2,7 @@ import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { slugify } from '../lib/slugify'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
+import { buildNewPlaceSubscription } from '../lib/newPlaceSubscription'
 
 const isOwnerOrAdmin: Access = ({ req }) => {
   if (!req.user) return false
@@ -24,23 +25,17 @@ export const Restaurants: CollectionConfig = {
           req,
         })
         if (existing.docs.length > 0) return
-        // Próbaidő hossza + ár a GLOBÁLIS árazásból (backstage-ben szerkeszthető).
-        const pricing = (await req.payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true, req })) as { trial_days?: number; restaurant_pro_huf?: number }
-        const trialDays = pricing?.trial_days ?? 14
-        const trialEnd = new Date()
-        trialEnd.setDate(trialEnd.getDate() + trialDays)
+        // Több-üzlet szabály: ha a tulajdonosnak MÁR van aktív fizető előfizetése, az új
+        // étterem egyből fizetős (próbaidő nélkül); egyébként szokásos próbaidő. Az ár a
+        // GLOBÁLIS árazásból jön (backstage-ben szerkeszthető).
+        const subData = await buildNewPlaceSubscription({ payload: req.payload, req }, doc.owner, 'restaurant')
         await req.payload.create({
           collection: 'subscriptions',
-          data: {
-            restaurant: doc.id,
-            plan: 'trial',
-            status: 'trialing',
-            trial_ends_at: trialEnd.toISOString(),
-            amount_huf: pricing?.restaurant_pro_huf ?? 9900,
-          },
+          data: { restaurant: doc.id, ...subData },
           overrideAccess: true,
           req,
         })
+        const startedPaid = subData.status === 'active'
         // Admin-értesítés a backstage harangba (best-effort, ne bukjon el a regisztráció).
         try {
           await req.payload.create({
@@ -51,7 +46,7 @@ export const Restaurants: CollectionConfig = {
               audience: 'admin',
               type: 'new_signup',
               title: `Új étterem: ${doc.name}`,
-              body: `${doc.city ? doc.city + ' · ' : ''}próbaidőszak elindult`,
+              body: `${doc.city ? doc.city + ' · ' : ''}${startedPaid ? 'fizető előfizetéssel indult (meglévő fiók)' : 'próbaidőszak elindult'}`,
               restaurant: doc.id,
               read: false,
             },

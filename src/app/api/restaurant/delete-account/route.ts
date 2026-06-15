@@ -1,41 +1,36 @@
 import { NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { requireAuth } from '@/lib/auth'
+import { getCurrentUser } from '@/lib/auth'
+import { getActiveBusiness, ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
 import { cookies } from 'next/headers'
 
+/**
+ * DELETE /api/restaurant/delete-account  (étterem-dashboard „Veszélyzóna")
+ *
+ * Azonos logika a szalon-megfelelőjével (lásd /api/delete-account):
+ *  - Több üzlet → CSAK az aktív (étterem) üzletet töröljük; a fiók + többi üzlet marad.
+ *  - Utolsó üzlet → teljes fiók-törlés.
+ * A role-t NEM nézzük (több-üzlet modell: az aktív üzlet dönt).
+ */
 export async function DELETE() {
-  let user: Awaited<ReturnType<typeof requireAuth>>
-  try {
-    user = await requireAuth('restaurant_owner')
-  } catch {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const payload = await getPayloadClient()
+  const { active, businesses } = await getActiveBusiness(user)
+  if (!active) return NextResponse.json({ error: 'No active business' }, { status: 400 })
 
-  const result = await payload.find({
-    collection: 'restaurants',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-    overrideAccess: true,
-    depth: 0,
-  })
-  const restaurant = result.docs[0]
+  const cookieStore = await cookies()
 
-  // A Restaurants beforeDelete hook kaszkádol (reservations, opening-hours,
-  // tables, rooms, subscriptions), ezért itt csak az éttermet töröljük.
-  if (restaurant) {
-    await payload.delete({
-      collection: 'restaurants',
-      where: { id: { equals: restaurant.id } },
-      overrideAccess: true,
-    })
+  if (businesses.length > 1) {
+    const collection = active.type === 'salon' ? 'salons' : 'restaurants'
+    await payload.delete({ collection, id: active.id, overrideAccess: true })
+    cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
+    return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: false })
   }
 
   await payload.delete({ collection: 'users', where: { id: { equals: user.id } }, overrideAccess: true })
-
-  const cookieStore = await cookies()
   cookieStore.delete('payload-token')
-
-  return NextResponse.json({ ok: true })
+  cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
+  return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: true })
 }

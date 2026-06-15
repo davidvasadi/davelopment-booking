@@ -1,5 +1,5 @@
 import { CollectionConfig } from 'payload'
-import type { SelectFieldSingleValidation } from 'payload'
+import type { SelectFieldSingleValidation, Where } from 'payload'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -207,6 +207,87 @@ export const Users: CollectionConfig = {
               return null
             }
             return null
+          },
+        ],
+      },
+    },
+    {
+      // Több-üzlet (multi-tenant): az utoljára aktívan használt üzlet azonosítója
+      // `"<type>:<id>"` formában (pl. "restaurant:12" vagy "salon:3"). Az aktív üzlet
+      // feloldása: cookie → ez a mező → első üzlet (lásd src/lib/activeBusiness.ts).
+      // Tartós, eszközfüggetlen forrás; a switch-route a cookie mellett ezt is írja.
+      name: 'last_active_business',
+      type: 'text',
+      label: 'Utolsó aktív üzlet',
+      admin: { readOnly: true, position: 'sidebar' },
+    },
+    {
+      // Több-üzlet (multi-tenant) ÁTTEKINTŐ: a felhasználó ÖSSZES üzlete + mindegyik
+      // előfizetésének státusza/díja, alul az összesített havidíj. Read-only, virtuális
+      // (nem tárolódik) — csak az admin-szerkesztőben ad gyors képet, hogy egy fiókhoz
+      // mi tartozik (különben szét van szórva a Salons/Restaurants/Subscriptions közt).
+      name: 'businesses_summary',
+      type: 'textarea',
+      virtual: true,
+      label: 'Üzletek és előfizetések',
+      admin: {
+        readOnly: true,
+        rows: 6,
+        description: 'A fiókhoz tartozó összes üzlet és előfizetés (automatikus összegzés).',
+      },
+      hooks: {
+        afterRead: [
+          async ({ data, req }) => {
+            try {
+              if (!data?.id) return null
+              const [salons, restaurants] = await Promise.all([
+                req.payload.find({ collection: 'salons', where: { owner: { equals: data.id } }, limit: 100, depth: 0, overrideAccess: true, req }),
+                req.payload.find({ collection: 'restaurants', where: { owner: { equals: data.id } }, limit: 100, depth: 0, overrideAccess: true, req }),
+              ])
+              const salonIds = salons.docs.map((d) => d.id)
+              const restaurantIds = restaurants.docs.map((d) => d.id)
+              if (!salonIds.length && !restaurantIds.length) return '— Nincs üzlet ehhez a fiókhoz —'
+
+              const orClauses: Where[] = []
+              if (salonIds.length) orClauses.push({ salon: { in: salonIds } })
+              if (restaurantIds.length) orClauses.push({ restaurant: { in: restaurantIds } })
+              const subs = await req.payload.find({
+                collection: 'subscriptions',
+                where: { or: orClauses },
+                limit: 200,
+                depth: 0,
+                overrideAccess: true,
+                req,
+              })
+
+              const STATUS: Record<string, string> = { trialing: 'Próbaidő', active: 'Aktív', past_due: 'Fizetés esedékes', canceled: 'Megszűnt', paused: 'Szüneteltetve' }
+              // Csak az aktív (fizető) előfizetés számít bele a havidíjba.
+              let total = 0
+              const lines: string[] = []
+
+              const subForSalon = (sid: number | string) => subs.docs.find((s) => (typeof s.salon === 'object' ? s.salon?.id : s.salon) === sid)
+              const subForRest = (rid: number | string) => subs.docs.find((s) => (typeof s.restaurant === 'object' ? s.restaurant?.id : s.restaurant) === rid)
+
+              for (const s of salons.docs) {
+                const sub = subForSalon(s.id)
+                const status = sub ? (STATUS[sub.status] ?? sub.status) : '—'
+                const fee = sub?.status === 'active' ? (sub.amount_huf ?? 0) : 0
+                if (fee) total += fee
+                lines.push(`Szalon: ${s.name} · ${status}${fee ? ` · ${fee.toLocaleString('hu-HU')} Ft/hó` : ''}`)
+              }
+              for (const r of restaurants.docs) {
+                const sub = subForRest(r.id)
+                const status = sub ? (STATUS[sub.status] ?? sub.status) : '—'
+                const fee = sub?.status === 'active' ? (sub.amount_huf ?? 0) : 0
+                if (fee) total += fee
+                lines.push(`Étterem: ${r.name} · ${status}${fee ? ` · ${fee.toLocaleString('hu-HU')} Ft/hó` : ''}`)
+              }
+              lines.push(`──────────`)
+              lines.push(`Összesen: ${total.toLocaleString('hu-HU')} Ft/hó (${lines.length - 1} üzlet)`)
+              return lines.join('\n')
+            } catch {
+              return null
+            }
           },
         ],
       },

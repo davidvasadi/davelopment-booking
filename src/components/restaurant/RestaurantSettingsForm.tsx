@@ -103,6 +103,7 @@ function mediaId(field: string | Media | null | undefined): number | null {
 export function RestaurantSettingsForm({
   restaurantId,
   restaurantName,
+  businessCount = 1,
   slug,
   initial,
   logo,
@@ -110,11 +111,14 @@ export function RestaurantSettingsForm({
 }: {
   restaurantId: number | string
   restaurantName: string
+  businessCount?: number
   slug: string
   initial: Settings
   logo?: string | Media | null
   coverImage?: string | Media | null
 }) {
+  // Több-üzlet: ha a fióknak több üzlete van, csak EZT az éttermet töröljük (a fiók marad).
+  const isLastBusiness = businessCount <= 1
   const router = useRouter()
   const [form, setForm] = useState<Settings>(initial)
   const [saved, setSaved] = useState<Settings>(initial) // utoljára elmentett állapot (dirty-hez)
@@ -215,7 +219,15 @@ export function RestaurantSettingsForm({
     try {
       const res = await fetch('/api/restaurant/delete-account', { method: 'DELETE', credentials: 'include' })
       if (!res.ok) throw new Error()
-      router.push('/login')
+      const data = (await res.json().catch(() => null)) as { accountDeleted?: boolean } | null
+      // Több-üzlet: ha csak ezt az éttermet töröltük, maradunk a dashboardon a következő
+      // aktív üzlettel; ha a teljes fiók törlődött, megyünk a login-ra.
+      if (data?.accountDeleted) {
+        router.push('/login')
+      } else {
+        router.push('/restaurant')
+        router.refresh()
+      }
     } catch {
       toast.error('Hiba történt a törlés során')
       setDeleting(false)
@@ -651,8 +663,12 @@ export function RestaurantSettingsForm({
         </div>
         <div className="px-6 py-5 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-zinc-800 dark:text-white/80">Fiók törlése</p>
-            <p className="text-xs text-zinc-500 dark:text-white/40 mt-0.5">Minden adat (étterem, foglalások, asztalok, nyitvatartás) véglegesen törlődik.</p>
+            <p className="text-sm font-semibold text-zinc-800 dark:text-white/80">{isLastBusiness ? 'Fiók törlése' : 'Étterem törlése'}</p>
+            <p className="text-xs text-zinc-500 dark:text-white/40 mt-0.5">
+              {isLastBusiness
+                ? 'Minden adat (étterem, foglalások, asztalok, nyitvatartás) véglegesen törlődik.'
+                : 'Csak ezt az éttermet törli (foglalások, asztalok, nyitvatartás). A fiókod és a többi üzleted megmarad.'}
+            </p>
           </div>
           <button
             type="button"
@@ -660,7 +676,7 @@ export function RestaurantSettingsForm({
             className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center gap-2 transition-colors shrink-0"
           >
             <Trash2 className="h-4 w-4" />
-            Fiók törlése
+            {isLastBusiness ? 'Fiók törlése' : 'Étterem törlése'}
           </button>
         </div>
       </div>
@@ -709,9 +725,14 @@ export function RestaurantSettingsForm({
           <div className="h-12 w-12 rounded-2xl bg-red-500/10 flex items-center justify-center mb-5">
             <Trash2 className="h-6 w-6 text-red-500" />
           </div>
-          <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">Fiók törlése</h3>
+          <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">
+            {isLastBusiness ? 'Fiók törlése' : 'Étterem törlése'}
+          </h3>
           <p className="text-sm text-zinc-500 dark:text-white/50 mt-2 leading-relaxed">
-            Ez a művelet <span className="font-semibold text-zinc-700 dark:text-white/70">visszafordíthatatlan</span>. Az étterem, a foglalások, asztalok és nyitvatartás véglegesen törlődik.
+            Ez a művelet <span className="font-semibold text-zinc-700 dark:text-white/70">visszafordíthatatlan</span>.{' '}
+            {isLastBusiness
+              ? 'Az étterem, a foglalások, asztalok és nyitvatartás véglegesen törlődnek — ez az utolsó üzleted, ezért a teljes fiók is megszűnik.'
+              : 'Csak ez az étterem törlődik (a foglalásaival, asztalaival, nyitvatartásával); a fiókod és a többi üzleted megmarad.'}
           </p>
           <p className="text-xs text-zinc-600 dark:text-white/50 mt-5 mb-2">
             A megerősítéshez írd be az étterem nevét: <span className="font-bold text-zinc-800 dark:text-white/80">{restaurantName}</span>

@@ -1,10 +1,12 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getPayloadClient } from '@/lib/payload'
 import { getPricing } from '@/lib/pricing'
+import { getAccountBilling } from '@/lib/accountBilling'
 import type { Subscription } from '@/payload/payload-types'
 import Link from 'next/link'
 import { CreditCard, CheckCircle2, Sparkles, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
 import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
+import { AccountBillingSummary } from '@/components/dashboard/AccountBillingSummary'
 
 function daysLeft(dateStr?: string | null): number | null {
   if (!dateStr) return null
@@ -57,12 +59,13 @@ function Kpi({ sub, value, label }: { sub: string; value: string; label?: string
 }
 
 export default async function RestaurantSubscriptionPage() {
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, userId } = await getOwnedRestaurant()
   const payload = await getPayloadClient()
 
-  const [subResult, pricing] = await Promise.all([
+  const [subResult, pricing, billing] = await Promise.all([
     payload.find({ collection: 'subscriptions', where: { restaurant: { equals: restaurant.id } }, limit: 1, overrideAccess: true }),
     getPricing(),
+    getAccountBilling(userId),
   ])
   const sub = (subResult.docs[0] as Subscription) ?? null
   const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
@@ -87,6 +90,9 @@ export default async function RestaurantSubscriptionPage() {
         <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Számlázás</p>
         <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Előfizetés</h1>
       </div>
+
+      {/* Több-üzlet: fiók-szintű összegző (csak ha >1 üzlet) */}
+      <AccountBillingSummary billing={billing} activeKey={`restaurant:${restaurant.id}`} />
 
       {/* Lock notice — past_due / canceled esetén */}
       {(sub?.status === 'past_due' || sub?.status === 'canceled') && (

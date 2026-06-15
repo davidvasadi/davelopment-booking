@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -92,11 +93,18 @@ function mediaUrl(field: string | Media | null | undefined): string | null {
   return null
 }
 
-export default function SalonSettingsForm({ salon }: { salon: Salon }) {
+// Megegyezik az RestaurantSettingsForm input-stílusával (egységes Veszélyzóna modal).
+const inputClass =
+  'h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20'
+
+export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon: Salon; businessCount?: number }) {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  // Több-üzlet: ha a fióknak több üzlete van, csak EZT a szalont töröljük (a fiók marad).
+  const isLastBusiness = businessCount <= 1
 
   const [logoId, setLogoId] = useState<number | null>(
     salon.logo && typeof salon.logo === 'object' ? Number((salon.logo as Media).id) : null
@@ -260,7 +268,15 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
     try {
       const res = await fetch('/api/delete-account', { method: 'DELETE', credentials: 'include' })
       if (!res.ok) throw new Error()
-      router.push('/login')
+      const data = (await res.json().catch(() => null)) as { accountDeleted?: boolean } | null
+      // Ha csak egy üzletet töröltünk (van még másik), maradunk a dashboardon az új aktív
+      // üzlettel; ha a teljes fiók törlődött, megyünk a login-ra.
+      if (data?.accountDeleted) {
+        router.push('/login')
+      } else {
+        router.push('/dashboard')
+        router.refresh()
+      }
     } catch {
       toast.error('Hiba történt a törlés során')
       setDeleting(false)
@@ -585,17 +601,20 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
         </div>
         <div className="px-6 py-5 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-semibold text-zinc-800 dark:text-white/80">Fiók törlése</p>
-            <p className="text-xs text-zinc-500 dark:text-white/40 mt-0.5">Minden adat (szalon, foglalások, munkatársak) véglegesen törlődik.</p>
+            <p className="text-sm font-semibold text-zinc-800 dark:text-white/80">{isLastBusiness ? 'Fiók törlése' : 'Szalon törlése'}</p>
+            <p className="text-xs text-zinc-500 dark:text-white/40 mt-0.5">
+              {isLastBusiness
+                ? 'Minden adat (szalon, foglalások, munkatársak) véglegesen törlődik.'
+                : `Csak ezt a szalont törli (foglalások, munkatársak). A fiókod és a többi üzleted megmarad.`}
+            </p>
           </div>
           <button
             type="button"
             onClick={() => setDeleteOpen(true)}
-            disabled={deleting}
-            className="h-10 px-5 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold flex items-center gap-2 transition-colors disabled:opacity-40 shrink-0"
+            className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center gap-2 transition-colors shrink-0"
           >
             <Trash2 className="h-4 w-4" />
-            {deleting ? 'Törlés...' : 'Fiók törlése'}
+            {isLastBusiness ? 'Fiók törlése' : 'Szalon törlése'}
           </button>
         </div>
       </div>
@@ -627,15 +646,61 @@ export default function SalonSettingsForm({ salon }: { salon: Salon }) {
       onCancel={() => setPendingTab(null)}
     />
 
-    <ConfirmDialog
-      open={deleteOpen}
-      title="Fiók törlése"
-      description={`Biztosan törlöd a(z) „${salon.name}” szalonhoz tartozó fiókot? Ez visszafordíthatatlan — minden adat (szalon, foglalások, munkatársak) véglegesen törlődik.`}
-      confirmLabel="Végleges törlés"
-      busy={deleting}
-      onConfirm={deleteAccount}
-      onCancel={() => setDeleteOpen(false)}
-    />
+    {deleteOpen && typeof document !== 'undefined' && createPortal(
+      <div
+        className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-2xl"
+        onClick={() => { if (!deleting) { setDeleteOpen(false); setDeleteConfirm('') } }}
+      >
+        <div
+          className="w-full max-w-md bg-white/95 dark:bg-zinc-900/90 backdrop-blur-xl rounded-3xl border border-white/40 dark:border-white/[0.08] shadow-2xl p-7 lg:p-9"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="h-12 w-12 rounded-2xl bg-red-500/10 flex items-center justify-center mb-5">
+            <Trash2 className="h-6 w-6 text-red-500" />
+          </div>
+          <h3 className="text-xl font-black tracking-tight text-zinc-900 dark:text-white">
+            {isLastBusiness ? 'Fiók törlése' : 'Szalon törlése'}
+          </h3>
+          <p className="text-sm text-zinc-500 dark:text-white/50 mt-2 leading-relaxed">
+            Ez a művelet <span className="font-semibold text-zinc-700 dark:text-white/70">visszafordíthatatlan</span>.{' '}
+            {isLastBusiness
+              ? 'A szalon, a foglalások és a munkatársak véglegesen törlődnek — ez az utolsó üzleted, ezért a teljes fiók is megszűnik.'
+              : 'Csak ez a szalon törlődik (a foglalásaival és munkatársaival együtt); a fiókod és a többi üzleted megmarad.'}
+          </p>
+          <p className="text-xs text-zinc-600 dark:text-white/50 mt-5 mb-2">
+            A megerősítéshez írd be a szalon nevét: <span className="font-bold text-zinc-800 dark:text-white/80">{salon.name}</span>
+          </p>
+          <Input
+            className={inputClass}
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder={salon.name}
+            autoComplete="off"
+            autoFocus
+          />
+          <div className="flex items-center gap-2 mt-6">
+            <button
+              type="button"
+              onClick={deleteAccount}
+              disabled={deleting || deleteConfirm.trim() !== (salon.name ?? '').trim()}
+              className="flex-1 h-11 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleting ? 'Törlés...' : 'Végleges törlés'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setDeleteOpen(false); setDeleteConfirm('') }}
+              disabled={deleting}
+              className="h-11 px-5 rounded-full border border-zinc-200 dark:border-white/[0.1] text-sm font-semibold text-zinc-600 dark:text-white/60 hover:border-zinc-400 transition-colors"
+            >
+              Mégse
+            </button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    )}
     </>
   )
 }

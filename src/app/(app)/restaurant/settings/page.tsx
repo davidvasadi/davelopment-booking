@@ -6,7 +6,7 @@ import { RestaurantSettingsForm } from '@/components/restaurant/RestaurantSettin
 import type { Restaurant, Subscription } from '@/payload/payload-types'
 
 export default async function RestaurantSettingsPage() {
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, businessCount } = await getOwnedRestaurant()
   const payload = await getPayloadClient()
 
   const [subResult, pricing] = await Promise.all([
@@ -29,6 +29,7 @@ export default async function RestaurantSettingsPage() {
       <RestaurantSettingsForm
         restaurantId={r.id}
         restaurantName={r.name}
+        businessCount={businessCount}
         slug={r.slug}
         logo={r.logo}
         coverImage={r.cover_image}

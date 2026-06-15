@@ -18,6 +18,8 @@ export type PlaceRow = {
   createdAt: string
   ownerEmail?: string
   ownerName?: string
+  /** Több-üzlet: hány üzlet tartozik ehhez a fiókhoz (>1 esetén jelöljük). */
+  ownerBusinessCount?: number
   bookingCount: number
 }
 
@@ -163,7 +165,14 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-zinc-600 dark:text-zinc-300 text-xs truncate">{p.ownerEmail ?? '—'}</p>
+                      <p className="text-zinc-600 dark:text-zinc-300 text-xs truncate flex items-center gap-1.5">
+                        <span className="truncate">{p.ownerEmail ?? '—'}</span>
+                        {(p.ownerBusinessCount ?? 1) > 1 && (
+                          <span className="shrink-0 text-[10px] font-bold rounded-full bg-violet-500/10 text-violet-500 px-1.5 py-0.5">
+                            {p.ownerBusinessCount} üzletből
+                          </span>
+                        )}
+                      </p>
                       {p.ownerName && <p className="text-zinc-400 dark:text-zinc-600 text-[11px] truncate mt-0.5">{p.ownerName}</p>}
                     </div>
                     <div className="flex items-center gap-1.5">

@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { ArrowUpRight, Sparkles, AlertTriangle } from 'lucide-react'
-import { requireAuth } from '@/lib/auth'
+import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
 import { getPricing } from '@/lib/pricing'
-import type { Salon, Subscription } from '@/payload/payload-types'
+import type { Subscription } from '@/payload/payload-types'
 import SalonSettingsForm from '@/components/dashboard/SalonSettingsForm'
 
 function daysLeft(dateStr?: string | null): number | null {
@@ -13,16 +13,8 @@ function daysLeft(dateStr?: string | null): number | null {
 }
 
 export default async function SettingsPage() {
-  const user = await requireAuth('salon_owner')
+  const { salon, businessCount } = await getOwnedSalon(1)
   const payload = await getPayloadClient()
-
-  const salonResult = await payload.find({
-    collection: 'salons',
-    where: { owner: { equals: user.id } },
-    depth: 1,
-    limit: 1,
-  })
-  const salon = salonResult.docs[0] as Salon
 
   const [subResult, pricing] = await Promise.all([
     payload.find({ collection: 'subscriptions', where: { salon: { equals: salon.id } }, limit: 1, overrideAccess: true }),
@@ -99,7 +91,7 @@ export default async function SettingsPage() {
         )
       })()}
 
-      <SalonSettingsForm salon={salon} />
+      <SalonSettingsForm salon={salon} businessCount={businessCount} />
     </div>
   )
 }

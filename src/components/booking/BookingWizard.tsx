@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
-import { EASE, DUR, stepSlide, stepSlideTransition, staggerDelay } from '@/lib/motion'
+import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
 import type { Service, StaffMember, Media } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -312,13 +312,17 @@ export default function BookingWizard({
                   <p className="text-xs text-zinc-400 mt-1">Válassz másik napot.</p>
                 </div>
               ) : (
-                <div key={state.date} className="grid grid-cols-4 gap-2">
-                  {slots.map((slot, i) => (
+                <motion.div
+                  key={`${state.date}-${slots.length}`}
+                  variants={staggerContainer}
+                  initial="hidden"
+                  animate="show"
+                  className="grid grid-cols-4 gap-2"
+                >
+                  {slots.map((slot) => (
                     <motion.button
                       key={slot.start}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: DUR.fast, delay: staggerDelay(i, 0.02), ease: EASE }}
+                      variants={fadeUp}
                       onClick={() => { set({ slot }); goStep(3) }}
                       className={cn(
                         'py-3 rounded-xl text-sm font-bold transition-colors',
@@ -330,7 +334,7 @@ export default function BookingWizard({
                       {slot.start}
                     </motion.button>
                   ))}
-                </div>
+                </motion.div>
               )}
             </div>
           </div>

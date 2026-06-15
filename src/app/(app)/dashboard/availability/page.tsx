@@ -1,18 +1,11 @@
-import { requireAuth } from '@/lib/auth'
+import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
-import type { Salon, Availability } from '@/payload/payload-types'
+import type { Availability } from '@/payload/payload-types'
 import AvailabilityGrid from '@/components/dashboard/AvailabilityGrid'
 
 export default async function AvailabilityPage() {
-  const user = await requireAuth('salon_owner')
+  const { salon } = await getOwnedSalon()
   const payload = await getPayloadClient()
-
-  const salonResult = await payload.find({
-    collection: 'salons',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-  })
-  const salon = salonResult.docs[0] as Salon
 
   const availResult = await payload.find({
     collection: 'availability',

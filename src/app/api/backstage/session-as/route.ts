@@ -3,6 +3,7 @@ import { SignJWT } from 'jose'
 import { v4 as uuid } from 'uuid'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
+import { getUserBusinesses, businessKey, ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
 
 const TOKEN_EXPIRATION = 60 * 60 * 2 // 2 hours in seconds
 
@@ -54,11 +55,28 @@ export async function POST(req: NextRequest) {
     .setExpirationTime(issuedAt + TOKEN_EXPIRATION)
     .sign(secretKey)
 
-  // A cél a belépett user szerepe szerint: étterem-owner → /restaurant, szalon-owner → /dashboard,
-  // admin → /backstage. Korábban MINDIG /dashboard volt → étterem-owner-ként nem lehetett belépni
-  // (a /dashboard visszadobta, mert nincs szalonja).
+  // Több-üzlet (multi-tenant): a célt az ELSŐ üzlet TÍPUSA dönti el (nem a role), hogy az a
+  // dashboard nyíljon, ahol a user-nek tényleg van üzlete. Beállítjuk az aktív üzletet
+  // (cookie + last_active_business), így az impersonált munkamenetben a store-switcher
+  // azonnal jó, és a többi üzletre is lehet váltani. Admin → /backstage.
   const role = (user as { role?: string }).role
-  const dest = role === 'restaurant_owner' ? '/restaurant' : role === 'admin' ? '/backstage' : '/dashboard'
+  let dest = '/dashboard'
+  let activeKey: string | null = null
+  if (role === 'admin') {
+    dest = '/backstage'
+  } else {
+    const businesses = await getUserBusinesses(user.id)
+    if (businesses.length > 0) {
+      const first = businesses[0]
+      activeKey = businessKey(first)
+      dest = first.type === 'restaurant' ? '/restaurant' : '/dashboard'
+      try {
+        await payload.update({ collection: 'users', id: user.id, data: { last_active_business: activeKey }, overrideAccess: true })
+      } catch {
+        /* nem blokkoló */
+      }
+    }
+  }
 
   const res = NextResponse.redirect(new URL(dest, baseUrl), { status: 303 })
   res.cookies.set('payload-token', token, {
@@ -67,5 +85,13 @@ export async function POST(req: NextRequest) {
     sameSite: 'lax',
     maxAge: TOKEN_EXPIRATION,
   })
+  if (activeKey) {
+    res.cookies.set(ACTIVE_BUSINESS_COOKIE, activeKey, {
+      httpOnly: true,
+      path: '/',
+      sameSite: 'lax',
+      maxAge: TOKEN_EXPIRATION,
+    })
+  }
   return res
 }
