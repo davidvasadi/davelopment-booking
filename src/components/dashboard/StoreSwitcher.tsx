@@ -28,6 +28,7 @@ export function StoreSwitcher({
   unread = false,
   businesses = [],
   activeKey = null,
+  compact = false,
 }: {
   name: string
   logoUrl?: string | null
@@ -35,6 +36,8 @@ export function StoreSwitcher({
   unread?: boolean
   businesses?: SwitcherBusiness[]
   activeKey?: string | null
+  /** Kompakt változat a mobil top-barhoz: kisebb logó, nincs plan-sor, szűkebb padding. */
+  compact?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [switching, setSwitching] = useState<string | null>(null)
@@ -81,15 +84,18 @@ export function StoreSwitcher({
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
-        className="flex w-full items-center gap-2.5 rounded-xl border border-zinc-200 dark:border-white/[0.08] px-2 py-2 hover:border-zinc-300 dark:hover:border-white/[0.16] hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors"
+        className={cn(
+          'flex w-full items-center rounded-xl border border-zinc-200 dark:border-white/[0.08] hover:border-zinc-300 dark:hover:border-white/[0.16] hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors',
+          compact ? 'gap-2 px-2 py-1.5' : 'gap-2.5 px-2 py-2',
+        )}
       >
         {/* Logó körben + olvasatlan-jelző piros pont. */}
         <span className="relative shrink-0">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={name} className="h-9 w-9 rounded-full object-cover bg-zinc-100 dark:bg-white/[0.06]" />
+            <img src={logoUrl} alt={name} className={cn('rounded-full object-cover bg-zinc-100 dark:bg-white/[0.06]', compact ? 'h-7 w-7' : 'h-9 w-9')} />
           ) : (
-            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-white dark:text-black text-sm font-bold">
+            <span className={cn('flex items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-white dark:text-black font-bold', compact ? 'h-7 w-7 text-xs' : 'h-9 w-9 text-sm')}>
               {initial}
             </span>
           )}
@@ -99,8 +105,8 @@ export function StoreSwitcher({
         </span>
 
         <span className="min-w-0 flex-1 text-left">
-          <span className="block truncate text-sm font-bold text-zinc-900 dark:text-white">{name}</span>
-          {planLabel && <span className="block truncate text-[11px] text-zinc-400 dark:text-white/30">{planLabel}</span>}
+          <span className={cn('block truncate font-bold text-zinc-900 dark:text-white', compact ? 'text-xs' : 'text-sm')}>{name}</span>
+          {!compact && planLabel && <span className="block truncate text-[11px] text-zinc-400 dark:text-white/30">{planLabel}</span>}
         </span>
 
         <ChevronsUpDown className="h-4 w-4 shrink-0 text-zinc-400" />

@@ -470,7 +470,7 @@ export function RestaurantSettingsForm({
       {activeTab === 'booking' && (
       <div className="space-y-4 lg:space-y-6">
       <Section title="Foglalási beállítások">
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="space-y-1.5">
             <Label className={labelClass}>Foglalás hossza (perc)</Label>
             <Input
@@ -517,14 +517,16 @@ export function RestaurantSettingsForm({
               onChange={(e) => set('lead_time_hours', parseInt(e.target.value, 10) || 0)}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Foglalható napok előre</Label>
-            <BookingWindowPicker
-              value={form.booking_window_days}
-              onChange={(days) => set('booking_window_days', days)}
-            />
-            <p className="text-xs text-zinc-400 dark:text-white/30">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
-          </div>
+        </div>
+
+        {/* A naptáros „foglalható napok előre" külön sorban (nem szám-input, nem fér a gridbe). */}
+        <div className="space-y-1.5">
+          <Label className={labelClass}>Foglalható napok előre</Label>
+          <BookingWindowPicker
+            value={form.booking_window_days}
+            onChange={(days) => set('booking_window_days', days)}
+          />
+          <p className="text-xs text-zinc-400 dark:text-white/30">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
         </div>
 
         <div className="space-y-4 border-t border-zinc-100 dark:border-white/[0.06] pt-4">
@@ -661,8 +663,8 @@ export function RestaurantSettingsForm({
         <div className="px-6 py-4 border-b border-red-500/20">
           <h3 className="font-bold text-sm uppercase tracking-widest text-red-400">Veszélyzóna</h3>
         </div>
-        <div className="px-6 py-5 flex items-center justify-between gap-4">
-          <div>
+        <div className="px-5 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-zinc-800 dark:text-white/80">{isLastBusiness ? 'Fiók törlése' : 'Étterem törlése'}</p>
             <p className="text-xs text-zinc-500 dark:text-white/40 mt-0.5">
               {isLastBusiness
@@ -673,7 +675,7 @@ export function RestaurantSettingsForm({
           <button
             type="button"
             onClick={() => setDeleteOpen(true)}
-            className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center gap-2 transition-colors shrink-0"
+            className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center justify-center gap-2 transition-colors shrink-0 w-full sm:w-auto"
           >
             <Trash2 className="h-4 w-4" />
             {isLastBusiness ? 'Fiók törlése' : 'Étterem törlése'}

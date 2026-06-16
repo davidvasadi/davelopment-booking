@@ -331,12 +331,23 @@ export function DashboardNav({
 
       {/* ── MOBILE TOP BAR ─────────────────────────────────────── */}
       <header className="lg:hidden relative z-40 bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link href={isBackstage ? '/backstage' : '/'} aria-label="Schedulio" className="block w-fit hover:opacity-80 transition-opacity">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
+          <Link href={isBackstage ? '/backstage' : '/'} aria-label="Schedulio" className="block w-fit shrink-0 hover:opacity-80 transition-opacity">
             <SchedulioLogo className="h-6" />
           </Link>
           {isBackstage ? (
             <span className="inline-flex items-center rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-white dark:text-black">Backstage</span>
+          ) : businesses.length > 1 ? (
+            // Több-üzlet: mobilon/tableten is váltható az aktív üzlet (kompakt switcher).
+            <div className="min-w-0 max-w-[180px]">
+              <StoreSwitcher
+                name={salonName}
+                logoUrl={brandLogoUrl}
+                businesses={businesses}
+                activeKey={activeBusinessKey}
+                compact
+              />
+            </div>
           ) : (
             <span className="text-xs text-zinc-400 dark:text-white/30 font-medium truncate max-w-[120px]">{salonName}</span>
           )}

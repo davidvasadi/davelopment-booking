@@ -599,8 +599,8 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
         <div className="px-6 py-4 border-b border-red-500/20">
           <h3 className="font-bold text-sm uppercase tracking-widest text-red-400">Veszélyzóna</h3>
         </div>
-        <div className="px-6 py-5 flex items-center justify-between gap-4">
-          <div>
+        <div className="px-5 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-zinc-800 dark:text-white/80">{isLastBusiness ? 'Fiók törlése' : 'Szalon törlése'}</p>
             <p className="text-xs text-zinc-500 dark:text-white/40 mt-0.5">
               {isLastBusiness
@@ -611,7 +611,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
           <button
             type="button"
             onClick={() => setDeleteOpen(true)}
-            className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center gap-2 transition-colors shrink-0"
+            className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center justify-center gap-2 transition-colors shrink-0 w-full sm:w-auto"
           >
             <Trash2 className="h-4 w-4" />
             {isLastBusiness ? 'Fiók törlése' : 'Szalon törlése'}

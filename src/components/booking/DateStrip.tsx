@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { format, addDays, isSameDay, isToday } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { EASE, DUR } from '@/lib/motion'
 
 const HU_DAYS = ['V', 'H', 'K', 'Sz', 'Cs', 'P', 'Szo']
 
@@ -55,16 +57,21 @@ export function DateStrip({
         </button>
       </div>
       <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-        {days.map((d) => {
+        {days.map((d, i) => {
           const str = format(d, 'yyyy-MM-dd')
           const isSelected = isSameDay(d, selectedDate)
           const today = isToday(d)
           return (
-            <button
+            <motion.button
               key={str}
+              // Mountkor balról-alulról beúszó napok, lépcsőzve — egységes a szalon/étterem
+              // foglalóban (a stagger csak az első ~14 napra, hogy 60 napnál ne legyen lassú).
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: DUR.fast, delay: Math.min(i, 14) * 0.03, ease: EASE }}
               onClick={() => onChange(str)}
               className={cn(
-                'flex flex-col items-center gap-1 py-3 px-3 rounded-2xl shrink-0 snap-center transition-all min-w-[52px]',
+                'flex flex-col items-center gap-1 py-3 px-3 rounded-2xl shrink-0 snap-center transition-colors min-w-[52px]',
                 isSelected
                   ? 'bg-zinc-950 text-white'
                   : today
@@ -74,7 +81,7 @@ export function DateStrip({
             >
               <span className="text-[10px] font-semibold uppercase text-zinc-400">{HU_DAYS[d.getDay()]}</span>
               <span className="text-base font-black leading-none">{format(d, 'd')}</span>
-            </button>
+            </motion.button>
           )
         })}
       </div>

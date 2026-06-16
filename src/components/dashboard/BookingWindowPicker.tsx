@@ -42,7 +42,7 @@ export function BookingWindowPicker({
   const maxMonth = new Date(maxBookable.getFullYear(), maxBookable.getMonth(), 1)
 
   return (
-    <div className="rounded-2xl border border-zinc-200 dark:border-white/[0.08] p-4 max-w-xs">
+    <div className="rounded-2xl border border-zinc-200 dark:border-white/[0.08] p-4 w-full max-w-sm">
       {/* Hónap-navigáció */}
       <div className="flex items-center justify-between mb-3">
         <button
