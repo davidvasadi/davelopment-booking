@@ -4,7 +4,7 @@ import { getPricing } from '@/lib/pricing'
 import { getAccountBilling } from '@/lib/accountBilling'
 import type { Subscription } from '@/payload/payload-types'
 import Link from 'next/link'
-import { CreditCard, CheckCircle2, Sparkles, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
+import { CreditCard, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
 import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
 import { AccountBillingSummary } from '@/components/dashboard/AccountBillingSummary'
 
@@ -35,16 +35,6 @@ const STATUS_DOT: Record<string, string> = {
   paused: 'bg-amber-400',
 }
 
-const FEATURES = [
-  'Korlátlan foglalás',
-  'Munkatársak és elérhetőség kezelése',
-  'Részletes statisztikák és CSV export',
-  'Email értesítések (foglalás, lemondás)',
-  'Nyilvános foglalási oldal egyedi linken',
-  'Szolgáltatás kategóriák és sablonok',
-  'Light / Dark mód',
-  'Mobile-first dashboard',
-]
 
 function Kpi({ sub, value, label }: { sub: string; value: string; label?: string }) {
   return (
@@ -143,64 +133,44 @@ export default async function SubscriptionPage() {
         </p>
       </div>
 
-      {/* Két oszlop: features + payment */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-2 lg:gap-3">
-
-        {/* Features */}
-        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
-          <div className="px-5 lg:px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-[#0099ff]" />
-            <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">Pro funkciók</h2>
-          </div>
-          <ul className="p-5 lg:p-6 space-y-3">
-            {FEATURES.map(f => (
-              <li key={f} className="flex items-start gap-2.5 text-sm text-zinc-700 dark:text-white/70">
-                <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
-                <span>{f}</span>
-              </li>
-            ))}
-          </ul>
+      {/* Fizetés (teljes szélesség — ide jönnek majd a számlázási adatok + Stripe). */}
+      <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
+        <div className="px-5 lg:px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center gap-2">
+          <CreditCard className="h-4 w-4 text-zinc-400 dark:text-white/40" />
+          <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">Fizetés</h2>
         </div>
-
-        {/* Fizetés */}
-        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
-          <div className="px-5 lg:px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center gap-2">
-            <CreditCard className="h-4 w-4 text-zinc-400 dark:text-white/40" />
-            <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">Fizetés</h2>
-          </div>
-          <div className="p-5 lg:p-6">
-            {isActivePro ? (
-              <div className="space-y-4">
-                <div>
-                  <p className="text-sm text-zinc-500 dark:text-white/40 mb-2">Következő számlázás</p>
-                  <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">{priceLabel}</p>
-                  <p className="text-sm text-zinc-500 dark:text-white/40">{formatDate(periodEnd)}-én</p>
-                </div>
-                <div className="flex items-start gap-2 rounded-xl bg-zinc-50 dark:bg-white/[0.03] px-3 py-2.5 border border-zinc-100 dark:border-white/[0.06]">
-                  {cancelScheduled
-                    ? <Clock className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                    : <RefreshCw className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
-                  }
-                  <p className="text-xs text-zinc-600 dark:text-white/60 leading-relaxed">
-                    {cancelScheduled
-                      ? 'Az előfizetés a következő számlázási dátumkor lejár. Nem kerül több levonásra.'
-                      : 'Automatikusan megújul havonta. Bármikor lemondhatod.'}
-                  </p>
-                </div>
-                <div className="pt-1">
-                  <CancelSubscriptionButton cancelScheduled={cancelScheduled} periodEndLabel={formatDate(periodEnd)} />
-                </div>
+        <div className="p-5 lg:p-6">
+          {isActivePro ? (
+            <div className="space-y-4">
+              <div>
+                <p className="text-sm text-zinc-500 dark:text-white/40 mb-2">Következő számlázás</p>
+                <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">{priceLabel}</p>
+                <p className="text-sm text-zinc-500 dark:text-white/40">{formatDate(periodEnd)}-én</p>
               </div>
-            ) : (
-              <div className="text-center py-2">
-                <p className="text-sm font-semibold text-zinc-700 dark:text-white/70 mb-1">Online fizetés hamarosan</p>
-                <p className="text-xs text-zinc-400 dark:text-white/30">
-                  Stripe integráció fejlesztés alatt. Addig írj nekünk:{' '}
-                  <a href="mailto:hello@schedulio.hu" className="underline hover:opacity-70">hello@schedulio.hu</a>
+              <div className="flex items-start gap-2 rounded-xl bg-zinc-50 dark:bg-white/[0.03] px-3 py-2.5 border border-zinc-100 dark:border-white/[0.06]">
+                {cancelScheduled
+                  ? <Clock className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                  : <RefreshCw className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
+                }
+                <p className="text-xs text-zinc-600 dark:text-white/60 leading-relaxed">
+                  {cancelScheduled
+                    ? 'Az előfizetés a következő számlázási dátumkor lejár. Nem kerül több levonásra.'
+                    : 'Automatikusan megújul havonta. Bármikor lemondhatod.'}
                 </p>
               </div>
-            )}
-          </div>
+              <div className="pt-1">
+                <CancelSubscriptionButton cancelScheduled={cancelScheduled} periodEndLabel={formatDate(periodEnd)} />
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <p className="text-sm font-semibold text-zinc-700 dark:text-white/70 mb-1">Online fizetés hamarosan</p>
+              <p className="text-xs text-zinc-400 dark:text-white/30">
+                Stripe integráció fejlesztés alatt. Addig írj nekünk:{' '}
+                <a href="mailto:hello@schedulio.hu" className="underline hover:opacity-70">hello@schedulio.hu</a>
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

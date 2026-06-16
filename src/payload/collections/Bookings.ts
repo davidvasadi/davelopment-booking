@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
+import { userOwnsSalon } from '../lib/salonOwnerAccess'
 
 export const Bookings: CollectionConfig = {
   slug: 'bookings',
@@ -12,33 +13,30 @@ export const Bookings: CollectionConfig = {
   },
   access: {
     // A read access where-filtert ad vissza (NEM data-összehasonlítást: a `data`
-    // listázásnál undefined, ami kiszivárogtatná más szalon foglalásait). A tulaj
-    // csak a saját szalonja foglalásait látja; kívülálló semmit.
-    read: ({ req }) => {
+    // listázásnál undefined, ami kiszivárogtatná más szalon foglalásait). Több-üzlet:
+    // a tulaj az ÖSSZES SAJÁT szalonja foglalásait látja (nem csak az „első"-ét);
+    // kívülálló semmit. (A dashboard úgyis az aktív szalon id-jára szűr tovább.)
+    read: async ({ req }) => {
       if (req.user?.role === 'admin') return true
       if (!req.user) return false
-      const userSalonId =
-        req.user.salon && typeof req.user.salon === 'object'
-          ? (req.user.salon as { id: number | string }).id
-          : req.user.salon
-      if (!userSalonId) return false
-      return { salon: { equals: userSalonId } }
+      const salons = await req.payload.find({
+        collection: 'salons',
+        where: { owner: { equals: req.user.id } },
+        limit: 100,
+        depth: 0,
+        overrideAccess: true,
+        req,
+      })
+      const ids = salons.docs.map((s) => s.id)
+      if (ids.length === 0) return false
+      return { salon: { in: ids } }
     },
     create: () => true, // Publikus: ügyfél hozza létre
     update: async ({ req, id }) => {
       if (req.user?.role === 'admin') return true
       if (!req.user || !id) return false
-      const booking = await req.payload.findByID({
-        collection: 'bookings',
-        id: String(id),
-        depth: 0,
-        overrideAccess: true,
-      })
-      if (!booking) return false
-      const userSalonId = req.user.salon && typeof req.user.salon === 'object'
-        ? (req.user.salon as { id: number | string }).id
-        : req.user.salon
-      return String(userSalonId) === String(booking.salon)
+      const booking = await req.payload.findByID({ collection: 'bookings', id, depth: 0, overrideAccess: true, req }).catch(() => null)
+      return userOwnsSalon(req, (booking as { salon?: number | string })?.salon)
     },
   },
   fields: [

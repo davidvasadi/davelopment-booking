@@ -1,4 +1,5 @@
 import { CollectionConfig } from 'payload'
+import { userOwnsSalon } from '../lib/salonOwnerAccess'
 
 export const Availability: CollectionConfig = {
   slug: 'availability',
@@ -12,20 +13,19 @@ export const Availability: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req }) => !!req.user,
-    update: ({ req, data }) => {
+    update: async ({ req, id, data }) => {
       if (req.user?.role === 'admin') return true
-      const userSalonId = req.user?.salon && typeof req.user.salon === 'object'
-        ? (req.user.salon as { id: number }).id
-        : req.user?.salon
-      return Number(userSalonId) === Number(data?.salon)
+      if (id) {
+        const doc = await req.payload.findByID({ collection: 'availability', id, depth: 0, overrideAccess: true, req }).catch(() => null)
+        return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
+      }
+      return userOwnsSalon(req, data?.salon as number | string | undefined)
     },
     delete: async ({ req, id }) => {
       if (req.user?.role === 'admin') return true
-      if (!req.user || !id) return false
-      const record = await req.payload.findByID({ collection: 'availability', id: String(id), depth: 0, overrideAccess: true })
-      const userSalonId = req.user.salon && typeof req.user.salon === 'object'
-        ? (req.user.salon as { id: number }).id : req.user.salon
-      return String(userSalonId) === String(record.salon)
+      if (!id) return false
+      const doc = await req.payload.findByID({ collection: 'availability', id, depth: 0, overrideAccess: true, req }).catch(() => null)
+      return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
     },
   },
   fields: [

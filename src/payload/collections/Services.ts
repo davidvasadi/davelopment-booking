@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
+import { userOwnsSalon } from '../lib/salonOwnerAccess'
 
 export const Services: CollectionConfig = {
   slug: 'services',
@@ -17,12 +18,22 @@ export const Services: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req }) => !!req.user,
-    update: ({ req, data }) => {
+    update: async ({ req, id, data }) => {
       if (req.user?.role === 'admin') return true
-      const userSalonId = req.user?.salon && typeof req.user.salon === 'object'
-        ? (req.user.salon as { id: number }).id
-        : req.user?.salon
-      return Number(userSalonId) === Number(data?.salon)
+      // Több-üzlet: a rekord szalonjának tulajdonosa lehet a user. Update-nél a meglévő
+      // rekord salonját ellenőrizzük (a body nem feltétlenül tartalmazza a salon mezőt);
+      // create-validáláskor a data.salon-t.
+      if (id) {
+        const doc = await req.payload.findByID({ collection: 'services', id, depth: 0, overrideAccess: true, req }).catch(() => null)
+        return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
+      }
+      return userOwnsSalon(req, data?.salon as number | string | undefined)
+    },
+    delete: async ({ req, id }) => {
+      if (req.user?.role === 'admin') return true
+      if (!id) return false
+      const doc = await req.payload.findByID({ collection: 'services', id, depth: 0, overrideAccess: true, req }).catch(() => null)
+      return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
     },
   },
   fields: [

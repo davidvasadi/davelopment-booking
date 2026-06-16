@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
+import { NumberStepper } from '@/components/ui/NumberStepper'
 import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
 import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
@@ -470,77 +471,89 @@ export function RestaurantSettingsForm({
       {activeTab === 'booking' && (
       <div className="space-y-4 lg:space-y-6">
       <Section title="Foglalási beállítások">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Foglalás hossza (perc)</Label>
-            <Input
-              type="number"
-              min={30}
-              step={15}
-              className={inputClass}
-              value={form.turn_duration_minutes}
-              onChange={(e) => set('turn_duration_minutes', parseInt(e.target.value, 10) || 0)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Időpont-lépték (perc)</Label>
-            <Input
-              type="number"
-              min={5}
-              step={5}
-              className={inputClass}
-              value={form.slot_step_minutes}
-              onChange={(e) => set('slot_step_minutes', parseInt(e.target.value, 10) || 0)}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Utolsó foglalás zárás előtt (perc)</Label>
-            <Input
-              type="number"
-              min={0}
-              step={15}
-              className={inputClass}
-              value={form.last_seating_buffer_minutes}
-              onChange={(e) => set('last_seating_buffer_minutes', parseInt(e.target.value, 10) || 0)}
-            />
-            <p className="text-xs text-zinc-400 dark:text-white/30">
-              0 = zárásig foglalható. Ha a foglalás hosszára állítod, csak az fér be, ami zárásig véget ér.
-            </p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Min. előfoglalás (óra)</Label>
-            <Input
-              type="number"
-              min={0}
-              className={inputClass}
-              value={form.lead_time_hours}
-              onChange={(e) => set('lead_time_hours', parseInt(e.target.value, 10) || 0)}
-            />
-          </div>
-        </div>
+        {/* Desktopon kétoszlopos: BAL = a 4 szám-beállító (egymás alatt) + alattuk a
+            kapcsolók; JOBB = a naptár. Mobilon/tableten egymás alatt, a naptár full. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          {/* Bal oszlop */}
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Foglalás hossza (perc)</Label>
+                <NumberStepper
+                  value={form.turn_duration_minutes}
+                  onChange={(n) => set('turn_duration_minutes', n)}
+                  min={30}
+                  max={480}
+                  step={15}
+                  suffix="perc"
+                  presets={[60, 90, 120, 150, 180]}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Időpont-lépték (perc)</Label>
+                <NumberStepper
+                  value={form.slot_step_minutes}
+                  onChange={(n) => set('slot_step_minutes', n)}
+                  min={5}
+                  max={120}
+                  step={5}
+                  suffix="perc"
+                  presets={[15, 30, 45, 60]}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Utolsó foglalás zárás előtt (perc)</Label>
+                <NumberStepper
+                  value={form.last_seating_buffer_minutes}
+                  onChange={(n) => set('last_seating_buffer_minutes', n)}
+                  min={0}
+                  max={240}
+                  step={15}
+                  suffix="perc"
+                  presets={[0, 30, 60, 90, 120]}
+                />
+                <p className="text-xs text-zinc-400 dark:text-white/30">
+                  0 = zárásig foglalható. Ha a foglalás hosszára állítod, csak az fér be, ami zárásig véget ér.
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className={labelClass}>Min. előfoglalás (óra)</Label>
+                <NumberStepper
+                  value={form.lead_time_hours}
+                  onChange={(n) => set('lead_time_hours', n)}
+                  min={0}
+                  max={168}
+                  step={1}
+                  suffix="óra"
+                  presets={[0, 1, 2, 4, 12, 24]}
+                />
+              </div>
+            </div>
 
-        {/* A naptáros „foglalható napok előre" külön sorban (nem szám-input, nem fér a gridbe). */}
-        <div className="space-y-1.5">
-          <Label className={labelClass}>Foglalható napok előre</Label>
-          <BookingWindowPicker
-            value={form.booking_window_days}
-            onChange={(days) => set('booking_window_days', days)}
-          />
-          <p className="text-xs text-zinc-400 dark:text-white/30">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
-        </div>
+            <div className="space-y-4 border-t border-zinc-100 dark:border-white/[0.06] pt-4">
+              <ToggleSwitch
+                checked={form.require_phone}
+                onChange={(v) => set('require_phone', v)}
+                label="Telefonszám kötelező a vendégnek"
+              />
+              <ToggleSwitch
+                checked={form.notify_new_bookings}
+                onChange={(v) => set('notify_new_bookings', v)}
+                label="Értesítés új foglalásokról"
+                description="Értesítést kapsz az alkalmazáson belül új foglalásról és lemondásról."
+              />
+            </div>
+          </div>
 
-        <div className="space-y-4 border-t border-zinc-100 dark:border-white/[0.06] pt-4">
-          <ToggleSwitch
-            checked={form.require_phone}
-            onChange={(v) => set('require_phone', v)}
-            label="Telefonszám kötelező a vendégnek"
-          />
-          <ToggleSwitch
-            checked={form.notify_new_bookings}
-            onChange={(v) => set('notify_new_bookings', v)}
-            label="Értesítés új foglalásokról"
-            description="Értesítést kapsz az alkalmazáson belül új foglalásról és lemondásról."
-          />
+          {/* Jobb oszlop: naptár (full a saját oszlopában) */}
+          <div className="space-y-1.5">
+            <Label className={labelClass}>Foglalható napok előre</Label>
+            <BookingWindowPicker
+              value={form.booking_window_days}
+              onChange={(days) => set('booking_window_days', days)}
+            />
+            <p className="text-xs text-zinc-400 dark:text-white/30">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
+          </div>
         </div>
       </Section>
 

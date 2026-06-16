@@ -14,25 +14,21 @@ export const Notifications: CollectionConfig = {
   access: {
     // Admin csak az admin-közönségű (audience: 'admin') értesítéseket látja a harangban;
     // a tulajok a saját helyük owner-értesítéseit. (Admin a /admin-ban mindent lát overrideAccess-szel.)
-    read: (({ req }) => {
+    read: (async ({ req }) => {
       if (req.user?.role === 'admin') return { audience: { equals: 'admin' } }
-      if (req.user?.role === 'restaurant_owner') {
-        const restaurantId =
-          req.user.restaurant && typeof req.user.restaurant === 'object'
-            ? (req.user.restaurant as { id: number | string }).id
-            : req.user.restaurant
-        if (!restaurantId) return false
-        return { restaurant: { equals: restaurantId } }
-      }
-      if (req.user?.role === 'salon_owner') {
-        const salonId =
-          req.user.salon && typeof req.user.salon === 'object'
-            ? (req.user.salon as { id: number | string }).id
-            : req.user.salon
-        if (!salonId) return false
-        return { salon: { equals: salonId } }
-      }
-      return false
+      if (!req.user) return false
+      // Több-üzlet: a user az ÖSSZES SAJÁT helye (szalon + étterem) owner-értesítéseit látja.
+      const [salons, restaurants] = await Promise.all([
+        req.payload.find({ collection: 'salons', where: { owner: { equals: req.user.id } }, limit: 100, depth: 0, overrideAccess: true, req }),
+        req.payload.find({ collection: 'restaurants', where: { owner: { equals: req.user.id } }, limit: 100, depth: 0, overrideAccess: true, req }),
+      ])
+      const salonIds = salons.docs.map((s) => s.id)
+      const restaurantIds = restaurants.docs.map((r) => r.id)
+      const or: Record<string, unknown>[] = []
+      if (salonIds.length) or.push({ salon: { in: salonIds } })
+      if (restaurantIds.length) or.push({ restaurant: { in: restaurantIds } })
+      if (or.length === 0) return false
+      return { or }
     }) as Access,
     // Hook hozza létre, overrideAccess-szel.
     create: ({ req }) => req.user?.role === 'admin',

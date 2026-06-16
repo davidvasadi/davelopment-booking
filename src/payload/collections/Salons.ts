@@ -1,7 +1,17 @@
-import type { CollectionConfig } from 'payload'
+import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { buildNewPlaceSubscription } from '../lib/newPlaceSubscription'
+
+// Több-üzlet (multi-tenant): egy user TÖBB szalont birtokolhat, ezért a hozzáférést az
+// `owner` alapján kell ellenőrizni (a régi `user.salon` fix mező csak az „első"-t nézte →
+// másik szalon szerkesztésekor 403). A where-filter biztosítja, hogy a user csak a SAJÁT
+// szalonjait érje el. (Az étterem-collection már így működik — egységesítve.)
+const isOwnerOrAdmin: Access = ({ req }) => {
+  if (!req.user) return false
+  if (req.user.role === 'admin') return true
+  return { owner: { equals: req.user.id } }
+}
 
 export const Salons: CollectionConfig = {
   slug: 'salons',
@@ -72,13 +82,7 @@ export const Salons: CollectionConfig = {
   access: {
     read: () => true,
     create: ({ req }) => !!req.user,
-    update: ({ req, id }) => {
-      if (req.user?.role === 'admin') return true
-      const userSalonId = req.user?.salon && typeof req.user.salon === 'object'
-        ? (req.user.salon as { id: number | string }).id
-        : req.user?.salon
-      return String(userSalonId) === String(id)
-    },
+    update: isOwnerOrAdmin,
     delete: ({ req }) => req.user?.role === 'admin',
   },
   fields: [

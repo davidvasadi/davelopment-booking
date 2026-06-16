@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
+import { NumberStepper } from '@/components/ui/NumberStepper'
 import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
 import { EmailVariablesHelp } from '@/components/settings/EmailVariablesHelp'
@@ -19,6 +20,7 @@ import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { SettingsTabsNav } from '@/components/ui/settings-tabs'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor } from '@/components/settings/TermsSectionsEditor'
+import { GoodToKnowEditor } from '@/components/settings/GoodToKnowEditor'
 
 /** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás. */
 function SaveBar({ dirty, submitting, onSave, onPreview }: { dirty: boolean; submitting: boolean; onSave: () => void; onPreview?: () => void }) {
@@ -73,6 +75,7 @@ const schema = z.object({
   company_reg_number: z.string().optional(),
   registered_seat: z.string().optional(),
   terms_sections: z.array(z.object({ title: z.string(), body: z.string() })),
+  good_to_know: z.array(z.object({ icon: z.string(), title: z.string(), body: z.string() })),
 })
 type FormData = z.infer<typeof schema>
 
@@ -148,6 +151,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
     company_reg_number: salon.company_reg_number ?? '',
     registered_seat: salon.registered_seat ?? '',
     terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
+    good_to_know: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
   }
   const { register, handleSubmit, watch, setValue, getValues, reset, formState: { errors, dirtyFields } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -158,7 +162,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
 
   // ── Fülek + mentetlen-változás védelem ──────────────────────────
   const TAB_FIELDS: Record<string, (keyof FormData)[]> = {
-    general: ['name', 'slug', 'postal_code', 'city', 'address', 'phone', 'email', 'website'],
+    general: ['name', 'slug', 'postal_code', 'city', 'address', 'phone', 'email', 'website', 'good_to_know'],
     booking: ['booking_buffer_minutes', 'booking_window_days', 'require_phone', 'notify_new_bookings'],
     email: ['booking_email_subject', 'booking_email_intro', 'email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
     documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat', 'terms_sections'],
@@ -437,6 +441,13 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
         </div>
       </Section>
 
+      <Section title="Jó tudni (foglaló oldal)" full>
+        <p className="text-xs text-zinc-400 dark:text-white/30 -mt-1">
+          Saját „Jó tudni" pontok (ikon + cím + szöveg) a nyilvános foglaló oldalon. Pl. „Parkolás: az udvarban ingyenes" vagy „Lemondás: legkésőbb a foglalás előtt 24 órával".
+        </p>
+        <GoodToKnowEditor value={watch('good_to_know')} onChange={(v) => setValue('good_to_know', v, { shouldDirty: true })} />
+      </Section>
+
       <div className="lg:col-span-2">
         <SaveBar dirty={tabDirty('general')} submitting={submitting} onSave={() => saveTab('general')} />
       </div>
@@ -446,38 +457,51 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
       {activeTab === 'booking' && (
       <div className="space-y-4 lg:space-y-6">
       <Section title="Foglalási beállítások">
-        <div className="space-y-1.5">
-          <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Puffer foglalások között (perc)</Label>
-          <Input
-            type="number"
-            min={0}
-            max={120}
-            step={5}
-            className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white w-32"
-            {...register('booking_buffer_minutes', { valueAsNumber: true })}
-          />
-          <p className="text-xs text-zinc-400 dark:text-white/30">Mennyi szünet legyen két foglalás között</p>
-        </div>
-        <div className="space-y-1.5">
-          <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Foglalható napok előre</Label>
-          <BookingWindowPicker
-            value={watch('booking_window_days') ?? 60}
-            onChange={(days) => setValue('booking_window_days', days, { shouldDirty: true })}
-          />
-          <p className="text-xs text-zinc-400 dark:text-white/30">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
-        </div>
-        <div className="space-y-4 border-t border-zinc-100 dark:border-white/[0.06] pt-4">
-          <ToggleSwitch
-            checked={watch('require_phone')}
-            onChange={(v) => setValue('require_phone', v, { shouldDirty: true })}
-            label="Telefonszám kötelező az ügyfélnek"
-          />
-          <ToggleSwitch
-            checked={watch('notify_new_bookings')}
-            onChange={(v) => setValue('notify_new_bookings', v, { shouldDirty: true })}
-            label="Értesítés új foglalásokról"
-            description="Értesítést kapsz az alkalmazáson belül új foglalásról és lemondásról."
-          />
+        {/* Desktopon kétoszlopos: BAL = a beállítók + kapcsolók; JOBB = a naptár.
+            Mobilon egymás alatt, a naptár full. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          {/* Bal oszlop */}
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Puffer foglalások között (perc)</Label>
+              <div className="max-w-xs">
+                <NumberStepper
+                  value={watch('booking_buffer_minutes') ?? 0}
+                  onChange={(n) => setValue('booking_buffer_minutes', n, { shouldDirty: true })}
+                  min={0}
+                  max={120}
+                  step={5}
+                  suffix="perc"
+                  presets={[0, 5, 10, 15, 30]}
+                />
+              </div>
+              <p className="text-xs text-zinc-400 dark:text-white/30">Mennyi szünet legyen két foglalás között</p>
+            </div>
+
+            <div className="space-y-4 border-t border-zinc-100 dark:border-white/[0.06] pt-4">
+              <ToggleSwitch
+                checked={watch('require_phone')}
+                onChange={(v) => setValue('require_phone', v, { shouldDirty: true })}
+                label="Telefonszám kötelező az ügyfélnek"
+              />
+              <ToggleSwitch
+                checked={watch('notify_new_bookings')}
+                onChange={(v) => setValue('notify_new_bookings', v, { shouldDirty: true })}
+                label="Értesítés új foglalásokról"
+                description="Értesítést kapsz az alkalmazáson belül új foglalásról és lemondásról."
+              />
+            </div>
+          </div>
+
+          {/* Jobb oszlop: naptár (full a saját oszlopában) */}
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Foglalható napok előre</Label>
+            <BookingWindowPicker
+              value={watch('booking_window_days') ?? 60}
+              onChange={(days) => setValue('booking_window_days', days, { shouldDirty: true })}
+            />
+            <p className="text-xs text-zinc-400 dark:text-white/30">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
+          </div>
         </div>
       </Section>
 

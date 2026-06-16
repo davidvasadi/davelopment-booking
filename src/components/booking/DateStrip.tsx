@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
+import { motion, type Variants } from 'framer-motion'
 import { format, addDays, isSameDay, isToday } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
@@ -9,6 +9,18 @@ import { cn } from '@/lib/utils'
 import { EASE, DUR } from '@/lib/motion'
 
 const HU_DAYS = ['V', 'H', 'K', 'Sz', 'Cs', 'P', 'Szo']
+
+// A napok lépcsőzött beúszása. Saját `initial="hidden"/animate="show"` a konténeren →
+// megszakítja a wizard step-wrapper (stepSlide, initial="enter") variant-öröklését, ezért
+// MINDKÉT foglalóban egységesen lejátszódik, függetlenül attól, melyik lépésen van.
+const dayStripContainer: Variants = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.025, delayChildren: 0.05 } },
+}
+const dayItem: Variants = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: DUR.fast, ease: EASE } },
+}
 
 /**
  * Közös dátum-választó csík hónap-fejléccel — a szalon és az étterem foglaló is
@@ -56,19 +68,21 @@ export function DateStrip({
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
-      <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory">
-        {days.map((d, i) => {
+      <motion.div
+        ref={scrollRef}
+        variants={dayStripContainer}
+        initial="hidden"
+        animate="show"
+        className="flex gap-2 overflow-x-auto pb-2 scrollbar-none snap-x snap-mandatory"
+      >
+        {days.map((d) => {
           const str = format(d, 'yyyy-MM-dd')
           const isSelected = isSameDay(d, selectedDate)
           const today = isToday(d)
           return (
             <motion.button
               key={str}
-              // Mountkor balról-alulról beúszó napok, lépcsőzve — egységes a szalon/étterem
-              // foglalóban (a stagger csak az első ~14 napra, hogy 60 napnál ne legyen lassú).
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: DUR.fast, delay: Math.min(i, 14) * 0.03, ease: EASE }}
+              variants={dayItem}
               onClick={() => onChange(str)}
               className={cn(
                 'flex flex-col items-center gap-1 py-3 px-3 rounded-2xl shrink-0 snap-center transition-colors min-w-[52px]',
@@ -84,7 +98,7 @@ export function DateStrip({
             </motion.button>
           )
         })}
-      </div>
+      </motion.div>
     </div>
   )
 }

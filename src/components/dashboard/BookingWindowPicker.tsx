@@ -42,7 +42,7 @@ export function BookingWindowPicker({
   const maxMonth = new Date(maxBookable.getFullYear(), maxBookable.getMonth(), 1)
 
   return (
-    <div className="rounded-2xl border border-zinc-200 dark:border-white/[0.08] p-4 w-full max-w-sm">
+    <div className="rounded-2xl border border-zinc-200 dark:border-white/[0.08] p-4 w-full">
       {/* Hónap-navigáció */}
       <div className="flex items-center justify-between mb-3">
         <button
@@ -71,8 +71,8 @@ export function BookingWindowPicker({
         ))}
       </div>
 
-      {/* Rács */}
-      <div className="grid grid-cols-7 gap-1">
+      {/* Rács — a cellák aspect-square-rel rugalmasan töltik a szélességet (reszponzív). */}
+      <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
         {Array.from({ length: startPad }).map((_, i) => <div key={`p${i}`} />)}
         {days.map((d) => {
           const disabled = isBefore(d, today) || isBefore(maxBookable, d)

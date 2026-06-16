@@ -7,6 +7,7 @@ import PublicServicesSection from '@/components/PublicServicesSection'
 import PublicStaffSection from '@/components/PublicStaffSection'
 import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
 import { BookCtaButton } from '@/components/booking/BookCtaButton'
+import { GoodToKnowSection } from '@/components/booking/GoodToKnowSection'
 import { RestaurantPublicView } from '@/components/restaurant/RestaurantPublicView'
 
 export default async function SalonPublicPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -85,6 +86,9 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
 
         {/* Staff */}
         {staff.length > 0 && <PublicStaffSection staff={staff} slug={slug} />}
+
+        {/* Jó tudni — közös komponens (szalon + étterem egységes). */}
+        <GoodToKnowSection items={salon.good_to_know} />
 
         {/* Bottom CTA */}
         <div className="bg-zinc-950 rounded-2xl p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
