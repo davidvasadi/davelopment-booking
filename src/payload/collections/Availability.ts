@@ -1,5 +1,5 @@
 import { CollectionConfig } from 'payload'
-import { userOwnsSalon } from '../lib/salonOwnerAccess'
+import { userOwnsSalon, canCreateForOwnSalon } from '../lib/salonOwnerAccess'
 
 export const Availability: CollectionConfig = {
   slug: 'availability',
@@ -12,7 +12,7 @@ export const Availability: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req }) => !!req.user,
+    create: canCreateForOwnSalon,
     update: async ({ req, id, data }) => {
       if (req.user?.role === 'admin') return true
       if (id) {

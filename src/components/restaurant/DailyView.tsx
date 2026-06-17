@@ -505,12 +505,52 @@ function TableGrid({
   const [drag, setDrag] = useState<DragState | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  // Pending: a pointerdown még NEM indít drag-et, csak előkészíti. Valódi húzás csak akkor
+  // indul, ha az egér/ujj ≥ DRAG_THRESHOLD px-et mozdul — különben kattintásnak vesszük
+  // (szerkesztés megnyitása). Így rá lehet kattintani a foglalásra, nem ugrik egyből mozgatásba.
+  const pendingRef = useRef<{ r: Reservation; init: DragState; startX: number; startY: number } | null>(null)
+  // A blokk-kattintás utáni buborékoló `click`-et elnyomja a háttér-soron (ne hozzon létre újat).
+  const blockNextRowClickRef = useRef(false)
+  const DRAG_THRESHOLD = 5
 
   const xToMin = (clientX: number, rowEl: HTMLElement): number => {
     const rect = rowEl.getBoundingClientRect()
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
     return Math.round((openMin + ratio * totalMin) / 15) * 15
   }
+
+  // Pending → drag promóció (küszöb) ÉS pending → kattintás (ha nem mozdult eleget).
+  useEffect(() => {
+    const onPendingMove = (e: PointerEvent) => {
+      const p = pendingRef.current
+      if (!p || dragRef.current) return // már drag-elünk, vagy nincs pending
+      if (Math.abs(e.clientX - p.startX) >= DRAG_THRESHOLD || Math.abs(e.clientY - p.startY) >= DRAG_THRESHOLD) {
+        // Átléptük a küszöböt → valódi húzás indul.
+        dragRef.current = p.init
+        setDrag(p.init)
+        pendingRef.current = null
+      }
+    }
+    const onPendingUp = () => {
+      const p = pendingRef.current
+      pendingRef.current = null
+      // Ha volt pending de sosem lett drag (küszöb alatt engedte fel) → kattintás = szerkesztés.
+      // A blokkra-kattintás után a böngésző egy `click`-et is kilő, ami a háttér-sor
+      // onClick-jére (új foglalás) buborékolna — ezt a flaggel elnyomjuk.
+      if (p && !dragRef.current) {
+        blockNextRowClickRef.current = true
+        // Ha valamiért nem jön buborékoló click, a flag ne ragadjon be.
+        setTimeout(() => { blockNextRowClickRef.current = false }, 300)
+        onEdit(p.r)
+      }
+    }
+    window.addEventListener('pointermove', onPendingMove)
+    window.addEventListener('pointerup', onPendingUp)
+    return () => {
+      window.removeEventListener('pointermove', onPendingMove)
+      window.removeEventListener('pointerup', onPendingUp)
+    }
+  }, [onEdit])
 
   useEffect(() => {
     if (!drag) return
@@ -555,7 +595,9 @@ function TableGrid({
     const t = r.tables?.[0]
     return (t && typeof t === 'object' ? t.id : t) ?? ''
   }
-  const startDrag = (r: Reservation, e: React.PointerEvent) => {
+  // Pointerdown a foglalás-blokkon: NEM indít drag-et azonnal, csak előkészíti. A valódi
+  // húzás a küszöb-átlépéskor indul (lásd a pending→drag effektet), addig kattintható.
+  const beginPointer = (r: Reservation, e: React.PointerEvent) => {
     if (isDraft(r)) return
     const s = hhmmToMinutes(r.start_time)
     const dur = hhmmToMinutes(r.end_time) - s
@@ -563,12 +605,10 @@ function TableGrid({
     const init: DragState = {
       r, dur, previewMin: s, tableId: firstTableId(r),
       cx: e.clientX, cy: e.clientY,
-      grabDx: e.clientX - rect.left, // hol fogtuk meg a blokkot (a bal szélétől)
+      grabDx: e.clientX - rect.left,
       widthPx: rect.width,
     }
-    dragRef.current = init
-    setDrag(init)
-    e.preventDefault()
+    pendingRef.current = { r, init, startX: e.clientX, startY: e.clientY }
   }
 
   return (
@@ -630,6 +670,9 @@ function TableGrid({
                     style={fit ? undefined : { width: axisWidth }}
                     onClick={(e) => {
                       if (drag) return // húzás közben ne hozzon létre újat
+                      // Ha épp egy foglalás-blokkra kattintottunk (szerkesztés), a buborékoló
+                      // click-et itt elnyeljük — különben új foglalást hozna létre a sávon.
+                      if (blockNextRowClickRef.current) { blockNextRowClickRef.current = false; return }
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                       const min = openMin + Math.round((e.clientX - rect.left) / rect.width * totalMin / 15) * 15
                       onCreate(minutesToHHMM(Math.max(openMin, Math.min(min, closeMin - turnMinutes))), t.id)
@@ -703,9 +746,8 @@ function TableGrid({
                       return (
                         <button
                           key={r.id}
-                          onPointerDown={(ev) => { if (!draft) { ev.stopPropagation(); startDrag(r, ev) } }}
-                          onClick={(ev) => { ev.stopPropagation(); if (!drag) onEdit(r) }}
-                          title={`${draft ? 'VÁZLAT — ' : 'Húzd át másik időpontra/asztalra · '}${r.customer_name} · ${r.pax} fő · ${r.start_time}–${r.end_time} · ${urgency ? urgency.label : statusLabel[r.status]}`}
+                          onPointerDown={(ev) => { if (!draft) { ev.stopPropagation(); beginPointer(r, ev) } }}
+                          title={`${draft ? 'VÁZLAT — ' : 'Kattints a szerkesztéshez, vagy húzd át másik időpontra/asztalra · '}${r.customer_name} · ${r.pax} fő · ${r.start_time}–${r.end_time} · ${urgency ? urgency.label : statusLabel[r.status]}`}
                           className={`absolute top-1/2 -translate-y-1/2 max-h-[calc(100%-0.5rem)] rounded-md border px-2 py-1.5 text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 shadow-sm transition-all ${draft ? 'border-2 border-dashed border-amber-500 bg-amber-100/80 text-amber-900 dark:bg-amber-500/20 dark:text-amber-100 cursor-default' : `${statusBlock[r.status]} cursor-grab active:cursor-grabbing hover:brightness-105`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
                           style={{ left: `calc(${left(s)} + 2px)`, width: `calc(${span(dur)} - 4px)`, touchAction: 'none' }}
                         >

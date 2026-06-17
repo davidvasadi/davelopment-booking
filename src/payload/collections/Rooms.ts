@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
+import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/restaurantAccess'
 
 export const Rooms: CollectionConfig = {
   slug: 'rooms',
@@ -12,7 +12,7 @@ export const Rooms: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req }) => !!req.user,
+    create: canCreateForOwnRestaurant,
     update: isRestaurantOwnerOrAdmin,
     delete: isRestaurantOwnerOrAdmin,
   },

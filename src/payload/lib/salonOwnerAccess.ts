@@ -1,4 +1,4 @@
-import type { PayloadRequest } from 'payload'
+import type { Access, PayloadRequest } from 'payload'
 
 /**
  * Több-üzlet (multi-tenant) hozzáférés-ellenőrzés a szalon-kapcsolt collection-ökhöz
@@ -35,4 +35,15 @@ export async function userOwnsSalon(
   } catch {
     return false
   }
+}
+
+/**
+ * CREATE-access a szalon-gyermek collectionökhöz (services, staff, availability, service-
+ * categories): a beküldött `data.salon`-t ellenőrzi — a user csak a SAJÁT szalonjához hozhat
+ * létre rekordot (különben bárki más szalonjához írhatna: IDOR).
+ */
+export const canCreateForOwnSalon: Access = async ({ req, data }) => {
+  if (!req.user) return false
+  if (req.user.role === 'admin') return true
+  return userOwnsSalon(req, data?.salon as number | string | undefined)
 }

@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
+import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/restaurantAccess'
 
 const isYmd = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
@@ -15,7 +15,7 @@ export const OpeningHoursExceptions: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req }) => !!req.user,
+    create: canCreateForOwnRestaurant,
     update: isRestaurantOwnerOrAdmin,
     delete: isRestaurantOwnerOrAdmin,
   },

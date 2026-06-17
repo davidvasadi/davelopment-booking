@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
+import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/restaurantAccess'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
 
 export const OpeningHours: CollectionConfig = {
@@ -17,7 +17,7 @@ export const OpeningHours: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req }) => !!req.user,
+    create: canCreateForOwnRestaurant,
     update: isRestaurantOwnerOrAdmin,
     delete: isRestaurantOwnerOrAdmin,
   },

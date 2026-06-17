@@ -1,6 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
-import { userOwnsSalon } from '../lib/salonOwnerAccess'
+import { userOwnsSalon, canCreateForOwnSalon } from '../lib/salonOwnerAccess'
 
 export const Staff: CollectionConfig = {
   slug: 'staff',
@@ -17,7 +17,7 @@ export const Staff: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: ({ req }) => !!req.user,
+    create: canCreateForOwnSalon,
     update: async ({ req, id, data }) => {
       if (req.user?.role === 'admin') return true
       if (id) {

@@ -1,19 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { getActiveBusiness } from '@/lib/activeBusiness'
 import { validateManualReservation } from '@/lib/restaurantBooking'
-import type { Restaurant, Reservation } from '@/payload/payload-types'
+import type { User, Restaurant, Reservation } from '@/payload/payload-types'
 
-async function getOwnerRestaurant(userId: string | number) {
+/**
+ * A felhasználó AKTÍV éttermét adja vissza (több-üzlet aware): a store-switcherrel kiválasztott
+ * üzlet, NEM az „első". Korábban az első éttermet vette → több éttermes fióknál a másik étterem
+ * foglalása „nem található" (404) volt, vagy rossz étteremre futott a szabad-asztal validáció.
+ */
+async function getOwnerRestaurant(user: User) {
   const payload = await getPayloadClient()
-  const result = await payload.find({
+  const { active } = await getActiveBusiness(user)
+  if (!active || active.type !== 'restaurant') return { payload, restaurant: undefined }
+  const restaurant = (await payload.findByID({
     collection: 'restaurants',
-    where: { owner: { equals: userId } },
-    limit: 1,
-    overrideAccess: true,
+    id: active.id,
     depth: 0,
-  })
-  return { payload, restaurant: result.docs[0] as Restaurant | undefined }
+    overrideAccess: true,
+  }).catch(() => null)) as Restaurant | undefined
+  return { payload, restaurant }
 }
 
 interface Body {
@@ -59,8 +66,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Hiányzó adat (dátum, idő, létszám)' }, { status: 400 })
   }
 
-  const { payload, restaurant } = await getOwnerRestaurant(user.id)
-  if (!restaurant) return NextResponse.json({ error: 'Nincs étterem' }, { status: 404 })
+  const { payload, restaurant } = await getOwnerRestaurant(user)
+  if (!restaurant) return NextResponse.json({ error: 'Nincs aktív étterem' }, { status: 404 })
 
   // Szerkesztésnél: a foglalás a saját étteremhez tartozzon
   if (reservationId != null) {

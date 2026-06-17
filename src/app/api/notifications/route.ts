@@ -3,22 +3,27 @@ import type { Where } from 'payload'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 
-function placeFilter(user: { role: string; restaurant?: unknown; salon?: unknown }): Where | null {
-  const idOf = (ref: unknown) =>
-    ref && typeof ref === 'object' ? (ref as { id: number | string }).id : ref
-  // Admin (backstage): az admin-közönségű értesítések (regisztráció, új előfizető).
-  if (user.role === 'admin') {
-    return { audience: { equals: 'admin' } }
-  }
-  if (user.role === 'restaurant_owner') {
-    const id = idOf(user.restaurant)
-    return id ? { and: [{ restaurant: { equals: id } }, { audience: { equals: 'owner' } }] } : null
-  }
-  if (user.role === 'salon_owner') {
-    const id = idOf(user.salon)
-    return id ? { and: [{ salon: { equals: id } }, { audience: { equals: 'owner' } }] } : null
-  }
-  return null
+/**
+ * Több-üzlet (multi-tenant): a tulajdonos az ÖSSZES saját helye (szalon + étterem) owner-
+ * értesítéseit látja — nem csak a régi `user.salon`/`user.restaurant` fix mezőét. Admin az
+ * admin-közönségű értesítéseket.
+ */
+async function placeFilter(user: { id: string | number; role: string }): Promise<Where | null> {
+  if (user.role === 'admin') return { audience: { equals: 'admin' } }
+
+  const payload = await getPayloadClient()
+  const [salons, restaurants] = await Promise.all([
+    payload.find({ collection: 'salons', where: { owner: { equals: user.id } }, limit: 100, depth: 0, overrideAccess: true }),
+    payload.find({ collection: 'restaurants', where: { owner: { equals: user.id } }, limit: 100, depth: 0, overrideAccess: true }),
+  ])
+  const salonIds = salons.docs.map((s) => s.id)
+  const restaurantIds = restaurants.docs.map((r) => r.id)
+  const or: Where[] = []
+  if (salonIds.length) or.push({ salon: { in: salonIds } })
+  if (restaurantIds.length) or.push({ restaurant: { in: restaurantIds } })
+  if (or.length === 0) return null
+
+  return { and: [{ or }, { audience: { equals: 'owner' } }] }
 }
 
 // GET — legutóbbi értesítések + olvasatlan számláló
@@ -26,7 +31,7 @@ export async function GET() {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const where = placeFilter(user)
+  const where = await placeFilter(user)
   if (!where) return NextResponse.json({ notifications: [], unread: 0 })
 
   const payload = await getPayloadClient()
@@ -54,7 +59,7 @@ export async function PATCH(req: Request) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const where = placeFilter(user)
+  const where = await placeFilter(user)
   if (!where) return NextResponse.json({ ok: true })
 
   const body = (await req.json().catch(() => ({}))) as { id?: number | string }
@@ -75,7 +80,7 @@ export async function DELETE(req: Request) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
 
-  const where = placeFilter(user)
+  const where = await placeFilter(user)
   if (!where) return NextResponse.json({ ok: true })
 
   const { searchParams } = new URL(req.url)

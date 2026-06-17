@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { getActiveBusiness } from '@/lib/activeBusiness'
 import { getMoveOptions } from '@/lib/restaurantBooking'
 import type { Restaurant } from '@/payload/payload-types'
 
@@ -24,16 +25,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Hiányzó paraméter' }, { status: 400 })
   }
 
+  // Aktív étterem (több-üzlet aware): a store-switcherrel kiválasztott, nem az „első".
   const payload = await getPayloadClient()
-  const result = await payload.find({
-    collection: 'restaurants',
-    where: { owner: { equals: user.id } },
-    limit: 1,
-    overrideAccess: true,
-    depth: 0,
-  })
-  const restaurant = result.docs[0] as Restaurant | undefined
-  if (!restaurant) return NextResponse.json({ error: 'Nincs étterem' }, { status: 404 })
+  const { active } = await getActiveBusiness(user)
+  const restaurant = active && active.type === 'restaurant'
+    ? ((await payload.findByID({ collection: 'restaurants', id: active.id, depth: 0, overrideAccess: true }).catch(() => null)) as Restaurant | undefined)
+    : undefined
+  if (!restaurant) return NextResponse.json({ error: 'Nincs aktív étterem' }, { status: 404 })
 
   const options = await getMoveOptions({
     restaurantId: restaurant.id,
