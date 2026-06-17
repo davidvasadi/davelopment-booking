@@ -35,14 +35,18 @@ export function toPlace(kind: PlaceKind, doc: Salon | Restaurant): Place {
 }
 
 /**
- * Egy előfizetésből kiolvassa a hozzá tartozó helyet (szalon VAGY étterem). A `subscriptions`
- * `salon` és `restaurant` relációja kizárólagos — amelyik ki van töltve, az adja a helyet.
- * `depth >= 1` lekérésnél a reláció objektum; null, ha egyik sincs (árva sub).
+ * Fiók-szintű modell: az előfizetés a `owner` userhez kötött (nem üzlethez). Innen az owner
+ * id-ját adjuk vissza — a backstage ezzel köti a subot a fiók HELYEIHEZ (egy fiók-sub a user
+ * összes szalonját + éttermét fedi). String id vagy null.
  */
-export function getPlaceFromSubscription(sub: Subscription): Place | null {
-  if (sub.salon && typeof sub.salon === 'object') return toPlace('salon', sub.salon as Salon)
-  if (sub.restaurant && typeof sub.restaurant === 'object') return toPlace('restaurant', sub.restaurant as Restaurant)
-  return null
+export function ownerIdOfSubscription(sub: Subscription): string | null {
+  const id = sub.owner && typeof sub.owner === 'object' ? sub.owner.id : sub.owner
+  return id != null ? String(id) : null
+}
+
+/** Egy Place owner-id-ja (a hely tulajdonosa). */
+export function ownerIdOfPlace(p: Place): string | null {
+  return p.owner?.id != null ? String(p.owner.id) : null
 }
 
 /** A publikus oldal mindkét típusnál `/{slug}` ([slug] route szalont és éttermet is kiszolgál). */
@@ -58,6 +62,8 @@ export function placePublicUrl(place: Pick<Place, 'slug'>): string {
  */
 export const PLAN_LABELS: Record<string, string> = {
   trial: 'Próbaidőszak',
+  paid: 'Fizető',
+  // régi kulcsok (kompatibilitás): a fiók-szintű modell előtt üzlet-szintűek voltak
   pro: 'Szalon Pro',
   restaurant_pro: 'Étterem Pro',
 }
@@ -75,6 +81,7 @@ export function subAmountHuf(sub: { plan?: string | null; status?: string | null
 
 export const PLAN_COLORS: Record<string, string> = {
   trial: 'bg-blue-500/10 text-blue-500',
+  paid: 'bg-violet-500/10 text-violet-400',
   pro: 'bg-violet-500/10 text-violet-400',
   restaurant_pro: 'bg-violet-500/10 text-violet-400',
 }

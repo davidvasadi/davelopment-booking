@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import type { Salon, Restaurant, Subscription } from '@/payload/payload-types'
 import { AlertTriangle, Clock, CalendarX, Building2, UtensilsCrossed, Store, ArrowRight } from 'lucide-react'
 import Link from 'next/link'
-import { toPlace, getPlaceFromSubscription, type Place } from '@/lib/backstagePlaces'
+import { toPlace, ownerIdOfSubscription, ownerIdOfPlace, type Place } from '@/lib/backstagePlaces'
 
 function PlaceRow({ place, sub, badge }: {
   place: Place
@@ -81,11 +81,17 @@ export default async function ChurnPage() {
   const placeKey = (p: Place) => `${p.kind}:${p.id}`
 
   const subs = subsResult.docs as Subscription[]
-  // Sub a helyhez kötve (`${kind}:${id}` kulccsal).
-  const subByPlace = new Map<string, Subscription>()
+  // Fiók-szintű: a sub az owner-höz kötött → ownerId → sub. Egy hely subja a tulajdonosáé.
+  const subByOwner = new Map<string, Subscription>()
   for (const sub of subs) {
-    const place = getPlaceFromSubscription(sub)
-    if (place) subByPlace.set(`${place.kind}:${place.id}`, sub)
+    const oid = ownerIdOfSubscription(sub)
+    if (oid) subByOwner.set(oid, sub)
+  }
+  const subByPlace = new Map<string, Subscription>()
+  for (const p of places) {
+    const oid = ownerIdOfPlace(p)
+    const sub = oid ? subByOwner.get(oid) : undefined
+    if (sub) subByPlace.set(`${p.kind}:${p.id}`, sub)
   }
 
   // Foglalás-számok helyenként (szalon → bookings, étterem → reservations).
@@ -102,21 +108,25 @@ export default async function ChurnPage() {
   )
   const bookingMap = new Map(bookingCounts)
 
-  // 1. Lejáró próbaidőszak (14 napon belül)
-  const expiringTrialPlaces = subs
-    .filter(sub => {
+  // Fiók-sub státuszból a fiók ÖSSZES helye (a sub az owner-höz kötött).
+  const placesForOwners = (ownerIds: Set<string>): Place[] =>
+    places.filter(p => { const oid = ownerIdOfPlace(p); return oid != null && ownerIds.has(oid) })
+
+  // 1. Lejáró próbaidőszak (14 napon belül) — a próbán lévő fiókok összes helye
+  const expiringOwners = new Set(
+    subs.filter(sub => {
       if (sub.status !== 'trialing' || !sub.trial_ends_at) return false
       const end = new Date(sub.trial_ends_at)
       return end >= now && end <= in14
-    })
-    .map(getPlaceFromSubscription)
-    .filter((p): p is Place => !!p)
+    }).map(ownerIdOfSubscription).filter((x): x is string => !!x)
+  )
+  const expiringTrialPlaces = placesForOwners(expiringOwners)
 
-  // 2. Lejárt fizetés
-  const pastDuePlaces = subs
-    .filter(s => s.status === 'past_due')
-    .map(getPlaceFromSubscription)
-    .filter((p): p is Place => !!p)
+  // 2. Lejárt fizetés — a past_due fiókok összes helye
+  const pastDueOwners = new Set(
+    subs.filter(s => s.status === 'past_due').map(ownerIdOfSubscription).filter((x): x is string => !!x)
+  )
+  const pastDuePlaces = placesForOwners(pastDueOwners)
 
   // 3. Aktív, de 30 napja nincs foglalás (de volt valaha)
   const dormant = places.filter(p => {

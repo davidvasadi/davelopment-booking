@@ -2,8 +2,7 @@ import Link from 'next/link'
 import { ArrowUpRight, Sparkles, AlertTriangle } from 'lucide-react'
 import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
-import { getPricing } from '@/lib/pricing'
-import type { Subscription } from '@/payload/payload-types'
+import { findAccountSubscription } from '@/lib/accountSubscription'
 import SalonSettingsForm from '@/components/dashboard/SalonSettingsForm'
 
 function daysLeft(dateStr?: string | null): number | null {
@@ -16,14 +15,11 @@ export default async function SettingsPage() {
   const { salon, businessCount } = await getOwnedSalon(1)
   const payload = await getPayloadClient()
 
-  const [subResult, pricing] = await Promise.all([
-    payload.find({ collection: 'subscriptions', where: { salon: { equals: salon.id } }, limit: 1, overrideAccess: true }),
-    getPricing(),
-  ])
-  const sub = (subResult.docs[0] as Subscription) ?? null
+  const ownerId = typeof salon.owner === 'object' && salon.owner ? salon.owner.id : salon.owner
+  const sub = ownerId ? await findAccountSubscription({ payload }, ownerId) : null
   const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
-  // Aktív Pro-nál a tényleges (befagyott) díj, egyébként a globális ajánlott ár.
-  const salonProLabel = `${(sub?.plan === 'pro' ? (sub?.amount_huf ?? pricing.salon_pro_huf) : pricing.salon_pro_huf).toLocaleString('hu-HU')} Ft`
+  // Fiók-szintű: a teljes fiók havidíja (az üzletek összetételéből).
+  const feeLabel = `${(sub?.amount_huf ?? 0).toLocaleString('hu-HU')} Ft`
 
   return (
     <div className="p-5 lg:p-8 space-y-6">
@@ -39,9 +35,9 @@ export default async function SettingsPage() {
 
         let subtitle = ''
         if (isPastDue) subtitle = 'Fizetési probléma — frissítsd az előfizetést a folytatáshoz'
-        else if (isCanceled) subtitle = 'Az előfizetésed megszűnt — aktiváld újra a Pro csomagot'
-        else if (days !== null) subtitle = days === 0 ? 'Ma lejár a próbaidőszak' : `${days} nap maradt — Pro: ${salonProLabel}/hó`
-        else if (sub.plan === 'pro') subtitle = `${salonProLabel} / hó`
+        else if (isCanceled) subtitle = 'Az előfizetésed megszűnt — aktiváld újra a folytatáshoz'
+        else if (days !== null) subtitle = days === 0 ? 'Ma lejár a próbaidőszak' : `${days} nap maradt — utána ${feeLabel}/hó`
+        else if (sub.plan === 'paid') subtitle = `${feeLabel} / hó`
         else subtitle = 'Előfizetés kezelése'
 
         return (
@@ -67,7 +63,7 @@ export default async function SettingsPage() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
                   <p className={`font-semibold ${isAlert ? 'text-red-700 dark:text-red-300' : 'text-zinc-900 dark:text-white'}`}>
-                    {sub.plan === 'pro' ? 'Pro csomag' : 'Próbaidőszak'}
+                    {sub.plan === 'paid' ? 'Előfizetés' : 'Próbaidőszak'}
                   </p>
                   <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
                     sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :

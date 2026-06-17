@@ -1,19 +1,16 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getPayloadClient } from '@/lib/payload'
-import { getPricing } from '@/lib/pricing'
+import { findAccountSubscription } from '@/lib/accountSubscription'
 import { SubscriptionCard } from '@/components/dashboard/SubscriptionCard'
 import { RestaurantSettingsForm } from '@/components/restaurant/RestaurantSettingsForm'
-import type { Restaurant, Subscription } from '@/payload/payload-types'
+import type { Restaurant } from '@/payload/payload-types'
 
 export default async function RestaurantSettingsPage() {
-  const { restaurant, businessCount } = await getOwnedRestaurant()
+  const { restaurant, businessCount, userId } = await getOwnedRestaurant()
   const payload = await getPayloadClient()
 
-  const [subResult, pricing] = await Promise.all([
-    payload.find({ collection: 'subscriptions', where: { restaurant: { equals: restaurant.id } }, limit: 1, overrideAccess: true }),
-    getPricing(),
-  ])
-  const sub = (subResult.docs[0] as Subscription) ?? null
+  const sub = await findAccountSubscription({ payload }, userId)
+  const feeLabel = `Havidíj: ${(sub?.amount_huf ?? 0).toLocaleString('hu-HU')} Ft/hó`
 
   const r = restaurant as Restaurant
 
@@ -24,7 +21,7 @@ export default async function RestaurantSettingsPage() {
         <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Beállítások</h1>
       </div>
 
-      <SubscriptionCard sub={sub} href="/restaurant/subscription" proPriceLabel={`Étterem Pro: ${pricing.restaurant_pro_huf.toLocaleString('hu-HU')} Ft/hó`} />
+      <SubscriptionCard sub={sub} href="/restaurant/subscription" proPriceLabel={feeLabel} />
 
       <RestaurantSettingsForm
         restaurantId={r.id}

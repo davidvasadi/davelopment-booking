@@ -139,8 +139,8 @@ export function NewBusinessForm({ alreadyPaying }: { alreadyPaying: boolean }) {
               alreadyPaying ? 'bg-amber-50 text-amber-800' : 'bg-emerald-50 text-emerald-800',
             )}>
               {alreadyPaying
-                ? 'A fiókod már aktív előfizetéssel rendelkezik, ezért ez az üzlet azonnal fizetős lesz (próbaidő nélkül), a saját havidíjával.'
-                : 'Ez az üzlet a szokásos próbaidőszakkal indul.'}
+                ? 'A fiókod aktív előfizetésű, ezért ennek az üzletnek a díja azonnal hozzáadódik a havi előfizetésedhez (egy összevont számla).'
+                : 'Ez az üzlet a fiókod közös próbaidőszaka alá kerül — még nem kell fizetned.'}
             </div>
           </motion.div>
 

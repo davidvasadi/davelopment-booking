@@ -2,69 +2,43 @@ import type { CollectionConfig } from 'payload'
 
 const MS_PER_DAY = 86_400_000
 
-/** Egy plan aktuális globális ára a `pricing-settings` globalből (fallback a régi fix árakra). */
-async function currentPlanPrice(req: { payload: { findGlobal: (a: { slug: string; overrideAccess?: boolean }) => Promise<unknown> } }, plan: string): Promise<number> {
-  if (plan !== 'pro' && plan !== 'restaurant_pro') return 0 // trial / ismeretlen
-  try {
-    const g = (await req.payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true })) as { salon_pro_huf?: number; restaurant_pro_huf?: number }
-    if (plan === 'pro') return g?.salon_pro_huf ?? 2900
-    return g?.restaurant_pro_huf ?? 9900
-  } catch {
-    return plan === 'pro' ? 2900 : 9900
-  }
-}
-
+/**
+ * FIÓK-SZINTŰ előfizetés (account-level subscription): EGY user = EGY előfizetés. A díj az
+ * összes üzletének (szalon + étterem) összetételéből áll (`amount_huf`, dinamikusan a globális
+ * `pricing-settings`-ből számolva — lásd src/lib/accountSubscription.ts). A `plan` itt csak a
+ * jelleget jelzi: `trial` (próbaidő) vagy `paid` (fizető). A típus-specifikus pro/restaurant_pro
+ * megszűnt — egy fiókban vegyesen lehet szalon ÉS étterem.
+ */
 export const Subscriptions: CollectionConfig = {
   slug: 'subscriptions',
   labels: { singular: 'Előfizetés', plural: 'Előfizetések' },
   hooks: {
     beforeChange: [
-      async ({ data, originalDoc, operation, req }) => {
+      async ({ data, originalDoc, operation }) => {
         if (operation !== 'update' && operation !== 'create') return data
-        // Fizetős planok: salon 'pro' ÉS étterem 'restaurant_pro' is. (Korábban csak a
-        // 'pro'-t ismerte fel → restaurant_pro-nál a status trialing maradt = bug.)
-        const PAID_PLANS = ['pro', 'restaurant_pro']
         const wasPlan = originalDoc?.plan
         const newPlan = data.plan ?? wasPlan
-        const isPro = PAID_PLANS.includes(newPlan)
-        const planChangedToPro = isPro && !PAID_PLANS.includes(wasPlan)
+        const isPaid = newPlan === 'paid'
+        const planChangedToPaid = isPaid && wasPlan !== 'paid'
 
-        // Az ár a GLOBÁLIS árazásból (backstage-ben szerkeszthető), a planhez igazítva.
-        // Modell: a már fizető ügyfél a current_period_end-ig a befagyott árát tartja; az
-        // árat csak akkor frissítjük, ha a plan változik VAGY a ciklus megújul (lentebb).
-        if (data.plan && data.plan !== wasPlan) {
-          data.amount_huf = await currentPlanPrice(req, newPlan)
-        }
-
-        // Újraaktiválás (past_due/canceled/paused → active) UGYANAZON a fizetős planon: új
-        // ciklus indul, ezért a friss GLOBÁLIS árat fagyasztjuk be (ez a „ciklus végén új ár").
-        const wasInactive = originalDoc && originalDoc.status !== 'active'
-        const reactivating = isPro && !planChangedToPro && wasInactive && data.status === 'active'
-        if (reactivating) {
-          data.amount_huf = await currentPlanPrice(req, newPlan)
-        }
-
-        if (planChangedToPro) {
-          // Pro váltás: status active, period_end indítás
+        // Trial → fizető váltás: status active, 30 napos ciklus indítása (a trial maradékát
+        // megőrizve, ha még él). Az amount_huf-ot a számoló helper (syncAccountSubscription)
+        // állítja az üzletek alapján — itt csak a státusz-átmenetet kezeljük.
+        if (planChangedToPaid) {
           const trialEndMs = data.trial_ends_at
             ? new Date(data.trial_ends_at).getTime()
             : originalDoc?.trial_ends_at
               ? new Date(originalDoc.trial_ends_at).getTime()
               : 0
-          const now = Date.now()
-          // Ha még él a trial, megőrizzük a maradékot; egyébként most indul új ciklus
-          const baseMs = Math.max(now, trialEndMs || 0)
-          const periodEndMs = baseMs + 30 * MS_PER_DAY
+          const baseMs = Math.max(Date.now(), trialEndMs || 0)
           data.status = 'active'
-          data.current_period_end = new Date(periodEndMs).toISOString()
+          data.current_period_end = new Date(baseMs + 30 * MS_PER_DAY).toISOString()
           data.cancel_at_period_end = false
-        } else if (isPro && data.status === 'trialing') {
-          // Pro plan de trialing státusz inkonzisztens → javítjuk
+        } else if (isPaid && data.status === 'trialing') {
+          // Fizető plan de trialing státusz inkonzisztens → javítjuk.
           data.status = 'active'
           if (!data.current_period_end && !originalDoc?.current_period_end) {
-            const trialEndMs = originalDoc?.trial_ends_at
-              ? new Date(originalDoc.trial_ends_at).getTime()
-              : Date.now()
+            const trialEndMs = originalDoc?.trial_ends_at ? new Date(originalDoc.trial_ends_at).getTime() : Date.now()
             data.current_period_end = new Date(Math.max(Date.now(), trialEndMs) + 30 * MS_PER_DAY).toISOString()
           }
         }
@@ -72,20 +46,16 @@ export const Subscriptions: CollectionConfig = {
       },
     ],
     afterChange: [
-      // Admin-értesítés, amikor egy előfizetés FIZETŐVÉ válik (status → active). Best-effort.
+      // Admin-értesítés, amikor egy fiók FIZETŐVÉ válik (status → active). Best-effort.
       async ({ req, doc, previousDoc, operation }) => {
         const becameActive = doc.status === 'active' && (operation === 'create' || previousDoc?.status !== 'active')
         if (!becameActive) return doc
         try {
-          const salonId = doc.salon && typeof doc.salon === 'object' ? doc.salon.id : doc.salon
-          const restaurantId = doc.restaurant && typeof doc.restaurant === 'object' ? doc.restaurant.id : doc.restaurant
-          let name = '—'
-          if (salonId) {
-            const s = await req.payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true, req }).catch(() => null)
-            name = s?.name ? `Szalon: ${s.name}` : 'Szalon'
-          } else if (restaurantId) {
-            const r = await req.payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 0, overrideAccess: true, req }).catch(() => null)
-            name = r?.name ? `Étterem: ${r.name}` : 'Étterem'
+          const ownerId = doc.owner && typeof doc.owner === 'object' ? doc.owner.id : doc.owner
+          let label = 'Fiók'
+          if (ownerId) {
+            const u = await req.payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true, req }).catch(() => null)
+            label = u?.email ? `Fiók: ${u.email}` : 'Fiók'
           }
           await req.payload.create({
             collection: 'notifications',
@@ -95,9 +65,7 @@ export const Subscriptions: CollectionConfig = {
               audience: 'admin',
               type: 'new_subscriber',
               title: `Új előfizető 🎉`,
-              body: `${name} fizető előfizető lett`,
-              ...(salonId ? { salon: salonId } : {}),
-              ...(restaurantId ? { restaurant: restaurantId } : {}),
+              body: `${label} fizető előfizető lett`,
               read: false,
             },
           })
@@ -109,11 +77,10 @@ export const Subscriptions: CollectionConfig = {
     ],
   },
   admin: {
-    // useAsTitle NEM lehet virtuális mező (Payload tiltja, ha nincs relationshiphez kötve)
-    // → 'plan' marad a cím. Az 'owner' virtuális mező viszont LISTAOSZLOPKÉNT remek:
-    // első oszlopként "Szalon: X" / "Étterem: Y", egyértelmű melyik helyhez tartozik.
-    useAsTitle: 'plan',
-    defaultColumns: ['owner', 'plan', 'status', 'current_period_end'],
+    // useAsTitle NEM lehet virtuális mező (Payload tiltja) → a valós 'breakdown'-t használjuk
+    // címként; az owner_label virtuális mező első listaoszlopként mutatja a fiók emailjét.
+    useAsTitle: 'breakdown',
+    defaultColumns: ['owner_label', 'status', 'amount_huf', 'breakdown', 'current_period_end'],
     group: 'Rendszer',
   },
   access: {
@@ -124,65 +91,45 @@ export const Subscriptions: CollectionConfig = {
   },
   fields: [
     {
-      // Virtuális cím-oszlop: "Szalon: X" vagy "Étterem: Y" — egyértelmű melyik helyhez
-      // tartozik az előfizetés, nem kell a salon/restaurant <No ...> jelöléseit nézni.
-      // Nem tárolódik, csak olvasáskor töltődik (a Users.place mintájára).
-      name: 'owner',
+      // Virtuális cím-oszlop: a tulajdonos (fiók) emailje — egyértelmű melyik fiókhoz tartozik.
+      name: 'owner_label',
       type: 'text',
       virtual: true,
       label: 'Tulajdonos',
-      admin: {
-        readOnly: true,
-        condition: () => false, // csak listaoszlop, a szerkesztőben rejtve (salon/restaurant ott van)
-      },
+      admin: { readOnly: true, condition: () => false },
       hooks: {
         afterRead: [
           async ({ data, req }) => {
             try {
-              if (data?.salon) {
-                const id = typeof data.salon === 'object' ? data.salon.id : data.salon
-                const doc = await req.payload.findByID({ collection: 'salons', id, depth: 0, overrideAccess: true, req })
-                return doc?.name ? `Szalon: ${doc.name}` : null
-              }
-              if (data?.restaurant) {
-                const id = typeof data.restaurant === 'object' ? data.restaurant.id : data.restaurant
-                const doc = await req.payload.findByID({ collection: 'restaurants', id, depth: 0, overrideAccess: true, req })
-                return doc?.name ? `Étterem: ${doc.name}` : null
-              }
+              const id = data?.owner && typeof data.owner === 'object' ? data.owner.id : data?.owner
+              if (!id) return null
+              const u = await req.payload.findByID({ collection: 'users', id, depth: 0, overrideAccess: true, req })
+              return u?.email ?? u?.name ?? null
             } catch {
               return null
             }
-            return null
           },
         ],
       },
     },
     {
-      name: 'salon',
+      name: 'owner',
       type: 'relationship',
-      relationTo: 'salons',
+      relationTo: 'users',
+      required: true,
       unique: true,
-      label: 'Szalon',
-      admin: { description: 'Salon-előfizetésekhez (a restaurant mezővel kizárólagos)' },
-    },
-    {
-      name: 'restaurant',
-      type: 'relationship',
-      relationTo: 'restaurants',
-      unique: true,
-      label: 'Étterem',
-      admin: { description: 'Étterem-előfizetésekhez (a salon mezővel kizárólagos)' },
+      label: 'Tulajdonos (fiók)',
+      admin: { description: 'Egy fiók = egy előfizetés. A díj az összes üzletéből számolódik.' },
     },
     {
       name: 'plan',
       type: 'select',
       required: true,
       defaultValue: 'trial',
-      label: 'Terv',
+      label: 'Jelleg',
       options: [
-        { label: 'Próbaidőszak (14 nap)', value: 'trial' },
-        { label: 'Szalon Pro (2 900 Ft/hó)', value: 'pro' },
-        { label: 'Étterem Pro (9 900 Ft/hó)', value: 'restaurant_pro' },
+        { label: 'Próbaidőszak', value: 'trial' },
+        { label: 'Fizető', value: 'paid' },
       ],
     },
     {
@@ -200,20 +147,37 @@ export const Subscriptions: CollectionConfig = {
       ],
     },
     {
+      // Az üzlet-összetétel (a díj alapja) — read-only, a syncAccountSubscription állítja.
+      name: 'salon_count',
+      type: 'number',
+      defaultValue: 0,
+      label: 'Szalonok száma',
+      admin: { readOnly: true, position: 'sidebar' },
+    },
+    {
+      name: 'restaurant_count',
+      type: 'number',
+      defaultValue: 0,
+      label: 'Éttermek száma',
+      admin: { readOnly: true, position: 'sidebar' },
+    },
+    {
+      name: 'breakdown',
+      type: 'text',
+      label: 'Összetétel',
+      admin: { readOnly: true, description: 'Pl. „2 étterem + 1 szalon" — automatikus.' },
+    },
+    {
       name: 'trial_ends_at',
       type: 'date',
       label: 'Próbaidőszak vége',
-      admin: {
-        date: { pickerAppearance: 'dayAndTime' },
-      },
+      admin: { date: { pickerAppearance: 'dayAndTime' } },
     },
     {
       name: 'current_period_end',
       type: 'date',
       label: 'Jelenlegi időszak vége',
-      admin: {
-        date: { pickerAppearance: 'dayAndTime' },
-      },
+      admin: { date: { pickerAppearance: 'dayAndTime' } },
     },
     {
       name: 'cancel_at_period_end',
@@ -227,10 +191,11 @@ export const Subscriptions: CollectionConfig = {
     {
       name: 'amount_huf',
       type: 'number',
-      defaultValue: 2900,
+      defaultValue: 0,
       label: 'Havi díj (Ft)',
       admin: {
-        description: 'Havi előfizetési díj forintban (Pro: 2 900 Ft)',
+        readOnly: true,
+        description: 'A fiók teljes havidíja — az üzletek összetételéből, automatikusan számolva.',
       },
     },
     {

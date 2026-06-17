@@ -1,8 +1,7 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getPayloadClient } from '@/lib/payload'
-import { getPricing } from '@/lib/pricing'
+import { findAccountSubscription } from '@/lib/accountSubscription'
 import { getAccountBilling } from '@/lib/accountBilling'
-import type { Subscription } from '@/payload/payload-types'
 import Link from 'next/link'
 import { CreditCard, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
 import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
@@ -51,25 +50,22 @@ export default async function RestaurantSubscriptionPage() {
   const { restaurant, userId } = await getOwnedRestaurant()
   const payload = await getPayloadClient()
 
-  const [subResult, pricing, billing] = await Promise.all([
-    payload.find({ collection: 'subscriptions', where: { restaurant: { equals: restaurant.id } }, limit: 1, overrideAccess: true }),
-    getPricing(),
+  const [sub, billing] = await Promise.all([
+    findAccountSubscription({ payload }, userId),
     getAccountBilling(userId),
   ])
-  const sub = (subResult.docs[0] as Subscription) ?? null
   const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
 
   const isTrial = sub?.status === 'trialing'
-  // Pro = nem próbaidőszakban van (active/past_due/paused/canceled mind fizetős plan).
-  // A státusz a megbízható jelző, nem a plan értéke ('pro' vs 'restaurant_pro').
+  // Fizető = nem próbaidőszakban van; a státusz a megbízható jelző.
   const isPro = !!sub && sub.status !== 'trialing'
   const isActivePro = sub?.status === 'active'
   const cancelScheduled = sub?.cancel_at_period_end === true
-  const planLabel = isPro ? 'Étterem Pro' : 'Próbaidőszak'
-  // Aktív előfizetőnél a TÉNYLEGES (befagyott) díj, egyébként a jelenlegi globális ár ajánlatként.
-  const proPriceHuf = isPro ? (sub?.amount_huf ?? pricing.restaurant_pro_huf) : pricing.restaurant_pro_huf
-  const priceLabel = isPro ? `${proPriceHuf.toLocaleString('hu-HU')} Ft` : 'Ingyenes'
-  const periodEnd = isTrial ? sub.trial_ends_at : sub?.current_period_end
+  const planLabel = isPro ? 'Előfizetés' : 'Próbaidőszak'
+  // Fiók-szintű: a teljes fiók havidíja (az üzletek összetételéből).
+  const feeHuf = sub?.amount_huf ?? billing.totalMonthlyHuf
+  const priceLabel = feeHuf > 0 ? `${feeHuf.toLocaleString('hu-HU')} Ft` : 'Ingyenes'
+  const periodEnd = isTrial ? sub?.trial_ends_at : sub?.current_period_end
 
   return (
     <div className="p-5 lg:p-8 space-y-6">
@@ -113,7 +109,7 @@ export default async function RestaurantSubscriptionPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
         <Kpi sub="Csomag" value={planLabel} label={STATUS_LABELS[sub?.status ?? ''] ?? '—'} />
-        <Kpi sub="Havi díj" value={priceLabel} label={sub?.plan === 'restaurant_pro' ? 'forintban' : 'a próba alatt'} />
+        <Kpi sub="Havi díj" value={priceLabel} label={sub?.plan === 'paid' ? 'forintban' : 'a próba alatt'} />
         {isTrial && days !== null
           ? <Kpi sub="Hátralévő idő" value={days === 0 ? 'Ma' : `${days} nap`} label="a próbából" />
           : <Kpi sub={cancelScheduled ? 'Hozzáférés vége' : 'Következő számlázás'} value={formatDate(periodEnd)} label={cancelScheduled ? 'utána letiltva' : 'automatikus'} />

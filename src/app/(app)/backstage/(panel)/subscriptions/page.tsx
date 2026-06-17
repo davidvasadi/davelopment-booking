@@ -1,11 +1,10 @@
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
-import type { Subscription } from '@/payload/payload-types'
-import { CreditCard, AlertTriangle, Clock, CheckCircle2, XCircle, PauseCircle, Building2, UtensilsCrossed } from 'lucide-react'
+import type { Subscription, User } from '@/payload/payload-types'
+import { CreditCard, AlertTriangle, Clock, CheckCircle2, XCircle, PauseCircle, Building2 } from 'lucide-react'
 import SubscriptionStatusSelect from './SubscriptionStatusSelect'
 import {
-  getPlaceFromSubscription, subAmountHuf, PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS, textColorOf,
-  buildOwnerBusinessCount,
+  subAmountHuf, PLAN_LABELS, PLAN_COLORS, STATUS_LABELS, STATUS_COLORS, textColorOf,
 } from '@/lib/backstagePlaces'
 import { getPricing } from '@/lib/pricing'
 
@@ -25,12 +24,6 @@ export default async function SubscriptionsPage() {
 
   const subs = subsResult.docs as Subscription[]
 
-  // Több-üzlet: ownerId → üzletszám (a subscription-ökhöz kötött helyek owner-éből), hogy
-  // a sornál jelezhessük, ha egy fiókhoz több üzlet tartozik.
-  const ownerCounts = buildOwnerBusinessCount(
-    subs.map((s) => getPlaceFromSubscription(s)).filter((p): p is NonNullable<typeof p> => p !== null),
-  )
-
   const byStatus = {
     active: subs.filter(s => s.status === 'active').length,
     trialing: subs.filter(s => s.status === 'trialing').length,
@@ -40,8 +33,7 @@ export default async function SubscriptionsPage() {
   }
   const byPlan = {
     trial: subs.filter(s => s.plan === 'trial').length,
-    pro: subs.filter(s => s.plan === 'pro').length,
-    restaurant_pro: subs.filter(s => s.plan === 'restaurant_pro').length,
+    paid: subs.filter(s => s.plan === 'paid').length,
   }
   const mrr = subs.filter(s => s.status === 'active').reduce((sum, s) => sum + subAmountHuf(s), 0)
 
@@ -52,8 +44,7 @@ export default async function SubscriptionsPage() {
 
   const planMeta = [
     { plan: 'trial' as const, note: `${pricing.trial_days} nap ingyenes` },
-    { plan: 'pro' as const, note: `Szalon · ${pricing.salon_pro_huf.toLocaleString('hu-HU')} Ft/hó` },
-    { plan: 'restaurant_pro' as const, note: `Étterem · ${pricing.restaurant_pro_huf.toLocaleString('hu-HU')} Ft/hó` },
+    { plan: 'paid' as const, note: `Szalon ${pricing.salon_pro_huf.toLocaleString('hu-HU')} · Étterem ${pricing.restaurant_pro_huf.toLocaleString('hu-HU')} Ft/üzlet` },
   ]
 
   return (
@@ -103,14 +94,13 @@ export default async function SubscriptionsPage() {
           <div className="overflow-x-auto">
             {/* Desktop header */}
             <div className="hidden lg:grid grid-cols-[minmax(200px,1fr)_110px_140px_150px_220px] gap-4 px-5 py-3 border-b border-zinc-100 dark:border-white/[0.06] min-w-[820px]">
-              {['Hely / Tulajdonos', 'Terv', 'Státusz', 'Időszak vége', 'Módosítás'].map(h => (
+              {['Fiók / összetétel', 'Jelleg', 'Státusz', 'Időszak vége', 'Módosítás'].map(h => (
                 <span key={h} className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">{h}</span>
               ))}
             </div>
 
             {subs.map((sub, i) => {
-              const place = getPlaceFromSubscription(sub)
-              const PlaceIcon = place?.kind === 'restaurant' ? UtensilsCrossed : Building2
+              const owner = sub.owner && typeof sub.owner === 'object' ? (sub.owner as User) : null
               const periodEnd = sub.status === 'trialing' && sub.trial_ends_at
                 ? new Date(sub.trial_ends_at)
                 : sub.current_period_end ? new Date(sub.current_period_end) : null
@@ -139,29 +129,11 @@ export default async function SubscriptionsPage() {
               const placeNode = (
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="h-8 w-8 rounded-lg bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
-                    <PlaceIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                    <Building2 className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
                   </span>
                   <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-zinc-900 dark:text-white text-sm font-medium truncate">{place?.name ?? '— (árva előfizetés)'}</span>
-                      {place && (
-                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-                          {place.kind === 'restaurant' ? 'Étterem' : 'Szalon'}
-                        </span>
-                      )}
-                    </p>
-                    <p className="text-zinc-400 text-xs truncate mt-0.5 flex items-center gap-1.5">
-                      <span className="truncate">{place?.owner?.email ?? '—'}</span>
-                      {(() => {
-                        const oid = place?.owner?.id != null ? String(place.owner.id) : null
-                        const n = oid ? (ownerCounts.get(oid) ?? 0) : 0
-                        return n > 1 ? (
-                          <span className="shrink-0 text-[10px] font-bold rounded-full bg-violet-500/10 text-violet-500 px-1.5 py-0.5">
-                            {n} üzletből
-                          </span>
-                        ) : null
-                      })()}
-                    </p>
+                    <p className="text-zinc-900 dark:text-white text-sm font-medium truncate">{owner?.email ?? '— (fiók)'}</p>
+                    <p className="text-zinc-400 text-xs truncate mt-0.5">{sub.breakdown || '— nincs üzlet —'}</p>
                   </div>
                 </div>
               )

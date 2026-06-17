@@ -1,7 +1,7 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
-import { buildNewPlaceSubscription } from '../lib/newPlaceSubscription'
+import { syncAccountSubscription } from '../../lib/accountSubscription'
 
 // Több-üzlet (multi-tenant): egy user TÖBB szalont birtokolhat, ezért a hozzáférést az
 // `owner` alapján kell ellenőrizni (a régi `user.salon` fix mező csak az „első"-t nézte →
@@ -20,25 +20,9 @@ export const Salons: CollectionConfig = {
       revalidatePlaceOnChange('salon'),
       async ({ req, doc, operation }) => {
         if (operation !== 'create') return
-        const existing = await req.payload.find({
-          collection: 'subscriptions',
-          where: { salon: { equals: doc.id } },
-          limit: 1,
-          overrideAccess: true,
-          req,
-        })
-        if (existing.docs.length > 0) return
-        // Több-üzlet szabály: ha a tulajdonosnak MÁR van aktív fizető előfizetése, az új
-        // szalon egyből fizetős (próbaidő nélkül); egyébként szokásos próbaidő. Az ár a
-        // GLOBÁLIS árazásból jön (backstage-ben szerkeszthető).
-        const subData = await buildNewPlaceSubscription({ payload: req.payload, req }, doc.owner, 'salon')
-        await req.payload.create({
-          collection: 'subscriptions',
-          data: { salon: doc.id, ...subData },
-          overrideAccess: true,
-          req,
-        })
-        const startedPaid = subData.status === 'active'
+        // Fiók-szintű előfizetés: az új szalon a fiók (owner) előfizetésébe számít be — a díj
+        // azonnal újraszámolódik, vagy ha ez az első üzlet, létrejön a trial fiók-sub.
+        await syncAccountSubscription({ payload: req.payload, req }, doc.owner)
         // Admin-értesítés a backstage harangba (best-effort).
         try {
           await req.payload.create({
@@ -49,7 +33,7 @@ export const Salons: CollectionConfig = {
               audience: 'admin',
               type: 'new_signup',
               title: `Új szalon: ${doc.name}`,
-              body: `${doc.city ? doc.city + ' · ' : ''}${startedPaid ? 'fizető előfizetéssel indult (meglévő fiók)' : 'próbaidőszak elindult'}`,
+              body: `${doc.city ? doc.city + ' · ' : ''}hozzáadva egy fiókhoz`,
               salon: doc.id,
               read: false,
             },
@@ -61,17 +45,24 @@ export const Salons: CollectionConfig = {
     ],
     beforeDelete: [
       async ({ req, id }) => {
+        // A kapcsolódó rekordok kaszkád-törlése. A fiók-előfizetést NEM töröljük (az a userhez
+        // tartozik, nem a szalonhoz); a díj újraszámolását az afterDelete intézi.
         await Promise.all([
           req.payload.delete({ collection: 'bookings', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'availability', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'services', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'service-categories', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'staff', where: { salon: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'subscriptions', where: { salon: { equals: id } }, overrideAccess: true }),
         ])
       },
     ],
-    afterDelete: [revalidatePlaceOnDelete('salon')],
+    afterDelete: [
+      revalidatePlaceOnDelete('salon'),
+      async ({ req, doc }) => {
+        // A szalon kikerült → a fiók előfizetési díja újraszámol (kevesebb üzlet).
+        if (doc?.owner) await syncAccountSubscription({ payload: req.payload, req }, doc.owner).catch(() => null)
+      },
+    ],
   },
   labels: { singular: 'Szalon', plural: 'Szalonok' },
   admin: {

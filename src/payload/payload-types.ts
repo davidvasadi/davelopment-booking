@@ -35,10 +35,16 @@ export interface PricingSetting {
 
 export interface Subscription {
   id: string
-  salon?: string | Salon | null
-  restaurant?: string | Restaurant | null
-  plan: 'trial' | 'pro' | 'restaurant_pro'
+  /** Fiók-szintű: egy user = egy előfizetés. */
+  owner?: string | User | null
+  /** Virtuális, csak admin-listához (owner email). */
+  owner_label?: string | null
+  plan: 'trial' | 'paid'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
+  salon_count?: number | null
+  restaurant_count?: number | null
+  /** Olvasható összetétel, pl. „2 étterem + 1 szalon". */
+  breakdown?: string | null
   trial_ends_at?: string | null
   current_period_end?: string | null
   cancel_at_period_end?: boolean | null

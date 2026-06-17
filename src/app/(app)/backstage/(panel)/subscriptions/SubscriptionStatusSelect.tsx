@@ -10,10 +10,9 @@ const STATUS_OPTIONS = [
   { value: 'paused', label: 'Szüneteltetett' },
   { value: 'canceled', label: 'Megszakítva' },
 ]
-// `restaurant_pro` is — étterem-előfizetésnél eddig hiányzott, ezért rossz volt a választó.
-// Az ár NEM itt dől el: a Subscriptions beforeChange hook a GLOBÁLIS árat fagyasztja be
-// plan-váltáskor, ezért a kliens nem küld amount_huf-ot (különben felülírná a globálist).
-const PLAN_OPTIONS = (['trial', 'pro', 'restaurant_pro'] as const).map(value => ({
+// Fiók-szintű modell: a jelleg trial vagy paid. Az ár NEM itt dől el — az a fiók üzlet-
+// összetételéből számolódik (syncAccountSubscription), a kliens nem küld amount_huf-ot.
+const PLAN_OPTIONS = (['trial', 'paid'] as const).map(value => ({
   value,
   label: PLAN_LABELS[value],
 }))

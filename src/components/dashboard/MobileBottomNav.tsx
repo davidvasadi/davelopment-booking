@@ -13,7 +13,7 @@ import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notificationVisual } from '@/lib/useNotifications'
 
 type SubInfo = {
-  plan: 'trial' | 'pro' | 'restaurant_pro'
+  plan: 'trial' | 'paid'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
   trial_ends_at?: string | null
   current_period_end?: string | null

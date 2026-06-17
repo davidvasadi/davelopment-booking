@@ -3,7 +3,6 @@ import { requireAuth } from '@/lib/auth'
 import type { Salon, Restaurant, User, Subscription } from '@/payload/payload-types'
 import { CreditCard, UserPlus, Clock, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react'
 import Link from 'next/link'
-import { getPlaceFromSubscription } from '@/lib/backstagePlaces'
 
 // Eladási fókuszú aktivitás: KIZÁRÓLAG regisztrációk és előfizetés/próbaidő-események.
 // Foglalásokat NEM monitorozunk itt (felesleges ehhez a nézethez).
@@ -92,15 +91,15 @@ export default async function ActivityPage() {
 
   for (const doc of subsResult.docs) {
     const s = doc as Subscription
-    const place = getPlaceFromSubscription(s)
-    const placeName = place?.name ?? '— (árva előfizetés)'
-    const placeType = place ? (place.kind === 'restaurant' ? 'Étterem' : 'Szalon') : ''
+    // Fiók-szintű: az előfizetés az owner-höz tartozik; a cím a fiók emailje + összetétel.
+    const owner = s.owner && typeof s.owner === 'object' ? (s.owner as User) : null
+    const ownerEmail = owner?.email ?? '— (fiók)'
     const { type, label } = subEvent(s.status)
     items.push({
       id: `sub-${s.id}`,
       type,
-      title: `${label}: ${placeName}`,
-      sub: [placeType, place?.owner?.email].filter(Boolean).join(' · ') || '—',
+      title: `${label}: ${ownerEmail}`,
+      sub: s.breakdown || '—',
       date: new Date(s.updatedAt),
     })
   }

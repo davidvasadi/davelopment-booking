@@ -17,9 +17,8 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
   const { id } = await params
   const payload = await getPayloadClient()
 
-  const [salonResult, subResult, bookingsResult] = await Promise.all([
+  const [salonResult, bookingsResult] = await Promise.all([
     payload.findByID({ collection: 'salons', id, depth: 2, overrideAccess: true }).catch(() => null),
-    payload.find({ collection: 'subscriptions', where: { salon: { equals: id } }, limit: 1, overrideAccess: true }),
     payload.find({
       collection: 'bookings',
       where: { salon: { equals: id } },
@@ -33,7 +32,11 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
   if (!salonResult) notFound()
   const salon = salonResult as Salon
   const owner = typeof salon.owner === 'object' ? (salon.owner as User) : null
-  const sub = subResult.docs[0] as Subscription | undefined
+  // Fiók-szintű előfizetés: a hely tulajdonosának (owner) közös előfizetése (a fiók része).
+  const ownerId = owner?.id ?? (typeof salon.owner === 'string' ? salon.owner : null)
+  const sub = ownerId
+    ? ((await payload.find({ collection: 'subscriptions', where: { owner: { equals: ownerId } }, limit: 1, overrideAccess: true })).docs[0] as Subscription | undefined)
+    : undefined
 
   const monthStart = new Date()
   monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)

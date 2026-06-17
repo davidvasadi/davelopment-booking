@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { expireOneTrial } from '@/lib/subscriptionSync'
 import { getActiveBusiness } from '@/lib/activeBusiness'
+import { findAccountSubscription } from '@/lib/accountSubscription'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
@@ -30,13 +31,8 @@ export default async function RestaurantLayout({ children }: { children: React.R
     overrideAccess: true,
   })) as Restaurant
 
-  const subResult = await payload.find({
-    collection: 'subscriptions',
-    where: { restaurant: { equals: restaurant.id } },
-    limit: 1,
-    overrideAccess: true,
-  })
-  let subscription: Subscription | null = (subResult.docs[0] as Subscription) ?? null
+  // Fiók-szintű előfizetés: a lock-státusz a FIÓK (owner) egyetlen előfizetéséből jön.
+  let subscription: Subscription | null = await findAccountSubscription({ payload }, user.id)
   subscription = await expireOneTrial(subscription)
 
   const sub = subscription

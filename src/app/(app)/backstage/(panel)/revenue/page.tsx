@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import type { Subscription } from '@/payload/payload-types'
 import { Building2, UtensilsCrossed } from 'lucide-react'
 import { subAmountHuf } from '@/lib/backstagePlaces'
-import { getPricing, planPrice } from '@/lib/pricing'
+import { getPricing } from '@/lib/pricing'
 
 function formatHuf(n: number) {
   return n.toLocaleString('hu-HU') + ' Ft'
@@ -26,23 +26,21 @@ export default async function RevenuePage() {
 
   const mrr = activeSubs.reduce((sum, s) => sum + subAmountHuf(s), 0)
   const arr = mrr * 12
-  // Potenciális MRR: ha minden aktív+trial a JELENLEGI globális áron fizetne (trial áttér pro-ra).
-  const potentialMrr = [...activeSubs, ...trialingSubs].reduce((sum, s) => {
-    const plan = s.plan === 'trial' ? (s.restaurant ? 'restaurant_pro' : 'pro') : s.plan
-    return sum + planPrice(pricing, plan)
-  }, 0)
+  // Potenciális MRR (fiók-szintű): ha minden aktív+trial fiók a számolt havidíját fizetné.
+  // A fiók-sub `amount_huf`-ja már az üzlet-összetételből számolt teljes díj (trial alatt is).
+  const potentialMrr = [...activeSubs, ...trialingSubs].reduce((sum, s) => sum + (s.amount_huf ?? 0), 0)
   const churnRate = subs.length > 0 ? ((canceledSubs.length / subs.length) * 100).toFixed(1) : '0.0'
   const conversionRate = (activeSubs.length + trialingSubs.length) > 0
     ? ((activeSubs.length / (activeSubs.length + trialingSubs.length)) * 100).toFixed(0)
     : '0'
 
-  const revenueOfPlan = (plan: string) => ({
-    count: activeSubs.filter(s => s.plan === plan).length,
-    revenue: activeSubs.filter(s => s.plan === plan).reduce((s, sub) => s + subAmountHuf(sub), 0),
-  })
+  // Üzlet-típus szerinti bevétel-bontás: a fiókok count-mezőiből (salon_count/restaurant_count)
+  // × a globális egységár — így látszik, mennyi bevétel jön szalonból ill. étteremből.
+  const salonUnits = activeSubs.reduce((n, s) => n + (s.salon_count ?? 0), 0)
+  const restaurantUnits = activeSubs.reduce((n, s) => n + (s.restaurant_count ?? 0), 0)
   const byPlan = {
-    pro: revenueOfPlan('pro'),
-    restaurant_pro: revenueOfPlan('restaurant_pro'),
+    pro: { count: salonUnits, revenue: salonUnits * pricing.salon_pro_huf },
+    restaurant_pro: { count: restaurantUnits, revenue: restaurantUnits * pricing.restaurant_pro_huf },
   }
 
   // Revenue by month (based on createdAt of active subs as approximation)

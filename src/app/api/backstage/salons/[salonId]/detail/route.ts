@@ -15,15 +15,20 @@ export async function GET(
   const monthStart = new Date()
   monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
 
-  const [salon, sub, totalBookings, monthBookings, recentBookings] = await Promise.all([
+  const [salon, totalBookings, monthBookings, recentBookings] = await Promise.all([
     payload.findByID({ collection: 'salons', id: salonId, depth: 2, overrideAccess: true }).catch(() => null),
-    payload.find({ collection: 'subscriptions', where: { salon: { equals: salonId } }, limit: 1, depth: 0, overrideAccess: true }),
     payload.find({ collection: 'bookings', where: { salon: { equals: salonId } }, limit: 0, overrideAccess: true }),
     payload.find({ collection: 'bookings', where: { salon: { equals: salonId }, createdAt: { greater_than: monthStart.toISOString() } }, limit: 0, overrideAccess: true }),
     payload.find({ collection: 'bookings', where: { salon: { equals: salonId } }, sort: '-createdAt', limit: 6, depth: 1, overrideAccess: true }),
   ])
 
   if (!salon) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Fiók-szintű előfizetés: a hely tulajdonosának (owner) közös előfizetése.
+  const ownerId = salon.owner && typeof salon.owner === 'object' ? salon.owner.id : salon.owner
+  const sub = ownerId
+    ? await payload.find({ collection: 'subscriptions', where: { owner: { equals: ownerId } }, limit: 1, depth: 0, overrideAccess: true })
+    : { docs: [] }
 
   return NextResponse.json({
     salon,

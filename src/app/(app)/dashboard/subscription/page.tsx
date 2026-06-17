@@ -1,8 +1,7 @@
 import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
-import { getPricing } from '@/lib/pricing'
+import { findAccountSubscription } from '@/lib/accountSubscription'
 import { getAccountBilling } from '@/lib/accountBilling'
-import type { Subscription } from '@/payload/payload-types'
 import Link from 'next/link'
 import { CreditCard, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
 import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
@@ -53,22 +52,20 @@ export default async function SubscriptionPage() {
   const payload = await getPayloadClient()
   if (!salon) return null
 
-  const [subResult, pricing, billing] = await Promise.all([
-    payload.find({ collection: 'subscriptions', where: { salon: { equals: salon.id } }, limit: 1, overrideAccess: true }),
-    getPricing(),
+  const [sub, billing] = await Promise.all([
+    findAccountSubscription({ payload }, userId),
     getAccountBilling(userId),
   ])
-  const sub = (subResult.docs[0] as Subscription) ?? null
   const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
 
   const isTrial = sub?.status === 'trialing'
-  const isActivePro = sub?.status === 'active' && sub?.plan === 'pro'
+  const isActivePro = sub?.status === 'active' && sub?.plan === 'paid'
   const cancelScheduled = sub?.cancel_at_period_end === true
-  const planLabel = sub?.plan === 'pro' ? 'Pro' : 'Próbaidőszak'
-  // Aktív Pro-nál a TÉNYLEGES (befagyott) díj, egyébként a jelenlegi globális ár ajánlatként.
-  const proPriceHuf = sub?.plan === 'pro' ? (sub?.amount_huf ?? pricing.salon_pro_huf) : pricing.salon_pro_huf
-  const priceLabel = sub?.plan === 'pro' ? `${proPriceHuf.toLocaleString('hu-HU')} Ft` : 'Ingyenes'
-  const periodEnd = isTrial ? sub.trial_ends_at : sub?.current_period_end
+  const planLabel = sub?.plan === 'paid' ? 'Előfizetés' : 'Próbaidőszak'
+  // Fiók-szintű: a teljes fiók havidíja (az üzletek összetételéből számolva).
+  const feeHuf = sub?.amount_huf ?? billing.totalMonthlyHuf
+  const priceLabel = feeHuf > 0 ? `${feeHuf.toLocaleString('hu-HU')} Ft` : 'Ingyenes'
+  const periodEnd = isTrial ? sub?.trial_ends_at : sub?.current_period_end
 
   return (
     <div className="p-5 lg:p-8 space-y-6">
@@ -112,7 +109,7 @@ export default async function SubscriptionPage() {
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
         <Kpi sub="Csomag" value={planLabel} label={STATUS_LABELS[sub?.status ?? ''] ?? '—'} />
-        <Kpi sub="Havi díj" value={priceLabel} label={sub?.plan === 'pro' ? 'forintban' : 'a próba alatt'} />
+        <Kpi sub="Havi díj" value={priceLabel} label={sub?.plan === 'paid' ? 'forintban' : 'a próba alatt'} />
         {isTrial && days !== null
           ? <Kpi sub="Hátralévő idő" value={days === 0 ? 'Ma' : `${days} nap`} label="a próbából" />
           : <Kpi sub={cancelScheduled ? 'Hozzáférés vége' : 'Következő számlázás'} value={formatDate(periodEnd)} label={cancelScheduled ? 'utána letiltva' : 'automatikus'} />

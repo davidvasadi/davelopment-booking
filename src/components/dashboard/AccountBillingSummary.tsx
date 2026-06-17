@@ -1,11 +1,10 @@
-import { STATUS_LABELS, STATUS_COLORS } from '@/lib/backstagePlaces'
 import type { AccountBilling } from '@/lib/accountBilling'
 import { cn } from '@/lib/utils'
 
 /**
- * Fiók-szintű előfizetés-összegző (több-üzlet / multi-tenant). A /subscription oldalakon
- * jelenik meg, HA a fióknak több üzlete van: a fiók összes üzlete + státusz + havidíj,
- * alul a végösszeg. Az aktív üzletet kiemeli. Csak megjelenítés (server-renderelhető).
+ * Fiók-szintű előfizetés-összegző. A /subscription oldalakon jelenik meg, HA a fióknak több
+ * üzlete van: a fiók összes üzlete + a típus szerinti egységár, alul az összevont havidíj.
+ * Egy fiók = egy előfizetés (egy számla); ez a blokk az üzlet-bontást mutatja.
  */
 export function AccountBillingSummary({
   billing,
@@ -18,20 +17,20 @@ export function AccountBillingSummary({
   // Egyetlen üzletnél nincs mit összegezni.
   if (billing.count <= 1) return null
 
+  const onTrial = billing.accountStatus === 'trialing'
+
   return (
     <div className="rounded-2xl border border-zinc-100 dark:border-white/[0.06] overflow-hidden">
       <div className="px-5 py-4 border-b border-zinc-100 dark:border-white/[0.06]">
         <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest">A fiókod üzletei</p>
         <p className="text-sm text-zinc-500 dark:text-white/40 mt-0.5">
-          Minden üzlet külön előfizetés — a havidíjak összeadódnak.
+          Egy összevont előfizetés — az üzletek díjai egy számlában adódnak össze.
         </p>
       </div>
 
       <ul className="divide-y divide-zinc-100 dark:divide-white/[0.06]">
         {billing.items.map((it) => {
           const isActive = `${it.type}:${it.id}` === activeKey
-          const statusLabel = it.status ? (STATUS_LABELS[it.status] ?? it.status) : '—'
-          const statusColor = it.status ? (STATUS_COLORS[it.status] ?? '') : 'bg-zinc-100 text-zinc-500'
           return (
             <li key={`${it.type}:${it.id}`} className="px-5 py-3.5 flex items-center gap-3">
               <div className="min-w-0 flex-1">
@@ -47,11 +46,8 @@ export function AccountBillingSummary({
                   {it.type === 'restaurant' ? 'Étterem' : 'Szalon'}
                 </span>
               </div>
-              <span className={cn('shrink-0 text-[11px] font-semibold rounded-full px-2 py-0.5', statusColor)}>
-                {statusLabel}
-              </span>
               <span className="shrink-0 w-24 text-right text-sm font-semibold tabular-nums text-zinc-900 dark:text-white">
-                {it.feeHuf > 0 ? `${it.feeHuf.toLocaleString('hu-HU')} Ft` : '—'}
+                {it.feeHuf.toLocaleString('hu-HU')} Ft
               </span>
             </li>
           )
@@ -60,12 +56,18 @@ export function AccountBillingSummary({
 
       <div className="px-5 py-4 border-t border-zinc-100 dark:border-white/[0.06] flex items-center justify-between bg-zinc-50/60 dark:bg-white/[0.02]">
         <span className="text-sm font-semibold text-zinc-600 dark:text-white/60">
-          Összesen <span className="text-zinc-400 dark:text-white/30">({billing.count} üzlet)</span>
+          {onTrial ? 'Várható havidíj' : 'Összesen'} <span className="text-zinc-400 dark:text-white/30">({billing.count} üzlet)</span>
         </span>
         <span className="text-base font-black tabular-nums text-zinc-900 dark:text-white">
           {billing.totalMonthlyHuf.toLocaleString('hu-HU')} Ft<span className="text-xs font-medium text-zinc-400 dark:text-white/30">/hó</span>
         </span>
       </div>
+
+      {onTrial && (
+        <div className="px-5 py-2.5 border-t border-zinc-100 dark:border-white/[0.06] text-xs text-zinc-400 dark:text-white/30">
+          Próbaidőszak alatt még nincs levonás — a fenti összeg a próba után lép életbe.
+        </div>
+      )}
     </div>
   )
 }

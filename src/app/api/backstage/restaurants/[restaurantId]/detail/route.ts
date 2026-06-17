@@ -17,15 +17,20 @@ export async function GET(
   const monthStart = new Date()
   monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0)
 
-  const [restaurant, sub, totalBookings, monthBookings, recentBookings] = await Promise.all([
+  const [restaurant, totalBookings, monthBookings, recentBookings] = await Promise.all([
     payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 2, overrideAccess: true }).catch(() => null),
-    payload.find({ collection: 'subscriptions', where: { restaurant: { equals: restaurantId } }, limit: 1, depth: 0, overrideAccess: true }),
     payload.find({ collection: 'reservations', where: { restaurant: { equals: restaurantId } }, limit: 0, overrideAccess: true }),
     payload.find({ collection: 'reservations', where: { restaurant: { equals: restaurantId }, createdAt: { greater_than: monthStart.toISOString() } }, limit: 0, overrideAccess: true }),
     payload.find({ collection: 'reservations', where: { restaurant: { equals: restaurantId } }, sort: '-createdAt', limit: 6, depth: 1, overrideAccess: true }),
   ])
 
   if (!restaurant) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Fiók-szintű előfizetés: a hely tulajdonosának (owner) közös előfizetése.
+  const ownerId = restaurant.owner && typeof restaurant.owner === 'object' ? restaurant.owner.id : restaurant.owner
+  const sub = ownerId
+    ? await payload.find({ collection: 'subscriptions', where: { owner: { equals: ownerId } }, limit: 1, depth: 0, overrideAccess: true })
+    : { docs: [] }
 
   return NextResponse.json({
     salon: restaurant, // a sheet egységes `salon` kulccsal olvas (a hely-objektum mezői közösek)
