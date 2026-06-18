@@ -9,10 +9,14 @@ import { rateLimit, clientIp } from '@/lib/rateLimit'
 type Rule = { test: (p: string) => boolean; limit: number; windowMs: number; bucket: string }
 
 const RULES: Rule[] = [
-  // Foglalás-írás (szalon + étterem): szigorú.
+  // Foglalás-írás (szalon + étterem) + a dashboard foglalás-kezelő route-ok: szigorú.
   {
-    test: (p) => p.startsWith('/api/bookings') || p.startsWith('/api/restaurant/reservations'),
-    limit: 10,
+    test: (p) =>
+      p.startsWith('/api/bookings') ||
+      p.startsWith('/api/restaurant/reservations') ||
+      p.startsWith('/api/restaurant/manage-reservation') ||
+      p.startsWith('/api/restaurant/move-options'),
+    limit: 30,
     windowMs: 60_000,
     bucket: 'write',
   },

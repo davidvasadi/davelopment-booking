@@ -35,10 +35,10 @@ export const Users: CollectionConfig = {
   },
   auth: {
     useSessions: false,
-    // A bejelentkezés 30 napig él (Payload default 2 óra lenne) — egész napos
-    // pultos használatnál a felhasználó nem esik ki műszak közben; havonta
-    // egyszer lép be újra.
-    tokenExpiration: 60 * 60 * 24 * 30,
+    // A bejelentkezés 7 napig él (Payload default 2 óra lenne) — egész napos pultos
+    // használatnál a felhasználó nem esik ki műszak közben, de a token-kitettség ablaka
+    // ésszerű. Egységes a saját kiállítású tokennel (auth.ts TOKEN_TTL_SECONDS = 7 nap).
+    tokenExpiration: 60 * 60 * 24 * 7,
     // Brute-force védelem: 5 hibás jelszó után a fiók 10 percre zárol. A valódi
     // biztonságot ez adja (a támadót célozza), nem a rövid session.
     maxLoginAttempts: 5,
