@@ -16,6 +16,7 @@ const schema = z.object({
   customer_phone: z.string().optional(),
   country: z.string().optional(),
   notes: z.string().optional(),
+  locale: z.enum(['hu', 'en', 'de', 'es', 'it', 'fr']).default('hu'),
 })
 
 export async function POST(request: NextRequest) {
@@ -30,15 +31,18 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, country, notes } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, country, notes, locale } = parsed.data
 
   try {
     const payload = await getPayloadClient()
 
+    // A foglalás nyelvén töltjük (localized tulaj-szöveg a visszaigazoló emailhez); üresnél HU fallback.
     const restaurant = (await payload.findByID({
       collection: 'restaurants',
       id: restaurantId,
       overrideAccess: true,
+      locale,
+      fallbackLocale: 'hu',
     })) as Restaurant | null
     if (!restaurant) return NextResponse.json({ error: 'Étterem nem található' }, { status: 404 })
 
@@ -68,6 +72,7 @@ export async function POST(request: NextRequest) {
         ...(country ? { country } : {}),
         ...(notes ? { notes } : {}),
         status: 'confirmed',
+        locale,
         cancel_token: cancelToken,
       },
       overrideAccess: true,

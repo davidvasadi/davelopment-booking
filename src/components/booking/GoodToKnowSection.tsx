@@ -1,21 +1,22 @@
 import type { LucideIcon } from 'lucide-react'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
+import { t, type Locale } from '@/lib/i18n'
 
 type Item = { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }
 
 /**
- * Publikus „Jó tudni" szekció — a szalon ÉS az étterem foglaló-oldal is ezt használja
- * (egységes megjelenés, egy helyen karbantartva). Csak a host által megadott pontok;
- * ha nincs kitöltött pont, semmit nem renderel.
+ * Publikus „Jó tudni" szekció — a szalon ÉS az étterem foglaló-oldal is ezt használja.
+ * Csak a host által megadott pontok; üresnél semmit nem renderel. A pontok címe/szövege a
+ * Payload-localized mezőkből már a megfelelő nyelven érkezik — itt csak a fix keret i18n.
  */
-export function GoodToKnowSection({ items }: { items?: Item[] | null }) {
+export function GoodToKnowSection({ items, locale = 'hu' }: { items?: Item[] | null; locale?: Locale }) {
   const filled = (items ?? []).filter((p) => p?.title || p?.body)
   if (filled.length === 0) return null
 
   return (
     <section>
-      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Mielőtt jössz</p>
-      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Jó tudni</h2>
+      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">{t(locale, 'goodToKnow.eyebrow')}</p>
+      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">{t(locale, 'goodToKnow.title')}</h2>
       <div className="grid grid-cols-2 gap-3">
         {filled.map((p, i) => (
           <GoodToKnowCard key={p?.id ?? i} icon={iconByKey(p?.icon)} title={p?.title ?? ''} body={p?.body ?? ''} />

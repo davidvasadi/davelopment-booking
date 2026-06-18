@@ -112,6 +112,7 @@ export const Salons: CollectionConfig = {
               name: 'description',
               type: 'richText',
               label: 'Szalon leírása',
+              localized: true,
             },
             {
               name: 'logo',
@@ -186,14 +187,16 @@ export const Salons: CollectionConfig = {
             {
               name: 'booking_email_subject',
               type: 'text',
+              localized: true,
               label: 'Visszaigazoló email tárgya',
-              admin: { description: 'Opcionális. Üresen hagyva az alapértelmezett tárgy. Változók: {{name}}, {{date}}, {{time}}, {{service}}.' },
+              admin: { description: 'Opcionális, nyelvenként (admin nyelvváltó). Üresen → alap tárgy. Változók: {{name}}, {{date}}, {{time}}, {{service}}.' },
             },
             {
               name: 'booking_email_intro',
               type: 'textarea',
+              localized: true,
               label: 'Visszaigazoló email bevezető szövege',
-              admin: { description: 'Sima szöveg (nem HTML). A visszaigazoló email tetejére kerül. Változók: {{name}}, {{date}}, {{time}}, {{service}}.' },
+              admin: { description: 'Sima szöveg, nyelvenként. A visszaigazoló email tetejére kerül. Változók: {{name}}, {{date}}, {{time}}, {{service}}.' },
             },
             {
               name: 'email_show_phone',
@@ -243,8 +246,8 @@ export const Salons: CollectionConfig = {
               label: 'Foglalási feltételek',
               admin: { description: 'Szakaszonként (cím + szöveg). Megjelenik a foglaló oldalon és a visszaigazoló emailben.' },
               fields: [
-                { name: 'title', type: 'text', label: 'Szakasz címe' },
-                { name: 'body', type: 'textarea', label: 'Szakasz szövege' },
+                { name: 'title', type: 'text', localized: true, label: 'Szakasz címe' },
+                { name: 'body', type: 'textarea', localized: true, label: 'Szakasz szövege' },
               ],
             },
             {
@@ -254,8 +257,26 @@ export const Salons: CollectionConfig = {
               admin: { description: 'Saját „Jó tudni" pontok (ikon + cím + szöveg) a foglaló oldalon.' },
               fields: [
                 { name: 'icon', type: 'text', label: 'Ikon kulcs', defaultValue: 'info' },
-                { name: 'title', type: 'text', label: 'Pont címe' },
-                { name: 'body', type: 'textarea', label: 'Pont szövege' },
+                { name: 'title', type: 'text', localized: true, label: 'Pont címe' },
+                { name: 'body', type: 'textarea', localized: true, label: 'Pont szövege' },
+              ],
+            },
+            {
+              name: 'supported_locales',
+              type: 'select',
+              hasMany: true,
+              label: 'Foglaló nyelvei',
+              defaultValue: ['hu'],
+              admin: {
+                description: 'Mely nyelveken kínálja a foglaló oldal a nyelvválasztót. A magyar mindig elérhető. Több is kiválasztható; a hozzáadott nyelvek tartalmát az admin nyelvváltóval kell kitölteni.',
+              },
+              options: [
+                { label: 'Magyar', value: 'hu' },
+                { label: 'English', value: 'en' },
+                { label: 'Deutsch', value: 'de' },
+                { label: 'Español', value: 'es' },
+                { label: 'Italiano', value: 'it' },
+                { label: 'Français', value: 'fr' },
               ],
             },
             {

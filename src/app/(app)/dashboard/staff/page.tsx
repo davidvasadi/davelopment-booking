@@ -17,7 +17,7 @@ export default async function StaffPage() {
 
   return (
     <div className="p-5 lg:p-8">
-      <StaffManager salonId={salon.id} initialStaff={staffResult.docs as StaffMember[]} />
+      <StaffManager salonId={salon.id} initialStaff={staffResult.docs as StaffMember[]} supportedLocales={salon.supported_locales ?? null} />
     </div>
   )
 }

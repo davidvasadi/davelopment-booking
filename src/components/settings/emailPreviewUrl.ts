@@ -11,9 +11,11 @@ export function emailPreviewUrl(
     email_contact_phone?: string | null
     email_directions_address?: string | null
   },
+  locale: string = 'hu',
 ): string {
   const q = new URLSearchParams({
     type,
+    locale,
     intro: v.booking_email_intro ?? '',
     phone: v.email_show_phone ? '1' : '0',
     cmail: v.email_show_email ? '1' : '0',

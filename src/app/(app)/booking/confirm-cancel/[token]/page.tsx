@@ -1,6 +1,8 @@
 import Link from 'next/link'
 import { getPayloadClient } from '@/lib/payload'
 import type { Salon, Service, StaffMember } from '@/payload/payload-types'
+import { getLocale } from '@/lib/i18n/server'
+import { t } from '@/lib/i18n'
 
 export default async function ConfirmCancelPage({
   params,
@@ -8,6 +10,7 @@ export default async function ConfirmCancelPage({
   params: Promise<{ token: string }>
 }) {
   const { token } = await params
+  const locale = await getLocale()
   const payload = await getPayloadClient()
 
   const result = await payload.find({
@@ -27,10 +30,10 @@ export default async function ConfirmCancelPage({
           <div className="mx-auto h-14 w-14 rounded-full bg-red-500/10 flex items-center justify-center">
             <span className="text-2xl text-red-400">✕</span>
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">Érvénytelen link</h1>
-          <p className="text-zinc-500 text-sm">Ez a lemondási link nem érvényes vagy már lejárt.</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">{t(locale, 'public.cancel.invalidTitle')}</h1>
+          <p className="text-zinc-500 text-sm">{t(locale, 'public.cancel.invalidBody')}</p>
           <Link href="/" className="block w-full h-12 rounded-full bg-white text-zinc-950 font-semibold text-sm flex items-center justify-center">
-            Vissza a főoldalra
+            {t(locale, 'public.cancel.backHome')}
           </Link>
         </div>
       </div>
@@ -44,10 +47,10 @@ export default async function ConfirmCancelPage({
           <div className="mx-auto h-14 w-14 rounded-full bg-zinc-800 flex items-center justify-center">
             <span className="text-2xl text-zinc-400">✓</span>
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">Már lemondva</h1>
-          <p className="text-zinc-500 text-sm">Ez a foglalás korábban már lemondásra került.</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">{t(locale, 'public.cancel.already')}</h1>
+          <p className="text-zinc-500 text-sm">{t(locale, 'public.cancel.alreadyBody')}</p>
           <Link href="/" className="block w-full h-12 rounded-full bg-white text-zinc-950 font-semibold text-sm flex items-center justify-center">
-            Vissza a főoldalra
+            {t(locale, 'public.cancel.backHome')}
           </Link>
         </div>
       </div>
@@ -61,10 +64,10 @@ export default async function ConfirmCancelPage({
           <div className="mx-auto h-14 w-14 rounded-full bg-zinc-800 flex items-center justify-center">
             <span className="text-2xl text-zinc-400">✕</span>
           </div>
-          <h1 className="text-2xl font-black text-white tracking-tight">Nem mondható le</h1>
-          <p className="text-zinc-500 text-sm">Egy már lezajlott foglalást nem lehet lemondani.</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">{t(locale, 'public.cancel.cannot')}</h1>
+          <p className="text-zinc-500 text-sm">{t(locale, 'public.cancel.cannotBody')}</p>
           <Link href="/" className="block w-full h-12 rounded-full bg-white text-zinc-950 font-semibold text-sm flex items-center justify-center">
-            Vissza a főoldalra
+            {t(locale, 'public.cancel.backHome')}
           </Link>
         </div>
       </div>
@@ -81,31 +84,31 @@ export default async function ConfirmCancelPage({
       <div className="w-full max-w-sm space-y-6">
 
         <div className="text-center space-y-2">
-          <h1 className="text-2xl font-black text-white tracking-tight">Foglalás lemondása</h1>
-          <p className="text-zinc-500 text-sm">Biztosan le szeretnéd mondani az alábbi foglalást?</p>
+          <h1 className="text-2xl font-black text-white tracking-tight">{t(locale, 'public.cancel.title')}</h1>
+          <p className="text-zinc-500 text-sm">{t(locale, 'public.cancel.confirmDetail')}</p>
         </div>
 
         <div className="bg-white/[0.05] border border-white/[0.08] rounded-2xl p-5 space-y-2.5">
           {salon && (
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Szalon</span>
+              <span className="text-zinc-500">{t(locale, 'public.cancel.salon')}</span>
               <span className="text-white font-medium">{salon.name}</span>
             </div>
           )}
           {service && (
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Szolgáltatás</span>
+              <span className="text-zinc-500">{t(locale, 'email.label.service')}</span>
               <span className="text-white font-medium">{service.name}</span>
             </div>
           )}
           {staff && (
             <div className="flex justify-between text-sm">
-              <span className="text-zinc-500">Munkatárs</span>
+              <span className="text-zinc-500">{t(locale, 'email.label.staff')}</span>
               <span className="text-white font-medium">{staff.name}</span>
             </div>
           )}
           <div className="flex justify-between text-sm">
-            <span className="text-zinc-500">Időpont</span>
+            <span className="text-zinc-500">{t(locale, 'public.cancel.when')}</span>
             <span className="text-white font-medium">{booking.date} {booking.start_time}</span>
           </div>
         </div>
@@ -115,13 +118,13 @@ export default async function ConfirmCancelPage({
             href={`/api/cancel/${token}`}
             className="block w-full h-12 rounded-full bg-red-500 hover:bg-red-600 text-white font-semibold text-sm flex items-center justify-center transition-colors"
           >
-            Igen, mondom le
+            {t(locale, 'public.cancel.yes')}
           </Link>
           <Link
             href={salonSlug ? `/${salonSlug}` : '/'}
             className="block w-full h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm flex items-center justify-center transition-colors"
           >
-            Mégsem
+            {t(locale, 'public.cancel.no')}
           </Link>
         </div>
 

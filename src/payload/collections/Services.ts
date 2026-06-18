@@ -41,29 +41,32 @@ export const Services: CollectionConfig = {
       name: 'name',
       type: 'text',
       required: true,
+      localized: true,
       label: 'Szolgáltatás neve',
     },
     {
       name: 'description',
       type: 'textarea',
+      localized: true,
       label: 'Leírás',
     },
     {
+      // A kategória mostantól relationship a service-categories rekordra (a kategória neve
+      // lokalizálható, ezért nem lehet szabad-szöveges kulcs). A foglaló a kategória ID-ja
+      // szerint csoportosít, a megjelenített nevet a (localizáltan betöltött) kategória adja.
       name: 'category',
-      type: 'text',
+      type: 'relationship',
+      relationTo: 'service-categories',
+      hasMany: false,
       required: true,
       label: 'Fő kategória',
-      admin: {
-        placeholder: 'Pl. Fodrászat, Körmös, Fogászat',
-      },
     },
     {
       name: 'subcategory',
-      type: 'text',
+      type: 'relationship',
+      relationTo: 'service-categories',
+      hasMany: false,
       label: 'Alkategória',
-      admin: {
-        placeholder: 'Pl. Hajvágás, Balayage, Porcelán köröm',
-      },
     },
     {
       name: 'image',

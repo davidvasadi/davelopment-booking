@@ -5,17 +5,20 @@ import Link from 'next/link'
 import { ChevronRight, User } from 'lucide-react'
 import { EASE, DUR, STAGGER } from '@/lib/motion'
 import type { StaffMember, Media } from '@/payload/payload-types'
+import { makeT, type Locale } from '@/lib/i18n'
 
 interface Props {
   staff: StaffMember[]
   slug: string
+  locale?: Locale
 }
 
 function avatarUrlOf(m: StaffMember): string | null {
   return m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
 }
 
-export default function PublicStaffSection({ staff, slug }: Props) {
+export default function PublicStaffSection({ staff, slug, locale = 'hu' }: Props) {
+  const tt = makeT(locale)
   return (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
@@ -23,8 +26,8 @@ export default function PublicStaffSection({ staff, slug }: Props) {
       viewport={{ once: true, margin: '-60px' }}
       transition={{ duration: DUR.base, ease: EASE }}
     >
-      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Csapatunk</p>
-      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Munkatársak</h2>
+      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">{tt('public.staffEyebrow')}</p>
+      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">{tt('public.staff')}</h2>
 
       <motion.div
         className="grid grid-cols-2 sm:grid-cols-3 gap-3"

@@ -3,28 +3,30 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { format, addDays, isToday, isTomorrow } from 'date-fns'
-import { hu } from 'date-fns/locale'
 import { CalendarClock, ChevronRight } from 'lucide-react'
+import { t, dfLocale, type Locale } from '@/lib/i18n'
 
 interface Slot { start: string; end: string }
 
 const MAX_DAYS_AHEAD = 14
 const SLOTS_SHOWN = 5
 
-function dayLabel(d: Date): string {
-  if (isToday(d)) return 'Ma'
-  if (isTomorrow(d)) return 'Holnap'
-  return format(d, 'EEEE', { locale: hu })
+function dayLabel(d: Date, locale: Locale): string {
+  if (isToday(d)) return t(locale, 'nextSlots.today')
+  if (isTomorrow(d)) return t(locale, 'nextSlots.tomorrow')
+  return format(d, 'EEEE', { locale: dfLocale(locale) })
 }
 
 export default function NextAvailableSlots({
   restaurantId,
   slug,
   pax = 2,
+  locale = 'hu',
 }: {
   restaurantId: string | number
   slug: string
   pax?: number
+  locale?: Locale
 }) {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
@@ -99,7 +101,7 @@ export default function NextAvailableSlots({
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
           <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
-            Legközelebbi szabad · {dayLabel(date)}
+            {t(locale, 'nextSlots.heading')} · {dayLabel(date, locale)}
           </p>
         </div>
       </div>
@@ -120,7 +122,7 @@ export default function NextAvailableSlots({
             onClick={() => goToBook(date)}
             className="h-10 px-4 rounded-full bg-zinc-900/5 text-zinc-700 text-sm font-semibold hover:bg-zinc-900/10 transition-colors inline-flex items-center gap-1"
           >
-            +{more} időpont <ChevronRight className="h-3.5 w-3.5" />
+            {t(locale, 'nextSlots.moreSlots', { n: more })} <ChevronRight className="h-3.5 w-3.5" />
           </button>
         )}
       </div>

@@ -43,6 +43,7 @@ export const Staff: CollectionConfig = {
     {
       name: 'bio',
       type: 'textarea',
+      localized: true,
       label: 'Bemutatkozás',
     },
     {

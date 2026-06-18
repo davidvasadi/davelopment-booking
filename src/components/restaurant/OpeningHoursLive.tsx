@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Clock, ChevronRight, X } from 'lucide-react'
-import { DAYS_OF_WEEK, DAY_LABELS_HU, type DayOfWeek } from '@/lib/restaurantTemplates'
+import { DAYS_OF_WEEK, dayLabels, type DayOfWeek } from '@/lib/restaurantTemplates'
+import { t, type Locale } from '@/lib/i18n'
 
 interface DayHour {
   day_of_week: DayOfWeek
@@ -21,7 +22,8 @@ function toMinutes(t?: string | null): number | null {
   return h * 60 + (m || 0)
 }
 
-export default function OpeningHoursLive({ hours }: { hours: DayHour[] }) {
+export default function OpeningHoursLive({ hours, locale = 'hu' }: { hours: DayHour[]; locale?: Locale }) {
+  const dayLbl = dayLabels(locale)
   const [open, setOpen] = useState(false)
   // null amíg a kliens be nem tölt — így nincs SSR/CSR eltérés a státusznál
   const [now, setNow] = useState<Date | null>(null)
@@ -61,17 +63,17 @@ export default function OpeningHoursLive({ hours }: { hours: DayHour[] }) {
 
   const todayKey = now ? JS_DAY_TO_KEY[now.getDay()] : null
 
-  let label = 'Nyitvatartás'
+  let label = t(locale, 'openingHours.title')
   let dotClass = 'bg-zinc-300'
   if (status) {
     if (status.open) {
-      label = `Nyitva · zár ${status.today?.close_time}-kor`
+      label = t(locale, 'openingHours.closeAt', { time: status.today?.close_time ?? '' })
       dotClass = 'bg-emerald-400'
     } else if (status.openSoon && status.today?.open_time) {
-      label = `Zárva · nyit ${status.today.open_time}-kor`
+      label = t(locale, 'openingHours.openAt', { time: status.today.open_time })
       dotClass = 'bg-amber-400'
     } else {
-      label = 'Most zárva'
+      label = t(locale, 'openingHours.nowClosed')
       dotClass = 'bg-rose-400'
     }
   }
@@ -90,7 +92,7 @@ export default function OpeningHoursLive({ hours }: { hours: DayHour[] }) {
           </span>
           <span className="min-w-0">
             <span className="block font-black text-zinc-900 text-sm leading-tight truncate">{label}</span>
-            <span className="block text-xs text-zinc-500 mt-0.5">Nyitvatartás megtekintése</span>
+            <span className="block text-xs text-zinc-500 mt-0.5">{t(locale, "openingHours.viewHours")}</span>
           </span>
         </span>
         <ChevronRight className="h-4 w-4 text-zinc-400 shrink-0" />
@@ -101,7 +103,7 @@ export default function OpeningHoursLive({ hours }: { hours: DayHour[] }) {
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
           role="dialog"
           aria-modal="true"
-          aria-label="Nyitvatartás"
+          aria-label={t(locale, "openingHours.title")}
         >
           <div
             className="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm"
@@ -110,14 +112,14 @@ export default function OpeningHoursLive({ hours }: { hours: DayHour[] }) {
           <div className="relative w-full sm:max-w-md mx-auto sm:mx-5 rounded-t-3xl sm:rounded-3xl bg-white/80 backdrop-blur-2xl ring-1 ring-white/60 shadow-2xl overflow-hidden animate-[slideup_.25s_ease-out]">
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <div>
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Mikor várunk</p>
-                <h3 className="text-xl font-black tracking-tight text-zinc-900">Nyitvatartás</h3>
+                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{t(locale, "openingHours.when")}</p>
+                <h3 className="text-xl font-black tracking-tight text-zinc-900">{t(locale, "openingHours.title")}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 className="h-9 w-9 rounded-full bg-zinc-900/5 hover:bg-zinc-900/10 flex items-center justify-center transition-colors"
-                aria-label="Bezárás"
+                aria-label={t(locale, "openingHours.close")}
               >
                 <X className="h-4 w-4 text-zinc-600" />
               </button>
@@ -133,11 +135,11 @@ export default function OpeningHoursLive({ hours }: { hours: DayHour[] }) {
                       className={`flex items-center justify-between px-4 py-3 text-sm ${isToday ? 'bg-zinc-950 text-white' : ''}`}
                     >
                       <span className="flex items-center gap-2">
-                        {isToday && <span className="text-[10px] font-bold uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full">Ma</span>}
-                        <span className={isToday ? 'font-semibold' : 'text-zinc-700'}>{DAY_LABELS_HU[d]}</span>
+                        {isToday && <span className="text-[10px] font-bold uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full">{t(locale, "openingHours.today")}</span>}
+                        <span className={isToday ? 'font-semibold' : 'text-zinc-700'}>{dayLbl[d]}</span>
                       </span>
                       <span className={h?.is_open ? (isToday ? 'font-semibold' : 'text-zinc-900 font-medium') : (isToday ? 'text-white/50' : 'text-zinc-400')}>
-                        {h?.is_open ? `${h.open_time} – ${h.close_time}` : 'Zárva'}
+                        {h?.is_open ? `${h.open_time} – ${h.close_time}` : t(locale, "openingHours.closed")}
                       </span>
                     </div>
                   )

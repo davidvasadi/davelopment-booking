@@ -8,11 +8,13 @@ import { formatPrice } from '@/lib/utils'
 import { EASE, DUR, expandHeight, staggerDelay } from '@/lib/motion'
 import { HoverArrow } from '@/components/ui/HoverArrow'
 import type { Service, ServiceCategory, Media } from '@/payload/payload-types'
+import { makeT, type Locale } from '@/lib/i18n'
 
 interface Props {
   services: Service[]
   serviceCategories: ServiceCategory[]
   slug: string
+  locale?: Locale
 }
 
 function categoryImageUrl(c: ServiceCategory): string | null {
@@ -27,15 +29,27 @@ function serviceImageUrl(s: Service): string | null {
   return null
 }
 
-export default function PublicServicesSection({ services, serviceCategories, slug }: Props) {
-  const categoryNames = Array.from(new Set(services.map(s => s.category || 'Egyéb')))
-  const catMetaMap = new Map(serviceCategories.map(c => [c.name.toLowerCase(), c]))
+// A kategória relationship kétféleképp jöhet (ID vagy a betöltött rekord). Egységes string ID.
+function relId(v: unknown): string | null {
+  if (v == null) return null
+  if (typeof v === 'object') return String((v as { id: string | number }).id)
+  return String(v)
+}
 
-  const sortedCategories = [...categoryNames].sort((a, b) => {
-    const oa = catMetaMap.get(a.toLowerCase())?.sort_order ?? 999
-    const ob = catMetaMap.get(b.toLowerCase())?.sort_order ?? 999
+export default function PublicServicesSection({ services, serviceCategories, slug, locale = 'hu' }: Props) {
+  const tt = makeT(locale)
+  // A kategóriák relationship-ID szerint csoportosulnak; a megjelenített nevet a betöltött
+  // kategória-rekord adja (a foglaló oldal locale-jával töltve), fallback a service-en lévő objektum.
+  const catMetaMap = new Map(serviceCategories.map(c => [String(c.id), c]))
+  const catNameById = (id: string): string => catMetaMap.get(id)?.name ?? 'Egyéb'
+
+  const categoryIds = Array.from(new Set(services.map(s => relId(s.category) ?? '__none__')))
+
+  const sortedCategories = [...categoryIds].sort((a, b) => {
+    const oa = catMetaMap.get(a)?.sort_order ?? 999
+    const ob = catMetaMap.get(b)?.sort_order ?? 999
     if (oa !== ob) return oa - ob
-    return a.localeCompare(b, 'hu')
+    return catNameById(a).localeCompare(catNameById(b), 'hu')
   })
 
   // Egyetlen kategória → alapból nyitva; több kategória → mind csukva induljon.
@@ -59,14 +73,15 @@ export default function PublicServicesSection({ services, serviceCategories, slu
       viewport={{ once: true, margin: '-60px' }}
       transition={{ duration: DUR.base, ease: EASE }}
     >
-      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">Kínálatunk</p>
-      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">Szolgáltatások</h2>
+      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">{tt('public.servicesEyebrow')}</p>
+      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">{tt('public.services')}</h2>
 
       <div className="space-y-3">
         {sortedCategories.map(cat => {
-          const meta = catMetaMap.get(cat.toLowerCase())
+          const meta = catMetaMap.get(cat)
           const imgUrl = meta ? categoryImageUrl(meta) : null
-          const catServices = services.filter(s => (s.category || 'Egyéb') === cat)
+          const catLabel = catNameById(cat)
+          const catServices = services.filter(s => (relId(s.category) ?? '__none__') === cat)
           const isOpen = open.has(cat)
 
           return (
@@ -82,12 +97,12 @@ export default function PublicServicesSection({ services, serviceCategories, slu
               >
                 {imgUrl && (
                   <div className="h-12 w-12 rounded-xl overflow-hidden shrink-0">
-                    <img src={imgUrl} alt={cat} className="h-full w-full object-cover" />
+                    <img src={imgUrl} alt={catLabel} className="h-full w-full object-cover" />
                   </div>
                 )}
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-zinc-900 text-sm leading-tight">{cat}</p>
-                  <p className="text-xs text-zinc-400 mt-0.5">{catServices.length} szolgáltatás</p>
+                  <p className="font-bold text-zinc-900 text-sm leading-tight">{catLabel}</p>
+                  <p className="text-xs text-zinc-400 mt-0.5">{tt('public.serviceCount', { n: catServices.length })}</p>
                 </div>
                 <motion.span
                   animate={{ rotate: isOpen ? 180 : 0 }}
@@ -139,7 +154,7 @@ export default function PublicServicesSection({ services, serviceCategories, slu
                                 <p className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{s.description}</p>
                               )}
                               <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-1">
-                                <Clock className="h-3 w-3 shrink-0" />{s.duration_minutes} perc
+                                <Clock className="h-3 w-3 shrink-0" />{s.duration_minutes} {tt('booking.minutes')}
                               </p>
                               <p className="font-black text-sm text-zinc-900 mt-1">{formatPrice(s.price, s.currency)}</p>
                             </div>

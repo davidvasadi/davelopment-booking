@@ -28,6 +28,7 @@ export default async function RestaurantSettingsPage() {
         restaurantName={r.name}
         businessCount={businessCount}
         slug={r.slug}
+        supportedLocales={r.supported_locales}
         logo={r.logo}
         coverImage={r.cover_image}
         initial={{

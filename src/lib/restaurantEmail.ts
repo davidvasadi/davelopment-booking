@@ -12,6 +12,7 @@ import {
   renderSubject,
   COLORS,
 } from './emailLayout'
+import { t, normalizeLocale } from './i18n'
 
 let _resend: Resend | null = null
 function getResend(): Resend | null {
@@ -97,11 +98,12 @@ export async function sendReservationConfirmation(data: ReservationEmailData) {
   const cancelUrl = reservation.cancel_token
     ? `${APP_URL}/${restaurant.slug}/cancel/${reservation.cancel_token}`
     : null
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
   const vars = emailVars(data)
-  const subjectTpl = restaurant.booking_email_subject?.trim()
+  const subjectTpl = (restaurant.booking_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, vars)
-    : `Asztalfoglalás visszaigazolva — ${restaurant.name}`
+    : t(locale, 'email.confirm.subjectFallback', { place: restaurant.name })
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
@@ -136,11 +138,12 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend) return
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: reservation.customer_email,
-      subject: `Asztalfoglalás lemondva — ${restaurant.name}`,
+      subject: t(locale, 'email.cancel.subjectFallback', { place: restaurant.name }),
       html: cancellationHtml(data),
     })
   } catch (err) {
@@ -151,39 +154,42 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
 // ── HTML ───────────────────────────────────────────────────────────────────
 function detailRows(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
   const location = restaurant.address ? `${restaurant.address}${restaurant.city ? ', ' + restaurant.city : ''}` : null
   return [
-    infoRow('user', 'Név', reservation.customer_name),
-    infoRow('mail', 'Email', reservation.customer_email),
-    infoRow('calendar', 'Dátum', reservation.date),
-    infoRow('clock', 'Időpont', `${reservation.start_time} – ${reservation.end_time}`),
-    infoRow('people', 'Létszám', `${reservation.pax} fő`),
-    location ? infoRow('pin', 'Cím', location) : '',
+    infoRow('user', t(locale, 'email.label.name'), reservation.customer_name),
+    infoRow('mail', t(locale, 'email.label.email'), reservation.customer_email),
+    infoRow('calendar', t(locale, 'email.label.date'), reservation.date),
+    infoRow('clock', t(locale, 'email.label.time'), `${reservation.start_time} – ${reservation.end_time}`),
+    infoRow('people', t(locale, 'email.label.guests'), `${reservation.pax} fő`),
+    location ? infoRow('pin', t(locale, 'email.label.address'), location) : '',
   ].filter(Boolean).join('')
 }
 
 function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null): string {
   const { reservation, restaurant } = data
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'success',
-      title: 'Asztalfoglalás visszaigazolva',
-      subtitle: `Kedves ${reservation.customer_name}, foglalásodat rögzítettük.`,
+      title: t(locale, 'email.confirm.title'),
+      subtitle: t(locale, 'email.greeting', { name: reservation.customer_name }),
     })}
-    ${introBlock(restaurant.booking_email_intro, emailVars(data))}
+    ${introBlock(restaurant.booking_email_intro ?? '', emailVars(data))}
     ${detailsCard(detailRows(data))}
     ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 32px 0">
-      <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>Megjegyzés:</strong> ${reservation.notes}</p>
+      <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>${t(locale, 'email.label.notes')}:</strong> ${reservation.notes}</p>
     </td></tr>` : ''}
     ${footerInfoBlock({
       hasTerms: hasTerms(restaurant),
-      bookingUrl: `${APP_URL}/${restaurant.slug}/feltetelek`,
+      bookingUrl: `${APP_URL}/${restaurant.slug}/terms`,
       phone: restaurant.email_show_phone ? (restaurant.email_contact_phone?.trim() || restaurant.phone) : null,
       email: restaurant.email_show_email ? restaurant.email : null,
       address: restaurant.email_show_address ? contactAddress(restaurant) : null,
       directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
+      locale,
     })}
-    ${cancelBlock(cancelUrl)}
+    ${cancelBlock(cancelUrl, locale)}
     ${bottomSpacer()}
   `)
 }
@@ -213,11 +219,12 @@ function notificationHtml(data: ReservationEmailData): string {
 
 function cancellationHtml(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'cancel',
-      title: 'Foglalás lemondva',
-      subtitle: `Kedves ${reservation.customer_name}, a(z) ${restaurant.name} étteremhez tartozó foglalásodat lemondtuk.`,
+      title: t(locale, 'email.cancel.title'),
+      subtitle: t(locale, 'email.cancel.body'),
     })}
     ${detailsCard(detailRows(data))}
     ${bottomSpacer()}

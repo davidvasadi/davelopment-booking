@@ -1,6 +1,8 @@
 'use client'
 
 import { Plus, Trash2, ChevronUp, ChevronDown, Sparkles, Info } from 'lucide-react'
+import type { Locale } from '@/lib/i18n'
+import { termsTemplate } from './contentTemplates'
 
 export type TermsSection = { title: string; body: string }
 
@@ -51,9 +53,15 @@ const inputClass =
 export function TermsSectionsEditor({
   value,
   onChange,
+  locale = 'hu',
+  onLoadTemplate,
 }: {
   value: TermsSection[]
   onChange: (next: TermsSection[]) => void
+  /** A szerkesztési nyelv — a „Sablon betöltése" ezen a nyelven tölti be a vázat. */
+  locale?: Locale
+  /** A sablon-betöltő (a forma adja, hogy a megfelelő nyelvű sablont töltse az aktív locale-ra). */
+  onLoadTemplate?: () => void
 }) {
   const update = (i: number, patch: Partial<TermsSection>) =>
     onChange(value.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
@@ -83,7 +91,7 @@ export function TermsSectionsEditor({
           <p className="text-sm text-zinc-500 dark:text-white/40 mb-3">Még nincs feltétel hozzáadva.</p>
           <button
             type="button"
-            onClick={() => onChange(TERMS_TEMPLATE)}
+            onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(termsTemplate(locale)))}
             className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-sm font-semibold hover:opacity-90 transition-opacity"
           >
             <Sparkles className="h-4 w-4" />

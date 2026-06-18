@@ -13,10 +13,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Image as ImageIcon } from 'lucide-react'
+import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
+import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
   description: z.string().optional(),
+  // A kategória/alkategória mostantól service-categories ID (relationship). A „+ Új kategória"
+  // választáskor az onSubmit előbb létrehozza a kategória-rekordot, majd annak ID-ját menti.
   category: z.string().min(1, 'Kötelező'),
   subcategory: z.string().optional(),
   duration_minutes: z.number().min(5),
@@ -26,11 +30,23 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
+// A relationship-mező kétféleképp jöhet: ID (number|string) vagy a betöltött rekord (depth>0).
+// Egységesen string ID-t adunk vissza (a select value-khoz), vagy null-t.
+function relId(v: unknown): string | null {
+  if (v == null) return null
+  if (typeof v === 'object') return String((v as { id: string | number }).id)
+  return String(v)
+}
+
+// A „+ Új kategória" select-érték szentinel — ekkor szabadszöveges mezőt mutatunk.
+const NEW_CAT = '__new__'
+
 interface Props {
   salonId: string
   initialServices: Service[]
   staffList: StaffMember[]
   initialCategories: ServiceCategory[]
+  supportedLocales?: (Locale | string)[] | null
 }
 
 function serviceImageUrl(s: Service): string | null {
@@ -46,11 +62,17 @@ function categoryImageUrl(c: ServiceCategory | undefined): string | null {
   return null
 }
 
-export default function ServicesManager({ salonId, initialServices, initialCategories }: Props) {
+export default function ServicesManager({ salonId, initialServices, initialCategories, supportedLocales }: Props) {
   const [services, setServices] = useState(initialServices)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Nyelvkészlet a szalon supported_locales-éből (HU mindig benne). A name/description
+  // localizált mezők — szerkesztéskor nyelvenként vihetők be a `?locale=` paraméterrel.
+  const availableLocales = resolveAvailableLocales(supportedLocales)
+  const [editLocale, setEditLocale] = useState<Locale>('hu')
+  const [localeLoading, setLocaleLoading] = useState(false)
 
   const [imageId, setImageId] = useState<number | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
@@ -58,11 +80,18 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
   const [imageModified, setImageModified] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  // Category metadata editing
-  const [catMeta, setCatMeta] = useState<Map<string, ServiceCategory>>(
-    () => new Map(initialCategories.map(c => [c.name.toLowerCase(), c]))
-  )
+  // A kategóriák mostantól rekordok (service-categories). ID szerint tartjuk; a foglaló és a
+  // csoportosítás is ID-alapú, a megjelenített név a rekord name-je.
+  const [categories, setCategories] = useState<ServiceCategory[]>(initialCategories)
+  const catById = new Map(categories.map(c => [String(c.id), c]))
+
+  // Új-kategória szabadszöveges mező a service-űrlapon (csak ha „+ Új kategória" van választva).
+  const [newCatName, setNewCatName] = useState('')
+  const [newSubName, setNewSubName] = useState('')
+
+  // Category metadata editing — most ID alapján (a szerkesztett kategória rekordja).
   const [catSheetOpen, setCatSheetOpen] = useState(false)
+  const [editingCatId, setEditingCatId] = useState<string | null>(null)
   const [editingCatName, setEditingCatName] = useState('')
   const [catDurationLabel, setCatDurationLabel] = useState('')
   const [catImageId, setCatImageId] = useState<number | null>(null)
@@ -72,6 +101,11 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
   const [catSubmitting, setCatSubmitting] = useState(false)
   const catFileRef = useRef<HTMLInputElement>(null)
 
+  // Kategória-szerkesztés nyelve (name + duration_label localizált). HU az alap; más nyelvre
+  // váltva lekérdezzük az adott nyelvi tartalmat, mentéskor `?locale=`-lal PATCH-eljük.
+  const [catEditLocale, setCatEditLocale] = useState<Locale>('hu')
+  const [catLocaleLoading, setCatLocaleLoading] = useState(false)
+
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { currency: 'HUF', is_active: true, duration_minutes: 60, price: 0 },
@@ -79,7 +113,10 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
 
   const openAdd = () => {
     reset({ name: '', description: '', category: '', subcategory: '', duration_minutes: 60, price: 0, currency: 'HUF', is_active: true })
+    setNewCatName('')
+    setNewSubName('')
     setEditing(null)
+    setEditLocale('hu')
     setImageId(null)
     setImagePreview(null)
     setImageModified(false)
@@ -90,14 +127,17 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
     reset({
       name: s.name,
       description: s.description ?? '',
-      category: s.category ?? '',
-      subcategory: s.subcategory ?? '',
+      category: relId(s.category) ?? '',
+      subcategory: relId(s.subcategory) ?? '',
       duration_minutes: s.duration_minutes,
       price: s.price,
       currency: s.currency ?? 'HUF',
       is_active: s.is_active ?? true,
     })
+    setNewCatName('')
+    setNewSubName('')
     setEditing(s)
+    setEditLocale('hu')
     const url = serviceImageUrl(s)
     setImagePreview(url)
     const media = s.image && typeof s.image === 'object' ? (s.image as Media) : null
@@ -106,16 +146,92 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
     setOpen(true)
   }
 
-  const openCatEdit = (catName: string) => {
-    const existing = catMeta.get(catName.toLowerCase())
-    setEditingCatName(catName)
-    setCatDurationLabel(existing?.duration_label ?? '')
+  // Szerkesztési nyelv váltása a service-sheetben. HU-ra váltva az alap (editing) name/description
+  // tér vissza; más nyelvre váltva lekérdezzük az adott nyelvi tartalmat (üres → a mező üres marad,
+  // így látszik, mit kell még kitölteni; mentéskor üresen a HU fallback érvényesül a foglalón).
+  const selectEditLocale = async (loc: Locale) => {
+    if (loc === editLocale) return
+    if (loc === 'hu') {
+      setEditLocale('hu')
+      setValue('name', editing?.name ?? '')
+      setValue('description', editing?.description ?? '')
+      return
+    }
+    if (!editing) return
+    setLocaleLoading(true)
+    try {
+      const res = await fetch(`/api/services/${editing.id}?locale=${loc}&fallback-locale=null&depth=0`, {
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error()
+      const doc = await res.json()
+      setEditLocale(loc)
+      setValue('name', doc.name ?? '')
+      setValue('description', doc.description ?? '')
+    } catch {
+      toast.error('A nyelvi tartalom betöltése sikertelen')
+    } finally {
+      setLocaleLoading(false)
+    }
+  }
+
+  const openCatEdit = (catId: string) => {
+    const existing = catById.get(catId)
+    if (!existing) return
+    setEditingCatId(catId)
+    setCatEditLocale('hu')
+    setEditingCatName(existing.name)
+    setCatDurationLabel(existing.duration_label ?? '')
     const imgUrl = categoryImageUrl(existing)
     setCatImagePreview(imgUrl)
-    const media = existing?.image && typeof existing.image === 'object' ? (existing.image as Media) : null
+    const media = existing.image && typeof existing.image === 'object' ? (existing.image as Media) : null
     setCatImageId(media ? Number(media.id) : null)
     setCatImageModified(false)
     setCatSheetOpen(true)
+  }
+
+  // Kategória szerkesztési nyelvének váltása. HU-ra az alap (rekord) name/duration_label tér vissza;
+  // más nyelvre lekérdezzük az adott nyelvi tartalmat (üres → üres mező, HU fallback a foglalón).
+  const selectCatEditLocale = async (loc: Locale) => {
+    if (loc === catEditLocale || !editingCatId) return
+    if (loc === 'hu') {
+      const existing = catById.get(editingCatId)
+      setCatEditLocale('hu')
+      setEditingCatName(existing?.name ?? '')
+      setCatDurationLabel(existing?.duration_label ?? '')
+      return
+    }
+    setCatLocaleLoading(true)
+    try {
+      const res = await fetch(`/api/service-categories/${editingCatId}?locale=${loc}&fallback-locale=null&depth=0`, {
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error()
+      const doc = await res.json()
+      setCatEditLocale(loc)
+      setEditingCatName(doc.name ?? '')
+      setCatDurationLabel(doc.duration_label ?? '')
+    } catch {
+      toast.error('A nyelvi tartalom betöltése sikertelen')
+    } finally {
+      setCatLocaleLoading(false)
+    }
+  }
+
+  // Kategória-rekord létrehozása név alapján (a service-űrlap „+ Új kategória" ágához). A létrehozott
+  // rekordot felvesszük a state-be, és visszaadjuk az ID-ját.
+  const createCategory = async (name: string): Promise<string> => {
+    const res = await fetch('/api/service-categories', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ name, salon: salonId }),
+    })
+    if (!res.ok) throw new Error()
+    const json = await res.json()
+    const saved: ServiceCategory = json.doc
+    setCategories(prev => [...prev, saved])
+    return String(saved.id)
   }
 
   const handleImagePick = async (file: File) => {
@@ -182,7 +298,41 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
   const onSubmit = async (data: FormData) => {
     setSubmitting(true)
     try {
-      const body: Record<string, unknown> = { ...data, salon: salonId }
+      // Idegen nyelv szerkesztése: csak a localizált mezőket (name/description) PATCH-eljük az adott
+      // nyelvre — a nem-localizált mezők (ár, kategória, kép) a HU rekordon közösek, nem írjuk felül.
+      if (editLocale !== 'hu' && editing) {
+        const res = await fetch(`/api/services/${editing.id}?locale=${editLocale}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name: data.name, description: data.description || null }),
+        })
+        if (!res.ok) throw new Error()
+        setOpen(false)
+        toast.success('Fordítás mentve')
+        return
+      }
+
+      // A „+ Új kategória" ág: előbb létrehozzuk a kategória-rekordot, az ID-ját mentjük a service-re.
+      let categoryId = data.category
+      if (categoryId === NEW_CAT) {
+        if (!newCatName.trim()) { toast.error('Add meg az új kategória nevét'); setSubmitting(false); return }
+        categoryId = await createCategory(newCatName.trim())
+      }
+      let subcategoryId = data.subcategory || ''
+      if (subcategoryId === NEW_CAT) {
+        subcategoryId = newSubName.trim() ? await createCategory(newSubName.trim()) : ''
+      }
+
+      // A relationship FK numerikus ID-t vár (Postgres). A nyers `data.category`/`subcategory`
+      // (select-value string vagy szentinel) NE spreadelődjön — explicit, számra konvertált ID megy.
+      const { category: _c, subcategory: _sc, ...rest } = data
+      const body: Record<string, unknown> = {
+        ...rest,
+        category: Number(categoryId),
+        subcategory: subcategoryId ? Number(subcategoryId) : null,
+        salon: salonId,
+      }
       if (imageModified) body.image = imageId ?? null
       const url = editing ? `/api/services/${editing.id}` : '/api/services'
       const res = await fetch(url, {
@@ -205,9 +355,24 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
   }
 
   const onCatSubmit = async () => {
+    if (!editingCatId) return
     setCatSubmitting(true)
     try {
-      const existing = catMeta.get(editingCatName.toLowerCase())
+      // Idegen nyelven csak a localizált mezőket (name, duration_label) PATCH-eljük az adott nyelvre;
+      // a kép és a salon a HU rekordon közös. A lista HU-n jelenik meg, így a state-et nem írjuk át.
+      if (catEditLocale !== 'hu') {
+        const res = await fetch(`/api/service-categories/${editingCatId}?locale=${catEditLocale}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name: editingCatName, duration_label: catDurationLabel || null }),
+        })
+        if (!res.ok) throw new Error()
+        setCatSheetOpen(false)
+        toast.success('Fordítás mentve')
+        return
+      }
+
       const body: Record<string, unknown> = {
         name: editingCatName,
         salon: salonId,
@@ -215,34 +380,17 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
       }
       if (catImageModified) body.image = catImageId ?? null
 
-      let saved: ServiceCategory
-      if (existing) {
-        const res = await fetch(`/api/service-categories/${existing.id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        })
-        if (!res.ok) throw new Error()
-        const json = await res.json()
-        saved = json.doc
-      } else {
-        const res = await fetch('/api/service-categories', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify(body),
-        })
-        if (!res.ok) throw new Error()
-        const json = await res.json()
-        saved = json.doc
-      }
-
-      setCatMeta(prev => {
-        const next = new Map(prev)
-        next.set(saved.name.toLowerCase(), saved)
-        return next
+      const res = await fetch(`/api/service-categories/${editingCatId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(body),
       })
+      if (!res.ok) throw new Error()
+      const json = await res.json()
+      const saved: ServiceCategory = json.doc
+
+      setCategories(prev => prev.map(c => String(c.id) === String(saved.id) ? saved : c))
       setCatSheetOpen(false)
       toast.success('Kategória frissítve')
     } catch {
@@ -264,14 +412,18 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
     }
   }
 
+  // Csoportosítás kategória-ID szerint (a relationship-ből). A megjelenített nevet a kategória-rekord
+  // adja (catById); ismeretlen/üres → 'Egyéb'. Az alkategória is ID-kulcs.
   const categoryMap = services.reduce((acc, s) => {
-    const cat = s.category || 'Egyéb'
-    const sub = s.subcategory || ''
+    const cat = relId(s.category) ?? '__none__'
+    const sub = relId(s.subcategory) ?? ''
     if (!acc[cat]) acc[cat] = {}
     if (!acc[cat][sub]) acc[cat][sub] = []
     acc[cat][sub].push(s)
     return acc
   }, {} as Record<string, Record<string, Service[]>>)
+
+  const catName = (id: string): string => (id === '__none__' ? 'Egyéb' : catById.get(id)?.name ?? 'Egyéb')
 
   return (
     <>
@@ -294,18 +446,19 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
         </div>
       ) : (
         <div className="space-y-6">
-          {Object.entries(categoryMap).map(([category, subMap]) => {
+          {Object.entries(categoryMap).map(([categoryId, subMap]) => {
             const subEntries = Object.entries(subMap)
-            const catRecord = catMeta.get(category.toLowerCase())
+            const catRecord = categoryId === '__none__' ? undefined : catById.get(categoryId)
             const catImgUrl = categoryImageUrl(catRecord)
+            const catLabel = catName(categoryId)
 
             return (
-              <div key={category} className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
+              <div key={categoryId} className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
                 {/* Category header */}
                 <div className="flex items-center gap-3 px-5 py-3.5 border-b border-zinc-100 dark:border-white/[0.06] bg-zinc-50 dark:bg-white/[0.03]">
                   {catImgUrl ? (
                     <div className="h-8 w-8 rounded-lg overflow-hidden shrink-0">
-                      <img src={catImgUrl} alt={category} className="h-full w-full object-cover" />
+                      <img src={catImgUrl} alt={catLabel} className="h-full w-full object-cover" />
                     </div>
                   ) : (
                     <div className="h-8 w-8 rounded-lg bg-zinc-200 dark:bg-white/[0.08] shrink-0 flex items-center justify-center">
@@ -313,29 +466,31 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-white/40">{category}</p>
+                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-white/40">{catLabel}</p>
                     {catRecord?.duration_label && (
                       <p className="text-[10px] text-zinc-400 dark:text-white/30 flex items-center gap-1 mt-0.5">
                         <Clock className="h-2.5 w-2.5" />{catRecord.duration_label}
                       </p>
                     )}
                   </div>
-                  <button
-                    onClick={() => openCatEdit(category)}
-                    className="h-7 w-7 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/[0.08] transition-colors shrink-0"
-                    title="Kategória szerkesztése"
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </button>
+                  {catRecord && (
+                    <button
+                      onClick={() => openCatEdit(categoryId)}
+                      className="h-7 w-7 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/[0.08] transition-colors shrink-0"
+                      title="Kategória szerkesztése"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
 
-                {subEntries.map(([subcategory, items], si) => {
+                {subEntries.map(([subcategoryId, items], si) => {
                   const isLastGroup = si === subEntries.length - 1
                   return (
-                    <div key={subcategory || '__none'}>
-                      {subcategory && (
+                    <div key={subcategoryId || '__none'}>
+                      {subcategoryId && (
                         <div className="px-5 py-2 bg-zinc-50/50 dark:bg-white/[0.015] border-b border-zinc-100 dark:border-white/[0.06]">
-                          <span className="text-[11px] font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-wider">{subcategory}</span>
+                          <span className="text-[11px] font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-wider">{catName(subcategoryId)}</span>
                         </div>
                       )}
                       {items.map((s, i) => {
@@ -396,6 +551,16 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
           </SheetHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-6">
 
+            {editing && availableLocales.length > 1 && (
+              <LocaleEditBar
+                available={availableLocales}
+                active={editLocale}
+                onSelect={selectEditLocale}
+                loading={localeLoading}
+              />
+            )}
+
+            {editLocale === 'hu' && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium text-zinc-700">Kép</Label>
               <div className="relative">
@@ -438,25 +603,62 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleImagePick(f) }}
               />
             </div>
+            )}
 
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Név *</Label>
-              <Input className="h-11 rounded-xl" {...register('name')} />
+              <Input className="h-11 rounded-xl" {...register('name')} placeholder={editLocale !== 'hu' ? (editing?.name ?? '') : undefined} />
               {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
             </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Leírás</Label>
-              <Textarea className="rounded-xl" {...register('description')} rows={3} />
+              <Textarea className="rounded-xl" {...register('description')} rows={3} placeholder={editLocale !== 'hu' ? (editing?.description ?? '') : undefined} />
             </div>
+
+            {editLocale === 'hu' && (
+            <>
             <div className="grid gap-3 lg:grid-cols-2">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Fő kategória *</Label>
-                <Input className="h-11 rounded-xl" {...register('category')} placeholder="Pl. Fodrászat, Körmös, Fogászat" />
+                <Select value={watch('category') || ''} onValueChange={v => setValue('category', v)}>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Válassz kategóriát" /></SelectTrigger>
+                  <SelectContent>
+                    {categories.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                    <SelectItem value={NEW_CAT}>+ Új kategória</SelectItem>
+                  </SelectContent>
+                </Select>
+                {watch('category') === NEW_CAT && (
+                  <Input
+                    className="h-11 rounded-xl mt-2"
+                    value={newCatName}
+                    onChange={e => setNewCatName(e.target.value)}
+                    placeholder="Pl. Fodrászat, Körmös, Fogászat"
+                  />
+                )}
                 {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Alkategória</Label>
-                <Input className="h-11 rounded-xl" {...register('subcategory')} placeholder="Pl. Hajvágás, Balayage, Porcelán köröm" />
+                <Select value={watch('subcategory') || '__empty__'} onValueChange={v => setValue('subcategory', v === '__empty__' ? '' : v)}>
+                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Nincs" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__empty__">Nincs</SelectItem>
+                    {categories.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                    <SelectItem value={NEW_CAT}>+ Új alkategória</SelectItem>
+                  </SelectContent>
+                </Select>
+                {watch('subcategory') === NEW_CAT && (
+                  <Input
+                    className="h-11 rounded-xl mt-2"
+                    value={newSubName}
+                    onChange={e => setNewSubName(e.target.value)}
+                    placeholder="Pl. Hajvágás, Balayage, Porcelán köröm"
+                  />
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -483,12 +685,14 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
               <input type="checkbox" id="active" className="h-4 w-4 rounded" {...register('is_active')} />
               <Label htmlFor="active" className="text-sm">Aktív (foglalható)</Label>
             </div>
+            </>
+            )}
             <button
               type="submit"
               disabled={submitting || uploadingImage}
               className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Mentés...' : 'Mentés'}
+              {submitting ? 'Mentés...' : editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
           </form>
         </SheetContent>
@@ -503,6 +707,26 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
             </SheetTitle>
           </SheetHeader>
           <div className="space-y-4 mt-6">
+            {availableLocales.length > 1 && (
+              <LocaleEditBar
+                available={availableLocales}
+                active={catEditLocale}
+                onSelect={selectCatEditLocale}
+                loading={catLocaleLoading}
+              />
+            )}
+
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Kategória neve *</Label>
+              <Input
+                className="h-11 rounded-xl"
+                value={editingCatName}
+                onChange={e => setEditingCatName(e.target.value)}
+                placeholder={catEditLocale !== 'hu' ? (catById.get(editingCatId ?? '')?.name ?? '') : 'Pl. Fodrászat, Körmös'}
+              />
+            </div>
+
+            {catEditLocale === 'hu' && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Borítókép</Label>
               <div className="relative">
@@ -545,12 +769,13 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
                 onChange={e => { const f = e.target.files?.[0]; if (f) handleCatImagePick(f) }}
               />
             </div>
+            )}
 
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Időtartam felirat</Label>
               <Input
                 className="h-11 rounded-xl"
-                placeholder="Pl. 30-90 perc"
+                placeholder={catEditLocale !== 'hu' ? (catById.get(editingCatId ?? '')?.duration_label ?? 'Pl. 30-90 perc') : 'Pl. 30-90 perc'}
                 value={catDurationLabel}
                 onChange={e => setCatDurationLabel(e.target.value)}
               />
@@ -563,7 +788,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
               disabled={catSubmitting || uploadingCatImage}
               className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm transition-colors disabled:opacity-50"
             >
-              {catSubmitting ? 'Mentés...' : 'Mentés'}
+              {catSubmitting ? 'Mentés...' : catEditLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
           </div>
         </SheetContent>

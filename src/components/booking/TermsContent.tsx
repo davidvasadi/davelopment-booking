@@ -1,4 +1,6 @@
-export type Section = { title?: string | null; body?: string | null }
+import { t, type Locale } from '@/lib/i18n'
+
+export type Section = { title?: string | null; body?: string | null; isProvider?: boolean }
 
 /** A szolgáltató (cég) jogi adatai — ezekből generáljuk a feltételek élén álló blokkot. */
 export type CompanyInfo = {
@@ -11,25 +13,33 @@ export type CompanyInfo = {
   phone?: string | null
 }
 
-/** A cégadatokból egy „Szolgáltató adatai" szakaszt épít (üres mezők kimaradnak). */
-export function providerSection(c?: CompanyInfo | null): Section | null {
+/**
+ * A cégadatokból egy „Szolgáltató adatai" szakaszt épít (üres mezők kimaradnak).
+ * A feliratok a vendég nyelvén jelennek meg; a blokkot az `isProvider` jelölő azonosítja
+ * (nem a — most már lokalizált — cím), így a megjelenítés nyelvfüggetlenül felismeri.
+ */
+export function providerSection(c: CompanyInfo | null | undefined, locale: Locale = 'hu'): Section | null {
   if (!c) return null
   const lines: string[] = []
-  if (c.legal_name) lines.push(`Cégnév: ${c.legal_name}`)
-  else if (c.name) lines.push(`Név: ${c.name}`)
-  if (c.registered_seat) lines.push(`Székhely: ${c.registered_seat}`)
-  if (c.tax_number) lines.push(`Adószám: ${c.tax_number}`)
-  if (c.company_reg_number) lines.push(`Cégjegyzékszám: ${c.company_reg_number}`)
-  if (c.email) lines.push(`E-mail: ${c.email}`)
-  if (c.phone) lines.push(`Telefon: ${c.phone}`)
+  if (c.legal_name) lines.push(`${t(locale, 'public.terms.provider.legalName')}: ${c.legal_name}`)
+  else if (c.name) lines.push(`${t(locale, 'public.terms.provider.name')}: ${c.name}`)
+  if (c.registered_seat) lines.push(`${t(locale, 'public.terms.provider.seat')}: ${c.registered_seat}`)
+  if (c.tax_number) lines.push(`${t(locale, 'public.terms.provider.taxNumber')}: ${c.tax_number}`)
+  if (c.company_reg_number) lines.push(`${t(locale, 'public.terms.provider.regNumber')}: ${c.company_reg_number}`)
+  if (c.email) lines.push(`${t(locale, 'public.terms.provider.email')}: ${c.email}`)
+  if (c.phone) lines.push(`${t(locale, 'public.terms.provider.phone')}: ${c.phone}`)
   if (lines.length === 0) return null
-  return { title: 'Szolgáltató adatai', body: lines.join('\n') }
+  return { title: t(locale, 'public.terms.provider'), body: lines.join('\n'), isProvider: true }
 }
 
 /** A „Szolgáltató adatai" + a feltétel-szakaszok egy listája (provider elöl). */
-export function buildTermsItems(sections?: Section[] | null, company?: CompanyInfo | null): Section[] {
+export function buildTermsItems(
+  sections: Section[] | null | undefined,
+  company: CompanyInfo | null | undefined,
+  locale: Locale = 'hu',
+): Section[] {
   const userItems = (sections ?? []).filter((s) => (s.title && s.title.trim()) || (s.body && s.body.trim()))
-  const provider = providerSection(company)
+  const provider = providerSection(company, locale)
   return provider ? [provider, ...userItems] : userItems
 }
 
@@ -42,8 +52,7 @@ export function TermsContent({ items }: { items: Section[] }) {
   return (
     <>
       {items.map((s, i) => {
-        const isProvider = s.title?.trim() === 'Szolgáltató adatai'
-        if (isProvider) {
+        if (s.isProvider) {
           return (
             <section
               key={i}
@@ -58,7 +67,7 @@ export function TermsContent({ items }: { items: Section[] }) {
             </section>
           )
         }
-        const sectionNo = items.slice(0, i).filter((x) => x.title?.trim() !== 'Szolgáltató adatai').length + 1
+        const sectionNo = items.slice(0, i).filter((x) => !x.isProvider).length + 1
         return (
           <section
             key={i}

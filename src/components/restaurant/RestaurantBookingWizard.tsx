@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
-import { hu } from 'date-fns/locale'
 import { toast } from 'sonner'
 import { Minus, Plus, Loader2, Trees, ArrowLeft } from 'lucide-react'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
@@ -12,10 +11,9 @@ import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryI
 import { HoverArrow } from '@/components/ui/HoverArrow'
 import { DateStrip } from '@/components/booking/DateStrip'
 import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
+import { makeT, dfLocale, type Locale } from '@/lib/i18n'
 
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.dial]))
-
-const STEPS = ['Időpont', 'Adatok']
 
 export function RestaurantBookingWizard({
   restaurantId,
@@ -25,6 +23,7 @@ export function RestaurantBookingWizard({
   bookingWindowDays = 60,
   termsSections,
   company,
+  locale = 'hu',
 }: {
   restaurantId: string | number
   slug: string
@@ -33,8 +32,11 @@ export function RestaurantBookingWizard({
   bookingWindowDays?: number
   termsSections?: { title?: string | null; body?: string | null }[] | null
   company?: CompanyInfo | null
+  locale?: Locale
 }) {
   const router = useRouter()
+  const tt = makeT(locale)
+  const STEPS = [tt('rbooking.step.datetime'), tt('rbooking.step.details')]
   const searchParams = useSearchParams()
   const initialDate = searchParams.get('date')
   const initialPax = Number(searchParams.get('pax'))
@@ -89,9 +91,9 @@ export function RestaurantBookingWizard({
 
   const submit = async () => {
     if (!time) return
-    if (name.trim().length < 2) return toast.error('Add meg a neved')
-    if (!/^\S+@\S+\.\S+$/.test(email)) return toast.error('Érvénytelen email cím')
-    if (requirePhone && phone.trim().length < 7) return toast.error('A telefonszám megadása kötelező')
+    if (name.trim().length < 2) return toast.error(tt('rbooking.err.name'))
+    if (!/^\S+@\S+\.\S+$/.test(email)) return toast.error(tt('rbooking.err.email'))
+    if (requirePhone && phone.trim().length < 7) return toast.error(tt('rbooking.err.phone'))
 
     setSubmitting(true)
     try {
@@ -106,13 +108,14 @@ export function RestaurantBookingWizard({
           customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : undefined,
           country,
           notes: notes.trim() || undefined,
+          locale,
         }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Hiba')
+      if (!res.ok) throw new Error(data.error ?? tt('rbooking.err.generic'))
       router.push(`/${slug}/book/success`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'A foglalás sikertelen')
+      toast.error(e instanceof Error ? e.message : tt('rbooking.err.generic'))
       setSubmitting(false)
     }
   }
@@ -137,7 +140,7 @@ export function RestaurantBookingWizard({
           <div className="h-10 w-10 shrink-0" />
         )}
         <div className="flex-1 text-center">
-          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">Asztalfoglalás</p>
+          <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{tt("rbooking.header")}</p>
           <p className="text-sm font-bold text-zinc-900">{STEPS[step]}</p>
         </div>
         <div className="flex items-center gap-1 shrink-0 w-10 justify-end">
@@ -169,7 +172,7 @@ export function RestaurantBookingWizard({
           {step === 0 && (
             <>
               <div className={cardClass}>
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">Hányan jöttök?</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">{tt("rbooking.partySize")}</p>
                 <div className="flex items-center justify-center gap-6">
                   <button
                     onClick={() => setPax((p) => Math.max(1, p - 1))}
@@ -188,16 +191,16 @@ export function RestaurantBookingWizard({
               </div>
 
               <div className={cardClass}>
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">Mikor?</p>
-                <DateStrip selected={date} onChange={setDate} dayCount={bookingWindowDays} />
+                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-3">{tt("rbooking.when")}</p>
+                <DateStrip selected={date} onChange={setDate} dayCount={bookingWindowDays} locale={locale} />
               </div>
 
               <div className={cardClass}>
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">Időpont</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 mb-4">{tt("rbooking.time")}</p>
                 {loadingSlots ? (
                   <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-zinc-400" /></div>
                 ) : slots.length === 0 ? (
-                  <p className="text-sm text-zinc-400 text-center py-6">Erre a napra/létszámra nincs szabad időpont</p>
+                  <p className="text-sm text-zinc-400 text-center py-6">{tt("rbooking.noSlots")}</p>
                 ) : (
                   <motion.div
                     key={`${date}-${slots.length}`}
@@ -236,9 +239,9 @@ export function RestaurantBookingWizard({
               {/* Összegző kártya */}
               <div className="bg-zinc-950 rounded-2xl p-5 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-zinc-400 text-xs font-medium mb-1">Foglalás összegzése</p>
-                  <p className="text-white font-black text-base">{pax} fő</p>
-                  <p className="text-zinc-400 text-xs mt-1">{format(selectedDateObj, 'MMM d.', { locale: hu })} · {time}</p>
+                  <p className="text-zinc-400 text-xs font-medium mb-1">{tt("rbooking.summary")}</p>
+                  <p className="text-white font-black text-base">{tt('rbooking.guests', { n: pax })}</p>
+                  <p className="text-zinc-400 text-xs mt-1">{format(selectedDateObj, 'MMM d.', { locale: dfLocale(locale) })} · {time}</p>
                 </div>
                 {time && slots.find((s) => s.start === time)?.onlyOutdoor && (
                   <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 text-emerald-300 px-3 py-1.5 text-xs font-medium shrink-0">
@@ -248,9 +251,9 @@ export function RestaurantBookingWizard({
               </div>
 
               <div className={`${cardClass} space-y-3`}>
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Adataid</p>
-                <input className={inputClass} placeholder="Teljes név" value={name} onChange={(e) => setName(e.target.value)} />
-                <input className={inputClass} type="email" placeholder="Email cím" value={email} onChange={(e) => setEmail(e.target.value)} />
+                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">{tt("rbooking.details")}</p>
+                <input className={inputClass} placeholder={tt("rbooking.field.name")} value={name} onChange={(e) => setName(e.target.value)} />
+                <input className={inputClass} type="email" placeholder={tt("rbooking.field.email")} value={email} onChange={(e) => setEmail(e.target.value)} />
                 <PhoneCountryInput
                   country={country}
                   phone={phone}
@@ -259,7 +262,7 @@ export function RestaurantBookingWizard({
                   required={requirePhone}
                   inputClass="h-11 rounded-xl bg-zinc-50 border border-zinc-200 px-4 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-zinc-400"
                 />
-                <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder="Megjegyzés (opcionális)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
 
               <button
@@ -268,18 +271,18 @@ export function RestaurantBookingWizard({
                 className="group w-full h-14 rounded-2xl bg-zinc-950 text-white font-black text-sm hover:bg-zinc-800 transition-all shadow-lg disabled:opacity-40 flex items-center justify-center gap-2"
               >
                 {submitting ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" />Foglalás…</>
+                  <><Loader2 className="h-4 w-4 animate-spin" />{tt('rbooking.submitting')}</>
                 ) : (
                   <>
-                    Foglalás véglegesítése
+                    {tt('rbooking.confirm')}
                     <HoverArrow className="h-4 w-4" />
                   </>
                 )}
               </button>
               {((termsSections && termsSections.length > 0) || company) && (
                 <div className="text-center text-xs text-zinc-400">
-                  A foglalás véglegesítésével elfogadod a{' '}
-                  <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
+                  {tt('rbooking.termsPrefix')}{' '}
+                  <TermsModal sections={termsSections} company={company} locale={locale} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
                 </div>
               )}
             </>

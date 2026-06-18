@@ -15,9 +15,9 @@ import { ArrowLeft, Check, Clock, Loader2, ChevronRight, User } from 'lucide-rea
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import { BookCtaButton } from '@/components/booking/BookCtaButton'
 import { DateStrip } from '@/components/booking/DateStrip'
+import { makeT, dfLocale, type Locale } from '@/lib/i18n'
 
 import { format } from 'date-fns'
-import { hu } from 'date-fns/locale'
 
 type Slot = { start: string; end: string }
 
@@ -44,12 +44,14 @@ interface Props {
   preselectedStaffId?: string | null
   termsSections?: { title?: string | null; body?: string | null }[] | null
   company?: CompanyInfo | null
+  locale?: Locale
 }
 
 export default function BookingWizard({
-  salonId, salonSlug, salonName, requirePhone = true, bookingWindowDays = 60, services, staff, preselectedServiceId, preselectedStaffId, termsSections, company,
+  salonId, salonSlug, salonName, requirePhone = true, bookingWindowDays = 60, services, staff, preselectedServiceId, preselectedStaffId, termsSections, company, locale = 'hu',
 }: Props) {
   const router = useRouter()
+  const tt = makeT(locale)
   const [step, setStep] = useState(preselectedServiceId ? 1 : 0)
   // A lépés-átmenet iránya (+1 előre, -1 vissza) a slide-animációhoz.
   const [dir, setDir] = useState(1)
@@ -86,15 +88,15 @@ export default function BookingWizard({
     fetch(`/api/slots?${params}`)
       .then(r => r.json())
       .then(d => setSlots(d.slots ?? []))
-      .catch(() => toast.error('Nem sikerült betölteni az időpontokat'))
+      .catch(() => toast.error(tt('booking.err.slots')))
       .finally(() => setLoadingSlots(false))
   }, [step, state.serviceId, state.staffId, state.date, salonId])
 
   const submit = async () => {
     if (!state.serviceId || !state.slot || !state.staffId) return
-    if (!state.name || state.name.length < 2) { toast.error('Add meg a neved'); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.email)) { toast.error('Érvényes email szükséges'); return }
-    if (requirePhone && state.phone.replace(/\s/g, '').length < 7) { toast.error('Érvényes telefonszám szükséges'); return }
+    if (!state.name || state.name.length < 2) { toast.error(tt('booking.err.name')); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.email)) { toast.error(tt('booking.err.email')); return }
+    if (requirePhone && state.phone.replace(/\s/g, '').length < 7) { toast.error(tt('booking.err.phone')); return }
 
     setSubmitting(true)
     try {
@@ -105,12 +107,12 @@ export default function BookingWizard({
           salonId, serviceId: state.serviceId, staffId: state.staffId,
           date: state.date, start_time: state.slot.start, end_time: state.slot.end,
           customer_name: state.name, customer_email: state.email,
-          customer_phone: state.phone, notes: state.notes,
+          customer_phone: state.phone, notes: state.notes, locale,
         }),
       })
       if (!res.ok) {
         const err = await res.json()
-        throw new Error(err.error ?? 'Hiba')
+        throw new Error(err.error ?? tt('booking.err.generic'))
       }
       const params = new URLSearchParams({
         name: state.name, service: selectedService?.name ?? '',
@@ -118,13 +120,13 @@ export default function BookingWizard({
       })
       router.push(`/${salonSlug}/book/success?${params}`)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'Hiba történt')
+      toast.error(e instanceof Error ? e.message : tt('booking.err.generic'))
     } finally {
       setSubmitting(false)
     }
   }
 
-  const STEPS = ['Szolgáltatás', 'Munkatárs', 'Dátum & Időpont', 'Adatok']
+  const STEPS = [tt('booking.step.service'), tt('booking.step.staff'), tt('booking.step.datetime'), tt('booking.step.details')]
 
   return (
     <div className="min-h-screen bg-[#F5F4F2] flex flex-col">
@@ -181,8 +183,8 @@ export default function BookingWizard({
         {/* Step 0: Service */}
         {step === 0 && (
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">Melyik<br />szolgáltatást?</h2>
-            <p className="text-sm text-zinc-500 mb-6">Válassz az elérhető szolgáltatások közül</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1 whitespace-pre-line">{tt('booking.service.title')}</h2>
+            <p className="text-sm text-zinc-500 mb-6">{tt('booking.service.subtitle')}</p>
             <div className="space-y-3">
               {services.map(s => (
                 <button
@@ -198,7 +200,7 @@ export default function BookingWizard({
                       <p className="font-bold text-sm text-zinc-900">{s.name}</p>
                       {s.description && <p className="text-xs text-zinc-400 mt-1 line-clamp-2">{s.description}</p>}
                       <p className="text-xs text-zinc-400 mt-2 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />{s.duration_minutes} perc
+                        <Clock className="h-3 w-3" />{s.duration_minutes} {tt('booking.minutes')}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
@@ -214,8 +216,8 @@ export default function BookingWizard({
         {/* Step 1: Staff */}
         {step === 1 && (
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">Válassz<br />munkatársat</h2>
-            <p className="text-sm text-zinc-500 mb-6">Kivel szeretnél foglalni?</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1 whitespace-pre-line">{tt('booking.staff.title')}</h2>
+            <p className="text-sm text-zinc-500 mb-6">{tt('booking.staff.subtitle')}</p>
 
             {/* Any staff card */}
             <button
@@ -229,8 +231,8 @@ export default function BookingWizard({
                 <User className="h-5 w-5 text-zinc-400" />
               </div>
               <div>
-                <p className="font-bold text-sm text-zinc-900">Bármelyik szabad</p>
-                <p className="text-xs text-zinc-400 mt-0.5">A legelső szabad időpontot ajánljuk</p>
+                <p className="font-bold text-sm text-zinc-900">{tt("booking.staff.any")}</p>
+                <p className="text-xs text-zinc-400 mt-0.5">{tt("booking.staff.anyHint")}</p>
               </div>
               {state.staffId === null && <Check className="h-4 w-4 text-zinc-950 ml-auto shrink-0" />}
             </button>
@@ -284,8 +286,8 @@ export default function BookingWizard({
         {/* Step 2: Date + Time */}
         {step === 2 && (
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">Mikor<br />legyen?</h2>
-            <p className="text-sm text-zinc-500 mb-6">Válassz napot és szabad időpontot</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1 whitespace-pre-line">{tt('booking.when.title')}</h2>
+            <p className="text-sm text-zinc-500 mb-6">{tt('booking.when.subtitle')}</p>
 
             {/* Date strip */}
             <div className="bg-white rounded-2xl shadow-sm p-4 mb-4">
@@ -293,23 +295,24 @@ export default function BookingWizard({
                 selected={state.date}
                 onChange={(d) => set({ date: d, slot: null })}
                 dayCount={bookingWindowDays}
+                locale={locale}
               />
             </div>
 
             {/* Time slots */}
             <div className="bg-white rounded-2xl shadow-sm p-5">
               <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4">
-                {format(selectedDate, 'EEEE, MMMM d.', { locale: hu })}
+                {format(selectedDate, 'EEEE, MMMM d.', { locale: dfLocale(locale) })}
               </p>
               {loadingSlots ? (
                 <div className="flex items-center gap-2 text-zinc-400 py-8 justify-center">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Betöltés...</span>
+                  <span className="text-sm">{tt("booking.loading")}</span>
                 </div>
               ) : slots.length === 0 ? (
                 <div className="py-8 text-center">
-                  <p className="text-sm text-zinc-500">Erre a napra nincs szabad időpont.</p>
-                  <p className="text-xs text-zinc-400 mt-1">Válassz másik napot.</p>
+                  <p className="text-sm text-zinc-500">{tt("booking.noSlots")}</p>
+                  <p className="text-xs text-zinc-400 mt-1">{tt("booking.noSlotsHint")}</p>
                 </div>
               ) : (
                 <motion.div
@@ -343,16 +346,16 @@ export default function BookingWizard({
         {/* Step 3: Customer info */}
         {step === 3 && (
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">Az adataid</h2>
-            <p className="text-sm text-zinc-500 mb-6">Töltsd ki az adataidat a foglalás megerősítéséhez</p>
+            <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-1">{tt("booking.details.title")}</h2>
+            <p className="text-sm text-zinc-500 mb-6">{tt("booking.details.subtitle")}</p>
 
             {/* Booking summary card */}
             <div className="bg-zinc-950 rounded-2xl p-5 mb-5 flex items-start justify-between gap-3">
               <div>
-                <p className="text-zinc-400 text-xs font-medium mb-1">Foglalás összegzése</p>
+                <p className="text-zinc-400 text-xs font-medium mb-1">{tt("booking.summary")}</p>
                 <p className="text-white font-black text-base">{selectedService?.name}</p>
                 <p className="text-zinc-400 text-xs mt-1">
-                  {selectedStaff ? selectedStaff.name : 'Bármelyik munkatárs'} · {format(selectedDate, 'MMM d.', { locale: hu })} · {state.slot?.start}
+                  {selectedStaff ? selectedStaff.name : tt('booking.staff.any')} · {format(selectedDate, 'MMM d.', { locale: dfLocale(locale) })} · {state.slot?.start}
                 </p>
               </div>
               {selectedService && (
@@ -365,40 +368,40 @@ export default function BookingWizard({
 
             <div className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Teljes név *</Label>
+                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{tt("booking.field.name")}</Label>
                 <Input
                   value={state.name}
                   onChange={e => set({ name: e.target.value })}
-                  placeholder="Kovács János"
+                  placeholder={tt("booking.field.namePlaceholder")}
                   className="h-12 rounded-xl bg-zinc-50 border-0 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-1 focus-visible:ring-zinc-900"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Email cím *</Label>
+                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{tt("booking.field.email")}</Label>
                 <Input
                   type="email"
                   value={state.email}
                   onChange={e => set({ email: e.target.value })}
-                  placeholder="nev@email.hu"
+                  placeholder={tt("booking.field.emailPlaceholder")}
                   className="h-12 rounded-xl bg-zinc-50 border-0 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-1 focus-visible:ring-zinc-900"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Telefonszám{requirePhone ? ' *' : ''}</Label>
+                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{tt('booking.field.phone')}{requirePhone ? ' *' : ''}</Label>
                 <Input
                   type="tel"
                   value={state.phone}
                   onChange={e => set({ phone: e.target.value })}
-                  placeholder="+36 30 123 4567"
+                  placeholder={tt("booking.field.phonePlaceholder")}
                   className="h-12 rounded-xl bg-zinc-50 border-0 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 focus-visible:ring-1 focus-visible:ring-zinc-900"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Megjegyzés</Label>
+                <Label className="text-xs font-bold text-zinc-500 uppercase tracking-widest">{tt("booking.field.note")}</Label>
                 <Textarea
                   value={state.notes}
                   onChange={e => set({ notes: e.target.value })}
-                  placeholder="Pl. allergiák, különleges kérések..."
+                  placeholder={tt("booking.field.notePlaceholder")}
                   rows={3}
                   className="rounded-xl bg-zinc-50 border-0 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 resize-none focus-visible:ring-1 focus-visible:ring-zinc-900"
                 />
@@ -407,7 +410,7 @@ export default function BookingWizard({
 
             {/* Véglegesítő gomb — a tartalom végén (NEM sticky). Közös BookCtaButton. */}
             <BookCtaButton
-              label="Foglalás megerősítése"
+              label={tt("booking.confirm")}
               onClick={submit}
               disabled={submitting || !state.name || !state.email || (requirePhone && !state.phone)}
               loading={submitting}
@@ -415,8 +418,8 @@ export default function BookingWizard({
             />
             {((termsSections && termsSections.length > 0) || company) && (
               <div className="mt-3 text-center text-xs text-zinc-400">
-                A foglalás megerősítésével elfogadod a{' '}
-                <TermsModal sections={termsSections} company={company} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
+                {tt('booking.termsPrefix')}{' '}
+                <TermsModal sections={termsSections} company={company} locale={locale} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
               </div>
             )}
           </div>
@@ -441,7 +444,7 @@ export default function BookingWizard({
               </button>
             ) : (
               <div className="w-full h-14 rounded-2xl bg-zinc-200 flex items-center justify-center">
-                <p className="text-sm text-zinc-400 font-medium">Válassz egy szolgáltatást</p>
+                <p className="text-sm text-zinc-400 font-medium">{tt("booking.cta.pickService")}</p>
               </div>
             )
           )}
@@ -450,7 +453,7 @@ export default function BookingWizard({
               onClick={() => goStep(2)}
               className="w-full h-14 rounded-2xl bg-zinc-950 text-white font-black text-sm hover:bg-zinc-800 transition-all shadow-lg flex items-center justify-between px-6"
             >
-              <span>{state.staffId === null ? 'Bármelyik munkatárs' : selectedStaff?.name}</span>
+              <span>{state.staffId === null ? tt('booking.staff.any') : selectedStaff?.name}</span>
               <ChevronRight className="h-4 w-4 text-zinc-400" />
             </button>
           )}
@@ -460,12 +463,12 @@ export default function BookingWizard({
                 onClick={() => goStep(3)}
                 className="w-full h-14 rounded-2xl bg-zinc-950 text-white font-black text-sm hover:bg-zinc-800 transition-all shadow-lg flex items-center justify-between px-6"
               >
-                <span>{format(selectedDate, 'MMM d.', { locale: hu })} · {state.slot.start}</span>
+                <span>{format(selectedDate, 'MMM d.', { locale: dfLocale(locale) })} · {state.slot.start}</span>
                 <ChevronRight className="h-4 w-4 text-zinc-400" />
               </button>
             ) : (
               <div className="w-full h-14 rounded-2xl bg-zinc-200 flex items-center justify-center">
-                <p className="text-sm text-zinc-400 font-medium">Válassz időpontot</p>
+                <p className="text-sm text-zinc-400 font-medium">{tt("booking.cta.pickSlot")}</p>
               </div>
             )
           )}

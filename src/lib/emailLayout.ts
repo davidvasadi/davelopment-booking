@@ -10,6 +10,8 @@
  * mappában generáltuk őket. Abszolút URL-lel hivatkozunk rájuk.
  */
 
+import { t, type Locale } from './i18n'
+
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 const SCHEDULIO_URL = 'https://schedulio.hu'
@@ -274,12 +276,13 @@ export function introBlock(intro: string | null | undefined, vars: Record<string
   </tr>`
 }
 
-/** Lemondás-link sor (finom, elkülönítve). */
-export function cancelBlock(cancelUrl: string | null): string {
+/** Lemondás-link sor (finom, elkülönítve). A vendég nyelvén. */
+export function cancelBlock(cancelUrl: string | null, locale: Locale = 'hu'): string {
   if (!cancelUrl) return ''
+  const link = `<a href="${cancelUrl}" style="color:${COLORS.textSoft};text-decoration:underline">${t(locale, 'email.cancelLink.label')}</a>`
   return `<tr>
     <td style="background:${COLORS.surface};padding:16px 32px 0;text-align:left">
-      <p style="margin:0;color:${COLORS.textFaint};font-size:12px">Mégsem tudsz jönni? <a href="${cancelUrl}" style="color:${COLORS.textSoft};text-decoration:underline">Foglalás lemondása</a></p>
+      <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.cancelLink.text', { link })}</p>
     </td>
   </tr>`
 }
@@ -298,8 +301,10 @@ export function footerInfoBlock(opts: {
   address?: string | null
   /** Ha van, „Útvonaltervezés" gomb. Lehet cím vagy kész Maps-link. */
   directionsAddress?: string | null
+  /** A vendég nyelve (a feltétel-utalás + kapcsolat-szövegekhez). */
+  locale?: Locale
 }): string {
-  const { hasTerms, bookingUrl, phone, email, address, directionsAddress } = opts
+  const { hasTerms, bookingUrl, phone, email, address, directionsAddress, locale = 'hu' } = opts
   const phoneClean = phone?.trim()
   const emailClean = email?.trim()
   const addressClean = address?.trim()
@@ -308,10 +313,11 @@ export function footerInfoBlock(opts: {
   // Feltétel-utalás
   let termsPart = ''
   if (hasTerms) {
+    const label = t(locale, 'email.footer.termsLink')
     const linkText = bookingUrl
-      ? `<a href="${bookingUrl}" style="color:${COLORS.accent};text-decoration:underline;font-weight:600">foglalási feltételeket</a>`
-      : `<strong style="color:${COLORS.textSoft}">foglalási feltételeket</strong>`
-    termsPart = `<p style="margin:0;color:${COLORS.textSoft};font-size:13px;line-height:1.6">A foglalással elfogadod a ${linkText}, melyeket a foglaló oldalon érsz el.</p>`
+      ? `<a href="${bookingUrl}" style="color:${COLORS.accent};text-decoration:underline;font-weight:600">${label}</a>`
+      : `<strong style="color:${COLORS.textSoft}">${label}</strong>`
+    termsPart = `<p style="margin:0;color:${COLORS.textSoft};font-size:13px;line-height:1.6">${t(locale, 'email.footer.termsText', { link: linkText })}</p>`
   }
 
   // Kapcsolat
@@ -334,7 +340,7 @@ export function footerInfoBlock(opts: {
       : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dirClean)}`
     const pinSvg = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-3px;margin-right:7px"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>`
     directionsBtn = `<div style="margin-top:14px">
-      <a href="${mapsUrl}" style="display:inline-block;background:${COLORS.ink};color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;padding:11px 22px;border-radius:999px">${pinSvg}Útvonaltervezés</a>
+      <a href="${mapsUrl}" style="display:inline-block;background:${COLORS.ink};color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;padding:11px 22px;border-radius:999px">${pinSvg}${t(locale, 'email.footer.directions')}</a>
     </div>`
   }
 
@@ -343,7 +349,7 @@ export function footerInfoBlock(opts: {
     const contactLine = lines.length
       ? `<p style="margin:0;color:${COLORS.textSoft};font-size:13px;line-height:1.8">${lines.join('<span style="color:' + COLORS.textFaint + '">&nbsp;·&nbsp;</span>')}</p>`
       : ''
-    contactPart = `<p style="margin:0 0 6px;color:${COLORS.text};font-size:13px;font-weight:600">Módosítanád a foglalást? Keress minket:</p>${contactLine}${directionsBtn}`
+    contactPart = `<p style="margin:0 0 6px;color:${COLORS.text};font-size:13px;font-weight:600">${t(locale, 'email.footer.contactTitle')}</p>${contactLine}${directionsBtn}`
   }
 
   if (!termsPart && !contactPart) return ''

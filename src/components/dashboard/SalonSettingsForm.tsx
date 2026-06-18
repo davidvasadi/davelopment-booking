@@ -21,6 +21,10 @@ import { SettingsTabsNav } from '@/components/ui/settings-tabs'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor } from '@/components/settings/TermsSectionsEditor'
 import { GoodToKnowEditor } from '@/components/settings/GoodToKnowEditor'
+import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
+import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
+import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
+import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 
 /** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás. */
 function SaveBar({ dirty, submitting, onSave, onPreview }: { dirty: boolean; submitting: boolean; onSave: () => void; onPreview?: () => void }) {
@@ -62,8 +66,6 @@ const schema = z.object({
   booking_window_days: z.number().min(1).max(365),
   require_phone: z.boolean(),
   notify_new_bookings: z.boolean(),
-  booking_email_subject: z.string().optional(),
-  booking_email_intro: z.string().optional(),
   email_show_phone: z.boolean(),
   email_contact_phone: z.string().optional(),
   email_show_email: z.boolean(),
@@ -74,8 +76,6 @@ const schema = z.object({
   tax_number: z.string().optional(),
   company_reg_number: z.string().optional(),
   registered_seat: z.string().optional(),
-  terms_sections: z.array(z.object({ title: z.string(), body: z.string() })),
-  good_to_know: z.array(z.object({ icon: z.string(), title: z.string(), body: z.string() })),
 })
 type FormData = z.infer<typeof schema>
 
@@ -138,8 +138,6 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
     booking_window_days: salon.booking_window_days ?? 60,
     require_phone: salon.require_phone ?? true,
     notify_new_bookings: salon.notify_new_bookings ?? true,
-    booking_email_subject: salon.booking_email_subject ?? '',
-    booking_email_intro: salon.booking_email_intro ?? '',
     email_show_phone: salon.email_show_phone ?? true,
     email_contact_phone: salon.email_contact_phone ?? '',
     email_show_email: salon.email_show_email ?? false,
@@ -150,8 +148,6 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
     tax_number: salon.tax_number ?? '',
     company_reg_number: salon.company_reg_number ?? '',
     registered_seat: salon.registered_seat ?? '',
-    terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
-    good_to_know: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
   }
   const { register, handleSubmit, watch, setValue, getValues, reset, formState: { errors, dirtyFields } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -160,20 +156,68 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
   // Utoljára elmentett baseline (az „Elvetés"-hez fülenként). Mentéskor frissül.
   const defaultsRef = useRef<FormData>(initialValues)
 
-  // ── Fülek + mentetlen-változás védelem ──────────────────────────
-  const TAB_FIELDS: Record<string, (keyof FormData)[]> = {
-    general: ['name', 'slug', 'postal_code', 'city', 'address', 'phone', 'email', 'website', 'good_to_know'],
-    booking: ['booking_buffer_minutes', 'booking_window_days', 'require_phone', 'notify_new_bookings'],
-    email: ['booking_email_subject', 'booking_email_intro', 'email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
-    documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat', 'terms_sections'],
+  // ── Nyelvek: a tulaj által a foglalón kínált nyelvkészlet (HU mindig fix alap) ──
+  const [supportedExtras, setSupportedExtras] = useState<Locale[]>(
+    resolveAvailableLocales(salon.supported_locales).filter((l) => l !== 'hu'),
+  )
+  const [savedSupported, setSavedSupported] = useState<Locale[]>(supportedExtras)
+  const supportedDirty = JSON.stringify(supportedExtras) !== JSON.stringify(savedSupported)
+
+  // ── Localizált tartalom (email tárgy/intro, „jó tudni", feltételek) per-nyelv ──
+  const loc = useLocalizedFields({
+    collection: 'salons',
+    id: salon.id,
+    supported: ['hu', ...savedSupported],
+    huValues: {
+      booking_email_subject: salon.booking_email_subject ?? '',
+      booking_email_intro: salon.booking_email_intro ?? '',
+      terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
+      good_to_know: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
+    },
+  })
+
+  const saveSupported = async (): Promise<boolean> => {
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/salons/${salon.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ supported_locales: ['hu', ...supportedExtras] }),
+      })
+      if (!res.ok) throw new Error()
+      setSavedSupported(supportedExtras)
+      toast.success('Nyelvek mentve')
+      router.refresh()
+      return true
+    } catch {
+      toast.error('Hiba történt')
+      return false
+    } finally {
+      setSubmitting(false)
+    }
   }
+
+  // ── Fülek + mentetlen-változás védelem ──────────────────────────
+  // A localizált mezőket (good_to_know, terms_sections, booking_email_*) a `loc` hook
+  // kezeli per-nyelv — NEM kerülnek a normál fülmentésbe.
+  const TAB_FIELDS: Record<string, (keyof FormData)[]> = {
+    general: ['name', 'slug', 'postal_code', 'city', 'address', 'phone', 'email', 'website'],
+    booking: ['booking_buffer_minutes', 'booking_window_days', 'require_phone', 'notify_new_bookings'],
+    email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
+    documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat'],
+  }
+  // Mely fülön van localizált tartalom (a `loc.dirty` is számít a fül „mentetlen" jelzésénél).
+  const LOC_TABS = new Set(['general', 'email', 'documents'])
   const [activeTab, setActiveTab] = useState('general')
   const [pendingTab, setPendingTab] = useState<string | null>(null)
 
   const tabDirty = (tab: string): boolean => {
     const fieldDirty = (TAB_FIELDS[tab] ?? []).some((k) => dirtyFields[k])
-    if (tab === 'general') return fieldDirty || logoModified || coverModified
-    return fieldDirty
+    const locDirty = LOC_TABS.has(tab) && loc.dirty
+    if (tab === 'general') return fieldDirty || logoModified || coverModified || locDirty
+    if (tab === 'languages') return supportedDirty
+    return fieldDirty || locDirty
   }
 
   // Az adott fül mezőit (+ az „Általános" fülön a médiát) menti.
@@ -207,7 +251,14 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
     }
   }
 
-  const saveTab = (tab: string) => persist(TAB_FIELDS[tab] ?? [], tab === 'general')
+  const saveTab = async (tab: string): Promise<boolean> => {
+    if (tab === 'languages') return saveSupported()
+    const okFields = await persist(TAB_FIELDS[tab] ?? [], tab === 'general')
+    // A localizált tartalmat (ha az aktív szerkesztési nyelv ≠ HU vagy dirty) is mentjük.
+    let okLoc = true
+    if (LOC_TABS.has(tab) && loc.dirty) okLoc = await loc.saveLocale()
+    return okFields && okLoc
+  }
 
   const requestTab = (id: string) => {
     if (id === activeTab) return
@@ -218,6 +269,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
   const tabs = [
     { id: 'general', label: 'Általános', dirty: tabDirty('general') },
     { id: 'booking', label: 'Foglalás', dirty: tabDirty('booking') },
+    { id: 'languages', label: 'Nyelvek', dirty: tabDirty('languages') },
     { id: 'email', label: 'Email', dirty: tabDirty('email') },
     { id: 'documents', label: 'Dokumentumok', dirty: tabDirty('documents') },
     { id: 'danger', label: 'Veszélyzóna' },
@@ -445,7 +497,8 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
         <p className="text-xs text-zinc-400 dark:text-white/30 -mt-1">
           Saját „Jó tudni" pontok (ikon + cím + szöveg) a nyilvános foglaló oldalon. Pl. „Parkolás: az udvarban ingyenes" vagy „Lemondás: legkésőbb a foglalás előtt 24 órával".
         </p>
-        <GoodToKnowEditor value={watch('good_to_know')} onChange={(v) => setValue('good_to_know', v, { shouldDirty: true })} />
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
+        <GoodToKnowEditor value={loc.current.good_to_know} onChange={(v) => loc.setField('good_to_know', v)} locale={loc.editLocale} />
       </Section>
 
       <div className="lg:col-span-2">
@@ -509,15 +562,36 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
       </div>
       )}
 
+      {activeTab === 'languages' && (
+      <div className="space-y-4 lg:space-y-6">
+      <Section title="Foglalón kínált nyelvek">
+        <p className="text-xs text-zinc-400 dark:text-white/30 -mt-1">
+          Mely nyelveken választhatnak a vendégek a foglaló oldalon. A magyar mindig elérhető (alap, és tartalék
+          azokra a szövegekre, amiket egy másik nyelven nem adsz meg). A bekapcsolt nyelvekhez az „Email",
+          „Dokumentumok" és a „Jó tudni" résznél tudsz nyelvenkénti szöveget beírni a nyelvváltóval.
+        </p>
+        <SupportedLocalesPicker value={supportedExtras} onChange={setSupportedExtras} />
+        {supportedExtras.length === 0 && (
+          <p className="text-xs text-zinc-400 dark:text-white/30">
+            Csak magyar — a foglalón nem jelenik meg nyelvválasztó.
+          </p>
+        )}
+      </Section>
+      <SaveBar dirty={tabDirty('languages')} submitting={submitting} onSave={() => saveTab('languages')} />
+      </div>
+      )}
+
       {activeTab === 'email' && (
       <div className="space-y-4 lg:space-y-6">
         {/* Tartalom */}
         <Section title="Tartalom">
+          <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Email tárgya</Label>
             <Input
               className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20"
-              {...register('booking_email_subject')}
+              value={loc.current.booking_email_subject}
+              onChange={(e) => loc.setField('booking_email_subject', e.target.value)}
               placeholder="Foglalás visszaigazolva — {{name}}"
             />
             <p className="text-xs text-zinc-400 dark:text-white/30">Üresen hagyva az alapértelmezett tárgy jelenik meg.</p>
@@ -526,7 +600,8 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
             <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Bevezető szöveg</Label>
             <Textarea
               className="min-h-28 py-3 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20"
-              {...register('booking_email_intro')}
+              value={loc.current.booking_email_intro}
+              onChange={(e) => loc.setField('booking_email_intro', e.target.value)}
               placeholder={'Kedves {{name}}!\n\nKöszönjük a foglalást, várunk szeretettel!'}
             />
             <p className="text-xs text-zinc-400 dark:text-white/30">A visszaigazoló email tetejére, a foglalás részletei elé kerül.</p>
@@ -574,7 +649,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
           </div>
         </Section>
 
-        <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('salon', watch()), '_blank', 'noopener')} />
+        <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('salon', { ...watch(), booking_email_intro: loc.current.booking_email_intro }, loc.editLocale), '_blank', 'noopener')} />
       </div>
       )}
 
@@ -608,9 +683,11 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
         <p className="text-xs text-zinc-400 dark:text-white/30">
           Szakaszonként add meg a feltételeket (cím + szöveg). Megjelenik a nyilvános foglaló oldalon és a visszaigazoló emailben. Hagyd üresen, ha nincs.
         </p>
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
         <TermsSectionsEditor
-          value={watch('terms_sections')}
-          onChange={(v) => setValue('terms_sections', v, { shouldDirty: true })}
+          value={loc.current.terms_sections}
+          onChange={(v) => loc.setField('terms_sections', v)}
+          locale={loc.editLocale}
         />
       </Section>
 
@@ -665,6 +742,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
           setValue(k, defaultsRef.current[k], { shouldDirty: false })
         }
         if (activeTab === 'general') { setLogoModified(false); setCoverModified(false) }
+        if (activeTab === 'languages') setSupportedExtras(savedSupported)
         if (pendingTab) { setActiveTab(pendingTab); setPendingTab(null) }
       }}
       onCancel={() => setPendingTab(null)}

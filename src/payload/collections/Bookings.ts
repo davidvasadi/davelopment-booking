@@ -137,6 +137,22 @@ export const Bookings: CollectionConfig = {
       admin: { readOnly: true, position: 'sidebar' },
       access: { update: () => false },
     },
+    {
+      // A vendég által választott nyelv a foglaláskor — ezen a nyelven megy a visszaigazoló
+      // és a lemondó email. Default magyar (a régi foglalások és a kapcsoló nélküli esetek).
+      name: 'locale',
+      type: 'select',
+      defaultValue: 'hu',
+      options: [
+        { label: 'Magyar', value: 'hu' },
+        { label: 'English', value: 'en' },
+        { label: 'Deutsch', value: 'de' },
+        { label: 'Español', value: 'es' },
+        { label: 'Italiano', value: 'it' },
+        { label: 'Français', value: 'fr' },
+      ],
+      admin: { position: 'sidebar' },
+    },
   ],
   hooks: {
     afterChange: [notifyOnBooking('salon')],

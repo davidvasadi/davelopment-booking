@@ -85,6 +85,22 @@ export const Reservations: CollectionConfig = {
       label: 'Lemondás token',
       admin: { position: 'sidebar', readOnly: true },
     },
+    {
+      // A vendég által választott nyelv a foglaláskor — ezen a nyelven megy a visszaigazoló
+      // és a lemondó email. Default magyar.
+      name: 'locale',
+      type: 'select',
+      defaultValue: 'hu',
+      options: [
+        { label: 'Magyar', value: 'hu' },
+        { label: 'English', value: 'en' },
+        { label: 'Deutsch', value: 'de' },
+        { label: 'Español', value: 'es' },
+        { label: 'Italiano', value: 'it' },
+        { label: 'Français', value: 'fr' },
+      ],
+      admin: { position: 'sidebar' },
+    },
   ],
   hooks: {
     beforeChange: [

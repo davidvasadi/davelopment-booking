@@ -68,6 +68,14 @@ export default buildConfig({
     Notifications,
   ],
   globals: [PricingSettings],
+  // Többnyelvű publikus foglaló: a tulaj-content (szolgáltatás/kategória nevek, leírások, „jó tudni",
+  // feltételek, email tárgy/bevezető, staff bio) `localized: true` mezőkön át. A magyar az alap +
+  // fallback; üres nyelv → magyar. A rendszer-szöveg NEM ezen megy (statikus szótár, src/lib/i18n).
+  localization: {
+    locales: ['hu', 'en', 'de', 'es', 'it', 'fr'],
+    defaultLocale: 'hu',
+    fallback: true,
+  },
   editor: slateEditor({}),
   db: postgresAdapter({
     // A Payload bulk-delete (több dokumentum egyszerre) párhuzamos query-ket futtat egy

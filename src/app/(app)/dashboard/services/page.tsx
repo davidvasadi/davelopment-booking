@@ -38,6 +38,7 @@ export default async function ServicesPage() {
         initialServices={servicesResult.docs as Service[]}
         staffList={staffResult.docs as StaffMember[]}
         initialCategories={categoriesResult.docs as ServiceCategory[]}
+        supportedLocales={salon.supported_locales ?? null}
       />
     </div>
   )

@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useSearchParams } from 'next/navigation'
 import { X } from 'lucide-react'
 import { EASE, DUR } from '@/lib/motion'
+import { makeT, type Locale } from '@/lib/i18n'
 import { TermsContent, buildTermsItems, type Section, type CompanyInfo } from './TermsContent'
 
 export type { CompanyInfo }
@@ -20,14 +21,17 @@ export function TermsModal({
   sections,
   company,
   triggerClassName,
+  locale = 'hu',
 }: {
   sections?: Section[] | null
   company?: CompanyInfo | null
   triggerClassName?: string
+  locale?: Locale
 }) {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
   const searchParams = useSearchParams()
+  const tt = makeT(locale)
 
   useEffect(() => setMounted(true), [])
 
@@ -47,7 +51,7 @@ export function TermsModal({
     if (searchParams.get('terms') === '1') setOpen(true)
   }, [searchParams])
 
-  const items = buildTermsItems(sections, company)
+  const items = buildTermsItems(sections, company, locale)
   if (items.length === 0) return null
 
   return (
@@ -57,7 +61,7 @@ export function TermsModal({
         onClick={() => setOpen(true)}
         className={triggerClassName ?? 'text-sm font-medium text-zinc-500 hover:text-zinc-800 underline underline-offset-2 transition-colors'}
       >
-        Foglalási feltételek
+        {tt('public.terms.title')}
       </button>
 
       {mounted && createPortal(
@@ -87,13 +91,13 @@ export function TermsModal({
                 </div>
                 <div className="flex items-center justify-between gap-3 px-6 pt-4 pb-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">Jó tudni</p>
-                    <h3 className="text-xl font-black tracking-tight text-zinc-900">Foglalási feltételek</h3>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">{tt('goodToKnow.title')}</p>
+                    <h3 className="text-xl font-black tracking-tight text-zinc-900">{tt('public.terms.title')}</h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
-                    aria-label="Bezárás"
+                    aria-label={tt('openingHours.close')}
                     className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center bg-zinc-100/70 text-zinc-500 hover:bg-zinc-200 transition-colors"
                   >
                     <X className="h-4 w-4" />

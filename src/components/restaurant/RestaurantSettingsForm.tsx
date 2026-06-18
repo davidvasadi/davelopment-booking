@@ -17,6 +17,10 @@ import { SettingsTabsNav } from '@/components/ui/settings-tabs'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor, type TermsSection } from '@/components/settings/TermsSectionsEditor'
 import { GoodToKnowEditor, type GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
+import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
+import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
+import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
+import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { Media } from '@/payload/payload-types'
 
 /** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás.
@@ -107,6 +111,7 @@ export function RestaurantSettingsForm({
   businessCount = 1,
   slug,
   initial,
+  supportedLocales,
   logo,
   coverImage,
 }: {
@@ -115,6 +120,7 @@ export function RestaurantSettingsForm({
   businessCount?: number
   slug: string
   initial: Settings
+  supportedLocales?: (Locale | string)[] | null
   logo?: string | Media | null
   coverImage?: string | Media | null
 }) {
@@ -128,17 +134,61 @@ export function RestaurantSettingsForm({
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState('')
 
+  // ── Nyelvek: a tulaj által a foglalón kínált nyelvkészlet (HU mindig fix alap) ──
+  const [supportedExtras, setSupportedExtras] = useState<Locale[]>(
+    resolveAvailableLocales(supportedLocales).filter((l) => l !== 'hu'),
+  )
+  const [savedSupported, setSavedSupported] = useState<Locale[]>(supportedExtras)
+  const supportedDirty = JSON.stringify(supportedExtras) !== JSON.stringify(savedSupported)
+
+  // ── Localizált tartalom (email tárgy/intro, „jó tudni", feltételek) per-nyelv ──
+  const loc = useLocalizedFields({
+    collection: 'restaurants',
+    id: restaurantId,
+    supported: ['hu', ...savedSupported],
+    huValues: {
+      booking_email_subject: initial.booking_email_subject,
+      booking_email_intro: initial.booking_email_intro,
+      terms_sections: initial.terms_sections.map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
+      good_to_know: initial.good_to_know.map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
+    },
+  })
+
+  const saveSupported = async (): Promise<boolean> => {
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/restaurants/${restaurantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ supported_locales: ['hu', ...supportedExtras] }),
+      })
+      if (!res.ok) throw new Error()
+      setSavedSupported(supportedExtras)
+      toast.success('Nyelvek mentve')
+      router.refresh()
+      return true
+    } catch {
+      toast.error('Hiba történt')
+      return false
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   // ── Fülek + mentetlen-változás védelem ──────────────────────────
   // Melyik mező melyik fülhöz tartozik (dirty-követés + per-tab mentés).
+  // A localizált mezőket (good_to_know, terms_sections, booking_email_*) a `loc` hook kezeli.
   const TAB_FIELDS: Record<string, (keyof Settings)[]> = {
-    general: ['name', 'city', 'address', 'phone', 'email', 'website', 'good_to_know'],
+    general: ['name', 'city', 'address', 'phone', 'email', 'website'],
     booking: [
       'turn_duration_minutes', 'slot_step_minutes', 'last_seating_buffer_minutes',
       'lead_time_hours', 'booking_window_days', 'require_phone', 'notify_new_bookings',
     ],
-    email: ['booking_email_subject', 'booking_email_intro', 'email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
-    documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat', 'terms_sections'],
+    email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
+    documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat'],
   }
+  const LOC_TABS = new Set(['general', 'email', 'documents'])
   const [activeTab, setActiveTab] = useState('general')
   // Fülváltáskor, ha van mentetlen változás, ide tesszük a célfület és rákérdezünk.
   const [pendingTab, setPendingTab] = useState<string | null>(null)
@@ -147,8 +197,10 @@ export function RestaurantSettingsForm({
   const tabDirty = (tab: string): boolean => {
     const fields = TAB_FIELDS[tab] ?? []
     const fieldDirty = fields.some((k) => form[k] !== saved[k])
-    if (tab === 'general') return fieldDirty || logoModified || coverModified
-    return fieldDirty
+    const locDirty = LOC_TABS.has(tab) && loc.dirty
+    if (tab === 'general') return fieldDirty || logoModified || coverModified || locDirty
+    if (tab === 'languages') return supportedDirty
+    return fieldDirty || locDirty
   }
 
   const [logoId, setLogoId] = useState<number | null>(mediaId(logo))
@@ -268,7 +320,13 @@ export function RestaurantSettingsForm({
     }
   }
 
-  const saveTab = (tab: string) => persist(TAB_FIELDS[tab] ?? [], tab === 'general')
+  const saveTab = async (tab: string): Promise<boolean> => {
+    if (tab === 'languages') return saveSupported()
+    const okFields = await persist(TAB_FIELDS[tab] ?? [], tab === 'general')
+    let okLoc = true
+    if (LOC_TABS.has(tab) && loc.dirty) okLoc = await loc.saveLocale()
+    return okFields && okLoc
+  }
   const saveAll = () =>
     persist(Object.values(TAB_FIELDS).flat(), true)
 
@@ -287,6 +345,7 @@ export function RestaurantSettingsForm({
   const tabs = [
     { id: 'general', label: 'Általános', dirty: tabDirty('general') },
     { id: 'booking', label: 'Foglalás', dirty: tabDirty('booking') },
+    { id: 'languages', label: 'Nyelvek', dirty: tabDirty('languages') },
     { id: 'email', label: 'Email', dirty: tabDirty('email') },
     { id: 'documents', label: 'Dokumentumok', dirty: tabDirty('documents') },
     { id: 'danger', label: 'Veszélyzóna' },
@@ -459,7 +518,8 @@ export function RestaurantSettingsForm({
         <p className="text-xs text-zinc-400 dark:text-white/30">
           Saját „Jó tudni" pontok (cím + szöveg) a nyilvános foglaló oldalon, az automatikus kártyák (foglalási idő, legkorábbi foglalás) alatt. Pl. „Módosítás: az adott napon csak telefonon".
         </p>
-        <GoodToKnowEditor value={form.good_to_know} onChange={(v) => set('good_to_know', v)} />
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
+        <GoodToKnowEditor value={loc.current.good_to_know} onChange={(v) => loc.setField('good_to_know', v)} locale={loc.editLocale} />
       </Section>
 
       <div className="lg:col-span-2">
@@ -561,16 +621,36 @@ export function RestaurantSettingsForm({
       </div>
       )}
 
+      {activeTab === 'languages' && (
+      <div className="space-y-4 lg:space-y-6">
+      <Section title="Foglalón kínált nyelvek">
+        <p className="text-xs text-zinc-400 dark:text-white/30 -mt-1">
+          Mely nyelveken választhatnak a vendégek a foglaló oldalon. A magyar mindig elérhető (alap, és tartalék
+          azokra a szövegekre, amiket egy másik nyelven nem adsz meg). A bekapcsolt nyelvekhez az „Email",
+          „Dokumentumok" és a „Jó tudni" résznél tudsz nyelvenkénti szöveget beírni a nyelvváltóval.
+        </p>
+        <SupportedLocalesPicker value={supportedExtras} onChange={setSupportedExtras} />
+        {supportedExtras.length === 0 && (
+          <p className="text-xs text-zinc-400 dark:text-white/30">
+            Csak magyar — a foglalón nem jelenik meg nyelvválasztó.
+          </p>
+        )}
+      </Section>
+      <SaveBar dirty={tabDirty('languages')} submitting={submitting} onSave={() => saveTab('languages')} />
+      </div>
+      )}
+
       {activeTab === 'email' && (
       <div className="space-y-4 lg:space-y-6">
         {/* Tartalom */}
         <Section title="Tartalom">
+          <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
           <div className="space-y-1.5">
             <Label className={labelClass}>Email tárgya</Label>
             <Input
               className={inputClass}
-              value={form.booking_email_subject}
-              onChange={(e) => set('booking_email_subject', e.target.value)}
+              value={loc.current.booking_email_subject}
+              onChange={(e) => loc.setField('booking_email_subject', e.target.value)}
               placeholder="Asztalfoglalás visszaigazolva — {{name}}"
             />
             <p className="text-xs text-zinc-400 dark:text-white/30">Üresen hagyva az alapértelmezett tárgy jelenik meg.</p>
@@ -579,8 +659,8 @@ export function RestaurantSettingsForm({
             <Label className={labelClass}>Bevezető szöveg</Label>
             <Textarea
               className={inputClass + ' min-h-28 py-3'}
-              value={form.booking_email_intro}
-              onChange={(e) => set('booking_email_intro', e.target.value)}
+              value={loc.current.booking_email_intro}
+              onChange={(e) => loc.setField('booking_email_intro', e.target.value)}
               placeholder={'Kedves {{name}}!\n\nKöszönjük a foglalást, várunk szeretettel!'}
             />
             <p className="text-xs text-zinc-400 dark:text-white/30">A visszaigazoló email tetejére, a foglalás részletei elé kerül.</p>
@@ -630,7 +710,7 @@ export function RestaurantSettingsForm({
           </div>
         </Section>
 
-        <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('restaurant', form), '_blank', 'noopener')} />
+        <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('restaurant', { ...form, booking_email_intro: loc.current.booking_email_intro }, loc.editLocale), '_blank', 'noopener')} />
       </div>
       )}
 
@@ -664,7 +744,8 @@ export function RestaurantSettingsForm({
         <p className="text-xs text-zinc-400 dark:text-white/30">
           Szakaszonként add meg a feltételeket (cím + szöveg). Megjelenik a nyilvános foglaló oldalon és a visszaigazoló emailben. Hagyd üresen, ha nincs.
         </p>
-        <TermsSectionsEditor value={form.terms_sections} onChange={(v) => set('terms_sections', v)} />
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
+        <TermsSectionsEditor value={loc.current.terms_sections} onChange={(v) => loc.setField('terms_sections', v)} locale={loc.editLocale} />
       </Section>
 
       <SaveBar dirty={tabDirty('documents')} submitting={submitting} onSave={() => saveTab('documents')} />
@@ -723,6 +804,7 @@ export function RestaurantSettingsForm({
           setLogoModified(false); setLogoPreview(mediaUrl(logo)); setLogoId(mediaId(logo))
           setCoverModified(false); setCoverPreview(mediaUrl(coverImage)); setCoverId(mediaId(coverImage))
         }
+        if (activeTab === 'languages') setSupportedExtras(savedSupported)
         if (pendingTab) { setActiveTab(pendingTab); setPendingTab(null) }
       }}
       onCancel={() => setPendingTab(null)}

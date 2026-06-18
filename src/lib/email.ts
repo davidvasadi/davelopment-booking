@@ -12,6 +12,7 @@ import {
   renderSubject,
   COLORS,
 } from './emailLayout'
+import { t, normalizeLocale } from './i18n'
 
 let _resend: Resend | null = null
 function getResend(): Resend | null {
@@ -103,11 +104,12 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
   const cancelUrl = (booking as any).cancellation_token
     ? `${APP_URL}/booking/confirm-cancel/${(booking as any).cancellation_token}`
     : null
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
   const vars = emailVars(data)
-  const subjectTpl = salon.booking_email_subject?.trim()
+  const subjectTpl = (salon.booking_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, vars)
-    : `Foglalás visszaigazolva — ${salon.name}`
+    : t(locale, 'email.confirm.subjectFallback', { place: salon.name })
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
@@ -147,11 +149,12 @@ export async function sendCancellationEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
-      subject: `Foglalás lemondva — ${salon.name}`,
+      subject: t(locale, 'email.cancel.subjectFallback', { place: salon.name }),
       html: cancellationHtml(data),
     })
   } catch (err) {
@@ -167,40 +170,43 @@ function salonAddress(salon: Salon): string | null {
 
 function bookingRows(data: BookingEmailData): string {
   const { booking, salon, service, staff } = data
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
   const location = salon.address ? `${salon.address}${salon.city ? ', ' + salon.city : ''}` : null
   return [
-    infoRow('user', 'Név', booking.customer_name),
-    infoRow('mail', 'Email', booking.customer_email),
-    infoRow('scissors', 'Szolgáltatás', service.name),
-    infoRow('user', 'Munkatárs', staff.name),
-    infoRow('calendar', 'Dátum', booking.date),
-    infoRow('clock', 'Időpont', `${booking.start_time} – ${booking.end_time}`),
-    location ? infoRow('pin', 'Cím', location) : '',
+    infoRow('user', t(locale, 'email.label.name'), booking.customer_name),
+    infoRow('mail', t(locale, 'email.label.email'), booking.customer_email),
+    infoRow('scissors', t(locale, 'email.label.service'), service.name),
+    infoRow('user', t(locale, 'email.label.staff'), staff.name),
+    infoRow('calendar', t(locale, 'email.label.date'), booking.date),
+    infoRow('clock', t(locale, 'email.label.time'), `${booking.start_time} – ${booking.end_time}`),
+    location ? infoRow('pin', t(locale, 'email.label.address'), location) : '',
   ].filter(Boolean).join('')
 }
 
 function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): string {
   const { booking, salon } = data
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
   return wrap(salon, `
     ${heroBlock({
       icon: 'success',
-      title: 'Foglalás visszaigazolva',
-      subtitle: `Kedves ${booking.customer_name}, foglalásod sikeresen rögzítettük.`,
+      title: t(locale, 'email.confirm.title'),
+      subtitle: t(locale, 'email.greeting', { name: booking.customer_name }),
     })}
-    ${introBlock(salon.booking_email_intro, emailVars(data))}
+    ${introBlock(salon.booking_email_intro ?? '', emailVars(data))}
     ${detailsCard(bookingRows(data))}
     <tr><td style="background:${COLORS.surface};padding:16px 32px 0;text-align:center">
-      <p style="margin:0;color:${COLORS.textFaint};font-size:12px">A csatolt <strong style="color:${COLORS.textSoft}">foglalas.ics</strong> fájllal egyből hozzáadhatod a naptáradhoz.</p>
+      <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.ics.hint')}</p>
     </td></tr>
     ${footerInfoBlock({
       hasTerms: hasTerms(salon),
-      bookingUrl: `${APP_URL}/${salon.slug}/feltetelek`,
+      bookingUrl: `${APP_URL}/${salon.slug}/terms`,
       phone: salon.email_show_phone ? (salon.email_contact_phone?.trim() || salon.phone) : null,
       email: salon.email_show_email ? salon.email : null,
       address: salon.email_show_address ? salonAddress(salon) : null,
       directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
+      locale,
     })}
-    ${cancelBlock(cancelUrl)}
+    ${cancelBlock(cancelUrl, locale)}
     ${bottomSpacer()}
   `)
 }
@@ -230,22 +236,23 @@ function notificationHtml(data: BookingEmailData): string {
 
 function cancellationHtml(data: BookingEmailData): string {
   const { booking, salon, service } = data
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
   const location = salon.address ? `${salon.address}${salon.city ? ', ' + salon.city : ''}` : null
   const rows = [
-    infoRow('scissors', 'Szolgáltatás', service.name),
-    infoRow('calendar', 'Dátum', booking.date),
-    infoRow('clock', 'Időpont', `${booking.start_time} – ${booking.end_time}`),
-    location ? infoRow('pin', 'Cím', location) : '',
+    infoRow('scissors', t(locale, 'email.label.service'), service.name),
+    infoRow('calendar', t(locale, 'email.label.date'), booking.date),
+    infoRow('clock', t(locale, 'email.label.time'), `${booking.start_time} – ${booking.end_time}`),
+    location ? infoRow('pin', t(locale, 'email.label.address'), location) : '',
   ].filter(Boolean).join('')
   return wrap(salon, `
     ${heroBlock({
       icon: 'cancel',
-      title: 'Foglalás lemondva',
-      subtitle: `Kedves ${booking.customer_name}, foglalásod sikeresen lemondásra került.`,
+      title: t(locale, 'email.cancel.title'),
+      subtitle: t(locale, 'email.cancel.body'),
     })}
     ${detailsCard(rows)}
     <tr><td style="background:${COLORS.surface};padding:16px 32px 0;text-align:center">
-      <p style="margin:0;color:${COLORS.textFaint};font-size:12px">Ha ez tévedés volt, kérjük foglalj újra a szalon oldalán.</p>
+      <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.cancel.hint')}</p>
     </td></tr>
     ${bottomSpacer()}
   `)

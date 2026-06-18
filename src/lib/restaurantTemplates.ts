@@ -12,6 +12,48 @@ export const DAY_LABELS_HU: Record<DayOfWeek, string> = {
   sunday: 'Vasárnap',
 }
 
+export const DAY_LABELS_EN: Record<DayOfWeek, string> = {
+  monday: 'Monday',
+  tuesday: 'Tuesday',
+  wednesday: 'Wednesday',
+  thursday: 'Thursday',
+  friday: 'Friday',
+  saturday: 'Saturday',
+  sunday: 'Sunday',
+}
+
+export const DAY_LABELS_DE: Record<DayOfWeek, string> = {
+  monday: 'Montag', tuesday: 'Dienstag', wednesday: 'Mittwoch', thursday: 'Donnerstag',
+  friday: 'Freitag', saturday: 'Samstag', sunday: 'Sonntag',
+}
+
+export const DAY_LABELS_ES: Record<DayOfWeek, string> = {
+  monday: 'Lunes', tuesday: 'Martes', wednesday: 'Miércoles', thursday: 'Jueves',
+  friday: 'Viernes', saturday: 'Sábado', sunday: 'Domingo',
+}
+
+export const DAY_LABELS_IT: Record<DayOfWeek, string> = {
+  monday: 'Lunedì', tuesday: 'Martedì', wednesday: 'Mercoledì', thursday: 'Giovedì',
+  friday: 'Venerdì', saturday: 'Sabato', sunday: 'Domenica',
+}
+
+export const DAY_LABELS_FR: Record<DayOfWeek, string> = {
+  monday: 'Lundi', tuesday: 'Mardi', wednesday: 'Mercredi', thursday: 'Jeudi',
+  friday: 'Vendredi', saturday: 'Samedi', sunday: 'Dimanche',
+}
+
+/** Napnév-címkék a megadott nyelven (a 6 támogatott locale). */
+export function dayLabels(locale: 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr'): Record<DayOfWeek, string> {
+  switch (locale) {
+    case 'en': return DAY_LABELS_EN
+    case 'de': return DAY_LABELS_DE
+    case 'es': return DAY_LABELS_ES
+    case 'it': return DAY_LABELS_IT
+    case 'fr': return DAY_LABELS_FR
+    default: return DAY_LABELS_HU
+  }
+}
+
 export interface RoomSeed {
   name: string
   sort_order?: number

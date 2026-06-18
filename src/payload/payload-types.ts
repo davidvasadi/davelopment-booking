@@ -1,3 +1,6 @@
+/** A Payload-lokalizáció támogatott nyelvei (lásd payload.config.ts localization.locales). */
+export type Locale = 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr'
+
 export interface Config {
   collections: {
     users: User
@@ -90,6 +93,7 @@ export interface Restaurant {
   registered_seat?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
+  supported_locales?: Locale[] | null
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string
@@ -165,6 +169,7 @@ export interface Reservation {
   status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'no_show' | 'cancelled'
   source: 'online' | 'walk_in' | 'phone'
   cancel_token?: string | null
+  locale?: 'hu' | 'en' | null
   createdAt: string
   updatedAt: string
 }
@@ -242,6 +247,7 @@ export interface Salon {
   registered_seat?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
+  supported_locales?: Locale[] | null
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string
@@ -263,8 +269,8 @@ export interface Service {
   id: string
   name: string
   description?: string | null
-  category?: string | null
-  subcategory?: string | null
+  category: string | ServiceCategory
+  subcategory?: string | ServiceCategory | null
   image?: string | Media | null
   salon: string | Salon
   staff?: (string | StaffMember)[] | null
@@ -301,6 +307,7 @@ export interface Booking {
   end_time: string
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
   notes?: string | null
+  locale?: 'hu' | 'en' | null
   createdAt: string
   updatedAt: string
 }

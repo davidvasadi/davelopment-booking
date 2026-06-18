@@ -17,6 +17,7 @@ const schema = z.object({
   customer_email: z.string().email(),
   customer_phone: z.string().min(7),
   notes: z.string().optional(),
+  locale: z.enum(['hu', 'en', 'de', 'es', 'it', 'fr']).default('hu'),
 })
 
 export async function POST(request: NextRequest) {
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, staffId, date, start_time, end_time, customer_name, customer_email, customer_phone, notes } = parsed.data
+  const { salonId, serviceId, staffId, date, start_time, end_time, customer_name, customer_email, customer_phone, notes, locale } = parsed.data
 
   // Reject bookings in the past
   const today = new Date().toISOString().split('T')[0]
@@ -64,10 +65,12 @@ export async function POST(request: NextRequest) {
     // overrideAccess: a publikus foglalás-flow (bejelentkezetlen vendég) — a route
     // a jogosultságot maga validálja (slot szabad, nem múltbeli). A create utáni
     // visszaolvasás és e három find a szigorított read-en máskülönben elhasalna.
+    // A salon/service/staff a foglalás nyelvén töltve (localized tulaj-szöveg a visszaigazoló
+    // emailhez); üres nyelvnél HU fallback.
     const [salon, service, staff] = await Promise.all([
-      payload.findByID({ collection: 'salons', id: salonId, overrideAccess: true }) as Promise<Salon>,
-      payload.findByID({ collection: 'services', id: serviceId, overrideAccess: true }) as Promise<Service>,
-      payload.findByID({ collection: 'staff', id: staffId, overrideAccess: true }) as Promise<StaffMember>,
+      payload.findByID({ collection: 'salons', id: salonId, overrideAccess: true, locale, fallbackLocale: 'hu' }) as Promise<Salon>,
+      payload.findByID({ collection: 'services', id: serviceId, overrideAccess: true, locale, fallbackLocale: 'hu' }) as Promise<Service>,
+      payload.findByID({ collection: 'staff', id: staffId, overrideAccess: true, locale, fallbackLocale: 'hu' }) as Promise<StaffMember>,
     ])
 
     const booking = (await payload.create({
@@ -85,6 +88,7 @@ export async function POST(request: NextRequest) {
         end_time,
         status: 'confirmed',
         notes: notes ?? undefined,
+        locale,
         cancellation_token: randomBytes(32).toString('hex'),
       },
     })) as unknown as Booking

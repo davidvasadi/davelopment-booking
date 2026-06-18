@@ -12,6 +12,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Plus, Pencil, Trash2, CalendarDays, Camera, Loader2, X } from 'lucide-react'
 import StaffCalendarSheet from './StaffCalendarSheet'
+import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
+import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
@@ -23,6 +25,7 @@ type FormData = z.infer<typeof schema>
 interface Props {
   salonId: string
   initialStaff: StaffMember[]
+  supportedLocales?: (Locale | string)[] | null
 }
 
 function avatarUrl(m: StaffMember): string | null {
@@ -31,11 +34,17 @@ function avatarUrl(m: StaffMember): string | null {
   return null
 }
 
-export default function StaffManager({ salonId, initialStaff }: Props) {
+export default function StaffManager({ salonId, initialStaff, supportedLocales }: Props) {
   const [staff, setStaff] = useState(initialStaff)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<StaffMember | null>(null)
   const [submitting, setSubmitting] = useState(false)
+
+  // Nyelvkészlet a szalon supported_locales-éből (HU mindig benne). A bio localizált mező —
+  // szerkesztéskor nyelvenként vihető be a `?locale=` paraméterrel.
+  const availableLocales = resolveAvailableLocales(supportedLocales)
+  const [editLocale, setEditLocale] = useState<Locale>('hu')
+  const [localeLoading, setLocaleLoading] = useState(false)
 
   const [avatarId, setAvatarId] = useState<number | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
@@ -45,7 +54,7 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
 
   const [calendarStaff, setCalendarStaff] = useState<StaffMember | null>(null)
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { is_active: true },
   })
@@ -53,6 +62,7 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
   const openAdd = () => {
     reset({ name: '', bio: '', is_active: true })
     setEditing(null)
+    setEditLocale('hu')
     setAvatarId(null)
     setAvatarPreview(null)
     setAvatarModified(false)
@@ -62,12 +72,39 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
   const openEdit = (m: StaffMember) => {
     reset({ name: m.name, bio: m.bio ?? '', is_active: m.is_active ?? true })
     setEditing(m)
+    setEditLocale('hu')
     const url = avatarUrl(m)
     setAvatarPreview(url)
     const media = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media) : null
     setAvatarId(media ? Number(media.id) : null)
     setAvatarModified(false)
     setOpen(true)
+  }
+
+  // Szerkesztési nyelv váltása. HU-ra váltva az alap (editing) bio tér vissza; más nyelvre
+  // lekérdezzük az adott nyelvi tartalmat (üres → a mező üres, HU fallback érvényes a foglalón).
+  const selectEditLocale = async (loc: Locale) => {
+    if (loc === editLocale) return
+    if (loc === 'hu') {
+      setEditLocale('hu')
+      setValue('bio', editing?.bio ?? '')
+      return
+    }
+    if (!editing) return
+    setLocaleLoading(true)
+    try {
+      const res = await fetch(`/api/staff/${editing.id}?locale=${loc}&fallback-locale=null&depth=0`, {
+        credentials: 'include',
+      })
+      if (!res.ok) throw new Error()
+      const doc = await res.json()
+      setEditLocale(loc)
+      setValue('bio', doc.bio ?? '')
+    } catch {
+      toast.error('A nyelvi tartalom betöltése sikertelen')
+    } finally {
+      setLocaleLoading(false)
+    }
   }
 
   const handleAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +144,20 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
   const onSubmit = async (data: FormData) => {
     setSubmitting(true)
     try {
+      // Idegen nyelv szerkesztése: csak a localizált bio-t PATCH-eljük az adott nyelvre.
+      if (editLocale !== 'hu' && editing) {
+        const res = await fetch(`/api/staff/${editing.id}?locale=${editLocale}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ bio: data.bio || null }),
+        })
+        if (!res.ok) throw new Error()
+        setOpen(false)
+        toast.success('Fordítás mentve')
+        return
+      }
+
       const body: Record<string, unknown> = { ...data, salon: salonId }
       if (avatarModified) body.avatar = avatarId ?? null
       else if (avatarId) body.avatar = avatarId
@@ -225,7 +276,17 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
           </SheetHeader>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 mt-6">
 
-            {/* Avatar upload */}
+            {editing && availableLocales.length > 1 && (
+              <LocaleEditBar
+                available={availableLocales}
+                active={editLocale}
+                onSelect={selectEditLocale}
+                loading={localeLoading}
+              />
+            )}
+
+            {editLocale === 'hu' && (
+            /* Avatar upload */
             <div className="flex flex-col items-center gap-3">
               <div className="relative">
                 <button
@@ -265,26 +326,31 @@ export default function StaffManager({ salonId, initialStaff }: Props) {
                 onChange={handleAvatarPick}
               />
             </div>
+            )}
 
+            {editLocale === 'hu' && (
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Név *</Label>
               <Input className="h-11 rounded-xl" {...register('name')} />
               {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
             </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Bemutatkozás</Label>
-              <Textarea className="rounded-xl" {...register('bio')} rows={3} />
+              <Textarea className="rounded-xl" {...register('bio')} rows={3} placeholder={editLocale !== 'hu' ? (editing?.bio ?? '') : undefined} />
             </div>
+            {editLocale === 'hu' && (
             <div className="flex items-center gap-2">
               <input type="checkbox" id="staff_active" className="h-4 w-4 rounded" {...register('is_active')} />
               <Label htmlFor="staff_active" className="text-sm">Aktív (foglalható)</Label>
             </div>
+            )}
             <button
               type="submit"
               disabled={submitting || uploadingAvatar}
               className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm transition-colors disabled:opacity-50"
             >
-              {submitting ? 'Mentés...' : 'Mentés'}
+              {submitting ? 'Mentés...' : editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
           </form>
         </SheetContent>

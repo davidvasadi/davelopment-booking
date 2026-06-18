@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getPayloadClient } from '@/lib/payload'
+import type { Locale } from '@/lib/i18n'
 import type {
   Salon,
   Service,
@@ -39,14 +40,17 @@ export type PublicRestaurantData = {
   openingHours: OpeningHour[]
 } | null
 
-async function fetchPublicSalon(slug: string): Promise<PublicSalonData> {
+async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSalonData> {
   const payload = await getPayloadClient()
 
+  // A localizált tulaj-mezők a vendég nyelvén jönnek; üres nyelvnél HU fallback.
   const salonResult = await payload.find({
     collection: 'salons',
     where: { and: [{ slug: { equals: slug } }, { is_active: { equals: true } }] },
     depth: 2,
     limit: 1,
+    locale,
+    fallbackLocale: 'hu',
   })
   if (!salonResult.docs.length) return null
   const salon = salonResult.docs[0] as Salon
@@ -58,6 +62,8 @@ async function fetchPublicSalon(slug: string): Promise<PublicSalonData> {
       sort: 'name',
       depth: 1,
       limit: 100,
+      locale,
+      fallbackLocale: 'hu',
     }),
     payload.find({
       collection: 'staff',
@@ -65,6 +71,8 @@ async function fetchPublicSalon(slug: string): Promise<PublicSalonData> {
       sort: 'name',
       depth: 1,
       limit: 100,
+      locale,
+      fallbackLocale: 'hu',
     }),
     payload.find({
       collection: 'service-categories',
@@ -72,6 +80,8 @@ async function fetchPublicSalon(slug: string): Promise<PublicSalonData> {
       sort: 'sort_order',
       depth: 1,
       limit: 100,
+      locale,
+      fallbackLocale: 'hu',
     }),
   ])
 
@@ -83,7 +93,7 @@ async function fetchPublicSalon(slug: string): Promise<PublicSalonData> {
   }
 }
 
-async function fetchPublicRestaurant(slug: string): Promise<PublicRestaurantData> {
+async function fetchPublicRestaurant(slug: string, locale: Locale): Promise<PublicRestaurantData> {
   const payload = await getPayloadClient()
 
   const result = await payload.find({
@@ -91,6 +101,8 @@ async function fetchPublicRestaurant(slug: string): Promise<PublicRestaurantData
     where: { and: [{ slug: { equals: slug } }, { is_active: { not_equals: false } }] },
     depth: 1,
     limit: 1,
+    locale,
+    fallbackLocale: 'hu',
   })
   if (!result.docs.length) return null
   const restaurant = result.docs[0] as Restaurant
@@ -111,8 +123,10 @@ async function fetchPublicRestaurant(slug: string): Promise<PublicRestaurantData
  * A publikus szalon-profil cache-elt lekérdezése.
  * Korlátlanul cache-elt; csak a place:salon:{slug} tag revalidálásakor frissül.
  */
-export function getPublicSalon(slug: string): Promise<PublicSalonData> {
-  return unstable_cache(() => fetchPublicSalon(slug), ['public-salon', slug], {
+export function getPublicSalon(slug: string, locale: Locale = 'hu'): Promise<PublicSalonData> {
+  // A cache-kulcs nyelvenként külön (a localizált mezők eltérnek); a tag közös, így egy módosítás
+  // minden nyelv-variánst invalidál.
+  return unstable_cache(() => fetchPublicSalon(slug, locale), ['public-salon', slug, locale], {
     tags: [salonTag(slug)],
   })()
 }
@@ -121,8 +135,8 @@ export function getPublicSalon(slug: string): Promise<PublicSalonData> {
  * A publikus étterem-profil cache-elt lekérdezése.
  * Korlátlanul cache-elt; csak a place:restaurant:{slug} tag revalidálásakor frissül.
  */
-export function getPublicRestaurant(slug: string): Promise<PublicRestaurantData> {
-  return unstable_cache(() => fetchPublicRestaurant(slug), ['public-restaurant', slug], {
+export function getPublicRestaurant(slug: string, locale: Locale = 'hu'): Promise<PublicRestaurantData> {
+  return unstable_cache(() => fetchPublicRestaurant(slug, locale), ['public-restaurant', slug, locale], {
     tags: [restaurantTag(slug)],
   })()
 }

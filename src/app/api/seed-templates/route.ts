@@ -43,8 +43,11 @@ export async function POST(req: NextRequest) {
       })
     })
 
+    // A kategória mostantól relationship → előbb létrehozzuk a kategória-rekordokat, és név→ID
+    // térképet építünk. A service-ek category/subcategory mezője ezután az ID-t kapja.
+    const catIdByName = new Map<string, number | string>()
     for (const cat of allCategories) {
-      await payload.create({
+      const created = await payload.create({
         collection: 'service-categories',
         data: {
           name: cat.name,
@@ -53,6 +56,20 @@ export async function POST(req: NextRequest) {
           salon: salonId,
         },
       })
+      catIdByName.set(cat.name, created.id)
+    }
+
+    // Egy név → kategória-ID; ha a sablon olyan (al)kategória-nevet hivatkozik, ami még nincs
+    // rekordként (pl. alkategória), igény szerint létrehozzuk.
+    const ensureCategory = async (name: string): Promise<number | string> => {
+      const existing = catIdByName.get(name)
+      if (existing != null) return existing
+      const created = await payload.create({
+        collection: 'service-categories',
+        data: { name, sort_order: 999, salon: salonId },
+      })
+      catIdByName.set(name, created.id)
+      return created.id
     }
 
     // Create services from all templates
@@ -63,8 +80,8 @@ export async function POST(req: NextRequest) {
           data: {
             name: svc.name,
             description: svc.description ?? null,
-            category: svc.category,
-            subcategory: svc.subcategory ?? null,
+            category: await ensureCategory(svc.category),
+            subcategory: svc.subcategory ? await ensureCategory(svc.subcategory) : null,
             duration_minutes: svc.duration_minutes,
             price: svc.price,
             currency: 'HUF',

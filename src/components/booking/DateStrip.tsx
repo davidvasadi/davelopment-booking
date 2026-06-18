@@ -3,12 +3,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, type Variants } from 'framer-motion'
 import { format, addDays, isSameDay, isToday } from 'date-fns'
-import { hu } from 'date-fns/locale'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { EASE, DUR } from '@/lib/motion'
-
-const HU_DAYS = ['V', 'H', 'K', 'Sz', 'Cs', 'P', 'Szo']
+import { t, dfLocale, type Locale } from '@/lib/i18n'
 
 // A napok lépcsőzött beúszása. Saját `initial="hidden"/animate="show"` a konténeren →
 // megszakítja a wizard step-wrapper (stepSlide, initial="enter") variant-öröklését, ezért
@@ -31,14 +29,17 @@ export function DateStrip({
   selected,
   onChange,
   dayCount = 60,
+  locale = 'hu',
 }: {
   selected: string
   onChange: (d: string) => void
   dayCount?: number
+  locale?: Locale
 }) {
   const days = Array.from({ length: dayCount }, (_, i) => addDays(new Date(), i))
   const selectedDate = new Date(selected + 'T00:00:00')
-  const [month, setMonth] = useState(format(selectedDate, 'MMMM yyyy', { locale: hu }))
+  const dayNames = t(locale, 'dateStrip.days').split(',') // V-tól (index = getDay())
+  const [month, setMonth] = useState(format(selectedDate, 'MMMM yyyy', { locale: dfLocale(locale) }))
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -47,9 +48,9 @@ export function DateStrip({
       const el = scrollRef.current.children[idx] as HTMLElement
       el?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' })
     }
-    setMonth(format(selectedDate, 'MMMM yyyy', { locale: hu }))
+    setMonth(format(selectedDate, 'MMMM yyyy', { locale: dfLocale(locale) }))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected])
+  }, [selected, locale])
 
   const shiftMonth = (dir: 1 | -1) => {
     const cur = days.findIndex((d) => isSameDay(d, selectedDate))
@@ -93,7 +94,7 @@ export function DateStrip({
                     : 'bg-white text-zinc-600 hover:bg-zinc-50',
               )}
             >
-              <span className="text-[10px] font-semibold uppercase text-zinc-400">{HU_DAYS[d.getDay()]}</span>
+              <span className="text-[10px] font-semibold uppercase text-zinc-400">{dayNames[d.getDay()]}</span>
               <span className="text-base font-black leading-none">{format(d, 'd')}</span>
             </motion.button>
           )

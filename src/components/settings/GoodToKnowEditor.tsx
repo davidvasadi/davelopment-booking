@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Trash2, ChevronUp, ChevronDown, ChevronDown as Caret } from 'lucide-react'
+import { Plus, Trash2, ChevronUp, ChevronDown, ChevronDown as Caret, Sparkles } from 'lucide-react'
 import { GOOD_TO_KNOW_ICONS, iconByKey } from './goodToKnowIcons'
+import { goodToKnowTemplate } from './contentTemplates'
+import type { Locale } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
 export type GoodToKnowItem = { icon: string; title: string; body: string }
@@ -15,9 +17,15 @@ export type GoodToKnowItem = { icon: string; title: string; body: string }
 export function GoodToKnowEditor({
   value,
   onChange,
+  locale = 'hu',
+  onLoadTemplate,
 }: {
   value: GoodToKnowItem[]
   onChange: (next: GoodToKnowItem[]) => void
+  /** A szerkesztési nyelv — a sablon-betöltő ezen a nyelven tölti be a kiindulási pontokat. */
+  locale?: Locale
+  /** A sablon-betöltő (a forma adja, hogy a megfelelő nyelvű sablont töltse az aktív locale-ra). */
+  onLoadTemplate?: () => void
 }) {
   const update = (i: number, patch: Partial<GoodToKnowItem>) =>
     onChange(value.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
@@ -34,17 +42,31 @@ export function GoodToKnowEditor({
   return (
     <div className="space-y-3">
       {value.length === 0 ? (
-        <button
-          type="button"
-          onClick={add}
-          className="w-full rounded-2xl border border-dashed border-zinc-300 dark:border-white/[0.12] p-8 flex flex-col items-center gap-2 text-center hover:border-zinc-400 dark:hover:border-white/[0.2] hover:bg-zinc-50/60 dark:hover:bg-white/[0.02] transition-colors"
-        >
+        <div className="rounded-2xl border border-dashed border-zinc-300 dark:border-white/[0.12] p-8 flex flex-col items-center gap-3 text-center">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black">
             <Plus className="h-5 w-5" />
           </span>
-          <span className="text-sm font-semibold text-zinc-700 dark:text-white/70">Első „Jó tudni" pont hozzáadása</span>
+          <span className="text-sm font-semibold text-zinc-700 dark:text-white/70">Még nincs „Jó tudni" pont</span>
           <span className="text-xs text-zinc-400 dark:text-white/30">Pl. parkolás, módosítás, kisállat-barát…</span>
-        </button>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
+            <button
+              type="button"
+              onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale)))}
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-sm font-semibold hover:opacity-90 transition-opacity"
+            >
+              <Sparkles className="h-4 w-4" />
+              Sablon betöltése
+            </button>
+            <button
+              type="button"
+              onClick={add}
+              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-zinc-200 dark:border-white/[0.12] text-sm font-semibold text-zinc-600 dark:text-white/70 hover:border-zinc-400 dark:hover:bg-white/[0.04] transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              Üres pont
+            </button>
+          </div>
+        </div>
       ) : (
         <>
           {value.map((s, i) => (
