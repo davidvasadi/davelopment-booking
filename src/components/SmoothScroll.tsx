@@ -3,6 +3,10 @@
 import { useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import Lenis from 'lenis'
+import { gsap } from 'gsap'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
+
+gsap.registerPlugin(ScrollTrigger)
 
 export function SmoothScroll({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
@@ -20,13 +24,18 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
       smoothWheel: true,
     })
 
-    function raf(time: number) {
-      lenis.raf(time)
-      requestAnimationFrame(raf)
-    }
-    requestAnimationFrame(raf)
+    // A Lenis smooth-scrollt a GSAP ScrollTrigger-rel szinkronizáljuk: minden Lenis-scroll
+    // frissíti a ScrollTriggert, és a GSAP saját tickere hajtja a Lenis raf-ját (egyetlen RAF-loop,
+    // nincs jitter a két rendszer közt). Lásd docs/landing-cinematic-plan.md §2.
+    lenis.on('scroll', ScrollTrigger.update)
+    const onTick = (time: number) => lenis.raf(time * 1000)
+    gsap.ticker.add(onTick)
+    gsap.ticker.lagSmoothing(0)
 
-    return () => lenis.destroy()
+    return () => {
+      gsap.ticker.remove(onTick)
+      lenis.destroy()
+    }
   }, [isAppPage])
 
   return <>{children}</>

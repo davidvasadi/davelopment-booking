@@ -58,26 +58,16 @@ export const stepSlideTransition: Transition = { duration: DUR.fast, ease: EASE 
 export const staggerDelay = (i: number, base = 0.08) => base + i * STAGGER
 
 
-/** Hero landingre */
-export const buttonHover = {
+/**
+ * Hover-nyelv a landing pill-gombokhoz: a felirat balra húz, az ikon elfordul+kicsúszik.
+ * A szülő `initial="rest" whileHover="hover"`, a gyermekek ezt öröklik.
+ */
+export const buttonHover: Variants = {
   rest: { x: 0 },
-  hover: {
-    x: -6,
-    transition: {
-      duration: 0.35,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
+  hover: { x: -6, transition: { duration: 0.35, ease: EASE } },
 }
 
-export const iconHover = {
+export const iconHover: Variants = {
   rest: { rotate: 0, x: 0 },
-  hover: {
-    rotate: 45,
-    x: 6,
-    transition: {
-      duration: 0.35,
-      ease: [0.22, 1, 0.36, 1],
-    },
-  },
+  hover: { rotate: 45, x: 6, transition: { duration: 0.35, ease: EASE } },
 }
