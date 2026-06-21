@@ -1,0 +1,30 @@
+diff --git a/node_modules/@react-three/fiber/dist/declarations/src/three-types.d.ts b/node_modules/@react-three/fiber/dist/declarations/src/three-types.d.ts
+index df81ae7..aae09be 100644
+--- a/node_modules/@react-three/fiber/dist/declarations/src/three-types.d.ts
++++ b/node_modules/@react-three/fiber/dist/declarations/src/three-types.d.ts
+@@ -47,22 +47,7 @@ export interface ThreeElements extends Omit<ThreeElementsImpl, 'audio' | 'source
+     threeLine: ThreeElementsImpl['line'];
+     threePath: ThreeElementsImpl['path'];
+ }
+-declare module 'react' {
+-    namespace JSX {
+-        interface IntrinsicElements extends ThreeElements {
+-        }
+-    }
+-}
+-declare module 'react/jsx-runtime' {
+-    namespace JSX {
+-        interface IntrinsicElements extends ThreeElements {
+-        }
+-    }
+-}
+-declare module 'react/jsx-dev-runtime' {
+-    namespace JSX {
+-        interface IntrinsicElements extends ThreeElements {
+-        }
+-    }
+-}
++// [schedulio patch] R3F global JSX augmentation removed: under React 19 it collapsed the project's
++// <div>/<svg> JSX intrinsics to `never` (TS2322) on the React.ElementType code path. The Three
++// elements are typed locally where needed (src/components/landing/Vision3D.tsx) from `ThreeElements`.
+ export {};

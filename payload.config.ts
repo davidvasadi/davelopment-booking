@@ -83,10 +83,13 @@ export default buildConfig({
     // a query") → a tranzakció megsérül és rollback-el (pl. admin user-törlés több elemen).
     // A tranzakciók kikapcsolásával minden query saját kapcsolaton fut, így nincs ütközés.
     transactionOptions: false,
-    // Séma-szinkron (push) prod-ban is — nincsenek megírt migrációk, és a CLI undici-hibás.
-    // Egyetlen környezet, a séma a kódból jön → a push biztonságos. (TODO: később áttérni
-    // rendes migrációkra, ha a payload CLI undici-hibája megoldódik.)
-    push: true,
+    // Verziózott migrációk a séma-szinkronhoz (scripts/migrate-create.ts + scripts/migrate.ts).
+    // A `push` csak fejlesztésben aktív (gyors iterálás); prod-ban KIKAPCSOLVA, ott kizárólag a
+    // commitolt migrációk futnak (deploy: `npx tsx scripts/migrate.ts`) → determinisztikus,
+    // ugyanaz fut a szerveren, mint amit lokálisan láttunk. A CLI undici-hibás, ezért a
+    // migrate-create/migrate a Payload programozott API-ját hívja, megkerülve a CLI-t.
+    migrationDir: path.resolve(process.cwd(), 'src/migrations'),
+    push: process.env.NODE_ENV !== 'production' && process.env.PAYLOAD_DISABLE_PUSH !== 'true',
     pool: {
       connectionString:
         process.env.DATABASE_URI || 'postgresql://user:password@localhost:5432/dbname',
