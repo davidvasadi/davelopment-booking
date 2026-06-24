@@ -1,74 +1,62 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { CheckCircle2 } from 'lucide-react'
 import { FadeUp } from '@/components/landing/Motion'
-import { SpinButton } from '@/components/landing/LandingButton'
-import { PhoneMockupSVG } from '@/components/landing/Mockups'
+import { RollButton } from '@/components/landing/sections/TestimonialButtons'
+import { EASE } from '@/lib/motion'
 
-const CHECKLIST = [
-  'Automatikus visszaigazolás',
-  'Valós idejű naptár',
-  'Munkatárs-kezelés',
-  'Bevétel-statisztikák',
-]
-
-/** Sötét záró-CTA banner: copy + checklist + kilógó telefon-mockup, dekoratív hullámmal. */
 export function CtaBanner({ trial_days }: { trial_days: number }) {
   return (
     <section className="mx-auto px-4 lg:px-5 pb-8">
       <FadeUp>
-        <div className="rounded-[2rem] bg-brand-ink overflow-hidden relative">
-          {/* Decorative wave */}
-          <svg className="absolute left-0 bottom-0 opacity-10 pointer-events-none" viewBox="0 0 400 220" width="400" height="220">
-            <path d="M0,160 Q80,60 160,120 Q240,180 320,80 Q380,20 400,60" fill="none" stroke="#ecf95a" strokeWidth="2" />
-            <path d="M0,190 Q80,90 160,150 Q240,210 320,110 Q380,50 400,90" fill="none" stroke="#ecf95a" strokeWidth="1" opacity="0.5" />
-            <path d="M0,130 Q80,30 160,90 Q240,150 320,50 Q380,0 400,30" fill="none" stroke="#ecf95a" strokeWidth="0.5" opacity="0.3" />
-          </svg>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-0 items-center">
-            {/* Left copy */}
-            <div className="p-10 lg:p-14 relative z-10">
-              <span className="inline-block rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold text-white/60 mb-5">
-                Kezdj el ma
-              </span>
-              <h2 className="text-3xl lg:text-5xl font-black tracking-tighter text-white leading-tight">
-                Tartsd kézben
-                <br />a vállalkozásod
-                <br />minden percét.
-              </h2>
-              <p className="mt-5 text-white/50 leading-relaxed max-w-sm">
-                {trial_days} nap ingyen, bankkártya nélkül. Beállítás 5 perc. Lemondás egy kattintás.
-              </p>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <SpinButton href="/register" label="Ingyenes próba" variant="light" />
-                <SpinButton href="/davelopment" label="Demó megnézése" variant="dark" />
+        <div className="relative pt-[60px]">
+          <div
+            className="relative rounded-[30px] overflow-hidden"
+            style={{ background: '#222222' }}
+          >
+            <div className="relative z-10 flex items-center min-h-[280px] px-8 lg:px-12 py-10 lg:py-20 gap-8 lg:gap-12">
+              {/* Hullámvonal — mobilon alul, desktopra bal */}
+              <div className="shrink-0 hidden sm:block">
+                <svg className="w-[120px] lg:w-[200px] h-auto" width="200" height="160" viewBox="0 0 200 160" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+                  <motion.path
+                    d="M0 130 C30 130 40 30 80 50 C120 70 130 110 160 90 C185 75 195 60 200 55"
+                    stroke="white"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    fill="none"
+                    initial={{ pathLength: 0, opacity: 0 }}
+                    whileInView={{ pathLength: 1, opacity: 1 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 1.2, ease: EASE }}
+                  />
+                </svg>
               </div>
 
-              {/* Checklist */}
-              <ul className="mt-8 space-y-2">
-                {CHECKLIST.map((item) => (
-                  <li key={item} className="flex items-center gap-2 text-sm text-white/60">
-                    <CheckCircle2 className="h-4 w-4 text-brand-accent shrink-0" />
-                    {item}
-                  </li>
-                ))}
-              </ul>
+              {/* Cím + gomb */}
+              <div className="flex flex-col items-start gap-7 lg:max-w-[40%]">
+                <h2
+                  className="font-geist font-medium text-[#f4f2ee] leading-[1.05] tracking-[-0.05em]"
+                  style={{ fontSize: 'clamp(2rem, 5vw, 3.125rem)' }}
+                >
+                  Tartsd kézben a vállalkozásod minden percét.
+                </h2>
+                <RollButton href="/register" label="Kipróbálom ingyen" variant="accent" size="md" icon />
+              </div>
             </div>
+          </div>
 
-            {/* Right: Phone mockup spilling out */}
-            <div className="flex justify-center lg:justify-end lg:pr-0 overflow-hidden relative">
-              <motion.div
-                initial={{ y: 40, opacity: 0 }}
-                whileInView={{ y: 0, opacity: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                className="w-[220px] lg:w-[260px] lg:mr-12 lg:-mb-8"
-              >
-                <PhoneMockupSVG />
-              </motion.div>
-            </div>
+          {/* Telefon — csak desktop */}
+          <div className="hidden lg:block absolute right-[15%] top-0 w-[260px]">
+            <motion.div
+              initial={{ y: 40, opacity: 0 }}
+              whileInView={{ y: 0, opacity: 1 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8, ease: EASE }}
+              className="relative z-10"
+              style={{ rotate: 3.7 }}
+            >
+              <img src="/app_screen.png" alt="Schedulio app" className="w-full h-auto drop-shadow-2xl" />
+            </motion.div>
           </div>
         </div>
       </FadeUp>

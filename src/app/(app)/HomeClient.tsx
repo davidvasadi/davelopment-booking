@@ -8,9 +8,9 @@ import { Services } from '@/components/landing/sections/Services'
 import { Testimonials } from '@/components/landing/sections/Testimonials'
 import { Pricing } from '@/components/landing/sections/Pricing'
 import { Faq } from '@/components/landing/sections/Faq'
-import { Pulse } from '@/components/landing/sections/Pulse'
 import { CtaBanner } from '@/components/landing/sections/CtaBanner'
 import { Footer } from '@/components/landing/sections/Footer'
+import { CookieBanner } from '@/components/landing/CookieBanner'
 
 export type { LandingPricing }
 
@@ -33,9 +33,9 @@ export default function HomeClient({ pricing }: { pricing: LandingPricing }) {
       <Testimonials />
       <Pricing pricing={pricing} />
       <Faq pricing={pricing} />
-      <Pulse />
       <CtaBanner trial_days={pricing.trial_days} />
       <Footer trial_days={pricing.trial_days} />
+      <CookieBanner />
     </main>
   )
 }

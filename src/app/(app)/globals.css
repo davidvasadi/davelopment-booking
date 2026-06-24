@@ -69,3 +69,23 @@ html {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Footer „Csatlakozz" óriásfelirat — eszköz-szélességhez rögzített fix méret (px).
+   Középre igazítva, a kártya széleire (és kicsit túl) fut; az alja a kártya aljára ül,
+   csak a betűtalpak legalja vágódik le (line-height + kis negatív margó). */
+.join-word {
+  font-size: 76px; /* iPhone 13/14 és kisebb */
+  line-height: 0.78;
+  letter-spacing: -0.05em;
+  font-weight: 700;
+  white-space: nowrap;
+  user-select: none;
+  text-align: center;
+  /* a betűk alja a kártya aljára fut (a leíró glifek levágódnak) */
+  margin-bottom: -0.16em;
+}
+@media (min-width: 391px) { .join-word { font-size: 86px; } }   /* iPhone 16/17 */
+@media (min-width: 768px) { .join-word { font-size: 150px; } }  /* iPad mini 8.3 */
+@media (min-width: 1025px) { .join-word { font-size: 210px; } } /* iPad Pro 12.9 */
+@media (min-width: 1369px) { .join-word { font-size: 263px; } } /* MacBook Air */
+@media (min-width: 1512px) { .join-word { font-size: 302px; } } /* desktop */

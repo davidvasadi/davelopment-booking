@@ -84,35 +84,24 @@ export function Hero({ pricing }: { pricing: LandingPricing }) {
           transition={{ duration: 0.7, delay: 0.1, ease: EASE }}
           className="relative rounded-[30px] bg-brand-accent overflow-hidden min-h-[560px] lg:min-h-[600px] lg:h-[calc(100svh-100px)] lg:max-h-[760px]"
         >
-          {/* Telefon (Figma 287:487 render): a kép teteje ép (status bar, lekerekített sarkok),
-              az alja lapos vágás — ez a Figma-look. A kép ALJA a kártya aljához tapad
-              (bottom-0), szélesség a Figma ~69%-a, kissé balra (left 22%). Nem lebeg. */}
-          {/* GPU-rétegre promótálva (transform-gpu + will-change), mert a telefon-kép nagy
-              (~1400px); enélkül a beúszás szaggat (fő szálon komponál minden frame-et). */}
-          <motion.div
-            initial={{ opacity: 0, y: 36 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.35, ease: EASE }}
-            style={{ willChange: 'transform, opacity' }}
-            className="absolute left-1/2 -translate-x-1/2 lg:left-[22%] lg:translate-x-0 top-40 sm:top-44 lg:top-auto lg:bottom-0 z-10 transform-gpu"
-          >
-            <div className="w-[230px] sm:w-[280px] lg:w-[69%] lg:min-w-[360px]">
+          {/* Mobilon: középre — sima div, NEM motion.div, hogy a transform:none ne törje el */}
+          <div className="lg:hidden absolute bottom-0 z-10 w-[78vw] max-w-[320px]" style={{ left: '50%', transform: 'translateX(-50%)' }}>
+            <PhoneMockupSVG />
+          </div>
+          {/* Desktopon: Figma-pozíció */}
+          <div className="hidden lg:block absolute bottom-0 left-[22%] z-10 w-[69%] min-w-[360px]">
+            <motion.div initial={{ opacity: 0, y: 36 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.9, delay: 0.35, ease: EASE }} style={{ willChange: 'transform, opacity' }} className="transform-gpu">
               <PhoneMockupSVG />
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
 
-          {/* Üveg kártya — RÁLÓG a telefon bal-felső sarkára (z-20 a telefon z-10 fölött).
-              FONTOS: a backdrop-blur réteget NEM animáljuk opacity-vel/clip-pel — a böngésző az
-              átmenet alatt rosszul rasterizálja a backdrop-filtert (villanás, ill. clip esetén
-              eltűnik az üveg-hatás). Ezért a blur-elem végig stabil (opacity:1, nincs clip),
-              és CSAK a burkolót csúsztatjuk be y-nal. Az üveg-look így mindig megmarad. */}
           <motion.div
             initial={{ y: 18 }}
             animate={{ y: 0 }}
             transition={{ duration: 0.6, delay: 0.45, ease: EASE }}
-            className="absolute left-6 top-24 sm:top-28 lg:top-[18%] z-20 transform-gpu"
+            className="absolute left-6 right-6 top-24 sm:top-28 lg:right-auto lg:top-[18%] z-20 transform-gpu"
           >
-            <div className="rounded-[20px] bg-white/[0.67] backdrop-blur-[23px] p-5 max-w-xs">
+            <div className="rounded-[20px] bg-white/[0.67] backdrop-blur-[23px] p-5 lg:max-w-xs">
               <p className="font-medium text-3xl leading-[1.1] tracking-[-0.06em] text-brand-ink">
                 Kezeld okosan a vállalkozásod
               </p>

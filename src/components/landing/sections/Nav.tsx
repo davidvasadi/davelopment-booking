@@ -36,12 +36,39 @@ export function Nav() {
   const [active, setActive] = useState<string>(LINKS[0].id)
   const [menuOpen, setMenuOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
+  // Görgetés-irány: lefelé görgetve a nav felcsúszik (rejtve), felfelé visszajön. A legtetején
+  // mindig látszik. Nyitott mobil-menünél mindig látszik (a záró X-hez kell).
+  const [hidden, setHidden] = useState(false)
   // Kattintás-cél: amíg a smooth-scroll oda nem ér, a spy NEM írja felül az aktívat a köztes
   // szekciókkal (ez okozta a „visszaugrik, majd újra" jelenséget). Nem időre jár le: akkor
   // oldódik, amikor a cél szekció teteje elérte az olvasási vonalat.
   const pendingTarget = useRef<string | null>(null)
 
   useEffect(() => setMounted(true), [])
+
+  // Görgetés-irány figyelő: lefelé → rejt, felfelé → mutat. Kis küszöb (6px), hogy a nav ne
+  // villogjon apró remegésnél; a lap tetején (< 80px) mindig látszik.
+  useEffect(() => {
+    let lastY = window.scrollY
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const y = window.scrollY
+      const delta = y - lastY
+      if (y < 80) setHidden(false)
+      else if (delta > 6) setHidden(true)
+      else if (delta < -6) setHidden(false)
+      lastY = y
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
 
   useEffect(() => {
     const sections = LINKS.map((l) => document.getElementById(l.id)).filter(
@@ -124,7 +151,11 @@ export function Nav() {
   }
 
   return (
-    <nav className="sticky top-0 z-50 backdrop-blur-md bg-white/70">
+    <motion.nav
+      className="sticky top-0 z-50 backdrop-blur-md bg-white/70"
+      animate={{ y: hidden && !menuOpen ? '-100%' : '0%' }}
+      transition={{ duration: 0.35, ease: EASE }}
+    >
       <div className="mx-auto px-5 py-2.5 flex items-center justify-between gap-4">
         {/* Logó */}
         <Link href="/" aria-label="Schedulio" className="shrink-0">
@@ -180,7 +211,7 @@ export function Nav() {
           </AnimatePresence>,
           document.body,
         )}
-    </nav>
+    </motion.nav>
   )
 }
 
