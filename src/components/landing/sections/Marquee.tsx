@@ -17,7 +17,7 @@ function MarqueeRow({
 }: {
   items: string[]
   reverse?: boolean
-  shift: number // a sor eltolása a teljes görgetés alatt (%) — soronként eltérő = parallax-érzet
+  shift: number
   scroll: MotionValue<number>
 }) {
   const row = [...items, ...items, ...items, ...items, ...items, ...items]
@@ -29,18 +29,12 @@ function MarqueeRow({
       : [`${-800 - shift}px`, `${-800 + shift}px`],
   )
   return (
-    <div>
+    <div className="overflow-hidden">
       <motion.div className="flex whitespace-nowrap" style={{ x: scrollX }}>
         {row.map((item, i) => (
-          <span
-            key={i}
-            className="flex items-baseline font-martian font-bold text-3xl lg:text-6xl tracking-tight uppercase px-8 py-2 lg:py-4 text-brand-ink"
-          >
+          <span key={i} className="flex items-baseline font-martian font-bold text-3xl lg:text-6xl tracking-tight uppercase px-8 py-2 lg:py-4 text-brand-ink">
             {item}
-            {/* Figma-hű elválasztó: sima csillag felső indexben, minden szó után */}
-            <span className="ml-8 self-start text-3xl lg:text-5xl leading-none" aria-hidden>
-              *
-            </span>
+            <span className="ml-8 self-start text-3xl lg:text-5xl leading-none" aria-hidden>*</span>
           </span>
         ))}
       </motion.div>
@@ -50,9 +44,6 @@ function MarqueeRow({
 
 export function Marquee() {
   const ref = useRef(null)
-  // Közvetlenül a scroll-progresshez kötjük (NINCS useSpring), hogy a marquee
-  // pontosan a görgetést kövesse, késleltetés/utánhúzás nélkül. A globális Lenis
-  // adja a sima scrollt — azt máshol megtartjuk, csak itt nem teszünk rá rugót.
   const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
   return (
     <div ref={ref} className="bg-brand-accent border-y border-brand-ink/10 overflow-hidden py-5 space-y-1">

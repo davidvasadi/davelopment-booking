@@ -331,6 +331,85 @@ function TablesSVG() {
   )
 }
 
+function MobileAccordionRow({
+  s,
+  open,
+  onToggle,
+}: {
+  s: typeof SERVICES[0]
+  open: boolean
+  onToggle: () => void
+}) {
+  return (
+    <div className="border-b border-zinc-100">
+      {/* Fejléc: cím flip — zárva normál, nyitva kicsúszik le és helyére jön az aktív cím */}
+      <button onClick={onToggle} className="w-full flex items-center gap-3 text-left" style={{ height: 72 }}>
+        <span className="text-xs font-medium tabular-nums tracking-[-0.02em] text-zinc-300 shrink-0 self-center">
+          ({s.n})
+        </span>
+
+        {/* Text-roll: két példány egymás alatt, spring-gel csúszik */}
+        <div className="flex-1 overflow-hidden" style={{ height: 72 }}>
+          <motion.div
+            className="flex flex-col"
+            animate={{ y: open ? '-50%' : '0%' }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
+          >
+            <div
+              className={cn('flex items-center font-semibold tracking-[-0.05em] leading-[0.95] transition-colors duration-200', open ? 'text-brand-ink' : 'text-zinc-400')}
+              style={{ fontSize: 'clamp(1.6rem, 7vw, 2.25rem)', height: 72 }}
+            >
+              {s.title}
+            </div>
+            <div
+              className="flex items-center font-semibold tracking-[-0.05em] leading-[0.95] text-brand-ink"
+              style={{ fontSize: 'clamp(1.6rem, 7vw, 2.25rem)', height: 72 }}
+            >
+              {s.title}
+            </div>
+          </motion.div>
+        </div>
+
+        <motion.span
+          animate={{ rotate: open ? 45 : 0 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+          className={cn(
+            'shrink-0 h-9 w-9 rounded-full flex items-center justify-center',
+            open ? 'bg-brand-accent text-brand-ink' : 'bg-brand-ink text-white',
+          )}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </motion.span>
+      </button>
+
+      {/* Tartalom — rugósan nyílik/zárul */}
+      <motion.div
+        animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
+        initial={false}
+        transition={{
+          height: { type: 'spring', stiffness: 280, damping: 26 },
+          opacity: { duration: 0.2 },
+        }}
+        className="overflow-hidden"
+      >
+        <motion.div
+          animate={{ y: open ? 0 : -20 }}
+          initial={false}
+          transition={{ type: 'spring', stiffness: 280, damping: 26, delay: open ? 0.05 : 0 }}
+          className="pb-6 flex flex-col gap-4"
+        >
+          <div className="rounded-[1.25rem] overflow-hidden shadow-xl shadow-black/10 ring-1 ring-black/5">
+            <s.Visual />
+          </div>
+          <p className="text-[15px] leading-[1.5] text-brand-ink/60">{s.body}</p>
+        </motion.div>
+      </motion.div>
+    </div>
+  )
+}
+
 const SERVICES = [
   {
     n: '001',
@@ -365,26 +444,26 @@ const SERVICES = [
 ]
 
 export function Services() {
-  const [active, setActive] = useState(0)
+  const [active, setActive] = useState<number>(0)
+  const [mobileActive, setMobileActive] = useState<number>(0)
   // minden cím-blokk referenciája — a középvonalhoz legközelebbi lesz az aktív
   const itemRefs = useRef<(HTMLDivElement | null)[]>([])
 
   const onItemInView = (idx: number) =>
     setActive((prev) => (prev === idx ? prev : idx))
 
-  const service = SERVICES[active]
+  const service = SERVICES[active] ?? SERVICES[0]
 
   return (
     <section id="szolgaltatasok" className="mx-auto px-4 lg:px-5 py-20 lg:py-28">
       {/* Fejléc */}
       <div className="flex items-start justify-between gap-4 mb-12 lg:mb-16">
         <SectionLabel>(Szolgáltatások)</SectionLabel>
-        <RollButton href="/register" label="Kipróbálom ingyen" variant="inkLight" size="md" icon />
       </div>
 
-      {/* Két oszlop: bal címek folyamatosan görögnek, jobb mockup sticky */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-start">
-        {/* Bal: cím-lista — nagy térközökkel, hogy legyen "scroll-táv" */}
+      {/* Két oszlop: bal címek folyamatosan görögnek, jobb mockup sticky — CSAK DESKTOP */}
+      <div className="hidden lg:grid grid-cols-2 gap-16 items-start">
+        {/* Bal: cím-lista */}
         <div className="flex flex-col">
           {SERVICES.map((s, i) => (
             <motion.button
@@ -448,15 +527,15 @@ export function Services() {
         </div>
       </div>
 
-      {/* Mobil: minden szolgáltatás alá a saját mockupja */}
-      <div className="lg:hidden flex flex-col gap-12 mt-4">
-        {SERVICES.map((s) => (
-          <div key={s.n} className="flex flex-col gap-4">
-            <div className="rounded-[1.25rem] overflow-hidden shadow-xl shadow-black/10 ring-1 ring-black/5 h-[70vw] [&>*]:!aspect-[unset] [&>*]:h-full [&>*]:w-full">
-              <s.Visual />
-            </div>
-            <p className="text-[15px] leading-[1.5] text-brand-ink/60">{s.body}</p>
-          </div>
+      {/* Mobil: accordion — egyszerre csak egy nyitva, alapból az első */}
+      <div className="lg:hidden flex flex-col mt-4 border-t border-zinc-100">
+        {SERVICES.map((s, i) => (
+          <MobileAccordionRow
+            key={s.n}
+            s={s}
+            open={mobileActive === i}
+            onToggle={() => setMobileActive(mobileActive === i ? -1 : i)}
+          />
         ))}
       </div>
     </section>
