@@ -1,320 +1,270 @@
 'use client'
 
-import { useRef, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useRef } from 'react'
 import { gsap, useGSAP, prefersReducedMotion } from '@/lib/landing/gsap'
-import { SectionLabel } from '@/components/landing/SectionLabel'
 import { RollButton } from '@/components/landing/sections/TestimonialButtons'
 
-const EASE = [0.22, 1, 0.36, 1] as const
-
-const CARDS = [
-  {
-    tag: 'Dashboard',
-    title: 'Minden adat egy helyen.',
-    body: 'A napi foglalások, a havi bevétel és a kihasználtság egyetlen pillantással. Nincs több szétszórt Excel.',
-    img: '/demo/schedulio-laptop.webp',
-  },
-  {
-    tag: 'Mobil',
-    title: 'A zsebedben is ott van.',
-    body: 'Az ügyfeled telefonról foglal — te telefonon látod. Az értesítések azonnal megérkeznek, bárhol vagy.',
-    img: '/demo/schedulio-mobile.avif',
-  },
-  {
-    tag: 'Asztaltérkép',
-    title: 'A teljes terem egy képen.',
-    body: 'Lista, időszalag vagy teremnézet — ahogy neked kényelmes. Minden asztal, minden időpont átlátható.',
-    img: '/demo/schedulio-tablet.webp',
-  },
-]
+const clamp = (v: number) => Math.max(0, Math.min(1, v))
+const lerp  = (a: number, b: number, t: number) => a + (b - a) * t
+const eio   = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 
 export function Demo() {
   return (
     <>
-      <DemoDesktop />
-      <DemoMobile />
+      <DemoGrid mobile={false} />
+      <DemoGrid mobile={true} />
     </>
   )
 }
 
-/* ===================== DESKTOP ===================== */
-// Kártyaméret: 60vh × 60vh (négyzet)
-// Jobb panel: 36vw–100vw → közepe 68vw
-// Első kártya bal éle: 68vw - 30vh → pontosan középre igazítja
-const CARD_SIZE = '80vh'
+function DemoGrid({ mobile }: { mobile: boolean }) {
+  const root       = useRef<HTMLDivElement>(null)
+  const gridRef    = useRef<HTMLDivElement>(null)
+  const heroCell   = useRef<HTMLDivElement>(null)
+  const overlayRef = useRef<HTMLDivElement>(null)
+  const markRef    = useRef<HTMLDivElement>(null)
+  const ctaRef     = useRef<HTMLDivElement>(null)
 
-function DemoDesktop() {
-  const root = useRef<HTMLDivElement>(null)
-  const track = useRef<HTMLDivElement>(null)
-  const [active, setActive] = useState(0)
+  const maxOverlay  = mobile ? 0.45 : 0.55
+  const scrollMult  = mobile ? 1.6  : 2.8
+  const markFontMax = mobile ? '3.5rem' : '7.5rem'
 
-  useGSAP(
-    () => {
-      if (prefersReducedMotion()) return
-      const trackEl = track.current
-      const rootEl = root.current
-      if (!trackEl || !rootEl) return
+  useGSAP(() => {
+    const rootEl     = root.current
+    const gridEl     = gridRef.current
+    const heroCellEl = heroCell.current
+    const overlayEl  = overlayRef.current
+    const markEl     = markRef.current
+    const ctaEl      = ctaRef.current
+    if (!rootEl || !gridEl || !heroCellEl || !overlayEl || !markEl || !ctaEl) return
 
-      const cards = gsap.utils.toArray<HTMLElement>('[data-card]', trackEl)
+    let cover    = 3
+    let endScale = 1.0
 
-      // jobb panel közepe pixelben
-      const panelCenter = () => window.innerWidth * 0.68
-
-      // mennyit kell csúsztatni hogy minden kártya egyszer középre kerüljön
-      const getSlideDistance = () => {
-        const last = cards[cards.length - 1] as HTMLElement
-        return Math.max(0, (last.offsetLeft + last.offsetWidth / 2) - panelCenter())
+    const calc = () => {
+      const W = gridEl.clientWidth, H = gridEl.clientHeight
+      const w = heroCellEl.offsetWidth, h = heroCellEl.offsetHeight
+      // cover: hero teljes képernyőre nagyítva
+      cover = Math.max(W / w, H / h)
+      if (mobile) {
+        // endScale: hero még mindig H*0.88 magas → szomszédok éppen kukucskálnak be
+        endScale = (H * 0.88) / h
       }
+    }
 
-      const PHASE1_RATIO = 0.25 // az össz scroll első 25%-a = fázis 1
+    if (prefersReducedMotion()) {
+      calc()
+      gsap.set(gridEl,    { scale: endScale })
+      gsap.set(overlayEl, { opacity: 0 })
+      gsap.set(ctaEl,     { opacity: 1, y: 0 })
+      return
+    }
 
-      const onUpdate = (self: { progress: number }) => {
-        const p = self.progress
-        const fx = panelCenter()
+    gsap.set(ctaEl, { opacity: 0, y: 0 })
 
-        // fázis 1: track áll, csak az első kártya nő
-        if (p <= PHASE1_RATIO) {
-          const t = p / PHASE1_RATIO
-          gsap.set(cards[0], { scale: 0.38 + 0.62 * t })
-          gsap.set(trackEl, { x: 0 })
-          cards.slice(1).forEach((c) => gsap.set(c, { scale: 0.38 }))
-          setActive(0)
-          return
-        }
+    const onUpdate = (self: { progress: number }) => {
+      const p  = self.progress
+      const pe = eio(p)
 
-        // fázis 2: track csúszik, scale pozíció alapján
-        const slideP = (p - PHASE1_RATIO) / (1 - PHASE1_RATIO)
-        const dist = getSlideDistance()
-        gsap.set(trackEl, { x: -dist * slideP })
+      gsap.set(gridEl,    { scale: lerp(cover, endScale, pe) })
+      gsap.set(overlayEl, { opacity: maxOverlay * (1 - pe) })
 
-        const x = -dist * slideP
-        let bestI = 0, bestDist = Infinity
-        cards.forEach((card, i) => {
-          const center = (card as HTMLElement).offsetLeft + x + (card as HTMLElement).offsetWidth / 2
-          const d = Math.abs(center - fx)
-          if (d < bestDist) { bestDist = d; bestI = i }
-          const raw = d / (window.innerWidth * 0.35)
-          gsap.set(card, { scale: 0.38 + 0.62 * Math.max(0, 1 - raw) })
-        })
-        setActive((prev) => (prev === bestI ? prev : bestI))
-      }
+      const inT  = clamp((p - 0.06) / 0.18)
+      const outT = clamp((p - 0.62) / 0.22)
+      gsap.set(markEl, { opacity: 1, filter: `blur(${outT * (mobile ? 8 : 10)}px)` })
 
-      const st = gsap.to({}, {
-        scrollTrigger: {
-          trigger: rootEl,
-          start: 'top top',
-          end: () => `+=${window.innerWidth * 2}`,
-          pin: true,
-          scrub: 1,
-          invalidateOnRefresh: true,
-          onUpdate,
-        },
+      markEl.querySelectorAll<HTMLElement>('[data-roll-char]').forEach((ch) => {
+        const i     = Number(ch.dataset.index ?? 0)
+        const total = Number(ch.dataset.total ?? 9)
+        const frac  = i / Math.max(1, total - 1)
+        const inDelay  = frac * 0.20
+        const rawInT   = clamp((inT - inDelay) / (1 - inDelay))
+        const eIn      = rawInT < 0.5 ? 4*rawInT**3 : 1 - Math.pow(-2*rawInT+2,3)/2
+        const outDelay = (1 - frac) * 0.16
+        const rawOutT  = clamp((outT - outDelay) / (1 - outDelay))
+        const eOut     = rawOutT < 0.5 ? 4*rawOutT**3 : 1 - Math.pow(-2*rawOutT+2,3)/2
+        gsap.set(ch, { y: `${(1 - eIn) * 110 - eOut * 110}%` })
       })
 
-      gsap.set(cards[0], { scale: 0.38 })
-      cards.slice(1).forEach((c) => gsap.set(c, { scale: 0.38 }))
+      const cT = clamp((p - 0.84) / 0.13)
+      gsap.set(ctaEl, { opacity: cT, y: mobile ? 0 : 20 * (1 - cT) })
+    }
 
-      return () => { st.scrollTrigger?.kill(); st.kill() }
-    },
-    { scope: root },
-  )
+    calc()
+    onUpdate({ progress: 0 })
 
-  const card = CARDS[active]
+    const st = gsap.to({}, {
+      scrollTrigger: {
+        trigger: rootEl,
+        start: 'top top',
+        end: () => mobile
+          ? `+=${window.innerHeight * scrollMult}`
+          : `+=${window.innerWidth  * scrollMult}`,
+        pin: true,
+        scrub: 1.2,
+        invalidateOnRefresh: true,
+        onUpdate,
+        onRefresh: () => { calc(); onUpdate({ progress: 0 }) },
+      },
+    })
+
+    return () => { st.scrollTrigger?.kill(); st.kill() }
+  }, { scope: root })
+
+  const r   = mobile ? '14px' : '14px'
+  const gap = mobile ? '6px'  : '6px'
+  const pad = mobile ? '6px'  : '6px'
+  const tile = `relative overflow-hidden`
 
   return (
-    <div ref={root} className="relative hidden lg:block overflow-hidden bg-white h-screen">
-      {/* Fix bal panel */}
-      <div className="absolute inset-y-0 left-0 z-10 w-[36%] bg-white">
-        <div className="flex h-full w-full flex-col justify-center px-12 xl:px-16">
-          <SectionLabel className="mb-4">(Demo)</SectionLabel>
-          <h2 className="font-semibold text-[clamp(2.5rem,4.5vw,4.5rem)] leading-[0.92] tracking-[-0.05em] text-brand-ink">
-            Lásd működés<br />közben.
-          </h2>
-          <div className="mt-6 h-[120px]">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={active}
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -16 }}
-                transition={{ duration: 0.4, ease: EASE }}
-              >
-                <span className="inline-block rounded-full bg-brand-accent px-3 py-1 text-xs font-semibold text-brand-ink mb-3">
-                  {card.tag}
-                </span>
-                <p className="text-[clamp(1rem,1.4vw,1.2rem)] leading-[1.5] text-brand-ink/60 max-w-sm">
-                  {card.body}
-                </p>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-          <div className="mt-8">
-            <RollButton href="/davelopment" label="Megnyitom a demót" variant="inkLight" size="md" icon />
-          </div>
-          <div className="mt-10 flex gap-2">
-            {CARDS.map((_, i) => (
-              <span
-                key={i}
-                className={`h-1.5 rounded-full transition-all duration-300 ${i === active ? 'w-8 bg-brand-ink' : 'w-1.5 bg-zinc-300'}`}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Track: első kártya pontosan a jobb panel közepére igazítva calc-kal */}
-      <div
-        ref={track}
-        className="flex h-screen w-max items-center"
-        style={{
-          paddingLeft: `calc(68vw - ${CARD_SIZE} / 2)`,
-          paddingRight: `calc(32vw - ${CARD_SIZE} / 2)`,
-          gap: '4vw',
-        }}
-      >
-        {CARDS.map((card, i) => (
+    <section
+      ref={root}
+      className={`relative overflow-hidden h-screen ${mobile ? 'lg:hidden' : 'hidden lg:block'}`}
+      style={{ background: '#0a0a0a' }}
+    >
+      {mobile ? (
+        /* ── MOBIL: flex wrapper középre, aspect-ratio négyzetek, rács auto magasság ── */
+        <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
           <div
-            key={i}
-            data-card
-            className="shrink-0 overflow-hidden rounded-[30px] will-change-transform"
-            style={{ width: CARD_SIZE, height: CARD_SIZE, transform: 'scale(0.38)' }}
+            ref={gridRef}
+            className="will-change-transform w-full"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gridAutoRows: 'auto',
+              gap,
+              padding: pad,
+              transformOrigin: 'center center',
+            }}
           >
-            <img src={card.img} alt={card.title} className="h-full w-full object-cover" />
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
+            {/* Sor 1: 2× 1:1 négyzet */}
+            <div className={tile} style={{ aspectRatio: '1/1', borderRadius: r }}>
+              <img src="/demo-dashboard.png" alt="" className="w-full h-full object-cover" />
+            </div>
+            <div className={tile} style={{ aspectRatio: '1/1', borderRadius: r }}>
+              <img src="/demo-phone.png" alt="" className="w-full h-full object-cover" />
+            </div>
 
-/* ===================== MOBIL ===================== */
-const MOBILE_PHASE1 = 0.25
-const MOBILE_INIT_SCALE = 0.55
-
-function DemoMobile() {
-  const root = useRef<HTMLDivElement>(null)
-  const track = useRef<HTMLDivElement>(null)
-
-  useGSAP(
-    () => {
-      if (prefersReducedMotion()) return
-      const trackEl = track.current
-      const rootEl = root.current
-      if (!trackEl || !rootEl) return
-
-      const cards = gsap.utils.toArray<HTMLElement>('[data-card-m]', trackEl)
-      const w = () => window.innerWidth
-      const center = () => w() / 2
-
-      const getSlide = () => {
-        const last = cards[cards.length - 1] as HTMLElement
-        return Math.max(0, (last.offsetLeft + last.offsetWidth / 2) - center())
-      }
-
-      const onUpdate = (self: { progress: number }) => {
-        const p = self.progress
-
-        if (p <= MOBILE_PHASE1) {
-          const t = p / MOBILE_PHASE1
-          gsap.set(cards[0], { scale: MOBILE_INIT_SCALE + (1 - MOBILE_INIT_SCALE) * t })
-          gsap.set(trackEl, { x: 0 })
-          cards.slice(1).forEach((c) => gsap.set(c, { scale: MOBILE_INIT_SCALE }))
-          return
-        }
-
-        const slideP = (p - MOBILE_PHASE1) / (1 - MOBILE_PHASE1)
-        const x = -getSlide() * slideP
-        gsap.set(trackEl, { x })
-
-        const fx = center()
-        cards.forEach((card) => {
-          const cardCenter = (card as HTMLElement).offsetLeft + x + (card as HTMLElement).offsetWidth / 2
-          const raw = Math.abs(cardCenter - fx) / (w() * 0.5)
-          const t = Math.max(0, 1 - raw)
-          gsap.set(card, { scale: MOBILE_INIT_SCALE + (1 - MOBILE_INIT_SCALE) * t })
-        })
-      }
-
-      const st = gsap.to({}, {
-        scrollTrigger: {
-          trigger: rootEl,
-          start: 'top top',
-          end: () => `+=${w() * 2.5}`,
-          pin: true,
-          scrub: 2,
-          invalidateOnRefresh: true,
-          onUpdate,
-        },
-      })
-
-      return () => { st.scrollTrigger?.kill(); st.kill() }
-    },
-    { scope: root },
-  )
-
-  return (
-    <div className="lg:hidden">
-      <div className="px-5 pt-12 pb-6">
-        <SectionLabel className="mb-3">(Demo)</SectionLabel>
-        <h2 className="font-semibold text-[clamp(2.25rem,9vw,3.25rem)] leading-[0.94] tracking-[-0.05em] text-brand-ink">
-          Lásd működés közben.
-        </h2>
-        <p className="mt-4 text-[15px] leading-[1.5] text-brand-ink/50">
-          Demo elérhető, bankkártya nélkül.
-        </p>
-      </div>
-
-      <div ref={root} className="relative overflow-hidden bg-white h-[100svh]">
-        <div
-          ref={track}
-          className="flex h-[100svh] w-max items-center"
-          style={{ gap: '0px' }}
-        >
-          {CARDS.map((card) => (
+            {/* Sor 2: HERO — span 2, négyzet (100vw × 100vw) */}
             <div
-              key={card.tag}
-              data-card-m
-              className="relative shrink-0 overflow-hidden rounded-[28px] will-change-transform"
-              style={{ width: '100vw', height: '100svh', transform: `scale(${MOBILE_INIT_SCALE})` }}
+              ref={heroCell}
+              className={tile}
+              style={{ gridColumn: 'span 2', aspectRatio: '1/1', borderRadius: r, boxShadow: '0 12px 40px rgba(0,0,0,0.6)' }}
             >
-              <img src={card.img} alt={card.title} className="absolute inset-0 h-full w-full object-cover" />
-              <div className="absolute inset-x-4 bottom-4 rounded-[18px] bg-black/30 backdrop-blur-md p-4">
-                <span className="inline-block rounded-full bg-brand-accent px-3 py-1 text-xs font-semibold text-brand-ink mb-2">
-                  {card.tag}
-                </span>
-                <h3 className="font-semibold tracking-[-0.04em] leading-[1.1] text-white text-[clamp(1.4rem,6vw,1.9rem)]">
-                  {card.title}
-                </h3>
-                <p className="mt-1.5 text-white/75 leading-relaxed text-[13px]">{card.body}</p>
-              </div>
+              <img src="/demo/schedulio-laptop.webp" alt="Schedulio dashboard" className="w-full h-full object-cover" />
             </div>
-          ))}
 
-          {/* CTA lap */}
-          <div
-            data-card-m
-            className="relative shrink-0 overflow-hidden rounded-[28px] will-change-transform"
-            style={{ width: 'calc(100vw - 10px)', height: 'calc(100svh - 10px)', transform: `scale(${MOBILE_INIT_SCALE})`, borderRadius: '20px', margin: '5px' }}
-          >
-            <div className="flex h-full w-full flex-col items-start justify-end gap-4 bg-brand-ink px-7 pb-10 pt-8 text-white">
-              <span className="inline-block rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white/70 tracking-wide uppercase">
-                Demo
-              </span>
-              <h3 className="font-semibold tracking-[-0.04em] leading-[1.05] text-[clamp(2rem,9vw,2.75rem)]">
-                Próbáld ki<br />most, ingyen.
-              </h3>
-              <p className="text-white/50 text-[14px] leading-relaxed max-w-[260px]">
-                Bankkártya nem kell. Regisztrálj és azonnal látod hogyan működik a Schedulio az üzletedben.
-              </p>
-              <div className="mt-2">
-                <RollButton href="/davelopment" label="Megnyitom a demót" variant="accent" size="md" icon />
-              </div>
+            {/* Sor 3: 2× 1:1 négyzet */}
+            <div className={tile} style={{ aspectRatio: '1/1', borderRadius: r }}>
+              <img src="/demo/schedulio-mobile.avif" alt="" className="w-full h-full object-cover" />
+            </div>
+            <div className={tile} style={{ aspectRatio: '1/1', borderRadius: r }}>
+              <img src="/demo/schedulio-tablet.webp" alt="" className="w-full h-full object-cover" />
             </div>
           </div>
         </div>
+      ) : (
+        /* ── DESKTOP: eredeti 3×3 téglalapok ── */
+        <div
+          ref={gridRef}
+          className="absolute inset-0 grid will-change-transform"
+          style={{
+            gridTemplateColumns: 'repeat(3,1fr)',
+            gridTemplateRows: 'repeat(3,1fr)',
+            gap,
+            padding: pad,
+            transformOrigin: 'center center',
+          }}
+        >
+          <div className={tile} style={{ gridColumn:'1/2', gridRow:'1/2', borderRadius: r }}>
+            <img src="/demo-dashboard.png" alt="" className="w-full h-full object-cover" />
+          </div>
+          <div className={tile} style={{ gridColumn:'2/4', gridRow:'1/2', borderRadius: r }}>
+            <img src="/demo-phone.png" alt="" className="w-full h-full object-cover" />
+          </div>
+          <div className={tile} style={{ gridColumn:'1/2', gridRow:'2/3', borderRadius: r }}>
+            <img src="/demo/schedulio-mobile.avif" alt="" className="w-full h-full object-cover" />
+          </div>
+
+          <div
+            ref={heroCell}
+            className={tile}
+            style={{ gridColumn:'2/3', gridRow:'2/3', borderRadius: r, boxShadow: '0 32px 80px rgba(0,0,0,0.6)' }}
+          >
+            <img src="/demo/schedulio-laptop.webp" alt="Schedulio dashboard" className="w-full h-full object-cover" />
+          </div>
+
+          <div className={tile} style={{ gridColumn:'3/4', gridRow:'2/3', borderRadius: r }}>
+            <img src="/demo/schedulio-tablet.webp" alt="" className="w-full h-full object-cover" />
+          </div>
+          <div className={tile} style={{ gridColumn:'1/2', gridRow:'3/4', borderRadius: r }}>
+            <img src="/demo-tablet.png" alt="" className="w-full h-full object-cover" />
+          </div>
+          <div className={tile} style={{ gridColumn:'2/3', gridRow:'3/4', borderRadius: r }}>
+            <img src="/app_screen.png" alt="" className="w-full h-full object-cover" />
+          </div>
+          <div
+            className={`${tile} flex flex-col items-start justify-end`}
+            style={{
+              gridColumn:'3/4', gridRow:'3/4', borderRadius: r,
+              padding: '20px',
+              background: 'linear-gradient(135deg,#1c1c1c,#0a0a0a)',
+              border: '1px solid rgba(255,255,255,0.07)',
+            }}
+          >
+            <span className="text-xs text-white/30 tracking-widest uppercase mb-1">Demo</span>
+            <p className="font-semibold text-white leading-tight tracking-[-0.03em] text-[1rem]">
+              Bankkártya<br />nem kell.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* OVERLAY */}
+      <div
+        ref={overlayRef}
+        className="absolute inset-0 z-20 pointer-events-none"
+        style={{ background: '#0a0a0a', opacity: maxOverlay }}
+      />
+
+      {/* WORDMARK */}
+      <div
+        ref={markRef}
+        className="absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
+      >
+        <h2
+          className="font-semibold text-white tracking-[-0.04em] leading-none"
+          style={{
+            fontSize: mobile ? `clamp(2.4rem,11vw,${markFontMax})` : `clamp(4rem,9vw,${markFontMax})`,
+            textShadow: '0 4px 40px rgba(0,0,0,0.7)',
+          }}
+        >
+          {'Schedulio'.split('').map((ch, i, arr) => (
+            <span key={i} className="inline-block overflow-hidden align-bottom" style={{ lineHeight: 1.15 }}>
+              <span
+                data-roll-char
+                data-index={i}
+                data-total={arr.length}
+                className="inline-block will-change-transform"
+                style={{ transform: 'translateY(110%)' }}
+              >
+                {ch}
+              </span>
+            </span>
+          ))}
+        </h2>
       </div>
-    </div>
+
+      {/* CTA — középen, hero cella felett */}
+      <div
+        ref={ctaRef}
+        className="absolute inset-0 z-40 flex items-center justify-center pointer-events-none"
+        style={{ opacity: 0 }}
+      >
+        <div className="pointer-events-auto">
+          <RollButton href="/davelopment" label="Megnyitom a demót" variant="accent" size="md" icon />
+        </div>
+      </div>
+    </section>
   )
 }
-

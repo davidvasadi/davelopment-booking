@@ -89,3 +89,8 @@ html {
 @media (min-width: 1025px) { .join-word { font-size: 210px; } } /* iPad Pro 12.9 */
 @media (min-width: 1369px) { .join-word { font-size: 263px; } } /* MacBook Air */
 @media (min-width: 1512px) { .join-word { font-size: 302px; } } /* desktop */
+
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-33.333%); }
+}

@@ -25,11 +25,11 @@ export default function HomeClient({ pricing }: { pricing: LandingPricing }) {
       <Nav />
       <Hero pricing={pricing} />
       <Marquee />
+      <Vision />
+      <Services />
       <section id="hogyan">
         <Demo />
       </section>
-      <Vision />
-      <Services />
       <Testimonials />
       <Pricing pricing={pricing} />
       <Faq pricing={pricing} />

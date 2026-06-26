@@ -8,6 +8,7 @@ import {
   useMotionTemplate,
   type MotionValue,
 } from 'framer-motion'
+import { gsap, useGSAP } from '@/lib/landing/gsap'
 
 const MANIFESTO_LINES = [
   'Szalon és étterem.',
@@ -24,6 +25,7 @@ const ZOOM_VH = 2
 
 export function Vision() {
   const wrapper = useRef<HTMLDivElement>(null)
+  const imgRef  = useRef<HTMLDivElement>(null)
   const n = MANIFESTO_LINES.length
   // A scroll: n sor szövegre + 1 sor ahol a kép "gördül be" mint az utolsó sor + 2 vh zoom
   const totalVh = n + 1 + ZOOM_VH
@@ -66,23 +68,45 @@ export function Vision() {
   // Szövegsorok opacity: az n-edik (képsor) fázisnál tűnnek el
   const textOpacity = useTransform(active, [n - 0.8, n - 0.3], [1, 0])
 
-  // Kép: ugyanolyan dist-alapú opacity mint a szövegsoroknál
-  const imgDist = useTransform(active, (a) => n - a)
-  const imgRevealOpacity = useTransform(imgDist, [-0.99, -0.4, 0, 0.4, 0.99], [0, 1, 1, 1, 0])
-
   // Háttér sötétedés
   const c0 = useTransform(scrollYProgress, [0, textEnd], ['#3a3a3a', '#1f1f1f'])
   const c1 = useTransform(scrollYProgress, [0, textEnd], ['#2a2a2a', '#121212'])
   const c2 = useTransform(scrollYProgress, [0, textEnd], ['#1c1c1c', '#0a0a0a'])
   const bg = useMotionTemplate`radial-gradient(120% 120% at 50% 0%, ${c0} 0%, ${c1} 45%, ${c2} 100%)`
 
-  // scrollYProgress-ben: amikor active eléri n-0.5-öt
   const zoomStart = textEnd - (textEnd / (n + 1)) * 0.5
-  const imgScale = useTransform(scrollYProgress, [zoomStart, 1], [0.12, 1])
-  const imgRadius = useTransform(scrollYProgress, [zoomStart, zoomStart + (1 - zoomStart) * 0.7], [20, 0])
   const outerRadius = useTransform(scrollYProgress, [zoomStart + (1 - zoomStart) * 0.5, 1], [32, 0])
-  // padding eltűnik ahogy a kép teljes képernyős lesz
   const cardPad = useTransform(scrollYProgress, [zoomStart + (1 - zoomStart) * 0.4, 1], [16, 0])
+
+  // Kép zoom GSAP-pal (GPU, nem szaggat)
+  // Az active MotionValue-t figyelve — ugyanolyan dist-alapú opacity mint a szövegsoroknál
+  useGSAP(() => {
+    const imgEl = imgRef.current
+    if (!imgEl) return
+
+    const unsubProgress = scrollYProgress.on('change', (p) => {
+      const s = zoomStart
+      const t = Math.max(0, Math.min(1, (p - s) / (1 - s)))
+      const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2
+      const scale  = 0.12 + e * 0.88
+      const radius = 20 - e * 20
+      gsap.set(imgEl, { scale, borderRadius: radius })
+    })
+
+    // Opacity: dist = n - active, ugyanaz mint az eredeti imgRevealOpacity
+    const unsubActive = active.on('change', (a) => {
+      const dist = n - a
+      const ad = Math.abs(dist)
+      // [-0.99, -0.4, 0, 0.4, 0.99] → [0, 1, 1, 1, 0]
+      let opacity: number
+      if (ad >= 0.99) opacity = 0
+      else if (ad >= 0.4) opacity = 1 - (ad - 0.4) / 0.59
+      else opacity = 1
+      gsap.set(imgEl, { opacity })
+    })
+
+    return () => { unsubProgress(); unsubActive() }
+  }, { scope: wrapper })
 
   return (
     <div ref={wrapper} className="relative" style={{ height: `${totalVh * 100}vh` }}>
@@ -115,21 +139,18 @@ export function Vision() {
             </motion.div>
           </div>
 
-          {/* Kép — a card-on absolute, hogy teljes területét lefedje */}
-          <motion.div
-            className="absolute inset-0 overflow-hidden flex items-center justify-center"
-            style={{
-              scale: imgScale,
-              borderRadius: imgRadius,
-              opacity: imgRevealOpacity,
-            }}
+          {/* Kép — GSAP-pal animálva (GPU, nem szaggat) */}
+          <div
+            ref={imgRef}
+            className="absolute inset-0 overflow-hidden flex items-center justify-center will-change-transform"
+            style={{ scale: 0.12, opacity: 0, transformOrigin: 'center center' }}
           >
             <img
               src="/phone-mockup.png"
               alt="Schedulio app"
-              className="w-full h-auto"
+              className="w-full h-full object-cover object-center sm:h-auto sm:object-contain"
             />
-          </motion.div>
+          </div>
 
           <p className="relative z-10 shrink-0 text-white text-sm sm:text-base font-geist font-medium tracking-widest">
             (Görgess tovább)
@@ -200,7 +221,7 @@ function RollChar({
 
   return (
     <span className="inline-block overflow-hidden align-bottom leading-[1.1]">
-      <motion.span className="inline-block" style={{ y, opacity }}>
+      <motion.span className="inline-block lg:will-change-auto" style={{ y, opacity, willChange: 'transform' }}>
         {ch}
       </motion.span>
     </span>
