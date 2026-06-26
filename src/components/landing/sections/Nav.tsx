@@ -76,45 +76,27 @@ export function Nav() {
     )
     if (sections.length === 0) return
 
-    let raf = 0
-    const pick = () => {
-      raf = 0
-      const line = NAV_OFFSET + 8 // az olvasási vonal közvetlenül a sticky nav alatt
-
-      // Kattintás-célra tartunk: tartsuk az aktívat a célon, amíg a görgetés oda nem ér.
-      const target = pendingTarget.current
-      if (target) {
-        const el = document.getElementById(target)
-        const top = el ? el.getBoundingClientRect().top : 0
-        // Feloldjuk, ha a cél teteje elérte/átlépte a vonalat (±4px tűrés), vagy ha a lap alján
-        // vagyunk (rövid utolsó szekció már nem tud feljebb csúszni). Különben tartjuk a célt.
-        const atBottom = window.innerHeight + window.scrollY >= document.body.scrollHeight - 2
-        if (!el || top <= line + 4 || atBottom) {
-          pendingTarget.current = null
-        } else {
-          setActive(target)
-          return
+    // IntersectionObserver: nincs getBoundingClientRect minden frame-ben
+    // rootMargin: a nav alatti vonaltól a viewport aljáig aktív
+    const obs = new IntersectionObserver(
+      (entries) => {
+        if (pendingTarget.current) return
+        // Az utolsó intersecting szekció az aktív
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
+        if (visible.length > 0) {
+          setActive(visible[0].target.id)
         }
-      }
+      },
+      {
+        rootMargin: `-${NAV_OFFSET + 8}px 0px -40% 0px`,
+        threshold: 0,
+      },
+    )
 
-      let current = sections[0].id
-      for (const s of sections) {
-        if (s.getBoundingClientRect().top <= line) current = s.id
-        else break
-      }
-      setActive(current)
-    }
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(pick)
-    }
-    pick()
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', onScroll)
-    return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', onScroll)
-      if (raf) cancelAnimationFrame(raf)
-    }
+    sections.forEach((s) => obs.observe(s))
+    return () => obs.disconnect()
   }, [])
 
   // Nyitott mobil-menü alatt a háttér ne görögjön.

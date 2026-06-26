@@ -242,7 +242,7 @@ function DemoMobile() {
           start: 'top top',
           end: () => `+=${w() * 2.5}`,
           pin: true,
-          scrub: 1,
+          scrub: 2,
           invalidateOnRefresh: true,
           onUpdate,
         },

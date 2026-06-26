@@ -197,11 +197,10 @@ function RollChar({
     return `${sign * (1 - v) * 110}%`
   })
   const opacity = useTransform(p, [0, 0.5, 1], [0, 0.6, 1])
-  const filter = useTransform(p, (v) => `blur(${(1 - v) * 7}px)`)
 
   return (
     <span className="inline-block overflow-hidden align-bottom leading-[1.1]">
-      <motion.span className="inline-block" style={{ y, opacity, filter }}>
+      <motion.span className="inline-block" style={{ y, opacity }}>
         {ch}
       </motion.span>
     </span>
