@@ -2,6 +2,7 @@ import { Resend } from 'resend'
 import type { Booking, Salon, Service, StaffMember, Media } from '@/payload/payload-types'
 import {
   emailLayout,
+  brandHeroBlock,
   heroBlock,
   detailsCard,
   infoRow,
@@ -188,35 +189,47 @@ function bookingRows(data: BookingEmailData): string {
 function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): string {
   const { booking, salon } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
-  return wrap(salon, `
-    ${heroBlock({
+  const logoUrl = mediaUrl(salon.logo)
+  const coverUrl = mediaUrl(salon.cover_image)
+  return emailLayout({
+    brandName: salon.name,
+    brandLogoUrl: logoUrl,
+    brandCoverUrl: coverUrl,
+    header: brandHeroBlock({
+      brandName: salon.name,
+      brandLogoUrl: logoUrl,
+      brandCoverUrl: coverUrl,
       icon: 'success',
       title: t(locale, 'email.confirm.title'),
       subtitle: t(locale, 'email.greeting', { name: booking.customer_name }),
-    })}
-    ${introBlock(salon.booking_email_intro ?? '', emailVars(data))}
-    ${detailsCard(bookingRows(data))}
-    ${calendarBlock({
-      title: `${data.service.name} – ${salon.name}`,
-      date: booking.date,
-      startTime: booking.start_time,
-      endTime: booking.end_time,
-      location: salonAddress(salon),
-      description: `${t(locale, 'email.label.staff')}: ${data.staff.name}`,
-      locale,
-    })}
-    ${footerInfoBlock({
-      hasTerms: hasTerms(salon),
-      bookingUrl: `${APP_URL}/${salon.slug}/terms`,
-      phone: salon.email_show_phone ? (salon.email_contact_phone?.trim() || salon.phone) : null,
-      email: salon.email_show_email ? salon.email : null,
-      address: salon.email_show_address ? salonAddress(salon) : null,
-      directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
-      locale,
-    })}
-    ${cancelBlock(cancelUrl, locale)}
-    ${bottomSpacer()}
-  `)
+      formattedDate: formatBookingDate(booking.date, locale),
+      time: `${booking.start_time} – ${booking.end_time}`,
+    }),
+    content: `
+      ${introBlock(salon.booking_email_intro ?? '', emailVars(data))}
+      ${detailsCard(bookingRows(data))}
+      ${calendarBlock({
+        title: `${data.service.name} – ${salon.name}`,
+        date: booking.date,
+        startTime: booking.start_time,
+        endTime: booking.end_time,
+        location: salonAddress(salon),
+        description: `${t(locale, 'email.label.staff')}: ${data.staff.name}`,
+        locale,
+      })}
+      ${footerInfoBlock({
+        hasTerms: hasTerms(salon),
+        bookingUrl: `${APP_URL}/${salon.slug}/terms`,
+        phone: salon.email_show_phone ? (salon.email_contact_phone?.trim() || salon.phone) : null,
+        email: salon.email_show_email ? salon.email : null,
+        address: salon.email_show_address ? salonAddress(salon) : null,
+        directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
+        locale,
+      })}
+      ${cancelBlock(cancelUrl, locale)}
+      ${bottomSpacer()}
+    `,
+  })
 }
 
 function notificationHtml(data: BookingEmailData): string {

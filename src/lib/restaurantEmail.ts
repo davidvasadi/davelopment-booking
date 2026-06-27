@@ -2,6 +2,7 @@ import { Resend } from 'resend'
 import type { Restaurant, Reservation, Media } from '@/payload/payload-types'
 import {
   emailLayout,
+  brandHeroBlock,
   heroBlock,
   detailsCard,
   infoRow,
@@ -171,38 +172,50 @@ function detailRows(data: ReservationEmailData): string {
 function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
-  return wrap(restaurant, `
-    ${heroBlock({
+  const logoUrl = mediaUrl(restaurant.logo)
+  const coverUrl = mediaUrl(restaurant.cover_image)
+  return emailLayout({
+    brandName: restaurant.name,
+    brandLogoUrl: logoUrl,
+    brandCoverUrl: coverUrl,
+    header: brandHeroBlock({
+      brandName: restaurant.name,
+      brandLogoUrl: logoUrl,
+      brandCoverUrl: coverUrl,
       icon: 'success',
       title: t(locale, 'email.confirm.title'),
       subtitle: t(locale, 'email.greeting', { name: reservation.customer_name }),
-    })}
-    ${introBlock(restaurant.booking_email_intro ?? '', emailVars(data))}
-    ${detailsCard(detailRows(data))}
-    ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 32px 0">
-      <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>${t(locale, 'email.label.notes')}:</strong> ${reservation.notes}</p>
-    </td></tr>` : ''}
-    ${calendarBlock({
-      title: `${t(locale, 'rbooking.header')} – ${restaurant.name}`,
-      date: reservation.date,
-      startTime: reservation.start_time,
-      endTime: reservation.end_time,
-      location: contactAddress(restaurant),
-      description: `${reservation.pax} ${t(locale, 'email.label.guests').toLowerCase()}`,
-      locale,
-    })}
-    ${footerInfoBlock({
-      hasTerms: hasTerms(restaurant),
-      bookingUrl: `${APP_URL}/${restaurant.slug}/terms`,
-      phone: restaurant.email_show_phone ? (restaurant.email_contact_phone?.trim() || restaurant.phone) : null,
-      email: restaurant.email_show_email ? restaurant.email : null,
-      address: restaurant.email_show_address ? contactAddress(restaurant) : null,
-      directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
-      locale,
-    })}
-    ${cancelBlock(cancelUrl, locale)}
-    ${bottomSpacer()}
-  `)
+      formattedDate: formatBookingDate(reservation.date, locale),
+      time: `${reservation.start_time} – ${reservation.end_time}`,
+    }),
+    content: `
+      ${introBlock(restaurant.booking_email_intro ?? '', emailVars(data))}
+      ${detailsCard(detailRows(data))}
+      ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 28px 0">
+        <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>${t(locale, 'email.label.notes')}:</strong> ${reservation.notes}</p>
+      </td></tr>` : ''}
+      ${calendarBlock({
+        title: `${t(locale, 'rbooking.header')} – ${restaurant.name}`,
+        date: reservation.date,
+        startTime: reservation.start_time,
+        endTime: reservation.end_time,
+        location: contactAddress(restaurant),
+        description: `${reservation.pax} ${t(locale, 'email.label.guests').toLowerCase()}`,
+        locale,
+      })}
+      ${footerInfoBlock({
+        hasTerms: hasTerms(restaurant),
+        bookingUrl: `${APP_URL}/${restaurant.slug}/terms`,
+        phone: restaurant.email_show_phone ? (restaurant.email_contact_phone?.trim() || restaurant.phone) : null,
+        email: restaurant.email_show_email ? restaurant.email : null,
+        address: restaurant.email_show_address ? contactAddress(restaurant) : null,
+        directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
+        locale,
+      })}
+      ${cancelBlock(cancelUrl, locale)}
+      ${bottomSpacer()}
+    `,
+  })
 }
 
 function contactAddress(restaurant: Restaurant): string | null {

@@ -5,6 +5,7 @@ import type { Media, Restaurant, Salon } from '@/payload/payload-types'
 import { t, normalizeLocale } from '@/lib/i18n'
 import {
   emailLayout,
+  brandHeroBlock,
   heroBlock,
   detailsCard,
   infoRow,
@@ -111,31 +112,38 @@ export async function GET(req: NextRequest) {
       ? customIntro
       : t(locale, 'email.confirm.intro')
 
+  const previewStartTime = type === 'salon' ? '14:30' : '19:00'
+  const previewEndTime   = type === 'salon' ? '15:15' : '21:00'
+  const previewTitle     = type === 'salon' ? `Hajvágás + szárítás – ${brandName}` : `${t(locale, 'rbooking.header')} – ${brandName}`
+
+  let header: string | undefined
   let content: string
+
   if (state === 'cancel') {
     content = `
       ${heroBlock({ icon: 'cancel', title: t(locale, 'email.cancel.title'), subtitle: t(locale, 'email.cancel.body') })}
       ${detailsCard(detailRows)}
       ${bottomSpacer()}`
   } else if (state === 'notify') {
-    // Az értesítő a tulajnak megy (HU dashboard) — magyar marad, mint a valódi.
     content = `
       ${heroBlock({ icon: 'bell', title: 'Új foglalás érkezett', subtitle: `${name} foglalt.` })}
       ${detailsCard(detailRows)}
       ${bottomSpacer()}`
   } else {
+    header = brandHeroBlock({
+      brandName,
+      brandLogoUrl,
+      brandCoverUrl,
+      icon: 'success',
+      title: t(locale, 'email.confirm.title'),
+      subtitle: t(locale, 'email.greeting', { name }),
+      formattedDate: formatBookingDate(PREVIEW_DATE, locale),
+      time: `${previewStartTime} – ${previewEndTime}`,
+    })
     content = `
-      ${heroBlock({ icon: 'success', title: t(locale, 'email.confirm.title'), subtitle: t(locale, 'email.greeting', { name }) })}
-      ${introBlock(introText, { name, date: '2026-06-12', time: '19:00 – 21:00', pax: '4', service: 'Hajvágás + szárítás' })}
+      ${introBlock(introText, { name, date: PREVIEW_DATE, time: `${previewStartTime} – ${previewEndTime}`, pax: '4', service: 'Hajvágás + szárítás' })}
       ${detailsCard(detailRows)}
-      ${calendarBlock({
-        title: type === 'salon' ? `Hajvágás + szárítás – ${brandName}` : `${t(locale, 'rbooking.header')} – ${brandName}`,
-        date: PREVIEW_DATE,
-        startTime: type === 'salon' ? '14:30' : '19:00',
-        endTime: type === 'salon' ? '15:15' : '21:00',
-        location: realAddress,
-        locale,
-      })}
+      ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}
       ${footerInfoBlock({
         hasTerms: true,
         bookingUrl,
@@ -149,6 +157,6 @@ export async function GET(req: NextRequest) {
       ${bottomSpacer()}`
   }
 
-  const html = emailLayout({ brandName, brandLogoUrl, brandCoverUrl, content })
+  const html = emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, content })
   return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
 }
