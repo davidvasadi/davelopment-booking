@@ -143,7 +143,6 @@ export async function GET(req: NextRequest) {
     })
     content = `
       ${introBlock(introText, { name, date: PREVIEW_DATE, time: `${previewStartTime} – ${previewEndTime}`, pax: '4', service: 'Hajvágás + szárítás' })}
-      ${venuePhotoBlock(brandCoverUrl)}
       ${detailsCard(detailRows)}
       ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}
       ${footerInfoBlock({
