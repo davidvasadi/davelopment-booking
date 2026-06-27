@@ -7,6 +7,7 @@ import {
   detailsCard,
   infoRow,
   introBlock,
+  venuePhotoBlock,
   cancelBlock,
   footerInfoBlock,
   calendarBlock,
@@ -207,6 +208,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
     }),
     content: `
       ${introBlock(salon.booking_email_intro ?? '', emailVars(data))}
+      ${venuePhotoBlock(coverUrl)}
       ${detailsCard(bookingRows(data))}
       ${calendarBlock({
         title: `${data.service.name} – ${salon.name}`,

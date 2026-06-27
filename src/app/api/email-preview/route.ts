@@ -10,6 +10,7 @@ import {
   detailsCard,
   infoRow,
   introBlock,
+  venuePhotoBlock,
   cancelBlock,
   footerInfoBlock,
   calendarBlock,
@@ -142,15 +143,16 @@ export async function GET(req: NextRequest) {
     })
     content = `
       ${introBlock(introText, { name, date: PREVIEW_DATE, time: `${previewStartTime} – ${previewEndTime}`, pax: '4', service: 'Hajvágás + szárítás' })}
+      ${venuePhotoBlock(brandCoverUrl)}
       ${detailsCard(detailRows)}
       ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}
       ${footerInfoBlock({
         hasTerms: true,
         bookingUrl,
-        phone: p.get('phone') !== '0' ? (p.get('contactPhone')?.trim() || realPhone || '+36 1 234 5678') : null,
-        email: p.get('cmail') === '1' ? (realEmail || (type === 'salon' ? 'info@szalon.hu' : 'info@etterem.hu')) : null,
-        address: p.get('addr') === '1' ? (realAddress || '1051 Budapest, Példa u. 1.') : null,
-        directionsAddress: p.get('dir') === '1' ? (p.get('dirAddr')?.trim() || realAddress || '1051 Budapest, Példa u. 1.') : null,
+        phone: p.get('phone') !== '0' ? (p.get('contactPhone')?.trim() || realPhone || null) : null,
+        email: p.get('cmail') === '1' ? realEmail : null,
+        address: p.get('addr') === '1' ? (realAddress || null) : null,
+        directionsAddress: p.get('dir') === '1' ? (p.get('dirAddr')?.trim() || realAddress || null) : null,
         locale,
       })}
       ${cancelBlock(cancelUrl, locale)}

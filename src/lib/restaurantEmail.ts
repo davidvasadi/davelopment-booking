@@ -7,6 +7,7 @@ import {
   detailsCard,
   infoRow,
   introBlock,
+  venuePhotoBlock,
   cancelBlock,
   footerInfoBlock,
   calendarBlock,
@@ -190,6 +191,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
     }),
     content: `
       ${introBlock(restaurant.booking_email_intro ?? '', emailVars(data))}
+      ${venuePhotoBlock(coverUrl)}
       ${detailsCard(detailRows(data))}
       ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 28px 0">
         <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>${t(locale, 'email.label.notes')}:</strong> ${reservation.notes}</p>

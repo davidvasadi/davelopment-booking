@@ -365,6 +365,19 @@ export function footerInfoBlock(opts: {
   </tr>`
 }
 
+// ── Helyszín borítóképe a body-ban ─────────────────────────────────────────────
+//    Ha van cover image, full-szélességű foto-blokkként jelenik meg az email
+//    tartalmában (a detail tábla elé / köszöntő szöveg után).
+
+export function venuePhotoBlock(coverUrl: string | null | undefined): string {
+  if (!coverUrl) return ''
+  return `<tr>
+    <td style="background:${COLORS.surface};padding:20px 28px 0">
+      <img src="${coverUrl}" alt="" width="504" style="width:100%;max-height:200px;object-fit:cover;border-radius:12px;display:block;border:0" />
+    </td>
+  </tr>`
+}
+
 // ── Záró térköz ─────────────────────────────────────────────────────────────────
 
 export function bottomSpacer(): string {
@@ -408,15 +421,15 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
               <tr>
                 <td style="padding:0 14px;vertical-align:middle">
                   <a href="${SCHEDULIO_URL}" style="text-decoration:none;display:block">
-                    <img src="${SCHEDULIO_WORDMARK}" alt="Schedulio" height="22" style="height:22px;display:block;border:0" />
+                    <img src="${SCHEDULIO_WORDMARK}" alt="Schedulio" height="18" style="height:18px;display:block;border:0" />
                   </a>
                 </td>
                 <td style="padding:0;vertical-align:middle">
-                  <div style="width:1px;height:22px;background:#27272a;line-height:22px;font-size:0">&nbsp;</div>
+                  <div style="width:1px;height:18px;background:#27272a;line-height:18px;font-size:0">&nbsp;</div>
                 </td>
                 <td style="padding:0 14px;vertical-align:middle">
                   <a href="${DAVELOPMENT_URL}" style="text-decoration:none;display:block">
-                    <img src="${DAVELOPMENT_WORDMARK}" alt="davelopment" height="14" style="height:14px;display:block;border:0;opacity:0.6" />
+                    <img src="${DAVELOPMENT_WORDMARK}" alt="davelopment" height="18" style="height:18px;display:block;border:0;opacity:0.55" />
                   </a>
                 </td>
               </tr>
