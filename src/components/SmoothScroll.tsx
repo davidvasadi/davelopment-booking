@@ -23,7 +23,7 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
       syncTouch: true,
-      syncTouchLerp: 0.1,
+      syncTouchLerp: 0.05,
     })
 
     // A Lenis smooth-scrollt a GSAP ScrollTrigger-rel szinkronizáljuk: minden Lenis-scroll

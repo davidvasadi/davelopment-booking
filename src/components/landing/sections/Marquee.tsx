@@ -1,10 +1,7 @@
 'use client'
 
-// Marquee: CSS animation + scroll-linked offset CSS var-ral.
-// A motion.div JS interpoláció helyett GPU-on fut, mobilon nem szaggat.
-
 import { useRef } from 'react'
-import { useScroll, useMotionValueEvent } from 'framer-motion'
+import { ScrollTrigger, useGSAP } from '@/lib/landing/gsap'
 
 const MARQUEE_ROWS = [
   ['FODRÁSZAT', 'KOZMETIKA', 'MASSZÁZS', 'TETOVÁLÓ', 'KÖRÖMSZALON', 'SMINKTETOVÁLÁS', 'SZOLÁRIUM', 'HAJDÍSZÍTÉS', 'ARCKEZELÉS', 'DEPILÁLÁS'],
@@ -26,8 +23,6 @@ function MarqueeRow({
   rowRef: React.RefObject<HTMLDivElement | null>
 }) {
   const row = [...items, ...items, ...items, ...items, ...items, ...items]
-  // Az alap translateX amit a CSS animáció végrehajt, plusz a scroll offset CSS var-ból jön.
-  // CSS var: --sx (scroll extra px), az egész row-ra egyszerre frissül JS-ből.
   const dir = reverse ? 1 : -1
   const baseX = (-BASE_OFFSET + dir * shift)
 
@@ -52,22 +47,29 @@ function MarqueeRow({
 }
 
 export function Marquee() {
-  const ref = useRef<HTMLDivElement>(null)
+  const ref  = useRef<HTMLDivElement>(null)
   const row0 = useRef<HTMLDivElement>(null)
   const row1 = useRef<HTMLDivElement>(null)
   const row2 = useRef<HTMLDivElement>(null)
 
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
-
-  // Scroll progress → CSS var frissítés. Egyetlen JS hívás/frame az összes sorra,
-  // a böngésző GPU-n alkalmazza a transform-ot — nincs layout thrashing.
-  useMotionValueEvent(scrollYProgress, 'change', (p) => {
-    const rows = [row0.current, row1.current, row2.current]
-    const offsets = [p * 300, -(p * 200), p * 250]
-    rows.forEach((el, i) => {
-      if (el) el.style.setProperty('--sx', `${offsets[i]}px`)
+  useGSAP(() => {
+    const el = ref.current
+    if (!el) return
+    const st = ScrollTrigger.create({
+      trigger: el,
+      start: 'top bottom',
+      end: 'bottom top',
+      scrub: true,
+      onUpdate: (self) => {
+        const p = self.progress
+        const offsets = [p * 300, -(p * 200), p * 250]
+        ;[row0.current, row1.current, row2.current].forEach((row, i) => {
+          if (row) row.style.setProperty('--sx', `${offsets[i]}px`)
+        })
+      },
     })
-  })
+    return () => st.kill()
+  }, { scope: ref })
 
   return (
     <div ref={ref} className="bg-brand-accent border-y border-brand-ink/10 overflow-hidden py-5 space-y-1">

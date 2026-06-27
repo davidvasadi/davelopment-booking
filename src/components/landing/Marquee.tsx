@@ -1,15 +1,11 @@
 'use client'
 
 import { useRef } from 'react'
-import { motion, useScroll, useTransform, type MotionValue } from 'framer-motion'
+import { motion, useMotionValue, useTransform, type MotionValue } from 'framer-motion'
+import { ScrollTrigger, useGSAP } from '@/lib/landing/gsap'
 
 const MARQUEE_ITEMS = ['ÉTTEREM', 'CSONTKOVÁCS', 'FODRÁSZAT', 'SZEMÉLYI EDZŐ', 'JÓGA', 'KOZMETIKA', 'MASSZŐR', 'KÖRÖMSZALON']
 
-/**
- * Egy végtelen futósor: az alap-animáció folyamatosan megy, ÉS a teljes oldal
- * görgetése extra x-eltolást ad (scroll-reaktív parallax). A duplázott tartalom
- * teszi varratmentessé a -50% ↔ 0% loopot.
- */
 function MarqueeRow({
   reverse = false,
   duration = 18,
@@ -46,10 +42,23 @@ function MarqueeRow({
   )
 }
 
-/** Három soros, gyors, váltakozó irányú futószalag — scroll-reaktív parallaxszal. */
 export function Marquee() {
-  const ref = useRef(null)
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
+  const ref = useRef<HTMLDivElement>(null)
+  const scrollYProgress = useMotionValue(0)
+
+  useGSAP(() => {
+    const el = ref.current
+    if (!el) return
+    const st = ScrollTrigger.create({
+      trigger: el,
+      start: 'top bottom',
+      end: 'bottom top',
+      scrub: true,
+      onUpdate: (self) => scrollYProgress.set(self.progress),
+    })
+    return () => st.kill()
+  }, { scope: ref })
+
   return (
     <div
       ref={ref}
@@ -58,7 +67,6 @@ export function Marquee() {
       <MarqueeRow duration={22} scroll={scrollYProgress} />
       <MarqueeRow reverse duration={28} scroll={scrollYProgress} emphasis />
       <MarqueeRow duration={18} scroll={scrollYProgress} />
-      {/* lágy él-elhalványítás a két szélen */}
       <div className="pointer-events-none absolute inset-y-0 left-0 w-16 lg:w-32 bg-gradient-to-r from-brand-accent to-transparent" />
       <div className="pointer-events-none absolute inset-y-0 right-0 w-16 lg:w-32 bg-gradient-to-l from-brand-accent to-transparent" />
     </div>
