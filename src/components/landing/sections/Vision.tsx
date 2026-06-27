@@ -3,12 +3,12 @@
 import { useRef } from 'react'
 import {
   motion,
-  useScroll,
+  useMotionValue,
   useTransform,
   useMotionTemplate,
   type MotionValue,
 } from 'framer-motion'
-import { gsap, useGSAP } from '@/lib/landing/gsap'
+import { gsap, ScrollTrigger, useGSAP } from '@/lib/landing/gsap'
 
 const MANIFESTO_LINES = [
   'Szalon és étterem.',
@@ -27,26 +27,18 @@ export function Vision() {
   const wrapper = useRef<HTMLDivElement>(null)
   const imgRef  = useRef<HTMLDivElement>(null)
   const n = MANIFESTO_LINES.length
-  // A scroll: n sor szövegre + 1 sor ahol a kép "gördül be" mint az utolsó sor + 2 vh zoom
   const totalVh = n + 1 + ZOOM_VH
 
-  const { scrollYProgress } = useScroll({
-    target: wrapper,
-    offset: ['start start', 'end end'],
-  })
+  // GSAP-driven MotionValues — nem függnek natív scroll eventtől,
+  // ezért Lenis syncTouch-sal is működnek mobilon.
+  const scrollYProgress = useMotionValue(0)
+  const enterYProgress  = useMotionValue(0)
 
-  const { scrollYProgress: enterY } = useScroll({
-    target: wrapper,
-    offset: ['start end', 'start start'],
-  })
-  const cardScale = useTransform(enterY, [0, 1], [0.9, 1])
-  const cardY = useTransform(enterY, [0, 1], [48, 0])
+  const cardScale = useTransform(enterYProgress, [0, 1], [0.9, 1])
+  const cardY     = useTransform(enterYProgress, [0, 1], [48, 0])
 
-  // textEnd: a szöveg+képsor fázis vége (az első n+1 viewport)
   const textEnd = (n + 1) / totalVh
 
-  // active: 0…n, ahol 0…n-1 = szövegsorok, n = képsor
-  // Ugyanolyan lépcsős logika mint előtt, de n+1 "elemet" kezel
   const total = n + 1
   const lead = 0.04
   const tail = 0.04
@@ -65,10 +57,8 @@ export function Vision() {
   outRange.push(total - 1)
   const active = useTransform(scrollYProgress, inRange, outRange, { clamp: true })
 
-  // Szövegsorok opacity: az n-edik (képsor) fázisnál tűnnek el
   const textOpacity = useTransform(active, [n - 0.8, n - 0.3], [1, 0])
 
-  // Háttér sötétedés
   const c0 = useTransform(scrollYProgress, [0, textEnd], ['#3a3a3a', '#1f1f1f'])
   const c1 = useTransform(scrollYProgress, [0, textEnd], ['#2a2a2a', '#121212'])
   const c2 = useTransform(scrollYProgress, [0, textEnd], ['#1c1c1c', '#0a0a0a'])
@@ -78,33 +68,53 @@ export function Vision() {
   const outerRadius = useTransform(scrollYProgress, [zoomStart + (1 - zoomStart) * 0.5, 1], [32, 0])
   const cardPad = useTransform(scrollYProgress, [zoomStart + (1 - zoomStart) * 0.4, 1], [16, 0])
 
-  // Kép zoom GSAP-pal (GPU, nem szaggat)
-  // Az active MotionValue-t figyelve — ugyanolyan dist-alapú opacity mint a szövegsoroknál
   useGSAP(() => {
+    const el    = wrapper.current
     const imgEl = imgRef.current
-    if (!imgEl) return
+    if (!el) return
 
+    // Fő scroll progress 0→1 a teljes Vision section felett
+    const st1 = ScrollTrigger.create({
+      trigger: el,
+      start: 'top top',
+      end: 'bottom bottom',
+      scrub: true,
+      onUpdate: (self) => scrollYProgress.set(self.progress),
+    })
+
+    // Enter progress 0→1: section teteje a viewport aljáról a tetejéig
+    const st2 = ScrollTrigger.create({
+      trigger: el,
+      start: 'top bottom',
+      end: 'top top',
+      scrub: true,
+      onUpdate: (self) => enterYProgress.set(self.progress),
+    })
+
+    // Kép zoom + opacity — a MotionValue változásaira reagál
     const unsubProgress = scrollYProgress.on('change', (p) => {
       const s = zoomStart
       const t = Math.max(0, Math.min(1, (p - s) / (1 - s)))
       const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2
-      const scale = 0.12 + e * 0.88
-      gsap.set(imgEl, { scale })
+      if (imgEl) gsap.set(imgEl, { scale: 0.12 + e * 0.88 })
     })
 
-    // Opacity: dist = n - active, ugyanaz mint az eredeti imgRevealOpacity
     const unsubActive = active.on('change', (a) => {
       const dist = n - a
       const ad = Math.abs(dist)
-      // [-0.99, -0.4, 0, 0.4, 0.99] → [0, 1, 1, 1, 0]
       let opacity: number
       if (ad >= 0.99) opacity = 0
       else if (ad >= 0.4) opacity = 1 - (ad - 0.4) / 0.59
       else opacity = 1
-      gsap.set(imgEl, { opacity })
+      if (imgEl) gsap.set(imgEl, { opacity })
     })
 
-    return () => { unsubProgress(); unsubActive() }
+    return () => {
+      st1.kill()
+      st2.kill()
+      unsubProgress()
+      unsubActive()
+    }
   }, { scope: wrapper })
 
   return (
