@@ -8,6 +8,8 @@ import {
   introBlock,
   cancelBlock,
   footerInfoBlock,
+  calendarBlock,
+  formatBookingDate,
   bottomSpacer,
   renderSubject,
   COLORS,
@@ -159,7 +161,7 @@ function detailRows(data: ReservationEmailData): string {
   return [
     infoRow('user', t(locale, 'email.label.name'), reservation.customer_name),
     infoRow('mail', t(locale, 'email.label.email'), reservation.customer_email),
-    infoRow('calendar', t(locale, 'email.label.date'), reservation.date),
+    infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(reservation.date, locale)),
     infoRow('clock', t(locale, 'email.label.time'), `${reservation.start_time} – ${reservation.end_time}`),
     infoRow('people', t(locale, 'email.label.guests'), `${reservation.pax} fő`),
     location ? infoRow('pin', t(locale, 'email.label.address'), location) : '',
@@ -180,6 +182,15 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
     ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 32px 0">
       <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>${t(locale, 'email.label.notes')}:</strong> ${reservation.notes}</p>
     </td></tr>` : ''}
+    ${calendarBlock({
+      title: `${t(locale, 'rbooking.header')} – ${restaurant.name}`,
+      date: reservation.date,
+      startTime: reservation.start_time,
+      endTime: reservation.end_time,
+      location: contactAddress(restaurant),
+      description: `${reservation.pax} ${t(locale, 'email.label.guests').toLowerCase()}`,
+      locale,
+    })}
     ${footerInfoBlock({
       hasTerms: hasTerms(restaurant),
       bookingUrl: `${APP_URL}/${restaurant.slug}/terms`,

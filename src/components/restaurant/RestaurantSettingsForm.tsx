@@ -411,46 +411,38 @@ export function RestaurantSettingsForm({
         <div className="space-y-5">
           <div className="space-y-2">
             <Label className={labelClass}>Logó</Label>
-            <div className="flex items-center gap-4">
-              {/* object-contain előnézet egy elhatárolt kártyában: a teljes logó látszik,
-                  a host tudja hogyan jelenik meg a foglaló oldalon/emailben. */}
-              <div className="relative shrink-0">
+            <div className="relative inline-block">
+              <button
+                type="button"
+                onClick={() => logoRef.current?.click()}
+                className="group relative flex h-16 min-w-16 max-w-[220px] items-center justify-center rounded-xl overflow-hidden bg-zinc-100 dark:bg-white/[0.06] px-3 hover:bg-zinc-200 dark:hover:bg-white/[0.1] transition-colors"
+              >
+                {uploadingLogo ? (
+                  <Loader2 className="h-5 w-5 text-zinc-400 dark:text-white/40 animate-spin" />
+                ) : logoPreview ? (
+                  <>
+                    <img src={logoPreview} alt="Logó" className="h-full w-auto max-w-full object-contain" />
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                      <Camera className="h-4 w-4 text-white" />
+                    </div>
+                  </>
+                ) : (
+                  <Camera className="h-5 w-5 text-zinc-400 dark:text-white/30" />
+                )}
+              </button>
+              {logoPreview && !uploadingLogo && (
                 <button
                   type="button"
-                  onClick={() => logoRef.current?.click()}
-                  className="group relative flex h-20 w-40 items-center justify-center rounded-xl overflow-hidden border border-zinc-200 bg-zinc-50 px-4 hover:border-zinc-300 dark:border-white/[0.1] dark:bg-white/[0.04] dark:hover:border-white/[0.2] transition-colors"
+                  onClick={() => removeImage(logoId, setLogoPreview, setLogoId, setLogoModified, logoRef)}
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
                 >
-                  {uploadingLogo ? (
-                    <Loader2 className="h-5 w-5 text-zinc-400 dark:text-white/40 animate-spin" />
-                  ) : logoPreview ? (
-                    <>
-                      <img src={logoPreview} alt="Logó" className="max-h-full max-w-full object-contain" />
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <Camera className="h-5 w-5 text-white" />
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1 text-zinc-400 dark:text-white/30">
-                      <Camera className="h-5 w-5" />
-                      <span className="text-[11px] font-medium">Feltöltés</span>
-                    </div>
-                  )}
+                  <X className="h-3 w-3 text-white" />
                 </button>
-                {logoPreview && !uploadingLogo && (
-                  <button
-                    type="button"
-                    onClick={() => removeImage(logoId, setLogoPreview, setLogoId, setLogoModified, logoRef)}
-                    className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
-                  >
-                    <X className="h-3 w-3 text-white" />
-                  </button>
-                )}
-              </div>
-              <p className="text-xs text-zinc-400 dark:text-white/30 leading-relaxed">
-                Így jelenik meg a foglaló oldal fejlécében és a visszaigazoló emailben.<br className="hidden sm:block" />
-                PNG vagy SVG, áttetsző háttérrel a legjobb.
-              </p>
+              )}
             </div>
+            <p className="text-xs text-zinc-400 dark:text-white/30 leading-relaxed">
+              PNG vagy SVG, áttetsző háttérrel a legjobb.
+            </p>
             <input
               ref={logoRef}
               type="file"
@@ -470,7 +462,7 @@ export function RestaurantSettingsForm({
       </Section>
 
       <Section title="Elérhetőség">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className={labelClass}>Város</Label>
             <Input className={inputClass} value={form.city} onChange={(e) => set('city', e.target.value)} />
@@ -480,7 +472,7 @@ export function RestaurantSettingsForm({
             <Input className={inputClass} value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Utca, házszám" />
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className={labelClass}>Telefon</Label>
             <Input className={inputClass} value={form.phone} onChange={(e) => set('phone', e.target.value)} type="tel" />

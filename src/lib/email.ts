@@ -8,6 +8,8 @@ import {
   introBlock,
   cancelBlock,
   footerInfoBlock,
+  calendarBlock,
+  formatBookingDate,
   bottomSpacer,
   renderSubject,
   COLORS,
@@ -177,7 +179,7 @@ function bookingRows(data: BookingEmailData): string {
     infoRow('mail', t(locale, 'email.label.email'), booking.customer_email),
     infoRow('scissors', t(locale, 'email.label.service'), service.name),
     infoRow('user', t(locale, 'email.label.staff'), staff.name),
-    infoRow('calendar', t(locale, 'email.label.date'), booking.date),
+    infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(booking.date, locale)),
     infoRow('clock', t(locale, 'email.label.time'), `${booking.start_time} – ${booking.end_time}`),
     location ? infoRow('pin', t(locale, 'email.label.address'), location) : '',
   ].filter(Boolean).join('')
@@ -194,9 +196,15 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
     })}
     ${introBlock(salon.booking_email_intro ?? '', emailVars(data))}
     ${detailsCard(bookingRows(data))}
-    <tr><td style="background:${COLORS.surface};padding:16px 32px 0;text-align:center">
-      <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.ics.hint')}</p>
-    </td></tr>
+    ${calendarBlock({
+      title: `${data.service.name} – ${salon.name}`,
+      date: booking.date,
+      startTime: booking.start_time,
+      endTime: booking.end_time,
+      location: salonAddress(salon),
+      description: `${t(locale, 'email.label.staff')}: ${data.staff.name}`,
+      locale,
+    })}
     ${footerInfoBlock({
       hasTerms: hasTerms(salon),
       bookingUrl: `${APP_URL}/${salon.slug}/terms`,

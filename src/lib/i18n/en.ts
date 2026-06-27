@@ -174,4 +174,5 @@ export const en: Record<string, string> = {
   'email.footer.directions': 'Get directions',
   'email.cancelLink.text': 'Can’t make it? {{link}}',
   'email.cancelLink.label': 'Cancel booking',
+  'email.addToCalendar': 'Add to calendar',
 }

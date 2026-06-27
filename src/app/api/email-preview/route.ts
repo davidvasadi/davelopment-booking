@@ -11,6 +11,8 @@ import {
   introBlock,
   cancelBlock,
   footerInfoBlock,
+  calendarBlock,
+  formatBookingDate,
   bottomSpacer,
 } from '@/lib/emailLayout'
 
@@ -78,6 +80,7 @@ export async function GET(req: NextRequest) {
   const name = type === 'salon' ? 'Tóth Béla' : 'Kovács Anna'
   const guestEmail = type === 'salon' ? 'toth.bela@example.com' : 'kovacs.anna@example.com'
 
+  const PREVIEW_DATE = '2026-06-12'
   const detailRows =
     type === 'salon'
       ? [
@@ -85,13 +88,13 @@ export async function GET(req: NextRequest) {
           infoRow('mail', t(locale, 'email.label.email'), guestEmail),
           infoRow('scissors', t(locale, 'email.label.service'), 'Hajvágás + szárítás'),
           infoRow('user', t(locale, 'email.label.staff'), 'Nagy Eszter'),
-          infoRow('calendar', t(locale, 'email.label.date'), '2026-06-12'),
+          infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(PREVIEW_DATE, locale)),
           infoRow('clock', t(locale, 'email.label.time'), '14:30 – 15:15'),
         ].join('')
       : [
           infoRow('user', t(locale, 'email.label.name'), name),
           infoRow('mail', t(locale, 'email.label.email'), guestEmail),
-          infoRow('calendar', t(locale, 'email.label.date'), '2026-06-12'),
+          infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(PREVIEW_DATE, locale)),
           infoRow('clock', t(locale, 'email.label.time'), '19:00 – 21:00'),
           infoRow('people', t(locale, 'email.label.guests'), '4 fő'),
           infoRow('pin', t(locale, 'email.label.address'), realAddress || '1051 Budapest, Példa u. 1.'),
@@ -125,6 +128,14 @@ export async function GET(req: NextRequest) {
       ${heroBlock({ icon: 'success', title: t(locale, 'email.confirm.title'), subtitle: t(locale, 'email.greeting', { name }) })}
       ${introBlock(introText, { name, date: '2026-06-12', time: '19:00 – 21:00', pax: '4', service: 'Hajvágás + szárítás' })}
       ${detailsCard(detailRows)}
+      ${calendarBlock({
+        title: type === 'salon' ? `Hajvágás + szárítás – ${brandName}` : `${t(locale, 'rbooking.header')} – ${brandName}`,
+        date: PREVIEW_DATE,
+        startTime: type === 'salon' ? '14:30' : '19:00',
+        endTime: type === 'salon' ? '15:15' : '21:00',
+        location: realAddress,
+        locale,
+      })}
       ${footerInfoBlock({
         hasTerms: true,
         bookingUrl,

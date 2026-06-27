@@ -179,4 +179,5 @@ export const hu: Record<string, string> = {
   'email.footer.directions': 'Útvonaltervezés',
   'email.cancelLink.text': 'Mégsem tudsz jönni? {{link}}',
   'email.cancelLink.label': 'Foglalás lemondása',
+  'email.addToCalendar': 'Naptárba mentés',
 }

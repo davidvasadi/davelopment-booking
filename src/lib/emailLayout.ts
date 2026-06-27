@@ -371,4 +371,60 @@ export function bottomSpacer(): string {
   return `<tr><td style="background:${COLORS.surface};height:32px;line-height:32px;font-size:0">&nbsp;</td></tr>`
 }
 
+// Locale → BCP 47 tag (Intl.DateTimeFormat-hoz)
+const LOCALE_TAG: Record<string, string> = {
+  hu: 'hu-HU', en: 'en-GB', de: 'de-DE', fr: 'fr-FR', es: 'es-ES', it: 'it-IT',
+}
+
+/**
+ * ISO dátum (`YYYY-MM-DD`) lokalizált formátummá alakítása.
+ * Pl. hu → „2026. június 12. (péntek)", en → „Friday, 12 June 2026"
+ * New Date(y, m-1, d) a helyi időzónában hozza létre, nincs UTC-eltolódás.
+ */
+export function formatBookingDate(isoDate: string, locale: Locale): string {
+  const [y, m, d] = isoDate.split('-').map(Number)
+  const date = new Date(y, m - 1, d)
+  const tag = LOCALE_TAG[locale] ?? 'hu-HU'
+  return date.toLocaleDateString(tag, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+}
+
+/**
+ * „Naptárba mentés" CTA — Google Calendar deep-link gomb.
+ * Az ICS melléklet Apple Calendarra is megnyílik; ezt a gombot a Gmail / web
+ * felhasználók tudják egyetlen kattintással használni.
+ */
+export function calendarBlock(opts: {
+  title: string
+  date: string
+  startTime: string
+  endTime: string
+  location?: string | null
+  description?: string | null
+  locale?: Locale
+}): string {
+  const { title, date, startTime, endTime, location, description, locale = 'hu' } = opts
+  const [y, m, d] = date.split('-')
+  const [sh, sm] = startTime.split(':')
+  const [eh, em] = endTime.split(':')
+  const dtStart = `${y}${m}${d}T${sh}${sm}00`
+  const dtEnd = `${y}${m}${d}T${eh}${em}00`
+  const gcUrl =
+    'https://calendar.google.com/calendar/render' +
+    '?action=TEMPLATE' +
+    `&text=${encodeURIComponent(title)}` +
+    `&dates=${dtStart}/${dtEnd}` +
+    '&ctz=Europe/Budapest' +
+    (location ? `&location=${encodeURIComponent(location)}` : '') +
+    (description ? `&details=${encodeURIComponent(description)}` : '')
+
+  const calSvg = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-3px;margin-right:7px"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>`
+
+  return `<tr>
+    <td style="background:${COLORS.surface};padding:20px 32px 0;text-align:center">
+      <a href="${gcUrl}" style="display:inline-block;background:${COLORS.ink};color:#ffffff;font-size:13px;font-weight:600;text-decoration:none;padding:11px 24px;border-radius:999px">${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}</a>
+      <p style="margin:10px 0 0;color:${COLORS.textFaint};font-size:11px">${escapeHtml(t(locale, 'email.ics.hint'))}</p>
+    </td>
+  </tr>`
+}
+
 export { COLORS }

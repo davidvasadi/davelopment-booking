@@ -174,4 +174,5 @@ export const fr: Record<string, string> = {
   'email.footer.directions': 'Obtenir l’itinéraire',
   'email.cancelLink.text': 'Vous ne pouvez pas venir ? {{link}}',
   'email.cancelLink.label': 'Annuler la réservation',
+  'email.addToCalendar': 'Ajouter au calendrier',
 }
