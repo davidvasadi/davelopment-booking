@@ -15,7 +15,7 @@ export function PageHeader({ eyebrow, title, description, action, className = ''
             {eyebrow}
           </p>
         )}
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{title}</h1>
+        <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-white">{title}</h1>
         {description && (
           <p className="mt-1 text-sm text-zinc-500 dark:text-white/40">{description}</p>
         )}

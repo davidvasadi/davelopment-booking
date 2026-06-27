@@ -1,7 +1,6 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getRestaurantStats } from '@/lib/restaurantStats'
-import { CalendarCheck, Users, Globe, CheckCircle2, CalendarX, UserX, DoorOpen, Phone } from 'lucide-react'
-import { StatCard } from '@/components/dashboard/StatCard'
+import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
 import { ReservationTrendChart, DowChart, HourChart } from '@/components/dashboard/DashboardCharts'
 import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
 import { DwellCard } from '@/components/restaurant/DwellCard'
@@ -35,30 +34,96 @@ export default async function RestaurantAnalyticsPage({
   const stats = await getRestaurantStats(restaurant.id, days)
   const label = periodLabel(days)
 
+  // Idősorok a metrika-diagramokhoz (étterem: a trend.revenue mező pax-ot hordoz).
+  const reservationsSeries = stats.trend.map((d) => ({ label: d.label, value: d.bookings }))
+  const paxSeries = stats.trend.map((d) => ({ label: d.label, value: d.revenue }))
+  // A napi bontásból az időszakra szabva (a dailyBreakdownFull min. 30 napot tart).
+  const tailFull = stats.dailyBreakdownFull.slice(-days)
+  const completedSeries = tailFull.map((d) => ({ label: d.label, value: d.completed }))
+  const cancelledSeries = tailFull.map((d) => ({ label: d.label, value: d.cancelled }))
+  const walkInSeries = tailFull.map((d) => ({ label: d.label, value: d.walkIn }))
+  const onlineSeries = tailFull.map((d) => ({ label: d.label, value: d.online }))
+  const phoneSeries = tailFull.map((d) => ({ label: d.label, value: d.phone }))
+  const noShowSeries = tailFull.map((d) => ({ label: d.label, value: d.noShow }))
+  const cancelOnlySeries = tailFull.map((d) => ({ label: d.label, value: d.cancelledOnly }))
+
+  // 5 csoport-metrika; a részlet-nézetek a lenti grafikonokra ugranak (sec-*).
+  const metrics: OverviewMetric[] = [
+    {
+      id: 'reservations', label: 'Foglalások', value: String(stats.periodReservations), unit: 'foglalás',
+      deltaPct: stats.periodReservationsDiff, color: '#0099ff', icon: 'reservations', series: reservationsSeries,
+      views: [
+        { id: 'hour', label: 'Óránkénti forgalom', icon: 'hour', target: 'hour' },
+        { id: 'dow', label: 'Heti eloszlás', icon: 'dow', target: 'dow' },
+        { id: 'daily', label: 'Napi bontás', icon: 'daily', target: 'daily' },
+      ],
+    },
+    {
+      id: 'pax', label: 'Vendégszám', value: `${stats.periodPax} fő`, unit: 'fő',
+      deltaPct: stats.periodPaxDiff, color: '#00bb88', icon: 'pax', series: paxSeries,
+      views: [
+        { id: 'trend', label: 'Foglalások alakulása', icon: 'pax', target: 'trend' },
+        { id: 'nat', label: 'Vendégek nemzetisége', icon: 'nat', target: 'nat' },
+      ],
+    },
+    {
+      id: 'completion', label: 'Teljesítés', value: `${stats.completionRate}%`, unit: 'befejezett',
+      color: '#8b5cf6', icon: 'completion', series: completedSeries,
+      views: [
+        { id: 'dwell', label: 'Tartózkodási idő', icon: 'dwell', target: 'dwell' },
+        { id: 'daily', label: 'Napi bontás', icon: 'daily', target: 'daily' },
+      ],
+    },
+    {
+      id: 'source', label: 'Vendégforrás', value: `${stats.onlineReservations + stats.walkInCount + stats.phoneCount} fő`, unit: 'walk-in fő',
+      color: '#f59e0b', icon: 'source', series: walkInSeries,
+      views: [
+        { id: 'online', label: `Online · ${stats.onlineReservations} fő`, icon: 'online', series: onlineSeries, value: `${stats.onlineReservations} fő` },
+        { id: 'walkin', label: `Walk-in · ${stats.walkInCount} fő`, icon: 'walkin', series: walkInSeries, value: `${stats.walkInCount} fő` },
+        { id: 'phone', label: `Telefonos · ${stats.phoneCount} fő`, icon: 'phone', series: phoneSeries, value: `${stats.phoneCount} fő` },
+      ],
+    },
+    {
+      id: 'cancelled', label: 'Lemondások', value: `${stats.cancelledCount + stats.noShowCount} fő`, unit: 'fő',
+      color: '#f87171', icon: 'cancelled', series: cancelledSeries,
+      views: [
+        { id: 'cancel', label: `Lemondva · ${stats.cancelledCount} fő`, icon: 'cancelled', series: cancelOnlySeries, value: `${stats.cancelledCount} fő` },
+        { id: 'noshow', label: `No-show · ${stats.noShowCount} fő`, icon: 'noshow', series: noShowSeries, value: `${stats.noShowCount} fő` },
+      ],
+    },
+  ]
+
+  // A részlet-nézetek kész grafikonjai (a kinézetük változatlan) — az áttekintő
+  // slotjában jelennek meg, scroll helyett a részlet-sor választja ki.
+  const detailCharts: Record<string, React.ReactNode> = {
+    trend: days > 1 ? <ReservationTrendChart key="trend" data={stats.trend} period={stats.period} embedded /> : null,
+    hour: <HourChart key="hour" data={stats.byHour} period={stats.period} rawDays={stats.trend} hourlyByDate={stats.hourlyByDate} moneyless embedded />,
+    dwell: stats.avgDwellOverall > 0 ? (
+      <DwellCard key="dwell" avgDwell={stats.avgDwell} avgDwellOverall={stats.avgDwellOverall} dwellRaw={stats.dwellRaw} periodLabel={label} embedded />
+    ) : null,
+    nat: (stats.domesticCount + stats.foreignCount) > 0 ? (
+      <NationalityCard key="nat" domesticCount={stats.domesticCount} foreignCount={stats.foreignCount} topCountries={stats.topCountries} nationalityRaw={stats.nationalityRaw} periodLabel={label} embedded />
+    ) : null,
+    dow: days > 1 ? <DowChart key="dow" data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} moneyless embedded /> : null,
+    daily: <DailyBreakdownChart key="daily" data={stats.dailyBreakdown} fullData={stats.dailyBreakdownFull} period={stats.period} embedded />,
+  }
+
   return (
     <div className="p-5 lg:p-8 space-y-6">
 
-      {/* Header */}
-      <PageHeader eyebrow="Részletes nézet" title="Statisztikák" action={<PeriodFilter current={days} basePath="/restaurant/analytics" module="restaurant" />} />
+      {/* Header — mobilon a cím a globális headerben van, ezért itt csak desktopon */}
+      <div className="hidden lg:block">
+        <PageHeader eyebrow="Részletes nézet" title="Statisztikák" />
+      </div>
 
-      {/* Period KPI cards */}
+      {/* Áttekintés — kártya → nagy grafikon vált; részlet-sor → a lenti grafikon a slotban vált */}
       <Reveal>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={CalendarCheck} sub={`${label} foglalás`} label="előző időszakhoz képest" value={String(stats.periodReservations)} diff={stats.periodReservationsDiff} />
-          <StatCard icon={Users} sub={`${label} vendég`} label="előző időszakhoz képest" value={`${stats.periodPax} fő`} diff={stats.periodPaxDiff} />
-          <StatCard icon={Globe} tint="blue" sub="Online vendég" label={`${label} – online érkezett`} value={`${stats.onlineReservations} fő`} />
-          <StatCard icon={CheckCircle2} tint="green" sub="Teljesítési arány" label="befejezett / lezárt" value={`${stats.completionRate}%`} />
-        </div>
-      </Reveal>
-
-      {/* Status breakdown cards */}
-      <Reveal delay={60}>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard icon={CalendarX} tint="red" sub="Lemondva" label="vendég (összeshez)" value={`${stats.cancelledCount} fő`} pct={stats.cancellationRate} />
-          <StatCard icon={UserX} tint="orange" sub="No-show" label="nem jött meg" value={`${stats.noShowCount} fő`} pct={stats.noShowRate} />
-          <StatCard icon={DoorOpen} tint="blue" sub="Walk-in" label="beeső vendég" value={`${stats.walkInCount} fő`} pct={stats.walkInRate} />
-          <StatCard icon={Phone} tint="blue" sub="Telefonos" label="telefonos vendég" value={`${stats.phoneCount} fő`} pct={stats.phoneRate} />
-        </div>
+        <AnalyticsOverview
+          metrics={metrics}
+          filter={<PeriodFilter current={days} basePath="/restaurant/analytics" module="restaurant" csvExport={false} />}
+          csvHref={`/api/export-csv?days=${days}&module=restaurant`}
+          detailCharts={detailCharts}
+        />
       </Reveal>
 
       {/* Insight */}
@@ -71,43 +136,6 @@ export default async function RestaurantAnalyticsPage({
           </DashboardCard>
         </Reveal>
       )}
-
-      {/* Trend + heti eloszlás csak 1 napnál nagyobb időszaknál értelmes
-          (1 napra egyetlen pont / oszlop lenne; az óránkénti forgalom mutatja a mai napot). */}
-      {days > 1 && <Reveal mountOnReveal minHeight={300}><ReservationTrendChart data={stats.trend} period={stats.period} /></Reveal>}
-
-      {/* Hourly distribution */}
-      <Reveal mountOnReveal minHeight={260}><HourChart data={stats.byHour} period={stats.period} rawDays={stats.trend} hourlyByDate={stats.hourlyByDate} moneyless /></Reveal>
-
-      {/* Átlagos foglalási idő — befejezett foglalások tényleges hossza, létszám szerint + Részletek sidebar */}
-      {stats.avgDwellOverall > 0 && (
-        <Reveal mountOnReveal minHeight={280}>
-          <DwellCard
-            avgDwell={stats.avgDwell}
-            avgDwellOverall={stats.avgDwellOverall}
-            dwellRaw={stats.dwellRaw}
-            periodLabel={label}
-          />
-        </Reveal>
-      )}
-
-      {/* Vendégek nemzetisége — belföldi/külföldi arány + top országok */}
-      {(stats.domesticCount + stats.foreignCount) > 0 && (
-        <Reveal mountOnReveal minHeight={240}>
-          <NationalityCard
-            domesticCount={stats.domesticCount}
-            foreignCount={stats.foreignCount}
-            topCountries={stats.topCountries}
-            nationalityRaw={stats.nationalityRaw}
-            periodLabel={label}
-          />
-        </Reveal>
-      )}
-
-      {days > 1 && <Reveal mountOnReveal minHeight={260}><DowChart data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} moneyless /></Reveal>}
-
-      {/* Napi bontás – kattintható, napok között lapozható */}
-      <Reveal mountOnReveal minHeight={340}><DailyBreakdownChart data={stats.dailyBreakdown} fullData={stats.dailyBreakdownFull} period={stats.period} /></Reveal>
     </div>
   )
 }

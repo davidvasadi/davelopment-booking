@@ -127,7 +127,7 @@ export function TrendChart({ data, period = 30 }: { data: DayData[]; period?: nu
  * Étterem-trend: foglalás-szám / vendégszám (pax). A pax a DayData.revenue mezőben utazik
  * (a getRestaurantStats így tölti). Nincs HUF-formázás, nincs drill-down sheet.
  */
-export function ReservationTrendChart({ data, period = 30 }: { data: DayData[]; period?: number }) {
+export function ReservationTrendChart({ data, period = 30, embedded = false }: { data: DayData[]; period?: number; embedded?: boolean }) {
   const [tab, setTab] = useState<'bookings' | 'revenue'>('bookings')
   const dark = useIsDark()
 
@@ -148,31 +148,33 @@ export function ReservationTrendChart({ data, period = 30 }: { data: DayData[]; 
   }
 
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
-          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">
-            {tab === 'revenue' ? 'Vendégszám' : 'Foglalások'}
-          </h3>
+    <div className={embedded ? 'h-full' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
+            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">
+              {tab === 'revenue' ? 'Vendégszám' : 'Foglalások'}
+            </h3>
+          </div>
+          <div className="flex gap-1 bg-zinc-100 dark:bg-white/[0.06] rounded-xl p-1">
+            <button
+              onClick={() => setTab('bookings')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === 'bookings' ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:text-white/40 dark:hover:text-white/80'}`}
+            >
+              Foglalások
+            </button>
+            <button
+              onClick={() => setTab('revenue')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === 'revenue' ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:text-white/40 dark:hover:text-white/80'}`}
+            >
+              Vendégszám
+            </button>
+          </div>
         </div>
-        <div className="flex gap-1 bg-zinc-100 dark:bg-white/[0.06] rounded-xl p-1">
-          <button
-            onClick={() => setTab('bookings')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === 'bookings' ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:text-white/40 dark:hover:text-white/80'}`}
-          >
-            Foglalások
-          </button>
-          <button
-            onClick={() => setTab('revenue')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${tab === 'revenue' ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm' : 'text-zinc-500 hover:text-zinc-900 dark:text-white/40 dark:hover:text-white/80'}`}
-          >
-            Vendégszám
-          </button>
-        </div>
-      </div>
+      )}
 
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={embedded ? '100%' : 220}>
         <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="grad-res" x1="0" y1="0" x2="0" y2="1">
@@ -191,22 +193,24 @@ export function ReservationTrendChart({ data, period = 30 }: { data: DayData[]; 
   )
 }
 
-export function DowChart({ data, period = 30, rawDays = [], moneyless = false }: { data: DowStat[]; period?: number; rawDays?: DayData[]; moneyless?: boolean }) {
+export function DowChart({ data, period = 30, rawDays = [], moneyless = false, embedded = false }: { data: DowStat[]; period?: number; rawDays?: DayData[]; moneyless?: boolean; embedded?: boolean }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
   const gridColor = dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)'
   const tickColor = dark ? 'rgba(255,255,255,0.25)' : '#94a3b8'
 
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
-          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Heti eloszlás</h3>
+    <div className={embedded ? 'h-full' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
+            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Heti eloszlás</h3>
+          </div>
+          <DetailsButton onClick={() => setSheetOpen(true)} />
         </div>
-        <DetailsButton onClick={() => setSheetOpen(true)} />
-      </div>
-      <ResponsiveContainer width="100%" height={160}>
+      )}
+      <ResponsiveContainer width="100%" height={embedded ? '100%' : 160}>
         <BarChart data={data} margin={{ top: 0, right: 0, left: -28, bottom: 0 }} barSize={24}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
           <XAxis dataKey="day" tick={{ fontSize: 10, fill: tickColor }} tickLine={false} axisLine={false} />
@@ -230,7 +234,7 @@ export function DowChart({ data, period = 30, rawDays = [], moneyless = false }:
   )
 }
 
-export function HourChart({ data, period = 30, rawDays = [], hourlyByDate, moneyless = false }: { data: HourStat[]; period?: number; rawDays?: DayData[]; hourlyByDate?: Record<string, number[]>; moneyless?: boolean }) {
+export function HourChart({ data, period = 30, rawDays = [], hourlyByDate, moneyless = false, embedded = false }: { data: HourStat[]; period?: number; rawDays?: DayData[]; hourlyByDate?: Record<string, number[]>; moneyless?: boolean; embedded?: boolean }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
   const hasData = data.some(d => d.bookings > 0)
@@ -246,15 +250,17 @@ export function HourChart({ data, period = 30, rawDays = [], hourlyByDate, money
   const tickColor = dark ? 'rgba(255,255,255,0.25)' : '#94a3b8'
 
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
-          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Óránkénti forgalom</h3>
+    <div className={embedded ? 'h-full' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
+            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Óránkénti forgalom</h3>
+          </div>
+          <DetailsButton onClick={() => setSheetOpen(true)} />
         </div>
-        <DetailsButton onClick={() => setSheetOpen(true)} />
-      </div>
-      <ResponsiveContainer width="100%" height={160}>
+      )}
+      <ResponsiveContainer width="100%" height={embedded ? '100%' : 160}>
         <BarChart data={visible} margin={{ top: 0, right: 0, left: -28, bottom: 0 }} barSize={16}>
           <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
           <XAxis dataKey="hour" tick={{ fontSize: 9, fill: tickColor }} tickLine={false} axisLine={false} interval={visible.length > 12 ? 1 : 0} />

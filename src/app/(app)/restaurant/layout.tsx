@@ -11,6 +11,7 @@ import { PageTransition } from '@/components/ui/page-transition'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContext'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
 import type { Restaurant, Subscription } from '@/payload/payload-types'
 
 export default async function RestaurantLayout({ children }: { children: React.ReactNode }) {
@@ -49,7 +50,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
 
   return (
     <RestaurantUIProvider>
-      <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
+      <div className="font-geist min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
         <DashboardNav
           salonName={restaurant.name}
           salonSlug={restaurant.slug}
@@ -65,6 +66,12 @@ export default async function RestaurantLayout({ children }: { children: React.R
         <main className="flex-1 min-w-0 pb-24 lg:pb-0">
           <SubscriptionBanner subscription={sub} basePath="/restaurant" />
           <PageTransition>{children}</PageTransition>
+          {/* Mobil lábléc — Schedulio logó */}
+          <footer className="lg:hidden flex justify-center py-8">
+            <a href="https://schedulio.hu" target="_blank" rel="noopener noreferrer" className="opacity-50 hover:opacity-80 transition-opacity">
+              <SchedulioLogo className="h-5" />
+            </a>
+          </footer>
         </main>
         <MobileBottomNav subscription={sub} variant="restaurant" userName={user.name} userEmail={user.email} userAvatarUrl={user.avatar_url ?? null} />
         {lockedStatus && <DashboardLockModal status={lockedStatus} />}

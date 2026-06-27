@@ -13,6 +13,10 @@ export interface RestaurantDayBreakdown {
   completed: number
   walkIn: number
   pax: number
+  online: number
+  phone: number
+  noShow: number
+  cancelledOnly: number
 }
 
 export interface RestaurantStats {
@@ -216,6 +220,10 @@ export async function getRestaurantStats(
       completed: allDay.filter(r => r.status === 'completed').length,
       walkIn: allDay.filter(r => r.source === 'walk_in').length,
       pax: activeDay.reduce((s, r) => s + paxOf(r), 0),
+      online: activeDay.filter(r => r.source === 'online').length,
+      phone: activeDay.filter(r => r.source === 'phone').length,
+      noShow: allDay.filter(r => r.status === 'no_show').length,
+      cancelledOnly: allDay.filter(r => r.status === 'cancelled').length,
     }
   }
 
@@ -348,12 +356,17 @@ export async function getRestaurantStats(
   const periodTotalPax = sumPax(allPeriod)
   const cancelledCount = sumPax(allPeriod.filter(r => r.status === 'cancelled'))
   const noShowCount = sumPax(allPeriod.filter(r => r.status === 'no_show'))
-  const walkInCount = sumPax(allPeriod.filter(r => r.source === 'walk_in'))
-  const phoneCount = sumPax(allPeriod.filter(r => r.source === 'phone'))
+  // Forrás-bontás az AKTÍV (nem lemondott) vendégekből — ugyanaz a bázis, mint a
+  // Vendégszám (periodPax) és az onlineReservations. Így online+walk-in+telefonos
+  // sosem haladja meg a Vendégszámot (a maradék = egyéb forrás).
+  const walkInCount = sumPax(periodDocs.filter(r => r.source === 'walk_in'))
+  const phoneCount = sumPax(periodDocs.filter(r => r.source === 'phone'))
+  // Lemondás/no-show arány az ÖSSZES (lemondottakat is tartalmazó) pax-hoz mérve.
   const cancellationRate = periodTotalPax > 0 ? Math.round((cancelledCount / periodTotalPax) * 100) : 0
   const noShowRate = periodTotalPax > 0 ? Math.round((noShowCount / periodTotalPax) * 100) : 0
-  const walkInRate = periodTotalPax > 0 ? Math.round((walkInCount / periodTotalPax) * 100) : 0
-  const phoneRate = periodTotalPax > 0 ? Math.round((phoneCount / periodTotalPax) * 100) : 0
+  // Forrás-arány az aktív Vendégszámhoz (periodPax) mérve.
+  const walkInRate = periodPax > 0 ? Math.round((walkInCount / periodPax) * 100) : 0
+  const phoneRate = periodPax > 0 ? Math.round((phoneCount / periodPax) * 100) : 0
 
   return {
     period: days,

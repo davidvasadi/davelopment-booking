@@ -86,11 +86,13 @@ export function DwellCard({
   avgDwellOverall,
   dwellRaw,
   periodLabel,
+  embedded = false,
 }: {
   avgDwell: DwellGroup[]
   avgDwellOverall: number
   dwellRaw: DwellRaw[]
   periodLabel: string
+  embedded?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [innerPeriod, setInnerPeriod] = useState(30)
@@ -107,25 +109,27 @@ export function DwellCard({
   const agg = useMemo(() => aggregate(filtered), [filtered])
 
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
-      <div className="flex items-baseline justify-between gap-3 mb-1">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel}</p>
-          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Átlagos foglalási idő</h3>
+    <div className={embedded ? '' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
+        <div className="flex items-baseline justify-between gap-3 mb-1">
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel}</p>
+            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Átlagos foglalási idő</h3>
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{fmtDuration(avgDwellOverall)}</p>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors"
+            >
+              <span className="hidden sm:inline">Részletek</span>
+              <ArrowUpRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{fmtDuration(avgDwellOverall)}</p>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors"
-          >
-            <span className="hidden sm:inline">Részletek</span>
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </button>
-        </div>
-      </div>
-      <p className="text-xs text-zinc-400 dark:text-white/30 mb-5">A befejezett foglalások tényleges hossza alapján (mennyi ideig foglalt egy asztal).</p>
+      )}
+      {!embedded && <p className="text-xs text-zinc-400 dark:text-white/30 mb-5">A befejezett foglalások tényleges hossza alapján (mennyi ideig foglalt egy asztal).</p>}
       <Bars groups={avgDwell} />
 
       <Sheet open={open} onOpenChange={(v) => { if (!v) setOpen(false) }}>

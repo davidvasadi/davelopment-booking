@@ -121,12 +121,14 @@ export function NationalityCard({
   topCountries,
   nationalityRaw,
   periodLabel,
+  embedded = false,
 }: {
   domesticCount: number
   foreignCount: number
   topCountries: TopCountry[]
   nationalityRaw: NationalityRaw[]
   periodLabel: string
+  embedded?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [innerPeriod, setInnerPeriod] = useState(30)
@@ -142,21 +144,23 @@ export function NationalityCard({
   const agg = useMemo(() => aggregate(filtered), [filtered])
 
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
-      <div className="flex items-start justify-between gap-3 mb-5">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel}</p>
-          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Vendégek nemzetisége</h3>
+    <div className={embedded ? '' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
+        <div className="flex items-start justify-between gap-3 mb-5">
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel}</p>
+            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Vendégek nemzetisége</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors shrink-0"
+          >
+            <span className="hidden sm:inline">Részletek</span>
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors shrink-0"
-        >
-          <span className="hidden sm:inline">Részletek</span>
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      )}
 
       <Breakdown
         domestic={domesticCount}

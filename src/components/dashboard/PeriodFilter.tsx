@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Download } from 'lucide-react'
+import { Download, ChevronDown } from 'lucide-react'
 
 const PERIODS = [
   { label: 'Ma', value: 1 },
@@ -47,20 +47,18 @@ export default function PeriodFilter({
 
   return (
     <div className="flex items-center gap-3 flex-wrap">
-      <div className="flex gap-1 bg-zinc-100 dark:bg-white/[0.06] rounded-xl p-1">
-        {PERIODS.map(({ label, value }) => (
-          <button
-            key={value}
-            onClick={() => select(value)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              current === value
-                ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-900 dark:text-white/40 dark:hover:text-white/80'
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+      {/* Időszak — select gomb (mockup „This Month ⌄" stílus) */}
+      <div className="relative">
+        <select
+          value={current}
+          onChange={(e) => select(Number(e.target.value))}
+          className="appearance-none bg-zinc-100 dark:bg-white/[0.06] rounded-xl pl-4 pr-9 h-9 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none cursor-pointer"
+        >
+          {PERIODS.map(({ label, value }) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 dark:text-white/40" />
       </div>
       {csvExport && (
         <a

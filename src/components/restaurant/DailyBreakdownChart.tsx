@@ -36,11 +36,13 @@ export function DailyBreakdownChart({
   data,
   fullData,
   period = 30,
+  embedded = false,
 }: {
   data: RestaurantDayBreakdown[]
   /** Bővebb (≥30 napos) halmaz a sheet lapozásához; ha hiányzik, a data-ra esik vissza. */
   fullData?: RestaurantDayBreakdown[]
   period?: number
+  embedded?: boolean
 }) {
   const { resolvedTheme } = useTheme()
   const dark = resolvedTheme === 'dark'
@@ -65,25 +67,27 @@ export function DailyBreakdownChart({
   const lastWithData = lastActive ? lastActive.date : nav[nav.length - 1]?.date
 
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">
-            Elmúlt {periodLabel(period)}
-          </p>
-          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Napi bontás</h3>
+    <div className={embedded ? '' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">
+              Elmúlt {periodLabel(period)}
+            </p>
+            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Napi bontás</h3>
+          </div>
+          <button
+            type="button"
+            onClick={() => openSheet(lastWithData)}
+            className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors shrink-0"
+          >
+            <span className="hidden sm:inline">Részletek</span>
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => openSheet(lastWithData)}
-          className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors shrink-0"
-        >
-          <span className="hidden sm:inline">Részletek</span>
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      )}
 
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={embedded ? '100%' : 220}>
         <BarChart
           data={data}
           margin={{ top: 4, right: 4, left: -20, bottom: 0 }}

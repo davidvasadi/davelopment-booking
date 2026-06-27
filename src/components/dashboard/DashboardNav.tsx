@@ -1,11 +1,12 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, MoreHorizontal, Download } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
 import { UserMenu } from './UserMenu'
 import { CommandPalette } from './CommandPalette'
@@ -93,6 +94,17 @@ export function DashboardNav({
 }) {
   const { items: navItems, publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
   const pathname = usePathname()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const [moreOpen, setMoreOpen] = useState(false)
+
+  // CSV export a header „…" menüjébe — a szűrésnek (URL period) megfelelő exporttal.
+  const csvDays = searchParams.get('period') ?? '30'
+  const csvHref = `/api/export-csv?days=${csvDays}&module=${variant}`
+
+  // A mobil header címe: a leghosszabb illeszkedő nav-elem címkéje (a legspecifikusabb).
+  const pageTitle =
+    [...navItems].filter((it) => pathname.startsWith(it.href)).sort((a, b) => b.href.length - a.href.length)[0]?.label ?? salonName
 
   // Backstage (admin): nincs üzlet/előfizetés/nyilvános oldal/store-switcher — ezeket
   // elrejtjük, a fejlécben admin-email + „Backstage" badge van. A nav-elemek, a kereső,
@@ -329,51 +341,80 @@ export function DashboardNav({
         </div>
       </aside>
 
-      {/* ── MOBILE TOP BAR ─────────────────────────────────────── */}
-      <header className="lg:hidden relative z-40 bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-5 h-14 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
-          <Link href={isBackstage ? '/backstage' : '/'} aria-label="Schedulio" className="block w-fit shrink-0 hover:opacity-80 transition-opacity">
-            <SchedulioLogo className="h-6" />
-          </Link>
-          {isBackstage ? (
-            <span className="inline-flex items-center rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-white dark:text-black">Backstage</span>
-          ) : businesses.length > 1 ? (
-            // Több-üzlet: mobilon/tableten is váltható az aktív üzlet (kompakt switcher).
-            <div className="min-w-0 max-w-[180px]">
-              <StoreSwitcher
-                name={salonName}
-                logoUrl={brandLogoUrl}
-                businesses={businesses}
-                activeKey={activeBusinessKey}
-                compact
-              />
-            </div>
-          ) : (
-            <span className="text-xs text-zinc-400 dark:text-white/30 font-medium truncate max-w-[120px]">{salonName}</span>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
+      {/* ── MOBILE TOP BAR — vissza + cím + „…" menü ───────────── */}
+      <header className="lg:hidden relative z-40 bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-2 h-14 flex items-center justify-between shrink-0">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          aria-label="Vissza"
+          className="flex items-center justify-center h-10 w-10 rounded-xl text-zinc-700 hover:bg-zinc-100 dark:text-white/70 dark:hover:bg-white/[0.06] transition-colors"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+
+        <p className="flex-1 min-w-0 text-center font-bold text-zinc-900 dark:text-white truncate px-2">{pageTitle}</p>
+
+        <div className="flex items-center gap-1">
           <OfflineIndicator compact />
-          {/* Kereső — a ⌘K command-palette-et nyitja (az értesítések harangja a lenti navban van). */}
-          <button
-            type="button"
-            onClick={() => window.dispatchEvent(new Event('schedulio:open-command'))}
-            aria-label="Keresés"
-            className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
-          >
-            <Search className="h-[18px] w-[18px]" />
-          </button>
-          {!isBackstage && (
-            <a
-              href={`/${salonSlug}`}
-              target="_blank"
-              className="flex items-center justify-center h-9 w-9 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMoreOpen((v) => !v)}
+              aria-label="Több művelet"
+              className="flex items-center justify-center h-10 w-10 rounded-xl text-zinc-700 hover:bg-zinc-100 dark:text-white/70 dark:hover:bg-white/[0.06] transition-colors"
             >
-              <ExternalLink className="h-4 w-4" />
-            </a>
-          )}
+              <MoreHorizontal className="h-5 w-5" />
+            </button>
+            {moreOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} />
+                <div className="absolute right-1 top-12 z-20 w-52 rounded-2xl border border-zinc-100 dark:border-white/[0.1] bg-white dark:bg-zinc-900 shadow-xl p-1.5">
+                  <button
+                    type="button"
+                    onClick={() => { setMoreOpen(false); window.dispatchEvent(new Event('schedulio:open-command')) }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-white/[0.06]"
+                  >
+                    <Search className="h-4 w-4 text-zinc-400" /> Keresés
+                  </button>
+                  {!isBackstage && (
+                    <a
+                      href={`/${salonSlug}`}
+                      target="_blank"
+                      onClick={() => setMoreOpen(false)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-white/[0.06]"
+                    >
+                      <ExternalLink className="h-4 w-4 text-zinc-400" /> Nyilvános oldal
+                    </a>
+                  )}
+                  {!isBackstage && (
+                    <a
+                      href={csvHref}
+                      download
+                      onClick={() => setMoreOpen(false)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-white/[0.06]"
+                    >
+                      <Download className="h-4 w-4 text-zinc-400" /> CSV export
+                    </a>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </header>
+
+      {/* Mobil üzletváltó — a tartalom tetején (a header alatt) */}
+      {!isBackstage && businesses.length > 1 && (
+        <div className="lg:hidden bg-white dark:bg-black border-b border-zinc-100 dark:border-white/[0.06] px-4 py-3">
+          <StoreSwitcher
+            name={salonName}
+            logoUrl={brandLogoUrl}
+            businesses={businesses}
+            activeKey={activeBusinessKey}
+            compact
+          />
+        </div>
+      )}
 
       {/* A ⌘K kereső-palette — desktopon a sidebar keresője, mobilon a header ikonja nyitja. */}
       <CommandPalette variant={variant} />
