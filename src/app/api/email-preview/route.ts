@@ -10,7 +10,6 @@ import {
   detailsCard,
   infoRow,
   introBlock,
-  venuePhotoBlock,
   cancelBlock,
   footerInfoBlock,
   calendarBlock,
@@ -148,10 +147,10 @@ export async function GET(req: NextRequest) {
       ${footerInfoBlock({
         hasTerms: true,
         bookingUrl,
-        phone: p.get('phone') !== '0' ? (p.get('contactPhone')?.trim() || realPhone || null) : null,
+        phone: p.get('phone') !== '0' ? (p.get('contactPhone')?.trim() || realPhone || '+36 1 234 5678') : null,
         email: p.get('cmail') === '1' ? realEmail : null,
-        address: p.get('addr') === '1' ? (realAddress || null) : null,
-        directionsAddress: p.get('dir') === '1' ? (p.get('dirAddr')?.trim() || realAddress || null) : null,
+        address: p.get('addr') === '1' ? (realAddress || '1051 Budapest, Példa u. 1.') : null,
+        directionsAddress: p.get('dir') === '1' ? (p.get('dirAddr')?.trim() || realAddress || '1051 Budapest, Példa u. 1.') : null,
         locale,
       })}
       ${cancelBlock(cancelUrl, locale)}

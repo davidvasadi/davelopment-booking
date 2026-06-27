@@ -7,7 +7,6 @@ import {
   detailsCard,
   infoRow,
   introBlock,
-  venuePhotoBlock,
   cancelBlock,
   footerInfoBlock,
   calendarBlock,
