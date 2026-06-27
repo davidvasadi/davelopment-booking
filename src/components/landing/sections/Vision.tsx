@@ -88,9 +88,8 @@ export function Vision() {
       const s = zoomStart
       const t = Math.max(0, Math.min(1, (p - s) / (1 - s)))
       const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2
-      const scale  = 0.12 + e * 0.88
-      const radius = 20 - e * 20
-      gsap.set(imgEl, { scale, borderRadius: radius })
+      const scale = 0.12 + e * 0.88
+      gsap.set(imgEl, { scale })
     })
 
     // Opacity: dist = n - active, ugyanaz mint az eredeti imgRevealOpacity
@@ -139,23 +138,24 @@ export function Vision() {
             </motion.div>
           </div>
 
-          {/* Kép — GSAP-pal animálva (GPU, nem szaggat) */}
-          <div
-            ref={imgRef}
-            className="absolute inset-0 overflow-hidden flex items-center justify-center will-change-transform"
-            style={{ scale: 0.12, opacity: 0, transformOrigin: 'center center' }}
-          >
-            <img
-              src="/phone-mockup.png"
-              alt="Schedulio app"
-              className="w-full h-full object-cover object-center sm:h-auto sm:object-contain"
-            />
-          </div>
-
           <p className="relative z-10 shrink-0 text-white text-sm sm:text-base font-geist font-medium tracking-widest">
             (Görgess tovább)
           </p>
         </motion.div>
+
+        {/* Kép — a sticky wrapper szintjén, a kártya padding/clip-jén KÍVÜL,
+            így scale:1-nél teljes képernyőig nyúlik minden nézetben */}
+        <div
+          ref={imgRef}
+          className="absolute inset-0 will-change-transform pointer-events-none"
+          style={{ scale: 0.12, opacity: 0, transformOrigin: 'center center' }}
+        >
+          <img
+            src="/phone-mockup.png"
+            alt="Schedulio app"
+            className="w-full h-full object-cover object-center"
+          />
+        </div>
       </motion.div>
     </div>
   )
@@ -221,7 +221,7 @@ function RollChar({
 
   return (
     <span className="inline-block overflow-hidden align-bottom leading-[1.1]">
-      <motion.span className="inline-block lg:will-change-auto" style={{ y, opacity, willChange: 'transform' }}>
+      <motion.span className="inline-block will-change-transform" style={{ y, opacity }}>
         {ch}
       </motion.span>
     </span>
