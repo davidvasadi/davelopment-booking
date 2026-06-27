@@ -7,6 +7,7 @@ import { DayKpiBar } from '@/components/restaurant/DayKpiBar'
 import { hhmmToMinutes, getDayName } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 import type { Reservation, Table, Room, OpeningHour } from '@/payload/payload-types'
+import { PageHeader } from '@/components/ui/page-header'
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -94,22 +95,20 @@ export default async function RestaurantBookingsPage({
 
   return (
     <div className="p-5 lg:p-8 space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">
-            {reservations.length} foglalás · {totalPax} fő várható
-          </p>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Foglalások</h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <ReservationDateFilter currentDate={selectedDate} />
-          <PrintDayButton
-            date={selectedDate}
-            restaurantName={restaurant.name}
-            reservations={reservations}
-          />
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={`${reservations.length} foglalás · ${totalPax} fő várható`}
+        title="Foglalások"
+        action={
+          <div className="flex items-center gap-2">
+            <ReservationDateFilter currentDate={selectedDate} />
+            <PrintDayButton
+              date={selectedDate}
+              restaurantName={restaurant.name}
+              reservations={reservations}
+            />
+          </div>
+        }
+      />
 
       <DayKpiBar
         activeCount={activeCount}

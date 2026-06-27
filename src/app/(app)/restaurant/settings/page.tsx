@@ -4,6 +4,7 @@ import { findAccountSubscription } from '@/lib/accountSubscription'
 import { SubscriptionCard } from '@/components/dashboard/SubscriptionCard'
 import { RestaurantSettingsForm } from '@/components/restaurant/RestaurantSettingsForm'
 import type { Restaurant } from '@/payload/payload-types'
+import { PageHeader } from '@/components/ui/page-header'
 
 export default async function RestaurantSettingsPage() {
   const { restaurant, businessCount, userId } = await getOwnedRestaurant()
@@ -16,10 +17,7 @@ export default async function RestaurantSettingsPage() {
 
   return (
     <div className="p-5 lg:p-8 space-y-6">
-      <div>
-        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Étterem adatok</p>
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Beállítások</h1>
-      </div>
+      <PageHeader eyebrow="Étterem adatok" title="Beállítások" />
 
       <SubscriptionCard sub={sub} href="/restaurant/subscription" proPriceLabel={feeLabel} />
 

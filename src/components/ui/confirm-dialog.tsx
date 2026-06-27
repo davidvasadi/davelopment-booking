@@ -1,11 +1,16 @@
 'use client'
 
 import { AlertTriangle } from 'lucide-react'
+import { createPortal } from 'react-dom'
 
 /**
  * Megerősítő párbeszéd a böngésző natív `confirm()` helyett — a projekt
  * glass/blur stílusában (lásd CancelSubscriptionButton). Kontrollált: az `open`
  * vezérli, a gombok az `onConfirm` / `onCancel`-t hívják.
+ *
+ * createPortal-lal a body-ra renderelünk, hogy a Framer Motion transform-context
+ * (pl. <Reveal>) ne törje a fixed pozícionálást (viewport helyett az ancestor-hoz
+ * pozícionálna, ami fehér sávot/eltolódást okoz desktopon és mobilon egyaránt).
  */
 export function ConfirmDialog({
   open,
@@ -34,9 +39,9 @@ export function ConfirmDialog({
   onCancel: () => void
   onTertiary?: () => void
 }) {
-  if (!open) return null
+  if (!open || typeof document === 'undefined') return null
 
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
       onClick={onCancel}
@@ -85,6 +90,7 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

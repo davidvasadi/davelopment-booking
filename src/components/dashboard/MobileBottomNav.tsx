@@ -7,7 +7,7 @@ import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
-import { LogOut, Monitor, Sun, Moon, MoreHorizontal, Lock, Plus, Loader2, X } from 'lucide-react'
+import { LogOut, Monitor, Sun, Moon, MoreHorizontal, Lock, Plus, Loader2, X, CreditCard } from 'lucide-react'
 import { getNavConfig, type DashboardVariant } from './navConfig'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notificationVisual } from '@/lib/useNotifications'
@@ -32,7 +32,7 @@ export default function MobileBottomNav({
   userEmail?: string | null
   userAvatarUrl?: string | null
 }) {
-  const { items: navItems, settingsHref } = getNavConfig(variant)
+  const { items: navItems, settingsHref, subscriptionHref } = getNavConfig(variant)
   const pathname = usePathname()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
@@ -260,6 +260,24 @@ export default function MobileBottomNav({
                 )
               })}
             </div>
+            {/* Előfizetés gyorsgomb — backstage-en nincs (ott subscription = admin-lista) */}
+            {variant !== 'backstage' && (
+              <div className="px-3 pb-1">
+                <Link
+                  href={subscriptionHref}
+                  onClick={() => setMoreOpen(false)}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors',
+                    pathname.startsWith(subscriptionHref)
+                      ? 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-900 dark:text-white'
+                      : 'text-zinc-600 dark:text-white/60 hover:bg-zinc-50 dark:hover:bg-white/[0.04]'
+                  )}
+                >
+                  <CreditCard className="h-5 w-5" />
+                  <span className="flex-1">Előfizetés</span>
+                </Link>
+              </div>
+            )}
             <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
             <div className="px-6 py-3">
               <div className="flex gap-0.5 px-0.5">

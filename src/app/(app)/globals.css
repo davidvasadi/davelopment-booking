@@ -70,6 +70,16 @@ html {
   scrollbar-width: none;
 }
 
+@keyframes shimmer {
+  from { background-position: -200% 0; }
+  to   { background-position:  200% 0; }
+}
+.animate-shimmer {
+  background: linear-gradient(90deg, transparent 25%, rgba(255,255,255,0.15) 50%, transparent 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
 /* Footer „Csatlakozz" óriásfelirat — eszköz-szélességhez rögzített fix méret (px).
    Középre igazítva, a kártya széleire (és kicsit túl) fut; az alja a kártya aljára ül,
    csak a betűtalpak legalja vágódik le (line-height + kis negatív margó). */

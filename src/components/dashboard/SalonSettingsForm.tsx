@@ -463,7 +463,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
       </Section>
 
       <Section title="Elérhetőség">
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Irányítószám</Label>
             <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('postal_code')} />
@@ -477,7 +477,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1 }: { salon:
           <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Cím</Label>
           <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('address')} placeholder="Utca, házszám" />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className="text-sm font-medium text-zinc-600 dark:text-white/60">Telefon</Label>
             <Input className="h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20" {...register('phone')} type="tel" />

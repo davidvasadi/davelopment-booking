@@ -71,3 +71,47 @@ export const iconHover: Variants = {
   rest: { rotate: 0, x: 0 },
   hover: { rotate: 45, x: 6, transition: { duration: 0.35, ease: EASE } },
 }
+
+// ── Dashboard / app presetek ────────────────────────────────────────────────
+
+/**
+ * Oldalak belépő animációja: fade + enyhe felúszás.
+ * Használat: `<motion.div {...pageTransition}>`.
+ */
+export const pageTransition = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: DUR.base, ease: EASE },
+}
+
+/**
+ * Lista-stagger: konténer + elem pár.
+ * Konténeren `variants={listStagger.container}`, elemen `variants={listStagger.item}`.
+ */
+export const listStagger = {
+  container: {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.05, delayChildren: 0.04 } },
+  } as Variants,
+  item: {
+    hidden: { opacity: 0, y: 8 },
+    show: { opacity: 1, y: 0, transition: { duration: DUR.fast, ease: EASE } },
+  } as Variants,
+}
+
+/**
+ * Sheet / drawer belépő-spring: alulról felcsúszik, rugós lezárással.
+ * Használat: a sheet content `motion.div`-jain.
+ */
+export const sheetSpring = {
+  initial: { opacity: 0, y: 24 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: 16 },
+  transition: { type: 'spring' as const, stiffness: 320, damping: 30 },
+}
+
+/**
+ * Skeleton shimmer keyframe neve — a CSS animációt a globals.css definiálja.
+ * Komponensben: `className="animate-shimmer"`.
+ */
+export const SHIMMER_CLASS = 'animate-shimmer'

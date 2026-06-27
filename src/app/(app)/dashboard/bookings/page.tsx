@@ -9,8 +9,11 @@ import BookingListFilters from '@/components/dashboard/BookingListFilters'
 import BookingActions from '@/components/dashboard/BookingActions'
 import type { Booking, Service, StaffMember } from '@/payload/payload-types'
 import type { Where } from 'payload'
-import { MessageSquare, ChevronLeft, ChevronRight } from 'lucide-react'
+import { MessageSquare, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
 import Link from 'next/link'
+import { PageHeader } from '@/components/ui/page-header'
+import { DashboardCard } from '@/components/ui/dashboard-card'
+import { EmptyState } from '@/components/ui/empty-state'
 
 const statusLabel: Record<string, string> = {
   pending: 'Függő',
@@ -76,28 +79,20 @@ export default async function BookingsPage({
 
     return (
       <div className="p-5 lg:p-8">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Foglalások</p>
-            <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Napi nézet</h1>
-          </div>
-          <BookingViewToggle current="day" />
-        </div>
+        <PageHeader eyebrow="Foglalások" title="Napi nézet" action={<BookingViewToggle current="day" />} className="mb-6" />
 
         <div className="mb-6">
           <DateFilter currentDate={date} />
         </div>
 
-        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
+        <DashboardCard noPadding>
           <div className="px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center justify-between">
             <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">{formatDate(date)}</h2>
             <span className="text-sm text-zinc-400 dark:text-white/30">{bookings.totalDocs} foglalás</span>
           </div>
 
           {bookings.docs.length === 0 ? (
-            <div className="px-6 py-12 text-center">
-              <p className="text-zinc-400 dark:text-white/30 text-sm">Nincs foglalás ezen a napon</p>
-            </div>
+            <EmptyState icon={CalendarDays} title="Nincs foglalás ezen a napon" />
           ) : (
             <div>
               {bookings.docs.map((b, i) => {
@@ -142,7 +137,7 @@ export default async function BookingsPage({
               })}
             </div>
           )}
-        </div>
+        </DashboardCard>
       </div>
     )
   }
@@ -185,13 +180,7 @@ export default async function BookingsPage({
 
   return (
     <div className="p-5 lg:p-8">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Foglalások</p>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Lista nézet</h1>
-        </div>
-        <BookingViewToggle current="list" />
-      </div>
+      <PageHeader eyebrow="Foglalások" title="Lista nézet" action={<BookingViewToggle current="list" />} className="mb-6" />
 
       <div className="mb-6">
         <BookingListFilters status={status} range={range} search={search} />
@@ -206,13 +195,13 @@ export default async function BookingsPage({
       </div>
 
       {bookings.docs.length === 0 ? (
-        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl px-6 py-16 text-center">
-          <p className="text-zinc-400 dark:text-white/30 text-sm">Nincs találat a megadott szűrőkre</p>
-        </div>
+        <DashboardCard noPadding>
+          <EmptyState icon={CalendarDays} title="Nincs találat a megadott szűrőkre" />
+        </DashboardCard>
       ) : (
         <div className="space-y-4">
           {dates.map(date => (
-            <div key={date} className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
+            <DashboardCard key={date} noPadding>
               <div className="px-6 py-3 border-b border-zinc-100 dark:border-white/[0.06] bg-zinc-50 dark:bg-white/[0.02]">
                 <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-white/40">
                   {format(new Date(date + 'T00:00:00'), 'yyyy. MMMM d., EEEE', { locale: hu })}
@@ -257,7 +246,7 @@ export default async function BookingsPage({
                   </div>
                 )
               })}
-            </div>
+            </DashboardCard>
           ))}
         </div>
       )}

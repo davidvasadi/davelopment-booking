@@ -5,8 +5,11 @@ import { getDashboardStats } from '@/lib/dashboardStats'
 import { TrendChart, DowChart, ServiceChart, StaffChart } from '@/components/dashboard/DashboardCharts'
 import BookingActions from '@/components/dashboard/BookingActions'
 import { KpiCardWithDetails } from '@/components/dashboard/KpiCardWithDetails'
+import { PageHeader } from '@/components/ui/page-header'
+import { DashboardCard } from '@/components/ui/dashboard-card'
+import { EmptyState } from '@/components/ui/empty-state'
 import type { Booking, Service, StaffMember } from '@/payload/payload-types'
-import { Zap, MessageSquare } from 'lucide-react'
+import { Zap, MessageSquare, CalendarDays } from 'lucide-react'
 
 const statusDot: Record<string, string> = {
   pending: 'bg-amber-400',
@@ -49,15 +52,11 @@ export default async function DashboardPage() {
   return (
     <div className="p-5 lg:p-8 space-y-6">
 
-      {/* Header */}
-      <div>
-        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">{formatDate(today)}</p>
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{greeting}!</h1>
-      </div>
+      <PageHeader eyebrow={formatDate(today)} title={`${greeting}!`} />
 
       {/* Insight bar */}
       {(stats.bestDay || stats.bestHour) && (
-        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl px-5 py-4 flex items-center gap-3">
+        <DashboardCard className="flex items-center gap-3">
           <Zap className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
           <p className="text-sm text-zinc-500 dark:text-white/50">
             {stats.bestDay && <><span className="text-zinc-900 dark:text-white font-bold">{stats.bestDay}</span> az Ön legerősebb napja.</>}
@@ -65,7 +64,7 @@ export default async function DashboardPage() {
             {stats.bestHour && <>A csúcsidő: <span className="text-zinc-900 dark:text-white font-bold">{stats.bestHour}</span>.</>}
             {stats.avgBookingValue > 0 && <> Átlagos foglalás: <span className="text-zinc-900 dark:text-white font-bold">{formatPrice(stats.avgBookingValue, 'HUF')}</span>.</>}
           </p>
-        </div>
+        </DashboardCard>
       )}
 
       {/* KPI cards */}
@@ -92,15 +91,13 @@ export default async function DashboardPage() {
       )}
 
       {/* Today's schedule */}
-      <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
+      <DashboardCard noPadding className="overflow-hidden">
         <div className="px-4 lg:px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center justify-between">
           <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">Mai program</h2>
           <span className="text-sm text-zinc-400 dark:text-white/30">{todayBookings.totalDocs} foglalás</span>
         </div>
         {todayBookings.docs.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="text-zinc-400 dark:text-white/30 text-sm">Ma nincs foglalás</p>
-          </div>
+          <EmptyState icon={CalendarDays} title="Ma nincs foglalás" />
         ) : (
           <div>
             {todayBookings.docs.map((b, i) => {
@@ -137,7 +134,7 @@ export default async function DashboardPage() {
             })}
           </div>
         )}
-      </div>
+      </DashboardCard>
     </div>
   )
 }

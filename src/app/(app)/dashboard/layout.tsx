@@ -8,7 +8,7 @@ import { findAccountSubscription } from '@/lib/accountSubscription'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
-import { Reveal } from '@/components/ui/reveal'
+import { PageTransition } from '@/components/ui/page-transition'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import type { Salon, Subscription } from '@/payload/payload-types'
@@ -61,7 +61,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       />
       <main className="flex-1 pb-24 lg:pb-0">
         <SubscriptionBanner subscription={sub} />
-        <Reveal>{children}</Reveal>
+        <PageTransition>{children}</PageTransition>
       </main>
       <MobileBottomNav subscription={sub} userName={user.name} userEmail={user.email} userAvatarUrl={user.avatar_url ?? null} />
       {lockedStatus && <DashboardLockModal status={lockedStatus} />}

@@ -7,7 +7,7 @@ import { findAccountSubscription } from '@/lib/accountSubscription'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
 import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
-import { Reveal } from '@/components/ui/reveal'
+import { PageTransition } from '@/components/ui/page-transition'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContext'
@@ -64,7 +64,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
         />
         <main className="flex-1 min-w-0 pb-24 lg:pb-0">
           <SubscriptionBanner subscription={sub} basePath="/restaurant" />
-          <Reveal>{children}</Reveal>
+          <PageTransition>{children}</PageTransition>
         </main>
         <MobileBottomNav subscription={sub} variant="restaurant" userName={user.name} userEmail={user.email} userAvatarUrl={user.avatar_url ?? null} />
         {lockedStatus && <DashboardLockModal status={lockedStatus} />}

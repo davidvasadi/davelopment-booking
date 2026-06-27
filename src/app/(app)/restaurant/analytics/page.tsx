@@ -7,6 +7,8 @@ import { DwellCard } from '@/components/restaurant/DwellCard'
 import { NationalityCard } from '@/components/restaurant/NationalityCard'
 import { Reveal } from '@/components/ui/reveal'
 import PeriodFilter from '@/components/dashboard/PeriodFilter'
+import { PageHeader } from '@/components/ui/page-header'
+import { DashboardCard } from '@/components/ui/dashboard-card'
 
 const VALID_PERIODS = [1, 7, 30, 90, 180, 365]
 
@@ -36,13 +38,7 @@ export default async function RestaurantAnalyticsPage({
     <div className="p-5 lg:p-8 space-y-6">
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Részletes nézet</p>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Statisztikák</h1>
-        </div>
-        <PeriodFilter current={days} basePath="/restaurant/analytics" module="restaurant" />
-      </div>
+      <PageHeader eyebrow="Részletes nézet" title="Statisztikák" action={<PeriodFilter current={days} basePath="/restaurant/analytics" module="restaurant" />} />
 
       {/* Period KPI cards */}
       <Reveal>
@@ -67,11 +63,11 @@ export default async function RestaurantAnalyticsPage({
       {/* Insight */}
       {(stats.bestDay || stats.bestHour) && (
         <Reveal>
-          <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl px-5 py-4 text-sm text-zinc-500 dark:text-white/50">
+          <DashboardCard className="text-sm text-zinc-500 dark:text-white/50">
             {stats.bestDay && <><span className="text-zinc-900 dark:text-white font-bold">{stats.bestDay}</span> a legerősebb napja.</>}
             {stats.bestDay && stats.bestHour && ' '}
             {stats.bestHour && <>A csúcsidő: <span className="text-zinc-900 dark:text-white font-bold">{stats.bestHour}</span>.</>}
-          </div>
+          </DashboardCard>
         </Reveal>
       )}
 

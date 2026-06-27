@@ -6,7 +6,10 @@ import { formatDate } from '@/lib/utils'
 import { RestaurantKpiCard } from '@/components/dashboard/RestaurantKpiCard'
 import { ReservationTrendChart } from '@/components/dashboard/DashboardCharts'
 import { ReservationActions } from '@/components/restaurant/ReservationActions'
-import { Zap, MessageSquare, Users, ChevronRight } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
+import { DashboardCard } from '@/components/ui/dashboard-card'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Zap, MessageSquare, Users, ChevronRight, CalendarDays } from 'lucide-react'
 import type { Reservation } from '@/payload/payload-types'
 
 const statusDot: Record<string, string> = {
@@ -53,21 +56,14 @@ export default async function RestaurantDashboardPage() {
   ])
 
   const reservations = todayReservations.docs as Reservation[]
-  const cardBase =
-    'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl'
-
   return (
     <div className="p-5 lg:p-8 space-y-6">
 
-      {/* Header */}
-      <div>
-        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">{formatDate(today)}</p>
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">{greeting}!</h1>
-      </div>
+      <PageHeader eyebrow={formatDate(today)} title={`${greeting}!`} />
 
       {/* Insight bar */}
       {(stats.bestDay || stats.bestHour) && (
-        <div className={`${cardBase} px-5 py-4 flex items-center gap-3`}>
+        <DashboardCard className="flex items-center gap-3">
           <Zap className="h-4 w-4 text-amber-500 dark:text-amber-400 shrink-0" />
           <p className="text-sm text-zinc-500 dark:text-white/50">
             {stats.bestDay && <><span className="text-zinc-900 dark:text-white font-bold">{stats.bestDay}</span> a legerősebb napja.</>}
@@ -75,7 +71,7 @@ export default async function RestaurantDashboardPage() {
             {stats.bestHour && <>A csúcsidő: <span className="text-zinc-900 dark:text-white font-bold">{stats.bestHour}</span>.</>}
             {stats.avgPartySize > 0 && <> Átlagos társaság: <span className="text-zinc-900 dark:text-white font-bold">{stats.avgPartySize} fő</span>.</>}
           </p>
-        </div>
+        </DashboardCard>
       )}
 
       {/* KPI cards */}
@@ -106,7 +102,7 @@ export default async function RestaurantDashboardPage() {
       <ReservationTrendChart data={stats.trend} period={stats.period} />
 
       {/* Today's schedule */}
-      <div className={`${cardBase} overflow-hidden`}>
+      <DashboardCard noPadding className="overflow-hidden">
         <div className="px-4 lg:px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center justify-between">
           <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">Mai foglalások</h2>
           <span className="flex items-center gap-1.5 text-sm text-zinc-400 dark:text-white/30">
@@ -114,9 +110,7 @@ export default async function RestaurantDashboardPage() {
           </span>
         </div>
         {reservations.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="text-zinc-400 dark:text-white/30 text-sm">Ma nincs foglalás</p>
-          </div>
+          <EmptyState icon={CalendarDays} title="Ma nincs foglalás" />
         ) : (
           <div>
             {reservations.map((r, i) => {
@@ -160,7 +154,7 @@ export default async function RestaurantDashboardPage() {
             })}
           </div>
         )}
-      </div>
+      </DashboardCard>
 
       <div className="flex justify-center">
         <Link
