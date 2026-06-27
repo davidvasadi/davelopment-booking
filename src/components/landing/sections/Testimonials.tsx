@@ -15,8 +15,9 @@ import { SectionLabel } from '@/components/landing/SectionLabel'
  * pozícióiból (a 351px-es grafikon-zónához mérve). A lucide ikonok kódból (nincs külső asset-függés).
  */
 
+// Hullámos pozitív trend: bal-lent → hullámok → jobb-fent (növekedési chart)
 const CURVE =
-  'M0.07 149.05C54.07 156.55 116.07 -53.95 207.07 14.05C298.07 82.05 272.57 116.05 379.57 98.55'
+  'M0,118 C50,95 75,42 118,48 C152,54 162,88 208,80 C248,72 288,22 379,16'
 
 // A rács fix oszlop-/sor-számú (a cellaméret rugalmas) → az utolsó vonal MINDIG a zóna szélén ül,
 // se túllógás, se félbevágott cella. A görbe és a buborékok ehhez a 0–1 arányhoz igazodnak.
@@ -26,17 +27,26 @@ const GRID_ROWS = 5
 // A görbe (és a rajta ülő buborékok) függőleges sávja a grafikon-zónán belül.
 const CURVE_BAND = 'bottom-[18%] h-[40%]'
 
-// A buborékok PONT a görbén ülnek: x 0–1 a zóna szélességén, y a görbe path-értéke az adott x-nél
-// (a görbe viewBox 0–149.743 magasságában, %-ban). Így a görbe és a buborékok ugyanabban a sávban
-// (lásd CURVE_BAND) mozognak együtt — reszponzívan.
+// Buborékok PONT a görbén — y% = SVGy / 149.743 (bezier-számított értékek)
+// Görbe szakaszai (emelkedő / mélypontok vizuálisan):
+//   x=0.07 (x≈27)  : SVGy≈101 → y%≈0.677  — induló mélypontot jelöl, PIROS
+//   x=0.28 (x≈106) : SVGy≈48  → y%≈0.320  — első emelkedő csúcsa, ZÖLD
+//   x=0.78 (x≈296) : SVGy≈36  → y%≈0.243  — második emelkedő, ZÖLD
 const BUBBLES = [
-  { x: 0.10, y: 0.846, label: '2,6%', dir: 'down' as const, Icon: SquareKanban, amp: 6, dur: 5.5, delay: 0 },
-  { x: 0.50, y: 0.028, label: '2,6%', dir: 'up' as const, Icon: Activity, amp: 7, dur: 6, delay: 0.4 },
-  { x: 0.74, y: 0.553, label: '4,6%', dir: 'down' as const, Icon: CreditCard, amp: 6, dur: 5, delay: 0.8 },
+  { x: 0.07, y: 0.677, label: '-4,2%',  dir: 'down' as const, Icon: SquareKanban, amp: 6, dur: 5.5, delay: 0 },
+  { x: 0.28, y: 0.320, label: '+12,4%', dir: 'up'   as const, Icon: Activity,     amp: 7, dur: 6,   delay: 0.4 },
+  { x: 0.78, y: 0.243, label: '+28,6%', dir: 'up'   as const, Icon: CreditCard,   amp: 6, dur: 5,   delay: 0.8 },
 ]
 
-// Placeholder avatar-színek (a Figma valódi fotókat használ — fotó-asset hiányában tömör körök).
-const AVATAR_COLORS = ['#d4d4d8', '#a1a1aa', '#71717a', '#52525b', '#3f3f46', '#27272a']
+// Unsplash License — kereskedelmi termékben szabadon használható, attribúció nem kötelező
+const AVATARS = [
+  'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=96&h=96&fit=crop&crop=faces',
+  'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=96&h=96&fit=crop&crop=faces',
+  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=96&h=96&fit=crop&crop=faces',
+  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=96&h=96&fit=crop&crop=faces',
+  'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=96&h=96&fit=crop&crop=faces',
+  'https://images.unsplash.com/photo-1531427186611-ecfd6d936c79?w=96&h=96&fit=crop&crop=faces',
+]
 
 export function Testimonials() {
   return (
@@ -65,10 +75,10 @@ export function Testimonials() {
 
         {/* JOBB — sárga kártya: bal grafikon-zóna (rács+görbe, a sárga széléig) | jobb avatar-blokk.
             min-h adja a kártya alap-magasságát; a graph-zóna self-stretch-csel a TELJES magasságra nyúlik. */}
-        <div className="relative bg-brand-accent flex-1 flex flex-col lg:flex-row items-stretch overflow-hidden min-h-[383px]">
+        <div className="relative bg-brand-accent flex-1 flex flex-col lg:flex-row items-stretch overflow-hidden min-h-[240px] lg:min-h-[383px]">
           {/* Grafikon-zóna: a sárga BAL szélétől a fél-kártyáig, a kártya TELJES magasságában.
               A rács és a görbe közös koordinátában (inset-0) → pont ugyanaddig érnek, alulról felülig. */}
-          <div className="relative w-full lg:w-[44%] shrink-0 self-stretch min-h-[383px]">
+          <div className="relative w-full lg:w-[44%] shrink-0 self-stretch min-h-[240px] lg:min-h-[383px]">
             {/* Rács — N×N cella a zóna teljes méretében (background-size = 100%/N).
                 Az utolsó vonal pont a szélen ül, semmi nem lóg túl, reszponzív. */}
             <div
@@ -134,16 +144,17 @@ export function Testimonials() {
 
           {/* Avatar-blokk (flex-1): cím + avatar-stack + CTA. Reszponzív méretek, hogy a desktop-
               egysorban (lg, 1024px) is kiférjen — a cím clamp, az avatarok kicsit kisebbek. */}
-          <div className="flex-1 flex flex-col justify-center gap-6 px-6 py-10 sm:px-8">
+          <div className="flex-1 flex flex-col justify-center gap-4 lg:gap-6 px-6 py-6 lg:py-10 sm:px-8">
             <p className="font-semibold text-[clamp(1.25rem,2vw,28px)] leading-[1.1] tracking-[-0.84px] text-brand-ink">
               Csatlakozz a vállalkozásokhoz, akik már minket használnak.
             </p>
             <div className="flex items-center">
-              {AVATAR_COLORS.map((c, i) => (
-                <span
+              {AVATARS.map((src, i) => (
+                <img
                   key={i}
-                  className="h-12 w-12 -mr-[13px] rounded-full border-2 border-brand-accent"
-                  style={{ background: c }}
+                  src={src}
+                  alt=""
+                  className="block h-12 w-12 shrink-0 -mr-[13px] rounded-full border-[3px] border-brand-accent object-cover bg-zinc-200"
                 />
               ))}
               <span className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-brand-accent bg-white text-[17px] font-semibold tracking-[-0.6px] text-brand-ink">

@@ -31,9 +31,9 @@ export default function HomeClient({ pricing }: { pricing: LandingPricing }) {
         <Demo />
       </section>
       <Testimonials />
-      <Pricing pricing={pricing} />
       <Faq pricing={pricing} />
       <CtaBanner trial_days={pricing.trial_days} />
+      <Pricing pricing={pricing} />
       <Footer trial_days={pricing.trial_days} />
       <CookieBanner />
     </main>

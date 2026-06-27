@@ -83,23 +83,44 @@ export function Footer({ trial_days }: { trial_days: number }) {
         }}
       />
       <div className="relative mx-auto px-6 lg:px-10 pt-16 lg:pt-20 pb-12">
-        <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-2 sm:gap-x-6 md:grid-cols-4 lg:grid-cols-[1.6fr_1fr_1fr_1fr_1.1fr] lg:gap-10">
-          {/* Márka-blokk */}
-          <div className="sm:col-span-2 md:col-span-4 lg:col-span-1 max-w-md">
-            <SchedulioLogo variant="dark" className="h-12" />
-            <p className="mt-4 text-4xl lg:text-5xl font-bold tracking-tight">Online Időpontfoglaló.</p>
-            <div className="text-white/70">
-              <p className="mt-4 tracking-tight">
-                Hagyd, hogy az ügyfeleid maguk foglaljanak – te csak a munkádra figyelj. Éttermeknek,
-                fodrászatoknak, kis vállalkozásoknak. Próbáld ki {trial_days} napig ingyen.
-              </p>
-              <p className="mt-4 tracking-tight">
-                ©2026 Schedulio ·{' '}
-                <a href="mailto:hello@schedulio.hu" className="underline underline-offset-2 hover:text-white transition-colors">
-                  hello@schedulio.hu
-                </a>
-              </p>
+        <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-[1.8fr_1fr_1fr_1fr] lg:gap-10">
+          {/* Márka-blokk + CTA (egy oszlop lg-n, teljes sor sm/mobile-on) */}
+          <div className="sm:col-span-2 lg:col-span-1 flex flex-col gap-6">
+            <div>
+              <SchedulioLogo variant="dark" className="h-12" />
+              <p className="mt-4 text-4xl lg:text-5xl font-bold tracking-tight">Online Időpontfoglaló.</p>
+              <div className="text-white/70">
+                <p className="mt-4 tracking-tight">
+                  Hagyd, hogy az ügyfeleid maguk foglaljanak – te csak a munkádra figyelj. Éttermeknek,
+                  fodrászatoknak, kis vállalkozásoknak. Próbáld ki {trial_days} napig ingyen.
+                </p>
+                <p className="mt-4 tracking-tight">
+                  ©2026 Schedulio ·{' '}
+                  <a href="mailto:hello@schedulio.hu" className="underline underline-offset-2 hover:text-white transition-colors">
+                    hello@schedulio.hu
+                  </a>
+                </p>
+              </div>
             </div>
+            {/* CTA */}
+            <RollButton href="/register" label="Ingyenes Regisztráció" variant="accent" size="md" icon className="w-full sm:w-auto" />
+            {/* Biztonságos fizetés — Stripe */}
+            <span className="inline-flex items-center gap-2 text-xs text-white/40">
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              <span>Fizetés a <span className="font-semibold text-white/70">Stripe</span> biztonságos rendszerén keresztül</span>
+            </span>
+            <a
+              href="https://davelopment.hu"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-white/40 hover:text-white/70 transition-colors"
+            >
+              Powered by <br />
+              <span className="font-bold text-white text-lg">[davelopment]®</span>
+            </a>
           </div>
 
           {/* Gyors linkek */}
@@ -130,28 +151,6 @@ export function Footer({ trial_days }: { trial_days: number }) {
                 <li key={l.href}><FooterLink href={l.href} label={l.label} /></li>
               ))}
             </ul>
-          </div>
-
-          {/* CTA + biztonságos fizetés + Powered by */}
-          <div className="sm:col-span-2 md:col-span-4 lg:col-span-1 flex flex-col items-start gap-6">
-            <RollButton href="/register" label="Ingyenes Regisztráció" variant="accent" size="md" icon />
-            {/* Biztonságos fizetés — Stripe */}
-            <span className="inline-flex items-center gap-2 text-xs text-white/40">
-              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="3" y="11" width="18" height="11" rx="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <span>Fizetés a <span className="font-semibold text-white/70">Stripe</span> biztonságos rendszerén keresztül</span>
-            </span>
-            <a
-              href="https://davelopment.hu"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-white/40 hover:text-white/70 transition-colors"
-            >
-              Powered by <br />
-              <span className="font-bold text-white text-lg">[davelopment]®</span>
-            </a>
           </div>
         </div>
       </div>
