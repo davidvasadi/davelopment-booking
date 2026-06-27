@@ -78,21 +78,25 @@ export default async function RestaurantDashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
         <RestaurantKpiCard
           sub="Ma" label="foglalás" value={String(stats.reservationsToday)} diff={stats.reservationsTodayDiff}
+          icon="reservations"
           title="Mai foglalások" period={stats.period} trend={stats.trend}
           description="A mai napra leadott (nem lemondott) foglalások száma."
         />
         <RestaurantKpiCard
           sub="Ma" label="vendég összesen" value={`${stats.paxToday} fő`} diff={stats.paxTodayDiff}
+          icon="pax"
           title="Mai vendégszám" period={stats.period} trend={stats.trend}
           description="A mai foglalásokhoz tartozó vendégek (pax) összege."
         />
         <RestaurantKpiCard
           sub="Mai kihasználtság" label="kapacitáshoz mérten" value={`${stats.occupancyToday}%`}
+          icon="occupancy"
           title="Mai kihasználtság" period={stats.period} trend={stats.trend}
           description="A mai vendégszám a nyitvatartásba férő turnusok × férőhely arányában."
         />
         <RestaurantKpiCard
           sub="30 nap" label="előző időszakhoz képest" value={String(stats.periodReservations)} diff={stats.periodReservationsDiff}
+          icon="period"
           title="Foglalások (30 nap)" period={stats.period} trend={stats.trend}
           description="Az elmúlt 30 nap foglalásai az azt megelőző 30 naphoz mérve."
         />

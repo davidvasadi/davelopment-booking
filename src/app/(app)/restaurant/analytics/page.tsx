@@ -1,5 +1,6 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { getRestaurantStats } from '@/lib/restaurantStats'
+import { CalendarCheck, Users, Globe, CheckCircle2, CalendarX, UserX, DoorOpen, Phone } from 'lucide-react'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { ReservationTrendChart, DowChart, HourChart } from '@/components/dashboard/DashboardCharts'
 import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
@@ -43,20 +44,20 @@ export default async function RestaurantAnalyticsPage({
       {/* Period KPI cards */}
       <Reveal>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard sub={`${label} foglalás`} label="előző időszakhoz képest" value={String(stats.periodReservations)} diff={stats.periodReservationsDiff} />
-          <StatCard sub={`${label} vendég`} label="előző időszakhoz képest" value={`${stats.periodPax} fő`} diff={stats.periodPaxDiff} />
-          <StatCard sub="Online vendég" label={`${label} – online érkezett`} value={`${stats.onlineReservations} fő`} />
-          <StatCard sub="Teljesítési arány" label="befejezett / lezárt" value={`${stats.completionRate}%`} />
+          <StatCard icon={CalendarCheck} sub={`${label} foglalás`} label="előző időszakhoz képest" value={String(stats.periodReservations)} diff={stats.periodReservationsDiff} />
+          <StatCard icon={Users} sub={`${label} vendég`} label="előző időszakhoz képest" value={`${stats.periodPax} fő`} diff={stats.periodPaxDiff} />
+          <StatCard icon={Globe} tint="blue" sub="Online vendég" label={`${label} – online érkezett`} value={`${stats.onlineReservations} fő`} />
+          <StatCard icon={CheckCircle2} tint="green" sub="Teljesítési arány" label="befejezett / lezárt" value={`${stats.completionRate}%`} />
         </div>
       </Reveal>
 
       {/* Status breakdown cards */}
       <Reveal delay={60}>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard sub="Lemondva" label="vendég (összeshez)" value={`${stats.cancelledCount} fő`} pct={stats.cancellationRate} />
-          <StatCard sub="No-show" label="nem jött meg" value={`${stats.noShowCount} fő`} pct={stats.noShowRate} />
-          <StatCard sub="Walk-in" label="beeső vendég" value={`${stats.walkInCount} fő`} pct={stats.walkInRate} />
-          <StatCard sub="Telefonos" label="telefonos vendég" value={`${stats.phoneCount} fő`} pct={stats.phoneRate} />
+          <StatCard icon={CalendarX} tint="red" sub="Lemondva" label="vendég (összeshez)" value={`${stats.cancelledCount} fő`} pct={stats.cancellationRate} />
+          <StatCard icon={UserX} tint="orange" sub="No-show" label="nem jött meg" value={`${stats.noShowCount} fő`} pct={stats.noShowRate} />
+          <StatCard icon={DoorOpen} tint="blue" sub="Walk-in" label="beeső vendég" value={`${stats.walkInCount} fő`} pct={stats.walkInRate} />
+          <StatCard icon={Phone} tint="blue" sub="Telefonos" label="telefonos vendég" value={`${stats.phoneCount} fő`} pct={stats.phoneRate} />
         </div>
       </Reveal>
 
