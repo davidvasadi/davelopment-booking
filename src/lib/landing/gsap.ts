@@ -2,12 +2,12 @@
 
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
+import { MorphSVGPlugin } from 'gsap/MorphSVGPlugin'
 import { useGSAP } from '@gsap/react'
 
-// A ScrollTrigger plugin regisztrációja itt is (a SmoothScroll-tól függetlenül is biztos).
-gsap.registerPlugin(ScrollTrigger, useGSAP)
+gsap.registerPlugin(ScrollTrigger, MorphSVGPlugin, useGSAP)
 
-export { gsap, ScrollTrigger, useGSAP }
+export { gsap, ScrollTrigger, MorphSVGPlugin, useGSAP }
 
 /** Igaz, ha a felhasználó csökkentett mozgást kér — ilyenkor a cinematic scrollt kihagyjuk. */
 export function prefersReducedMotion() {
