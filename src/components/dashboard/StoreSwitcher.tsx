@@ -29,6 +29,7 @@ export function StoreSwitcher({
   businesses = [],
   activeKey = null,
   compact = false,
+  hero = null,
 }: {
   name: string
   logoUrl?: string | null
@@ -38,6 +39,8 @@ export function StoreSwitcher({
   activeKey?: string | null
   /** Kompakt változat a mobil top-barhoz: kisebb logó, nincs plan-sor, szűkebb padding. */
   compact?: boolean
+  /** Hero-változat: sötét köszönő-kártya trigger (mobil kezdőlap). */
+  hero?: { greeting: string; subtitle: string } | null
 }) {
   const [open, setOpen] = useState(false)
   const [switching, setSwitching] = useState<string | null>(null)
@@ -80,6 +83,29 @@ export function StoreSwitcher({
 
   return (
     <div ref={ref} className="relative">
+      {hero ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          className="w-full rounded-3xl bg-zinc-900 dark:bg-white/[0.04] text-white p-5 shadow-lg text-left"
+        >
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <span className="flex items-center gap-2 min-w-0">
+              {logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt="" className="h-7 w-7 rounded-lg object-cover bg-white/10" />
+              ) : (
+                <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-xs font-bold">{initial}</span>
+              )}
+              <span className="text-sm font-semibold text-white/80 truncate">{name}</span>
+            </span>
+            <ChevronsUpDown className="h-4 w-4 shrink-0 text-white/50" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">{hero.greeting}</h1>
+          <p className="mt-1 text-sm text-white/55">{hero.subtitle}</p>
+        </button>
+      ) : (
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -111,6 +137,7 @@ export function StoreSwitcher({
 
         <ChevronsUpDown className="h-4 w-4 shrink-0 text-zinc-400" />
       </button>
+      )}
 
       {open && (
         <div className="absolute top-full left-0 mt-2 w-full min-w-[12rem] rounded-xl border border-zinc-100 bg-white shadow-lg dark:bg-zinc-950 dark:border-white/[0.08] z-[60] overflow-hidden">

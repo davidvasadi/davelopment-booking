@@ -9,6 +9,7 @@ import {
   ChevronRight, Download, ArrowUpRight,
   CalendarCheck, Users, CheckCircle2, Megaphone, CalendarX,
   Clock, CalendarRange, CalendarDays, Timer, Globe, DoorOpen, Phone, UserX,
+  Wallet, Receipt, Scissors, TrendingUp,
   type LucideIcon,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -17,6 +18,8 @@ const ICONS: Record<string, LucideIcon> = {
   reservations: CalendarCheck, pax: Users, completion: CheckCircle2, source: Megaphone, cancelled: CalendarX,
   hour: Clock, dow: CalendarRange, daily: CalendarDays, dwell: Timer, nat: Globe,
   online: Globe, walkin: DoorOpen, phone: Phone, noshow: UserX, done: CheckCircle2,
+  // Szalon
+  revenue: Wallet, bookings: CalendarCheck, avg: Receipt, service: Scissors, staff: Users, trend: TrendingUp,
 }
 
 export type OverviewSeriesPoint = { label: string; value: number }
@@ -64,14 +67,16 @@ function bucket(data: number[], max = 24): number[] {
   return out
 }
 
-/** Catmull–Rom → cubic bezier: sima görbe a pontokon át. */
-function smoothPath(pts: number[][]): string {
+/** Catmull–Rom → cubic bezier: sima görbe a pontokon át. A kontrollpontok y-ját
+ *  [yMin, yMax]-ra klampoljuk, hogy a csúcsoknál ne lőjjön a viewBox fölé (ne vágódjon). */
+function smoothPath(pts: number[][], yMin: number, yMax: number): string {
   if (pts.length < 2) return ''
+  const clamp = (y: number) => Math.max(yMin, Math.min(yMax, y))
   let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`
   for (let i = 0; i < pts.length - 1; i++) {
     const p0 = pts[i - 1] ?? pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] ?? p2
-    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6
-    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6
+    const c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = clamp(p1[1] + (p2[1] - p0[1]) / 6)
+    const c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = clamp(p2[1] - (p3[1] - p1[1]) / 6)
     d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`
   }
   return d
@@ -80,14 +85,16 @@ function smoothPath(pts: number[][]): string {
 function Sparkline({ data: raw, color }: { data: number[]; color: string }) {
   const data = bucket(raw)
   if (data.length < 2) return null
-  const w = 100, h = 34
+  const w = 100, h = 40
+  // Bőven hagyunk fejteret felül (top) a simítás-túllövésnek, így a csúcs nem vágódik.
+  const top = 9, bot = 4
   const max = Math.max(...data), min = Math.min(...data)
   const range = max - min || 1
-  const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - ((v - min) / range) * (h - 4) - 2])
-  const line = smoothPath(pts)
+  const pts = data.map((v, i) => [(i / (data.length - 1)) * w, h - ((v - min) / range) * (h - top - bot) - bot])
+  const line = smoothPath(pts, 2, h)
   const area = `${line} L${w},${h} L0,${h} Z`
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-9">
+    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-14">
       <path d={area} fill={color} opacity={0.14} />
       <path d={line} fill="none" stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
@@ -112,11 +119,10 @@ function MetricTile({ m, active, onClick }: { m: OverviewMetric; active: boolean
       type="button"
       onClick={onClick}
       className={`text-left rounded-2xl bg-white dark:bg-white/[0.03] p-3.5 lg:p-5 transition-shadow shrink-0 w-[132px] sm:w-[150px] lg:w-auto ${
-        active ? 'shadow-sm' : 'border border-[#ECECEE] dark:border-white/[0.06] hover:border-zinc-300 dark:hover:border-white/[0.16]'
+        active ? 'shadow-sm ring-2 ring-zinc-900 dark:ring-white' : 'border border-[#ECECEE] dark:border-white/[0.06] hover:border-zinc-300 dark:hover:border-white/[0.16]'
       }`}
-      style={active ? { boxShadow: `0 0 0 2px ${m.color}` } : undefined}
     >
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2">
         <span className="flex h-9 w-9 lg:h-10 lg:w-10 items-center justify-center rounded-xl" style={{ background: hexA(m.color, 0.12) }}>
           <Icon className="h-[18px] w-[18px] lg:h-5 lg:w-5" style={{ color: m.color }} />
         </span>
@@ -124,6 +130,7 @@ function MetricTile({ m, active, onClick }: { m: OverviewMetric; active: boolean
       </div>
       <p className="mt-3 lg:mt-4 text-xl lg:text-3xl font-bold tracking-tight text-zinc-900 dark:text-white truncate">{m.value}</p>
       <p className="mt-0.5 lg:mt-1 text-xs lg:text-sm text-[#8A8A8E] dark:text-white/40 truncate">{m.label}</p>
+      {/* Sparkline a label alatt, belső paddinggel (a szöveggel egy vonalban). */}
       <div className="mt-4 hidden lg:block"><Sparkline data={m.series.map(s => s.value)} color={m.color} /></div>
     </button>
   )

@@ -54,7 +54,7 @@ function xAxisInterval(days: number) {
   return 60
 }
 
-export function TrendChart({ data, period = 30 }: { data: DayData[]; period?: number }) {
+export function TrendChart({ data, period = 30, embedded = false }: { data: DayData[]; period?: number; embedded?: boolean }) {
   const [tab, setTab] = useState<'revenue' | 'bookings'>('revenue')
   const [sheetOpen, setSheetOpen] = useState(false)
   const dark = useIsDark()
@@ -76,7 +76,8 @@ export function TrendChart({ data, period = 30 }: { data: DayData[]; period?: nu
   }
 
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
+    <div className={embedded ? 'h-full' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
       <div className="flex items-center justify-between mb-6">
         <div>
           <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
@@ -102,8 +103,9 @@ export function TrendChart({ data, period = 30 }: { data: DayData[]; period?: nu
         </div>
         </div>
       </div>
+      )}
 
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={embedded ? '100%' : 220}>
         <AreaChart data={data} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
@@ -285,19 +287,21 @@ export function HourChart({ data, period = 30, rawDays = [], hourlyByDate, money
   )
 }
 
-export function ServiceChart({ data, period = 30 }: { data: ServiceStat[]; period?: number }) {
+export function ServiceChart({ data, period = 30, embedded = false }: { data: ServiceStat[]; period?: number; embedded?: boolean }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   if (!data.length) return null
   const max = Math.max(...data.map(d => d.revenue))
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
-          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Szolgáltatások</h3>
+    <div className={embedded ? 'h-full overflow-y-auto' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
+            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Szolgáltatások</h3>
+          </div>
+          <DetailsButton onClick={() => setSheetOpen(true)} />
         </div>
-        <DetailsButton onClick={() => setSheetOpen(true)} />
-      </div>
+      )}
       <div className="space-y-3">
         {data.map((s, i) => (
           <div key={i}>
@@ -317,19 +321,21 @@ export function ServiceChart({ data, period = 30 }: { data: ServiceStat[]; perio
   )
 }
 
-export function StaffChart({ data, period = 30 }: { data: StaffStat[]; period?: number }) {
+export function StaffChart({ data, period = 30, embedded = false }: { data: StaffStat[]; period?: number; embedded?: boolean }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   if (!data.length) return null
   const max = Math.max(...data.map(d => d.bookings))
   return (
-    <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6">
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
-          <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Munkatársak</h3>
+    <div className={embedded ? 'h-full overflow-y-auto' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+      {!embedded && (
+        <div className="flex items-center justify-between mb-5">
+          <div>
+            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel(period)}</p>
+            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Munkatársak</h3>
+          </div>
+          <DetailsButton onClick={() => setSheetOpen(true)} />
         </div>
-        <DetailsButton onClick={() => setSheetOpen(true)} />
-      </div>
+      )}
       <div className="space-y-3">
         {data.map((s, i) => (
           <div key={i}>

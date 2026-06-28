@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { format, subDays } from 'date-fns'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { getActiveBusiness } from '@/lib/activeBusiness'
 import type {
   Salon,
   Restaurant,
@@ -58,21 +59,19 @@ export async function GET(req: NextRequest) {
   const days = VALID_DAYS.includes(daysParam) ? daysParam : 30
   const since = format(subDays(new Date(), days - 1), 'yyyy-MM-dd')
 
-  // A modul a user role-jából, illetve explicit `module` paraméterből derül ki.
+  // Az AKTÍV üzlet a forrás (több-üzletnél a cookie-ból), nem az első owner-találat.
+  const { active } = await getActiveBusiness(user)
   const moduleParam = req.nextUrl.searchParams.get('module')
-  const isRestaurant =
-    moduleParam === 'restaurant' || (moduleParam == null && user.role === 'restaurant_owner')
+  const isRestaurant = active
+    ? active.type === 'restaurant'
+    : moduleParam === 'restaurant' || (moduleParam == null && user.role === 'restaurant_owner')
 
   let rows: string[]
 
   if (isRestaurant) {
-    const result = await payload.find({
-      collection: 'restaurants',
-      where: { owner: { equals: user.id } },
-      limit: 1,
-      overrideAccess: true,
-    })
-    const restaurant = result.docs[0] as Restaurant
+    const restaurant = active
+      ? ((await payload.findByID({ collection: 'restaurants', id: active.id, overrideAccess: true })) as Restaurant)
+      : ((await payload.find({ collection: 'restaurants', where: { owner: { equals: user.id } }, limit: 1, overrideAccess: true })).docs[0] as Restaurant)
     if (!restaurant) return NextResponse.json({ error: 'Restaurant not found' }, { status: 404 })
 
     const reservations = await payload.find({
@@ -112,13 +111,9 @@ export async function GET(req: NextRequest) {
       ].join(','))
     }
   } else {
-    const result = await payload.find({
-      collection: 'salons',
-      where: { owner: { equals: user.id } },
-      limit: 1,
-      overrideAccess: true,
-    })
-    const salon = result.docs[0] as Salon
+    const salon = active
+      ? ((await payload.findByID({ collection: 'salons', id: active.id, overrideAccess: true })) as Salon)
+      : ((await payload.find({ collection: 'salons', where: { owner: { equals: user.id } }, limit: 1, overrideAccess: true })).docs[0] as Salon)
     if (!salon) return NextResponse.json({ error: 'Salon not found' }, { status: 404 })
 
     const bookings = await payload.find({

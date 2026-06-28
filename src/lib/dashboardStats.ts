@@ -47,7 +47,12 @@ export interface DashboardStats {
   periodBookings: number
   periodBookingsDiff: number
   avgBookingValue: number
+  avgBookingValueDiff: number
   completionRate: number
+  completionRateDiff: number
+  cancelledCount: number
+  cancelledCountDiff: number
+  cancelledTrend: { label: string; value: number }[]
   trend: DayData[]
   byService: ServiceStat[]
   byStaff: StaffStat[]
@@ -107,13 +112,18 @@ export async function getDashboardStats(salonId: string | number, days = 30): Pr
       where: {
         and: [
           { salon: { equals: salonId } },
-          { date: { greater_than_equal: periodStartStr } },
+          // Az előző időszakot is lefedi, hogy a lemondás-diff is számolható legyen.
+          { date: { greater_than_equal: prevPeriodStartStr } },
         ],
       },
       depth: 0,
       limit: 5000,
     }),
   ])
+
+  // A teljes (lemondottakat is tartalmazó) halmaz az aktuális, ill. előző időszakra.
+  const allPeriodDocs = allBookingsPeriod.docs.filter(b => b.date >= periodStartStr)
+  const allPrevDocs = allBookingsPeriod.docs.filter(b => b.date >= prevPeriodStartStr && b.date < periodStartStr)
 
   const docs = revenueBookings.docs as Booking[]
 
@@ -198,9 +208,26 @@ export async function getDashboardStats(salonId: string | number, days = 30): Pr
 
   const avgBookingValue = periodDocs.length > 0 ? Math.round(periodRevenue / periodDocs.length) : 0
 
-  const finalized = allBookingsPeriod.docs.filter(b => b.status !== 'pending')
+  const finalized = allPeriodDocs.filter(b => b.status !== 'pending')
   const completed = finalized.filter(b => b.status === 'completed')
   const completionRate = finalized.length > 0 ? Math.round((completed.length / finalized.length) * 100) : 0
+
+  // Változás % a metrika-kártyákhoz (előző azonos időszak).
+  const prevAvgBookingValue = prevPeriodBookings > 0 ? Math.round(prevPeriodRevenue / prevPeriodBookings) : 0
+  const avgBookingValueDiff = pctDiff(avgBookingValue, prevAvgBookingValue)
+  const prevFinalized = allPrevDocs.filter(b => b.status !== 'pending')
+  const prevCompleted = prevFinalized.filter(b => b.status === 'completed')
+  const prevCompletionRate = prevFinalized.length > 0 ? Math.round((prevCompleted.length / prevFinalized.length) * 100) : 0
+  const completionRateDiff = pctDiff(completionRate, prevCompletionRate)
+
+  // Lemondások (a szalon-foglalás csak status-t tárol; forrás/nemzetiség nincs).
+  const cancelledCount = allPeriodDocs.filter(b => b.status === 'cancelled').length
+  const prevCancelledCount = allPrevDocs.filter(b => b.status === 'cancelled').length
+  const cancelledCountDiff = pctDiff(cancelledCount, prevCancelledCount)
+  const cancelledTrend = Array.from({ length: days }, (_, i) => {
+    const d = format(subDays(today, days - 1 - i), 'yyyy-MM-dd')
+    return { label: dayLabel(d, days), value: allPeriodDocs.filter(b => b.date === d && b.status === 'cancelled').length }
+  })
 
   return {
     period: days,
@@ -217,7 +244,12 @@ export async function getDashboardStats(salonId: string | number, days = 30): Pr
     periodBookings,
     periodBookingsDiff: pctDiff(periodBookings, prevPeriodBookings),
     avgBookingValue,
+    avgBookingValueDiff,
     completionRate,
+    completionRateDiff,
+    cancelledCount,
+    cancelledCountDiff,
+    cancelledTrend,
     trend,
     byService,
     byStaff,

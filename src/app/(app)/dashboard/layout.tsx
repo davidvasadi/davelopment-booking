@@ -11,6 +11,7 @@ import { SubscriptionBanner } from '@/components/dashboard/SubscriptionBanner'
 import { PageTransition } from '@/components/ui/page-transition'
 import { DashboardLockModal } from '@/components/dashboard/DashboardLockModal'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
 import type { Salon, Subscription } from '@/payload/payload-types'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -47,7 +48,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       : null
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
+    <div className="font-geist min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
       <DashboardNav
         salonName={salon.name}
         salonSlug={salon.slug}
@@ -59,9 +60,15 @@ export default async function DashboardLayout({ children }: { children: React.Re
         businesses={businesses}
         activeBusinessKey={`${active.type}:${active.id}`}
       />
-      <main className="flex-1 pb-24 lg:pb-0">
+      <main className="flex-1 min-w-0 pb-24 lg:pb-0">
         <SubscriptionBanner subscription={sub} />
         <PageTransition>{children}</PageTransition>
+        {/* Mobil lábléc — Schedulio logó */}
+        <footer className="lg:hidden flex justify-center py-8">
+          <a href="https://schedulio.hu" target="_blank" rel="noopener noreferrer" className="opacity-50 hover:opacity-80 transition-opacity">
+            <SchedulioLogo className="h-5" />
+          </a>
+        </footer>
       </main>
       <MobileBottomNav subscription={sub} userName={user.name} userEmail={user.email} userAvatarUrl={user.avatar_url ?? null} />
       {lockedStatus && <DashboardLockModal status={lockedStatus} />}

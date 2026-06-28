@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarCheck, Users, Gauge, CalendarRange, type LucideIcon } from 'lucide-react'
+import { CalendarCheck, Users, Gauge, CalendarRange, CalendarX, type LucideIcon } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { StatCard, DiffBadge } from './StatCard'
 import { ReservationTrendChart } from './DashboardCharts'
@@ -11,13 +11,14 @@ import type { DayData } from '@/lib/dashboardStats'
  * Az ikon kulcsként érkezik (string), nem komponensként — így átadható a
  * Server Component oldalról a kliens-kártyának. A leképezés itt, kliens-oldalon történik.
  */
-export type RestaurantKpiIcon = 'reservations' | 'pax' | 'occupancy' | 'period'
+export type RestaurantKpiIcon = 'reservations' | 'pax' | 'occupancy' | 'period' | 'cancelled'
 
 const ICONS: Record<RestaurantKpiIcon, LucideIcon> = {
   reservations: CalendarCheck,
   pax: Users,
   occupancy: Gauge,
   period: CalendarRange,
+  cancelled: CalendarX,
 }
 
 interface Props {

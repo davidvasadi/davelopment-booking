@@ -68,7 +68,7 @@ export default async function RestaurantAnalyticsPage({
     },
     {
       id: 'completion', label: 'Teljesítés', value: `${stats.completionRate}%`, unit: 'befejezett',
-      color: '#8b5cf6', icon: 'completion', series: completedSeries,
+      color: '#8b5cf6', icon: 'completion', series: completedSeries, deltaPct: stats.completionRateDiff,
       views: [
         { id: 'dwell', label: 'Tartózkodási idő', icon: 'dwell', target: 'dwell' },
         { id: 'daily', label: 'Napi bontás', icon: 'daily', target: 'daily' },
@@ -76,7 +76,7 @@ export default async function RestaurantAnalyticsPage({
     },
     {
       id: 'source', label: 'Vendégforrás', value: `${stats.onlineReservations + stats.walkInCount + stats.phoneCount} fő`, unit: 'walk-in fő',
-      color: '#f59e0b', icon: 'source', series: walkInSeries,
+      color: '#f59e0b', icon: 'source', series: walkInSeries, deltaPct: stats.sourceTotalDiff,
       views: [
         { id: 'online', label: `Online · ${stats.onlineReservations} fő`, icon: 'online', series: onlineSeries, value: `${stats.onlineReservations} fő` },
         { id: 'walkin', label: `Walk-in · ${stats.walkInCount} fő`, icon: 'walkin', series: walkInSeries, value: `${stats.walkInCount} fő` },
@@ -85,7 +85,7 @@ export default async function RestaurantAnalyticsPage({
     },
     {
       id: 'cancelled', label: 'Lemondások', value: `${stats.cancelledCount + stats.noShowCount} fő`, unit: 'fő',
-      color: '#f87171', icon: 'cancelled', series: cancelledSeries,
+      color: '#f87171', icon: 'cancelled', series: cancelledSeries, deltaPct: stats.cancelledTotalDiff,
       views: [
         { id: 'cancel', label: `Lemondva · ${stats.cancelledCount} fő`, icon: 'cancelled', series: cancelOnlySeries, value: `${stats.cancelledCount} fő` },
         { id: 'noshow', label: `No-show · ${stats.noShowCount} fő`, icon: 'noshow', series: noShowSeries, value: `${stats.noShowCount} fő` },

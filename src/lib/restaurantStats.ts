@@ -38,6 +38,10 @@ export interface RestaurantStats {
   avgPartySize: number
   onlineReservations: number
   completionRate: number
+  // változás % a metrika-kártyákhoz (előző azonos időszak)
+  completionRateDiff: number
+  sourceTotalDiff: number
+  cancelledTotalDiff: number
   // státusz-bontás (időszak)
   cancellationRate: number
   noShowRate: number
@@ -368,6 +372,17 @@ export async function getRestaurantStats(
   const walkInRate = periodPax > 0 ? Math.round((walkInCount / periodPax) * 100) : 0
   const phoneRate = periodPax > 0 ? Math.round((phoneCount / periodPax) * 100) : 0
 
+  // ── Változás % a metrika-kártyákhoz (előző azonos időszakhoz mérve) ──
+  const allPrev = all.filter(r => r.date >= prevPeriodStartStr && r.date < periodStartStr)
+  const prevFinalized = prevPeriodDocs.filter(r => r.status !== 'pending')
+  const prevCompleted = prevFinalized.filter(r => r.status === 'completed')
+  const prevCompletionRate = prevFinalized.length > 0 ? Math.round((prevCompleted.length / prevFinalized.length) * 100) : 0
+  const completionRateDiff = pctDiff(completionRate, prevCompletionRate)
+  const prevSourceTotal = sumPax(prevPeriodDocs.filter(r => r.source === 'online' || r.source === 'walk_in' || r.source === 'phone'))
+  const sourceTotalDiff = pctDiff(onlineReservations + walkInCount + phoneCount, prevSourceTotal)
+  const prevCancelledTotal = sumPax(allPrev.filter(r => r.status === 'cancelled' || r.status === 'no_show'))
+  const cancelledTotalDiff = pctDiff(cancelledCount + noShowCount, prevCancelledTotal)
+
   return {
     period: days,
     reservationsToday: todayDocs.length,
@@ -384,6 +399,9 @@ export async function getRestaurantStats(
     avgPartySize,
     onlineReservations,
     completionRate,
+    completionRateDiff,
+    sourceTotalDiff,
+    cancelledTotalDiff,
     cancellationRate,
     noShowRate,
     walkInRate,

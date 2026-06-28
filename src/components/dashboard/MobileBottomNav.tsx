@@ -156,8 +156,19 @@ export default function MobileBottomNav({
             className="lg:hidden fixed inset-0 z-50 bg-black/40 dark:bg-black/60"
             onClick={() => setMoreOpen(false)}
           />
-          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-950 rounded-t-2xl border border-zinc-100 dark:border-white/[0.08] border-b-0">
-            <div className="w-10 h-1 bg-zinc-200 dark:bg-white/[0.1] rounded-full mx-auto mt-3 mb-2" />
+          <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex max-h-[90vh] flex-col bg-white dark:bg-zinc-950 rounded-t-2xl border border-zinc-100 dark:border-white/[0.08] border-b-0">
+            {/* Fogantyú — fent rögzül, így mindig elérhető a bezáráshoz */}
+            <button
+              type="button"
+              aria-label="Bezárás"
+              onClick={() => setMoreOpen(false)}
+              className="shrink-0 w-full py-3"
+            >
+              <span className="block w-10 h-1 bg-zinc-200 dark:bg-white/[0.1] rounded-full mx-auto" />
+            </button>
+
+            {/* Közös görgető — a fogantyú alatt minden ebben fér el, így a panel nem nő a képernyő fölé */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" data-lenis-prevent>
 
             {/* Fiók-blokk: az avatar+név sorra koppintva képet tölthetsz fel a gépről
                 (Payload Media — mint a desktopon). „+"/spinner jelzi a lehetőséget. */}
@@ -206,7 +217,7 @@ export default function MobileBottomNav({
                 </button>
               )}
             </div>
-            <div className="max-h-[35vh] overflow-y-auto overscroll-contain px-2 pb-1" data-lenis-prevent>
+            <div className="px-2 pb-1">
               {items.length === 0 ? (
                 <p className="px-3 pb-3 text-center text-xs text-zinc-400 dark:text-white/30">Nincs új értesítés</p>
               ) : (
@@ -318,6 +329,7 @@ export default function MobileBottomNav({
                 <LogOut className="h-5 w-5" />
                 Kijelentkezés
               </button>
+            </div>
             </div>
           </div>
         </>

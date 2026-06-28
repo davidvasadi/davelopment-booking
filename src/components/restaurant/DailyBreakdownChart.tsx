@@ -67,7 +67,7 @@ export function DailyBreakdownChart({
   const lastWithData = lastActive ? lastActive.date : nav[nav.length - 1]?.date
 
   return (
-    <div className={embedded ? '' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+    <div className={embedded ? 'h-full' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
       {!embedded && (
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -114,7 +114,7 @@ export function DailyBreakdownChart({
             fill="#0099ff"
             radius={[0, 0, 0, 0]}
             className="cursor-pointer"
-            background={{ fill: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', radius: 4 }}
+            background={embedded ? undefined : { fill: dark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)', radius: 4 }}
             onClick={(_, index) => data[index] && openSheet(data[index].date)}
           />
           <Bar dataKey="cancelled" stackId="s" fill="#f43f5e" radius={[4, 4, 0, 0]} className="cursor-pointer" onClick={(_, index) => data[index] && openSheet(data[index].date)} />

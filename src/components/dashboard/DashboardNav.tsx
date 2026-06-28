@@ -103,8 +103,11 @@ export function DashboardNav({
   const csvHref = `/api/export-csv?days=${csvDays}&module=${variant}`
 
   // A mobil header címe: a leghosszabb illeszkedő nav-elem címkéje (a legspecifikusabb).
-  const pageTitle =
-    [...navItems].filter((it) => pathname.startsWith(it.href)).sort((a, b) => b.href.length - a.href.length)[0]?.label ?? salonName
+  const sortedNav = [...navItems].sort((a, b) => b.href.length - a.href.length)
+  const matched = sortedNav.filter((it) => pathname.startsWith(it.href))
+  const pageTitle = matched[0]?.label ?? salonName
+  // A vissza-gomb az ELŐZŐ oldalra visz (böngésző-history).
+  const goBack = () => router.back()
 
   // Backstage (admin): nincs üzlet/előfizetés/nyilvános oldal/store-switcher — ezeket
   // elrejtjük, a fejlécben admin-email + „Backstage" badge van. A nav-elemek, a kereső,
@@ -345,7 +348,7 @@ export function DashboardNav({
       <header className="lg:hidden relative z-40 bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-2 h-14 flex items-center justify-between shrink-0">
         <button
           type="button"
-          onClick={() => router.back()}
+          onClick={goBack}
           aria-label="Vissza"
           className="flex items-center justify-center h-10 w-10 rounded-xl text-zinc-700 hover:bg-zinc-100 dark:text-white/70 dark:hover:bg-white/[0.06] transition-colors"
         >
@@ -403,18 +406,7 @@ export function DashboardNav({
         </div>
       </header>
 
-      {/* Mobil üzletváltó — a tartalom tetején (a header alatt) */}
-      {!isBackstage && businesses.length > 1 && (
-        <div className="lg:hidden bg-white dark:bg-black border-b border-zinc-100 dark:border-white/[0.06] px-4 py-3">
-          <StoreSwitcher
-            name={salonName}
-            logoUrl={brandLogoUrl}
-            businesses={businesses}
-            activeKey={activeBusinessKey}
-            compact
-          />
-        </div>
-      )}
+      {/* (A mobil üzletváltó a kezdőlapi köszönő-heroba költözött — StoreSwitcher hero variáns.) */}
 
       {/* A ⌘K kereső-palette — desktopon a sidebar keresője, mobilon a header ikonja nyitja. */}
       <CommandPalette variant={variant} />
