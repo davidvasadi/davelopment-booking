@@ -3,14 +3,17 @@
 import { useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
+import { ArrowRight, Loader2, Eye, EyeOff, Check } from 'lucide-react'
 import Link from 'next/link'
+import { SchedulioLogo } from '@/components/SchedulioLogo'
+
+const inputBase =
+  'w-full h-[50px] rounded-[14px] bg-paper border border-line text-ink placeholder:text-ink-soft2/70 px-4 text-sm outline-none transition-colors focus:ring-2 focus:ring-gold/40 focus:border-gold/50'
 
 export default function ResetPasswordPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
+    <Suspense fallback={<div className="min-h-screen bg-paper" />}>
       <ResetPasswordInner />
     </Suspense>
   )
@@ -48,144 +51,102 @@ function ResetPasswordInner() {
     }
   }
 
+  const Shell = ({ children }: { children: React.ReactNode }) => (
+    <div className="min-h-screen bg-paper flex flex-col items-center justify-center px-5 py-10 font-onest [color-scheme:light]">
+      <div className="w-full max-w-md">
+        <Link href="/" aria-label="Schedulio" className="mx-auto mb-8 block w-fit hover:opacity-80 transition-opacity">
+          <SchedulioLogo variant="light" className="h-8" />
+        </Link>
+        <div className="bg-white border border-line rounded-[24px] shadow-dav-card px-6 py-8 sm:px-8 sm:py-9">
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+
   if (!token) {
     return (
-      <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-4">
-        <div className="w-full max-w-sm text-center space-y-4">
-          <h1 className="text-2xl font-black text-white tracking-tight">Érvénytelen link</h1>
-          <p className="text-zinc-500 text-sm">Kérj új jelszó-visszaállítót az elfelejtett jelszó oldalon.</p>
-          <Link href="/forgot-password" className="block w-full h-12 rounded-full bg-white text-zinc-950 font-semibold text-sm flex items-center justify-center">
+      <Shell>
+        <div className="flex flex-col items-center text-center space-y-4">
+          <h1 className="text-2xl font-bold tracking-tight text-ink">Érvénytelen link</h1>
+          <p className="text-ink-soft text-sm leading-relaxed">
+            Kérj új jelszó-visszaállítót az elfelejtett jelszó oldalon.
+          </p>
+          <Link
+            href="/forgot-password"
+            className="mt-2 w-full h-12 rounded-dav-pill bg-ink-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity flex items-center justify-center"
+          >
             Új link kérése
           </Link>
         </div>
-      </div>
+      </Shell>
+    )
+  }
+
+  if (done) {
+    return (
+      <Shell>
+        <div className="flex flex-col items-center text-center space-y-4">
+          <div className="h-14 w-14 rounded-2xl bg-gold/15 flex items-center justify-center">
+            <Check className="h-7 w-7 text-ink" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">Jelszó beállítva</h1>
+          <p className="text-ink-soft text-sm">Átirányítunk a bejelentkezéshez...</p>
+        </div>
+      </Shell>
     )
   }
 
   return (
-    <>
-      {/* ── MOBILE ─────────────────────────────────────────────────── */}
-      <div className="lg:hidden min-h-screen bg-zinc-950 flex flex-col px-7 pt-12 pb-10">
-        <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Schedulio</Link>
-        {done ? (
-          <div className="flex flex-col justify-center flex-1 space-y-4">
-            <h2 className="text-white font-black text-[2.5rem] uppercase leading-[1.0] tracking-tighter">JELSZÓ<br />BEÁLLÍTVA.</h2>
-            <p className="text-zinc-500 text-sm">Átirányítunk a bejelentkezéshez...</p>
-          </div>
-        ) : (
-          <div className="flex flex-col justify-between flex-1 mt-12">
-            <div>
-              <h2 className="text-white font-black text-[2.5rem] uppercase leading-[1.0] tracking-tighter mb-8">ÚJ<br />JELSZÓ.</h2>
-              <form onSubmit={onSubmit} className="space-y-3">
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">Új jelszó</Label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      className="w-full h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-white px-4 pr-11 text-sm focus:outline-none focus:border-zinc-500"
-                      required
-                    />
-                    <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500">
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">Jelszó megerősítése</Label>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    value={confirm}
-                    onChange={e => setConfirm(e.target.value)}
-                    className="w-full h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-white px-4 text-sm focus:outline-none focus:border-zinc-500"
-                    required
-                  />
-                </div>
-                <div className="pt-2">
-                  <button type="submit" disabled={loading}
-                    className="w-full h-14 rounded-full bg-white text-zinc-950 font-bold text-base flex items-center justify-center gap-2">
-                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Mentés <ArrowRight className="h-4 w-4" /></>}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+    <Shell>
+      <div className="mb-7">
+        <h1 className="text-2xl font-bold tracking-tight text-ink">Új jelszó</h1>
+        <p className="text-ink-soft text-sm mt-1.5">Adj meg egy erős jelszót (minimum 6 karakter).</p>
       </div>
-
-      {/* ── DESKTOP ────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex min-h-screen">
-        <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-          <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Schedulio</Link>
-          <div>
-            <h1 className="text-white font-black text-[3.25rem] uppercase leading-[1.05] tracking-tighter">
-              ÚJ<br />JELSZÓ<br />BEÁLLÍTÁSA.
-            </h1>
-            <p className="text-zinc-500 mt-5 text-sm leading-relaxed max-w-xs">
-              Adj meg egy erős jelszót a fiókod védelméhez.
-            </p>
-          </div>
-          <p className="text-zinc-700 text-xs">© 2026 Schedulio</p>
-        </div>
-
-        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
-          <div className="w-full max-w-sm">
-            {done ? (
-              <div className="space-y-4 text-center">
-                <div className="h-14 w-14 rounded-full bg-[#00bb88]/10 flex items-center justify-center mx-auto">
-                  <span className="text-2xl text-[#00bb88]">✓</span>
-                </div>
-                <h2 className="text-2xl font-bold tracking-tight">Jelszó beállítva!</h2>
-                <p className="text-zinc-500 text-sm">Átirányítunk a bejelentkezéshez...</p>
-              </div>
-            ) : (
-              <>
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold tracking-tight">Új jelszó</h2>
-                  <p className="text-zinc-500 text-sm mt-1">Minimum 6 karakter</p>
-                </div>
-                <form onSubmit={onSubmit} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Új jelszó</Label>
-                    <div className="relative">
-                      <Input
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete="new-password"
-                        value={password}
-                        onChange={e => setPassword(e.target.value)}
-                        className="h-11 rounded-xl bg-zinc-50 border-zinc-200 pr-11"
-                        required
-                      />
-                      <button type="button" onClick={() => setShowPassword(v => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600">
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Jelszó megerősítése</Label>
-                    <Input
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      value={confirm}
-                      onChange={e => setConfirm(e.target.value)}
-                      className="h-11 rounded-xl bg-zinc-50 border-zinc-200"
-                      required
-                    />
-                  </div>
-                  <button type="submit" disabled={loading}
-                    className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <><span>Jelszó mentése</span><ArrowRight className="h-4 w-4" /></>}
-                  </button>
-                </form>
-              </>
-            )}
+      <form onSubmit={onSubmit} className="space-y-4">
+        <div className="space-y-1.5">
+          <Label className="text-[12.5px] font-medium text-ink-soft">Új jelszó</Label>
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              className={`${inputBase} pr-11`}
+              required
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(v => !v)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft2 hover:text-ink transition-colors"
+            >
+              {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
           </div>
         </div>
-      </div>
-    </>
+        <div className="space-y-1.5">
+          <Label className="text-[12.5px] font-medium text-ink-soft">Jelszó megerősítése</Label>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={confirm}
+            onChange={e => setConfirm(e.target.value)}
+            className={inputBase}
+            required
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full h-12 rounded-dav-pill bg-ink-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity disabled:opacity-40 flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <>Jelszó mentése <ArrowRight className="h-4 w-4" /></>
+          )}
+        </button>
+      </form>
+    </Shell>
   )
 }

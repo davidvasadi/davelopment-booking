@@ -10,7 +10,22 @@ import Link from 'next/link'
 import PlaceToggle from '../PlaceToggle'
 import SalonNotesForm from './SalonNotesForm'
 import ImpersonateButton from './ImpersonateButton'
-import { PLAN_LABELS, STATUS_LABELS, STATUS_COLORS } from '@/lib/backstagePlaces'
+import { PLAN_LABELS, STATUS_LABELS } from '@/lib/backstagePlaces'
+
+/* davelopment státusz-badge (előfizetés + foglalás) */
+const SUB_BADGE: Record<string, string> = {
+  trialing: 'bg-[#FBF4DC] text-[#7A6A2E]',
+  active: 'bg-[#E7F2EA] text-[#1D9D63]',
+  past_due: 'bg-[#F8E9E7] text-[#C0392B]',
+  canceled: 'bg-[#F0EAD8] text-ink-soft',
+  paused: 'bg-[#FBF4DC] text-[#7A6A2E]',
+}
+function bookingBadge(status: string): string {
+  if (status === 'confirmed') return 'bg-[#E7F2EA] text-[#1D9D63]'
+  if (status === 'cancelled' || status === 'no_show') return 'bg-[#F8E9E7] text-[#C0392B]'
+  if (status === 'completed') return 'bg-[#F0EAD8] text-ink-soft'
+  return 'bg-[#FBF4DC] text-[#7A6A2E]'
+}
 
 export default async function SalonDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuth('admin')
@@ -48,38 +63,41 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
 
   const recentBookings = bookingsResult.docs as Booking[]
 
+  const cardBase = 'rounded-[26px] bg-white border border-line shadow-dav-card'
+  const label = 'text-[11px] font-semibold uppercase tracking-wider text-ink-soft'
+
   return (
-    <div className="px-4 lg:px-8 py-6 lg:py-10">
+    <div className="space-y-[22px] p-5 font-onest lg:p-8">
       {/* Back */}
-      <Link href="/backstage/salons" className="inline-flex items-center gap-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 text-sm mb-6 transition-colors">
+      <Link href="/backstage/salons" className="inline-flex items-center gap-1.5 text-[13.5px] font-medium text-ink-soft transition-colors hover:text-ink">
         <ArrowLeft className="h-4 w-4" /> Szalonok
       </Link>
 
       {/* Header */}
-      <div className="flex items-start justify-between gap-4 mb-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-4">
-          <div className="h-12 w-12 rounded-2xl bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
-            <Building2 className="h-6 w-6 text-zinc-400 dark:text-zinc-500" />
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#F6F2E4]">
+            <Building2 className="h-6 w-6 text-ink-soft" strokeWidth={1.7} />
           </div>
           <div>
-            <h1 className="text-zinc-900 dark:text-white font-black text-2xl tracking-tight">{salon.name}</h1>
-            <div className="flex items-center gap-3 mt-1">
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${salon.is_active ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-500'}`}>
+            <h1 className="text-[28px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[34px]">{salon.name}</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${salon.is_active ? 'bg-[#E7F2EA] text-[#1D9D63]' : 'bg-[#F0EAD8] text-ink-soft'}`}>
                 {salon.is_active ? 'Aktív' : 'Inaktív'}
               </span>
               {salon.city && (
-                <span className="flex items-center gap-1 text-zinc-400 text-xs">
+                <span className="flex items-center gap-1 text-[12px] font-medium text-ink-soft">
                   <MapPin className="h-3 w-3" />{salon.city}
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2">
           <a
             href={`/${salon.slug}`}
             target="_blank"
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 dark:border-white/[0.08] text-zinc-500 dark:text-zinc-400 text-sm hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors"
+            className="flex items-center gap-1.5 rounded-[22px] bg-[#F6F2E4] px-[16px] py-[11px] text-[13.5px] font-semibold text-ink transition-colors hover:bg-[#EFE9D6]"
           >
             <ExternalLink className="h-3.5 w-3.5" /> Nyilvános oldal
           </a>
@@ -87,39 +105,39 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         {/* Owner */}
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-5">
-          <p className="text-zinc-400 dark:text-zinc-500 text-[11px] font-semibold uppercase tracking-wider mb-3">Tulajdonos</p>
+        <div className={`${cardBase} p-5`}>
+          <p className={`${label} mb-3`}>Tulajdonos</p>
           {owner ? (
             <div>
-              <p className="text-zinc-900 dark:text-white font-semibold text-sm">{owner.name}</p>
-              <p className="text-zinc-500 text-xs mt-0.5">{owner.email}</p>
-              <p className="text-zinc-400 dark:text-zinc-600 text-xs mt-3">
+              <p className="text-[14px] font-semibold text-ink">{owner.name}</p>
+              <p className="mt-0.5 text-[12px] text-ink-soft">{owner.email}</p>
+              <p className="mt-3 text-[12px] text-ink-soft2">
                 Regisztrált: {new Date(owner.createdAt).toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' })}
               </p>
             </div>
           ) : (
-            <p className="text-zinc-400 text-sm">—</p>
+            <p className="text-[14px] text-ink-soft">—</p>
           )}
         </div>
 
         {/* Subscription */}
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-5">
-          <p className="text-zinc-400 dark:text-zinc-500 text-[11px] font-semibold uppercase tracking-wider mb-3">Előfizetés</p>
+        <div className={`${cardBase} p-5`}>
+          <p className={`${label} mb-3`}>Előfizetés</p>
           {sub ? (
             <div>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-zinc-900 dark:text-white font-bold text-sm">{PLAN_LABELS[sub.plan]}</span>
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[sub.status]}`}>
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-[14px] font-bold text-ink">{PLAN_LABELS[sub.plan]}</span>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${SUB_BADGE[sub.status] ?? 'bg-[#F0EAD8] text-ink-soft'}`}>
                   {STATUS_LABELS[sub.status]}
                 </span>
               </div>
               {sub.amount_huf != null && sub.amount_huf > 0 && (
-                <p className="text-zinc-500 text-xs">{sub.amount_huf.toLocaleString('hu-HU')} Ft/hó</p>
+                <p className="text-[12px] text-ink-soft">{sub.amount_huf.toLocaleString('hu-HU')} Ft/hó</p>
               )}
               {(sub.trial_ends_at || sub.current_period_end) && (
-                <p className="text-zinc-400 dark:text-zinc-600 text-xs mt-2 flex items-center gap-1">
+                <p className="mt-2 flex items-center gap-1 text-[12px] text-ink-soft2">
                   <Clock className="h-3 w-3" />
                   {sub.status === 'trialing' && sub.trial_ends_at
                     ? `Trial vége: ${new Date(sub.trial_ends_at).toLocaleDateString('hu-HU')}`
@@ -131,99 +149,94 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
             </div>
           ) : (
             <div>
-              <p className="text-zinc-400 text-sm">Nincs előfizetés</p>
-              <Link href="/backstage/subscriptions" className="text-xs text-zinc-400 underline mt-1 inline-block">Létrehozás →</Link>
+              <p className="text-[14px] text-ink-soft">Nincs előfizetés</p>
+              <Link href="/backstage/subscriptions" className="mt-1 inline-block text-[12px] text-ink-soft underline">Létrehozás →</Link>
             </div>
           )}
         </div>
 
         {/* Bookings stats */}
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-5">
-          <p className="text-zinc-400 dark:text-zinc-500 text-[11px] font-semibold uppercase tracking-wider mb-3">Foglalások</p>
-          <div className="flex items-end gap-4">
+        <div className={`${cardBase} p-5`}>
+          <p className={`${label} mb-3`}>Foglalások</p>
+          <div className="flex items-end gap-6">
             <div>
-              <p className="text-zinc-900 dark:text-white font-black text-3xl">{totalBookings.totalDocs}</p>
-              <p className="text-zinc-400 text-xs mt-0.5">összesen</p>
+              <p className="text-[38px] font-light leading-none tracking-[-0.02em] text-ink">{totalBookings.totalDocs}</p>
+              <p className="mt-1.5 text-[12px] font-medium text-ink-soft">összesen</p>
             </div>
             <div>
-              <p className="text-zinc-700 dark:text-zinc-300 font-black text-xl">{monthBookings.totalDocs}</p>
-              <p className="text-zinc-400 text-xs mt-0.5">ebben a hónapban</p>
+              <p className="text-[26px] font-light leading-none tracking-[-0.02em] text-ink">{monthBookings.totalDocs}</p>
+              <p className="mt-1.5 text-[12px] font-medium text-ink-soft">ebben a hónapban</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* Contact + Active toggle */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-6">
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-5">
-          <p className="text-zinc-400 dark:text-zinc-500 text-[11px] font-semibold uppercase tracking-wider mb-3">Elérhetőség</p>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className={`${cardBase} p-5`}>
+          <p className={`${label} mb-3`}>Elérhetőség</p>
           <div className="space-y-2">
             {salon.phone && (
-              <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                <Phone className="h-3.5 w-3.5 text-zinc-400" />{salon.phone}
+              <p className="flex items-center gap-2 text-[13.5px] text-ink">
+                <Phone className="h-3.5 w-3.5 text-ink-soft" />{salon.phone}
               </p>
             )}
             {salon.email && (
-              <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                <Mail className="h-3.5 w-3.5 text-zinc-400" />{salon.email}
+              <p className="flex items-center gap-2 text-[13.5px] text-ink">
+                <Mail className="h-3.5 w-3.5 text-ink-soft" />{salon.email}
               </p>
             )}
             {salon.website && (
-              <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                <Globe className="h-3.5 w-3.5 text-zinc-400" />{salon.website}
+              <p className="flex items-center gap-2 text-[13.5px] text-ink">
+                <Globe className="h-3.5 w-3.5 text-ink-soft" />{salon.website}
               </p>
             )}
             {salon.address && (
-              <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                <MapPin className="h-3.5 w-3.5 text-zinc-400" />{salon.address}
+              <p className="flex items-center gap-2 text-[13.5px] text-ink">
+                <MapPin className="h-3.5 w-3.5 text-ink-soft" />{salon.address}
               </p>
             )}
             {!salon.phone && !salon.email && !salon.website && !salon.address && (
-              <p className="text-zinc-400 text-sm">—</p>
+              <p className="text-[14px] text-ink-soft">—</p>
             )}
           </div>
         </div>
 
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-5">
-          <p className="text-zinc-400 dark:text-zinc-500 text-[11px] font-semibold uppercase tracking-wider mb-3">Státusz</p>
+        <div className={`${cardBase} p-5`}>
+          <p className={`${label} mb-3`}>Státusz</p>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-zinc-900 dark:text-white text-sm font-medium">Szalon aktív</p>
-              <p className="text-zinc-400 text-xs mt-0.5">Látható az ügyfeleknek</p>
+              <p className="text-[13.5px] font-medium text-ink">Szalon aktív</p>
+              <p className="mt-0.5 text-[12px] text-ink-soft">Látható az ügyfeleknek</p>
             </div>
             <PlaceToggle kind="salon" placeId={salon.id} isActive={salon.is_active ?? false} />
           </div>
-          <div className="mt-4 pt-4 border-t border-zinc-100 dark:border-white/[0.06]">
-            <p className="text-zinc-400 dark:text-zinc-600 text-xs">
+          <div className="mt-4 border-t border-line pt-4">
+            <p className="text-[12px] text-ink-soft2">
               Regisztrált: {new Date(salon.createdAt).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
-            <p className="text-zinc-400 dark:text-zinc-600 text-xs mt-0.5">Slug: /{salon.slug}</p>
+            <p className="mt-0.5 text-[12px] text-ink-soft2">Slug: /{salon.slug}</p>
           </div>
         </div>
       </div>
 
       {/* Recent bookings */}
       {recentBookings.length > 0 && (
-        <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl overflow-hidden mb-6">
-          <div className="px-5 py-4 border-b border-zinc-100 dark:border-white/[0.06]">
-            <h2 className="text-zinc-900 dark:text-white font-bold text-sm">Legutóbbi foglalások</h2>
+        <div className={`${cardBase} overflow-hidden`}>
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="text-[13.5px] font-bold text-ink">Legutóbbi foglalások</h2>
           </div>
           <div>
             {recentBookings.map((b, i) => {
               const service = typeof b.service === 'object' ? (b.service as Service) : null
               const showBorder = i < recentBookings.length - 1
               return (
-                <div key={b.id} className={`flex items-center justify-between px-5 py-3 ${showBorder ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''}`}>
-                  <div>
-                    <p className="text-zinc-900 dark:text-white text-sm font-medium">{b.customer_name}</p>
-                    <p className="text-zinc-500 text-xs mt-0.5">{service?.name ?? '—'} · {b.date} {b.start_time}</p>
+                <div key={b.id} className={`flex items-center justify-between px-5 py-3 ${showBorder ? 'border-b border-line' : ''}`}>
+                  <div className="min-w-0">
+                    <p className="truncate text-[13.5px] font-medium text-ink">{b.customer_name}</p>
+                    <p className="mt-0.5 truncate text-[12px] text-ink-soft">{service?.name ?? '—'} · {b.date} {b.start_time}</p>
                   </div>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
-                    b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-500'
-                    : b.status === 'cancelled' ? 'bg-red-500/10 text-red-500'
-                    : b.status === 'completed' ? 'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-500'
-                    : 'bg-amber-500/10 text-amber-500'
-                  }`}>
+                  <span className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${bookingBadge(b.status)}`}>
                     {b.status}
                   </span>
                 </div>
@@ -234,8 +247,8 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
       )}
 
       {/* Admin notes */}
-      <div className="bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-5">
-        <p className="text-zinc-400 dark:text-zinc-500 text-[11px] font-semibold uppercase tracking-wider mb-3">Belső megjegyzés</p>
+      <div className={`${cardBase} p-5`}>
+        <p className={`${label} mb-3`}>Belső megjegyzés</p>
         <SalonNotesForm salonId={salon.id} initialNotes={salon.admin_notes ?? ''} />
       </div>
     </div>

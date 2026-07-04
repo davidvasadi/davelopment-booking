@@ -30,19 +30,19 @@ export function ReservationDateFilter({ currentDate }: { currentDate: string }) 
   const isToday = currentDate === ymd(new Date())
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1">
       <button
         onClick={() => go(-1)}
-        className="h-9 w-9 rounded-full border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] flex items-center justify-center text-zinc-400 dark:text-white/40 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors"
+        className="h-8 w-8 rounded-full flex items-center justify-center text-ink hover:bg-white/60 transition-colors"
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
 
       <button
         onClick={() => inputRef.current?.showPicker?.()}
-        className="relative h-9 px-4 rounded-full border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] text-sm font-semibold text-zinc-700 dark:text-white/80 hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors flex items-center gap-2"
+        className="relative h-8 px-2 rounded-full text-sm font-semibold text-ink hover:bg-white/60 transition-colors flex items-center gap-2"
       >
-        <CalendarDays className="h-3.5 w-3.5 text-zinc-400 dark:text-white/30" />
+        <CalendarDays className="h-3.5 w-3.5 text-ink-soft" />
         {formatHu(currentDate)}
         <input
           ref={inputRef}
@@ -56,14 +56,14 @@ export function ReservationDateFilter({ currentDate }: { currentDate: string }) 
 
       <button
         onClick={() => go(1)}
-        className="h-9 w-9 rounded-full border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] flex items-center justify-center text-zinc-400 dark:text-white/40 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors"
+        className="h-8 w-8 rounded-full flex items-center justify-center text-ink hover:bg-white/60 transition-colors"
       >
         <ChevronRight className="h-4 w-4" />
       </button>
       {!isToday && (
         <button
           onClick={() => router.push(`/restaurant/bookings?date=${ymd(new Date())}`)}
-          className="h-9 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-white/90 transition-colors"
+          className="h-8 px-3 rounded-full bg-ink-dark text-white text-xs font-semibold hover:opacity-90 transition-opacity"
         >
           Ma
         </button>

@@ -4,8 +4,14 @@ import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/r
 const isYmd = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
 
+import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
+
 export const OpeningHoursExceptions: CollectionConfig = {
   slug: 'opening-hours-exceptions',
+  hooks: {
+    afterChange: [auditAfterChange('Nyitvatartási kivétel', 'restaurant')],
+    afterDelete: [auditAfterDelete('Nyitvatartási kivétel', 'restaurant')],
+  },
   labels: { singular: 'Nyitvatartási kivétel', plural: 'Nyitvatartási kivételek' },
   admin: {
     useAsTitle: 'label',

@@ -120,7 +120,7 @@ export function PrintDayButton({
       onClick={handlePrint}
       aria-label="Napi lista nyomtatása"
       title="Napi lista nyomtatása"
-      className="flex items-center justify-center gap-1.5 h-9 w-9 sm:w-auto sm:px-3 rounded-full sm:rounded-xl border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] text-xs font-semibold text-zinc-500 dark:text-white/50 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors"
+      className="flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-4 rounded-dav-pill border border-line bg-[var(--dav-glass)] text-xs font-semibold text-ink hover:bg-white/60 transition-colors"
     >
       <Printer className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
       <span className="hidden sm:inline">Napi lista nyomtatása</span>

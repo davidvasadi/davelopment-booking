@@ -25,39 +25,41 @@ export default function DateFilter({ currentDate }: { currentDate: string }) {
 
   return (
     <div className="flex items-center gap-2">
-      <button
-        onClick={() => go(-1)}
-        className="h-9 w-9 rounded-full border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] flex items-center justify-center text-zinc-400 dark:text-white/40 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
+      <div className="flex items-center gap-1 rounded-2xl border border-line bg-[var(--dav-glass)] p-[5px]">
+        <button
+          onClick={() => go(-1)}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-ink transition-colors hover:bg-white"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </button>
 
-      <button
-        onClick={() => inputRef.current?.showPicker?.()}
-        className="relative h-9 px-4 rounded-full border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] text-sm font-semibold text-zinc-700 dark:text-white/80 hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors flex items-center gap-2"
-      >
-        <CalendarDays className="h-3.5 w-3.5 text-zinc-400 dark:text-white/30" />
-        {formatHu(currentDate)}
-        <input
-          ref={inputRef}
-          type="date"
-          value={currentDate}
-          onChange={e => e.target.value && router.push(`/dashboard/bookings?date=${e.target.value}`)}
-          className="absolute inset-0 opacity-0 w-full cursor-pointer"
-          tabIndex={-1}
-        />
-      </button>
+        <button
+          onClick={() => inputRef.current?.showPicker?.()}
+          className="relative flex items-center gap-2 px-2 text-[13px] font-semibold text-ink"
+        >
+          <CalendarDays className="h-3.5 w-3.5 text-ink-soft" />
+          {formatHu(currentDate)}
+          <input
+            ref={inputRef}
+            type="date"
+            value={currentDate}
+            onChange={e => e.target.value && router.push(`/dashboard/bookings?date=${e.target.value}`)}
+            className="absolute inset-0 w-full cursor-pointer opacity-0"
+            tabIndex={-1}
+          />
+        </button>
 
-      <button
-        onClick={() => go(1)}
-        className="h-9 w-9 rounded-full border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] flex items-center justify-center text-zinc-400 dark:text-white/40 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-white/[0.2] transition-colors"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
+        <button
+          onClick={() => go(1)}
+          className="flex h-8 w-8 items-center justify-center rounded-full text-ink transition-colors hover:bg-white"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </button>
+      </div>
       {!isToday && (
         <button
           onClick={() => router.push(`/dashboard/bookings?date=${new Date().toISOString().split('T')[0]}`)}
-          className="h-9 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-semibold hover:bg-zinc-700 dark:hover:bg-white/90 transition-colors"
+          className="h-[42px] rounded-2xl bg-ink-dark px-4 text-[13px] font-semibold text-white transition-colors hover:opacity-90"
         >
           Ma
         </button>

@@ -40,13 +40,15 @@ export default function SubscriptionStatusSelect({ subId, currentStatus, current
     })
   }
 
+  const selectClass = 'text-[12px] font-medium bg-white border border-line text-ink rounded-[14px] px-2.5 py-1.5 focus:outline-none disabled:opacity-50 cursor-pointer'
+
   return (
     <div className="flex gap-1.5">
       <select
         value={plan}
         disabled={isPending}
         onChange={e => update(status, e.target.value)}
-        className="text-xs bg-zinc-100 dark:bg-white/[0.06] border border-zinc-200 dark:border-white/[0.08] text-zinc-700 dark:text-zinc-300 rounded-lg px-2 py-1 focus:outline-none disabled:opacity-50 cursor-pointer"
+        className={selectClass}
       >
         {PLAN_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>
@@ -54,7 +56,7 @@ export default function SubscriptionStatusSelect({ subId, currentStatus, current
         value={status}
         disabled={isPending}
         onChange={e => update(e.target.value, plan)}
-        className="text-xs bg-zinc-100 dark:bg-white/[0.06] border border-zinc-200 dark:border-white/[0.08] text-zinc-700 dark:text-zinc-300 rounded-lg px-2 py-1 focus:outline-none disabled:opacity-50 cursor-pointer"
+        className={selectClass}
       >
         {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
       </select>

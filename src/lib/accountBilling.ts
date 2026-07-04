@@ -1,15 +1,18 @@
 import { getPayloadClient } from './payload'
 import { getUserBusinesses, type BusinessType } from './activeBusiness'
-import { findAccountSubscription } from './accountSubscription'
+import { findAccountSubscription, countActiveStaffBySalon } from './accountSubscription'
 import { getPricing } from './pricing'
+import { businessMonthlyFee, applyCycle, resolveCycle, type Tier, type BillingCycle } from './tier'
 
 /**
  * Fiók-szintű számlázási áttekintés. Egy fiók = egy előfizetés; a fiók havidíja az üzletek
  * összetételéből áll. Ez a helper az üzlet-bontást adja a /subscription oldal listájához:
- * minden üzlet a típusa szerinti EGYSÉGÁRRAL (a globális `pricing-settings`-ből), a fiók
- * összdíja pedig a fiók-előfizetés `amount_huf`-ja (vagy az egységárak összege fallbackként).
+ * minden üzlet a saját TIERje (Start/Pro) szerinti egységárral (a globális `pricing-settings`-ből).
  *
- * Az üzletek akkor számítanak fizetősnek, ha a FIÓK előfizetése aktív (közös státusz).
+ * - `feeHuf` (per üzlet) = LISTA havi ár (kedvezmény nélkül) — a bontás tételei.
+ * - `listMonthlyHuf` = a lista-tételek összege.
+ * - `totalMonthlyHuf` = EFFEKTÍV havidíj: a fiók-előfizetés `amount_huf`-ja (a ciklus-kedvezménnyel
+ *   szinkronizált érték), fallback a ciklusra alkalmazott lista-összeg.
  */
 
 export interface AccountBillingItem {
@@ -17,13 +20,24 @@ export interface AccountBillingItem {
   id: string
   name: string
   slug: string
-  /** Az üzlet típusa szerinti egységár (a fiók-díjhoz adott hozzájárulás). */
+  /** Az üzlet csomagja (Start/Pro). */
+  tier: Tier
+  /** Aktív munkatársak/naptárak száma (csak szalonnál releváns; a per-fő díjhoz). */
+  staffCount: number
+  /** Az üzlet havi LISTA-díja (étterem = fix; szalon = alap + per-fő), kedvezmény nélkül. */
   feeHuf: number
 }
 
 export interface AccountBilling {
   items: AccountBillingItem[]
+  /** Effektív havidíj (a számlázási ciklus kedvezményével) — ez jelenik meg „Ft/hó"-ként. */
   totalMonthlyHuf: number
+  /** Lista havidíj (ciklus-kedvezmény nélkül) — a bontás tételeinek összege. */
+  listMonthlyHuf: number
+  /** A fiók számlázási ciklusa (havi/éves). */
+  cycle: BillingCycle
+  /** Éves kedvezmény %-a (a globális beállításból). */
+  annualDiscountPct: number
   count: number
   /** A fiók előfizetés státusza (közös), pl. trial alatt nincs tényleges díj. */
   accountStatus: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused' | null
@@ -31,7 +45,9 @@ export interface AccountBilling {
 
 export async function getAccountBilling(userId: string | number): Promise<AccountBilling> {
   const businesses = await getUserBusinesses(userId)
-  if (businesses.length === 0) return { items: [], totalMonthlyHuf: 0, count: 0, accountStatus: null }
+  if (businesses.length === 0) {
+    return { items: [], totalMonthlyHuf: 0, listMonthlyHuf: 0, cycle: 'monthly', annualDiscountPct: 0, count: 0, accountStatus: null }
+  }
 
   const payload = await getPayloadClient()
   const [sub, pricing] = await Promise.all([
@@ -39,17 +55,35 @@ export async function getAccountBilling(userId: string | number): Promise<Accoun
     getPricing(),
   ])
 
-  const items: AccountBillingItem[] = businesses.map((b) => ({
-    type: b.type,
-    id: b.id,
-    name: b.name,
-    slug: b.slug,
-    feeHuf: b.type === 'salon' ? pricing.salon_pro_huf : pricing.restaurant_pro_huf,
-  }))
+  // Szalon per-fő díjhoz: aktív munkatársak szalononként.
+  const salonIds = businesses.filter((b) => b.type === 'salon').map((b) => b.id)
+  const staffBySalon = await countActiveStaffBySalon(payload, salonIds)
 
-  // A fiók összdíja: az előfizetésben tárolt amount_huf (a sync-elt érték), fallback az egységárak összege.
-  const computed = items.reduce((s, it) => s + it.feeHuf, 0)
-  const totalMonthlyHuf = sub?.amount_huf ?? computed
+  const items: AccountBillingItem[] = businesses.map((b) => {
+    const staffCount = b.type === 'salon' ? (staffBySalon.get(String(b.id)) ?? 0) : 0
+    return {
+      type: b.type,
+      id: b.id,
+      name: b.name,
+      slug: b.slug,
+      tier: b.tier,
+      staffCount,
+      feeHuf: businessMonthlyFee(pricing, b.type, staffCount),
+    }
+  })
 
-  return { items, totalMonthlyHuf, count: businesses.length, accountStatus: sub?.status ?? null }
+  const listMonthlyHuf = items.reduce((s, it) => s + it.feeHuf, 0)
+  const cycle = resolveCycle(sub?.billing_cycle)
+  // Effektív díj: a sync-elt amount_huf (elsődleges), fallback a ciklusra alkalmazott lista-összeg.
+  const totalMonthlyHuf = sub?.amount_huf ?? applyCycle(listMonthlyHuf, cycle, pricing.annual_discount_pct)
+
+  return {
+    items,
+    totalMonthlyHuf,
+    listMonthlyHuf,
+    cycle,
+    annualDiscountPct: pricing.annual_discount_pct,
+    count: businesses.length,
+    accountStatus: sub?.status ?? null,
+  }
 }

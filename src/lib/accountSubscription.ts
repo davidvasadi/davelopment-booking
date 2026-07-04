@@ -1,14 +1,16 @@
 import type { Payload, PayloadRequest } from 'payload'
 import type { Subscription } from '@/payload/payload-types'
+import type { Pricing } from './pricing'
+import { businessMonthlyFee, applyCycle, resolveCycle } from './tier'
 
 const MS_PER_DAY = 86_400_000
-const PRICING_FALLBACK = { salon_pro_huf: 2900, restaurant_pro_huf: 9900, trial_days: 14 }
 
 type Ctx = { payload: Payload; req?: PayloadRequest }
 
 export interface AccountFee {
   salonCount: number
   restaurantCount: number
+  /** A fiók havi LISTA-díja (üzletek tierje szerinti egységárak összege, ciklus-kedvezmény NÉLKÜL). */
   amountHuf: number
   /** Olvasható összetétel, pl. „2 étterem + 1 szalon". */
   breakdown: string
@@ -26,31 +28,68 @@ export interface AccountFee {
  * csak a tiszta üzlet×egységár.
  */
 
-async function readPricing(payload: Payload, req?: PayloadRequest) {
-  try {
-    const g = (await payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true, req })) as {
-      salon_pro_huf?: number; restaurant_pro_huf?: number; trial_days?: number
-    }
-    return {
-      salon_pro_huf: g?.salon_pro_huf ?? PRICING_FALLBACK.salon_pro_huf,
-      restaurant_pro_huf: g?.restaurant_pro_huf ?? PRICING_FALLBACK.restaurant_pro_huf,
-      trial_days: g?.trial_days ?? PRICING_FALLBACK.trial_days,
-    }
-  } catch {
-    return { ...PRICING_FALLBACK }
+// Az árazás kiolvasása a globalből (req-kontextusban, hookokhoz). NINCS fallback — az érték
+// kizárólag a beállított `pricing-settings`-ből jön (required + defaultValue mezők).
+async function readPricing(payload: Payload, req?: PayloadRequest): Promise<Pricing> {
+  const g = (await payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true, req })) as Pricing
+  return {
+    salon_pro_huf: g.salon_pro_huf,
+    salon_extra_staff_huf: g.salon_extra_staff_huf,
+    restaurant_pro_huf: g.restaurant_pro_huf,
+    annual_discount_pct: g.annual_discount_pct,
+    trial_days: g.trial_days,
   }
 }
 
-/** A fiók üzlet-összetétele + a számolt teljes havidíj. */
+/**
+ * Aktív munkatársak (naptárak) száma szalononként — a szalon per-fő díjához. Egy lekérdezés az
+ * összes érintett szalonra, majd JS-oldali csoportosítás. Üres id-lista esetén üres map.
+ */
+export async function countActiveStaffBySalon(
+  payload: Payload,
+  salonIds: Array<string | number>,
+  req?: PayloadRequest,
+): Promise<Map<string, number>> {
+  const map = new Map<string, number>()
+  if (salonIds.length === 0) return map
+  const res = await payload.find({
+    collection: 'staff',
+    where: { and: [{ salon: { in: salonIds } }, { is_active: { equals: true } }] },
+    limit: 5000,
+    depth: 0,
+    overrideAccess: true,
+    req,
+  })
+  for (const st of res.docs as Array<{ salon?: unknown }>) {
+    const sid = st.salon && typeof st.salon === 'object' ? (st.salon as { id: unknown }).id : st.salon
+    if (sid == null) continue
+    const key = String(sid)
+    map.set(key, (map.get(key) ?? 0) + 1)
+  }
+  return map
+}
+
+/**
+ * A fiók üzlet-összetétele + a számolt LISTA havidíj (üzletek tierje szerinti egységárak összege,
+ * ciklus-kedvezmény nélkül). A ciklus (havi/éves) kedvezményét a `syncAccountSubscription` alkalmazza
+ * az `amount_huf`-ra. Megj.: a limit 200 — efölött a Lánc (egyedi ár) tartomány kezeli az esetet.
+ */
 export async function computeAccountFee({ payload, req }: Ctx, userId: string | number): Promise<AccountFee> {
   const [salons, restaurants, pricing] = await Promise.all([
     payload.find({ collection: 'salons', where: { owner: { equals: userId } }, limit: 200, depth: 0, overrideAccess: true, req }),
     payload.find({ collection: 'restaurants', where: { owner: { equals: userId } }, limit: 200, depth: 0, overrideAccess: true, req }),
     readPricing(payload, req),
   ])
+  const salonDocs = salons.docs as Array<{ id: string | number }>
   const salonCount = salons.totalDocs
   const restaurantCount = restaurants.totalDocs
-  const amountHuf = salonCount * pricing.salon_pro_huf + restaurantCount * pricing.restaurant_pro_huf
+
+  // Szalon per-fő: aktív munkatársak száma szalononként → díj = alap + (fő − benne foglalt) × extra.
+  const staffBySalon = await countActiveStaffBySalon(payload, salonDocs.map((s) => s.id), req)
+  const salonSum = salonDocs.reduce(
+    (sum, s) => sum + businessMonthlyFee(pricing, 'salon', staffBySalon.get(String(s.id)) ?? 0), 0)
+  const restaurantSum = restaurantCount * businessMonthlyFee(pricing, 'restaurant')
+  const amountHuf = salonSum + restaurantSum
 
   const parts: string[] = []
   if (restaurantCount) parts.push(`${restaurantCount} étterem`)
@@ -123,6 +162,12 @@ export async function syncAccountSubscription({ payload, req }: Ctx, userId: str
     return
   }
 
+  // A tárolt amount_huf az EFFEKTÍV havidíj: a lista-díjra ráültetjük a számlázási ciklus
+  // (havi/éves) kedvezményét, hogy a fiók díja azonnal kövesse az üzlet- és ciklus-változást.
+  const pricing = await readPricing(payload, req)
+  const cycle = resolveCycle(existing.billing_cycle)
+  const effectiveAmount = applyCycle(fee.amountHuf, cycle, pricing.annual_discount_pct)
+
   await payload.update({
     collection: 'subscriptions',
     id: existing.id,
@@ -131,7 +176,7 @@ export async function syncAccountSubscription({ payload, req }: Ctx, userId: str
     data: {
       salon_count: fee.salonCount,
       restaurant_count: fee.restaurantCount,
-      amount_huf: fee.amountHuf,
+      amount_huf: effectiveAmount,
       breakdown: fee.breakdown,
     },
   })

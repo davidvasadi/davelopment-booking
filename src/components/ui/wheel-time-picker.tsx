@@ -33,6 +33,7 @@ function WheelColumn({ values, value, onChange }: { values: string[]; value: str
     <div
       ref={ref}
       onScroll={onScroll}
+      data-lenis-prevent
       className="h-[200px] w-20 overflow-y-auto snap-y snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
     >
       <div style={{ height: ITEM_H * 2 }} />
@@ -41,7 +42,7 @@ function WheelColumn({ values, value, onChange }: { values: string[]; value: str
           key={v}
           className={cn(
             'flex h-10 snap-center items-center justify-center text-xl tabular-nums transition-colors',
-            v === value ? 'font-bold text-zinc-900 dark:text-white' : 'text-zinc-300 dark:text-white/25'
+            v === value ? 'font-semibold text-ink' : 'text-ink-soft2/50'
           )}
         >
           {v}
@@ -74,21 +75,21 @@ export function WheelTimePicker({
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent side="bottom" className="rounded-t-3xl border-t border-zinc-100 dark:border-white/[0.08] bg-white dark:bg-zinc-950 font-geist">
+      <SheetContent side="bottom" className="rounded-t-[26px] border-t border-line bg-white font-onest">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <p className="font-bold text-zinc-900 dark:text-white truncate">{title}</p>
-            {subtitle && <p className="text-xs text-zinc-400 dark:text-white/30 truncate">{subtitle}</p>}
+            <p className="font-semibold text-ink truncate">{title}</p>
+            {subtitle && <p className="text-xs text-ink-soft truncate">{subtitle}</p>}
           </div>
-          <button type="button" onClick={onClose} className="h-9 shrink-0 rounded-xl bg-[#5B54E8] px-5 text-sm font-semibold text-white">Kész</button>
+          <button type="button" onClick={onClose} className="h-9 shrink-0 rounded-dav-pill bg-ink-dark px-5 text-sm font-semibold text-white">Kész</button>
         </div>
 
         <div className="relative">
           {/* középső kijelölő-sáv */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-10 w-44 -translate-x-1/2 -translate-y-1/2 rounded-xl bg-[#5B54E8]/[0.08]" />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-10 w-44 -translate-x-1/2 -translate-y-1/2 rounded-xl bg-ink-dark/[0.06]" />
           <div className="flex items-center justify-center gap-1">
             <WheelColumn values={HOURS} value={h} onChange={(nh) => onChange(`${nh}:${mm}`)} />
-            <span className="text-xl font-bold text-zinc-300 dark:text-white/25">:</span>
+            <span className="text-xl font-semibold text-ink-soft2/50">:</span>
             <WheelColumn values={MINUTES} value={mm} onChange={(nm) => onChange(`${h}:${nm}`)} />
           </div>
         </div>
@@ -102,7 +103,7 @@ export function WheelTimePicker({
                 onClick={() => onChange(s)}
                 className={cn(
                   'h-9 rounded-xl px-3 text-xs font-semibold tabular-nums transition-colors',
-                  s === value ? 'bg-[#5B54E8] text-white' : 'bg-zinc-100 text-zinc-600 dark:bg-white/[0.06] dark:text-white/60'
+                  s === value ? 'bg-ink-dark text-white' : 'bg-[var(--dav-glass)] text-ink-soft border border-line'
                 )}
               >
                 {s}

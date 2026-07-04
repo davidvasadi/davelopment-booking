@@ -32,7 +32,7 @@ export function UserAvatar({
         src={src}
         alt={name ?? 'Profil'}
         style={dim}
-        className={cn('rounded-full object-cover bg-zinc-100 dark:bg-white/[0.06]', className)}
+        className={cn('rounded-full object-cover object-top bg-zinc-100 dark:bg-white/[0.06]', className)}
         referrerPolicy="no-referrer"
       />
     )

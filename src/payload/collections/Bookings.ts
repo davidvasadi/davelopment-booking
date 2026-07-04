@@ -1,6 +1,7 @@
 import { CollectionConfig } from 'payload'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
 import { userOwnsSalon } from '../lib/salonOwnerAccess'
+import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const Bookings: CollectionConfig = {
   slug: 'bookings',
@@ -131,6 +132,29 @@ export const Bookings: CollectionConfig = {
       label: 'Megjegyzések',
     },
     {
+      // Idempotencia: az értesítési cron állítja true-ra, ha kiment az emlékeztető /
+      // visszajelzés-kérő email — így a cron nem küld duplán.
+      name: 'reminder_sent',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'feedback_sent',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      // Ismétlődő foglalás-sorozat közös azonosítója (opcionális). Egyszeri foglalásnál üres.
+      // Ugyanaz az érték köti össze a sorozat tagjait; indexelt a sorozat-lekérdezéshez.
+      name: 'series_id',
+      type: 'text',
+      index: true,
+      label: 'Sorozat azonosító',
+      admin: { readOnly: true, position: 'sidebar' },
+    },
+    {
       name: 'cancellation_token',
       type: 'text',
       index: true,
@@ -155,7 +179,8 @@ export const Bookings: CollectionConfig = {
     },
   ],
   hooks: {
-    afterChange: [notifyOnBooking('salon')],
+    afterChange: [notifyOnBooking('salon'), auditAfterChange('Foglalás', 'salon')],
+    afterDelete: [auditAfterDelete('Foglalás', 'salon')],
   },
   timestamps: true,
 }

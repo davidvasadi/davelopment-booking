@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { sendCancellationEmail } from '@/lib/email'
+import { promoteWaitlistOnCancel } from '@/lib/waitlistPromote'
 import type { Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
 export async function GET(
@@ -9,6 +10,9 @@ export async function GET(
 ) {
   const { token } = await params
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  // Opcionális sorozat-lemondás: ?scope=series → a token foglalásán túl a sorozat
+  // JÖVŐBELI, nem lemondott alkalmait is lemondja. Hiánya → csak az egy alkalom (változatlan).
+  const cancelSeries = _req.nextUrl.searchParams.get('scope') === 'series'
 
   try {
     const payload = await getPayloadClient()
@@ -47,7 +51,37 @@ export async function GET(
       payload.findByID({ collection: 'staff', id: String(typeof booking.staff === 'object' ? booking.staff.id : booking.staff) }) as Promise<StaffMember>,
     ])
 
-    void sendCancellationEmail({ booking, salon, service, staff })
+    if (salon.notification_prefs?.cancel_email !== false) {
+      void sendCancellationEmail({ booking, salon, service, staff })
+    }
+
+    // Auto-promote: a felszabaduló időpontra egyező várólista-bejegyzés értesítése (ha be van kapcsolva).
+    void promoteWaitlistOnCancel({ kind: 'salon', business: salon, date: booking.date, time: booking.start_time })
+
+    // Sorozat-lemondás: a token foglalás series_id-jéhez tartozó JÖVŐBELI (a mai naptól),
+    // még nem lemondott/befejezett alkalmakat is lemondjuk. Csak explicit ?scope=series-re.
+    if (cancelSeries && booking.series_id) {
+      const today = new Date().toISOString().split('T')[0]
+      const siblings = await payload.find({
+        collection: 'bookings',
+        where: {
+          series_id: { equals: booking.series_id },
+          id: { not_equals: booking.id },
+          status: { in: ['pending', 'confirmed'] },
+          date: { greater_than_equal: today },
+        },
+        limit: 100,
+        depth: 0,
+        overrideAccess: true,
+      })
+      for (const sib of siblings.docs as Booking[]) {
+        await payload.update({ collection: 'bookings', id: sib.id, data: { status: 'cancelled' }, overrideAccess: true })
+        if (salon.notification_prefs?.cancel_email !== false) {
+          void sendCancellationEmail({ booking: { ...sib, status: 'cancelled' }, salon, service, staff })
+        }
+        void promoteWaitlistOnCancel({ kind: 'salon', business: salon, date: sib.date, time: sib.start_time })
+      }
+    }
 
     const salonName = encodeURIComponent(salon.name)
     const serviceName = encodeURIComponent(service.name)

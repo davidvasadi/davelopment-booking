@@ -8,7 +8,7 @@ import { hu } from 'date-fns/locale'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { TimeSelect } from '@/components/ui/time-select'
 import { WheelTimePicker } from '@/components/ui/wheel-time-picker'
-import { ChevronLeft, ChevronRight, ChevronDown, CalendarDays, CalendarOff, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, CalendarDays, CalendarOff, Clock, Plus, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const DAY_LABELS = ['H', 'K', 'Sz', 'Cs', 'P', 'Szo', 'V']
@@ -30,12 +30,20 @@ type EditState = {
   close_time: string
 }
 
+type WeeklyHours = Record<string, { is_open: boolean; open_time: string; close_time: string }>
+
 export function OpeningHoursExceptions({
   restaurantId,
   initial,
+  variant = 'default',
+  weeklyHours,
 }: {
   restaurantId: number | string
   initial: Exception[]
+  /** 'tiles' = a Nyitvatartás-oldal referencia dátum-tile kártyája. */
+  variant?: 'default' | 'tiles'
+  /** A rendes heti nyitvatartás (nap → idők) — helyes felirathoz + „rendessel megegyező = törlés". */
+  weeklyHours?: WeeklyHours
 }) {
   const router = useRouter()
   const today = new Date()
@@ -80,6 +88,20 @@ export function OpeningHoursExceptions({
 
   const saveDay = async () => {
     if (!editState || !selectedDate) return
+    // Ha a nyitott eltérés MEGEGYEZIK a nap rendes nyitvatartásával → nincs rá szükség: töröljük
+    // (ha volt), vagy meg se hozzuk létre → eltűnik a listáról.
+    if (matchesNormal(selectedDate, editState)) {
+      if (editState.id) {
+        await deleteExc({ id: editState.id, start_date: selectedDate })
+        toast.success('Megegyezik a rendes nyitvatartással — az eltérő nap törölve')
+      } else {
+        toast.success('Ez a rendes nyitvatartás — nincs szükség eltérő napra')
+      }
+      setEditState(null)
+      setSelectedDate(null)
+      setOpen(false)
+      return
+    }
     setSaving(true)
     try {
       const body = {
@@ -142,6 +164,61 @@ export function OpeningHoursExceptions({
     }
   }
 
+  // ── Rendes nyitvatartás összevetése (felirat + „megegyező = felesleges eltérés") ──
+  const HM = (t?: string | null) => {
+    if (!t) return 0
+    const [h, m] = t.split(':').map(Number)
+    return (h || 0) * 60 + (m || 0)
+  }
+  const durationOf = (open?: string | null, close?: string | null) => {
+    const o = HM(open)
+    let c = HM(close)
+    if (c <= o) c += 1440 // 00:00 / éjfél utáni zárás
+    return c - o
+  }
+  const WK = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  const normalFor = (dateStr: string) => {
+    if (!weeklyHours) return null
+    const d = new Date(dateStr + 'T00:00:00')
+    return weeklyHours[WK[d.getDay()]] ?? null
+  }
+  /** Egy NYITOTT eltérés megegyezik-e a nap rendes nyitvatartásával → felesleges. */
+  const matchesNormal = (dateStr: string, st: EditState) => {
+    const n = normalFor(dateStr)
+    return !st.is_closed && !!n && n.is_open && n.open_time === st.open_time && n.close_time === st.close_time
+  }
+  const excSubtitle = (x: Exception): string => {
+    if (x.is_closed) return 'Egész nap zárva'
+    const n = normalFor(x.start_date)
+    if (!n || !n.is_open) return 'Rendhagyó nyitva'
+    const xd = durationOf(x.open_time, x.close_time)
+    const nd = durationOf(n.open_time, n.close_time)
+    if (xd > nd) return 'Hosszabbított nyitva'
+    if (xd < nd) return 'Rövidített nyitva'
+    return 'Módosított időpont'
+  }
+
+  /** Gyors törlés (a listáról közvetlenül). */
+  const deleteExc = async (exc: Pick<Exception, 'id' | 'start_date'>) => {
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/opening-hours-exceptions/${exc.id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) throw new Error()
+      setExceptions((prev) => {
+        const next = { ...prev }
+        delete next[exc.start_date]
+        return next
+      })
+      if (selectedDate === exc.start_date) { setEditState(null); setSelectedDate(null) }
+      router.refresh()
+      toast.success('Törölve')
+    } catch {
+      toast.error('Nem sikerült törölni')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const monthStart = startOfMonth(month)
   const days = eachDayOfInterval({ start: monthStart, end: endOfMonth(month) })
   const startPad = (monthStart.getDay() + 6) % 7
@@ -166,7 +243,7 @@ export function OpeningHoursExceptions({
     return [...map.entries()].map(([key, v]) => ({ key, ...v }))
   })()
 
-  // Összecsukott hónap-szekciók (localStorage, böngészőnként) — mint a TablesManagernél.
+  // Összecsukott hónap-szekciók (localStorage, böngészőnként).
   const COLLAPSE_KEY = `exc-collapsed-${restaurantId}`
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   useEffect(() => {
@@ -192,30 +269,129 @@ export function OpeningHoursExceptions({
     selectDay(new Date(dateStr + 'T00:00:00'))
   }
 
-  const card = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] rounded-2xl'
+  const card = 'bg-white border border-line shadow-dav-card rounded-[26px]'
+
+  const MONTH_ABBR = ['JAN', 'FEB', 'MÁR', 'ÁPR', 'MÁJ', 'JÚN', 'JÚL', 'AUG', 'SZEP', 'OKT', 'NOV', 'DEC']
+
+  // A naptár + nap-szerkesztő + időválasztó sheet — mindkét variáns ezt használja (CRUD változatlan).
+  const renderSheet = () => (
+    <>
+      <Sheet open={open} onOpenChange={(v) => { if (!v) setOpen(false) }}>
+        <SheetContent side={side} className={cn('w-full overflow-y-auto', side === 'bottom' ? 'rounded-t-[26px] max-h-[88vh]' : 'sm:max-w-md')}>
+          <SheetHeader className="mb-6">
+            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">
+              Nyitvatartási kivételek
+            </SheetTitle>
+          </SheetHeader>
+          {renderSheetBody()}
+        </SheetContent>
+      </Sheet>
+
+      {/* Kerék időválasztó (mobil) — a Kivételek-szerkesztő fölött */}
+      {editState && !editState.is_closed && (
+        <WheelTimePicker
+          open={excPicker != null}
+          onClose={() => setExcPicker(null)}
+          title={excPicker === 'close' ? 'Záróra' : 'Nyitás'}
+          value={excPicker === 'close' ? editState.close_time : editState.open_time}
+          onChange={(v) => setEditState((s) => (s ? { ...s, [excPicker === 'close' ? 'close_time' : 'open_time']: v } : null))}
+          shorthands={excPicker === 'close' ? ['22:00', '22:30', '23:00', '00:00'] : ['08:00', '09:00', '10:00', '11:00']}
+        />
+      )}
+    </>
+  )
+
+  // ── Referencia dátum-tile variáns (Nyitvatartás-oldal jobb oszlop) ──
+  if (variant === 'tiles') {
+    return (
+      <>
+        <div className={cn(card, 'px-5 py-5 sm:px-6')}>
+          <div className="flex items-center justify-between">
+            <span className="text-[15px] font-semibold text-ink">Eltérő napok</span>
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label="Eltérő nap hozzáadása"
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-ink-dark transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5 text-gold" strokeWidth={1.9} />
+            </button>
+          </div>
+
+          {sortedExceptions.length === 0 ? (
+            <p className="pt-4 text-[13px] text-ink-soft">Nincs eltérő nap. Adj hozzá ünnepnapot vagy rövidített nyitvatartást a „+” gombbal.</p>
+          ) : (
+            sortedExceptions.map((x, i) => {
+              const d = new Date(x.start_date + 'T00:00:00')
+              return (
+                <div
+                  key={x.id}
+                  className={cn(
+                    'group flex w-full items-center gap-2',
+                    i < sortedExceptions.length - 1 && 'border-b border-line',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => openOnDay(x.start_date)}
+                    className="flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left"
+                  >
+                    <div className="flex h-[42px] w-[42px] shrink-0 flex-col items-center justify-center rounded-xl bg-white shadow-[0_1px_3px_rgba(0,0,0,.06)]">
+                      <span className="text-sm font-semibold leading-none text-ink">{String(d.getDate()).padStart(2, '0')}</span>
+                      <span className={cn('text-[9px] font-medium', x.is_closed ? 'text-bad' : 'text-[#9A8B52]')}>{MONTH_ABBR[d.getMonth()]}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[13px] font-semibold text-ink">
+                        {x.label || format(d, 'MMMM d., EEEE', { locale: hu })}
+                      </div>
+                      <div className="text-xs text-ink-soft">{excSubtitle(x)}</div>
+                    </div>
+                    {x.is_closed ? (
+                      <span className="shrink-0 rounded-[9px] bg-bad-bg px-2.5 py-1 text-[11px] font-semibold text-bad">Zárva</span>
+                    ) : (
+                      <span className="shrink-0 rounded-[9px] bg-paper px-2.5 py-1 text-[11px] font-semibold text-ink">{x.open_time}–{x.close_time}</span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => deleteExc(x)}
+                    disabled={saving}
+                    aria-label="Eltérő nap törlése"
+                    title="Törlés"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft2 transition-colors hover:bg-bad-bg hover:text-bad disabled:opacity-40"
+                  >
+                    <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.7} />
+                  </button>
+                </div>
+              )
+            })
+          )}
+        </div>
+        {renderSheet()}
+      </>
+    )
+  }
 
   return (
     <>
-      {/* Kompakt kártya — mobilon egy sor (ikon + „Kivételek kezelése" + nyíl),
-          desktopon ikon + cím + leírás + gomb. A teljes kártya kattintható. */}
-      <button onClick={() => setOpen(true)} className={cn(card, 'w-full flex items-center gap-3 p-4 lg:p-5 text-left transition-colors hover:border-zinc-300 dark:hover:border-white/[0.16]')}>
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-zinc-600 dark:bg-white/[0.06] dark:text-white/60">
+      {/* Kompakt kártya — a teljes kártya kattintható. */}
+      <button onClick={() => setOpen(true)} className={cn(card, 'w-full flex items-center gap-3 p-4 lg:p-5 text-left transition-colors hover:border-line-strong')}>
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-paper text-ink-soft">
           <CalendarDays className="h-5 w-5" />
         </span>
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-zinc-900 dark:text-white">Kivételek kezelése</h3>
-          <p className="hidden sm:block text-sm text-zinc-500 dark:text-white/40">Ünnepnapok és eltérő nyitvatartás — ezek felülírják a heti rendet.</p>
+          <h3 className="font-semibold text-ink">Eltérő napok</h3>
+          <p className="hidden sm:block text-sm text-ink-soft">Ünnepnapok és eltérő nyitvatartás — ezek felülírják a heti rendet.</p>
         </div>
         {exceptionCount > 0 && (
-          <span className="shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-900 px-1.5 text-[11px] font-bold text-white dark:bg-white dark:text-black">
+          <span className="shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-ink-dark px-1.5 text-[11px] font-bold text-white">
             {exceptionCount}
           </span>
         )}
-        <ChevronRight className="h-5 w-5 shrink-0 text-zinc-300 dark:text-white/20" />
+        <ChevronRight className="h-5 w-5 shrink-0 text-ink-soft2" />
       </button>
 
-      {/* Oldali, hónap szerint csoportosított, összecsukható lista — sok kivételnél is átlátható.
-          A lista görgethető (max-h), ezért nem folyik le a képernyőről. */}
+      {/* Oldali, hónap szerint csoportosított, összecsukható lista. */}
       {groups.length > 0 && (
         <div className="mt-4 space-y-3">
           {groups.map((g) => {
@@ -228,32 +404,32 @@ export function OpeningHoursExceptions({
                   title={isCollapsed ? 'Kibontás' : 'Összecsukás'}
                 >
                   <span className="flex items-center gap-2 min-w-0">
-                    <ChevronDown className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
-                    <span className="font-semibold text-sm text-zinc-900 capitalize dark:text-white truncate">{g.label}</span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-ink-soft transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+                    <span className="font-semibold text-sm text-ink capitalize truncate">{g.label}</span>
                   </span>
-                  <span className="shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-zinc-100 px-1.5 text-[11px] font-bold text-zinc-600 dark:bg-white/[0.08] dark:text-white/60">
+                  <span className="shrink-0 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-paper px-1.5 text-[11px] font-bold text-ink-soft">
                     {g.items.length}
                   </span>
                 </button>
                 {!isCollapsed && (
-                  <div className="max-h-72 overflow-y-auto border-t border-zinc-100 dark:border-white/[0.06] divide-y divide-zinc-50 dark:divide-white/[0.04]">
+                  <div className="max-h-72 overflow-y-auto border-t border-line divide-y divide-line">
                     {g.items.map((x) => (
                       <button
                         key={x.id}
                         onClick={() => openOnDay(x.start_date)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-white/[0.03]"
+                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-paper/60"
                       >
                         <span className={cn(
                           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-                          x.is_closed ? 'bg-red-50 text-red-500 dark:bg-red-500/10' : 'bg-[#5B54E8]/10 text-[#5B54E8]',
+                          x.is_closed ? 'bg-bad-bg text-bad' : 'bg-ink-dark/10 text-ink',
                         )}>
                           {x.is_closed ? <CalendarOff className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                         </span>
                         <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-semibold capitalize text-zinc-800 dark:text-white/90">
+                          <span className="block text-sm font-semibold capitalize text-ink">
                             {format(new Date(x.start_date + 'T00:00:00'), 'MMMM d., EEEE', { locale: hu })}
                           </span>
-                          <span className="block text-xs text-zinc-500 dark:text-white/40">
+                          <span className="block text-xs text-ink-soft">
                             {x.is_closed ? 'Zárva' : `${x.open_time}–${x.close_time}`}
                           </span>
                         </span>
@@ -267,31 +443,29 @@ export function OpeningHoursExceptions({
         </div>
       )}
 
-      <Sheet open={open} onOpenChange={(v) => { if (!v) setOpen(false) }}>
-        <SheetContent side={side} className={cn('w-full overflow-y-auto', side === 'bottom' ? 'rounded-t-3xl max-h-[88vh]' : 'sm:max-w-md')}>
-          <SheetHeader className="mb-6">
-            <SheetTitle className="text-xl font-black tracking-tight">
-              Nyitvatartási kivételek
-            </SheetTitle>
-          </SheetHeader>
+      {renderSheet()}
+    </>
+  )
 
+  function renderSheetBody() {
+    return (
           <div className="space-y-5">
             {/* Hónapnavigáció */}
             <div className="flex items-center justify-between">
               <button
                 onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
                 disabled={month <= minMonth}
-                className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 transition-colors dark:hover:bg-white/[0.06]"
+                className="h-8 w-8 rounded-full flex items-center justify-center text-ink-soft hover:bg-paper disabled:opacity-30 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <p className="font-black text-sm text-zinc-900 capitalize dark:text-white">
+              <p className="font-semibold text-sm text-ink capitalize">
                 {format(month, 'MMMM yyyy', { locale: hu })}
               </p>
               <button
                 onClick={() => setMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
                 disabled={month >= maxMonth}
-                className="h-8 w-8 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 transition-colors dark:hover:bg-white/[0.06]"
+                className="h-8 w-8 rounded-full flex items-center justify-center text-ink-soft hover:bg-paper disabled:opacity-30 transition-colors"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -301,7 +475,7 @@ export function OpeningHoursExceptions({
             <div>
               <div className="grid grid-cols-7 mb-1">
                 {DAY_LABELS.map((l) => (
-                  <div key={l} className="text-center text-xs font-semibold text-zinc-400 py-1">{l}</div>
+                  <div key={l} className="text-center text-xs font-semibold text-ink-soft2 py-1">{l}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7 gap-1">
@@ -319,17 +493,17 @@ export function OpeningHoursExceptions({
                       className={cn(
                         'relative aspect-square flex flex-col items-center justify-center rounded-xl text-xs font-semibold transition-all',
                         isPast && 'opacity-25 cursor-default',
-                        isToday(d) && !isSelected && 'ring-2 ring-zinc-950 ring-offset-1 dark:ring-white',
-                        isSelected ? 'bg-zinc-950 text-white dark:bg-white dark:text-black' : !isPast && 'hover:bg-zinc-100 text-zinc-900 dark:hover:bg-white/[0.06] dark:text-white'
+                        isToday(d) && !isSelected && 'ring-2 ring-ink-dark ring-offset-1',
+                        isSelected ? 'bg-ink-dark text-white' : !isPast && 'hover:bg-paper text-ink'
                       )}
                     >
                       <span>{d.getDate()}</span>
                       {!isPast && (
                         <span className={cn(
                           'h-1 w-1 rounded-full mt-0.5',
-                          isSelected ? 'bg-white/60 dark:bg-black/40' :
-                          exc?.is_closed ? 'bg-red-400' :
-                          exc ? 'bg-[#5B54E8]' : 'bg-transparent'
+                          isSelected ? 'bg-white/60' :
+                          exc?.is_closed ? 'bg-bad' :
+                          exc ? 'bg-ink-dark' : 'bg-transparent'
                         )} />
                       )}
                     </button>
@@ -339,23 +513,23 @@ export function OpeningHoursExceptions({
             </div>
 
             {/* Jelmagyarázat */}
-            <div className="flex items-center gap-5 text-xs text-zinc-400 pb-2">
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-400 shrink-0" />Zárva</span>
-              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#5B54E8] shrink-0" />Eltérő nyitvatartás</span>
+            <div className="flex items-center gap-5 text-xs text-ink-soft2 pb-2">
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-bad shrink-0" />Zárva</span>
+              <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-ink-dark shrink-0" />Eltérő nyitvatartás</span>
             </div>
 
             {/* Nap-szerkesztő */}
             {selectedDate && editState && (
-              <div className="bg-zinc-50 rounded-2xl p-5 space-y-4 dark:bg-white/[0.04]">
+              <div className="bg-paper rounded-[22px] p-5 space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="font-bold text-sm text-zinc-900 dark:text-white">
+                  <p className="font-semibold text-sm text-ink">
                     {format(new Date(selectedDate + 'T00:00:00'), 'MMMM d., EEEE', { locale: hu })}
                   </p>
                   {exceptions[selectedDate] && (
                     <button
                       onClick={resetDay}
                       disabled={saving}
-                      className="text-xs text-zinc-400 hover:text-red-500 transition-colors"
+                      className="text-xs text-ink-soft2 hover:text-bad transition-colors"
                     >
                       Visszaállít
                     </button>
@@ -368,7 +542,7 @@ export function OpeningHoursExceptions({
                     onClick={() => setEditState((s) => s ? { ...s, is_closed: !s.is_closed } : null)}
                     className={cn(
                       'w-10 h-6 rounded-full transition-colors relative shrink-0',
-                      editState.is_closed ? 'bg-red-500' : 'bg-[#5B54E8]'
+                      editState.is_closed ? 'bg-bad' : 'bg-ink-dark'
                     )}
                   >
                     <span className={cn(
@@ -376,7 +550,7 @@ export function OpeningHoursExceptions({
                       editState.is_closed ? 'left-1' : 'left-5'
                     )} />
                   </button>
-                  <span className="text-sm font-medium text-zinc-700 dark:text-white/70">
+                  <span className="text-sm font-medium text-ink-soft">
                     {editState.is_closed ? 'Zárva ezen a napon' : 'Eltérő nyitvatartás'}
                   </span>
                 </div>
@@ -384,9 +558,9 @@ export function OpeningHoursExceptions({
                 {!editState.is_closed && (
                   side === 'bottom' ? (
                     <div className="flex items-center gap-3">
-                      <button type="button" onClick={() => setExcPicker('open')} className="flex-1 h-12 rounded-2xl bg-zinc-100 dark:bg-white/[0.06] text-lg font-semibold tabular-nums text-zinc-900 dark:text-white">{editState.open_time}</button>
-                      <span className="text-sm text-zinc-300 dark:text-white/25">–</span>
-                      <button type="button" onClick={() => setExcPicker('close')} className="flex-1 h-12 rounded-2xl bg-zinc-100 dark:bg-white/[0.06] text-lg font-semibold tabular-nums text-zinc-900 dark:text-white">{editState.close_time}</button>
+                      <button type="button" onClick={() => setExcPicker('open')} className="flex-1 h-12 rounded-2xl bg-white border border-line text-lg font-semibold tabular-nums text-ink">{editState.open_time}</button>
+                      <span className="text-sm text-ink-soft2">–</span>
+                      <button type="button" onClick={() => setExcPicker('close')} className="flex-1 h-12 rounded-2xl bg-white border border-line text-lg font-semibold tabular-nums text-ink">{editState.close_time}</button>
                     </div>
                   ) : (
                     <div className="flex items-center gap-3">
@@ -395,7 +569,7 @@ export function OpeningHoursExceptions({
                         onChange={(v) => setEditState((s) => s ? { ...s, open_time: v } : null)}
                         className="w-[7rem]"
                       />
-                      <span className="text-sm text-zinc-300 dark:text-white/25">–</span>
+                      <span className="text-sm text-ink-soft2">–</span>
                       <TimeSelect
                         value={editState.close_time}
                         onChange={(v) => setEditState((s) => s ? { ...s, close_time: v } : null)}
@@ -408,7 +582,7 @@ export function OpeningHoursExceptions({
                 <button
                   onClick={saveDay}
                   disabled={saving}
-                  className="w-full h-11 rounded-full bg-zinc-950 text-white text-sm font-semibold hover:bg-zinc-800 transition-colors disabled:opacity-50 dark:bg-white dark:text-black dark:hover:bg-white/90"
+                  className="w-full h-11 rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   {saving ? 'Mentés...' : 'Mentés'}
                 </button>
@@ -417,8 +591,8 @@ export function OpeningHoursExceptions({
 
             {/* Meglévő kivételek listája */}
             {sortedExceptions.length > 0 && (
-              <div className="border-t border-zinc-100 pt-5 dark:border-white/[0.06]">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30">
+              <div className="border-t border-line pt-5">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-ink-soft2">
                   Hozzáadott kivételek
                 </p>
                 <div className="space-y-1 max-h-64 overflow-y-auto -mr-2 pr-2">
@@ -427,23 +601,23 @@ export function OpeningHoursExceptions({
                       key={x.id}
                       onClick={() => selectDay(new Date(x.start_date + 'T00:00:00'))}
                       className={cn(
-                        'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-white/[0.04]',
-                        x.start_date === selectedDate && 'bg-zinc-50 dark:bg-white/[0.04]'
+                        'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-paper/60',
+                        x.start_date === selectedDate && 'bg-paper'
                       )}
                     >
                       <span
                         className={cn(
                           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',
-                          x.is_closed ? 'bg-red-50 text-red-500 dark:bg-red-500/10' : 'bg-[#5B54E8]/10 text-[#5B54E8]'
+                          x.is_closed ? 'bg-bad-bg text-bad' : 'bg-ink-dark/10 text-ink'
                         )}
                       >
                         {x.is_closed ? <CalendarOff className="h-4 w-4" /> : <Clock className="h-4 w-4" />}
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-semibold capitalize text-zinc-800 dark:text-white/90">
+                        <span className="block text-sm font-semibold capitalize text-ink">
                           {format(new Date(x.start_date + 'T00:00:00'), 'MMMM d., EEEE', { locale: hu })}
                         </span>
-                        <span className="block text-xs text-zinc-500 dark:text-white/40">
+                        <span className="block text-xs text-ink-soft">
                           {x.is_closed ? 'Zárva' : `${x.open_time}–${x.close_time}`}
                         </span>
                       </span>
@@ -453,20 +627,6 @@ export function OpeningHoursExceptions({
               </div>
             )}
           </div>
-        </SheetContent>
-      </Sheet>
-
-      {/* Kerék időválasztó (mobil) — a Kivételek-szerkesztő fölött */}
-      {editState && !editState.is_closed && (
-        <WheelTimePicker
-          open={excPicker != null}
-          onClose={() => setExcPicker(null)}
-          title={excPicker === 'close' ? 'Záróra' : 'Nyitás'}
-          value={excPicker === 'close' ? editState.close_time : editState.open_time}
-          onChange={(v) => setEditState((s) => (s ? { ...s, [excPicker === 'close' ? 'close_time' : 'open_time']: v } : null))}
-          shorthands={excPicker === 'close' ? ['22:00', '22:30', '23:00', '00:00'] : ['08:00', '09:00', '10:00', '11:00']}
-        />
-      )}
-    </>
-  )
+    )
+  }
 }

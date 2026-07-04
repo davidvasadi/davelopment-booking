@@ -1,91 +1,133 @@
-import Link from 'next/link'
-import { ArrowUpRight, Sparkles, AlertTriangle } from 'lucide-react'
 import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
+import { requireAuth } from '@/lib/auth'
+import { getActiveBusiness } from '@/lib/activeBusiness'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import SalonSettingsForm from '@/components/dashboard/SalonSettingsForm'
-import { PageHeader } from '@/components/ui/page-header'
+import { getTeamForBusiness } from '@/lib/teamContext'
+import { getAuditLogForBusiness } from '@/lib/auditContext'
+import {
+  SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
+} from '@/components/settings/SettingsHub'
 
-function daysLeft(dateStr?: string | null): number | null {
-  if (!dateStr) return null
-  const diff = new Date(dateStr).getTime() - Date.now()
-  return Math.max(0, Math.ceil(diff / 86_400_000))
+const initialsOf = (name: string) =>
+  name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+
+const HUF = (n: number) => `${n.toLocaleString('hu-HU')} Ft`
+
+function planName(sub: { plan?: string | null; status?: string | null } | null): string {
+  if (!sub) return 'Szalon'
+  if (sub.status === 'trialing') return 'Szalon · Próbaidőszak'
+  return sub.plan === 'paid' ? 'Szalon Pro' : 'Szalon'
 }
 
 export default async function SettingsPage() {
   const { salon, businessCount } = await getOwnedSalon(1)
   const payload = await getPayloadClient()
+  const user = await requireAuth()
 
   const ownerId = typeof salon.owner === 'object' && salon.owner ? salon.owner.id : salon.owner
   const sub = ownerId ? await findAccountSubscription({ payload }, ownerId) : null
-  const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
-  // Fiók-szintű: a teljes fiók havidíja (az üzletek összetételéből).
-  const feeLabel = `${(sub?.amount_huf ?? 0).toLocaleString('hu-HU')} Ft`
+
+  const plan = planName(sub)
+  const subtitle = `${salon.name} · ${plan}`
+
+  // ── Csapat & jogok — VALÓS tulajdonos + membershipök (aktív tagok + függő meghívók).
+  const ownerEmail = (typeof salon.owner === 'object' && salon.owner?.email) || user.email || ''
+  const ownerName = (typeof salon.owner === 'object' && salon.owner?.name) || user.name || salon.name
+  const team: TeamMember[] = await getTeamForBusiness({
+    type: 'salon',
+    businessId: salon.id,
+    ownerName,
+    ownerEmail,
+  })
+
+  // ── Audit-napló — VALÓS legutóbbi bejegyzések (a szalonra szűrve).
+  const auditLog = await getAuditLogForBusiness({ type: 'salon', businessId: salon.id })
+
+  // ── Telephelyek — VALÓS fiók-üzletek. Az aktuális üzlethez a betöltött szalon címét mutatjuk.
+  const { businesses } = await getActiveBusiness(user)
+  const sites: SiteData[] = businesses.map((b, i) => {
+    const current = b.type === 'salon' && b.id === String(salon.id)
+    const meta = current
+      ? [salon.city, salon.address, plan].filter(Boolean).join(' · ')
+      : `${b.type === 'salon' ? 'Szalon' : 'Étterem'}`
+    return {
+      initials: initialsOf(b.name),
+      name: b.name,
+      meta: meta || plan,
+      role: 'Tulajdonos',
+      current,
+      gold: !current && i > 0,
+    }
+  })
+
+  // ── Foglalási szabályok — VALÓS mezők a szalonból. A szalonnál nincs idősáv/max-létszám
+  //    mező, ezért „—" (a stat-kártya null-t kap).
+  const rules: RulesData = {
+    slotDurationMin: null,
+    bufferMin: salon.booking_buffer_minutes ?? null,
+    maxParty: null,
+    leadTimeHours: null,
+    windowDays: salon.booking_window_days ?? null,
+  }
+
+  // ── Számlázás — VALÓS fiók-előfizetésből. Számla-adat (invoice) egyelőre nincs a sémában
+  //    → üres állapot. Fizetési mód kártya sincs rögzítve → null (üzenet).
+  const nextChargeDate = sub?.current_period_end
+    ? new Date(sub.current_period_end).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
+    : sub?.trial_ends_at
+    ? new Date(sub.trial_ends_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null
+
+  const billing: BillingData = {
+    planLabel: planName(sub),
+    nextChargeDate,
+    nextChargeAmount: HUF(sub?.amount_huf ?? 0),
+    card: null,
+    details: {
+      legalName: salon.legal_name ?? '',
+      taxNumber: salon.tax_number ?? '',
+      address: salon.registered_seat ?? [salon.postal_code, salon.city, salon.address].filter(Boolean).join(' '),
+    },
+    invoices: [],
+  }
+
+  const senderLabel = `${salon.name}${salon.email ? ` <${salon.email}>` : ''}`
+
+  const np = salon.notification_prefs ?? {}
+  const br = salon.booking_rules ?? {}
 
   return (
-    <div className="p-5 lg:p-8 space-y-6">
-      <PageHeader eyebrow="Szalon adatok" title="Beállítások" />
-
-      {sub && (() => {
-        const isPastDue = sub.status === 'past_due'
-        const isCanceled = sub.status === 'canceled'
-        const isAlert = isPastDue || isCanceled
-
-        let subtitle = ''
-        if (isPastDue) subtitle = 'Fizetési probléma — frissítsd az előfizetést a folytatáshoz'
-        else if (isCanceled) subtitle = 'Az előfizetésed megszűnt — aktiváld újra a folytatáshoz'
-        else if (days !== null) subtitle = days === 0 ? 'Ma lejár a próbaidőszak' : `${days} nap maradt — utána ${feeLabel}/hó`
-        else if (sub.plan === 'paid') subtitle = `${feeLabel} / hó`
-        else subtitle = 'Előfizetés kezelése'
-
-        return (
-          <Link
-            href="/dashboard/subscription"
-            className={`group block p-5 rounded-2xl shadow-sm dark:shadow-none border transition-colors ${
-              isAlert
-                ? 'bg-red-50 border-red-200 hover:border-red-300 dark:bg-red-950/40 dark:border-red-900/40 dark:hover:border-red-900/60'
-                : 'bg-white border-zinc-100 hover:border-zinc-200 dark:bg-white/[0.04] dark:border-white/[0.08] dark:hover:border-white/20'
-            }`}
-          >
-            <div className="flex items-center gap-4">
-              <div className={`h-11 w-11 rounded-xl flex items-center justify-center shrink-0 ${
-                isAlert
-                  ? 'bg-red-500/15 dark:bg-red-500/10'
-                  : 'bg-gradient-to-br from-[#0099ff] to-[#00bb88]'
-              }`}>
-                {isAlert
-                  ? <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                  : <Sparkles className="h-5 w-5 text-white" />
-                }
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <p className={`font-semibold ${isAlert ? 'text-red-700 dark:text-red-300' : 'text-zinc-900 dark:text-white'}`}>
-                    {sub.plan === 'paid' ? 'Előfizetés' : 'Próbaidőszak'}
-                  </p>
-                  <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                    sub.status === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
-                    sub.status === 'trialing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' :
-                    'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                  }`}>
-                    {sub.status === 'active' ? 'aktív' : sub.status === 'trialing' ? 'próba' : sub.status === 'past_due' ? 'lejárt' : sub.status === 'canceled' ? 'megszűnt' : 'szünet'}
-                  </span>
-                </div>
-                <p className={`text-xs ${isAlert ? 'text-red-700/80 dark:text-red-300/80 font-medium' : 'text-zinc-500 dark:text-white/40'}`}>
-                  {subtitle}
-                </p>
-              </div>
-              <ArrowUpRight className={`h-4 w-4 shrink-0 transition-colors ${
-                isAlert
-                  ? 'text-red-400 dark:text-red-500 group-hover:text-red-600 dark:group-hover:text-red-400'
-                  : 'text-zinc-400 dark:text-white/30 group-hover:text-zinc-700 dark:group-hover:text-white/60'
-              }`} />
-            </div>
-          </Link>
-        )
-      })()}
-
-      <SalonSettingsForm salon={salon} businessCount={businessCount} />
+    <div className="p-5 lg:p-0">
+      <SettingsHub
+        variant="salon"
+        businessName={salon.name}
+        subtitle={subtitle}
+        availabilityHref="/dashboard/availability"
+        apiBase={`/api/salons/${salon.id}`}
+        notificationPrefs={{
+          confirm_email: np.confirm_email ?? true,
+          reminder_email: np.reminder_email ?? true,
+          cancel_email: np.cancel_email ?? true,
+          feedback_email: np.feedback_email ?? false,
+        }}
+        bookingRules={{
+          auto_confirm: br.auto_confirm ?? true,
+          deposit_enabled: br.deposit_enabled ?? false,
+          waitlist_enabled: br.waitlist_enabled ?? false,
+          cancellation_protection: br.cancellation_protection ?? false,
+        }}
+        rules={rules}
+        senderLabel={senderLabel}
+        billing={billing}
+        team={team}
+        sites={sites}
+        businessCount={businessCount}
+        planLabel={plan}
+        auditLog={auditLog}
+        profilePanel={<SalonSettingsForm salon={salon} businessCount={businessCount} />}
+      />
     </div>
   )
 }

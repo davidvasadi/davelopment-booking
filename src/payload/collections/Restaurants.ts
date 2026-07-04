@@ -1,8 +1,10 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { slugify } from '../lib/slugify'
+import { settingsExtensionFields, businessTierField } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
+import { auditAfterChange } from '../hooks/auditLog'
 
 const isOwnerOrAdmin: Access = ({ req }) => {
   if (!req.user) return false
@@ -15,6 +17,7 @@ export const Restaurants: CollectionConfig = {
   hooks: {
     afterChange: [
       revalidatePlaceOnChange('restaurant'),
+      auditAfterChange('Étterem beállítás', 'self-restaurant'),
       async ({ req, doc, operation }) => {
         if (operation !== 'create') return
         // Fiók-szintű előfizetés: az új étterem a fiók (owner) előfizetésébe számít be — a díj
@@ -173,6 +176,8 @@ export const Restaurants: CollectionConfig = {
       label: 'Értesítés új foglalásokról',
       admin: { description: 'Ha be van kapcsolva, a tulajdonos értesítést kap új foglalásról és lemondásról az alkalmazáson belül.' },
     },
+    businessTierField,
+    ...settingsExtensionFields,
     {
       name: 'booking_email_subject',
       type: 'text',

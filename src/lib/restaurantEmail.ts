@@ -154,6 +154,113 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
   }
 }
 
+export async function sendReminderEmail(data: ReservationEmailData) {
+  const { reservation, restaurant } = data
+  const resend = getResend()
+  if (!resend || !reservation.customer_email) return
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: reservation.customer_email,
+      subject: `Emlékeztető: közeleg a foglalásod – ${restaurant.name}`,
+      html: reminderHtml(data),
+    })
+  } catch (err) {
+    console.error('[RestaurantEmail] Reminder failed:', err)
+  }
+}
+
+export async function sendFeedbackRequestEmail(data: ReservationEmailData) {
+  const { reservation, restaurant } = data
+  const resend = getResend()
+  if (!resend || !reservation.customer_email) return
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: reservation.customer_email,
+      subject: `Milyen volt nálunk? Értékeld a látogatásod – ${restaurant.name}`,
+      html: feedbackHtml(data),
+    })
+  } catch (err) {
+    console.error('[RestaurantEmail] Feedback request failed:', err)
+  }
+}
+
+// ── Waitlist (várólista) ──────────────────────────────────────────────────────
+
+export interface WaitlistEmailData {
+  restaurant: Restaurant
+  customer_name: string
+  customer_email: string
+  date: string
+  time: string
+  pax?: number | null
+  /** A „foglald le” link — alapból az étterem publikus oldala. */
+  bookUrl?: string | null
+}
+
+/** Feliratkozás-visszaigazolás: „feliratkoztál a várólistára”. */
+export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: data.customer_email,
+      subject: `Felkerültél a várólistára – ${data.restaurant.name}`,
+      html: wrap(data.restaurant, `
+        ${heroBlock({
+          icon: 'bell',
+          title: 'Felkerültél a várólistára',
+          subtitle: `Kedves ${data.customer_name}, értesítünk, ha felszabadul egy asztal.`,
+        })}
+        ${detailsCard([
+          infoRow('calendar', 'Dátum', data.date),
+          infoRow('clock', 'Kért időpont', data.time),
+          data.pax ? infoRow('people', 'Fő', `${data.pax} fő`) : '',
+        ].filter(Boolean).join(''))}
+        ${bottomSpacer()}
+      `),
+    })
+  } catch (err) {
+    console.error('[RestaurantEmail] Waitlist signup failed:', err)
+  }
+}
+
+/** Hely-felszabadulás értesítő: „felszabadult hely — foglald le”. */
+export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  const bookUrl = data.bookUrl ?? `${APP_URL}/${data.restaurant.slug}`
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: data.customer_email,
+      subject: `Felszabadult egy asztal – ${data.restaurant.name}`,
+      html: wrap(data.restaurant, `
+        ${heroBlock({
+          icon: 'bell',
+          title: 'Felszabadult egy asztal',
+          subtitle: `Kedves ${data.customer_name}, a kért időpontod körül felszabadult egy asztal. Foglald le, amíg elérhető!`,
+        })}
+        ${detailsCard([
+          infoRow('calendar', 'Dátum', data.date),
+          infoRow('clock', 'Időpont', data.time),
+          data.pax ? infoRow('people', 'Fő', `${data.pax} fő`) : '',
+        ].filter(Boolean).join(''))}
+        <tr>
+          <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+            <a href="${bookUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Asztalfoglalás</a>
+          </td>
+        </tr>
+        ${bottomSpacer()}
+      `),
+    })
+  } catch (err) {
+    console.error('[RestaurantEmail] Waitlist opening failed:', err)
+  }
+}
+
 // ── HTML ───────────────────────────────────────────────────────────────────
 function detailRows(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
@@ -237,6 +344,54 @@ function notificationHtml(data: ReservationEmailData): string {
     })}
     ${detailsCard(detailRows(data))}
     ${detailsCard(contactRows)}
+    ${bottomSpacer()}
+  `)
+}
+
+function reminderHtml(data: ReservationEmailData): string {
+  const { reservation, restaurant } = data
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
+  return wrap(restaurant, `
+    ${heroBlock({
+      icon: 'bell',
+      title: 'Közeleg a foglalásod',
+      subtitle: `Kedves ${reservation.customer_name}, csak hogy emlékeztessünk: hamarosan várunk!`,
+    })}
+    ${detailsCard(detailRows(data))}
+    ${calendarBlock({
+      title: `${t(locale, 'rbooking.header')} – ${restaurant.name}`,
+      date: reservation.date,
+      startTime: reservation.start_time,
+      endTime: reservation.end_time,
+      location: contactAddress(restaurant),
+      description: `${reservation.pax} ${t(locale, 'email.label.guests').toLowerCase()}`,
+      locale,
+    })}
+    ${bottomSpacer()}
+  `)
+}
+
+function feedbackHtml(data: ReservationEmailData): string {
+  const { reservation, restaurant } = data
+  const reviewUrl = reservation.cancel_token
+    ? `${APP_URL}/review/${reservation.cancel_token}`
+    : `${APP_URL}/${restaurant.slug}`
+  const rows = [
+    infoRow('calendar', 'Dátum', reservation.date),
+    infoRow('people', 'Fő', `${reservation.pax} fő`),
+  ].join('')
+  return wrap(restaurant, `
+    ${heroBlock({
+      icon: 'bell',
+      title: 'Milyen volt nálunk?',
+      subtitle: `Kedves ${reservation.customer_name}, reméljük jól érezted magad. Mondd el a véleményed!`,
+    })}
+    ${detailsCard(rows)}
+    <tr>
+      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Értékelem a látogatásom</a>
+      </td>
+    </tr>
     ${bottomSpacer()}
   `)
 }

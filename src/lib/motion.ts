@@ -111,6 +111,27 @@ export const sheetSpring = {
 }
 
 /**
+ * ⭐ „STAGGERED SPRING" belépő (ETALON: UserMenu popover) — kiemelve a közös használatra.
+ * `popItem`: a panel gyerekei egymás után úsznak be (opacity+y, spring). `popPanelCenter`: középre
+ * úszó modal-panel (skálás spring nyitás), a gyerekei staggerrel. Backdrop külön (blur + dim).
+ */
+export const popItem: Variants = {
+  hidden: { opacity: 0, y: 10 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 500, damping: 30 } },
+}
+
+export const popPanelCenter: Variants = {
+  hidden: { opacity: 0, scale: 0.94, y: 20 },
+  show: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { type: 'spring', stiffness: 300, damping: 28, mass: 0.9, staggerChildren: 0.05, delayChildren: 0.08 },
+  },
+  exit: { opacity: 0, scale: 0.97, y: 12, transition: { duration: 0.16, ease: 'easeIn' } },
+}
+
+/**
  * Skeleton shimmer keyframe neve — a CSS animációt a globals.css definiálja.
  * Komponensben: `className="animate-shimmer"`.
  */

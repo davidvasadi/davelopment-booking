@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ToggleSwitch } from '@/components/ui/toggle-switch'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { TableGlyph } from './TableGlyph'
 
 type RoomItem = {
   id: number | string
@@ -31,6 +32,22 @@ function inSeason(season: SeasonFields, date: string): boolean {
   if (s) return day >= s
   if (e) return day <= e
   return true
+}
+
+const MONTHS_HU = ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.']
+function seasonLabel(room: RoomItem): string {
+  if (!room.seasonal) return 'Egész évben nyitva'
+  const fmt = (d?: string | null) => {
+    if (!d) return null
+    const [, m, day] = d.split('-')
+    return `${MONTHS_HU[Number(m) - 1]} ${Number(day)}.`
+  }
+  const s = fmt(room.season_start)
+  const e = fmt(room.season_end)
+  if (s && e) return `Szezonális · ${s} – ${e}`
+  if (s) return `Szezonális · ${s}-tól`
+  if (e) return `Szezonális · ${e}-ig`
+  return 'Szezonális'
 }
 
 type TableItem = {
@@ -322,22 +339,40 @@ export function TablesManager({
     }
   }
 
-  const cardClass =
-    'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] rounded-2xl'
+  // ---- Összesítő számok ----
+  const totalSeats = initialTables.reduce((s, t) => s + t.capacity, 0)
+  const combinableCount = initialTables.filter((t) => t.combinable_with.length > 0).length
+  const nameById = new Map(initialTables.map((t) => [String(t.id), t.name]))
 
   return (
-    <div className="space-y-5">
-      <div className="flex justify-end">
+    <div className="space-y-4">
+      {/* ── Akciók ── */}
+      <div className="flex flex-wrap items-center justify-end gap-2.5">
         <button
           onClick={() => setCreatingRoom(true)}
           disabled={busy}
-          className="h-11 px-5 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 flex items-center gap-2"
+          className="flex items-center gap-2 rounded-dav-pill border border-line bg-[var(--dav-glass)] px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong disabled:opacity-40"
         >
-          <Plus className="h-4 w-4" />
-          Terem
+          <Home className="h-4 w-4" strokeWidth={1.7} />
+          Új terem
         </button>
       </div>
 
+      {/* ── Összesítő ── */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-3.5">
+        <SummaryCard label="Termek" value={String(localRooms.length)} />
+        <SummaryCard label="Asztalok" value={String(initialTables.length)} />
+        <div className="rounded-[20px] bg-ink-dark px-[18px] py-4 text-white">
+          <div className="text-xs font-medium text-white/55">Összes férőhely</div>
+          <div className="mt-1.5 flex items-baseline gap-1.5">
+            <span className="text-[30px] font-light leading-none tracking-[-0.02em]">{totalSeats}</span>
+            <span className="text-xs font-medium text-gold">fő</span>
+          </div>
+        </div>
+        <SummaryCard label="Összevonható" value={String(combinableCount)} />
+      </div>
+
+      {/* ── Termek ── */}
       {localRooms.map((room) => {
         const roomTables = initialTables
           .filter((t) => String(t.room) === String(room.id))
@@ -374,104 +409,148 @@ export function TablesManager({
                 void saveRoomOrder()
               }
             }}
-            className={`${cardClass} p-5 transition-opacity cursor-grab active:cursor-grabbing ${
+            className={`rounded-[26px] border border-line bg-white p-4 sm:p-[22px] shadow-dav-card transition-opacity ${
               isDraggingThis ? 'opacity-40' : 'opacity-100'
             }`}
           >
-            <div className="flex items-center justify-between gap-2 mb-4">
-              <GripVertical
-                className="h-4 w-4 shrink-0 text-zinc-300 dark:text-white/20"
-                aria-label="Húzd át a terem áthelyezéséhez"
-              />
-              <button
-                onClick={() => toggleCollapsed(room.id)}
-                className="flex items-center gap-2 min-w-0 flex-1 text-left group"
-                title={isCollapsed ? 'Kibontás' : 'Összecsukás'}
-              >
-                <ChevronDown
-                  className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
-                />
-                <span className="min-w-0">
-                  <span className="flex items-center gap-2">
-                    <h2 className="font-semibold text-zinc-900 dark:text-white truncate">{room.name}</h2>
-                    <span
-                      className={`shrink-0 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        room.is_outdoor
-                          ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300'
-                          : 'bg-zinc-100 text-zinc-600 dark:bg-white/[0.08] dark:text-white/60'
-                      }`}
-                    >
-                      {room.is_outdoor ? <Trees className="h-3 w-3" /> : <Home className="h-3 w-3" />}
-                      {room.is_outdoor ? 'Kültéri' : 'Beltéri'}
-                    </span>
-                  </span>
-                  <span className="block text-xs text-zinc-400">
-                    {roomTables.length} asztal · {seats} férőhely
-                  </span>
+            {/* Terem fejléc */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <span
+                  className="hidden shrink-0 cursor-grab active:cursor-grabbing sm:block"
+                  draggable={false}
+                  title="Húzd át a terem áthelyezéséhez"
+                >
+                  <GripVertical className="h-4 w-4 text-ink-soft2/50" />
                 </span>
-              </button>
-              <div className="flex items-center shrink-0 gap-1">
-                <GripVertical className="h-4 w-4 text-zinc-300 dark:text-white/20" />
+                <div
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] ${
+                    room.is_outdoor ? 'bg-[#EDE7D6]' : 'bg-ink-dark'
+                  }`}
+                >
+                  {room.is_outdoor ? (
+                    <Trees className="h-5 w-5 text-[#9A8B52]" strokeWidth={1.6} />
+                  ) : (
+                    <Home className="h-5 w-5 text-gold" strokeWidth={1.6} />
+                  )}
+                </div>
+                <button
+                  onClick={() => toggleCollapsed(room.id)}
+                  className="flex min-w-0 items-center gap-2 text-left"
+                  title={isCollapsed ? 'Kibontás' : 'Összecsukás'}
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <h2 className="truncate text-[18px] font-semibold text-ink">{room.name}</h2>
+                      <ChevronDown
+                        className={`h-4 w-4 shrink-0 text-ink-soft transition-transform ${isCollapsed ? '-rotate-90' : ''}`}
+                      />
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      <span
+                        className={`rounded-[9px] px-2 py-0.5 text-[10px] font-semibold tracking-wide ${
+                          room.is_outdoor ? 'bg-[#EDE7D6] text-[#9A8B52]' : 'bg-[#E7E1D0] text-ink-soft'
+                        }`}
+                      >
+                        {room.is_outdoor ? 'KÜLTÉRI' : 'BELTÉRI'}
+                      </span>
+                      <span className="text-xs text-ink-soft">{seasonLabel(room)}</span>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-[13px] font-medium text-ink-soft">
+                  {roomTables.length} asztal · {seats} fő
+                </span>
                 <button
                   onClick={(e) => { e.stopPropagation(); setEditingRoom(room) }}
                   disabled={busy}
-                  className="text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors p-2"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper disabled:opacity-40"
                   title="Terem szerkesztése"
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} />
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); deleteRoom(room.id) }}
                   disabled={busy}
-                  className="text-zinc-400 hover:text-red-500 transition-colors p-2"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink-soft shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:text-bad disabled:opacity-40"
                   title="Terem törlése"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.6} />
                 </button>
               </div>
             </div>
 
+            {/* Asztal rács */}
             {!isCollapsed && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-                {roomTables.map((t) => (
-                  <div
-                    key={t.id}
-                    draggable
-                    onDragStart={(e) => {
-                      e.stopPropagation()
-                      setDragId(String(t.id))
-                      setDragRoomId(null)
-                    }}
-                    onDragEnd={() => setDragId(null)}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      if (dragId) void reorder(room.id, dragId, String(t.id))
-                      setDragId(null)
-                    }}
-                    className={`group relative text-left border rounded-xl p-3 transition-all cursor-grab active:cursor-grabbing ${
-                      dragId === String(t.id)
-                        ? 'border-zinc-400 dark:border-white/[0.3] opacity-50'
-                        : 'border-zinc-200 dark:border-white/[0.08] hover:border-zinc-400 dark:hover:border-white/[0.2]'
-                    }`}
-                  >
-                    <button onClick={() => setEditing(t)} className="block w-full text-left">
-                      <p className="font-semibold text-zinc-900 dark:text-white text-sm truncate pr-4">{t.name}</p>
-                      <div className="flex items-center gap-1 mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        <Users className="h-3 w-3" />
-                        <span className="tabular-nums">{t.capacity} fő</span>
-                      </div>
-                    </button>
-                    <GripVertical className="absolute right-1.5 top-1.5 h-4 w-4 text-zinc-300 dark:text-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </div>
-                ))}
+              <div
+                className="mt-[18px] grid gap-3"
+                style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
+              >
+                {roomTables.map((t) => {
+                  const combinedNames = t.combinable_with
+                    .map((id) => nameById.get(String(id)))
+                    .filter((n): n is string => !!n)
+                  const isCombinable = combinedNames.length > 0
+                  return (
+                    <div
+                      key={t.id}
+                      draggable
+                      onDragStart={(e) => {
+                        e.stopPropagation()
+                        setDragId(String(t.id))
+                        setDragRoomId(null)
+                      }}
+                      onDragEnd={() => setDragId(null)}
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        if (dragId) void reorder(room.id, dragId, String(t.id))
+                        setDragId(null)
+                      }}
+                      className={`group relative cursor-grab rounded-[18px] border bg-white p-4 transition-all active:cursor-grabbing ${
+                        dragId === String(t.id)
+                          ? 'border-line-strong opacity-50'
+                          : isCombinable
+                            ? 'border-gold/50 hover:border-gold'
+                            : 'border-line hover:border-line-strong'
+                      }`}
+                    >
+                      <button onClick={() => setEditing(t)} className="block w-full text-left">
+                        <div className="flex items-start justify-between">
+                          <TableGlyph capacity={t.capacity} />
+                          {isCombinable ? (
+                            <span className="rounded-lg bg-gold/[0.22] px-2 py-0.5 text-[9px] font-semibold tracking-wide text-[#9A8B52]">
+                              ÖSSZEVONHATÓ
+                            </span>
+                          ) : (
+                            <GripVertical className="h-4 w-4 text-line-strong opacity-0 transition-opacity group-hover:opacity-100" />
+                          )}
+                        </div>
+                        <div className="mt-3.5 truncate text-[22px] font-semibold tracking-[-0.01em] text-ink">{t.name}</div>
+                        <div className="mt-0.5 flex items-center gap-1 text-[13px] text-ink-soft">
+                          <Users className="h-3 w-3" />
+                          <span className="tabular-nums">{t.capacity} fő</span>
+                          {combinedNames.length > 0 && (
+                            <span className="truncate"> · {combinedNames.join(', ')}-tel</span>
+                          )}
+                        </div>
+                      </button>
+                    </div>
+                  )
+                })}
                 <button
                   onClick={() => addTable(room.id)}
                   disabled={busy}
-                  className="border border-dashed border-zinc-300 dark:border-white/[0.12] rounded-xl p-3 flex items-center justify-center text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 transition-colors min-h-[68px]"
+                  className="flex min-h-[118px] flex-col items-center justify-center gap-2 rounded-[18px] border-[1.5px] border-dashed border-line-strong text-ink-soft transition-colors hover:border-ink-soft hover:text-ink disabled:opacity-40"
                 >
-                  <Plus className="h-4 w-4" />
+                  <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/60">
+                    <Plus className="h-4 w-4" strokeWidth={1.9} />
+                  </span>
+                  <span className="text-xs font-medium">Asztal hozzáadása</span>
                 </button>
               </div>
             )}
@@ -514,6 +593,15 @@ export function TablesManager({
   )
 }
 
+function SummaryCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[20px] border border-line bg-white px-[18px] py-4 shadow-dav-card">
+      <div className="text-xs font-medium text-ink-soft">{label}</div>
+      <div className="mt-1.5 text-[30px] font-light leading-none tracking-[-0.02em] text-ink">{value}</div>
+    </div>
+  )
+}
+
 function RoomEditSheet({
   room,
   creating,
@@ -546,12 +634,12 @@ function RoomEditSheet({
   }
 
   const inputClass =
-    'h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white'
-  const labelClass = 'text-sm font-medium text-zinc-600 dark:text-white/60'
+    'h-11 rounded-xl bg-paper border-line text-ink'
+  const labelClass = 'text-sm font-medium text-ink-soft'
 
   return (
     <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
-      <SheetContent className="w-full sm:max-w-md bg-white dark:bg-zinc-950">
+      <SheetContent className="w-full sm:max-w-md bg-white">
         <SheetHeader>
           <SheetTitle>{room ? 'Terem szerkesztése' : 'Új terem'}</SheetTitle>
         </SheetHeader>
@@ -560,7 +648,7 @@ function RoomEditSheet({
             <Label className={labelClass}>Terem neve</Label>
             <Input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="pl. Terasz" />
           </div>
-          <div className="rounded-xl border border-zinc-200 dark:border-white/[0.1] p-4">
+          <div className="rounded-xl border border-line p-4">
             <ToggleSwitch
               checked={outdoor}
               onChange={setOutdoor}
@@ -569,7 +657,7 @@ function RoomEditSheet({
             />
           </div>
 
-          <div className="rounded-xl border border-zinc-200 dark:border-white/[0.1] p-4 space-y-4">
+          <div className="rounded-xl border border-line p-4 space-y-4">
             <ToggleSwitch
               checked={seasonal}
               onChange={setSeasonal}
@@ -597,7 +685,7 @@ function RoomEditSheet({
               season_end: seasonal && seasonEnd ? seasonEnd : null,
             })}
             disabled={busy || !name.trim()}
-            className="w-full h-12 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
+            className="w-full h-12 rounded-dav-pill bg-ink-dark text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
           >
             {busy ? 'Mentés…' : room ? 'Mentés' : 'Terem létrehozása'}
           </button>
@@ -685,12 +773,12 @@ function TableEditSheet({
   }
 
   const inputClass =
-    'h-11 rounded-xl bg-zinc-50 border-zinc-200 text-zinc-900 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white'
-  const labelClass = 'text-sm font-medium text-zinc-600 dark:text-white/60'
+    'h-11 rounded-xl bg-paper border-line text-ink'
+  const labelClass = 'text-sm font-medium text-ink-soft'
 
   return (
     <Sheet open={!!table} onOpenChange={(v) => { if (!v) onClose() }}>
-      <SheetContent className="w-full sm:max-w-md bg-white dark:bg-zinc-950">
+      <SheetContent className="w-full sm:max-w-md bg-white">
         <SheetHeader>
           <SheetTitle>Asztal szerkesztése</SheetTitle>
         </SheetHeader>
@@ -701,13 +789,13 @@ function TableEditSheet({
           </div>
           <div className="space-y-1.5">
             <Label className={labelClass}>Hány fős</Label>
-            <div className="flex h-11 items-center rounded-xl border border-zinc-200 bg-zinc-50 dark:border-white/[0.1] dark:bg-white/[0.06]">
+            <div className="flex h-11 items-center rounded-xl border border-line bg-paper">
               <button
                 type="button"
                 aria-label="Kevesebb fő"
                 onClick={() => setCapacity((c) => Math.max(1, c - 1))}
                 disabled={capacity <= 1}
-                className="flex h-full w-12 shrink-0 items-center justify-center text-xl font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+                className="flex h-full w-12 shrink-0 items-center justify-center text-xl font-bold text-ink-soft hover:text-ink disabled:opacity-30 transition-colors"
               >
                 −
               </button>
@@ -718,14 +806,14 @@ function TableEditSheet({
                 max={20}
                 value={capacity}
                 onChange={(e) => setCapacity(Math.min(20, Math.max(1, parseInt(e.target.value, 10) || 1)))}
-                className="h-full min-w-0 flex-1 border-0 bg-transparent text-center text-base font-bold tabular-nums text-zinc-900 outline-none dark:text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                className="h-full min-w-0 flex-1 border-0 bg-transparent text-center text-base font-bold tabular-nums text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               />
               <button
                 type="button"
                 aria-label="Több fő"
                 onClick={() => setCapacity((c) => Math.min(20, c + 1))}
                 disabled={capacity >= 20}
-                className="flex h-full w-12 shrink-0 items-center justify-center text-xl font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+                className="flex h-full w-12 shrink-0 items-center justify-center text-xl font-bold text-ink-soft hover:text-ink disabled:opacity-30 transition-colors"
               >
                 +
               </button>
@@ -735,11 +823,11 @@ function TableEditSheet({
           {others.length > 0 && (
             <div className="space-y-1.5">
               <Label className={labelClass}>Összevonható ezekkel</Label>
-              <p className="text-xs text-zinc-400 dark:text-white/30">
+              <p className="text-xs text-ink-soft2">
                 Jelöld be a fizikailag összetolható asztalokat. Nagyobb társaságnál ezeket a rendszer automatikusan
                 összevonja.
               </p>
-              <div className="max-h-52 overflow-y-auto rounded-xl border border-zinc-200 dark:border-white/[0.1] divide-y divide-zinc-100 dark:divide-white/[0.06]">
+              <div className="max-h-52 overflow-y-auto rounded-xl border border-line divide-y divide-line">
                 {others.map((t) => {
                   const checked = combinable.includes(String(t.id))
                   return (
@@ -747,26 +835,26 @@ function TableEditSheet({
                       key={t.id}
                       type="button"
                       onClick={() => toggleCombinable(String(t.id))}
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-zinc-50 dark:hover:bg-white/[0.03] transition-colors"
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-paper transition-colors"
                     >
-                      <span className="text-sm text-zinc-700 dark:text-white/80">
-                        {t.name} <span className="text-zinc-400">· {t.capacity} fő</span>
+                      <span className="text-sm text-ink">
+                        {t.name} <span className="text-ink-soft">· {t.capacity} fő</span>
                       </span>
                       <span
                         className={`h-5 w-5 shrink-0 rounded-md border flex items-center justify-center ${
                           checked
-                            ? 'bg-zinc-900 dark:bg-white border-zinc-900 dark:border-white'
-                            : 'border-zinc-300 dark:border-white/20'
+                            ? 'bg-ink-dark border-ink-dark'
+                            : 'border-line-strong'
                         }`}
                       >
-                        {checked && <span className="text-white dark:text-black text-xs leading-none">✓</span>}
+                        {checked && <span className="text-white text-xs leading-none">✓</span>}
                       </span>
                     </button>
                   )
                 })}
               </div>
               {combinable.length > 0 && (
-                <p className="text-xs text-emerald-600">
+                <p className="text-xs font-medium text-[#9A8B52]">
                   Összevonva max <strong>{comboCapacity} fő</strong> ülhet le.
                 </p>
               )}
@@ -776,14 +864,14 @@ function TableEditSheet({
           <button
             onClick={save}
             disabled={saving}
-            className="w-full h-12 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
+            className="w-full h-12 rounded-dav-pill bg-ink-dark text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
           >
             {saving ? 'Mentés…' : 'Mentés'}
           </button>
 
           <button
             onClick={() => { if (table) { onClose(); onRequestDelete(table) } }}
-            className="w-full h-11 rounded-full border border-red-500/30 text-red-500 hover:bg-red-500/[0.06] font-semibold text-sm transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
+            className="w-full h-11 rounded-dav-pill border border-red-500/30 text-bad hover:bg-red-500/[0.06] font-semibold text-sm transition-colors disabled:opacity-40 flex items-center justify-center gap-2"
           >
             <Trash2 className="h-4 w-4" />
             Asztal törlése

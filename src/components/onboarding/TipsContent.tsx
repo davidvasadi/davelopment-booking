@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
   Lightbulb, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, ArrowRight, X, type LucideIcon,
 } from 'lucide-react'
@@ -267,6 +268,9 @@ function normalize(s: string) {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
+/** Crextio-nyílás easing. */
+const EASE = [0.22, 1, 0.36, 1] as const
+
 export function TipsContent({ variant }: { variant: Variant }) {
   const tips = TIPS[variant]
   const [query, setQuery] = useState('')
@@ -314,50 +318,50 @@ export function TipsContent({ variant }: { variant: Variant }) {
   }
 
   return (
-    <div className="p-5 lg:p-8 space-y-6">
-      {/* Hero fejléc — apple stílusú, letisztult, a menü ikonjával */}
-      <div className="relative overflow-hidden rounded-3xl border border-zinc-100 dark:border-white/[0.08] bg-white dark:bg-white/[0.02] p-6 lg:p-8">
-        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+    <div className="space-y-6 p-5 lg:p-0 font-onest">
+      {/* ── HERO fejléc — davelopment cream kártya ── */}
+      <div className="rounded-[26px] bg-white p-6 shadow-dav-card lg:p-7">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-4">
-            <span className="flex items-center justify-center h-12 w-12 shrink-0 rounded-2xl bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-white/70">
-              <Lightbulb className="h-6 w-6" />
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gold text-ink-dark">
+              <Lightbulb className="h-6 w-6" strokeWidth={1.8} />
             </span>
             <div>
-              <h1 className="text-2xl lg:text-3xl font-black tracking-tight text-zinc-900 dark:text-white">
+              <h1 className="text-2xl font-light tracking-[-0.02em] text-ink lg:text-[32px] lg:leading-[1.1]">
                 Tippek és trükkök
               </h1>
-              <p className="text-sm text-zinc-500 dark:text-white/50 mt-1 max-w-md">
-                Minden, amit a rendszerről tudni érdemes — egy helyen. Kattints egy kártyára a részletekért, vagy indítsd újra a vezetett bemutatót.
+              <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-ink-soft">
+                Minden, amit a rendszerről tudni érdemes — egy helyen. Kattints egy sorra a részletekért, vagy indítsd újra a vezetett bemutatót.
               </p>
             </div>
           </div>
           <button
             onClick={restartTour}
-            className="flex items-center justify-center gap-2 h-11 px-5 rounded-xl bg-zinc-900 text-white dark:bg-white dark:text-black text-sm font-bold hover:opacity-90 active:scale-[0.98] transition-all shrink-0 self-start sm:self-auto"
+            className="flex shrink-0 items-center justify-center gap-2 self-start rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] sm:self-auto"
           >
-            <Lightbulb className="h-4 w-4" />
+            <Lightbulb className="h-4 w-4" strokeWidth={1.8} />
             Bevezető újraindítása
           </button>
         </div>
       </div>
 
-      {/* Eszköztár: kereső + „összes kinyitása/bezárása" */}
-      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+      {/* ── Eszköztár: kereső + „összes kinyitása/bezárása" ── */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" strokeWidth={1.8} />
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Keresés a tippek között…"
-            className="w-full h-11 pl-10 pr-10 rounded-xl border border-zinc-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.02] text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-white/10 focus:border-zinc-300 dark:focus:border-white/20 transition-all"
+            className="h-12 w-full rounded-[18px] border border-line bg-white pl-11 pr-11 text-sm text-ink placeholder:text-ink-soft focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-gold/40 transition-all"
           />
           {query && (
             <button
               type="button"
               onClick={() => setQuery('')}
               aria-label="Keresés törlése"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 h-6 w-6 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-700 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.06] transition-colors"
+              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -367,29 +371,29 @@ export function TipsContent({ variant }: { variant: Variant }) {
           type="button"
           onClick={toggleAll}
           disabled={filtered.length === 0}
-          className="flex items-center justify-center gap-2 h-11 px-4 rounded-xl border border-zinc-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.02] text-sm font-semibold text-zinc-700 dark:text-white/70 hover:border-zinc-300 dark:hover:border-white/[0.16] hover:text-zinc-900 dark:hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all shrink-0"
+          className="flex shrink-0 items-center justify-center gap-2 rounded-[18px] border border-line bg-white px-5 py-3 text-[13px] font-semibold text-ink-soft2 transition-all hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {allOpen ? <ChevronsDownUp className="h-4 w-4" /> : <ChevronsUpDown className="h-4 w-4" />}
+          {allOpen ? <ChevronsDownUp className="h-4 w-4" strokeWidth={1.8} /> : <ChevronsUpDown className="h-4 w-4" strokeWidth={1.8} />}
           {allOpen ? 'Összes bezárása' : 'Összes kinyitása'}
         </button>
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.02] py-14 text-center">
-          <Search className="mx-auto h-6 w-6 text-zinc-300 dark:text-white/20" />
-          <p className="mt-3 text-sm font-medium text-zinc-500 dark:text-white/50">
+        <div className="rounded-[26px] border border-dashed border-line-strong bg-white py-14 text-center shadow-dav-card">
+          <Search className="mx-auto h-6 w-6 text-ink-soft" strokeWidth={1.6} />
+          <p className="mt-3 text-sm font-medium text-ink-soft">
             Nincs találat a(z) „{query}” keresésre.
           </p>
           <button
             type="button"
             onClick={() => setQuery('')}
-            className="mt-2 text-sm font-semibold text-zinc-900 dark:text-white hover:opacity-70 transition-opacity"
+            className="mt-2 text-sm font-semibold text-ink transition-opacity hover:opacity-70"
           >
             Keresés törlése
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 items-start gap-3 lg:gap-4">
+        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
           {filtered.map((tip) => (
             <TipCard
               key={tip.id}
@@ -405,18 +409,17 @@ export function TipsContent({ variant }: { variant: Variant }) {
 }
 
 /**
- * Egy tipp-kártya: kattintásra accordionként kibomlik a részletes leírás és a
- * konkrét tippek. A chevron jelzi a nyitott állapotot.
+ * Egy tipp-kártya: davelopment cream kártya, Crextio-akkordeon (label + ChevronDown,
+ * solid #efebdf divider, framer-motion nyílás). A fejléc külön button; a kibomló
+ * részben link (<a>) is van, ezért a kártya div (nem button).
  */
 function TipCard({ tip, open, onToggle }: { tip: Tip; open: boolean; onToggle: () => void }) {
   const { id, icon: Icon, title, body, details, bullets, href, linkLabel } = tip
 
   return (
-    // A kártya div (nem button), mert a kibomló részben link (<a>) is van — az nem
-    // lehet button belsejében. A fejléc külön button a nyitáshoz/z.
     <div
       id={`tip-${id}`}
-      className="group scroll-mt-24 rounded-2xl border border-zinc-100 dark:border-white/[0.08] bg-white dark:bg-white/[0.02] p-5 hover:border-zinc-200 dark:hover:border-white/[0.16] hover:shadow-sm transition-colors"
+      className="scroll-mt-24 rounded-[22px] bg-white p-5 shadow-dav-card transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,.04),0_18px_40px_-28px_rgba(80,70,30,.28)]"
     >
       <button
         type="button"
@@ -425,41 +428,51 @@ function TipCard({ tip, open, onToggle }: { tip: Tip; open: boolean; onToggle: (
         aria-controls={`tip-panel-${id}`}
         className="flex w-full items-center gap-3 text-left"
       >
-        <span className="flex items-center justify-center h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-zinc-100 to-zinc-50 dark:from-white/[0.08] dark:to-white/[0.02] text-zinc-600 dark:text-white/60 group-hover:text-zinc-900 dark:group-hover:text-white transition-colors">
-          <Icon className="h-5 w-5" />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#fcfbf7] text-ink-soft2 ring-1 ring-line transition-colors">
+          <Icon className="h-5 w-5" strokeWidth={1.7} />
         </span>
-        <h2 className="flex-1 text-base font-bold text-zinc-900 dark:text-white">{title}</h2>
+        <h2 className="flex-1 text-[16px] font-medium tracking-[-0.01em] text-ink">{title}</h2>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 shrink-0 text-ink-soft transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+          strokeWidth={2}
         />
       </button>
 
-      <p className="mt-2.5 text-sm leading-relaxed text-zinc-500 dark:text-white/50">{body}</p>
+      <p className="mt-2.5 text-[13px] leading-relaxed text-ink-soft">{body}</p>
 
-      {/* Kibomló részletek — grid-rows trükk a sima magasság-animációhoz */}
-      <div
-        id={`tip-panel-${id}`}
-        className={`grid transition-all duration-300 ease-out ${open ? 'grid-rows-[1fr] opacity-100 mt-4' : 'grid-rows-[0fr] opacity-0'}`}
-      >
-        <div className="overflow-hidden">
-          <p className="text-sm leading-relaxed text-zinc-600 dark:text-white/60">{details}</p>
-          <ul className="mt-3 space-y-2">
-            {bullets.map((b, i) => (
-              <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-zinc-500 dark:text-white/50">
-                <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-300 dark:bg-white/30" />
-                <span>{b}</span>
-              </li>
-            ))}
-          </ul>
-          <Link
-            href={href}
-            className="mt-4 inline-flex items-center gap-1.5 text-sm font-bold text-zinc-900 dark:text-white hover:gap-2.5 transition-all"
+      {/* Kibomló részletek — Crextio framer-motion nyílás, solid divider */}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            id={`tip-panel-${id}`}
+            key="panel"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.32, ease: EASE }}
+            className="overflow-hidden"
           >
-            {linkLabel}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      </div>
+            <div className="mt-4 border-t border-[#efebdf] pt-4">
+              <p className="text-[13px] leading-relaxed text-ink-soft2">{details}</p>
+              <ul className="mt-3 space-y-2">
+                {bullets.map((b, i) => (
+                  <li key={i} className="flex gap-2.5 text-[13px] leading-relaxed text-ink-soft">
+                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-gold" />
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href={href}
+                className="group mt-4 inline-flex items-center gap-1.5 rounded-[16px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+              >
+                {linkLabel}
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" strokeWidth={1.8} />
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

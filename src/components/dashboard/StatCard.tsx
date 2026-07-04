@@ -11,11 +11,11 @@ import {
 export type Tint = 'green' | 'red' | 'blue' | 'orange' | 'neutral'
 
 const TINTS: Record<Tint, { badge: string; icon: string }> = {
-  green: { badge: 'bg-[#00bb88]/10', icon: 'text-[#00bb88]' },
-  red: { badge: 'bg-red-400/10', icon: 'text-red-400' },
-  blue: { badge: 'bg-[#0099ff]/10', icon: 'text-[#0099ff]' },
-  orange: { badge: 'bg-amber-400/10', icon: 'text-amber-500' },
-  neutral: { badge: 'bg-zinc-100 dark:bg-white/[0.06]', icon: 'text-zinc-400 dark:text-white/40' },
+  green: { badge: 'bg-[#1D9D63]/10', icon: 'text-[#1D9D63]' },
+  red: { badge: 'bg-bad/10', icon: 'text-bad' },
+  blue: { badge: 'bg-gold/20', icon: 'text-ink-dark' },
+  orange: { badge: 'bg-gold/20', icon: 'text-ink-dark' },
+  neutral: { badge: 'bg-[var(--dav-glass-strong)] border border-line', icon: 'text-ink-soft' },
 }
 
 export function tintFromDiff(diff?: number): Tint {
@@ -25,17 +25,17 @@ export function tintFromDiff(diff?: number): Tint {
 
 export function DiffBadge({ diff }: { diff: number }) {
   if (diff > 0) return (
-    <span className="flex items-center gap-0.5 text-xs font-semibold text-[#00bb88]">
+    <span className="flex items-center gap-0.5 text-xs font-semibold text-[#1D9D63]">
       <TrendingUp className="h-3 w-3" />+{diff}%
     </span>
   )
   if (diff < 0) return (
-    <span className="flex items-center gap-0.5 text-xs font-semibold text-red-400">
+    <span className="flex items-center gap-0.5 text-xs font-semibold text-bad">
       <TrendingDown className="h-3 w-3" />{diff}%
     </span>
   )
   return (
-    <span className="flex items-center gap-0.5 text-xs font-semibold text-zinc-400 dark:text-white/30">
+    <span className="flex items-center gap-0.5 text-xs font-semibold text-ink-soft">
       <Minus className="h-3 w-3" />0%
     </span>
   )
@@ -77,18 +77,18 @@ export function StatCard({ sub, label, value, diff, pct, icon: Icon, tint, onCli
           <BadgeIcon className={`h-[18px] w-[18px] ${t.icon}`} />
         </span>
         {onClick && (
-          <ArrowUpRight className="h-3.5 w-3.5 text-zinc-400 dark:text-white/30 group-hover:text-zinc-700 dark:group-hover:text-white/60 transition-colors shrink-0 mt-0.5" />
+          <ArrowUpRight className="h-3.5 w-3.5 text-ink-soft group-hover:text-ink transition-colors shrink-0 mt-0.5" />
         )}
       </div>
-      <p className="text-xl lg:text-4xl font-black tracking-tight leading-none mb-2 text-zinc-900 dark:text-white truncate">{value}</p>
+      <p className="text-xl lg:text-4xl font-light tracking-[-0.02em] leading-none mb-2 text-ink truncate">{value}</p>
       <div className="flex items-end justify-between gap-1 flex-wrap">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-zinc-600 dark:text-white/60 truncate">{sub}</p>
-          <p className="text-[11px] text-zinc-400 dark:text-white/35 truncate">{label}</p>
+          <p className="text-xs font-medium text-ink truncate">{sub}</p>
+          <p className="text-[11px] text-ink-soft truncate">{label}</p>
         </div>
         {diff !== undefined && <DiffBadge diff={diff} />}
         {pct !== undefined && (
-          <span className="flex items-center gap-0.5 text-xs font-semibold text-[#0099ff] bg-[#0099ff]/10 rounded-full px-1.5 py-0.5">
+          <span className="flex items-center gap-0.5 text-xs font-semibold text-ink-dark bg-gold/20 rounded-full px-1.5 py-0.5">
             {pct}%
           </span>
         )}
@@ -97,14 +97,14 @@ export function StatCard({ sub, label, value, diff, pct, icon: Icon, tint, onCli
   )
 
   const cardClass =
-    'rounded-2xl p-5 lg:p-7 bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none'
+    'rounded-[22px] p-5 lg:p-6 bg-white border border-line shadow-dav-card'
 
   if (onClick) {
     return (
       <button
         type="button"
         onClick={onClick}
-        className={`group ${cardClass} hover:border-zinc-300 dark:hover:border-white/[0.16] transition-colors text-left w-full`}
+        className={`group ${cardClass} hover:border-line-strong transition-colors text-left w-full`}
       >
         {inner}
       </button>

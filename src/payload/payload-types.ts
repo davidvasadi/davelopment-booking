@@ -6,6 +6,7 @@ export interface Config {
     users: User
     salons: Salon
     staff: StaffMember
+    shifts: Shift
     services: Service
     'service-categories': ServiceCategory
     bookings: Booking
@@ -18,7 +19,13 @@ export interface Config {
     'opening-hours': OpeningHour
     'opening-hours-exceptions': OpeningHoursException
     reservations: Reservation
+    waitlist: Waitlist
+    customers: Customer
     notifications: Notification
+    reviews: Review
+    memberships: Membership
+    'audit-log': AuditLogEntry
+    tasks: Task
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
@@ -29,8 +36,12 @@ export interface Config {
 
 export interface PricingSetting {
   id: string
+  /** Szalon alapdíj (a normál csomag; + per-fő). Slug maradt `salon_pro_huf`. */
   salon_pro_huf: number
+  salon_extra_staff_huf: number
+  /** Étterem fix havidíj (a normál csomag). Slug maradt `restaurant_pro_huf`. */
   restaurant_pro_huf: number
+  annual_discount_pct: number
   trial_days: number
   updatedAt?: string | null
   createdAt?: string | null
@@ -51,6 +62,7 @@ export interface Subscription {
   trial_ends_at?: string | null
   current_period_end?: string | null
   cancel_at_period_end?: boolean | null
+  billing_cycle: 'monthly' | 'annual'
   amount_huf?: number | null
   stripe_customer_id?: string | null
   stripe_subscription_id?: string | null
@@ -79,6 +91,32 @@ export interface Restaurant {
   booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
+  /** Üzlet-csomag (pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
+  tier?: ('pro' | 'egyedi') | null
+  notification_prefs?: {
+    confirm_email?: boolean | null
+    reminder_email?: boolean | null
+    cancel_email?: boolean | null
+    feedback_email?: boolean | null
+  } | null
+  booking_rules?: {
+    auto_confirm?: boolean | null
+    deposit_enabled?: boolean | null
+    waitlist_enabled?: boolean | null
+    cancellation_protection?: boolean | null
+  } | null
+  feature_modules?: {
+    reminders_on?: boolean | null
+    reminder_ch_email?: boolean | null
+    reminder_ch_push?: boolean | null
+    reminder_t_24h?: boolean | null
+    reminder_t_3h?: boolean | null
+    reminder_t_1h?: boolean | null
+    waitlist_on?: boolean | null
+    waitlist_auto_promote?: boolean | null
+    recurring_on?: boolean | null
+    reviews_on?: boolean | null
+  } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
   email_show_phone?: boolean | null
@@ -168,8 +206,86 @@ export interface Reservation {
   is_birthday?: boolean | null
   status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'no_show' | 'cancelled'
   source: 'online' | 'walk_in' | 'phone'
+  reminder_sent?: boolean | null
+  feedback_sent?: boolean | null
   cancel_token?: string | null
+  series_id?: string | null
   locale?: 'hu' | 'en' | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Waitlist {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  date: string
+  time: string
+  pax?: number | null
+  customer_name: string
+  customer_email: string
+  customer_phone?: string | null
+  status: 'waiting' | 'notified' | 'promoted' | 'expired'
+  token: string
+  locale?: 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr' | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Customer {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  customer_name?: string | null
+  customer_email?: string | null
+  customer_phone?: string | null
+  notes?: string | null
+  match_index?: string | null
+  blocked?: boolean | null
+  block_reason?: string | null
+  blocked_at?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Review {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  reservation?: string | Reservation | null
+  booking?: string | Booking | null
+  rating: number
+  comment?: string | null
+  customer_name?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Membership {
+  id: string
+  /** Üres, amíg a meghívó függőben van; elfogadáskor kötődik be. */
+  user?: string | User | null
+  email: string
+  name?: string | null
+  salon?: string | Salon | null
+  restaurant?: string | Restaurant | null
+  role: 'owner' | 'manager' | 'staff'
+  status: 'active' | 'invited'
+  invite_token?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AuditLogEntry {
+  id: string
+  actor?: string | User | null
+  actor_label?: string | null
+  action: 'create' | 'update' | 'delete'
+  collection_name?: string | null
+  doc_id?: string | null
+  summary?: string | null
+  salon?: string | Salon | null
+  restaurant?: string | Restaurant | null
   createdAt: string
   updatedAt: string
 }
@@ -185,6 +301,17 @@ export interface Notification {
   read?: boolean | null
   reservation?: string | Reservation | null
   booking?: string | Booking | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Task {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  title: string
+  done?: boolean | null
+  due_date?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -233,6 +360,32 @@ export interface Salon {
   booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
+  /** Üzlet-csomag (pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
+  tier?: ('pro' | 'egyedi') | null
+  notification_prefs?: {
+    confirm_email?: boolean | null
+    reminder_email?: boolean | null
+    cancel_email?: boolean | null
+    feedback_email?: boolean | null
+  } | null
+  booking_rules?: {
+    auto_confirm?: boolean | null
+    deposit_enabled?: boolean | null
+    waitlist_enabled?: boolean | null
+    cancellation_protection?: boolean | null
+  } | null
+  feature_modules?: {
+    reminders_on?: boolean | null
+    reminder_ch_email?: boolean | null
+    reminder_ch_push?: boolean | null
+    reminder_t_24h?: boolean | null
+    reminder_t_3h?: boolean | null
+    reminder_t_1h?: boolean | null
+    waitlist_on?: boolean | null
+    waitlist_auto_promote?: boolean | null
+    recurring_on?: boolean | null
+    reviews_on?: boolean | null
+  } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
   email_show_phone?: boolean | null
@@ -261,6 +414,30 @@ export interface StaffMember {
   salon: string | Salon
   avatar?: string | Media | null
   is_active?: boolean | null
+  role_title?: string | null
+  department?: string | null
+  salary?: number | null
+  birthday?: string | null
+  join_date?: string | null
+  weekly_hours?: number | null
+  phone?: string | null
+  documents?: { label?: string | null; file?: string | Media | null; id?: string | null }[] | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface Shift {
+  id: string
+  staff?: string | StaffMember | null
+  salon?: string | Salon | null
+  member?: string | Membership | null
+  restaurant?: string | Restaurant | null
+  date: string
+  type: 'shift' | 'leave' | 'sick' | 'vacation'
+  start_time?: string | null
+  end_time?: string | null
+  hours?: number | null
+  note?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -307,6 +484,10 @@ export interface Booking {
   end_time: string
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
   notes?: string | null
+  reminder_sent?: boolean | null
+  feedback_sent?: boolean | null
+  cancellation_token?: string | null
+  series_id?: string | null
   locale?: 'hu' | 'en' | null
   createdAt: string
   updatedAt: string

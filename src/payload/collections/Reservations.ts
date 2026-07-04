@@ -2,6 +2,7 @@ import type { CollectionConfig } from 'payload'
 import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
 import { revalidateOnReservationChange, revalidateOnReservationDelete } from '../hooks/revalidateRestaurant'
+import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const Reservations: CollectionConfig = {
   slug: 'reservations',
@@ -80,6 +81,27 @@ export const Reservations: CollectionConfig = {
       ],
     },
     {
+      // Idempotencia: az értesítési cron állítja true-ra (emlékeztető / visszajelzés-kérő).
+      name: 'reminder_sent',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'feedback_sent',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      // Ismétlődő foglalás-sorozat közös azonosítója (opcionális). Egyszeri foglalásnál üres.
+      name: 'series_id',
+      type: 'text',
+      index: true,
+      label: 'Sorozat azonosító',
+      admin: { readOnly: true, position: 'sidebar' },
+    },
+    {
       name: 'cancel_token',
       type: 'text',
       label: 'Lemondás token',
@@ -130,8 +152,8 @@ export const Reservations: CollectionConfig = {
         return data
       },
     ],
-    afterChange: [notifyOnBooking('restaurant'), revalidateOnReservationChange],
-    afterDelete: [revalidateOnReservationDelete],
+    afterChange: [notifyOnBooking('restaurant'), revalidateOnReservationChange, auditAfterChange('Asztalfoglalás', 'restaurant')],
+    afterDelete: [revalidateOnReservationDelete, auditAfterDelete('Asztalfoglalás', 'restaurant')],
   },
   timestamps: true,
 }

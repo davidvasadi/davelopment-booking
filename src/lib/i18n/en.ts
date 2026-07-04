@@ -144,6 +144,22 @@ export const en: Record<string, string> = {
   'public.cancel.doneBody': 'You have successfully cancelled your booking.',
   'public.back': 'Back',
 
+  // ── Public review page ──
+  'public.review.title': 'How was your visit?',
+  'public.review.subtitle': 'Hi {{name}}, share your experience with us!',
+  'public.review.subtitleGeneric': 'Share your experience with us!',
+  'public.review.commentPlaceholder': 'Tell us about your experience (optional)…',
+  'public.review.submit': 'Submit review',
+  'public.review.submitting': 'Sending…',
+  'public.review.pickRating': 'Pick a rating',
+  'public.review.doneTitle': 'Thanks for your review!',
+  'public.review.done': 'Your feedback helps us get even better.',
+  'public.review.alreadyTitle': 'Already reviewed',
+  'public.review.already': 'A review has already been submitted for this booking. Thank you!',
+  'public.review.invalidTitle': 'Invalid link',
+  'public.review.invalid': 'This review link is not valid or has expired.',
+  'public.review.failed': 'Could not submit your review. Please try again.',
+
   // ── Email skeleton (owner text comes on top of this) ──
   'email.greeting': 'Dear {{name}},',
   'email.confirm.title': 'Booking confirmed',

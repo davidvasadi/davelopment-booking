@@ -13,6 +13,7 @@ export function Reveal({
   className = '',
   mountOnReveal = false,
   minHeight = 160,
+  lift = true,
 }: {
   children: React.ReactNode
   delay?: number
@@ -23,6 +24,9 @@ export function Reveal({
   mountOnReveal?: boolean
   /** Placeholder magasság mountOnReveal alatt, hogy a scroll ne ugráljon. */
   minHeight?: number
+  /** Ha hamis: fade-only belépő (felúszás nélkül). Diagram-blokkokhoz kell, hogy a recharts
+   *  entry-animáció közben ne ugorjon a helyére a konténer. */
+  lift?: boolean
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [shown, setShown] = useState(false)
@@ -52,7 +56,7 @@ export function Reveal({
   return (
     <div
       ref={ref}
-      className={`${shown ? 'animate-reveal' : 'opacity-0'} ${className}`}
+      className={`${shown ? (lift ? 'animate-reveal' : 'animate-reveal-fade') : 'opacity-0'} ${className}`}
       style={{
         ...(shown && delay ? { animationDelay: `${delay}ms` } : {}),
         ...(mountOnReveal && !shown ? { minHeight } : {}),

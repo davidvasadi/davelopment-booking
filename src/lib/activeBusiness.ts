@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { getPayloadClient } from './payload'
-import type { User, Salon, Restaurant, Media } from '@/payload/payload-types'
+import { resolveTier, type Tier } from './tier'
+import type { User, Salon, Restaurant, Media, Membership } from '@/payload/payload-types'
 
 /**
  * Több-üzlet (multi-tenant) aktív-üzlet feloldás.
@@ -27,6 +28,8 @@ export interface Business {
   slug: string
   logoUrl: string | null
   createdAt: string
+  /** Az üzlet csomagja (Start/Pro), feloldva — a régi null tier Pro-ként jön. */
+  tier: Tier
 }
 
 const logoUrlOf = (logo: string | Media | null | undefined): string | null =>
@@ -36,7 +39,7 @@ const logoUrlOf = (logo: string | Media | null | undefined): string | null =>
 export async function getUserBusinesses(userId: string | number): Promise<Business[]> {
   const payload = await getPayloadClient()
 
-  const [salons, restaurants] = await Promise.all([
+  const [salons, restaurants, memberships] = await Promise.all([
     payload.find({
       collection: 'salons',
       where: { owner: { equals: userId } },
@@ -51,6 +54,15 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       depth: 1,
       overrideAccess: true,
     }),
+    // Tagként (membership) elért üzletek — hogy a MEGHÍVOTT+elfogadott tag is lássa a dashboardot,
+    // ne csak a tulaj. Csak az AKTÍV tagságok számítanak.
+    payload.find({
+      collection: 'memberships',
+      where: { and: [{ user: { equals: userId } }, { status: { equals: 'active' } }] },
+      limit: 100,
+      depth: 1,
+      overrideAccess: true,
+    }),
   ])
 
   const list: Business[] = [
@@ -61,6 +73,7 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       slug: s.slug,
       logoUrl: logoUrlOf(s.logo),
       createdAt: s.createdAt,
+      tier: resolveTier(s.tier),
     })),
     ...(restaurants.docs as Restaurant[]).map((r) => ({
       type: 'restaurant' as const,
@@ -69,8 +82,24 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       slug: r.slug,
       logoUrl: logoUrlOf(r.logo),
       createdAt: r.createdAt,
+      tier: resolveTier(r.tier),
     })),
   ]
+
+  // Membershipek hozzáfűzése (duplikátum nélkül — ha a user egyben tulaj is).
+  const seen = new Set(list.map((b) => `${b.type}:${b.id}`))
+  for (const m of memberships.docs as Membership[]) {
+    const s = m.salon && typeof m.salon === 'object' ? (m.salon as Salon) : null
+    const r = m.restaurant && typeof m.restaurant === 'object' ? (m.restaurant as Restaurant) : null
+    if (s && !seen.has(`salon:${s.id}`)) {
+      seen.add(`salon:${s.id}`)
+      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: logoUrlOf(s.logo), createdAt: s.createdAt, tier: resolveTier(s.tier) })
+    }
+    if (r && !seen.has(`restaurant:${r.id}`)) {
+      seen.add(`restaurant:${r.id}`)
+      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: logoUrlOf(r.logo), createdAt: r.createdAt, tier: resolveTier(r.tier) })
+    }
+  }
 
   return list.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }

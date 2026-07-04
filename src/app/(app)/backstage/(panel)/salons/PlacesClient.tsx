@@ -70,28 +70,28 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
       <PlaceDetailSheet place={selected} open={sheetOpen} onOpenChange={setSheetOpen} />
 
       {/* Search + type filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+          <Search className="absolute left-[18px] top-1/2 h-[15px] w-[15px] -translate-y-1/2 text-ink-soft" strokeWidth={1.7} />
           <input
             type="text"
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Keresés név, email, város alapján…"
-            className="w-full h-10 pl-10 pr-4 rounded-xl bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.08] text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 text-sm focus:outline-none focus:border-zinc-400 dark:focus:border-white/[0.2] transition-colors"
+            className="w-full rounded-[22px] border border-line bg-white py-[11px] pl-11 pr-4 text-[13.5px] text-ink placeholder:text-ink-soft2 focus:outline-none"
           />
         </div>
-        <div className="flex items-center gap-0.5 rounded-xl bg-zinc-100 dark:bg-white/[0.04] p-1 shrink-0">
+        <div className="flex shrink-0 items-center gap-0.5 rounded-[22px] bg-[#F6F2E4] p-1">
           {FILTERS.map(f => (
             <button
               key={f.value}
               type="button"
               onClick={() => setFilter(f.value)}
               className={cn(
-                'flex-1 sm:flex-none px-3 h-8 rounded-lg text-xs font-semibold transition-colors',
+                'h-9 flex-1 rounded-[18px] px-3.5 text-[13px] font-semibold transition-colors sm:flex-none',
                 filter === f.value
-                  ? 'bg-white dark:bg-white/[0.08] text-zinc-900 dark:text-white shadow-sm'
-                  : 'text-zinc-500 dark:text-white/40 hover:text-zinc-700 dark:hover:text-white/70',
+                  ? 'bg-ink-dark text-white'
+                  : 'text-ink-soft hover:text-ink',
               )}
             >
               {f.label}
@@ -100,86 +100,85 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
         </div>
       </div>
 
-      <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
+      <div className="rounded-[24px] border border-line bg-white p-2.5 shadow-dav-card">
         {/* Desktop header */}
-        <div className="hidden lg:grid grid-cols-[1fr_200px_110px_100px_60px] gap-4 px-5 py-3 border-b border-zinc-100 dark:border-white/[0.06]">
+        <div className="hidden grid-cols-[1fr_200px_110px_100px_60px] gap-4 px-[13px] py-2 lg:grid">
           {['Hely', 'Tulajdonos', 'Foglalások', 'Regisztrált', 'Aktív'].map(h => (
-            <span key={h} className="text-[11px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wider">{h}</span>
+            <span key={h} className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft">{h}</span>
           ))}
         </div>
 
         {filtered.length === 0 ? (
-          <p className="px-5 py-10 text-zinc-400 dark:text-zinc-600 text-sm text-center">
+          <p className="px-5 py-10 text-center text-[13.5px] text-ink-soft">
             {query || filter !== 'all' ? 'Nincs találat.' : 'Nincs egyetlen hely sem.'}
           </p>
         ) : (
-          <div>
-            {filtered.map((p, i) => {
+          <div className="flex flex-col gap-[3px]">
+            {filtered.map((p) => {
               const Icon = p.kind === 'restaurant' ? UtensilsCrossed : Building2
               const typeLabel = p.kind === 'restaurant' ? 'Étterem' : 'Szalon'
               const date = new Date(p.createdAt).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric', year: 'numeric' })
-              const showBorder = i < filtered.length - 1
 
               return (
-                <div key={`${p.kind}-${p.id}`} className={showBorder ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''}>
-                  {/* Mobile */}
+                <div key={`${p.kind}-${p.id}`}>
+                  {/* Mobile — card stack */}
                   <div
-                    className="lg:hidden flex items-center gap-3 px-4 py-3.5 hover:bg-zinc-50 dark:hover:bg-white/[0.03] transition-colors cursor-pointer"
+                    className="flex cursor-pointer items-start gap-3 rounded-[20px] p-[13px] transition-colors hover:bg-[#FCFAF1] lg:hidden"
                     onClick={() => openDetail(p)}
                   >
-                    <div className="h-9 w-9 rounded-xl bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
-                      <Icon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-[#F0EAD8]">
+                      <Icon className="h-4 w-4 text-ink" strokeWidth={1.7} />
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <p className="text-zinc-900 dark:text-white text-sm font-semibold truncate">{p.name}</p>
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500 shrink-0">{typeLabel}</span>
-                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full shrink-0 ${p.is_active ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-400'}`}>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="truncate text-[14px] font-semibold text-ink">{p.name}</p>
+                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-ink-soft">{typeLabel}</span>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.is_active ? 'bg-[#E7F2EA] text-[#1D9D63]' : 'bg-[#F0EAD8] text-ink-soft'}`}>
                           {p.is_active ? 'Aktív' : 'Inaktív'}
                         </span>
                       </div>
-                      <p className="text-zinc-500 text-xs truncate">{p.ownerEmail ?? '—'}</p>
-                      <div className="flex items-center gap-3 mt-1">
-                        {p.city && <span className="flex items-center gap-1 text-zinc-400 dark:text-zinc-600 text-xs"><MapPin className="h-3 w-3" />{p.city}</span>}
-                        <span className="flex items-center gap-1 text-zinc-400 dark:text-zinc-600 text-xs"><CalendarCheck className="h-3 w-3" />{p.bookingCount}</span>
-                        <span className="text-zinc-400 dark:text-zinc-600 text-xs">{date}</span>
+                      <p className="truncate text-[11.5px] text-ink-soft">{p.ownerEmail ?? '—'}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-3">
+                        {p.city && <span className="flex items-center gap-1 text-[11.5px] text-ink-soft"><MapPin className="h-3 w-3" />{p.city}</span>}
+                        <span className="flex items-center gap-1 text-[11.5px] text-ink-soft"><CalendarCheck className="h-3 w-3" />{p.bookingCount}</span>
+                        <span className="text-[11.5px] text-ink-soft">{date}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Desktop */}
                   <div
-                    className="hidden lg:grid grid-cols-[1fr_200px_110px_100px_60px] gap-4 items-center px-5 py-3.5 hover:bg-zinc-50 dark:hover:bg-white/[0.02] transition-colors cursor-pointer"
+                    className="hidden cursor-pointer grid-cols-[1fr_200px_110px_100px_60px] items-center gap-4 rounded-[20px] px-[13px] py-3 transition-colors hover:bg-[#FCFAF1] lg:grid"
                     onClick={() => openDetail(p)}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="h-8 w-8 rounded-lg bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
-                        <Icon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-[#F0EAD8]">
+                        <Icon className="h-4 w-4 text-ink" strokeWidth={1.7} />
                       </div>
                       <div className="min-w-0">
-                        <p className="flex items-center gap-1.5 min-w-0">
-                          <span className="text-zinc-900 dark:text-white text-sm font-medium truncate">{p.name}</span>
-                          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{typeLabel}</span>
+                        <p className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-[13.5px] font-semibold text-ink">{p.name}</span>
+                          <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-ink-soft">{typeLabel}</span>
                         </p>
-                        {p.city && <p className="text-zinc-500 text-xs flex items-center gap-1 mt-0.5"><MapPin className="h-3 w-3" />{p.city}</p>}
+                        {p.city && <p className="mt-0.5 flex items-center gap-1 text-[11.5px] text-ink-soft"><MapPin className="h-3 w-3" />{p.city}</p>}
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-zinc-600 dark:text-zinc-300 text-xs truncate flex items-center gap-1.5">
+                      <p className="flex items-center gap-1.5 truncate text-[13px] text-ink">
                         <span className="truncate">{p.ownerEmail ?? '—'}</span>
                         {(p.ownerBusinessCount ?? 1) > 1 && (
-                          <span className="shrink-0 text-[10px] font-bold rounded-full bg-violet-500/10 text-violet-500 px-1.5 py-0.5">
+                          <span className="shrink-0 rounded-full bg-[#FBF4DC] px-1.5 py-0.5 text-[10px] font-bold text-[#7A6A2E]">
                             {p.ownerBusinessCount} üzletből
                           </span>
                         )}
                       </p>
-                      {p.ownerName && <p className="text-zinc-400 dark:text-zinc-600 text-[11px] truncate mt-0.5">{p.ownerName}</p>}
+                      {p.ownerName && <p className="mt-0.5 truncate text-[11px] text-ink-soft">{p.ownerName}</p>}
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <CalendarCheck className="h-3.5 w-3.5 text-zinc-400 dark:text-zinc-600" />
-                      <span className="text-zinc-700 dark:text-zinc-300 text-sm font-medium">{p.bookingCount}</span>
+                      <CalendarCheck className="h-3.5 w-3.5 text-ink-soft" />
+                      <span className="text-[13.5px] font-semibold text-ink">{p.bookingCount}</span>
                     </div>
-                    <span className="text-zinc-400 dark:text-zinc-600 text-xs">{date}</span>
+                    <span className="text-[11.5px] text-ink-soft">{date}</span>
                     <div onClick={e => e.stopPropagation()}>
                       <PlaceToggle kind={p.kind} placeId={p.id} isActive={p.is_active ?? false} />
                     </div>
@@ -191,7 +190,7 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
         )}
       </div>
       {(query || filter !== 'all') && filtered.length > 0 && (
-        <p className="text-zinc-400 dark:text-zinc-600 text-xs text-center">{filtered.length} találat</p>
+        <p className="text-center text-[12px] text-ink-soft">{filtered.length} találat</p>
       )}
     </>
   )

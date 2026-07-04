@@ -129,10 +129,10 @@ export default async function BackstagePage() {
 
   // Étteri KPI-stílus: nincs színes ikon, nagy fekete/fehér szám + szürke uppercase eyebrow + sparkline.
   const primaryStats = [
-    { label: 'Összes hely', value: String(totalPlaces), sub: `${activePlaces} aktív · ${salonsResult.totalDocs} szalon / ${restaurantsResult.totalDocs} étterem`, trend: placesTrend, color: '#8b5cf6', title: 'Helyek (szalon + étterem)', description: 'A platformon regisztrált összes üzlet (szalon és étterem) számának alakulása az elmúlt 30 napban.' },
-    { label: 'Tulajdonosok', value: String(totalOwners), sub: 'regisztrált', trend: ownersTrend, color: '#3b82f6', title: 'Tulajdonosok', description: 'A regisztrált szalon- és étterem-tulajdonosok számának alakulása.' },
-    { label: 'Összes foglalás', value: String(totalBookings), sub: `${monthBookingsTotal} ebben a hónapban`, trend: bookingsTrend, color: '#10b981', title: 'Foglalások', description: 'Az összes foglalás (szalon bookings + étterem reservations) kumulált alakulása.' },
-    { label: 'Aktív előfizetés', value: String(activeSubs.length), sub: `${trialingSubs.length} próbaidőszak`, trend: activeSubsTrend, color: '#f59e0b', title: 'Aktív előfizetések', description: 'A fizető (aktív) előfizetések számának alakulása az elmúlt 30 napban.' },
+    { label: 'Összes hely', value: String(totalPlaces), sub: `${activePlaces} aktív · ${salonsResult.totalDocs} szalon / ${restaurantsResult.totalDocs} étterem`, trend: placesTrend, color: '#F1CE45', title: 'Helyek (szalon + étterem)', description: 'A platformon regisztrált összes üzlet (szalon és étterem) számának alakulása az elmúlt 30 napban.' },
+    { label: 'Tulajdonosok', value: String(totalOwners), sub: 'regisztrált', trend: ownersTrend, color: '#1D1C19', title: 'Tulajdonosok', description: 'A regisztrált szalon- és étterem-tulajdonosok számának alakulása.' },
+    { label: 'Összes foglalás', value: String(totalBookings), sub: `${monthBookingsTotal} ebben a hónapban`, trend: bookingsTrend, color: '#F1CE45', title: 'Foglalások', description: 'Az összes foglalás (szalon bookings + étterem reservations) kumulált alakulása.' },
+    { label: 'Aktív előfizetés', value: String(activeSubs.length), sub: `${trialingSubs.length} próbaidőszak`, trend: activeSubsTrend, color: '#1D1C19', title: 'Aktív előfizetések', description: 'A fizető (aktív) előfizetések számának alakulása az elmúlt 30 napban.' },
   ]
   const metricStats = [
     { label: 'Trial → fizető konverzió', value: `${conversionRate}%`, sub: `${activeSubs.length} fizető / ${payingVsTrial} aktív+trial` },
@@ -161,28 +161,27 @@ export default async function BackstagePage() {
       }
     })
 
-  const cardBase = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl'
+  const cardBase = 'rounded-[26px] bg-white border border-line shadow-dav-card'
 
   return (
-    <div className="p-5 lg:p-8 space-y-6">
+    <div className="space-y-[22px] p-5 font-onest lg:p-8">
       <div>
-        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Backstage</p>
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Áttekintő</h1>
-        <p className="text-zinc-500 dark:text-white/40 text-sm mt-1">Platform szintű statisztikák</p>
+        <h1 className="text-[34px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[43px]">Áttekintő</h1>
+        <p className="mt-1 text-[13.5px] font-medium text-ink-soft">Platform szintű statisztikák</p>
       </div>
 
       {/* MRR highlight */}
-      <div className={`${cardBase} px-6 py-5 flex items-center justify-between gap-4`}>
+      <div className="flex items-center justify-between gap-4 rounded-[26px] bg-ink-dark px-6 py-6 text-white shadow-dav-card">
         <div>
-          <p className="text-zinc-400 dark:text-white/30 text-[10px] font-semibold uppercase tracking-widest mb-1">MRR · havi visszatérő bevétel</p>
-          <p className="text-zinc-900 dark:text-white font-black text-4xl tracking-tight leading-none">
-            {mrr.toLocaleString('hu-HU')}<span className="text-lg font-semibold text-zinc-400 dark:text-zinc-500 ml-1">Ft</span>
+          <p className="mb-1.5 text-[12px] font-medium text-white/50">MRR · havi visszatérő bevétel</p>
+          <p className="text-[42px] font-light leading-none tracking-[-0.02em] text-white">
+            {mrr.toLocaleString('hu-HU')}<span className="ml-1 text-[18px] font-medium text-gold">Ft</span>
           </p>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-zinc-500 dark:text-zinc-400 text-sm font-medium">{activeSubs.length} fizető ügyfél</p>
+        <div className="shrink-0 text-right">
+          <p className="text-[13.5px] font-medium text-white/70">{activeSubs.length} fizető ügyfél</p>
           {pastDueSubs.length > 0 && (
-            <p className="text-red-500 text-xs mt-0.5">{pastDueSubs.length} lejárt fizetés</p>
+            <p className="mt-0.5 text-[12px] font-medium text-gold">{pastDueSubs.length} lejárt fizetés</p>
           )}
         </div>
       </div>
@@ -191,17 +190,17 @@ export default async function BackstagePage() {
       {(expiringTrials.length > 0 || pastDueSubs.length > 0) && (
         <div className="space-y-2">
           {pastDueSubs.length > 0 && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500/20 rounded-xl">
-              <AlertTriangle className="h-4 w-4 text-red-400 shrink-0" />
-              <p className="text-red-400 text-sm font-medium">{pastDueSubs.length} előfizetés lejárt fizetéssel</p>
-              <Link href="/backstage/subscriptions?status=past_due" className="ml-auto text-xs text-red-400 underline whitespace-nowrap">Megtekintés →</Link>
+            <div className="flex items-center gap-3 rounded-[16px] bg-[#F8E9E7] px-4 py-3">
+              <AlertTriangle className="h-[17px] w-[17px] shrink-0 text-[#C0392B]" strokeWidth={1.7} />
+              <p className="text-[13.5px] font-medium text-[#C0392B]">{pastDueSubs.length} előfizetés lejárt fizetéssel</p>
+              <Link href="/backstage/subscriptions?status=past_due" className="ml-auto whitespace-nowrap text-[12px] font-semibold text-[#C0392B] underline">Megtekintés →</Link>
             </div>
           )}
           {expiringTrials.length > 0 && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-              <AlertTriangle className="h-4 w-4 text-amber-400 shrink-0" />
-              <p className="text-amber-400 text-sm font-medium">{expiringTrials.length} próbaidőszak jár le 14 napon belül</p>
-              <Link href="/backstage/subscriptions?status=trialing" className="ml-auto text-xs text-amber-400 underline whitespace-nowrap">Megtekintés →</Link>
+            <div className="flex items-center gap-3 rounded-[16px] bg-[#FBF4DC] px-4 py-3">
+              <AlertTriangle className="h-[17px] w-[17px] shrink-0 text-[#7A6A2E]" strokeWidth={1.7} />
+              <p className="text-[13.5px] font-medium text-[#7A6A2E]">{expiringTrials.length} próbaidőszak jár le 14 napon belül</p>
+              <Link href="/backstage/subscriptions?status=trialing" className="ml-auto whitespace-nowrap text-[12px] font-semibold text-[#7A6A2E] underline">Megtekintés →</Link>
             </div>
           )}
         </div>
@@ -225,13 +224,13 @@ export default async function BackstagePage() {
 
       {/* Key metrics — konverzió, churn, ARR, ARPU */}
       <div>
-        <h2 className="text-zinc-400 dark:text-white/30 text-[11px] font-semibold uppercase tracking-widest mb-3">Üzleti mérőszámok</h2>
+        <h2 className="mb-3 text-[13px] font-medium text-ink-soft">Üzleti mérőszámok</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {metricStats.map(s => (
-            <div key={s.label} className={`${cardBase} p-5`}>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-2">{s.label}</p>
-              <p className={`font-black text-3xl leading-none ${s.danger ? 'text-red-500 dark:text-red-400' : 'text-zinc-900 dark:text-white'}`}>{s.value}</p>
-              <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-2">{s.sub}</p>
+            <div key={s.label} className="rounded-[20px] border border-line bg-white p-3.5 shadow-dav-card sm:rounded-[24px] sm:p-5">
+              <p className="mb-2 text-[12px] font-medium text-ink-soft sm:text-[13px]">{s.label}</p>
+              <p className={`text-[26px] font-light leading-none tracking-[-0.02em] sm:text-[38px] ${s.danger ? 'text-[#C0392B]' : 'text-ink'}`}>{s.value}</p>
+              <p className="mt-2 text-[12px] font-medium text-ink-soft">{s.sub}</p>
             </div>
           ))}
         </div>
@@ -239,16 +238,16 @@ export default async function BackstagePage() {
 
       {/* Recent signups — legutóbbi (időablak nélkül) */}
       <div className={`${cardBase} overflow-hidden`}>
-        <div className="px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center justify-between">
-          <h2 className="text-zinc-900 dark:text-white font-bold text-sm uppercase tracking-widest">
+        <div className="flex items-center justify-between border-b border-line px-5 py-4">
+          <h2 className="text-[15px] font-medium text-ink">
             Legutóbbi regisztrációk
           </h2>
-          <Link href="/backstage/salons" className="text-xs text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors">
+          <Link href="/backstage/salons" className="text-[12px] font-semibold text-ink-soft transition-colors hover:text-ink">
             Összes →
           </Link>
         </div>
         {recentPlaces.length === 0 ? (
-          <p className="px-6 py-8 text-zinc-400 dark:text-zinc-600 text-sm">Még nincs egyetlen regisztrált hely sem.</p>
+          <p className="px-6 py-8 text-[13.5px] text-ink-soft">Még nincs egyetlen regisztrált hely sem.</p>
         ) : (
           <RecentSalonsClient salons={recentPlaces} />
         )}

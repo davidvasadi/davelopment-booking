@@ -21,9 +21,14 @@ export const Subscriptions: CollectionConfig = {
         const isPaid = newPlan === 'paid'
         const planChangedToPaid = isPaid && wasPlan !== 'paid'
 
-        // Trial → fizető váltás: status active, 30 napos ciklus indítása (a trial maradékát
-        // megőrizve, ha még él). Az amount_huf-ot a számoló helper (syncAccountSubscription)
-        // állítja az üzletek alapján — itt csak a státusz-átmenetet kezeljük.
+        // A számlázási ciklus hossza: havi = 30 nap, éves = 365 nap. A ciklus a beérkező
+        // adatból, fallback a meglévő rekordból, végül havi.
+        const cycle = data.billing_cycle ?? originalDoc?.billing_cycle ?? 'monthly'
+        const periodDays = cycle === 'annual' ? 365 : 30
+
+        // Trial → fizető váltás: status active, a ciklus szerinti időszak indítása (a trial
+        // maradékát megőrizve, ha még él). Az amount_huf-ot a számoló helper
+        // (syncAccountSubscription) állítja az üzletek + ciklus alapján — itt a státusz-átmenet.
         if (planChangedToPaid) {
           const trialEndMs = data.trial_ends_at
             ? new Date(data.trial_ends_at).getTime()
@@ -32,14 +37,14 @@ export const Subscriptions: CollectionConfig = {
               : 0
           const baseMs = Math.max(Date.now(), trialEndMs || 0)
           data.status = 'active'
-          data.current_period_end = new Date(baseMs + 30 * MS_PER_DAY).toISOString()
+          data.current_period_end = new Date(baseMs + periodDays * MS_PER_DAY).toISOString()
           data.cancel_at_period_end = false
         } else if (isPaid && data.status === 'trialing') {
           // Fizető plan de trialing státusz inkonzisztens → javítjuk.
           data.status = 'active'
           if (!data.current_period_end && !originalDoc?.current_period_end) {
             const trialEndMs = originalDoc?.trial_ends_at ? new Date(originalDoc.trial_ends_at).getTime() : Date.now()
-            data.current_period_end = new Date(Math.max(Date.now(), trialEndMs) + 30 * MS_PER_DAY).toISOString()
+            data.current_period_end = new Date(Math.max(Date.now(), trialEndMs) + periodDays * MS_PER_DAY).toISOString()
           }
         }
         return data
@@ -189,13 +194,27 @@ export const Subscriptions: CollectionConfig = {
       },
     },
     {
+      name: 'billing_cycle',
+      type: 'select',
+      required: true,
+      defaultValue: 'monthly',
+      label: 'Számlázási ciklus',
+      options: [
+        { label: 'Havi', value: 'monthly' },
+        { label: 'Éves (−20%)', value: 'annual' },
+      ],
+      admin: {
+        description: 'Éves ciklusnál az effektív havidíj a globális kedvezménnyel csökken, és 365 napos időszakot indít.',
+      },
+    },
+    {
       name: 'amount_huf',
       type: 'number',
       defaultValue: 0,
-      label: 'Havi díj (Ft)',
+      label: 'Effektív havi díj (Ft)',
       admin: {
         readOnly: true,
-        description: 'A fiók teljes havidíja — az üzletek összetételéből, automatikusan számolva.',
+        description: 'A fiók effektív havidíja — az üzletek tierje + a számlázási ciklus kedvezménye alapján, automatikusan számolva.',
       },
     },
     {

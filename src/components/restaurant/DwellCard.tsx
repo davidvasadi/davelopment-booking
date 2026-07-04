@@ -4,6 +4,9 @@ import { useState, useMemo, useEffect } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 
+/* davelopment chart-paletta. */
+const C = { ink: '#1D1C19', accent: '#F1CE45' }
+
 type DwellRaw = { date: string; pax: number; minutes: number }
 type DwellGroup = { group: string; avgMinutes: number; count: number }
 
@@ -53,20 +56,22 @@ function Bars({ groups }: { groups: DwellGroup[] }) {
   }, [])
   return (
     <div className="space-y-3">
-      {groups.map((d) => {
+      {groups.map((d, i) => {
         const targetWidth = d.count > 0 ? `${Math.max(12, (d.avgMinutes / maxAvg) * 100)}%` : '0%'
+        // A leghosszabb (peak) csoportot gold-dal emeljük ki, a többit ink.
+        const peak = d.count > 0 && d.avgMinutes === maxAvg
         return (
           <div key={d.group} className="flex items-center gap-3">
-            <span className="w-16 shrink-0 text-sm font-semibold text-zinc-700 dark:text-white/70 tabular-nums">{d.group}</span>
-            <div className="flex-1 h-7 rounded-lg bg-zinc-100 dark:bg-white/[0.05] overflow-hidden">
+            <span className="w-16 shrink-0 text-sm font-semibold text-ink-soft2 tabular-nums">{d.group}</span>
+            <div className="flex-1 h-7 rounded-[10px] bg-[var(--dav-glass-strong)] border border-line overflow-hidden">
               <div
-                className="h-full rounded-lg bg-amber-400/90 flex items-center justify-end px-2 transition-[width] duration-1000 ease-out"
-                style={{ width: grown ? targetWidth : '0%' }}
+                className="h-full rounded-[10px] flex items-center justify-end px-2 transition-[width] duration-1000 ease-out"
+                style={{ width: grown ? targetWidth : '0%', background: peak ? C.accent : C.ink }}
               >
-                {d.count > 0 && <span className="text-[11px] font-bold text-amber-950 tabular-nums">{fmtDuration(d.avgMinutes)}</span>}
+                {d.count > 0 && <span className={`text-[11px] font-bold tabular-nums ${peak ? 'text-ink-dark' : 'text-white'}`}>{fmtDuration(d.avgMinutes)}</span>}
               </div>
             </div>
-            <span className="w-14 shrink-0 text-right text-[11px] text-zinc-400 dark:text-white/30 tabular-nums">
+            <span className="w-14 shrink-0 text-right text-[11px] text-ink-soft tabular-nums">
               {d.count > 0 ? `${d.count} db` : '—'}
             </span>
           </div>
@@ -109,34 +114,34 @@ export function DwellCard({
   const agg = useMemo(() => aggregate(filtered), [filtered])
 
   return (
-    <div className={embedded ? '' : 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl p-6'}>
+    <div className={embedded ? '' : 'bg-[#fcfbf7] border border-line rounded-[26px] shadow-dav-card p-6'}>
       {!embedded && (
         <div className="flex items-baseline justify-between gap-3 mb-1">
           <div>
-            <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Elmúlt {periodLabel}</p>
-            <h3 className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Átlagos foglalási idő</h3>
+            <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">Elmúlt {periodLabel}</p>
+            <h3 className="text-[19px] font-medium tracking-tight text-ink">Átlagos foglalási idő</h3>
           </div>
           <div className="flex items-center gap-3 shrink-0">
-            <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white">{fmtDuration(avgDwellOverall)}</p>
+            <p className="text-2xl font-light tracking-[-0.02em] text-ink">{fmtDuration(avgDwellOverall)}</p>
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="flex items-center gap-1 text-xs font-semibold text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60 transition-colors"
+              aria-label="Részletek"
+              className="shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink transition-transform hover:scale-105 active:scale-95"
             >
-              <span className="hidden sm:inline">Részletek</span>
-              <ArrowUpRight className="h-3.5 w-3.5" />
+              <ArrowUpRight className="h-4 w-4" strokeWidth={2.2} />
             </button>
           </div>
         </div>
       )}
-      {!embedded && <p className="text-xs text-zinc-400 dark:text-white/30 mb-5">A befejezett foglalások tényleges hossza alapján (mennyi ideig foglalt egy asztal).</p>}
+      {!embedded && <p className="text-xs text-ink-soft mb-5">A befejezett foglalások tényleges hossza alapján (mennyi ideig foglalt egy asztal).</p>}
       <Bars groups={avgDwell} />
 
       <Sheet open={open} onOpenChange={(v) => { if (!v) setOpen(false) }}>
-        <SheetContent className="w-full sm:max-w-xl overflow-y-auto bg-white dark:bg-zinc-950">
+        <SheetContent className="w-full sm:max-w-xl overflow-y-auto bg-white">
           <SheetHeader className="mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-0.5">Részletek</p>
-            <SheetTitle className="text-lg font-black tracking-tight text-zinc-900 dark:text-white">Átlagos foglalási idő</SheetTitle>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft mb-0.5">Részletek</p>
+            <SheetTitle className="text-lg font-medium tracking-tight text-ink">Átlagos foglalási idő</SheetTitle>
           </SheetHeader>
 
           {/* Időszak-választó */}
@@ -148,8 +153,8 @@ export function DwellCard({
                 onClick={() => setInnerPeriod(p.value)}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
                   innerPeriod === p.value
-                    ? 'bg-zinc-900 text-white dark:bg-white dark:text-black'
-                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-white/[0.06] dark:text-white/60 dark:hover:bg-white/[0.1]'
+                    ? 'bg-ink-dark text-white'
+                    : 'bg-[var(--dav-glass-strong)] border border-line text-ink-soft2 hover:text-ink'
                 }`}
               >
                 {p.label}
@@ -158,17 +163,17 @@ export function DwellCard({
           </div>
 
           {/* Összesített + csoportbontás a szűrt időszakra */}
-          <div className="rounded-2xl p-5 bg-gradient-to-br from-zinc-50 to-white dark:from-white/[0.04] dark:to-transparent border border-zinc-100 dark:border-white/[0.08] mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-2">Átlagos idő ({PERIODS.find(p => p.value === innerPeriod)?.label})</p>
-            <p className="text-4xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">{fmtDuration(agg.overall)}</p>
-            <p className="text-xs text-zinc-400 dark:text-white/30">{filtered.length} befejezett foglalásból</p>
+          <div className="rounded-[18px] p-5 bg-[var(--dav-glass)] border border-line mb-5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft mb-2">Átlagos idő ({PERIODS.find(p => p.value === innerPeriod)?.label})</p>
+            <p className="text-4xl font-light tracking-[-0.02em] text-ink mb-1">{fmtDuration(agg.overall)}</p>
+            <p className="text-xs text-ink-soft">{filtered.length} befejezett foglalásból</p>
           </div>
 
-          <div className="rounded-2xl border border-zinc-100 dark:border-white/[0.06] p-4">
-            <h4 className="text-sm font-bold text-zinc-700 dark:text-white/80 mb-3">Létszám szerint</h4>
+          <div className="rounded-[18px] border border-line p-4">
+            <h4 className="text-sm font-semibold text-ink mb-3">Létszám szerint</h4>
             {filtered.length > 0
               ? <Bars groups={agg.groups} />
-              : <p className="text-sm text-zinc-400 dark:text-white/30 text-center py-4">Nincs befejezett foglalás ebben az időszakban.</p>}
+              : <p className="text-sm text-ink-soft text-center py-4">Nincs befejezett foglalás ebben az időszakban.</p>}
           </div>
         </SheetContent>
       </Sheet>

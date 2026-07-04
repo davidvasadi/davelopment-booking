@@ -15,13 +15,16 @@ export type Notification = {
   booking?: number | string | null
 }
 
-/** Egy értesítés-típushoz tartozó ikon + szín (a harang-soroknál, owner és admin típusra is). */
-export function notificationVisual(type: Notification['type']): { Icon: LucideIcon; color: string } {
+/**
+ * Egy értesítés-típushoz tartozó ikon + davelopment-paletta (ikon-szín + kör-badge
+ * háttér). A csengő-soroknál kör ikon-badge-ként jelenik meg (Crextio fejléc-badge nyelv).
+ */
+export function notificationVisual(type: Notification['type']): { Icon: LucideIcon; color: string; bg: string } {
   switch (type) {
-    case 'cancellation': return { Icon: CalendarX, color: 'text-red-500' }
-    case 'new_signup': return { Icon: UserPlus, color: 'text-violet-500' }
-    case 'new_subscriber': return { Icon: Sparkles, color: 'text-amber-500' }
-    default: return { Icon: CalendarPlus, color: 'text-green-600 dark:text-green-400' } // new_booking
+    case 'cancellation': return { Icon: CalendarX, color: 'text-[#C0392B]', bg: 'bg-[#F6E7E4]' }
+    case 'new_signup': return { Icon: UserPlus, color: 'text-ink', bg: 'bg-[#EDEBE3]' }
+    case 'new_subscriber': return { Icon: Sparkles, color: 'text-[#8A6D12]', bg: 'bg-[#FBF1C9]' }
+    default: return { Icon: CalendarPlus, color: 'text-[#1D9D63]', bg: 'bg-[#E4F2E9]' } // new_booking
   }
 }
 

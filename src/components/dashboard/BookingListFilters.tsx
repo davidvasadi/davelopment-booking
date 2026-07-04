@@ -50,16 +50,16 @@ export default function BookingListFilters({ status, range, search }: Props) {
   return (
     <div className="space-y-3">
       {/* Status tabs */}
-      <div className="flex gap-1 flex-wrap">
+      <div className="flex flex-wrap gap-1">
         {STATUS_OPTIONS.map(({ value, label }) => (
           <button
             key={value}
             onClick={() => push({ status: value, page: '1' })}
             className={cn(
-              'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+              'rounded-dav-pill px-4 py-1.5 text-[13px] font-semibold transition-all',
               status === value
-                ? 'bg-zinc-900 text-white dark:bg-white dark:text-black'
-                : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-500 dark:text-white/40 hover:text-zinc-900 dark:hover:text-white/80'
+                ? 'bg-ink-dark text-white'
+                : 'border border-line bg-[var(--dav-glass)] text-ink-soft2 hover:text-ink'
             )}
           >
             {label}
@@ -68,17 +68,17 @@ export default function BookingListFilters({ status, range, search }: Props) {
       </div>
 
       {/* Range + Search row */}
-      <div className="flex items-center gap-3 flex-wrap">
-        <div className="flex gap-1 bg-zinc-100 dark:bg-white/[0.06] rounded-xl p-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1 rounded-2xl border border-line bg-[var(--dav-glass)] p-1">
           {RANGE_OPTIONS.map(({ value, label }) => (
             <button
               key={value}
               onClick={() => push({ range: value, page: '1' })}
               className={cn(
-                'px-3 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                'rounded-xl px-4 py-1.5 text-[13px] font-semibold transition-all',
                 range === value
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-sm'
-                  : 'text-zinc-500 hover:text-zinc-900 dark:text-white/40 dark:hover:text-white/80'
+                  ? 'bg-ink-dark text-white'
+                  : 'text-ink-soft2 hover:text-ink'
               )}
             >
               {label}
@@ -87,18 +87,18 @@ export default function BookingListFilters({ status, range, search }: Props) {
         </div>
 
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-400 dark:text-white/30 pointer-events-none" />
+          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           <input
             type="text"
             placeholder="Ügyfélnév..."
             value={searchVal}
             onChange={e => setSearchVal(e.target.value)}
-            className="h-9 pl-8 pr-8 rounded-xl bg-white dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.1] text-sm text-zinc-800 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-white/30 focus:outline-none focus:border-zinc-400 dark:focus:border-white/[0.3] transition-colors w-44"
+            className="h-[42px] w-48 rounded-2xl border border-line bg-white pl-9 pr-9 text-sm text-ink placeholder:text-ink-soft focus:border-line-strong focus:outline-none transition-colors"
           />
           {searchVal && (
             <button
               onClick={() => { setSearchVal(''); push({ search: '', page: '1' }) }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-white/30 hover:text-zinc-700 dark:hover:text-white/60"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink"
             >
               <X className="h-3.5 w-3.5" />
             </button>

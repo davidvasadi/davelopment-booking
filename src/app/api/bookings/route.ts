@@ -4,6 +4,8 @@ import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { getAvailableSlots } from '@/lib/availability'
 import { sendBookingConfirmation, sendNewBookingNotification } from '@/lib/email'
+import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
+import { isGuestBlocked } from '@/lib/blocklist'
 import type { Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
 const schema = z.object({
@@ -18,6 +20,13 @@ const schema = z.object({
   customer_phone: z.string().min(7),
   notes: z.string().optional(),
   locale: z.enum(['hu', 'en', 'de', 'es', 'it', 'fr']).default('hu'),
+  // Opcionális ismétlődés. Hiánya → PONTOSAN a jelenlegi egyszeri viselkedés.
+  repeat: z
+    .object({
+      freq: z.enum(['weekly', 'biweekly', 'monthly']),
+      count: z.coerce.number().int().min(1).max(MAX_SERIES_COUNT),
+    })
+    .optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -37,7 +46,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, staffId, date, start_time, end_time, customer_name, customer_email, customer_phone, notes, locale } = parsed.data
+  const { salonId, serviceId, staffId, date, start_time, end_time, customer_name, customer_email, customer_phone, notes, locale, repeat } = parsed.data
+
+  // Tiltólista (üzletenként): tiltott e-mail/telefon → ÁLTALÁNOS hiba (nem áruljuk el a tiltást).
+  if (await isGuestBlocked({ business: 'salon', businessId: salonId, email: customer_email, phone: customer_phone })) {
+    return NextResponse.json({ error: 'Ez az időpont sajnos nem foglalható. Kérjük, válassz másik időpontot.' }, { status: 409 })
+  }
 
   // Reject bookings in the past
   const today = new Date().toISOString().split('T')[0]
@@ -59,7 +73,16 @@ export async function POST(request: NextRequest) {
     // Double-check slot is still available (race condition guard)
     const availableSlots = await getAvailableSlots({ salonId, staffId, serviceId, date })
     if (!availableSlots.some(s => s.start === start_time)) {
-      return NextResponse.json({ error: 'Ez az időpont már foglalt' }, { status: 409 })
+      // Defenzív: ha telt a slot ÉS az üzletnél be van kapcsolva a várólista, jelezzük a
+      // kliensnek, hogy feliratkozhat (waitlist:true). A flag KI → változatlan „foglalt” hiba.
+      const salonForWaitlist = (await payload.findByID({
+        collection: 'salons', id: salonId, overrideAccess: true, depth: 0,
+      }).catch(() => null)) as Salon | null
+      const waitlistAvailable = !!salonForWaitlist?.feature_modules?.waitlist_on
+      return NextResponse.json(
+        { error: 'Ez az időpont már foglalt', ...(waitlistAvailable ? { waitlist: true } : {}) },
+        { status: 409 },
+      )
     }
 
     // overrideAccess: a publikus foglalás-flow (bejelentkezetlen vendég) — a route
@@ -73,30 +96,71 @@ export async function POST(request: NextRequest) {
       payload.findByID({ collection: 'staff', id: staffId, overrideAccess: true, locale, fallbackLocale: 'hu' }) as Promise<StaffMember>,
     ])
 
-    const booking = (await payload.create({
-      collection: 'bookings',
-      overrideAccess: true,
-      data: {
-        salon: Number(salonId),
-        service: Number(serviceId),
-        staff: Number(staffId),
-        customer_name,
-        customer_email,
-        customer_phone,
-        date,
-        start_time,
-        end_time,
-        status: 'confirmed',
-        notes: notes ?? undefined,
-        locale,
-        cancellation_token: randomBytes(32).toString('hex'),
-      },
-    })) as unknown as Booking
+    // Defenzív auto_confirm: alap (null/true) → 'confirmed' (változatlan). Csak ha a tulaj
+    // EXPLICIT kikapcsolta (auto_confirm === false), akkor 'pending' → kézi jóváhagyás.
+    const bookingStatus: 'confirmed' | 'pending' =
+      salon.booking_rules?.auto_confirm === false ? 'pending' : 'confirmed'
 
+    // Ismétlődés csak akkor él, ha jött `repeat` ÉS a modul be van kapcsolva. Máskülönben
+    // (nincs repeat, vagy recurring_on ki) → egyszeri foglalás, közös series_id nélkül.
+    const seriesActive = !!repeat && !!salon.feature_modules?.recurring_on
+    const seriesId = seriesActive ? randomBytes(16).toString('hex') : undefined
+    const seriesDates = seriesActive && repeat ? generateSeriesDates(date, repeat) : [date]
+
+    const created: Booking[] = []
+    const skipped: string[] = []
+    for (const d of seriesDates) {
+      // A sorozat első alkalmát (a kért dátum) már ellenőriztük fent; a többinél
+      // alkalmanként lefuttatjuk a MEGLÉVŐ szabad-slot ellenőrzést. A foglalt/nem elérhető
+      // alkalmakat KIHAGYJUK (nem hibázunk), így a sorozat a szabad időpontokból áll össze.
+      if (d !== date) {
+        const slots = await getAvailableSlots({ salonId, staffId, serviceId, date: d })
+        if (!slots.some((s) => s.start === start_time)) {
+          skipped.push(d)
+          continue
+        }
+      }
+      const booking = (await payload.create({
+        collection: 'bookings',
+        overrideAccess: true,
+        data: {
+          salon: Number(salonId),
+          service: Number(serviceId),
+          staff: Number(staffId),
+          customer_name,
+          customer_email,
+          customer_phone,
+          date: d,
+          start_time,
+          end_time,
+          status: bookingStatus,
+          notes: notes ?? undefined,
+          locale,
+          cancellation_token: randomBytes(32).toString('hex'),
+          ...(seriesId ? { series_id: seriesId } : {}),
+        },
+      })) as unknown as Booking
+      created.push(booking)
+    }
+
+    // Első (elsődleges) foglalás — a kért dátum mindig created[0], mert a fenti fő
+    // availability-guard már átengedte, itt nem hagyjuk ki.
+    const booking = created[0]
     const emailData = { booking, salon, service, staff }
-    void sendBookingConfirmation(emailData)
+    if (salon.notification_prefs?.confirm_email !== false) {
+      // A sorozat minden létrejött alkalmára megy visszaigazoló (a meglévő minta szerint).
+      for (const b of created) void sendBookingConfirmation({ booking: b, salon, service, staff })
+    }
     void sendNewBookingNotification(emailData)
 
+    // Egyszeri esetben a válasz alakja változatlan ({ booking }). Sorozatnál kiegészítjük
+    // a series-metaadatokkal, de a `booking` mező (első alkalom) marad a kompatibilitásért.
+    if (seriesActive) {
+      return NextResponse.json(
+        { booking, series_id: seriesId, created_count: created.length, skipped_dates: skipped },
+        { status: 201 },
+      )
+    }
     return NextResponse.json({ booking }, { status: 201 })
   } catch (err) {
     console.error('[Bookings API]', err)

@@ -9,6 +9,7 @@ import { resendAdapter } from '@payloadcms/email-resend'
 import { Users } from './src/payload/collections/Users'
 import { Salons } from './src/payload/collections/Salons'
 import { Staff } from './src/payload/collections/Staff'
+import { Shifts } from './src/payload/collections/Shifts'
 import { Services } from './src/payload/collections/Services'
 import { ServiceCategories } from './src/payload/collections/ServiceCategories'
 import { Bookings } from './src/payload/collections/Bookings'
@@ -21,7 +22,13 @@ import { Tables } from './src/payload/collections/Tables'
 import { OpeningHours } from './src/payload/collections/OpeningHours'
 import { OpeningHoursExceptions } from './src/payload/collections/OpeningHoursExceptions'
 import { Reservations } from './src/payload/collections/Reservations'
+import { Waitlist } from './src/payload/collections/Waitlist'
+import { Customers } from './src/payload/collections/Customers'
 import { Notifications } from './src/payload/collections/Notifications'
+import { Reviews } from './src/payload/collections/Reviews'
+import { Memberships } from './src/payload/collections/Memberships'
+import { AuditLog } from './src/payload/collections/AuditLog'
+import { Tasks } from './src/payload/collections/Tasks'
 
 // Globals
 import { PricingSettings } from './src/payload/globals/PricingSettings'
@@ -53,6 +60,7 @@ export default buildConfig({
     Users,
     Salons,
     Staff,
+    Shifts,
     Services,
     ServiceCategories,
     Bookings,
@@ -65,7 +73,13 @@ export default buildConfig({
     OpeningHours,
     OpeningHoursExceptions,
     Reservations,
+    Waitlist,
+    Customers,
     Notifications,
+    Reviews,
+    Memberships,
+    AuditLog,
+    Tasks,
   ],
   globals: [PricingSettings],
   // Többnyelvű publikus foglaló: a tulaj-content (szolgáltatás/kategória nevek, leírások, „jó tudni",

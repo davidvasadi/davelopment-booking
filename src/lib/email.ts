@@ -165,6 +165,163 @@ export async function sendCancellationEmail(data: BookingEmailData) {
   }
 }
 
+export async function sendReminderEmail(data: BookingEmailData) {
+  const { booking, salon } = data
+  const resend = getResend()
+  if (!resend) return
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: booking.customer_email,
+      subject: `Emlékeztető: közeleg a foglalásod – ${salon.name}`,
+      html: reminderHtml(data),
+    })
+  } catch (err) {
+    console.error('[Email] Reminder email failed:', err)
+  }
+}
+
+export async function sendFeedbackRequestEmail(data: BookingEmailData) {
+  const { booking, salon } = data
+  const resend = getResend()
+  if (!resend) return
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: booking.customer_email,
+      subject: `Milyen volt nálunk? Értékeld a látogatásod – ${salon.name}`,
+      html: feedbackHtml(data),
+    })
+  } catch (err) {
+    console.error('[Email] Feedback request email failed:', err)
+  }
+}
+
+// ── Waitlist (várólista) ──────────────────────────────────────────────────────
+
+export interface WaitlistEmailData {
+  salon: Salon
+  customer_name: string
+  customer_email: string
+  date: string
+  time: string
+  /** A várólista-token — a „foglald le” link mutathat a szalon publikus oldalára. */
+  bookUrl?: string | null
+}
+
+/** Feliratkozás-visszaigazolás: „feliratkoztál a várólistára”. */
+export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: data.customer_email,
+      subject: `Felkerültél a várólistára – ${data.salon.name}`,
+      html: wrap(data.salon, `
+        ${heroBlock({
+          icon: 'bell',
+          title: 'Felkerültél a várólistára',
+          subtitle: `Kedves ${data.customer_name}, értesítünk, ha felszabadul egy időpont.`,
+        })}
+        ${detailsCard([
+          infoRow('calendar', 'Dátum', data.date),
+          infoRow('clock', 'Kért időpont', data.time),
+        ].join(''))}
+        ${bottomSpacer()}
+      `),
+    })
+  } catch (err) {
+    console.error('[Email] Waitlist signup failed:', err)
+  }
+}
+
+/** Hely-felszabadulás értesítő: „felszabadult hely — foglald le”. */
+export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  const bookUrl = data.bookUrl ?? `${APP_URL}/${data.salon.slug}`
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: data.customer_email,
+      subject: `Felszabadult egy időpont – ${data.salon.name}`,
+      html: wrap(data.salon, `
+        ${heroBlock({
+          icon: 'bell',
+          title: 'Felszabadult egy időpont',
+          subtitle: `Kedves ${data.customer_name}, a kért időpontod körül felszabadult egy hely. Foglald le, amíg elérhető!`,
+        })}
+        ${detailsCard([
+          infoRow('calendar', 'Dátum', data.date),
+          infoRow('clock', 'Időpont', data.time),
+        ].join(''))}
+        <tr>
+          <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+            <a href="${bookUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Időpont foglalása</a>
+          </td>
+        </tr>
+        ${bottomSpacer()}
+      `),
+    })
+  } catch (err) {
+    console.error('[Email] Waitlist opening failed:', err)
+  }
+}
+
+// ── Csapat-meghívó (team invite) ──────────────────────────────────────────────
+
+export interface TeamInviteEmailData {
+  to: string
+  businessName: string
+  roleLabel: string
+  inviterName?: string | null
+  acceptUrl: string
+}
+
+/**
+ * Csapat-meghívó email: egy tulaj meghív egy tagot egy szerep-körrel. A link az
+ * accept-oldalra mutat (token). Egyszerű, márka-független layout (nincs Salon/logó).
+ */
+export async function sendTeamInviteEmail(data: TeamInviteEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  const inviter = data.inviterName ? `${data.inviterName} · ` : ''
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: data.to,
+      subject: `Meghívó a csapatba – ${data.businessName}`,
+      html: `<!DOCTYPE html>
+<html lang="hu"><head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px"><tr><td align="center">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
+      <tr><td style="background:#09090b;padding:24px 32px">
+        <span style="color:#fff;font-size:18px;font-weight:900;letter-spacing:-0.5px">Schedulio</span>
+      </td></tr>
+      <tr><td style="background:#fff;padding:32px">
+        <h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:#09090b;letter-spacing:-0.5px">Meghívtak a csapatba</h1>
+        <p style="margin:0 0 20px;color:#71717a;font-size:14px;line-height:1.6">
+          ${inviter}meghívott, hogy csatlakozz a(z) <b style="color:#09090b">${data.businessName}</b> csapatához
+          <b style="color:#09090b">${data.roleLabel}</b> szerepkörben.
+        </p>
+        <a href="${data.acceptUrl}" style="display:inline-block;background:#09090b;color:#fff;padding:14px 32px;border-radius:100px;font-size:14px;font-weight:600;text-decoration:none">Meghívó elfogadása</a>
+        <p style="margin:20px 0 0;color:#a1a1aa;font-size:12px">Ha nem számítottál erre a meghívóra, hagyd figyelmen kívül ezt az emailt.</p>
+      </td></tr>
+      <tr><td style="background:#09090b;padding:20px 32px;text-align:center">
+        <p style="margin:0;color:#3f3f46;font-size:11px">© 2026 Schedulio · Minden jog fenntartva</p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`,
+    })
+  } catch (err) {
+    console.error('[Email] Team invite failed:', err)
+  }
+}
+
 // ── HTML templates ────────────────────────────────────────────────────────────
 
 function salonAddress(salon: Salon): string | null {
@@ -251,6 +408,54 @@ function notificationHtml(data: BookingEmailData): string {
       subtitle: `${booking.customer_name} foglalt időpontot.`,
     })}
     ${detailsCard(rows)}
+    ${bottomSpacer()}
+  `)
+}
+
+function reminderHtml(data: BookingEmailData): string {
+  const { booking, salon } = data
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
+  return wrap(salon, `
+    ${heroBlock({
+      icon: 'bell',
+      title: 'Közeleg a foglalásod',
+      subtitle: `Kedves ${booking.customer_name}, csak hogy emlékeztessünk: hamarosan találkozunk!`,
+    })}
+    ${detailsCard(bookingRows(data))}
+    ${calendarBlock({
+      title: `${data.service.name} – ${salon.name}`,
+      date: booking.date,
+      startTime: booking.start_time,
+      endTime: booking.end_time,
+      location: salonAddress(salon),
+      description: `${t(locale, 'email.label.staff')}: ${data.staff.name}`,
+      locale,
+    })}
+    ${bottomSpacer()}
+  `)
+}
+
+function feedbackHtml(data: BookingEmailData): string {
+  const { booking, salon, service } = data
+  const reviewUrl = (booking as { cancellation_token?: string }).cancellation_token
+    ? `${APP_URL}/review/${(booking as { cancellation_token?: string }).cancellation_token}`
+    : `${APP_URL}/${salon.slug}`
+  const rows = [
+    infoRow('scissors', 'Szolgáltatás', service.name),
+    infoRow('calendar', 'Dátum', booking.date),
+  ].join('')
+  return wrap(salon, `
+    ${heroBlock({
+      icon: 'bell',
+      title: 'Milyen volt nálunk?',
+      subtitle: `Kedves ${booking.customer_name}, reméljük elégedett voltál a látogatásoddal. Mondd el a véleményed!`,
+    })}
+    ${detailsCard(rows)}
+    <tr>
+      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Értékelem a látogatásom</a>
+      </td>
+    </tr>
     ${bottomSpacer()}
   `)
 }

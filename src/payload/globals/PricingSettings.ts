@@ -19,22 +19,44 @@ export const PricingSettings: GlobalConfig = {
   },
   fields: [
     {
+      // A szalon EGY alapdíja (Start = ennyi flat; Pro = ennyi + per-fő). A korábbi modellből
+      // örökölt érték — a mező-slug maradt `salon_pro_huf`, hogy a beállított érték ne vesszen el.
       name: 'salon_pro_huf',
       type: 'number',
       required: true,
       defaultValue: 2900,
       min: 0,
-      label: 'Szalon Pro havidíj (Ft)',
-      admin: { description: 'A szalon Pro csomag havi ára forintban.' },
+      label: 'Szalon alapdíj (Ft)',
+      admin: { description: 'A szalon havi alapdíja. Start = ennyi (1 naptár); Pro = ennyi + minden extra munkatárs/naptár.' },
     },
     {
+      name: 'salon_extra_staff_huf',
+      type: 'number',
+      required: true,
+      defaultValue: 1900,
+      min: 0,
+      label: 'Szalon — extra munkatárs / naptár (Ft)',
+      admin: { description: 'A Pro szalon havidíjához az elsőn felüli minden munkatárs/naptár ennyivel járul hozzá.' },
+    },
+    {
+      // Az étterem EGY fix havidíja (a „Pro" / normál csomag). Egyedi igény = külön alku.
       name: 'restaurant_pro_huf',
       type: 'number',
       required: true,
-      defaultValue: 9900,
+      defaultValue: 19900,
       min: 0,
-      label: 'Étterem Pro havidíj (Ft)',
-      admin: { description: 'Az étterem Pro csomag havi ára forintban.' },
+      label: 'Étterem havidíj (Ft)',
+      admin: { description: 'Az étterem havi fix ára forintban (a normál csomag).' },
+    },
+    {
+      name: 'annual_discount_pct',
+      type: 'number',
+      required: true,
+      defaultValue: 20,
+      min: 0,
+      max: 100,
+      label: 'Éves fizetés kedvezménye (%)',
+      admin: { description: 'Éves számlázásnál ennyi %-kal olcsóbb az effektív havidíj (alap 20%).' },
     },
     {
       name: 'trial_days',

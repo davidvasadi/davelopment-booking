@@ -32,7 +32,7 @@ export default async function ServicesPage() {
   ])
 
   return (
-    <div className="p-5 lg:p-8">
+    <div className="space-y-6 p-5 lg:p-0">
       <ServicesManager
         salonId={salon.id}
         initialServices={servicesResult.docs as Service[]}

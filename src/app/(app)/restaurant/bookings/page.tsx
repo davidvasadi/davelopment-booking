@@ -3,11 +3,10 @@ import { getPayloadClient } from '@/lib/payload'
 import { ReservationDateFilter } from '@/components/restaurant/ReservationDateFilter'
 import { DailyView } from '@/components/restaurant/DailyView'
 import { PrintDayButton } from '@/components/restaurant/PrintDayButton'
-import { DayKpiBar } from '@/components/restaurant/DayKpiBar'
+import WaitlistPanel from '@/components/dashboard/WaitlistPanel'
 import { hhmmToMinutes, getDayName } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 import type { Reservation, Table, Room, OpeningHour } from '@/payload/payload-types'
-import { PageHeader } from '@/components/ui/page-header'
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -79,10 +78,6 @@ export default async function RestaurantBookingsPage({
   const openMin = oh?.is_open && oh.open_time ? hhmmToMinutes(oh.open_time) : 11 * 60
   const closeMin = oh?.is_open && oh.close_time ? hhmmToMinutes(oh.close_time) : 23 * 60
 
-  const totalPax = reservations
-    .filter((r) => r.status !== 'cancelled' && r.status !== 'no_show')
-    .reduce((sum, r) => sum + (r.pax ?? 0), 0)
-
   // ── Napi gyorskártyák ──────────────────────────────────────────
   const activeCount = reservations.filter(
     (r) => r.status !== 'cancelled' && r.status !== 'no_show',
@@ -93,30 +88,11 @@ export default async function RestaurantBookingsPage({
   const completedCount = reservations.filter((r) => r.status === 'completed').length
   const walkInCount = reservations.filter((r) => r.source === 'walk_in').length
 
+  const roomCount = rooms.length
+  const tableCount = tables.length
+
   return (
-    <div className="p-5 lg:p-8 space-y-6">
-      <PageHeader
-        eyebrow={`${reservations.length} foglalás · ${totalPax} fő várható`}
-        title="Foglalások"
-        action={
-          <div className="flex items-center gap-2">
-            <ReservationDateFilter currentDate={selectedDate} />
-            <PrintDayButton
-              date={selectedDate}
-              restaurantName={restaurant.name}
-              reservations={reservations}
-            />
-          </div>
-        }
-      />
-
-      <DayKpiBar
-        activeCount={activeCount}
-        completedCount={completedCount}
-        cancelledCount={cancelledCount}
-        walkInCount={walkInCount}
-      />
-
+    <div className="p-5 lg:p-0 space-y-5">
       <DailyView
         date={selectedDate}
         restaurantId={String(restaurant.id)}
@@ -127,7 +103,22 @@ export default async function RestaurantBookingsPage({
         closeMin={closeMin}
         turnMinutes={turnMinutes}
         openReservationId={reservationParam}
+        roomCount={roomCount}
+        tableCount={tableCount}
+        activeCount={activeCount}
+        completedCount={completedCount}
+        cancelledCount={cancelledCount}
+        walkInCount={walkInCount}
+        dateFilter={<ReservationDateFilter currentDate={selectedDate} />}
+        printButton={
+          <PrintDayButton
+            date={selectedDate}
+            restaurantName={restaurant.name}
+            reservations={reservations}
+          />
+        }
       />
+      <WaitlistPanel restaurantId={restaurant.id} />
     </div>
   )
 }

@@ -31,12 +31,12 @@ export default function SalonNotesForm({ salonId, initialNotes }: { salonId: str
         onChange={e => setNotes(e.target.value)}
         rows={4}
         placeholder="Belső megjegyzés az ügyfélről..."
-        className="w-full rounded-xl bg-zinc-50 dark:bg-white/[0.04] border border-zinc-200 dark:border-white/[0.08] text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-600 px-4 py-3 text-sm focus:outline-none focus:border-zinc-400 dark:focus:border-white/[0.2] transition-colors resize-none"
+        className="w-full resize-none rounded-[22px] border border-line bg-white px-[18px] py-[13px] text-[13.5px] text-ink placeholder:text-ink-soft2 transition-colors focus:border-strong focus:outline-none"
       />
       <button
         onClick={save}
         disabled={isPending}
-        className="px-4 py-1.5 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 text-xs font-semibold hover:opacity-80 transition-opacity disabled:opacity-50"
+        className="rounded-[22px] bg-ink-dark px-[18px] py-[9px] text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {saved ? 'Mentve ✓' : isPending ? 'Mentés...' : 'Mentés'}
       </button>

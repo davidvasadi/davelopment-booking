@@ -1,12 +1,13 @@
 import { CollectionConfig } from 'payload'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
 import { userOwnsSalon, canCreateForOwnSalon } from '../lib/salonOwnerAccess'
+import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const Services: CollectionConfig = {
   slug: 'services',
   hooks: {
-    afterChange: [revalidateChildOnChange('salon', 'salon')],
-    afterDelete: [revalidateChildOnDelete('salon', 'salon')],
+    afterChange: [revalidateChildOnChange('salon', 'salon'), auditAfterChange('Szolgáltatás', 'salon')],
+    afterDelete: [revalidateChildOnDelete('salon', 'salon'), auditAfterDelete('Szolgáltatás', 'salon')],
   },
   labels: { singular: 'Szolgáltatás', plural: 'Szolgáltatások' },
   admin: {

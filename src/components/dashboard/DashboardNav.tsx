@@ -76,11 +76,14 @@ export function DashboardNav({
   userAvatarUrl = null,
   businesses = [],
   activeBusinessKey = null,
+  mobileOnly = false,
 }: {
   salonName: string
   salonSlug: string
   subscription?: SubInfo
   variant?: DashboardVariant
+  /** davelopment-design: csak a mobil fejléc + ⌘K (a desktop sidebart az új TopNav váltja). */
+  mobileOnly?: boolean
   /** Az üzlet logója a fejléc store-switcher blokkjához. */
   brandLogoUrl?: string | null
   /** A bejelentkezett felhasználó adatai a sidebar alján lévő fiók-blokkhoz. */
@@ -128,6 +131,7 @@ export function DashboardNav({
   return (
     <>
       {/* ── DESKTOP SIDEBAR ────────────────────────────────────── */}
+      {!mobileOnly && (
       <aside
         className={cn(
           'hidden lg:flex relative h-screen sticky top-0 z-40 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0 transition-[width] duration-200',
@@ -343,6 +347,7 @@ export function DashboardNav({
           )}
         </div>
       </aside>
+      )}
 
       {/* ── MOBILE TOP BAR — vissza + cím + „…" menü ───────────── */}
       <header className="lg:hidden relative z-40 bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-2 h-14 flex items-center justify-between shrink-0">

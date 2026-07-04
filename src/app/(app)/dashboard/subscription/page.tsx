@@ -2,173 +2,34 @@ import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import { getAccountBilling } from '@/lib/accountBilling'
-import Link from 'next/link'
-import { CreditCard, Lock, Settings, ArrowRight, RefreshCw, Clock } from 'lucide-react'
-import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
-import { AccountBillingSummary } from '@/components/dashboard/AccountBillingSummary'
-import { PageHeader } from '@/components/ui/page-header'
-import { DashboardCard } from '@/components/ui/dashboard-card'
-
-function daysLeft(dateStr?: string | null): number | null {
-  if (!dateStr) return null
-  const diff = new Date(dateStr).getTime() - Date.now()
-  return Math.max(0, Math.ceil(diff / 86_400_000))
-}
-
-function formatDate(dateStr?: string | null): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  trialing: 'Próbaidőszak',
-  active: 'Aktív',
-  past_due: 'Fizetési hiba',
-  canceled: 'Megszűnt',
-  paused: 'Szüneteltetett',
-}
-
-const STATUS_DOT: Record<string, string> = {
-  trialing: 'bg-blue-400',
-  active: 'bg-emerald-400',
-  past_due: 'bg-red-400',
-  canceled: 'bg-red-400',
-  paused: 'bg-amber-400',
-}
-
-
-function Kpi({ sub, value, label }: { sub: string; value: string; label?: string }) {
-  return (
-    <DashboardCard noPadding className="p-4 sm:p-5 lg:p-6 min-w-0">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-1.5">{sub}</p>
-      {/* Reszponzív, tördelhető érték: hosszú szöveges értékek (pl. „Próbaidőszak",
-          dátum) is kiférnek tableten — nincs túlcsorduló 4xl és nincs truncate. */}
-      <p className="text-lg sm:text-xl lg:text-2xl font-black tracking-tight leading-tight mb-1.5 text-zinc-900 dark:text-white break-words [overflow-wrap:anywhere]">{value}</p>
-      {label && <p className="text-xs text-zinc-500 dark:text-white/40 leading-snug">{label}</p>}
-    </DashboardCard>
-  )
-}
+import { getPricing } from '@/lib/pricing'
+import { getUserBusinesses } from '@/lib/activeBusiness'
+import { SubscriptionView } from '@/components/dashboard/SubscriptionView'
 
 export default async function SubscriptionPage() {
   const { salon, userId } = await getOwnedSalon()
   const payload = await getPayloadClient()
   if (!salon) return null
 
-  const [sub, billing] = await Promise.all([
+  const [sub, billing, pricing, allBusinesses] = await Promise.all([
     findAccountSubscription({ payload }, userId),
     getAccountBilling(userId),
+    getPricing(),
+    getUserBusinesses(userId),
   ])
-  const days = sub?.status === 'trialing' ? daysLeft(sub.trial_ends_at) : null
-
-  const isTrial = sub?.status === 'trialing'
-  const isActivePro = sub?.status === 'active' && sub?.plan === 'paid'
-  const cancelScheduled = sub?.cancel_at_period_end === true
-  const planLabel = sub?.plan === 'paid' ? 'Előfizetés' : 'Próbaidőszak'
-  // Fiók-szintű: a teljes fiók havidíja (az üzletek összetételéből számolva).
-  const feeHuf = sub?.amount_huf ?? billing.totalMonthlyHuf
-  const priceLabel = feeHuf > 0 ? `${feeHuf.toLocaleString('hu-HU')} Ft` : 'Ingyenes'
-  const periodEnd = isTrial ? sub?.trial_ends_at : sub?.current_period_end
+  const businesses = allBusinesses.map((b) => ({ type: b.type, id: b.id, name: b.name, slug: b.slug, logoUrl: b.logoUrl }))
 
   return (
-    <div className="p-5 lg:p-8 space-y-6">
-
-      {/* Header */}
-      <PageHeader eyebrow="Számlázás" title="Előfizetés" />
-
-      {/* Több-üzlet: fiók-szintű összegző (csak ha >1 üzlet) */}
-      <AccountBillingSummary billing={billing} activeKey={`salon:${salon.id}`} />
-
-      {/* Lock notice — past_due / canceled esetén */}
-      {(sub?.status === 'past_due' || sub?.status === 'canceled') && (
-        <div className="rounded-2xl p-5 lg:p-6 bg-red-50 border border-red-200 dark:bg-red-950/40 dark:border-red-900/40">
-          <div className="flex items-start gap-4 mb-4">
-            <div className="h-11 w-11 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0">
-              <Lock className="h-5 w-5 text-red-600 dark:text-red-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-red-700 dark:text-red-300 mb-0.5">
-                {sub?.status === 'past_due' ? 'Lejárt a próbaidőszakod' : 'Az előfizetésed megszűnt'}
-              </p>
-              <p className="text-sm text-red-700/80 dark:text-red-300/80">
-                A dashboard funkciók le vannak tiltva amíg nincs aktív előfizetés. A vendégek továbbra is tudnak foglalni a nyilvános oldaladon.
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/dashboard/settings"
-            className="flex items-center justify-center gap-2 h-11 w-full sm:w-auto sm:inline-flex sm:px-6 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity"
-          >
-            <Settings className="h-4 w-4" />
-            Tovább a beállításokhoz
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </div>
-      )}
-
-      {/* KPI cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-3">
-        <Kpi sub="Csomag" value={planLabel} label={STATUS_LABELS[sub?.status ?? ''] ?? '—'} />
-        <Kpi sub="Havi díj" value={priceLabel} label={sub?.plan === 'paid' ? 'forintban' : 'a próba alatt'} />
-        {isTrial && days !== null
-          ? <Kpi sub="Hátralévő idő" value={days === 0 ? 'Ma' : `${days} nap`} label="a próbából" />
-          : <Kpi sub={cancelScheduled ? 'Hozzáférés vége' : 'Következő számlázás'} value={formatDate(periodEnd)} label={cancelScheduled ? 'utána letiltva' : 'automatikus'} />
-        }
-        <Kpi sub="Indulás" value={formatDate(salon?.createdAt as unknown as string)} label="regisztráció" />
-      </div>
-
-      {/* Status row */}
-      <DashboardCard className="flex items-center gap-3">
-        <span className={`h-2 w-2 rounded-full shrink-0 ${cancelScheduled ? 'bg-amber-400' : (STATUS_DOT[sub?.status ?? ''] ?? 'bg-zinc-300')}`} />
-        <p className="text-sm text-zinc-500 dark:text-white/50 flex-1">
-          {sub?.status === 'trialing' && <>Próbaidőszakban vagy. <span className="text-zinc-900 dark:text-white font-bold">{days ?? 0} nap</span> múlva lejár — utána Pro csomagra kell váltani.</>}
-          {isActivePro && !cancelScheduled && <>Aktív <span className="text-zinc-900 dark:text-white font-bold">Pro</span> előfizetésed van. Automatikus megújulás <span className="text-zinc-900 dark:text-white font-bold">{formatDate(periodEnd)}</span>-én.</>}
-          {isActivePro && cancelScheduled && <>Az előfizetésed <span className="text-amber-600 dark:text-amber-400 font-bold">{formatDate(periodEnd)}-én megszűnik</span>. Eddig minden Pro funkció elérhető.</>}
-          {sub?.status === 'past_due' && <><span className="text-red-600 dark:text-red-400 font-bold">Fizetési hiba</span> — frissítsd a számlázási adataidat.</>}
-          {sub?.status === 'canceled' && <>Az előfizetésed <span className="text-red-600 dark:text-red-400 font-bold">megszűnt</span>.</>}
-          {sub?.status === 'paused' && <>Az előfizetésed <span className="text-amber-600 dark:text-amber-400 font-bold">szünetel</span>.</>}
-        </p>
-      </DashboardCard>
-
-      {/* Fizetés (teljes szélesség — ide jönnek majd a számlázási adatok + Stripe). */}
-      <DashboardCard noPadding>
-        <div className="px-5 lg:px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-zinc-400 dark:text-white/40" />
-          <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">Fizetés</h2>
-        </div>
-        <div className="p-5 lg:p-6">
-          {isActivePro ? (
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-zinc-500 dark:text-white/40 mb-2">Következő számlázás</p>
-                <p className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-1">{priceLabel}</p>
-                <p className="text-sm text-zinc-500 dark:text-white/40">{formatDate(periodEnd)}-én</p>
-              </div>
-              <div className="flex items-start gap-2 rounded-xl bg-zinc-50 dark:bg-white/[0.03] px-3 py-2.5 border border-zinc-100 dark:border-white/[0.06]">
-                {cancelScheduled
-                  ? <Clock className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                  : <RefreshCw className="h-4 w-4 text-emerald-500 mt-0.5 shrink-0" />
-                }
-                <p className="text-xs text-zinc-600 dark:text-white/60 leading-relaxed">
-                  {cancelScheduled
-                    ? 'Az előfizetés a következő számlázási dátumkor lejár. Nem kerül több levonásra.'
-                    : 'Automatikusan megújul havonta. Bármikor lemondhatod.'}
-                </p>
-              </div>
-              <div className="pt-1">
-                <CancelSubscriptionButton cancelScheduled={cancelScheduled} periodEndLabel={formatDate(periodEnd)} />
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <p className="text-sm font-semibold text-zinc-700 dark:text-white/70 mb-1">Online fizetés hamarosan</p>
-              <p className="text-xs text-zinc-400 dark:text-white/30">
-                Stripe integráció fejlesztés alatt. Addig írj nekünk:{' '}
-                <a href="mailto:hello@schedulio.hu" className="underline hover:opacity-70">hello@schedulio.hu</a>
-              </p>
-            </div>
-          )}
-        </div>
-      </DashboardCard>
-    </div>
+    <SubscriptionView
+      kind="salon"
+      sub={sub}
+      billing={billing}
+      pricing={pricing}
+      activeBusinessId={String(salon.id)}
+      businesses={businesses}
+      activeKey={`salon:${salon.id}`}
+      startedAt={salon?.createdAt as unknown as string}
+      settingsBase="/dashboard"
+    />
   )
 }

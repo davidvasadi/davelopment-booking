@@ -5,12 +5,12 @@ interface DashboardCardProps extends HTMLAttributes<HTMLDivElement> {
   noPadding?: boolean
 }
 
-/** Egységes kártya a dashboard-oldalakon. */
+/** Egységes kártya a dashboard-oldalakon (davelopment-design: fehér, lekerekített, finom árnyék). */
 export function DashboardCard({ noPadding, className, children, ...props }: DashboardCardProps) {
   return (
     <div
       className={cn(
-        'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl',
+        'bg-white border border-line rounded-[22px] shadow-dav-card',
         !noPadding && 'px-5 py-4',
         className,
       )}

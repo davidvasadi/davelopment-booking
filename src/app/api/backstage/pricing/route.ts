@@ -11,10 +11,19 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json()
   const data: Record<string, number> = {}
-  // Csak érvényes, nem-negatív egészeket fogadunk el.
-  for (const key of ['salon_pro_huf', 'restaurant_pro_huf', 'trial_days'] as const) {
+  // Csak érvényes, nem-negatív egészeket fogadunk el. Az árak + próbanapok bármekkorák lehetnek,
+  // az éves kedvezmény (%) 0–100 közé szorítva.
+  const keys = [
+    'salon_pro_huf',
+    'salon_extra_staff_huf',
+    'restaurant_pro_huf',
+    'annual_discount_pct',
+    'trial_days',
+  ] as const
+  for (const key of keys) {
     const v = Number(body[key])
-    if (Number.isFinite(v) && v >= 0) data[key] = Math.round(v)
+    if (!Number.isFinite(v) || v < 0) continue
+    data[key] = key === 'annual_discount_pct' ? Math.min(100, Math.round(v)) : Math.round(v)
   }
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'Nincs érvényes mező' }, { status: 400 })

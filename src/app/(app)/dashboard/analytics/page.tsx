@@ -2,11 +2,13 @@ import { getOwnedSalon } from '@/lib/salonContext'
 import { getPayloadClient } from '@/lib/payload'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { formatPrice } from '@/lib/utils'
-import { TrendChart, DowChart, ServiceChart, StaffChart, HourChart } from '@/components/dashboard/DashboardCharts'
+import { TrendChart, DowChart, ServiceChart, StaffChart, HourChart, DaypartChart } from '@/components/dashboard/DashboardCharts'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
 import PeriodFilter from '@/components/dashboard/PeriodFilter'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
+import { HeroKpi } from '@/components/dashboard/overview-ui'
+import { Wallet, CalendarCheck, CheckCircle2 } from 'lucide-react'
 
 const VALID_PERIODS = [1, 7, 30, 90, 180, 365]
 
@@ -35,10 +37,34 @@ export default async function AnalyticsPage({
   const revenueSeries = stats.trend.map((d) => ({ label: d.label, value: d.revenue }))
   const bookingsSeries = stats.trend.map((d) => ({ label: d.label, value: d.bookings }))
 
+  // ── Crextio „stat bars" — teljesítés/lemondás/hátralévő arány az időszakra ──
+  const totalForBar = stats.periodBookings || 1
+  const completedPct = Math.min(100, stats.completionRate)
+  const cancelledPct = Math.min(100 - completedPct, Math.round((stats.cancelledCount / totalForBar) * 100))
+  const openPct = Math.max(0, 100 - completedPct - cancelledPct)
+
+  // ── Nap×óra hőtérkép (10..22h) — a szalonnál nincs per-nap-óra kereszt, ezért a
+  //    heti eloszlás (byDayOfWeek) × óra-profil (byHour) külső szorzatával közelít. ──
+  const HM_HOURS = Array.from({ length: 13 }, (_, i) => i + 10)
+  const hourProfileMap: Record<number, number> = {}
+  for (const h of stats.byHour) hourProfileMap[parseInt(h.hour, 10)] = h.bookings
+  const dowWeights = stats.byDayOfWeek.map((d) => d.bookings)
+  const hmGrid = dowWeights.map((dw) => HM_HOURS.map((h) => dw * (hourProfileMap[h] ?? 0)))
+  let hmPeakDay = 0, hmPeakHour = HM_HOURS[0], hmBest = -1
+  hmGrid.forEach((row, di) => row.forEach((v, hi) => { if (v > hmBest) { hmBest = v; hmPeakDay = di; hmPeakHour = HM_HOURS[hi] } }))
+  const heatmap = { grid: hmGrid, hours: HM_HOURS, peakDayIdx: hmPeakDay, peakHour: hmPeakHour }
+
+  // ── Forrás-/státusz-csík: teljesített / lemondott / nyitott (%) ──
+  const sources = [
+    { label: 'Teljesített', value: `${completedPct}%`, pct: completedPct, variant: 'ink' as const },
+    { label: 'Lemondva', value: `${cancelledPct}%`, pct: cancelledPct, variant: 'gold' as const },
+    { label: 'Nyitott', value: `${openPct}%`, pct: openPct, variant: 'striped' as const },
+  ]
+
   const metrics: OverviewMetric[] = [
     {
       id: 'revenue', label: 'Bevétel', value: formatPrice(stats.periodRevenue, 'HUF'), unit: 'Ft',
-      deltaPct: stats.periodRevenueDiff, color: '#00bb88', icon: 'revenue', series: revenueSeries,
+      deltaPct: stats.periodRevenueDiff, color: '#1D1C19', icon: 'revenue', series: revenueSeries,
       views: [
         { id: 'trend', label: 'Bevétel alakulása', icon: 'trend', target: 'trend' },
         { id: 'hour', label: 'Óránkénti forgalom', icon: 'hour', target: 'hour' },
@@ -47,7 +73,7 @@ export default async function AnalyticsPage({
     },
     {
       id: 'bookings', label: 'Foglalások', value: String(stats.periodBookings), unit: 'foglalás',
-      deltaPct: stats.periodBookingsDiff, color: '#0099ff', icon: 'bookings', series: bookingsSeries,
+      deltaPct: stats.periodBookingsDiff, color: '#1D1C19', icon: 'bookings', series: bookingsSeries,
       views: [
         { id: 'trend', label: 'Foglalások alakulása', icon: 'trend', target: 'trend' },
         { id: 'hour', label: 'Óránkénti forgalom', icon: 'hour', target: 'hour' },
@@ -56,7 +82,7 @@ export default async function AnalyticsPage({
     },
     {
       id: 'completion', label: 'Teljesítés', value: `${stats.completionRate}%`, unit: '',
-      color: '#8b5cf6', icon: 'completion', series: bookingsSeries, deltaPct: stats.completionRateDiff,
+      color: '#1D9D63', icon: 'completion', series: bookingsSeries, deltaPct: stats.completionRateDiff,
       views: [
         ...(stats.byService.length ? [{ id: 'service', label: 'Szolgáltatások', icon: 'service', target: 'service' }] : []),
         ...(stats.byStaff.length ? [{ id: 'staff', label: 'Munkatársak', icon: 'staff', target: 'staff' }] : []),
@@ -64,7 +90,7 @@ export default async function AnalyticsPage({
     },
     {
       id: 'avg', label: 'Átl. érték', value: formatPrice(stats.avgBookingValue, 'HUF'), unit: 'Ft',
-      color: '#f59e0b', icon: 'avg', series: revenueSeries, deltaPct: stats.avgBookingValueDiff,
+      color: '#B89530', icon: 'avg', series: revenueSeries, deltaPct: stats.avgBookingValueDiff,
       views: [
         { id: 'trend', label: 'Bevétel alakulása', icon: 'trend', target: 'trend' },
         ...(stats.byService.length ? [{ id: 'service', label: 'Szolgáltatások', icon: 'service', target: 'service' }] : []),
@@ -72,7 +98,7 @@ export default async function AnalyticsPage({
     },
     {
       id: 'cancelled', label: 'Lemondások', value: String(stats.cancelledCount), unit: 'foglalás',
-      color: '#f87171', icon: 'cancelled', series: stats.cancelledTrend, deltaPct: stats.cancelledCountDiff,
+      color: '#C0564A', icon: 'cancelled', series: stats.cancelledTrend, deltaPct: stats.cancelledCountDiff,
       views: [
         { id: 'trend', label: 'Foglalások alakulása', icon: 'trend', target: 'trend' },
       ],
@@ -87,30 +113,64 @@ export default async function AnalyticsPage({
     staff: stats.byStaff.length ? <StaffChart key="staff" data={stats.byStaff} period={stats.period} embedded /> : null,
   }
 
+  // A col2 tetejére 2 grafikon-kártya: heti ÁLLÓ OSZLOP + (szolgáltatás-összetétel,
+  // ha van; különben napszak-bontás — az óra×nap hőtérkép már mutatja az órákat).
+  const chartCards = [
+    { title: 'Heti eloszlás', node: <DowChart key="cc-dow" data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} embedded /> },
+    stats.byService.length
+      ? { title: 'Szolgáltatások', node: <ServiceChart key="cc-service" data={stats.byService} period={stats.period} embedded /> }
+      : { title: 'Napszakok', node: <DaypartChart key="cc-daypart" data={stats.byHour} embedded /> },
+  ]
+
   return (
-    <div className="p-5 lg:p-8 space-y-6">
+    <div className="p-5 lg:p-0 space-y-6">
 
       {/* Header — mobilon a cím a globális headerben van, ezért itt csak desktopon */}
       <div className="hidden lg:block">
         <PageHeader eyebrow="Részletes nézet" title="Statisztikák" />
       </div>
 
-      {/* Áttekintés — kártya → nagy grafikon vált; részlet-sor → a lenti grafikon a slotban vált */}
+      {/* ── Crextio stat-terület: státusz-csík (striped cellával) + nagy KPI-számok ── */}
+      <div className="flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
+        <div className="min-w-0 flex-1 lg:max-w-[760px]">
+          <div className="mb-2 flex items-center gap-8 lg:gap-12 text-xs font-medium text-ink-soft">
+            <span>Teljesített</span>
+            <span>Lemondva</span>
+            <span className="ml-auto">Nyitott</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex h-11 shrink-0 items-center rounded-[21px] bg-ink-dark px-5 text-sm font-semibold text-white">{completedPct}%</div>
+            <div className="flex h-11 shrink-0 items-center rounded-[21px] bg-gold px-5 text-sm font-semibold text-ink-dark">{cancelledPct}%</div>
+            <div className="min-w-0 flex-1">
+              <div
+                className="flex h-11 items-center justify-end rounded-[21px] border border-line-strong px-5 text-sm font-semibold text-ink-soft2"
+                style={{ background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)' }}
+              >
+                {openPct}%
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-start gap-8 lg:gap-10">
+          <HeroKpi icon={Wallet} value={formatPrice(stats.periodRevenue, 'HUF')} label="Bevétel" />
+          <HeroKpi icon={CalendarCheck} value={String(stats.periodBookings)} label="Foglalás" />
+          <HeroKpi icon={CheckCircle2} value={`${stats.completionRate}%`} label="Teljesítés" />
+        </div>
+      </div>
+
+      {/* Áttekintés — kártya → nagy grafikon vált; részlet-sor → a lenti grafikon a slotban vált.
+          Reveal nélkül, pontosan úgy mint az Áttekintés grafikonjai (azonnal renderel). */}
       <AnalyticsOverview
         metrics={metrics}
         filter={<PeriodFilter current={days} csvExport={false} />}
         csvHref={`/api/export-csv?days=${days}`}
         detailCharts={detailCharts}
+        heatmap={heatmap}
+        sources={sources}
+        chartCards={chartCards}
       />
 
-      {/* Insight */}
-      {(stats.bestDay || stats.bestHour) && (
-        <DashboardCard className="text-sm text-zinc-500 dark:text-white/50">
-          {stats.bestDay && <><span className="text-zinc-900 dark:text-white font-bold">{stats.bestDay}</span> az Ön legerősebb napja.</>}
-          {stats.bestDay && stats.bestHour && ' '}
-          {stats.bestHour && <>A csúcsidő: <span className="text-zinc-900 dark:text-white font-bold">{stats.bestHour}</span>.</>}
-        </DashboardCard>
-      )}
     </div>
   )
 }

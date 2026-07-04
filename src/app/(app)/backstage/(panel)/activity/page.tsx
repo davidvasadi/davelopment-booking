@@ -27,12 +27,12 @@ function timeAgo(date: Date): string {
 }
 
 const TYPE_CONFIG: Record<ActivityType, { icon: React.ElementType; color: string }> = {
-  place_registered: { icon: UserPlus, color: 'bg-violet-500/10 text-violet-500' },
-  sub_trial: { icon: Clock, color: 'bg-blue-500/10 text-blue-500' },
-  sub_active: { icon: CheckCircle2, color: 'bg-emerald-500/10 text-emerald-500' },
-  sub_past_due: { icon: AlertTriangle, color: 'bg-red-500/10 text-red-500' },
-  sub_canceled: { icon: XCircle, color: 'bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500' },
-  sub_other: { icon: CreditCard, color: 'bg-zinc-200 dark:bg-zinc-700/50 text-zinc-500' },
+  place_registered: { icon: UserPlus, color: 'bg-[#F6F2E4] text-ink-soft' },
+  sub_trial: { icon: Clock, color: 'bg-[#FBF4DC] text-[#7A6A2E]' },
+  sub_active: { icon: CheckCircle2, color: 'bg-[#E7F2EA] text-[#1D9D63]' },
+  sub_past_due: { icon: AlertTriangle, color: 'bg-[#F8E9E7] text-[#C0392B]' },
+  sub_canceled: { icon: XCircle, color: 'bg-[#F0EAD8] text-ink-soft' },
+  sub_other: { icon: CreditCard, color: 'bg-[#F0EAD8] text-ink-soft' },
 }
 
 function subEvent(status: string): { type: ActivityType; label: string } {
@@ -114,39 +114,38 @@ export default async function ActivityPage() {
     groups[key].push(item)
   }
 
-  const cardBase = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl'
+  const cardBase = 'rounded-[26px] bg-white border border-line shadow-dav-card'
 
   return (
-    <div className="p-5 lg:p-8 space-y-6">
+    <div className="space-y-[22px] p-5 font-onest lg:p-8">
       <div>
-        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Backstage</p>
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Aktivitás</h1>
-        <p className="text-zinc-500 dark:text-white/40 text-sm mt-1">Regisztrációk és előfizetés-események (elmúlt 90 nap)</p>
+        <h1 className="text-[34px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[43px]">Aktivitás</h1>
+        <p className="mt-1 text-[13.5px] font-medium text-ink-soft">Regisztrációk és előfizetés-események (elmúlt 90 nap)</p>
       </div>
 
       {items.length === 0 ? (
         <div className={`${cardBase} px-6 py-12 text-center`}>
-          <p className="text-zinc-400 dark:text-zinc-600 text-sm">Nincs regisztráció vagy előfizetés-esemény az elmúlt 90 napban.</p>
+          <p className="text-[13.5px] text-ink-soft">Nincs regisztráció vagy előfizetés-esemény az elmúlt 90 napban.</p>
         </div>
       ) : (
         <div className="space-y-8">
           {Object.entries(groups).map(([date, dayItems]) => (
             <div key={date}>
-              <p className="text-zinc-400 dark:text-zinc-600 text-xs font-semibold uppercase tracking-wider mb-3">{date}</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-ink-soft">{date}</p>
               <div className={`${cardBase} overflow-hidden`}>
                 {dayItems.map((item, i) => {
                   const { icon: Icon, color } = TYPE_CONFIG[item.type]
                   const showBorder = i < dayItems.length - 1
                   const inner = (
-                    <div className={`flex items-center gap-3.5 px-5 py-3.5 ${showBorder ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''} ${item.href ? 'hover:bg-zinc-50 dark:hover:bg-white/[0.03] transition-colors' : ''}`}>
-                      <div className={`h-8 w-8 rounded-xl flex items-center justify-center shrink-0 ${color}`}>
+                    <div className={`flex items-center gap-3.5 px-5 py-3.5 ${showBorder ? 'border-b border-line' : ''} ${item.href ? 'transition-colors hover:bg-[#FCFAF1]' : ''}`}>
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[13px] ${color}`}>
                         <Icon className="h-4 w-4" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-zinc-900 dark:text-white text-sm font-medium truncate">{item.title}</p>
-                        <p className="text-zinc-400 text-xs truncate mt-0.5">{item.sub}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13.5px] font-medium text-ink">{item.title}</p>
+                        <p className="mt-0.5 truncate text-[12px] text-ink-soft">{item.sub}</p>
                       </div>
-                      <span className="text-zinc-400 dark:text-zinc-600 text-xs shrink-0">{timeAgo(item.date)}</span>
+                      <span className="shrink-0 text-[12px] text-ink-soft2">{timeAgo(item.date)}</span>
                     </div>
                   )
                   return item.href

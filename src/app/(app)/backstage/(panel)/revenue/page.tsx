@@ -59,87 +59,84 @@ export default async function RevenuePage() {
     { label: 'Churn ráta', value: `${churnRate}%`, sub: `${canceledSubs.length} lemondás`, danger: canceledSubs.length > 0 },
   ]
 
-  const cardBase = 'bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl'
-
   return (
-    <div className="p-5 lg:p-8 space-y-6">
+    <div className="space-y-[22px] p-5 font-onest lg:p-8">
       <div>
-        <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Backstage</p>
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Bevétel</h1>
-        <p className="text-zinc-500 dark:text-white/40 text-sm mt-1">Előfizetési bevételek és konverzió (szalon + étterem)</p>
+        <h1 className="text-[34px] font-light tracking-[-0.02em] text-ink lg:text-[43px] leading-none">Bevétel</h1>
+        <p className="mt-1 text-[13.5px] font-medium text-ink-soft">Előfizetési bevételek és konverzió (szalon + étterem)</p>
       </div>
 
-      {/* KPI grid — étteri stílus (visszafogott, nincs színes ikon) */}
+      {/* KPI grid (HeroKpi stílus) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {kpis.map(k => (
-          <div key={k.label} className={`${cardBase} p-5`}>
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-2">{k.label}</p>
-            <p className={`font-black text-xl leading-tight ${k.danger ? 'text-red-500 dark:text-red-400' : 'text-zinc-900 dark:text-white'}`}>{k.value}</p>
-            <p className="text-zinc-500 dark:text-zinc-400 text-xs mt-1">{k.sub}</p>
+          <div key={k.label} className="rounded-[20px] sm:rounded-[24px] border border-line bg-white p-3.5 sm:p-5 shadow-dav-card">
+            <p className="text-[12px] sm:text-[13px] font-medium text-ink-soft mb-2">{k.label}</p>
+            <p className={`text-[22px] sm:text-[30px] font-light leading-none tracking-[-0.02em] ${k.danger ? 'text-[#C0392B]' : 'text-ink'}`}>{k.value}</p>
+            <p className="text-ink-soft text-[12px] mt-1.5">{k.sub}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Conversion funnel */}
-        <div className={`${cardBase} p-6`}>
-          <h2 className="text-zinc-900 dark:text-white font-bold text-sm mb-5">Konverziós tölcsér</h2>
+        <div className="rounded-[26px] border border-line bg-white p-6 shadow-dav-card">
+          <h2 className="text-ink font-semibold text-[15px] mb-5">Konverziós tölcsér</h2>
           <div className="space-y-3">
             {[
-              { label: 'Összes előfizetés', value: subs.length, color: 'bg-zinc-200 dark:bg-zinc-600' },
-              { label: 'Próbaidőszak', value: trialingSubs.length, color: 'bg-blue-400' },
-              { label: 'Aktív előfizető', value: activeSubs.length, color: 'bg-emerald-400' },
-              { label: 'Lejárt fizetés', value: pastDueSubs.length, color: 'bg-red-400' },
-              { label: 'Lemondott', value: canceledSubs.length, color: 'bg-zinc-300 dark:bg-zinc-700' },
+              { label: 'Összes előfizetés', value: subs.length, color: '#C9BE9A' },
+              { label: 'Próbaidőszak', value: trialingSubs.length, color: '#F1CE45' },
+              { label: 'Aktív előfizető', value: activeSubs.length, color: '#1D9D63' },
+              { label: 'Lejárt fizetés', value: pastDueSubs.length, color: '#C0392B' },
+              { label: 'Lemondott', value: canceledSubs.length, color: '#86826F' },
             ].map(row => (
               <div key={row.label}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-zinc-600 dark:text-zinc-400 text-xs">{row.label}</span>
-                  <span className="text-zinc-900 dark:text-white text-xs font-bold">{row.value}</span>
+                  <span className="text-ink-soft text-[12px]">{row.label}</span>
+                  <span className="text-ink text-[12px] font-semibold">{row.value}</span>
                 </div>
-                <div className="h-1.5 bg-zinc-100 dark:bg-white/[0.06] rounded-full overflow-hidden">
+                <div className="h-1.5 bg-[#EAE5D6] rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full ${row.color} transition-all`}
-                    style={{ width: subs.length ? `${(row.value / subs.length) * 100}%` : '0%' }}
+                    className="h-full rounded-full transition-all"
+                    style={{ width: subs.length ? `${(row.value / subs.length) * 100}%` : '0%', background: row.color }}
                   />
                 </div>
               </div>
             ))}
           </div>
-          <div className="mt-5 pt-4 border-t border-zinc-100 dark:border-white/[0.06]">
-            <p className="text-zinc-500 text-xs">Trial → Fizető konverzió</p>
-            <p className="text-zinc-900 dark:text-white font-black text-2xl mt-0.5">{conversionRate}%</p>
+          <div className="mt-5 pt-4 border-t border-line">
+            <p className="text-ink-soft text-[12px]">Trial → Fizető konverzió</p>
+            <p className="text-ink font-light text-[30px] leading-none tracking-[-0.02em] mt-1">{conversionRate}%</p>
           </div>
         </div>
 
         {/* Plan revenue breakdown */}
-        <div className={`${cardBase} p-6`}>
-          <h2 className="text-zinc-900 dark:text-white font-bold text-sm mb-5">Bevétel tervenként</h2>
+        <div className="rounded-[26px] border border-line bg-white p-6 shadow-dav-card">
+          <h2 className="text-ink font-semibold text-[15px] mb-5">Bevétel tervenként</h2>
           <div className="space-y-4">
             {[
-              { plan: 'Szalon Pro', icon: Building2, data: byPlan.pro, color: 'bg-violet-500', textColor: 'text-violet-400' },
-              { plan: 'Étterem Pro', icon: UtensilsCrossed, data: byPlan.restaurant_pro, color: 'bg-amber-500', textColor: 'text-amber-400' },
-            ].map(({ plan, icon: Icon, data, color, textColor }) => (
+              { plan: 'Szalon Pro', icon: Building2, data: byPlan.pro, bar: '#1D1C19', tile: 'bg-ink-dark', tint: 'text-gold' },
+              { plan: 'Étterem Pro', icon: UtensilsCrossed, data: byPlan.restaurant_pro, bar: '#F1CE45', tile: 'bg-gold', tint: 'text-ink' },
+            ].map(({ plan, icon: Icon, data, bar, tile, tint }) => (
               <div key={plan} className="flex items-center gap-4">
-                <div className={`h-9 w-9 rounded-xl ${color} flex items-center justify-center shrink-0`}>
-                  <Icon className="h-4 w-4 text-white" />
+                <div className={`h-9 w-9 rounded-[13px] ${tile} flex items-center justify-center shrink-0`}>
+                  <Icon className={`h-4 w-4 ${tint}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-zinc-700 dark:text-zinc-300 text-sm font-medium">{plan}</span>
-                    <span className={`font-black text-sm ${textColor}`}>{formatHuf(data.revenue)}</span>
+                    <span className="text-ink text-[13.5px] font-medium">{plan}</span>
+                    <span className="font-semibold text-[13.5px] text-ink">{formatHuf(data.revenue)}</span>
                   </div>
-                  <div className="h-1.5 bg-zinc-100 dark:bg-white/[0.06] rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${color}`} style={{ width: mrr ? `${(data.revenue / mrr) * 100}%` : '0%' }} />
+                  <div className="h-1.5 bg-[#EAE5D6] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: mrr ? `${(data.revenue / mrr) * 100}%` : '0%', background: bar }} />
                   </div>
-                  <p className="text-zinc-400 text-xs mt-0.5">{data.count} ügyfél</p>
+                  <p className="text-ink-soft text-[12px] mt-0.5">{data.count} ügyfél</p>
                 </div>
               </div>
             ))}
-            <div className="pt-3 mt-3 border-t border-zinc-100 dark:border-white/[0.06]">
+            <div className="pt-3 mt-3 border-t border-line">
               <div className="flex items-center justify-between">
-                <span className="text-zinc-500 text-sm">Összes MRR</span>
-                <span className="text-zinc-900 dark:text-white font-black text-lg">{formatHuf(mrr)}</span>
+                <span className="text-ink-soft text-[13.5px]">Összes MRR</span>
+                <span className="text-ink font-semibold text-[16px]">{formatHuf(mrr)}</span>
               </div>
             </div>
           </div>
@@ -148,25 +145,25 @@ export default async function RevenuePage() {
 
       {/* Monthly revenue bars */}
       {months.length > 0 && (
-        <div className={`${cardBase} p-6`}>
-          <h2 className="text-zinc-900 dark:text-white font-bold text-sm mb-6">Aktív előfizetők belépési hónapja</h2>
+        <div className="rounded-[26px] border border-line bg-white p-6 shadow-dav-card">
+          <h2 className="text-ink font-semibold text-[15px] mb-6">Aktív előfizetők belépési hónapja</h2>
           <div className="flex items-end gap-3 h-32">
             {months.map(([month, revenue]) => (
               <div key={month} className="flex-1 flex flex-col items-center gap-1.5">
-                <span className="text-zinc-900 dark:text-white text-[10px] font-bold">
+                <span className="text-ink text-[10px] font-semibold">
                   {Math.round(revenue / 1000)}k
                 </span>
-                <div className="w-full bg-zinc-100 dark:bg-white/[0.06] rounded-t-md relative" style={{ height: '80px' }}>
+                <div className="w-full bg-[#EAE5D6] rounded-t-md relative" style={{ height: '80px' }}>
                   <div
-                    className="absolute bottom-0 left-0 right-0 bg-violet-500 rounded-t-md transition-all"
+                    className="absolute bottom-0 left-0 right-0 bg-gold rounded-t-md transition-all"
                     style={{ height: `${(revenue / maxMonthRevenue) * 80}px` }}
                   />
                 </div>
-                <span className="text-zinc-400 text-[10px] text-center leading-tight">{month}</span>
+                <span className="text-ink-soft text-[10px] text-center leading-tight">{month}</span>
               </div>
             ))}
           </div>
-          <p className="text-zinc-400 dark:text-zinc-600 text-xs mt-3">* Az aktív előfizetők regisztrációs hónapja alapján</p>
+          <p className="text-ink-soft text-[12px] mt-3">* Az aktív előfizetők regisztrációs hónapja alapján</p>
         </div>
       )}
     </div>

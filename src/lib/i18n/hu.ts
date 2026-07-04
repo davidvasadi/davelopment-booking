@@ -148,6 +148,22 @@ export const hu: Record<string, string> = {
   'public.cancel.doneBody': 'Sikeresen lemondtad a foglalást.',
   'public.back': 'Vissza',
 
+  // ── Publikus értékelő-oldal ──
+  'public.review.title': 'Milyen volt nálunk?',
+  'public.review.subtitle': 'Kedves {{name}}, oszd meg velünk a véleményed!',
+  'public.review.subtitleGeneric': 'Oszd meg velünk a véleményed!',
+  'public.review.commentPlaceholder': 'Írd le a tapasztalatod (opcionális)…',
+  'public.review.submit': 'Értékelés elküldése',
+  'public.review.submitting': 'Küldés…',
+  'public.review.pickRating': 'Válassz csillagot',
+  'public.review.doneTitle': 'Köszönjük az értékelést!',
+  'public.review.done': 'A véleményed segít, hogy még jobbak legyünk.',
+  'public.review.alreadyTitle': 'Már értékelted',
+  'public.review.already': 'Ehhez a foglaláshoz már érkezett értékelés. Köszönjük!',
+  'public.review.invalidTitle': 'Érvénytelen link',
+  'public.review.invalid': 'Ez az értékelő-link nem érvényes vagy már lejárt.',
+  'public.review.failed': 'Az értékelés elküldése nem sikerült. Kérjük próbáld újra.',
+
   // ── Email-váz (a tulaj-szöveg ezen felül jön) ──
   'email.greeting': 'Kedves {{name}}!',
   'email.confirm.title': 'Foglalás visszaigazolva',

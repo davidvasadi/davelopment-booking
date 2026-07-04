@@ -27,8 +27,8 @@ export default function RecentSalonsClient({ salons }: { salons: PlaceRow[] }) {
   return (
     <>
       <PlaceDetailSheet place={selected} open={sheetOpen} onOpenChange={setSheetOpen} />
-      <div>
-        {salons.map((s, i) => {
+      <div className="flex flex-col gap-[3px] p-2.5">
+        {salons.map((s) => {
           const Icon = s.kind === 'restaurant' ? UtensilsCrossed : Building2
           const typeLabel = s.kind === 'restaurant' ? 'Étterem' : 'Szalon'
           const date = new Date(s.createdAt).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })
@@ -36,25 +36,25 @@ export default function RecentSalonsClient({ salons }: { salons: PlaceRow[] }) {
             <div
               key={`${s.kind}-${s.id}`}
               onClick={() => openDetail(s)}
-              className={`flex items-center justify-between px-6 py-3.5 cursor-pointer hover:bg-zinc-50 dark:hover:bg-white/[0.02] transition-colors ${i < salons.length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''}`}
+              className="flex cursor-pointer items-center justify-between gap-3 rounded-[20px] p-[13px] transition-colors hover:bg-[#FCFAF1]"
             >
-              <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-lg bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
-                  <Icon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-[#F0EAD8]">
+                  <Icon className="h-4 w-4 text-ink" strokeWidth={1.7} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="flex items-center gap-1.5">
-                    <span className="text-zinc-900 dark:text-white text-sm font-medium">{s.name}</span>
-                    <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{typeLabel}</span>
+                    <span className="truncate text-[14px] font-semibold text-ink">{s.name}</span>
+                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-ink-soft">{typeLabel}</span>
                   </p>
-                  <p className="text-zinc-500 text-xs">{s.ownerEmail ?? '—'} · {s.city ?? '—'}</p>
+                  <p className="truncate text-[11.5px] text-ink-soft">{s.ownerEmail ?? '—'} · {s.city ?? '—'}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${s.is_active ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-100 dark:bg-zinc-500/10 text-zinc-500'}`}>
+              <div className="flex shrink-0 items-center gap-2.5">
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${s.is_active ? 'bg-[#E7F2EA] text-[#1D9D63]' : 'bg-[#F0EAD8] text-ink-soft'}`}>
                   {s.is_active ? 'Aktív' : 'Inaktív'}
                 </span>
-                <span className="text-zinc-400 dark:text-zinc-600 text-xs">{date}</span>
+                <span className="hidden text-[11.5px] text-ink-soft sm:inline">{date}</span>
               </div>
             </div>
           )

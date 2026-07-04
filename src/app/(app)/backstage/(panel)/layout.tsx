@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { DashboardNav } from '@/components/dashboard/DashboardNav'
 import MobileBottomNav from '@/components/dashboard/MobileBottomNav'
-import { Reveal } from '@/components/ui/reveal'
+import { PageTransition } from '@/components/ui/page-transition'
 import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContext'
 import { expireStaleTrials } from '@/lib/subscriptionSync'
 
@@ -19,7 +19,7 @@ export default async function BackstageLayout({ children }: { children: React.Re
   // szolgálja ki — nélküle a nav összecsukás-gombja no-op lenne.
   return (
     <RestaurantUIProvider>
-      <div className="min-h-screen bg-zinc-50 dark:bg-black flex flex-col lg:flex-row">
+      <div className="min-h-screen bg-paper font-onest flex flex-col lg:flex-row">
         <DashboardNav
           variant="backstage"
           salonName="Backstage"
@@ -30,7 +30,7 @@ export default async function BackstageLayout({ children }: { children: React.Re
           userAvatarUrl={user.avatar_url ?? null}
         />
         <main className="flex-1 min-w-0 pb-24 lg:pb-0">
-          <Reveal>{children}</Reveal>
+          <PageTransition>{children}</PageTransition>
         </main>
         <MobileBottomNav variant="backstage" userName={user.name} userEmail={user.email} userAvatarUrl={user.avatar_url ?? null} />
       </div>

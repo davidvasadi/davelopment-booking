@@ -9,11 +9,9 @@ import BookingListFilters from '@/components/dashboard/BookingListFilters'
 import BookingActions from '@/components/dashboard/BookingActions'
 import type { Booking, Service, StaffMember } from '@/payload/payload-types'
 import type { Where } from 'payload'
-import { MessageSquare, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
+import { MessageSquare, ChevronLeft, ChevronRight, CalendarDays, Repeat } from 'lucide-react'
 import Link from 'next/link'
-import { PageHeader } from '@/components/ui/page-header'
-import { DashboardCard } from '@/components/ui/dashboard-card'
-import { EmptyState } from '@/components/ui/empty-state'
+import WaitlistPanel from '@/components/dashboard/WaitlistPanel'
 
 const statusLabel: Record<string, string> = {
   pending: 'Függő',
@@ -22,11 +20,14 @@ const statusLabel: Record<string, string> = {
   completed: 'Befejezett',
 }
 const statusDot: Record<string, string> = {
-  pending: 'bg-amber-400',
-  confirmed: 'bg-emerald-400',
-  cancelled: 'bg-red-400',
-  completed: 'bg-zinc-400',
+  pending: 'bg-gold',
+  confirmed: 'bg-ink-dark',
+  cancelled: 'bg-bad',
+  completed: 'bg-[#1D9D63]',
 }
+
+/** Fehér davelopment kártya. */
+const CARD = 'rounded-[22px] bg-white border border-line shadow-dav-card'
 
 function getRangeDates(range: string): { from: string; to: string } {
   const today = new Date()
@@ -42,6 +43,84 @@ function getRangeDates(range: string): { from: string; to: string } {
 }
 
 const PER_PAGE = 25
+
+/** Egy foglalás-sor (napi + lista nézet közös prezentáció). */
+function BookingRow({
+  booking,
+  notesClamp,
+  isLast,
+}: {
+  booking: Booking
+  notesClamp: string
+  isLast: boolean
+}) {
+  const service = booking.service as Service
+  const staff = booking.staff as StaffMember
+  return (
+    <div className={`flex items-center justify-between gap-3 px-4 py-4 sm:gap-4 sm:px-6 ${isLast ? '' : 'border-b border-line'}`}>
+      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+        <span className="w-14 shrink-0 font-mono text-xs font-bold leading-tight text-ink-soft sm:w-24">
+          <span className="block sm:inline">{booking.start_time}</span>
+          <span className="hidden sm:inline">–</span>
+          <span className="block text-ink-soft2 sm:inline sm:text-ink-soft">{booking.end_time}</span>
+        </span>
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="truncate text-sm font-semibold text-ink">{booking.customer_name}</p>
+            {booking.series_id && (
+              // Ismétlődő sorozat tagja — csak jelölés, a viselkedést nem érinti.
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
+                <Repeat className="h-3 w-3" /> Sorozat
+              </span>
+            )}
+          </div>
+          <p className="truncate text-xs text-ink-soft">
+            {typeof service === 'object' ? service.name : '—'}
+            {typeof staff === 'object' ? ` · ${staff.name}` : ''}
+          </p>
+          {booking.customer_phone && (
+            <p className="text-xs text-ink-soft">{booking.customer_phone}</p>
+          )}
+          {booking.notes && (
+            <p className="mt-1 flex items-start gap-1 text-xs text-ink-soft">
+              <MessageSquare className="mt-0.5 h-3 w-3 shrink-0" />
+              <span className={notesClamp}>{booking.notes}</span>
+            </p>
+          )}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <span className={`h-2 w-2 rounded-full ${statusDot[booking.status] ?? 'bg-line-strong'}`} />
+          <span className="hidden text-xs text-ink-soft sm:block">{statusLabel[booking.status]}</span>
+        </div>
+        <BookingActions bookingId={booking.id} status={booking.status} />
+      </div>
+    </div>
+  )
+}
+
+/** Hero-fejléc: eyebrow + cím + nézetváltó. */
+function Hero({ title, current }: { title: string; current: 'day' | 'list' }) {
+  return (
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p className="text-[13px] font-medium text-ink-soft">Foglalások</p>
+        <h1 className="mt-0.5 text-4xl font-light tracking-[-0.02em] text-ink lg:text-[42px]">{title}</h1>
+      </div>
+      <BookingViewToggle current={current} />
+    </div>
+  )
+}
+
+function EmptyCard({ title }: { title: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+      <CalendarDays className="h-8 w-8 text-ink-soft" strokeWidth={1.6} />
+      <p className="text-sm text-ink-soft">{title}</p>
+    </div>
+  )
+}
 
 export default async function BookingsPage({
   searchParams,
@@ -77,67 +156,71 @@ export default async function BookingsPage({
       limit: 100,
     })
 
-    return (
-      <div className="p-5 lg:p-8">
-        <PageHeader eyebrow="Foglalások" title="Napi nézet" action={<BookingViewToggle current="day" />} className="mb-6" />
+    const docs = bookings.docs as Booking[]
+    const active = docs.filter((b) => b.status !== 'cancelled')
+    const completed = docs.filter((b) => b.status === 'completed').length
+    const cancelled = docs.filter((b) => b.status === 'cancelled').length
+    const pending = docs.filter((b) => b.status === 'pending').length
 
-        <div className="mb-6">
-          <DateFilter currentDate={date} />
+    const kpis = [
+      { label: 'Aktív foglalás', value: String(active.length), accent: true },
+      { label: 'Befejezett', value: String(completed) },
+      { label: 'Lemondott', value: String(cancelled) },
+      { label: 'Függő', value: String(pending), dot: true },
+    ]
+
+    return (
+      <div className="space-y-6 p-5 lg:p-0">
+        <Hero title="Napi nézet" current="day" />
+
+        <DateFilter currentDate={date} />
+
+        {/* KPI strip */}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {kpis.map((k, i) =>
+            k.accent ? (
+              <div key={i} className="rounded-[20px] bg-ink-dark px-[18px] py-4">
+                <div className="text-xs font-medium text-white/55">{k.label}</div>
+                <div className="mt-1.5 flex items-baseline gap-2">
+                  <span className="text-[30px] font-light tracking-[-0.02em] text-white">{k.value}</span>
+                  <span className="text-xs font-medium text-gold">ma</span>
+                </div>
+              </div>
+            ) : (
+              <div key={i} className={`${CARD} px-[18px] py-4`}>
+                <div className="text-xs font-medium text-ink-soft">{k.label}</div>
+                <div className="mt-1.5 flex items-baseline gap-2">
+                  <span className="text-[30px] font-light tracking-[-0.02em] text-ink">{k.value}</span>
+                  {k.dot && <span className="h-2 w-2 rounded-[3px] bg-gold" />}
+                </div>
+              </div>
+            )
+          )}
         </div>
 
-        <DashboardCard noPadding>
-          <div className="px-6 py-4 border-b border-zinc-100 dark:border-white/[0.06] flex items-center justify-between">
-            <h2 className="font-bold text-sm uppercase tracking-widest text-zinc-700 dark:text-white/80">{formatDate(date)}</h2>
-            <span className="text-sm text-zinc-400 dark:text-white/30">{bookings.totalDocs} foglalás</span>
+        <div className={CARD}>
+          <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-4 sm:px-6">
+            <h2 className="min-w-0 truncate text-base font-medium text-ink">{formatDate(date)}</h2>
+            <span className="shrink-0 text-sm text-ink-soft">{bookings.totalDocs} foglalás</span>
           </div>
 
-          {bookings.docs.length === 0 ? (
-            <EmptyState icon={CalendarDays} title="Nincs foglalás ezen a napon" />
+          {docs.length === 0 ? (
+            <EmptyCard title="Nincs foglalás ezen a napon" />
           ) : (
             <div>
-              {bookings.docs.map((b, i) => {
-                const booking = b as Booking
-                const service = booking.service as Service
-                const staff = booking.staff as StaffMember
-                return (
-                  <div
-                    key={booking.id}
-                    className={`flex items-center justify-between px-6 py-4 ${i < bookings.docs.length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''}`}
-                  >
-                    <div className="flex items-center gap-4">
-                      <span className="text-xs font-mono font-bold text-zinc-400 dark:text-white/30 w-24 shrink-0">
-                        {booking.start_time}–{booking.end_time}
-                      </span>
-                      <div>
-                        <p className="font-semibold text-sm text-zinc-800 dark:text-white/80">{booking.customer_name}</p>
-                        <p className="text-xs text-zinc-500 dark:text-white/40">
-                          {typeof service === 'object' ? service.name : '—'}
-                          {typeof staff === 'object' ? ` · ${staff.name}` : ''}
-                        </p>
-                        {booking.customer_phone && (
-                          <p className="text-xs text-zinc-400 dark:text-white/30">{booking.customer_phone}</p>
-                        )}
-                        {booking.notes && (
-                          <p className="flex items-start gap-1 text-xs text-zinc-400 dark:text-white/30 mt-1">
-                            <MessageSquare className="h-3 w-3 shrink-0 mt-0.5" />
-                            <span className="line-clamp-2">{booking.notes}</span>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 rounded-full ${statusDot[booking.status] ?? 'bg-zinc-300 dark:bg-white/20'}`} />
-                        <span className="text-xs text-zinc-500 dark:text-white/40">{statusLabel[booking.status]}</span>
-                      </div>
-                      <BookingActions bookingId={booking.id} status={booking.status} />
-                    </div>
-                  </div>
-                )
-              })}
+              {docs.map((booking, i) => (
+                <BookingRow
+                  key={booking.id}
+                  booking={booking}
+                  notesClamp="line-clamp-2"
+                  isLast={i === docs.length - 1}
+                />
+              ))}
             </div>
           )}
-        </DashboardCard>
+        </div>
+
+        <WaitlistPanel salonId={salon.id} />
       </div>
     )
   }
@@ -178,75 +261,44 @@ export default async function BookingsPage({
     return `/dashboard/bookings?${params}`
   }
 
-  return (
-    <div className="p-5 lg:p-8">
-      <PageHeader eyebrow="Foglalások" title="Lista nézet" action={<BookingViewToggle current="list" />} className="mb-6" />
+  const arrowBox = 'flex h-9 w-9 items-center justify-center rounded-xl transition-colors'
 
-      <div className="mb-6">
-        <BookingListFilters status={status} range={range} search={search} />
-      </div>
+  return (
+    <div className="space-y-6 p-5 lg:p-0">
+      <Hero title="Lista nézet" current="list" />
+
+      <BookingListFilters status={status} range={range} search={search} />
 
       {/* Results count */}
-      <div className="mb-3 flex items-center justify-between">
-        <p className="text-xs text-zinc-400 dark:text-white/30">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-ink-soft">
           {bookings.totalDocs} foglalás
           {totalPages > 1 && ` · ${currentPage}/${totalPages}. oldal`}
         </p>
       </div>
 
       {bookings.docs.length === 0 ? (
-        <DashboardCard noPadding>
-          <EmptyState icon={CalendarDays} title="Nincs találat a megadott szűrőkre" />
-        </DashboardCard>
+        <div className={CARD}>
+          <EmptyCard title="Nincs találat a megadott szűrőkre" />
+        </div>
       ) : (
         <div className="space-y-4">
           {dates.map(date => (
-            <DashboardCard key={date} noPadding>
-              <div className="px-6 py-3 border-b border-zinc-100 dark:border-white/[0.06] bg-zinc-50 dark:bg-white/[0.02]">
-                <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-white/40">
+            <div key={date} className={CARD}>
+              <div className="border-b border-line px-4 py-3 sm:px-6">
+                <p className="text-xs font-bold uppercase tracking-widest text-ink-soft">
                   {format(new Date(date + 'T00:00:00'), 'yyyy. MMMM d., EEEE', { locale: hu })}
                 </p>
               </div>
-              {grouped[date].map((booking, i) => {
-                const service = booking.service as Service
-                const staff = booking.staff as StaffMember
-                return (
-                  <div
-                    key={booking.id}
-                    className={`flex items-center justify-between px-6 py-4 ${i < grouped[date].length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''}`}
-                  >
-                    <div className="flex items-center gap-4 min-w-0">
-                      <span className="text-xs font-mono font-bold text-zinc-400 dark:text-white/30 w-24 shrink-0">
-                        {booking.start_time}–{booking.end_time}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-semibold text-sm text-zinc-800 dark:text-white/80 truncate">{booking.customer_name}</p>
-                        <p className="text-xs text-zinc-500 dark:text-white/40 truncate">
-                          {typeof service === 'object' ? service.name : '—'}
-                          {typeof staff === 'object' ? ` · ${staff.name}` : ''}
-                        </p>
-                        {booking.customer_phone && (
-                          <p className="text-xs text-zinc-400 dark:text-white/30">{booking.customer_phone}</p>
-                        )}
-                        {booking.notes && (
-                          <p className="flex items-start gap-1 text-xs text-zinc-400 dark:text-white/30 mt-1">
-                            <MessageSquare className="h-3 w-3 shrink-0 mt-0.5" />
-                            <span className="line-clamp-1">{booking.notes}</span>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0 ml-4">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`h-2 w-2 rounded-full ${statusDot[booking.status] ?? 'bg-zinc-300 dark:bg-white/20'}`} />
-                        <span className="hidden sm:block text-xs text-zinc-500 dark:text-white/40">{statusLabel[booking.status]}</span>
-                      </div>
-                      <BookingActions bookingId={booking.id} status={booking.status} />
-                    </div>
-                  </div>
-                )
-              })}
-            </DashboardCard>
+              {grouped[date].map((booking, i) => (
+                <BookingRow
+                  key={booking.id}
+                  booking={booking}
+                  notesClamp="line-clamp-1"
+                  isLast={i === grouped[date].length - 1}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
@@ -255,23 +307,23 @@ export default async function BookingsPage({
       {totalPages > 1 && (
         <div className="mt-6 flex items-center justify-center gap-2">
           {currentPage > 1 ? (
-            <Link href={pageUrl(currentPage - 1)} className="h-9 w-9 rounded-xl border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] flex items-center justify-center text-zinc-500 dark:text-white/40 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 transition-colors">
+            <Link href={pageUrl(currentPage - 1)} className={`${arrowBox} border border-line bg-white text-ink-soft2 hover:border-line-strong hover:text-ink`}>
               <ChevronLeft className="h-4 w-4" />
             </Link>
           ) : (
-            <div className="h-9 w-9 rounded-xl border border-zinc-100 dark:border-white/[0.06] flex items-center justify-center text-zinc-300 dark:text-white/20">
+            <div className={`${arrowBox} border border-line text-ink-soft/40`}>
               <ChevronLeft className="h-4 w-4" />
             </div>
           )}
-          <span className="text-sm font-semibold text-zinc-700 dark:text-white/70 px-2">
+          <span className="px-2 text-sm font-semibold text-ink">
             {currentPage} / {totalPages}
           </span>
           {currentPage < totalPages ? (
-            <Link href={pageUrl(currentPage + 1)} className="h-9 w-9 rounded-xl border border-zinc-200 dark:border-white/[0.1] bg-white dark:bg-white/[0.04] flex items-center justify-center text-zinc-500 dark:text-white/40 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 transition-colors">
+            <Link href={pageUrl(currentPage + 1)} className={`${arrowBox} border border-line bg-white text-ink-soft2 hover:border-line-strong hover:text-ink`}>
               <ChevronRight className="h-4 w-4" />
             </Link>
           ) : (
-            <div className="h-9 w-9 rounded-xl border border-zinc-100 dark:border-white/[0.06] flex items-center justify-center text-zinc-300 dark:text-white/20">
+            <div className={`${arrowBox} border border-line text-ink-soft/40`}>
               <ChevronRight className="h-4 w-4" />
             </div>
           )}

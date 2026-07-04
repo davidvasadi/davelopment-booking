@@ -1,12 +1,13 @@
 import type { CollectionConfig } from 'payload'
 import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/restaurantAccess'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
+import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const OpeningHours: CollectionConfig = {
   slug: 'opening-hours',
   hooks: {
-    afterChange: [revalidateChildOnChange('restaurant', 'restaurant')],
-    afterDelete: [revalidateChildOnDelete('restaurant', 'restaurant')],
+    afterChange: [revalidateChildOnChange('restaurant', 'restaurant'), auditAfterChange('Nyitvatartás', 'restaurant')],
+    afterDelete: [revalidateChildOnDelete('restaurant', 'restaurant'), auditAfterDelete('Nyitvatartás', 'restaurant')],
   },
   labels: { singular: 'Nyitvatartás', plural: 'Nyitvatartás' },
   admin: {

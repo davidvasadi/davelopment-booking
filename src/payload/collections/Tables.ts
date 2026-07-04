@@ -1,8 +1,13 @@
 import type { CollectionConfig } from 'payload'
 import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/restaurantAccess'
+import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const Tables: CollectionConfig = {
   slug: 'tables',
+  hooks: {
+    afterChange: [auditAfterChange('Asztal', 'restaurant')],
+    afterDelete: [auditAfterDelete('Asztal', 'restaurant')],
+  },
   labels: { singular: 'Asztal', plural: 'Asztalok' },
   admin: {
     useAsTitle: 'name',

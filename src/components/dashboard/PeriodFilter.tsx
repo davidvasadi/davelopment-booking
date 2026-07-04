@@ -52,19 +52,19 @@ export default function PeriodFilter({
         <select
           value={current}
           onChange={(e) => select(Number(e.target.value))}
-          className="appearance-none bg-zinc-100 dark:bg-white/[0.06] rounded-xl pl-4 pr-9 h-9 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none cursor-pointer"
+          className="appearance-none bg-[var(--dav-glass-strong)] border border-line rounded-[12px] pl-4 pr-9 h-9 text-sm font-semibold text-ink focus:outline-none focus:border-line-strong cursor-pointer transition-colors"
         >
           {PERIODS.map(({ label, value }) => (
             <option key={value} value={value}>{label}</option>
           ))}
         </select>
-        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-500 dark:text-white/40" />
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-ink-soft" />
       </div>
       {csvExport && (
         <a
           href={`/api/export-csv?days=${current}${module ? `&module=${module}` : ''}`}
           download
-          className="flex items-center gap-1.5 h-8 px-3 rounded-xl border border-zinc-200 dark:border-white/[0.1] text-xs font-semibold text-zinc-600 dark:text-white/60 hover:text-zinc-900 dark:hover:text-white hover:border-zinc-400 dark:hover:border-white/[0.3] transition-colors"
+          className="flex items-center gap-1.5 h-8 px-3 rounded-[12px] border border-line text-xs font-semibold text-ink-soft2 hover:text-ink hover:border-line-strong transition-colors"
         >
           <Download className="h-3.5 w-3.5" />
           CSV export

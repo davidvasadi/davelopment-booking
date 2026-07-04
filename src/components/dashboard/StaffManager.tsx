@@ -10,10 +10,29 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Plus, Pencil, Trash2, CalendarDays, Camera, Loader2, X } from 'lucide-react'
+import { Plus, Pencil, CalendarDays, Camera, Loader2, X, Trash2, Search, Download, ChevronDown } from 'lucide-react'
 import StaffCalendarSheet from './StaffCalendarSheet'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import { PageHeader } from '@/components/ui/page-header'
+import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
+import { StatusPills } from '@/components/dashboard/StatusPills'
+import { HiringOverlay } from '@/components/dashboard/HiringOverlay'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+
+/** Avatar-monogram háttér-gradiensek — determinisztikusan a névből (referencia hangulata). */
+const AVATAR_GRADIENTS = [
+  { bg: 'linear-gradient(140deg,#EEBE8A,#DF9F61)', fg: '#5A3A1A' },
+  { bg: 'linear-gradient(140deg,#B4C49A,#9DB07E)', fg: '#33401E' },
+  { bg: 'linear-gradient(140deg,#D2A6BE,#BE89A6)', fg: '#5A2A45' },
+  { bg: 'linear-gradient(140deg,#9FBAD1,#7E9EBE)', fg: '#1E3140' },
+  { bg: 'linear-gradient(140deg,#D1C39F,#BEAD7E)', fg: '#40381E' },
+]
+function gradientFor(seed: string) {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return AVATAR_GRADIENTS[h % AVATAR_GRADIENTS.length]
+}
 
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
@@ -26,16 +45,50 @@ interface Props {
   salonId: string
   initialStaff: StaffMember[]
   supportedLocales?: (Locale | string)[] | null
+  /** staffId → idei, nem-lemondott foglalások száma (VALÓS) */
+  bookingsById?: Record<string, number>
+  /** staffId → szolgáltatás-nevek (tag-ek, VALÓS) */
+  servicesById?: Record<string, string[]>
+  /** staffId → átlagértékelés (VALÓS, ha van staffhoz köthető review) */
+  ratingById?: Record<string, number>
+  /** összes idei, nem-lemondott foglalás */
+  totalBookings?: number
+  /** teljes szalon átlagértékelés vagy null */
+  avgRating?: number | null
+  /** staffId → közelgő műszak címkéje (VALÓS, Shifts-ből) vagy hiányzik → „—" */
+  upcomingShiftById?: Record<string, string>
 }
 
+/** davelopment stat-csík pill (label felül, érték-pill alul). */
 function avatarUrl(m: StaffMember): string | null {
   if (!m.avatar) return null
   if (typeof m.avatar === 'object') return (m.avatar as Media).url ?? null
   return null
 }
 
-export default function StaffManager({ salonId, initialStaff, supportedLocales }: Props) {
+/** Első sor a bio-ból → „szerep” alcím a kártyán (a Crextio-referencia mintájára). */
+function roleLine(bio?: string | null): string | null {
+  if (!bio) return null
+  const first = bio.split('\n')[0].trim()
+  if (!first) return null
+  return first.length > 60 ? `${first.slice(0, 57)}…` : first
+}
+
+export default function StaffManager({
+  salonId,
+  initialStaff,
+  supportedLocales,
+  upcomingShiftById = {},
+}: Props) {
+  const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [deptFilter, setDeptFilter] = useState('all')
+  const [posFilter, setPosFilter] = useState('all')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Sorra kattintva nyílik a Munkavállalók-adatlap overlay (a kattintott sor indexével előre-kiválasztva).
+  const [hiringIndex, setHiringIndex] = useState<number | null>(null)
   const [staff, setStaff] = useState(initialStaff)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<StaffMember | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -54,10 +107,11 @@ export default function StaffManager({ salonId, initialStaff, supportedLocales }
 
   const [calendarStaff, setCalendarStaff] = useState<StaffMember | null>(null)
 
-  const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<FormData>({
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: { is_active: true },
   })
+  const activeWatch = watch('is_active')
 
   const openAdd = () => {
     reset({ name: '', bio: '', is_active: true })
@@ -181,96 +235,313 @@ export default function StaffManager({ salonId, initialStaff, supportedLocales }
     }
   }
 
-  const deleteMember = async (id: string) => {
-    if (!confirm('Biztosan törlöd ezt a munkatársat?')) return
+  // Törlés — SAJÁT megerősítő modal (nem a natív böngésző-confirm).
+  const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const toDelete = staff.find((m) => String(m.id) === deleteId) ?? null
+
+  async function confirmDelete() {
+    if (!deleteId) return
+    setDeleting(true)
     try {
-      const res = await fetch(`/api/staff/${id}`, { method: 'DELETE', credentials: 'include' })
+      const res = await fetch(`/api/staff/${deleteId}`, { method: 'DELETE', credentials: 'include' })
       if (!res.ok) throw new Error()
-      setStaff(prev => prev.filter(m => m.id !== id))
+      setStaff((prev) => prev.filter((m) => String(m.id) !== deleteId))
       toast.success('Törölve')
+      setDeleteId(null)
     } catch {
       toast.error('Hiba történt')
+    } finally {
+      setDeleting(false)
     }
   }
 
+  // Foglalható-toggle a kártyán: a MEGLÉVŐ is_active mezőt PATCH-eli (nincs séma-változás).
+  const toggleActive = async (m: StaffMember) => {
+    const next = m.is_active === false
+    setTogglingId(String(m.id))
+    setStaff(prev => prev.map(x => x.id === m.id ? { ...x, is_active: next } : x))
+    try {
+      const res = await fetch(`/api/staff/${m.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ is_active: next }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      setStaff(prev => prev.map(x => x.id === m.id ? { ...x, is_active: !next } : x))
+      toast.error('A foglalhatóság módosítása sikertelen')
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  // ── Stat-csík értékek (VALÓS) ──
+  const activeCount = staff.filter((m) => m.is_active !== false).length
+  const totalCount = staff.length
+  const utilization = totalCount ? Math.round((activeCount / totalCount) * 100) : 0
+  const onLeaveCount = totalCount - activeCount
+  const now = new Date()
+  const newJoiners = staff.filter((m) => {
+    if (!m.join_date) return false
+    const d = new Date(m.join_date)
+    return (now.getTime() - d.getTime()) / 86400000 <= 90
+  }).length
+  const onLeavePct = totalCount ? Math.round((onLeaveCount / totalCount) * 100) : 0
+  const newJoinersPct = totalCount ? Math.round((newJoiners / totalCount) * 100) : 0
+
+  const fmtDate = (iso?: string | null) =>
+    iso ? new Date(iso).toLocaleDateString('hu-HU', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '—'
+  const fmtSalary = (n?: number | null) => (typeof n === 'number' ? `${n.toLocaleString('hu-HU')} Ft` : '—')
+
+  const departments = Array.from(new Set(staff.map((m) => (m.department ?? '').trim()).filter(Boolean)))
+  const positions = Array.from(new Set(staff.map((m) => (m.role_title ?? '').trim()).filter(Boolean)))
+  const filtered = staff.filter((m) => {
+    if (statusFilter === 'active' && m.is_active === false) return false
+    if (statusFilter === 'inactive' && m.is_active !== false) return false
+    if (deptFilter !== 'all' && (m.department ?? '') !== deptFilter) return false
+    if (posFilter !== 'all' && (m.role_title ?? '') !== posFilter) return false
+    if (!query.trim()) return true
+    const q = query.toLowerCase()
+    return m.name.toLowerCase().includes(q) || (m.role_title ?? '').toLowerCase().includes(q) || (m.department ?? '').toLowerCase().includes(q)
+  })
+
+  const toggleSelect = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+
+  const GRID = 'grid-cols-[34px_1.7fr_1.2fr_1fr_0.9fr_1.1fr_1fr_140px]'
+
   return (
     <>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Csapat</p>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Munkatársak</h1>
+      {/* ── HEADER: cím felül → alatta a TELJES-SZÉLESSÉGŰ státusz-csík (bal) + 3 nagy szám (jobb) — 1:1 az Áttekintésről ── */}
+      <div className="mb-6">
+        <PageHeader
+          eyebrow="Csapat"
+          title="Munkatársak"
+          description="A csapat tagjai, bemutatkozásuk és foglalhatóságuk"
+        />
+        <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <StatusPills
+            className="flex-1 lg:max-w-[760px]"
+            segments={[
+              { label: 'Foglalható', pct: utilization, value: activeCount, suffix: ' fő', background: '#1D1C19', color: '#fff' },
+              { label: 'Szabadságon', pct: onLeavePct, value: onLeaveCount, suffix: ' fő', background: '#F1CE45', color: '#1D1C19' },
+              { label: 'Új belépő', pct: newJoinersPct, value: newJoiners, suffix: ' fő', background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
+            ]}
+          />
+          <div className="flex flex-wrap items-start gap-8 lg:gap-10">
+            <CountUpKpi icon="users" value={totalCount} label="Munkatárs" />
+            <CountUpKpi icon="clock" value={activeCount} label="Ma dolgozik" />
+            <CountUpKpi icon="gauge" value={utilization} label="Kihasználtság" suffix="%" />
+          </div>
         </div>
-        <button
-          onClick={openAdd}
-          className="h-10 px-5 rounded-full bg-white hover:bg-white/90 text-black text-sm font-semibold flex items-center gap-2 transition-colors"
-        >
-          <Plus className="h-4 w-4" />Új
-        </button>
       </div>
 
-      {staff.length === 0 ? (
-        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl px-6 py-12 text-center">
-          <p className="text-zinc-400 dark:text-white/30 text-sm">Még nincs munkatárs. Add hozzá az elsőt!</p>
+      {/* ── MAPPA-FÜL kártya (davelopment App 67–75): NORMÁL folyású fül + homorú notch-ív (nem takarja a stat-csíkot) ── */}
+      <div className="relative">
+        {/* Fül: szűrők + kereső — a kártya bal-felső sarkára ül, jobbra homorú ív köti a kártyához */}
+        <div className="relative z-10 flex h-[48px] w-full max-w-[600px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6">
+          {/* Szűrő: állapot */}
+          <div className="relative shrink-0">
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+              className="cursor-pointer appearance-none rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
+            >
+              <option value="all">Minden állapot</option>
+              <option value="active">Aktív</option>
+              <option value="inactive">Inaktív</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
+          </div>
+          {/* Szűrő: pozíció (ha van adat) */}
+          {positions.length > 0 && (
+            <div className="relative hidden shrink-0 md:block">
+              <select
+                value={posFilter}
+                onChange={(e) => setPosFilter(e.target.value)}
+                className="cursor-pointer appearance-none rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
+              >
+                <option value="all">Minden pozíció</option>
+                {positions.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
+            </div>
+          )}
+          {/* Szűrő: részleg (ha van adat) */}
+          {departments.length > 0 && (
+            <div className="relative hidden shrink-0 sm:block">
+              <select
+                value={deptFilter}
+                onChange={(e) => setDeptFilter(e.target.value)}
+                className="cursor-pointer appearance-none rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
+              >
+                <option value="all">Minden részleg</option>
+                {departments.map((d) => (
+                  <option key={d} value={d}>{d}</option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
+            </div>
+          )}
+          {/* Kereső */}
+          <div className="flex min-w-[110px] flex-1 items-center gap-2.5 rounded-[18px] bg-white px-4 py-2 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
+            <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Keresés"
+              className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none"
+            />
+          </div>
+          {/* homorú csatlakozó ív (notch) a fül jobb szélén → mappa-hatás */}
+          <span
+            className="pointer-events-none absolute -right-[24px] bottom-0 h-[24px] w-[24px]"
+            style={{ background: 'radial-gradient(circle at top right, transparent 23px, rgba(255,255,255,.62) 23.5px)' }}
+          />
         </div>
-      ) : (
-        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
-          {staff.map((m, i) => {
+
+        <div className="rounded-b-[28px] rounded-tr-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
+          {/* Akció-sor */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button
+              onClick={openAdd}
+              title="Munkatárs hozzáadása"
+              className="flex h-[38px] w-[38px] items-center justify-center rounded-[13px] bg-white shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+            >
+              <Plus className="h-[15px] w-[15px] text-ink" strokeWidth={2} />
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="flex h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+            >
+              <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
+            </button>
+          </div>
+
+          {/* Fejléc-sor (desktop) */}
+          <div className={`mt-4 hidden ${GRID} items-center gap-3.5 border-b border-line pb-3.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-soft2 lg:grid`}>
+            <div />
+            <div>Név</div>
+            <div>Pozíció</div>
+            <div>Részleg</div>
+            <div>Bér</div>
+            <div>Belépés</div>
+            <div>Műszak</div>
+            <div>Státusz</div>
+          </div>
+
+          {/* Sorok */}
+          {filtered.length === 0 && (
+            <p className="py-10 text-center text-sm text-ink-soft">Nincs találat.</p>
+          )}
+          {filtered.map((m, idx) => {
             const url = avatarUrl(m)
+            const active = m.is_active !== false
+            const grad = gradientFor(m.name)
+            const isToggling = togglingId === String(m.id)
+            const isSel = selected.has(String(m.id))
+            const position = m.role_title || roleLine(m.bio) || '—'
+            const shift = upcomingShiftById[String(m.id)] ?? '—'
             return (
               <div
                 key={m.id}
-                className={`flex items-center justify-between px-6 py-4 ${i < staff.length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.06]' : ''}`}
+                onClick={() => setHiringIndex(idx)}
+                role="button"
+                title="Adatlap megnyitása"
+                style={isSel ? { background: 'var(--dav-accent)' } : undefined}
+                className={`mt-2 cursor-pointer rounded-[18px] transition-all ${
+                  isSel ? 'shadow-[0_10px_24px_-12px_rgba(180,150,40,.55)]' : 'hover:bg-gold/10'
+                }`}
               >
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full overflow-hidden shrink-0 bg-zinc-100 dark:bg-white/[0.08] flex items-center justify-center">
-                    {url ? (
-                      <img src={url} alt={m.name} className="h-full w-full object-cover object-top" />
-                    ) : (
-                      <span className="text-xs font-bold text-zinc-500 dark:text-white/60">{m.name.slice(0, 2).toUpperCase()}</span>
-                    )}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm text-zinc-800 dark:text-white/80">{m.name}</p>
-                      {!m.is_active && (
-                        <span className="text-xs text-zinc-400 dark:text-white/30 border border-zinc-200 dark:border-white/[0.1] rounded-full px-2 py-0.5">Inaktív</span>
+                {/* DESKTOP grid-sor */}
+                <div className={`hidden ${GRID} items-center gap-3.5 px-3.5 py-2.5 lg:grid`}>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); toggleSelect(String(m.id)) }}
+                    aria-pressed={isSel}
+                    aria-label="Kijelölés"
+                    className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
+                  >
+                    {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
+                  </button>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center overflow-hidden rounded-full text-[13px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
+                      {url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={url} alt={m.name} className="h-full w-full object-cover object-top" />
+                      ) : (
+                        m.name.slice(0, 2).toUpperCase()
                       )}
-                    </div>
-                    {m.bio && <p className="text-xs text-zinc-500 dark:text-white/40">{m.bio}</p>}
+                    </span>
+                    <span className="truncate text-[14.5px] font-semibold text-ink">{m.name}</span>
+                  </div>
+                  <div className="truncate text-[13.5px] font-medium text-ink">{position}</div>
+                  <div className="truncate text-[13.5px] font-medium text-ink">{m.department || '—'}</div>
+                  <div className="text-[13.5px] font-semibold text-ink">{fmtSalary(m.salary)}</div>
+                  <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(m.join_date)}</div>
+                  <div className="truncate text-[13.5px] font-medium text-ink">{shift}</div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); if (!isToggling) toggleActive(m) }}
+                      disabled={isToggling}
+                      title="Aktív/foglalható váltás"
+                      className="inline-flex items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold disabled:opacity-60"
+                      style={active ? { background: '#E7F1E9', color: '#3B6B4B' } : { background: '#F1EEE6', color: '#86826F' }}
+                    >
+                      <span className="h-[7px] w-[7px] rounded-full" style={{ background: active ? '#4F9E6A' : '#B3AE9E' }} />
+                      {active ? 'Aktív' : 'Inaktív'}
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); setCalendarStaff(m) }} title="Elérhetőség" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setDeleteId(String(m.id)) }} title="Törlés" className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-white"><Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
                   </div>
                 </div>
-                <div className="flex gap-1">
+
+                {/* MOBIL kártya-stack */}
+                <div className="flex items-center gap-3 px-3.5 py-3 lg:hidden">
                   <button
-                    onClick={() => setCalendarStaff(m)}
-                    title="Elérhetőség naptár"
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors"
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); toggleSelect(String(m.id)) }}
+                    aria-pressed={isSel}
+                    aria-label="Kijelölés"
+                    className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong'}`}
                   >
-                    <CalendarDays className="h-3.5 w-3.5" />
+                    {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
                   </button>
-                  <button
-                    onClick={() => openEdit(m)}
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
-                  <button
-                    onClick={() => deleteMember(m.id)}
-                    className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-[15px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
+                    {url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={url} alt={m.name} className="h-full w-full object-cover object-top" />
+                    ) : (
+                      m.name.slice(0, 2).toUpperCase()
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[15px] font-semibold text-ink">{m.name}</p>
+                    <p className="truncate text-[12.5px] font-medium text-ink-soft">{position}</p>
+                  </div>
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Szerkesztés" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
                 </div>
               </div>
             )
           })}
         </div>
-      )}
+      </div>
 
       {/* Edit / Add sheet */}
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent>
           <SheetHeader>
-            <SheetTitle className="text-xl font-black tracking-tight">
+            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">
               {editing ? 'Szerkesztés' : 'Új munkatárs'}
             </SheetTitle>
           </SheetHeader>
@@ -292,7 +563,7 @@ export default function StaffManager({ salonId, initialStaff, supportedLocales }
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="relative h-24 w-24 rounded-2xl overflow-hidden bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition-colors"
+                  className="relative h-24 w-24 rounded-full overflow-hidden bg-zinc-100 flex items-center justify-center hover:bg-zinc-200 transition-colors"
                 >
                   {uploadingAvatar ? (
                     <Loader2 className="h-6 w-6 text-zinc-400 animate-spin" />
@@ -340,15 +611,22 @@ export default function StaffManager({ salonId, initialStaff, supportedLocales }
               <Textarea className="rounded-xl" {...register('bio')} rows={3} placeholder={editLocale !== 'hu' ? (editing?.bio ?? '') : undefined} />
             </div>
             {editLocale === 'hu' && (
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="staff_active" className="h-4 w-4 rounded" {...register('is_active')} />
-              <Label htmlFor="staff_active" className="text-sm">Aktív (foglalható)</Label>
-            </div>
+            <label htmlFor="staff_active" className="flex items-center justify-between rounded-xl border border-line bg-paper px-4 py-3.5 cursor-pointer">
+              <span>
+                <span className="block text-sm font-medium text-ink">Aktív</span>
+                <span className="mt-0.5 block text-xs text-ink-soft">Foglalható a foglaló oldalon</span>
+              </span>
+              <span className="relative inline-flex">
+                <input type="checkbox" id="staff_active" className="peer sr-only" {...register('is_active')} />
+                <span className={`h-[26px] w-[46px] rounded-full transition-colors ${activeWatch ? 'bg-ink-dark' : 'bg-line-strong'}`} />
+                <span className={`absolute top-[3px] h-5 w-5 rounded-full transition-all ${activeWatch ? 'left-[23px] bg-gold' : 'left-[3px] bg-white'}`} />
+              </span>
+            </label>
             )}
             <button
               type="submit"
               disabled={submitting || uploadingAvatar}
-              className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm transition-colors disabled:opacity-50"
+              className="w-full h-12 rounded-dav-pill bg-ink-dark hover:bg-ink text-white font-semibold text-sm transition-colors disabled:opacity-50"
             >
               {submitting ? 'Mentés...' : editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
@@ -366,6 +644,27 @@ export default function StaffManager({ salonId, initialStaff, supportedLocales }
           salonId={salonId}
         />
       )}
+
+      {/* Törlés megerősítő modal (natív confirm helyett) */}
+      <ConfirmDialog
+        open={deleteId !== null}
+        title="Munkatárs törlése"
+        description={toDelete ? `Biztosan törlöd: ${toDelete.name}? A művelet nem vonható vissza.` : 'Biztosan törlöd ezt a munkatársat?'}
+        confirmLabel="Törlés"
+        cancelLabel="Mégse"
+        destructive
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteId(null)}
+      />
+
+      {/* Munkavállalók-adatlap overlay — a listasorra kattintva nyílik */}
+      <HiringOverlay
+        open={hiringIndex !== null}
+        onClose={() => setHiringIndex(null)}
+        variant="salon"
+        initialIndex={hiringIndex ?? 0}
+      />
     </>
   )
 }

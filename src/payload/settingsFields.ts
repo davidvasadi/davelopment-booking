@@ -1,0 +1,75 @@
+import type { Field } from 'payload'
+
+/**
+ * Üzlet-csomag — PER ÜZLET. Két érték: `pro` (a normál, önkiszolgáló csomag — minden funkció
+ * elérhető) és `egyedi` (testreszabott, kapcsolatfelvétellel egyeztetett deal). A fiók-díj az
+ * üzletek díjából áll össze (lásd src/lib/accountSubscription.ts).
+ *
+ * ⚠️ BIZTONSÁG: a tulaj NEM írhatja (field-szintű update = admin-only). Az `egyedi`-t admin
+ * állítja (a megrendelővel egyeztetve). Grandfathering: a régi (null) csomag `pro`-ként olvasandó.
+ */
+export const businessTierField: Field = {
+  name: 'tier',
+  type: 'select',
+  required: true,
+  defaultValue: 'pro',
+  label: 'Csomag',
+  options: [
+    { label: 'Pro (normál)', value: 'pro' },
+    { label: 'Egyedi', value: 'egyedi' },
+  ],
+  access: {
+    update: ({ req }) => req.user?.role === 'admin',
+  },
+  admin: {
+    description: 'Az üzlet csomagja. A normál a „Pro"; az „Egyedi" a testreszabott (admin állítja, a megrendelővel egyeztetve).',
+  },
+}
+
+/**
+ * Közös, valós beállítás-mezők a Salon ÉS Restaurant collectionhöz — a Schedulio
+ * Csomag roadmap „élővé" tett részei: értesítési preferenciák (esemény × csatorna),
+ * foglalási-szabály kapcsolók, és a kapcsolható foglalási funkció-modulok.
+ * Mentés a meglévő PATCH /api/salons|restaurants/:id úton (collection-mezők).
+ */
+export const settingsExtensionFields: Field[] = [
+  {
+    name: 'notification_prefs',
+    type: 'group',
+    label: 'Értesítési beállítások',
+    fields: [
+      { name: 'confirm_email', type: 'checkbox', defaultValue: true },
+      { name: 'reminder_email', type: 'checkbox', defaultValue: true },
+      { name: 'cancel_email', type: 'checkbox', defaultValue: true },
+      { name: 'feedback_email', type: 'checkbox', defaultValue: false },
+    ],
+  },
+  {
+    name: 'booking_rules',
+    type: 'group',
+    label: 'Foglalási szabály-kapcsolók',
+    fields: [
+      { name: 'auto_confirm', type: 'checkbox', defaultValue: true },
+      { name: 'deposit_enabled', type: 'checkbox', defaultValue: false },
+      { name: 'waitlist_enabled', type: 'checkbox', defaultValue: false },
+      { name: 'cancellation_protection', type: 'checkbox', defaultValue: false },
+    ],
+  },
+  {
+    name: 'feature_modules',
+    type: 'group',
+    label: 'Foglalási funkciók (kapcsolható modulok)',
+    fields: [
+      { name: 'reminders_on', type: 'checkbox', defaultValue: true },
+      { name: 'reminder_ch_email', type: 'checkbox', defaultValue: true },
+      { name: 'reminder_ch_push', type: 'checkbox', defaultValue: false },
+      { name: 'reminder_t_24h', type: 'checkbox', defaultValue: true },
+      { name: 'reminder_t_3h', type: 'checkbox', defaultValue: true },
+      { name: 'reminder_t_1h', type: 'checkbox', defaultValue: false },
+      { name: 'waitlist_on', type: 'checkbox', defaultValue: false },
+      { name: 'waitlist_auto_promote', type: 'checkbox', defaultValue: false },
+      { name: 'recurring_on', type: 'checkbox', defaultValue: false },
+      { name: 'reviews_on', type: 'checkbox', defaultValue: false },
+    ],
+  },
+]

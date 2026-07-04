@@ -4,8 +4,23 @@ import { useState, useEffect } from 'react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Building2, UtensilsCrossed, MapPin, Phone, Mail, Globe, Clock, ExternalLink, LogIn } from 'lucide-react'
 import {
-  PLAN_LABELS, STATUS_LABELS, STATUS_COLORS, type PlaceKind,
+  PLAN_LABELS, STATUS_LABELS, type PlaceKind,
 } from '@/lib/backstagePlaces'
+
+/* davelopment státusz-badge */
+const SUB_BADGE: Record<string, string> = {
+  trialing: 'bg-[#FBF4DC] text-[#7A6A2E]',
+  active: 'bg-[#E7F2EA] text-[#1D9D63]',
+  past_due: 'bg-[#F8E9E7] text-[#C0392B]',
+  canceled: 'bg-[#F0EAD8] text-ink-soft',
+  paused: 'bg-[#FBF4DC] text-[#7A6A2E]',
+}
+function bookingBadge(status: string): string {
+  if (status === 'confirmed') return 'bg-[#E7F2EA] text-[#1D9D63]'
+  if (status === 'cancelled' || status === 'no_show') return 'bg-[#F8E9E7] text-[#C0392B]'
+  if (status === 'completed') return 'bg-[#F0EAD8] text-ink-soft'
+  return 'bg-[#FBF4DC] text-[#7A6A2E]'
+}
 
 type DetailData = {
   salon: any // a hely-objektum (szalon VAGY étterem) — közös mezőkkel
@@ -71,17 +86,17 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader className="mb-6">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center shrink-0">
-              <TypeIcon className="h-5 w-5 text-zinc-400 dark:text-zinc-500" />
+          <div className="flex items-center gap-3 font-onest">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F6F2E4]">
+              <TypeIcon className="h-5 w-5 text-ink-soft" strokeWidth={1.7} />
             </div>
             <div>
-              <SheetTitle className="text-left flex items-center gap-2">
+              <SheetTitle className="flex items-center gap-2 text-left text-ink">
                 {placeDoc?.name ?? '—'}
-                <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{typeLabel}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wide text-ink-soft">{typeLabel}</span>
               </SheetTitle>
               {placeDoc?.city && (
-                <p className="flex items-center gap-1 text-zinc-400 text-xs mt-0.5">
+                <p className="mt-0.5 flex items-center gap-1 text-[12px] text-ink-soft">
                   <MapPin className="h-3 w-3" />{placeDoc.city}
                 </p>
               )}
@@ -91,18 +106,18 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <div className="h-6 w-6 rounded-full border-2 border-zinc-200 dark:border-zinc-700 border-t-zinc-900 dark:border-t-white animate-spin" />
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-line border-t-ink" />
           </div>
         )}
 
         {!loading && data && (
-          <div className="space-y-4">
+          <div className="space-y-4 font-onest">
             {/* Actions */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-wrap items-center gap-2">
               <a
                 href={`/${placeDoc?.slug}`}
                 target="_blank"
-                className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 dark:border-white/[0.08] text-zinc-500 dark:text-zinc-400 text-xs hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors"
+                className="flex items-center gap-1.5 rounded-[18px] bg-[#F6F2E4] px-[14px] py-2 text-[12px] font-semibold text-ink transition-colors hover:bg-[#EFE9D6]"
               >
                 <ExternalLink className="h-3.5 w-3.5" /> Nyilvános oldal
               </a>
@@ -111,9 +126,9 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
                   <input type="hidden" name="userId" value={String(owner.id)} />
                   <button
                     type="submit"
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-200 dark:border-white/[0.08] text-zinc-500 dark:text-zinc-400 text-xs hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors"
+                    className="flex items-center gap-1.5 rounded-[18px] bg-ink-dark px-[14px] py-2 text-[12px] font-semibold text-white"
                   >
-                    <LogIn className="h-3.5 w-3.5" />
+                    <LogIn className="h-3.5 w-3.5 text-gold" />
                     Belépés owner-ként
                   </button>
                 </form>
@@ -122,46 +137,46 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
 
             {/* Booking stats */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
-                <p className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider mb-1">Összes foglalás</p>
-                <p className="text-zinc-900 dark:text-white font-black text-2xl">{data.totalBookings}</p>
+              <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Összes foglalás</p>
+                <p className="text-[28px] font-light leading-none tracking-[-0.02em] text-ink">{data.totalBookings}</p>
               </div>
-              <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
-                <p className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider mb-1">Ez a hónap</p>
-                <p className="text-zinc-900 dark:text-white font-black text-2xl">{data.monthBookings}</p>
+              <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+                <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Ez a hónap</p>
+                <p className="text-[28px] font-light leading-none tracking-[-0.02em] text-ink">{data.monthBookings}</p>
               </div>
             </div>
 
             {/* Owner */}
-            <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
-              <p className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider mb-3">Tulajdonos</p>
+            <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Tulajdonos</p>
               {owner ? (
                 <div>
-                  <p className="text-zinc-900 dark:text-white font-semibold text-sm">{owner.name}</p>
-                  <p className="text-zinc-500 text-xs mt-0.5">{owner.email}</p>
-                  <p className="text-zinc-400 dark:text-zinc-600 text-xs mt-2">
+                  <p className="text-[14px] font-semibold text-ink">{owner.name}</p>
+                  <p className="mt-0.5 text-[12px] text-ink-soft">{owner.email}</p>
+                  <p className="mt-2 text-[12px] text-ink-soft2">
                     Regisztrált: {new Date(owner.createdAt).toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' })}
                   </p>
                 </div>
-              ) : <p className="text-zinc-400 text-sm">—</p>}
+              ) : <p className="text-[14px] text-ink-soft">—</p>}
             </div>
 
             {/* Subscription */}
-            <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
-              <p className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider mb-3">Előfizetés</p>
+            <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Előfizetés</p>
               {sub ? (
                 <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <span className="text-zinc-900 dark:text-white font-bold text-sm">{PLAN_LABELS[sub.plan] ?? sub.plan}</span>
-                    <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_COLORS[sub.status]}`}>
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="text-[14px] font-bold text-ink">{PLAN_LABELS[sub.plan] ?? sub.plan}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${SUB_BADGE[sub.status] ?? 'bg-[#F0EAD8] text-ink-soft'}`}>
                       {STATUS_LABELS[sub.status] ?? sub.status}
                     </span>
                   </div>
                   {sub.amount_huf != null && sub.amount_huf > 0 && (
-                    <p className="text-zinc-500 text-xs">{sub.amount_huf.toLocaleString('hu-HU')} Ft/hó</p>
+                    <p className="text-[12px] text-ink-soft">{sub.amount_huf.toLocaleString('hu-HU')} Ft/hó</p>
                   )}
                   {(sub.trial_ends_at || sub.current_period_end) && (
-                    <p className="text-zinc-400 dark:text-zinc-600 text-xs mt-2 flex items-center gap-1">
+                    <p className="mt-2 flex items-center gap-1 text-[12px] text-ink-soft2">
                       <Clock className="h-3 w-3" />
                       {sub.status === 'trialing' && sub.trial_ends_at
                         ? `Trial vége: ${new Date(sub.trial_ends_at).toLocaleDateString('hu-HU')}`
@@ -171,32 +186,32 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
                     </p>
                   )}
                 </div>
-              ) : <p className="text-zinc-400 text-sm">Nincs előfizetés</p>}
+              ) : <p className="text-[14px] text-ink-soft">Nincs előfizetés</p>}
             </div>
 
             {/* Contact */}
             {(placeDoc?.phone || placeDoc?.email || placeDoc?.website || placeDoc?.address) && (
-              <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
-                <p className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider mb-3">Elérhetőség</p>
+              <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+                <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Elérhetőség</p>
                 <div className="space-y-2">
                   {placeDoc.phone && (
-                    <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                      <Phone className="h-3.5 w-3.5 text-zinc-400" />{placeDoc.phone}
+                    <p className="flex items-center gap-2 text-[13.5px] text-ink">
+                      <Phone className="h-3.5 w-3.5 text-ink-soft" />{placeDoc.phone}
                     </p>
                   )}
                   {placeDoc.email && (
-                    <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                      <Mail className="h-3.5 w-3.5 text-zinc-400" />{placeDoc.email}
+                    <p className="flex items-center gap-2 text-[13.5px] text-ink">
+                      <Mail className="h-3.5 w-3.5 text-ink-soft" />{placeDoc.email}
                     </p>
                   )}
                   {placeDoc.website && (
-                    <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                      <Globe className="h-3.5 w-3.5 text-zinc-400" />{placeDoc.website}
+                    <p className="flex items-center gap-2 text-[13.5px] text-ink">
+                      <Globe className="h-3.5 w-3.5 text-ink-soft" />{placeDoc.website}
                     </p>
                   )}
                   {placeDoc.address && (
-                    <p className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300 text-sm">
-                      <MapPin className="h-3.5 w-3.5 text-zinc-400" />{placeDoc.address}
+                    <p className="flex items-center gap-2 text-[13.5px] text-ink">
+                      <MapPin className="h-3.5 w-3.5 text-ink-soft" />{placeDoc.address}
                     </p>
                   )}
                 </div>
@@ -204,23 +219,23 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
             )}
 
             {/* Status + meta */}
-            <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
+            <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-zinc-900 dark:text-white text-sm font-medium">{typeLabel} aktív</p>
-                  <p className="text-zinc-400 text-xs mt-0.5">Látható az ügyfeleknek</p>
+                  <p className="text-[13.5px] font-medium text-ink">{typeLabel} aktív</p>
+                  <p className="mt-0.5 text-[12px] text-ink-soft">Látható az ügyfeleknek</p>
                 </div>
                 <ActiveToggle kind={kind} placeId={placeDoc.id} isActive={placeDoc.is_active ?? false} />
               </div>
-              <p className="text-zinc-400 dark:text-zinc-600 text-xs mt-3 pt-3 border-t border-zinc-200 dark:border-white/[0.06]">
+              <p className="mt-3 border-t border-line pt-3 text-[12px] text-ink-soft2">
                 Regisztrált: {new Date(placeDoc.createdAt).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             </div>
 
             {/* Recent bookings */}
             {data.recentBookings.length > 0 && (
-              <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl overflow-hidden">
-                <p className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider px-4 pt-4 pb-3 border-b border-zinc-200 dark:border-white/[0.06]">
+              <div className="overflow-hidden rounded-[20px] border border-line bg-white shadow-dav-card">
+                <p className="border-b border-line px-4 pb-3 pt-4 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">
                   Legutóbbi foglalások
                 </p>
                 {data.recentBookings.map((b: any, i: number) => {
@@ -230,18 +245,13 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
                   return (
                     <div
                       key={b.id}
-                      className={`flex items-center justify-between px-4 py-3 ${i < data.recentBookings.length - 1 ? 'border-b border-zinc-100 dark:border-white/[0.04]' : ''}`}
+                      className={`flex items-center justify-between px-4 py-3 ${i < data.recentBookings.length - 1 ? 'border-b border-line' : ''}`}
                     >
-                      <div>
-                        <p className="text-zinc-900 dark:text-white text-sm font-medium">{b.customer_name}</p>
-                        <p className="text-zinc-500 text-xs mt-0.5">{detail} · {b.date} {b.start_time}</p>
+                      <div className="min-w-0">
+                        <p className="truncate text-[13.5px] font-medium text-ink">{b.customer_name}</p>
+                        <p className="mt-0.5 truncate text-[12px] text-ink-soft">{detail} · {b.date} {b.start_time}</p>
                       </div>
-                      <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                        b.status === 'confirmed' ? 'bg-emerald-500/10 text-emerald-500'
-                        : b.status === 'cancelled' || b.status === 'no_show' ? 'bg-red-500/10 text-red-500'
-                        : b.status === 'completed' ? 'bg-zinc-100 dark:bg-zinc-700/50 text-zinc-500'
-                        : 'bg-amber-500/10 text-amber-500'
-                      }`}>
+                      <span className={`ml-3 shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold ${bookingBadge(b.status)}`}>
                         {b.status}
                       </span>
                     </div>
@@ -251,19 +261,19 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
             )}
 
             {/* Admin notes */}
-            <div className="bg-zinc-50 dark:bg-white/[0.03] border border-zinc-200 dark:border-white/[0.06] rounded-2xl p-4">
-              <p className="text-zinc-400 text-[10px] font-semibold uppercase tracking-wider mb-3">Belső megjegyzés</p>
+            <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Belső megjegyzés</p>
               <textarea
                 value={notes}
                 onChange={e => setNotes(e.target.value)}
                 rows={3}
-                className="w-full bg-transparent text-sm text-zinc-700 dark:text-zinc-300 placeholder:text-zinc-400 focus:outline-none resize-none"
+                className="w-full resize-none rounded-[16px] border border-line bg-white px-[14px] py-3 text-[13.5px] text-ink placeholder:text-ink-soft2 focus:border-strong focus:outline-none"
                 placeholder="Belső megjegyzések az adminnak..."
               />
               <button
                 onClick={saveNotes}
                 disabled={saving}
-                className="mt-1 text-xs text-zinc-400 hover:text-zinc-900 dark:hover:text-white transition-colors disabled:opacity-50"
+                className="mt-2 rounded-[16px] bg-ink-dark px-[16px] py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {saving ? 'Mentés...' : saved ? 'Mentve ✓' : 'Mentés'}
               </button>
@@ -304,7 +314,7 @@ function ActiveToggle({ kind, placeId, isActive }: { kind: PlaceKind; placeId: s
       onClick={toggle}
       disabled={pending}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
-        active ? 'bg-emerald-500' : 'bg-zinc-300 dark:bg-zinc-700'
+        active ? 'bg-[#1D9D63]' : 'bg-[#E5DEC9]'
       }`}
     >
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${active ? 'translate-x-6' : 'translate-x-1'}`} />

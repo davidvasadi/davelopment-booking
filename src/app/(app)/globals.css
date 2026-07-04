@@ -24,6 +24,40 @@
     --input: 0 0% 90%;
     --ring: 0 0% 5%;
     --radius: 0.625rem;
+
+    /* ===== davelopment-design tokenek =====
+       A handoff (docs/design_handoff_davelopment) alapján. Additív: a régi
+       stílust nem érinti, az új komponensek ezeket használják. */
+    --dav-ink: #1D1C19;            /* sötét kártya / pill */
+    --dav-accent: #F1CE45;         /* sárga CTA / kiemelés */
+    --dav-paper: #E4E4E2;          /* oldal háttér (konténeren kívül) */
+    --dav-text: #211F1A;           /* fő szöveg */
+    --dav-text-muted: #86826F;     /* halvány szöveg */
+    --dav-text-muted2: #6F6B5F;    /* halvány szöveg, sötétebb */
+    --dav-line: rgba(120,110,70,.14);   /* vonal/border */
+    --dav-line-strong: rgba(120,110,70,.22);
+    --dav-glass: rgba(255,255,255,.55); /* üveges fehér kártya */
+    --dav-glass-strong: rgba(255,255,255,.62);
+
+    /* Konténer-gradient (a dashboard ebben ül; a gradient a konténeren BELÜL) */
+    --dav-container-gradient:
+      radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%),
+      linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
+
+    /* Státusz */
+    --dav-ok: #4A7A2A;      --dav-ok-bg: #E3F0D8;
+    --dav-warn: #8A6D12;    --dav-warn-bg: #FDF3CF;
+    --dav-bad: #C0564A;     --dav-bad-bg: #FDE2DD;
+
+    /* Lekerekítés */
+    --dav-r-container: 34px;
+    --dav-r-lg: 26px;
+    --dav-r-md: 18px;
+    --dav-r-pill: 30px;
+
+    /* Árnyék */
+    --dav-shadow-card: 0 2px 8px rgba(0,0,0,.04);
+    --dav-shadow-container: 0 34px 70px -34px rgba(80,70,30,.20), 0 0 0 1px rgba(120,110,70,.06);
   }
 
   .dark {

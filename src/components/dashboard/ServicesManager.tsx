@@ -12,9 +12,25 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Image as ImageIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Image as ImageIcon, Scissors, Layers, Tag, CheckCircle2, type LucideIcon } from 'lucide-react'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import { PageHeader } from '@/components/ui/page-header'
+import { DashboardCard } from '@/components/ui/dashboard-card'
+import { EmptyState } from '@/components/ui/empty-state'
+
+/** Hero KPI a katalógus/csapat fejlécben (davelopment: kis ikon + nagy light szám + címke). */
+function HeroStat({ icon: Icon, value, label }: { icon: LucideIcon; value: string; label: string }) {
+  return (
+    <div className="flex items-start gap-2 sm:gap-2.5">
+      <Icon className="mt-2.5 h-4 w-4 shrink-0 text-ink-soft sm:mt-3 sm:h-5 sm:w-5" strokeWidth={1.6} />
+      <div className="min-w-0">
+        <div className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink sm:text-[42px]">{value}</div>
+        <div className="mt-1 truncate text-[12px] font-medium text-ink-soft sm:text-[13px]">{label}</div>
+      </div>
+    </div>
+  )
+}
 
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
@@ -67,6 +83,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // Nyelvkészlet a szalon supported_locales-éből (HU mindig benne). A name/description
   // localizált mezők — szerkesztéskor nyelvenként vihetők be a `?locale=` paraméterrel.
@@ -425,116 +442,222 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
 
   const catName = (id: string): string => (id === '__none__' ? 'Egyéb' : catById.get(id)?.name ?? 'Egyéb')
 
+  // ── Hero KPI-k és bevétel-megoszlás (valós adatból) ──
+  const activeServices = services.filter(s => s.is_active !== false)
+  const catCount = new Set(services.map(s => relId(s.category) ?? '__none__')).size
+  const avgPrice = services.length ? Math.round(services.reduce((sum, s) => sum + (s.price || 0), 0) / services.length) : 0
+  const heroCurrency = services[0]?.currency ?? 'HUF'
+
+  // Megoszlás kategóriánként a szolgáltatás-darabszám alapján (a referencia „bevétel-csík" megfelelője).
+  const distEntries = Object.entries(categoryMap)
+    .map(([id, subMap]) => ({ id, count: Object.values(subMap).reduce((n, arr) => n + arr.length, 0) }))
+    .filter(d => d.count > 0)
+    .sort((a, b) => b.count - a.count)
+  const distTotal = distEntries.reduce((n, d) => n + d.count, 0) || 1
+
   return (
     <>
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <p className="text-xs font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-widest mb-1">Katalógus</p>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 dark:text-white">Szolgáltatások</h1>
-        </div>
-        <button
-          onClick={openAdd}
-          className="h-10 px-5 rounded-full bg-white hover:bg-white/90 text-black text-sm font-semibold flex items-center gap-2 transition-colors"
-        >
-          <Plus className="h-4 w-4" />Új
-        </button>
+      <PageHeader
+        eyebrow="Katalógus"
+        title="Szolgáltatások"
+        description="Aktív kínálat, árak és időtartamok kategóriánként"
+        action={
+          <button
+            onClick={openAdd}
+            aria-label="Új szolgáltatás"
+            className="flex h-11 items-center gap-2 rounded-dav-pill bg-ink-dark px-3.5 text-sm font-semibold text-white transition-colors hover:bg-ink sm:px-5"
+          >
+            <Plus className="h-4 w-4" /><span className="hidden sm:inline">Új szolgáltatás</span>
+          </button>
+        }
+        className="mb-6"
+      />
+
+      {/* KPI-csík */}
+      <div className="mb-6 grid grid-cols-2 gap-5 sm:flex sm:flex-wrap sm:items-start sm:gap-8 lg:gap-10">
+        <HeroStat icon={Scissors} value={String(services.length)} label="Szolgáltatás" />
+        <HeroStat icon={Layers} value={String(catCount)} label="Kategória" />
+        <HeroStat icon={Tag} value={formatPrice(avgPrice, heroCurrency)} label="Átlagár" />
+        <HeroStat icon={CheckCircle2} value={String(activeServices.length)} label="Aktív" />
       </div>
 
-      {services.length === 0 ? (
-        <div className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl px-6 py-12 text-center">
-          <p className="text-zinc-400 dark:text-white/30 text-sm">Még nincs szolgáltatás. Add hozzá az elsőt!</p>
+      {/* Megoszlás-csík kategóriánként */}
+      {distEntries.length > 0 && (
+        <div className="mb-6">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-[13px] font-medium text-ink">Megoszlás kategóriánként</span>
+            <span className="text-xs text-ink-soft">{services.length} szolgáltatás összesen</span>
+          </div>
+          <div className="flex h-11 gap-1 sm:gap-1.5">
+            {distEntries.map((d, i) => {
+              const pct = Math.round((d.count / distTotal) * 100)
+              const tone =
+                i === 0 ? 'bg-ink-dark text-white' : i === 1 ? 'bg-gold text-ink-dark' : 'border border-line-strong text-ink-soft2'
+              return (
+                <div
+                  key={d.id}
+                  className={`flex min-w-0 items-center rounded-[12px] px-2.5 text-[12px] font-semibold sm:rounded-[14px] sm:px-4 sm:text-[13px] ${tone}`}
+                  style={{ flexGrow: d.count, flexBasis: 0 }}
+                >
+                  <span className="truncate">{catName(d.id)}</span>
+                  <span className="ml-auto hidden pl-1.5 opacity-70 sm:inline sm:pl-2">{pct}%</span>
+                </div>
+              )
+            })}
+          </div>
         </div>
+      )}
+
+      {services.length === 0 ? (
+        <DashboardCard noPadding>
+          <EmptyState icon={Scissors} title="Még nincs szolgáltatás" description="Add hozzá az elsőt a katalógushoz!" />
+        </DashboardCard>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-4">
           {Object.entries(categoryMap).map(([categoryId, subMap]) => {
             const subEntries = Object.entries(subMap)
             const catRecord = categoryId === '__none__' ? undefined : catById.get(categoryId)
             const catImgUrl = categoryImageUrl(catRecord)
             const catLabel = catName(categoryId)
+            const catTotal = subEntries.reduce((n, [, arr]) => n + arr.length, 0)
 
             return (
-              <div key={categoryId} className="bg-white shadow-sm border border-zinc-100 dark:bg-white/[0.04] dark:border-white/[0.08] dark:shadow-none rounded-2xl overflow-hidden">
-                {/* Category header */}
-                <div className="flex items-center gap-3 px-5 py-3.5 border-b border-zinc-100 dark:border-white/[0.06] bg-zinc-50 dark:bg-white/[0.03]">
-                  {catImgUrl ? (
-                    <div className="h-8 w-8 rounded-lg overflow-hidden shrink-0">
-                      <img src={catImgUrl} alt={catLabel} className="h-full w-full object-cover" />
-                    </div>
-                  ) : (
-                    <div className="h-8 w-8 rounded-lg bg-zinc-200 dark:bg-white/[0.08] shrink-0 flex items-center justify-center">
-                      <ImageIcon className="h-3.5 w-3.5 text-zinc-400 dark:text-white/30" />
-                    </div>
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-widest text-zinc-500 dark:text-white/40">{catLabel}</p>
-                    {catRecord?.duration_label && (
-                      <p className="text-[10px] text-zinc-400 dark:text-white/30 flex items-center gap-1 mt-0.5">
-                        <Clock className="h-2.5 w-2.5" />{catRecord.duration_label}
-                      </p>
+              <div key={categoryId} className="rounded-[22px] bg-[#fcfbf7] px-3.5 py-4 shadow-dav-card sm:rounded-[26px] sm:px-[22px] sm:py-5">
+                {/* Kategória fejléc */}
+                <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {catImgUrl ? (
+                      <div className="h-[38px] w-[38px] shrink-0 overflow-hidden rounded-[11px]">
+                        <img src={catImgUrl} alt={catLabel} className="h-full w-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-[var(--dav-glass-strong)]">
+                        <ImageIcon className="h-[18px] w-[18px] text-ink-soft" strokeWidth={1.7} />
+                      </div>
                     )}
+                    <div className="min-w-0">
+                      <p className="truncate text-[17px] font-semibold text-ink">{catLabel}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-ink-soft2">
+                        {catTotal} szolgáltatás
+                        {catRecord?.duration_label && (
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{catRecord.duration_label}</span>
+                        )}
+                      </p>
+                    </div>
                   </div>
                   {catRecord && (
                     <button
                       onClick={() => openCatEdit(categoryId)}
-                      className="h-7 w-7 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200 dark:hover:bg-white/[0.08] transition-colors shrink-0"
+                      className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper"
                       title="Kategória szerkesztése"
                     >
-                      <Pencil className="h-3 w-3" />
+                      <Pencil className="h-[15px] w-[15px]" strokeWidth={1.8} />
                     </button>
                   )}
                 </div>
 
-                {subEntries.map(([subcategoryId, items], si) => {
-                  const isLastGroup = si === subEntries.length - 1
-                  return (
-                    <div key={subcategoryId || '__none'}>
-                      {subcategoryId && (
-                        <div className="px-5 py-2 bg-zinc-50/50 dark:bg-white/[0.015] border-b border-zinc-100 dark:border-white/[0.06]">
-                          <span className="text-[11px] font-semibold text-zinc-400 dark:text-white/30 uppercase tracking-wider">{catName(subcategoryId)}</span>
-                        </div>
-                      )}
-                      {items.map((s, i) => {
-                        const imgUrl = serviceImageUrl(s)
-                        const showBorder = i < items.length - 1 || !isLastGroup
-                        return (
+                {/* Desktop: Crextio People-táblázat fejléc */}
+                <div className="mt-1 hidden grid-cols-[1.8fr_1fr_130px_120px_92px] items-center gap-3 px-2 pb-2.5 pt-3 md:grid">
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Szolgáltatás</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Munkatársak</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Időtartam</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Állapot</span>
+                  <span className="text-right text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Ár</span>
+                </div>
+
+                {subEntries.map(([subcategoryId, items]) => (
+                  <div key={subcategoryId || '__none'}>
+                    {subcategoryId && (
+                      <div className="px-2 pt-3.5">
+                        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft2">{catName(subcategoryId)}</span>
+                      </div>
+                    )}
+                    {items.map((s) => {
+                      const imgUrl = serviceImageUrl(s)
+                      const isSel = selectedId === s.id
+                      const active = s.is_active !== false
+                      const staffMembers = (s.staff ?? []).filter((x): x is StaffMember => typeof x === 'object' && x !== null)
+                      const avatar = imgUrl
+                        ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
+                        : <span className="text-sm font-semibold text-ink">{s.name.slice(0, 1).toUpperCase()}</span>
+
+                      return (
+                        <div key={s.id}>
+                          {/* Desktop sor */}
                           <div
-                            key={s.id}
-                            className={`flex items-center gap-4 px-5 py-4 ${showBorder ? 'border-b border-zinc-100 dark:border-white/[0.06]' : ''}`}
+                            onClick={() => setSelectedId(isSel ? null : s.id)}
+                            className={`hidden cursor-pointer grid-cols-[1.8fr_1fr_130px_120px_92px] items-center gap-3 rounded-[14px] px-2 py-3 transition-colors md:grid ${
+                              isSel ? 'bg-gold/25' : 'hover:bg-[#F6F2E4]'
+                            }`}
                           >
-                            <div className="h-12 w-12 rounded-xl overflow-hidden shrink-0 bg-zinc-100 dark:bg-white/[0.06] flex items-center justify-center">
-                              {imgUrl
-                                ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
-                                : <span className="text-lg font-black text-zinc-400 dark:text-white/30">{s.name[0]}</span>
-                              }
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <p className="font-semibold text-sm text-zinc-800 dark:text-white/80 truncate">{s.name}</p>
-                                {!s.is_active && (
-                                  <span className="text-[10px] text-zinc-400 dark:text-white/30 border border-zinc-200 dark:border-white/[0.1] rounded-full px-2 py-0.5 shrink-0">Inaktív</span>
-                                )}
+                            <div className="flex min-w-0 items-center gap-3">
+                              <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#EFE9D6]">{avatar}</span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
+                                {s.description && <p className="truncate text-xs text-ink-soft">{s.description}</p>}
                               </div>
-                              {s.description && (
-                                <p className="text-xs text-zinc-500 dark:text-white/40 mt-0.5 line-clamp-1">{s.description}</p>
-                              )}
-                              <p className="text-xs text-zinc-400 dark:text-white/30 mt-0.5 flex items-center gap-1">
-                                <Clock className="h-3 w-3" />{s.duration_minutes} perc · {formatPrice(s.price, s.currency)}
-                              </p>
                             </div>
-                            <div className="flex gap-1 shrink-0">
-                              <button onClick={() => openEdit(s)} className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-white/[0.08] transition-colors">
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                              <button onClick={() => deleteService(s.id)} className="h-8 w-8 rounded-lg flex items-center justify-center text-zinc-400 dark:text-white/30 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
+                            <div className="min-w-0">
+                              {staffMembers.length > 0 ? (
+                                <div className="flex items-center gap-1.5">
+                                  <div className="flex">
+                                    {staffMembers.slice(0, 4).map((m, mi) => (
+                                      <span key={m.id} className={`flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
+                                        {m.name.slice(0, 1).toUpperCase()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <span className="truncate text-[12px] text-ink-soft">{staffMembers.map(m => m.name).join(', ')}</span>
+                                </div>
+                              ) : <span className="text-[12px] text-ink-soft2">—</span>}
+                            </div>
+                            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[var(--dav-glass-strong)] px-2.5 py-1 text-[12px] font-medium text-ink">
+                              <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
+                            </span>
+                            <span>
+                              {active ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1 text-[11px] font-semibold text-ink-dark"><span className="h-1.5 w-1.5 rounded-full bg-ink-dark" />Aktív</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 rounded-full border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-ink-soft2"><span className="h-1.5 w-1.5 rounded-full bg-line-strong" />Inaktív</span>
+                              )}
+                            </span>
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="mr-1 text-sm font-semibold text-ink">{formatPrice(s.price, s.currency)}</span>
+                              <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink"><Pencil className="h-[14px] w-[14px]" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); deleteService(s.id) }} className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500"><Trash2 className="h-[14px] w-[14px]" /></button>
                             </div>
                           </div>
-                        )
-                      })}
-                    </div>
-                  )
-                })}
+
+                          {/* Mobil kártya */}
+                          <div
+                            onClick={() => setSelectedId(isSel ? null : s.id)}
+                            className={`mt-2.5 flex cursor-pointer items-center gap-3 rounded-[18px] border p-3 transition-colors md:hidden ${
+                              isSel ? 'border-gold bg-gold/20' : 'border-line bg-white'
+                            }`}
+                          >
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#EFE9D6]">{avatar}</span>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
+                                {!active && <span className="shrink-0 rounded-full border border-line-strong px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-soft2">Inaktív</span>}
+                              </div>
+                              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-soft">
+                                <Clock className="h-3.5 w-3.5" />{s.duration_minutes} perc · {formatPrice(s.price, s.currency)}
+                              </p>
+                              {staffMembers.length > 0 && (
+                                <p className="mt-0.5 truncate text-[11px] text-ink-soft2">{staffMembers.map(m => m.name).join(', ')}</p>
+                              )}
+                            </div>
+                            <div className="flex shrink-0 flex-col gap-1">
+                              <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink transition-colors hover:bg-white"><Pencil className="h-[14px] w-[14px]" /></button>
+                              <button onClick={(e) => { e.stopPropagation(); deleteService(s.id) }} className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500"><Trash2 className="h-[14px] w-[14px]" /></button>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ))}
               </div>
             )
           })}
@@ -545,7 +668,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent className="overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="text-xl font-black tracking-tight">
+            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">
               {editing ? 'Szerkesztés' : 'Új szolgáltatás'}
             </SheetTitle>
           </SheetHeader>
@@ -562,7 +685,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
 
             {editLocale === 'hu' && (
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium text-zinc-700">Kép</Label>
+              <Label className="text-sm font-medium text-ink-soft">Kép</Label>
               <div className="relative">
                 <button
                   type="button"
@@ -690,7 +813,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
             <button
               type="submit"
               disabled={submitting || uploadingImage}
-              className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm transition-colors disabled:opacity-50"
+              className="w-full h-12 rounded-dav-pill bg-ink-dark hover:bg-ink text-white font-semibold text-sm transition-colors disabled:opacity-50"
             >
               {submitting ? 'Mentés...' : editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
@@ -702,7 +825,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
       <Sheet open={catSheetOpen} onOpenChange={setCatSheetOpen}>
         <SheetContent className="overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="text-xl font-black tracking-tight">
+            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">
               Kategória: {editingCatName}
             </SheetTitle>
           </SheetHeader>
@@ -786,7 +909,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
               type="button"
               onClick={onCatSubmit}
               disabled={catSubmitting || uploadingCatImage}
-              className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold text-sm transition-colors disabled:opacity-50"
+              className="w-full h-12 rounded-dav-pill bg-ink-dark hover:bg-ink text-white font-semibold text-sm transition-colors disabled:opacity-50"
             >
               {catSubmitting ? 'Mentés...' : catEditLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>

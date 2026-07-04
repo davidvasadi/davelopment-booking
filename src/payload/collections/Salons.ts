@@ -1,7 +1,9 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
+import { settingsExtensionFields, businessTierField } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
+import { auditAfterChange } from '../hooks/auditLog'
 
 // Több-üzlet (multi-tenant): egy user TÖBB szalont birtokolhat, ezért a hozzáférést az
 // `owner` alapján kell ellenőrizni (a régi `user.salon` fix mező csak az „első"-t nézte →
@@ -18,6 +20,7 @@ export const Salons: CollectionConfig = {
   hooks: {
     afterChange: [
       revalidatePlaceOnChange('salon'),
+      auditAfterChange('Szalon beállítás', 'self-salon'),
       async ({ req, doc, operation }) => {
         if (operation !== 'create') return
         // Fiók-szintű előfizetés: az új szalon a fiók (owner) előfizetésébe számít be — a díj
@@ -184,6 +187,8 @@ export const Salons: CollectionConfig = {
               label: 'Értesítés új foglalásokról',
               admin: { description: 'Ha be van kapcsolva, a tulajdonos értesítést kap új foglalásról és lemondásról az alkalmazáson belül.' },
             },
+            businessTierField,
+            ...settingsExtensionFields,
             {
               name: 'booking_email_subject',
               type: 'text',

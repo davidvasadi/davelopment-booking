@@ -82,49 +82,49 @@ export function OfflineBanner({
   return (
     <div className="space-y-2">
       {!online && (
-        <div className="flex items-center gap-2.5 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-500/10 dark:border-amber-500/30 px-4 py-2.5 text-sm text-amber-800 dark:text-amber-200">
-          <WifiOff className="h-4 w-4 shrink-0" />
+        <div className="flex items-center gap-2.5 rounded-[18px] border border-gold/60 bg-gold/[0.14] px-4 py-2.5 text-sm text-ink">
+          <WifiOff className="h-4 w-4 shrink-0 text-[#9A8B52]" />
           <span className="font-medium">Nincs internetkapcsolat — vázlat módban dolgozol.</span>
-          <span className="hidden sm:inline text-amber-700/80 dark:text-amber-300/70">
+          <span className="hidden sm:inline text-ink-soft">
             Az új foglalások az eszközön maradnak, amíg vissza nem jön a net.
           </span>
         </div>
       )}
 
       {drafts.length > 0 && (
-        <div className="rounded-xl border border-zinc-200 bg-white dark:bg-white/[0.04] dark:border-white/[0.1]">
+        <div className="rounded-[18px] border border-line bg-white shadow-dav-card">
           <button
             onClick={() => (drafts.length === 1 ? onReview(drafts[0]) : setOpen((o) => !o))}
             className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-left"
           >
-            <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-            <span className="font-semibold text-zinc-900 dark:text-white">
+            <AlertTriangle className="h-4 w-4 shrink-0 text-[#9A8B52]" />
+            <span className="font-semibold text-ink">
               {drafts.length} mentésre váró vázlat
             </span>
             {online && (
-              <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-zinc-950 dark:bg-white text-white dark:text-zinc-950 px-3 py-1 text-xs font-bold">
+              <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-ink-dark text-white px-3 py-1 text-xs font-bold">
                 Átnézés
               </span>
             )}
           </button>
 
           {open && (
-            <div className="border-t border-zinc-100 dark:border-white/[0.06] divide-y divide-zinc-100 dark:divide-white/[0.06]">
+            <div className="border-t border-line divide-y divide-line">
               {drafts.map((d) => (
                 <button
                   key={d.draftId}
                   onClick={() => onReview(d)}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-zinc-50 dark:hover:bg-white/[0.03] transition-colors"
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-[var(--dav-glass)] transition-colors"
                 >
-                  <span className="tabular-nums font-semibold text-zinc-900 dark:text-white w-12 shrink-0">
+                  <span className="tabular-nums font-semibold text-ink w-12 shrink-0">
                     {d.start_time}
                   </span>
-                  <span className="flex-1 min-w-0 truncate text-zinc-700 dark:text-zinc-300">
+                  <span className="flex-1 min-w-0 truncate text-ink-soft2">
                     {d.customer_name} · {d.pax} fő
                     {d.tableNames?.length ? ` · ${d.tableNames.join(' + ')}` : ''}
                   </span>
-                  {busyId === d.draftId && <Loader2 className="h-3.5 w-3.5 animate-spin text-zinc-400 shrink-0" />}
-                  <ChevronRight className="h-4 w-4 shrink-0 text-zinc-300 dark:text-white/30" />
+                  {busyId === d.draftId && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-soft shrink-0" />}
+                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-soft2" />
                 </button>
               ))}
               {online && drafts.length > 1 && (

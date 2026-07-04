@@ -21,8 +21,8 @@ export default async function AvailabilityPage() {
   })
 
   return (
-    <div className="p-5 lg:p-8 space-y-6">
-      <PageHeader eyebrow="Időbeosztás" title="Nyitvatartás" className="mb-8" />
+    <div className="space-y-6 p-5 lg:p-0">
+      <PageHeader eyebrow="Időbeosztás" title="Nyitvatartás" description="Heti rend és elérhetőség" />
       <AvailabilityGrid salonId={salon.id} initialRecords={availResult.docs as Availability[]} />
     </div>
   )

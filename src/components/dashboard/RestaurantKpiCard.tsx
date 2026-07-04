@@ -51,23 +51,23 @@ export function RestaurantKpiCard({ sub, label, value, diff, icon, title, descri
       />
 
       <Sheet open={open} onOpenChange={(v) => { if (!v) setOpen(false) }}>
-        <SheetContent className="w-full sm:max-w-xl lg:max-w-2xl overflow-y-auto bg-white dark:bg-zinc-950">
+        <SheetContent className="w-full sm:max-w-xl lg:max-w-2xl overflow-y-auto bg-white">
           <SheetHeader>
-            <SheetTitle>{title}</SheetTitle>
+            <SheetTitle className="text-lg font-medium tracking-tight text-ink">{title}</SheetTitle>
           </SheetHeader>
           <div className="mt-6 space-y-6">
-            <div className="rounded-2xl p-5 bg-zinc-50 dark:bg-white/[0.04]">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-1">{sub}</p>
-              <p className="text-4xl font-black tracking-tight text-zinc-900 dark:text-white">{value}</p>
+            <div className="rounded-[18px] p-5 bg-[var(--dav-glass)] border border-line">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft mb-1">{sub}</p>
+              <p className="text-4xl font-light tracking-[-0.02em] text-ink">{value}</p>
               <div className="flex items-center gap-2 mt-2">
-                <p className="text-sm text-zinc-500 dark:text-white/40">{label}</p>
+                <p className="text-sm text-ink-soft">{label}</p>
                 {diff !== undefined && <DiffBadge diff={diff} />}
               </div>
             </div>
-            {description && <p className="text-sm text-zinc-500 dark:text-white/50">{description}</p>}
+            {description && <p className="text-sm text-ink-soft2">{description}</p>}
             {trend && trend.length > 0 && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/30 mb-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-ink-soft mb-3">
                   Alakulás ({period} nap)
                 </p>
                 <ReservationTrendChart data={trend} period={period} />

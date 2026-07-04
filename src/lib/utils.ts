@@ -46,6 +46,12 @@ export function minutesToHHMM(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+/** Éjfél-átfordulásra biztos időtartam percben (a nevező sose 0 vagy negatív). */
+export function durationMinutes(startMin: number, endMin: number): number {
+  const d = endMin >= startMin ? endMin - startMin : 1440 - startMin + endMin
+  return Math.max(1, d)
+}
+
 export function getDayName(date: Date): string {
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   return days[date.getDay()]
