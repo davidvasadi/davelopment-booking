@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     await payload.create({
       collection: 'waitlist',
       overrideAccess: true,
+      context: { auditActor: 'Várólista (vendég)' },
       data: {
         ...(salon ? { salon: Number(salonId) } : { restaurant: Number(restaurantId) }),
         date,

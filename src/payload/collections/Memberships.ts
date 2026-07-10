@@ -88,10 +88,10 @@ export const Memberships: CollectionConfig = {
       defaultValue: 'staff',
       options: [
         { label: 'Tulajdonos', value: 'owner' },
-        { label: 'Menedzser', value: 'manager' },
-        { label: 'Munkatárs', value: 'staff' },
+        { label: 'Üzletvezető', value: 'manager' },
+        { label: 'Alkalmazott', value: 'staff' },
       ],
-      label: 'Szerep',
+      label: 'Szerep (jogosultság)',
     },
     {
       name: 'status',
@@ -101,6 +101,7 @@ export const Memberships: CollectionConfig = {
       options: [
         { label: 'Aktív', value: 'active' },
         { label: 'Függő meghívó', value: 'invited' },
+        { label: 'Felfüggesztett', value: 'suspended' },
       ],
       label: 'Státusz',
     },
@@ -111,6 +112,72 @@ export const Memberships: CollectionConfig = {
       index: true,
       label: 'Meghívó token',
       admin: { readOnly: true },
+    },
+    // ── Munkakör & HR (étterem-alkalmazott adatlap). A szalon ugyanezt a Staff-on tárolja. ──
+    // A POZÍCIÓ (munkakör) FÜGGETLEN a szereptől (jogosultság): pl. Konyhavezető pozíció +
+    // Üzletvezető jogosultság. Szabad szöveg, a Staff.role_title-lel konzisztensen.
+    {
+      name: 'position',
+      type: 'text',
+      label: 'Pozíció (munkakör)',
+      admin: { placeholder: 'Konyhavezető · Szakács · Felszolgáló · Pultos · Mosogató' },
+    },
+    { name: 'avatar', type: 'relationship', relationTo: 'media', hasMany: false, label: 'Profilkép' },
+    { name: 'phone', type: 'text', label: 'Telefon' },
+    {
+      name: 'birthday',
+      type: 'date',
+      label: 'Születésnap',
+      admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } },
+    },
+    { name: 'address', type: 'text', label: 'Cím' },
+    { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
+    { name: 'emergency_contact', type: 'text', label: 'Vészhelyzeti kontakt' },
+    {
+      name: 'join_date',
+      type: 'date',
+      label: 'Belépés',
+      admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } },
+    },
+    { name: 'weekly_hours', type: 'number', label: 'Heti óraszám' },
+    // BÉR: csak a Tulajdonos látja/szerkeszti. A fizetés a NAPTÁRBÓL számolódik:
+    // napidíj → (ledolgozott + fizetett szabadság napok) × rate; órabér → (órák + szabadság×8) × rate.
+    {
+      name: 'pay_type',
+      type: 'select',
+      defaultValue: 'daily',
+      options: [
+        { label: 'Napidíj (Ft/nap)', value: 'daily' },
+        { label: 'Órabér (Ft/óra)', value: 'hourly' },
+      ],
+      label: 'Bér típusa',
+    },
+    { name: 'pay_rate', type: 'number', label: 'Napidíj / órabér (Ft)' },
+    // A borravaló NAPI KÖZÖS összeg (a Naptárban adod meg naponta), és elosztódik az aznap
+    // dolgozó, JOGOSULT tagok közt. Itt csak a jogosultság kapcsolója van.
+    { name: 'tip_eligible', type: 'checkbox', defaultValue: false, label: 'Borravalóra jogosult' },
+    { name: 'salary', type: 'number', label: 'Bér (Ft) — régi, nem használt' },
+    { name: 'bio', type: 'textarea', label: 'Megjegyzés / bemutatkozás' },
+    { name: 'suspended_at', type: 'date', label: 'Felfüggesztés napja', admin: { readOnly: true } },
+    {
+      // Pozíció-előzmény (előléptetés): a pozíció-váltásokat naplózzuk dátummal → az adatlapon idővonal.
+      name: 'position_history',
+      type: 'array',
+      label: 'Pozíció-előzmény',
+      admin: { description: 'Pincér → Supervisor · dátum. A pozíció-váltáskor automatikusan bővül; elírás javítható.' },
+      fields: [
+        { name: 'position', type: 'text', label: 'Pozíció' },
+        { name: 'changed_at', type: 'date', label: 'Dátum' },
+      ],
+    },
+    {
+      name: 'documents',
+      type: 'array',
+      label: 'Dokumentumok',
+      fields: [
+        { name: 'label', type: 'text', label: 'Megnevezés' },
+        { name: 'file', type: 'relationship', relationTo: 'media', hasMany: false, label: 'Fájl' },
+      ],
     },
   ],
   timestamps: true,

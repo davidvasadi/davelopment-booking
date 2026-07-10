@@ -6,26 +6,49 @@ import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 
 /** A dashboardról szerkeszthető localizált mezők egy üzletön (salon/restaurant). */
 export interface LocalizedValues {
+  // Szerkeszthető email-tartalom (tárgy + bevezető) típusonként. A visszaigazoló = booking_*.
   booking_email_subject: string
   booking_email_intro: string
+  cancel_email_subject: string
+  cancel_email_intro: string
+  reminder_email_subject: string
+  reminder_email_intro: string
+  feedback_email_subject: string
+  feedback_email_intro: string
   terms_sections: { title: string; body: string }[]
   good_to_know: { icon: string; title: string; body: string }[]
+  /** Étterem-only: esemény-típusok (alkalmak). A `label` localizált, az icon/enabled globális. */
+  event_types: { icon: string; label: string; enabled: boolean }[]
 }
 
 const EMPTY: LocalizedValues = {
   booking_email_subject: '',
   booking_email_intro: '',
+  cancel_email_subject: '',
+  cancel_email_intro: '',
+  reminder_email_subject: '',
+  reminder_email_intro: '',
+  feedback_email_subject: '',
+  feedback_email_intro: '',
   terms_sections: [],
   good_to_know: [],
+  event_types: [],
 }
 
 /** A nyers (Payload) rekordból a localizált mezők kinyerése egy adott nyelven betöltve. */
 function fromDoc(doc: Record<string, unknown>): LocalizedValues {
   const terms = Array.isArray(doc.terms_sections) ? doc.terms_sections : []
   const gtk = Array.isArray(doc.good_to_know) ? doc.good_to_know : []
+  const evt = Array.isArray(doc.event_types) ? doc.event_types : []
   return {
     booking_email_subject: (doc.booking_email_subject as string) ?? '',
     booking_email_intro: (doc.booking_email_intro as string) ?? '',
+    cancel_email_subject: (doc.cancel_email_subject as string) ?? '',
+    cancel_email_intro: (doc.cancel_email_intro as string) ?? '',
+    reminder_email_subject: (doc.reminder_email_subject as string) ?? '',
+    reminder_email_intro: (doc.reminder_email_intro as string) ?? '',
+    feedback_email_subject: (doc.feedback_email_subject as string) ?? '',
+    feedback_email_intro: (doc.feedback_email_intro as string) ?? '',
     terms_sections: terms.map((s: Record<string, unknown>) => ({
       title: (s.title as string) ?? '',
       body: (s.body as string) ?? '',
@@ -34,6 +57,11 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
       icon: (g.icon as string) ?? 'info',
       title: (g.title as string) ?? '',
       body: (g.body as string) ?? '',
+    })),
+    event_types: evt.map((e: Record<string, unknown>) => ({
+      icon: (e.icon as string) ?? 'party',
+      label: (e.label as string) ?? '',
+      enabled: (e.enabled as boolean) ?? true,
     })),
   }
 }
@@ -126,8 +154,16 @@ export function useLocalizedFields(opts: {
         body: JSON.stringify({
           booking_email_subject: values.booking_email_subject,
           booking_email_intro: values.booking_email_intro,
+          cancel_email_subject: values.cancel_email_subject,
+          cancel_email_intro: values.cancel_email_intro,
+          reminder_email_subject: values.reminder_email_subject,
+          reminder_email_intro: values.reminder_email_intro,
+          feedback_email_subject: values.feedback_email_subject,
+          feedback_email_intro: values.feedback_email_intro,
           terms_sections: values.terms_sections,
           good_to_know: values.good_to_know,
+          // Az esemény-típusok étterem-only mező — a szalon PATCH-be ne kerüljön bele.
+          ...(collection === 'restaurants' ? { event_types: values.event_types } : {}),
         }),
       })
       if (!res.ok) throw new Error()

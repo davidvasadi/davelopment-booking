@@ -17,6 +17,9 @@ function initials(name: string): string {
 function toYmd(iso: string): string {
   return iso.slice(0, 10)
 }
+function mediaUrl(m: unknown): string | null {
+  return m && typeof m === 'object' && 'url' in m && typeof (m as { url?: unknown }).url === 'string' ? (m as { url: string }).url : null
+}
 
 /**
  * ÉTTEREM BEOSZTÁS — a csapat-tagok (memberships) havi műszakjai. A ScheduleView-t
@@ -48,32 +51,49 @@ export default async function RestaurantSchedulePage() {
     }),
   ])
 
-  const staff: StaffVM[] = (membersRes.docs as Membership[]).map((m) => {
+  const members: StaffVM[] = (membersRes.docs as Membership[]).map((m) => {
     const u = typeof m.user === 'object' ? (m.user as User) : null
     const name = m.name || u?.name || m.email
     return {
       id: String(m.id),
       name,
       ini: initials(name),
-      role: roleLabel(m.role) + (m.status !== 'active' ? ' · meghívva' : ''),
-      birthday: null,
-      join_date: m.createdAt ? toYmd(m.createdAt) : null,
-      weekly_hours: null,
-      phone: null,
+      avatarUrl: mediaUrl(m.avatar) ?? (u?.avatar_url ?? null),
+      role: (m.position || roleLabel(m.role)) + (m.status !== 'active' ? ' · meghívva' : ''),
+      birthday: m.birthday ? toYmd(m.birthday) : null,
+      join_date: m.join_date ? toYmd(m.join_date) : m.createdAt ? toYmd(m.createdAt) : null,
+      weekly_hours: typeof m.weekly_hours === 'number' ? m.weekly_hours : null,
+      phone: m.phone ?? null,
       documents: [],
     }
   })
 
+  // A TULAJDONOS is beosztható (fedettség): a lista élére, id='owner'. Bér/borravaló NEKI nincs.
+  const ownerId = restaurant.owner && typeof restaurant.owner === 'object' ? (restaurant.owner as User).id : restaurant.owner
+  const ownerUser = ownerId ? ((await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true }).catch(() => null)) as User | null) : null
+  const ownerName = ownerUser?.name || ownerUser?.email || 'Tulajdonos'
+  const ownerStaff: StaffVM = { id: 'owner', name: ownerName, ini: initials(ownerName), avatarUrl: ownerUser?.avatar_url ?? null, role: 'Tulajdonos', birthday: ownerUser?.birthday ? toYmd(ownerUser.birthday) : null, join_date: ownerUser?.join_date ? toYmd(ownerUser.join_date) : null, weekly_hours: ownerUser?.weekly_hours ?? null, phone: ownerUser?.phone ?? null, documents: [] }
+  const staff: StaffVM[] = [ownerStaff, ...members]
+
   const shifts: ShiftVM[] = (shiftsRes.docs as Shift[]).map((sh) => ({
     id: String(sh.id),
-    staffId: String(typeof sh.member === 'object' && sh.member ? sh.member.id : sh.member),
+    staffId: sh.owner_shift ? 'owner' : String(typeof sh.member === 'object' && sh.member ? sh.member.id : sh.member),
     date: toYmd(sh.date),
     type: sh.type as ShiftType,
     start_time: sh.start_time ?? null,
     end_time: sh.end_time ?? null,
     hours: typeof sh.hours === 'number' ? sh.hours : null,
     note: sh.note ?? null,
+    left_early_at: sh.left_early_at ?? null,
+    left_early_reason: (sh.left_early_reason ?? null) as 'sick' | 'personal' | null,
   }))
+
+  // Napi központi borravaló: dátum → összeg (a nap-szerkesztő bevitele + a profil havi összegzése).
+  const dailyTips: Record<string, number> = {}
+  for (const t of restaurant.daily_tips ?? []) {
+    const d = (t.date ?? '').slice(0, 10)
+    if (d && typeof t.amount === 'number') dailyTips[d] = t.amount
+  }
 
   const now = new Date()
 
@@ -109,9 +129,9 @@ export default async function RestaurantSchedulePage() {
           <PageHeader eyebrow="Csapat" title="Naptár" />
         </div>
         <div className="mt-0 flex flex-col gap-6 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
-          <StatusPills className="flex-1 lg:max-w-[620px]" segments={pills} />
+          <StatusPills eager className="flex-1 lg:max-w-[620px]" segments={pills} />
           <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-            <CountUpKpi icon="users" value={staff.length} label="Csapattag" />
+            <CountUpKpi icon="users" value={members.length} label="Csapattag" />
             <CountUpKpi icon="clock" value={workedHours} label="Ledolgozott óra (hó)" />
             <CountUpKpi icon="off" value={offDays} label="Szabadság / hiányzás" />
           </div>
@@ -124,6 +144,7 @@ export default async function RestaurantSchedulePage() {
         shifts={shifts}
         year={now.getFullYear()}
         month={now.getMonth()}
+        dailyTips={dailyTips}
       />
     </div>
   )

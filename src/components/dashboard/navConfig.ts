@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, CalendarDays, CalendarRange, Briefcase, Users, Clock, Settings, BarChart2, Armchair, SlidersHorizontal, MapPin,
+  LayoutDashboard, CalendarDays, CalendarRange, Briefcase, Users, Clock, Settings, BarChart2, Armchair, Lightbulb, HelpCircle, MapPin,
   Store, CreditCard, TrendingUp, AlertTriangle, Activity,
   type LucideIcon,
 } from 'lucide-react'
@@ -26,7 +26,8 @@ const salonNav: NavConfig = {
     { href: '/dashboard/staff', label: 'Munkatársak', icon: Users },
     { href: '/dashboard/schedule', label: 'Naptár', icon: CalendarRange },
     { href: '/dashboard/availability', label: 'Nyitvatartás', icon: Clock },
-    { href: '/dashboard/tips', label: 'Funkciók', icon: SlidersHorizontal },
+    { href: '/dashboard/tips', label: 'Tippek', icon: Lightbulb },
+    { href: '/dashboard/help', label: 'Súgó', icon: HelpCircle },
     { href: '/dashboard/settings', label: 'Beállítások', icon: Settings },
   ],
   publicUrlPrefix: '',
@@ -44,7 +45,8 @@ const restaurantNav: NavConfig = {
     { href: '/restaurant/staff', label: 'Munkatársak', icon: Users },
     { href: '/restaurant/schedule', label: 'Naptár', icon: CalendarRange },
     { href: '/restaurant/availability', label: 'Nyitvatartás', icon: Clock },
-    { href: '/restaurant/tips', label: 'Funkciók', icon: SlidersHorizontal },
+    { href: '/restaurant/tips', label: 'Tippek', icon: Lightbulb },
+    { href: '/restaurant/help', label: 'Súgó', icon: HelpCircle },
     { href: '/restaurant/settings', label: 'Beállítások', icon: Settings },
   ],
   publicUrlPrefix: '',

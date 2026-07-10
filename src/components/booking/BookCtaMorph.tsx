@@ -38,7 +38,7 @@ export function BookCtaMorph({ href, label = 'Időpontfoglalás', className = ''
           hover: { borderTopRightRadius: 14, borderBottomRightRadius: 14 },
         }}
         transition={t}
-        className="relative z-10 h-12 inline-flex items-center rounded-full bg-white text-zinc-950 font-bold text-sm px-7"
+        className="relative z-10 inline-flex h-12 items-center rounded-full bg-ink-dark px-7 text-[14px] font-semibold text-white"
       >
         {/* Text-roll: két egymás alatti felirat egy ablakban, hoverre felgördül */}
         <span className="overflow-hidden inline-block" style={{ height: '1.25rem' }}>
@@ -63,7 +63,7 @@ export function BookCtaMorph({ href, label = 'Időpontfoglalás', className = ''
           hover: { x: -GAP, borderTopLeftRadius: 14, borderBottomLeftRadius: 14, borderTopRightRadius: 9999, borderBottomRightRadius: 9999 },
         }}
         transition={t}
-        className="inline-flex items-center justify-center bg-white text-zinc-950"
+        className="inline-flex items-center justify-center bg-ink-dark text-white"
       >
         <motion.span
           variants={{ rest: { rotate: 0 }, hover: { rotate: 45 } }}

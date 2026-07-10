@@ -12,11 +12,16 @@ export function emailPreviewUrl(
     email_directions_address?: string | null
   },
   locale: string = 'hu',
+  /** Melyik email vázát renderelje: confirm | cancel | reminder | feedback | notify. */
+  state: string = 'confirm',
+  /** Az adott email-típus bevezetője (ha megadva, felülírja a v.booking_email_intro-t). */
+  introOverride?: string,
 ): string {
   const q = new URLSearchParams({
     type,
     locale,
-    intro: v.booking_email_intro ?? '',
+    state,
+    intro: introOverride ?? v.booking_email_intro ?? '',
     phone: v.email_show_phone ? '1' : '0',
     cmail: v.email_show_email ? '1' : '0',
     addr: v.email_show_address ? '1' : '0',

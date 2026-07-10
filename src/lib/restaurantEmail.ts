@@ -142,11 +142,15 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
   const resend = getResend()
   if (!resend) return
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
+  const subjectTpl = (restaurant.cancel_email_subject ?? '').trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, emailVars(data))
+    : t(locale, 'email.cancel.subjectFallback', { place: restaurant.name })
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: reservation.customer_email,
-      subject: t(locale, 'email.cancel.subjectFallback', { place: restaurant.name }),
+      subject,
       html: cancellationHtml(data),
     })
   } catch (err) {
@@ -158,11 +162,15 @@ export async function sendReminderEmail(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend || !reservation.customer_email) return
+  const subjectTpl = (restaurant.reminder_email_subject ?? '').trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, emailVars(data))
+    : `Emlékeztető: közeleg a foglalásod – ${restaurant.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: reservation.customer_email,
-      subject: `Emlékeztető: közeleg a foglalásod – ${restaurant.name}`,
+      subject,
       html: reminderHtml(data),
     })
   } catch (err) {
@@ -174,11 +182,15 @@ export async function sendFeedbackRequestEmail(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend || !reservation.customer_email) return
+  const subjectTpl = (restaurant.feedback_email_subject ?? '').trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, emailVars(data))
+    : `Milyen volt nálunk? Értékeld a látogatásod – ${restaurant.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: reservation.customer_email,
-      subject: `Milyen volt nálunk? Értékeld a látogatásod – ${restaurant.name}`,
+      subject,
       html: feedbackHtml(data),
     })
   } catch (err) {
@@ -272,6 +284,7 @@ function detailRows(data: ReservationEmailData): string {
     infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(reservation.date, locale)),
     infoRow('clock', t(locale, 'email.label.time'), `${reservation.start_time} – ${reservation.end_time}`),
     infoRow('people', t(locale, 'email.label.guests'), `${reservation.pax} fő`),
+    reservation.occasion ? infoRow('sparkle', t(locale, 'email.label.occasion'), reservation.occasion) : '',
     location ? infoRow('pin', t(locale, 'email.label.address'), location) : '',
   ].filter(Boolean).join('')
 }
@@ -357,6 +370,7 @@ function reminderHtml(data: ReservationEmailData): string {
       title: 'Közeleg a foglalásod',
       subtitle: `Kedves ${reservation.customer_name}, csak hogy emlékeztessünk: hamarosan várunk!`,
     })}
+    ${introBlock(restaurant.reminder_email_intro ?? '', emailVars(data))}
     ${detailsCard(detailRows(data))}
     ${calendarBlock({
       title: `${t(locale, 'rbooking.header')} – ${restaurant.name}`,
@@ -373,9 +387,12 @@ function reminderHtml(data: ReservationEmailData): string {
 
 function feedbackHtml(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
-  const reviewUrl = reservation.cancel_token
+  // Ha az étterem megadott Google értékelés-linket, oda visz (nyilvános review); különben a belső /review.
+  const googleUrl = (restaurant.feature_modules?.google_review_url ?? '').trim()
+  const reviewUrl = googleUrl || (reservation.cancel_token
     ? `${APP_URL}/review/${reservation.cancel_token}`
-    : `${APP_URL}/${restaurant.slug}`
+    : `${APP_URL}/${restaurant.slug}`)
+  const reviewCta = googleUrl ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'
   const rows = [
     infoRow('calendar', 'Dátum', reservation.date),
     infoRow('people', 'Fő', `${reservation.pax} fő`),
@@ -386,10 +403,11 @@ function feedbackHtml(data: ReservationEmailData): string {
       title: 'Milyen volt nálunk?',
       subtitle: `Kedves ${reservation.customer_name}, reméljük jól érezted magad. Mondd el a véleményed!`,
     })}
+    ${introBlock(restaurant.feedback_email_intro ?? '', emailVars(data))}
     ${detailsCard(rows)}
     <tr>
       <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Értékelem a látogatásom</a>
+        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
       </td>
     </tr>
     ${bottomSpacer()}
@@ -405,6 +423,7 @@ function cancellationHtml(data: ReservationEmailData): string {
       title: t(locale, 'email.cancel.title'),
       subtitle: t(locale, 'email.cancel.body'),
     })}
+    ${introBlock(restaurant.cancel_email_intro ?? '', emailVars(data))}
     ${detailsCard(detailRows(data))}
     ${bottomSpacer()}
   `)

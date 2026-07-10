@@ -2,6 +2,26 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { ChevronDown } from 'lucide-react'
+import { AsYouType, validatePhoneNumberLength, type CountryCode } from 'libphonenumber-js'
+
+/**
+ * Az ország szerint formázza a helyi számot GÉPELÉS közben (pl. HU: „30 123 4567"), ÉS
+ * levágja a maximális hossz fölötti számjegyeket — így az adott országnak megengedett
+ * legtöbb számjegynél tovább nem lehet gépelni (beillesztésnél a max-ra rövidít).
+ */
+function formatLocalPhone(raw: string, countryCode: string): string {
+  const cc = countryCode as CountryCode
+  try {
+    let digits = raw.replace(/\D/g, '')
+    // A max hosszig rövidítjük: amíg TOO_LONG, dobjuk az utolsó számjegyet.
+    while (digits.length > 0 && validatePhoneNumberLength(digits, { defaultCountry: cc }) === 'TOO_LONG') {
+      digits = digits.slice(0, -1)
+    }
+    return new AsYouType(cc).input(digits)
+  } catch {
+    return raw
+  }
+}
 
 /** Ország + nemzetközi előhívó. A `code` az ISO-2 (statisztikához), a `dial` a hívókód. */
 export type Country = { code: string; name: string; dial: string }
@@ -163,7 +183,7 @@ export function PhoneCountryInput({
         required={required}
         placeholder={`Telefonszám${required ? '' : ' (opcionális)'}`}
         value={phone}
-        onChange={(e) => onPhoneChange(e.target.value)}
+        onChange={(e) => onPhoneChange(formatLocalPhone(e.target.value, country))}
         className={`flex-1 min-w-0 ${inputClass}`}
       />
       {open && (

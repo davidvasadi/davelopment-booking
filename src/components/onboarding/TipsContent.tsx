@@ -8,7 +8,15 @@ import {
 } from 'lucide-react'
 import {
   CalendarDays, Briefcase, Users, Clock, Settings, BarChart2, Armchair, LayoutDashboard, Printer, Bell,
+  MapPin, CalendarRange, CreditCard, Coins,
 } from 'lucide-react'
+
+/**
+ * SÚGÓ / rendszer-tájékoztató — kereshető, akkordeonos tudásbázis a bejelentkezett
+ * előfizetőnek (SOHA nem a Payload admin). A rendszer immár nagy, ezért a fő nézeteket
+ * modulonként (szalon / étterem) fejezetekre bontja: mit tud, hol találja, mire figyeljen.
+ * Bővíthető: új szekció = egy új `Tip` objektum a `TIPS[variant]` tömbben.
+ */
 
 type Variant = 'restaurant' | 'salon'
 
@@ -89,6 +97,62 @@ const TIPS: Record<Variant, Tip[]> = {
       linkLabel: 'Megnyitom az Asztalokat',
     },
     {
+      id: 'schedule',
+      icon: CalendarRange,
+      title: 'Naptár és beosztás',
+      body: 'A Naptárban tervezed a munkatársak műszakjait, szabadságát, és itt adod meg a napi borravalót.',
+      details: 'A Naptár a csapat havi rendjét mutatja. A műszakok mellett a szabadság/betegség is jelölhető, és minden naphoz megadhatod az aznap befolyt központi borravalót.',
+      bullets: [
+        'Havi nézetben látod, ki mikor dolgozik; egy napra kattintva szerkeszted a műszakokat.',
+        'Szabadság, betegség és egyéb távollét külön jelölhető — ezek nem számítanak a borravaló-osztásba.',
+        'A napi borravalót egy összegként adod meg; a rendszer elosztja az aznap dolgozó, jogosult munkatársak közt.',
+      ],
+      href: '/restaurant/schedule',
+      linkLabel: 'Megnyitom a Naptárt',
+    },
+    {
+      id: 'tips-money',
+      icon: Coins,
+      title: 'Borravaló',
+      body: 'A napi központi borravalót a Naptárban adod meg; a profilon mindenki a havi összegét látja.',
+      details: 'A borravaló-modell egyszerű: naponta egy központi összeget rögzítesz, amit a rendszer az aznap dolgozó, borravalóra jogosult munkatársak között egyenlően oszt el, és havi szinten összegez a profilon.',
+      bullets: [
+        'Egy munkatárs a Munkatársak → profilon jelölhető „borravalóra jogosult”-nak (csak a tulajdonos).',
+        'A napi összeg az aznap dolgozó jogosultak közt oszlik el egyenlően.',
+        'A munkatárs a saját profilján a havi borravaló-összegét látja, szerkeszteni nem tudja.',
+      ],
+      href: '/restaurant/schedule',
+      linkLabel: 'Megnyitom a Naptárt',
+    },
+    {
+      id: 'staff',
+      icon: Users,
+      title: 'Munkatársak',
+      body: 'A csapat tagjait itt kezeled: beosztás, szerepkör, jogosultságok és teljesítmény egy helyen.',
+      details: 'A munkatársakhoz szerepkört (tulajdonos / menedzser / munkatárs) és jogosultságokat rendelsz, és innen nyílik meg az egyéni profil a teljesítménnyel és a borravaló-jogosultsággal.',
+      bullets: [
+        'Tag meghívása e-mailben; a szerepkör dönti el, ki mit láthat és módosíthat.',
+        'A profil drill-down mutatja a teljesítményt, óraszámot és a havi borravalót.',
+        'A borravalóra jogosultságot csak a tulajdonos kapcsolhatja.',
+      ],
+      href: '/restaurant/staff',
+      linkLabel: 'Megnyitom a Munkatársakat',
+    },
+    {
+      id: 'guests',
+      icon: MapPin,
+      title: 'Vendégek',
+      body: 'A visszatérő vendégek, a törzsvendég-pontszám és a vendégek érkezési térképe egy helyen.',
+      details: 'A Vendégek oldal a foglalásaidból épülő címtár: kikeresed egy vendég korábbi foglalásait, és térképen látod, honnan érkeznek.',
+      bullets: [
+        'Vendég-profil a korábbi foglalásokkal és a törzsvendég-pontszámmal.',
+        'Érkezési térkép (OpenStreetMap) a vendégek országa/városa alapján.',
+        'Gyors keresés név, e-mail vagy telefonszám szerint.',
+      ],
+      href: '/restaurant/guests',
+      linkLabel: 'Megnyitom a Vendégeket',
+    },
+    {
       id: 'availability',
       icon: Clock,
       title: 'Nyitvatartás',
@@ -117,6 +181,20 @@ const TIPS: Record<Variant, Tip[]> = {
       linkLabel: 'Megnyitom a Statisztikákat',
     },
     {
+      id: 'tips',
+      icon: Lightbulb,
+      title: 'Tippek — javaslatok',
+      body: 'A Tippek oldal a foglalási adataidból és a beállításaidból ad testreszabott javaslatokat több foglaláshoz.',
+      details: 'A Tippek oldal az étterem „egészségét” pontozza (mennyire kész a foglaló oldalad), és E heti tipp formájában kiemeli a legnagyobb hatású teendőt — valós adatból, nem általánosságból.',
+      bullets: [
+        'Egészség-score: a beüzemelés (borítókép, nyitvatartás, nyelvek, funkciók) teljessége 0–100 skálán.',
+        'E heti tipp: a legterheltebb nap, a no-show arány vagy az online-arány alapján konkrét lépés.',
+        'A javaslat-kártyák „Alkalmaz” gombja azonnal bekapcsol egy funkciót, vagy a megfelelő oldalra visz.',
+      ],
+      href: '/restaurant/tips',
+      linkLabel: 'Megnyitom a Tippeket',
+    },
+    {
       id: 'notifications',
       icon: Bell,
       title: 'Értesítések',
@@ -133,17 +211,31 @@ const TIPS: Record<Variant, Tip[]> = {
     {
       id: 'settings',
       icon: Settings,
-      title: 'Beállítások',
-      body: 'Itt szabod testre az éttermed adatait, az értesítéseket és a foglalási szabályokat.',
-      details: 'A Beállítások a foglalási oldalad és a vendégélmény vezérlőpultja: a cégadatoktól a foglalási feltételekig minden innen állítható.',
+      title: 'Beállítások és funkciók',
+      body: 'Itt szabod testre az éttermed adatait, a foglalási szabályokat és a kapcsolható funkciókat.',
+      details: 'A Beállítások a foglalási oldalad és a vendégélmény vezérlőpultja: a cégadatoktól a foglalási feltételekig és a kapcsolható funkciókig (emlékeztető, várólista, értékelés) minden innen állítható.',
       bullets: [
         'Étterem adatai: név, logó, elérhetőségek — ezek jelennek meg a foglalási oldalon és az e-mailekben.',
+        'Foglalási funkciók: emlékeztető, várólista, értékeléskérés — be/ki és időzítés.',
         'Foglalási szabályok: meddig előre, hány főig, kell-e telefonszám.',
-        'Cég- és jogi adatok, valamint a foglalási feltételek a vendégeknek.',
-        'A márkázott visszaigazoló e-mailek megjelenése.',
+        'Csapat & jogok, dokumentumok, audit-napló és számlázás egy helyen.',
       ],
       href: '/restaurant/settings',
       linkLabel: 'Megnyitom a Beállításokat',
+    },
+    {
+      id: 'subscription',
+      icon: CreditCard,
+      title: 'Előfizetés és csomag',
+      body: 'Fix havidíj, foglalásonkénti jutalék nélkül. Az előfizetésed állapotát itt követed.',
+      details: 'A díjmodell lényege: fix havidíj, és NINCS foglalásonkénti jutalék — ez a fő előny a nemzetközi versenytársakhoz képest. Az előfizetés oldalon látod a csomagod és a számlázás állapotát.',
+      bullets: [
+        'Fix havidíj, jutalékmentes foglalás.',
+        'A csomag és a számlázási előzmények a Beállítások → Számlázásnál is elérhetők.',
+        'Több üzletet is kezelhetsz egy fiókból (üzletváltó a fejlécben).',
+      ],
+      href: '/restaurant/subscription',
+      linkLabel: 'Megnyitom az Előfizetést',
     },
   ],
   salon: [
@@ -204,6 +296,34 @@ const TIPS: Record<Variant, Tip[]> = {
       linkLabel: 'Megnyitom a Munkatársakat',
     },
     {
+      id: 'schedule',
+      icon: CalendarRange,
+      title: 'Naptár és beosztás',
+      body: 'A Naptárban tervezed a munkatársak műszakjait és távolléteit egy havi nézetben.',
+      details: 'A Naptár a csapat havi rendjét mutatja: ki mikor dolgozik, ki van szabadságon. Ez alapján szűrődnek a foglalható időpontok a munkatársakhoz.',
+      bullets: [
+        'Havi nézetben egy napra kattintva szerkeszted a műszakokat.',
+        'Szabadság, betegség és egyéb távollét külön jelölhető.',
+        'A beosztás összhangban van a foglalható időpontokkal.',
+      ],
+      href: '/dashboard/schedule',
+      linkLabel: 'Megnyitom a Naptárt',
+    },
+    {
+      id: 'guests',
+      icon: MapPin,
+      title: 'Vendégek',
+      body: 'A visszatérő vendégek, a törzsvendég-pontszám és a vendégek érkezési térképe egy helyen.',
+      details: 'A Vendégek oldal a foglalásaidból épülő címtár: kikeresed egy vendég korábbi foglalásait, és térképen látod, honnan érkeznek.',
+      bullets: [
+        'Vendég-profil a korábbi foglalásokkal és a törzsvendég-pontszámmal.',
+        'Érkezési térkép (OpenStreetMap) a vendégek városa alapján.',
+        'Gyors keresés név, e-mail vagy telefonszám szerint.',
+      ],
+      href: '/dashboard/guests',
+      linkLabel: 'Megnyitom a Vendégeket',
+    },
+    {
       id: 'availability',
       icon: Clock,
       title: 'Nyitvatartás',
@@ -232,6 +352,20 @@ const TIPS: Record<Variant, Tip[]> = {
       linkLabel: 'Megnyitom a Statisztikákat',
     },
     {
+      id: 'tips',
+      icon: Lightbulb,
+      title: 'Tippek — javaslatok',
+      body: 'A Tippek oldal a foglalási adataidból és a beállításaidból ad testreszabott javaslatokat több foglaláshoz.',
+      details: 'A Tippek oldal a szalon „egészségét” pontozza (mennyire kész a foglaló oldalad), és E heti tipp formájában kiemeli a legnagyobb hatású teendőt — valós adatból, nem általánosságból.',
+      bullets: [
+        'Egészség-score: a beüzemelés (borítókép, nyitvatartás, nyelvek, funkciók) teljessége 0–100 skálán.',
+        'E heti tipp: a legerősebb nap, a teljesítési arány vagy a legnépszerűbb szolgáltatás alapján konkrét lépés.',
+        'A javaslat-kártyák „Alkalmaz” gombja azonnal bekapcsol egy funkciót, vagy a megfelelő oldalra visz.',
+      ],
+      href: '/dashboard/tips',
+      linkLabel: 'Megnyitom a Tippeket',
+    },
+    {
       id: 'notifications',
       icon: Bell,
       title: 'Értesítések',
@@ -248,17 +382,31 @@ const TIPS: Record<Variant, Tip[]> = {
     {
       id: 'settings',
       icon: Settings,
-      title: 'Beállítások',
-      body: 'Itt szabod testre a szalonod adatait, az értesítéseket és a foglalási szabályokat.',
-      details: 'A Beállítások a foglalási oldalad és a vendégélmény vezérlőpultja: a cégadatoktól a foglalási feltételekig minden innen állítható.',
+      title: 'Beállítások és funkciók',
+      body: 'Itt szabod testre a szalonod adatait, a foglalási szabályokat és a kapcsolható funkciókat.',
+      details: 'A Beállítások a foglalási oldalad és a vendégélmény vezérlőpultja: a cégadatoktól a foglalási feltételekig és a kapcsolható funkciókig (emlékeztető, várólista, értékelés) minden innen állítható.',
       bullets: [
         'Szalon adatai: név, logó, elérhetőségek — ezek jelennek meg a foglalási oldalon és az e-mailekben.',
+        'Foglalási funkciók: emlékeztető, várólista, értékeléskérés — be/ki és időzítés.',
         'Foglalási szabályok: meddig előre, kell-e telefonszám.',
-        'Cég- és jogi adatok, valamint a foglalási feltételek a vendégeknek.',
-        'A márkázott visszaigazoló e-mailek megjelenése.',
+        'Csapat & jogok, dokumentumok, audit-napló és számlázás egy helyen.',
       ],
       href: '/dashboard/settings',
       linkLabel: 'Megnyitom a Beállításokat',
+    },
+    {
+      id: 'subscription',
+      icon: CreditCard,
+      title: 'Előfizetés és csomag',
+      body: 'Fix havidíj, foglalásonkénti jutalék nélkül. Az előfizetésed állapotát itt követed.',
+      details: 'A díjmodell lényege: fix havidíj, és NINCS foglalásonkénti jutalék. Az előfizetés oldalon látod a csomagod és a számlázás állapotát.',
+      bullets: [
+        'Fix havidíj, jutalékmentes foglalás.',
+        'A csomag és a számlázási előzmények a Beállítások → Számlázásnál is elérhetők.',
+        'Több üzletet is kezelhetsz egy fiókból (üzletváltó a fejlécben).',
+      ],
+      href: '/dashboard/subscription',
+      linkLabel: 'Megnyitom az Előfizetést',
     },
   ],
 }
@@ -328,10 +476,10 @@ export function TipsContent({ variant }: { variant: Variant }) {
             </span>
             <div>
               <h1 className="text-2xl font-light tracking-[-0.02em] text-ink lg:text-[32px] lg:leading-[1.1]">
-                Tippek és trükkök
+                Súgó
               </h1>
               <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-ink-soft">
-                Minden, amit a rendszerről tudni érdemes — egy helyen. Kattints egy sorra a részletekért, vagy indítsd újra a vezetett bemutatót.
+                Minden, amit a rendszerről tudni érdemes — egy helyen. Kattints egy sorra a részletekért, keress rá egy funkcióra, vagy indítsd újra a vezetett bemutatót.
               </p>
             </div>
           </div>
@@ -353,7 +501,7 @@ export function TipsContent({ variant }: { variant: Variant }) {
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Keresés a tippek között…"
+            placeholder="Keresés a súgóban…"
             className="h-12 w-full rounded-[18px] border border-line bg-white pl-11 pr-11 text-sm text-ink placeholder:text-ink-soft focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-gold/40 transition-all"
           />
           {query && (

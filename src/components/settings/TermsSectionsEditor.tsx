@@ -43,8 +43,9 @@ export const TERMS_TEMPLATE: TermsSection[] = [
   },
 ]
 
+// Crextio/Apple: tiszta fehér + meleg hajszál-keret + arany fókusz (NINCS krém/zinc fill).
 const inputClass =
-  'h-11 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20 px-4 text-sm w-full'
+  'h-11 w-full rounded-[12px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 px-4 text-sm transition-colors focus:border-gold/60 focus:outline-none focus:ring-2 focus:ring-gold/25'
 
 /**
  * Szakaszos „Foglalási feltételek" szerkesztő (salon + restaurant közös eleme).
@@ -77,7 +78,7 @@ export function TermsSectionsEditor({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:border-amber-500/30 dark:text-amber-200">
+      <div className="flex items-start gap-2 rounded-[12px] bg-warn-bg border border-warn/25 px-3 py-2.5 text-xs text-warn">
         <Info className="h-4 w-4 shrink-0 mt-0.5" />
         <span>
           A sablon csak <strong>kiindulási váz</strong> — egészítsd ki a saját feltételeiddel, és a jogi
@@ -87,23 +88,23 @@ export function TermsSectionsEditor({
       </div>
 
       {value.length === 0 && (
-        <div className="rounded-xl border border-dashed border-zinc-300 dark:border-white/[0.12] p-6 text-center">
-          <p className="text-sm text-zinc-500 dark:text-white/40 mb-3">Még nincs feltétel hozzáadva.</p>
+        <div className="rounded-[18px] border border-dashed border-line-strong bg-white p-6 text-center">
+          <p className="mb-3 text-sm text-ink-soft">Még nincs feltétel hozzáadva.</p>
           <button
             type="button"
             onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(termsTemplate(locale)))}
-            className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-sm font-semibold hover:opacity-90 transition-opacity"
+            className="inline-flex items-center gap-1.5 rounded-[14px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
           >
-            <Sparkles className="h-4 w-4" />
+            <Sparkles className="h-4 w-4 text-gold" />
             Sablon betöltése
           </button>
         </div>
       )}
 
       {value.map((s, i) => (
-        <div key={i} className="rounded-xl border border-zinc-200 dark:border-white/[0.08] p-4 space-y-3">
+        <div key={i} className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card">
           <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-white/[0.08] text-xs font-bold text-zinc-500 dark:text-white/50">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-paper text-xs font-bold text-ink-soft2">
               {i + 1}
             </span>
             <input
@@ -113,13 +114,13 @@ export function TermsSectionsEditor({
               className={`${inputClass} font-semibold`}
             />
             <div className="flex shrink-0 items-center">
-              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Fel" className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-white disabled:opacity-30 transition-colors">
+              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Fel" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
                 <ChevronUp className="h-4 w-4" />
               </button>
-              <button type="button" onClick={() => move(i, 1)} disabled={i === value.length - 1} title="Le" className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-white disabled:opacity-30 transition-colors">
+              <button type="button" onClick={() => move(i, 1)} disabled={i === value.length - 1} title="Le" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
                 <ChevronDown className="h-4 w-4" />
               </button>
-              <button type="button" onClick={() => remove(i)} title="Törlés" className="p-1.5 text-zinc-400 hover:text-red-500 transition-colors">
+              <button type="button" onClick={() => remove(i)} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-bad">
                 <Trash2 className="h-4 w-4" />
               </button>
             </div>
@@ -129,7 +130,7 @@ export function TermsSectionsEditor({
             onChange={(e) => update(i, { body: e.target.value })}
             rows={4}
             placeholder="A szakasz szövege…"
-            className="w-full rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20 py-2.5 px-4 text-sm resize-y leading-relaxed"
+            className="w-full resize-y rounded-[12px] border border-line-strong bg-white px-4 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-soft2/60 transition-colors focus:border-gold/60 focus:outline-none focus:ring-2 focus:ring-gold/25"
           />
         </div>
       ))}
@@ -138,7 +139,7 @@ export function TermsSectionsEditor({
         <button
           type="button"
           onClick={add}
-          className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full border border-zinc-200 dark:border-white/[0.12] text-sm font-semibold text-zinc-600 dark:text-white/70 hover:border-zinc-400 dark:hover:bg-white/[0.04] transition-colors"
+          className="inline-flex items-center gap-1.5 rounded-[14px] border border-line bg-white px-4 py-2.5 text-[13px] font-semibold text-ink-soft shadow-dav-card transition-colors hover:text-ink"
         >
           <Plus className="h-4 w-4" />
           Szakasz hozzáadása

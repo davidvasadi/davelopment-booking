@@ -6,7 +6,8 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM, durationMinutes } from '@/lib/utils'
-import { List, LayoutGrid, Map as MapIcon, Plus, Users, Clock, Cake, Repeat } from 'lucide-react'
+import { List, LayoutGrid, Map as MapIcon, Plus, Users, Clock, Repeat } from 'lucide-react'
+import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { TableGlyph } from './TableGlyph'
@@ -26,13 +27,13 @@ const statusLabel: Record<string, string> = {
 }
 // Tömör blokk-színek (háttér) a davelopment-design kánon szerint. Kiosztás:
 // confirmed=sötét (alap, megerősített — referencia #1D1C19), pending=gold (függő),
-// seated=zöld (MOST a teremben ül — #1D9D63), completed=fakó bézs (befejezett — #D8D2C2),
+// seated=zöld (MOST a teremben ül — #1D9D63), completed=fehér kártya (befejezett vendég),
 // no_show=piros (probléma), cancelled=szaggatott áthúzott.
 const statusBlock: Record<string, string> = {
   pending: 'bg-[#F1CE45] text-ink-dark border-[#F1CE45]',
   confirmed: 'bg-[#1D1C19] text-white border-[#1D1C19]',
   seated: 'bg-[#1D9D63] text-white border-[#1D9D63]',
-  completed: 'bg-[#D8D2C2] text-ink-soft2 border-[#C9C2AE]',
+  completed: 'bg-white text-ink border-line',
   no_show: 'bg-red-500 text-white border-red-600',
   cancelled:
     'text-ink-soft2 border border-dashed border-[#A0A096]/60 line-through bg-[repeating-linear-gradient(115deg,rgba(200,195,180,.5)_0_6px,rgba(225,220,206,.5)_6px_12px)]',
@@ -87,6 +88,8 @@ export function urgencyOf(r: Reservation, nowMin: number | null): Urgency | null
 export interface DailyViewProps {
   date: string
   restaurantId: string
+  /** Választható esemény-típusok (alkalmak) az admin szerkesztő-laphoz. */
+  eventTypes?: { icon: string; label: string }[]
   reservations: Reservation[]
   rooms: Room[]
   tables: Table[]
@@ -165,7 +168,8 @@ function draftToReservation(d: ReservationDraft): DraftReservation {
     end_time: d.end_time || d.start_time,
     notes: d.notes || '',
     status: (d.status || 'confirmed') as Reservation['status'],
-    is_birthday: d.is_birthday ?? false,
+    occasion: d.occasion ?? null,
+    occasion_icon: d.occasion_icon ?? null,
     tables: (d.tableIds ?? []).map((id, i) => ({
       id: id as unknown as number,
       name: d.tableNames?.[i] ?? String(id),
@@ -177,7 +181,7 @@ function draftToReservation(d: ReservationDraft): DraftReservation {
 
 export function DailyView(props: DailyViewProps) {
   const {
-    date, restaurantId, rooms, tables, openMin, closeMin, turnMinutes, openReservationId,
+    date, restaurantId, eventTypes, rooms, tables, openMin, closeMin, turnMinutes, openReservationId,
     roomCount, tableCount, activeCount, completedCount, cancelledCount, walkInCount,
     dateFilter, printButton,
   } = props
@@ -250,19 +254,25 @@ export function DailyView(props: DailyViewProps) {
           start_time: newStart,
           pax: r.pax,
           tableIds: [newTableId],
+          // Ha a ledobott asztal önmagában kicsi, a szerver a szabad, összetolható
+          // szomszédokkal próbálja kiegészíteni a létszámig (nem néma hiba).
+          autoCombine: true,
           customer_name: r.customer_name,
           customer_phone: r.customer_phone ?? '',
           customer_email: r.customer_email ?? '',
           notes: r.notes ?? '',
           status: r.status,
           source: r.source,
-          is_birthday: r.is_birthday ?? false,
+          occasion: r.occasion ?? null,
+          occasion_icon: r.occasion_icon ?? null,
           duration_minutes: hhmmToMinutes(r.end_time) - hhmmToMinutes(r.start_time),
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Az áthelyezés nem sikerült')
-      toast.success('Foglalás áthelyezve')
+      // Ha összevonás történt (több asztal), jelezzük külön.
+      const combined = Array.isArray(json.reservation?.tables) && json.reservation.tables.length > 1
+      toast.success(combined ? 'Áthelyezve — asztalok összevonva' : 'Foglalás áthelyezve')
       router.refresh()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Az áthelyezés nem sikerült')
@@ -340,6 +350,7 @@ export function DailyView(props: DailyViewProps) {
         return (
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <StatusPills
+              eager
               className="flex-1 lg:max-w-[760px]"
               segments={[
                 { label: 'Megerősített', pct: Math.round((confirmedCount / totalRes) * 100), background: '#1D1C19', color: '#fff' },
@@ -380,6 +391,7 @@ export function DailyView(props: DailyViewProps) {
         onClose={() => setTarget(null)}
         date={date}
         restaurantId={restaurantId}
+        eventTypes={eventTypes}
         target={target}
         openMin={openMin}
         closeMin={closeMin}
@@ -390,7 +402,7 @@ export function DailyView(props: DailyViewProps) {
 
 /* ---------- Lista nézet ---------- */
 function ListView({ date, reservations, onEdit }: { date: string; reservations: Reservation[]; onEdit: (r: Reservation) => void }) {
-  const card = 'rounded-[26px] bg-white border border-line shadow-dav-card'
+  const card = 'rounded-[26px] dav-card-glass'
   const nowMin = useNowMinutes(date)
   const nowRef = useRef<HTMLDivElement>(null)
 
@@ -454,11 +466,14 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
                       {sourceBadge[r.source]}
                     </span>
                   )}
-                  {r.is_birthday && (
-                    <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-pink-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-pink-700">
-                      <Cake className="h-3 w-3" /> Szülinap
-                    </span>
-                  )}
+                  {r.occasion && (() => {
+                    const OccIcon = eventIconByKey(r.occasion_icon)
+                    return (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-gold/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">
+                        <OccIcon className="h-3 w-3" /> {r.occasion}
+                      </span>
+                    )
+                  })()}
                   {r.series_id && (
                     // Ismétlődő sorozat tagja (közös series_id). Csak jelölés — a viselkedést nem érinti.
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
@@ -502,7 +517,7 @@ function TimelineView({
   const totalMin = Math.max(closeMin - openMin, 60)
   const nowMin = useNowMinutes(date)
   const nowVisible = nowMin != null && nowMin >= openMin && nowMin <= closeMin
-  const card = 'rounded-[26px] bg-white border border-line shadow-dav-card'
+  const card = 'rounded-[26px] dav-card-glass'
 
   // óránkénti rácsvonalak
   const hourMarks: number[] = []
@@ -532,7 +547,7 @@ function TimelineView({
     <>
       {/* Mobil: Crextio Mobile függőleges idővonal (óra-pillek pontozott vonallal + kártyák) */}
       <div className="lg:hidden">
-        <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, card, onEdit }} />
+        <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
       </div>
       {/* Desktop: a teljes nap egy nézetben (százalékos) */}
       <div className="hidden lg:block">
@@ -573,19 +588,22 @@ function renderReservationCard(
     <button
       type="button"
       onClick={() => onEdit(r)}
-      className={`w-full rounded-[18px] border px-4 py-3 text-left shadow-dav-card transition-transform active:scale-[0.99] ${block}`}
+      className={`flex h-[62px] w-full flex-col justify-center rounded-[18px] border px-4 text-left shadow-dav-card transition-transform active:scale-[0.99] ${block}`}
     >
       <div className="flex items-center justify-between gap-2">
         <span className="min-w-0 truncate text-sm font-semibold">
           {r.customer_name} · {r.pax} fő
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
-          {/* Ugyanazok a jelölők, mint a lista-nézetben: szülinap + ismétlődő sorozat. */}
-          {r.is_birthday && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-pink-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-pink-700">
-              <Cake className="h-3 w-3" /> Szülinap
-            </span>
-          )}
+          {/* Ugyanazok a jelölők, mint a lista-nézetben: alkalom + ismétlődő sorozat. */}
+          {r.occasion && (() => {
+            const OccIcon = eventIconByKey(r.occasion_icon)
+            return (
+              <span className="inline-flex items-center gap-1 rounded-md bg-gold/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">
+                <OccIcon className="h-3 w-3" /> {r.occasion}
+              </span>
+            )
+          })()}
           {r.series_id && (
             <span className="inline-flex items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
               <Repeat className="h-3 w-3" /> Sorozat
@@ -602,14 +620,13 @@ function renderReservationCard(
 }
 
 function MobileTimeline({
-  hourMarks, active, openMin, closeMin, nowMin, card, onEdit,
+  hourMarks, active, openMin, closeMin, nowMin, onEdit,
 }: {
   hourMarks: number[]
   active: Reservation[]
   openMin: number
   closeMin: number
   nowMin: number | null
-  card: string
   onEdit: (r: Reservation) => void
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
@@ -618,8 +635,10 @@ function MobileTimeline({
   const tableNamesOf = (r: Reservation) =>
     (r.tables ?? []).map((t) => (typeof t === 'object' && t ? t.name : null)).filter((n): n is string => !!n)
 
+  // Crextio „Schedule" panel: üveges, áttetsző kártya — az oldal-gradient átdereng rajta.
+  // Az üres órák helyén szaggatott hatch-placeholder pill jelzi, hogy nincs foglalás.
   return (
-    <div className={`${card} p-4`}>
+    <div className="rounded-[26px] p-4 dav-card-glass">
       <div className="mb-3 text-[17px] font-medium text-ink">Mai szervizterv</div>
       <div>
         {hourMarks.map((m, i) => {
@@ -663,7 +682,7 @@ function MobileTimeline({
               {/* Jobb: alapból az első foglalás kártyája, kinyitva az összes.
                   A kinyíló extra kártyák staggered springgel úsznak be (nem ugranak). */}
               <div className="min-w-0 flex-1 pb-3">
-                {inHour.length > 0 && (
+                {inHour.length > 0 ? (
                   <div>
                     {renderReservationCard(inHour[0], onEdit, tableNamesOf)}
                     <AnimatePresence initial={false}>
@@ -692,6 +711,13 @@ function MobileTimeline({
                       )}
                     </AnimatePresence>
                   </div>
+                ) : (
+                  // Üres óra — Crextio „prison" szaggatott hatch-placeholder kártya (nincs foglalás)
+                  <div
+                    aria-hidden
+                    className="h-[40px] rounded-[16px] border border-[rgba(120,110,70,.10)]"
+                    style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
+                  />
                 )}
               </div>
             </div>
@@ -863,10 +889,10 @@ function TableGrid({
             { c: '#1D1C19', l: 'Megerősített' },
             { c: '#F1CE45', l: 'Függő' },
             { c: '#1D9D63', l: 'Leültetve' },
-            { c: '#D8D2C2', l: 'Befejezett' },
+            { c: '#FFFFFF', l: 'Befejezett' },
           ].map((x) => (
             <div key={x.l} className="flex items-center gap-[7px]">
-              <span className="h-[11px] w-[11px] rounded-[3px]" style={{ background: x.c }} />
+              <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
               <span className="text-xs font-medium text-ink-soft2">{x.l}</span>
             </div>
           ))}
@@ -913,37 +939,66 @@ function TableGrid({
             )}
             {g.tables.map((t) => {
               const rows = active.filter((r) => tableIdsOf(r).includes(String(t.id)))
+              // Üres idősávok (a foglalások előtti/közti/utáni szabad rések) — Crextio
+              // szaggatott hatch-pillekkel jelölve, mint a mobil nézetben. A foglalás-blokkok
+              // ezek FÖLÉ rendelődnek; a <15 perces réseket kihagyjuk (nem jelölünk pici sávot).
+              const sortedRows = [...rows].sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
+              const freeGaps: Array<[number, number]> = []
+              let gapCursor = openMin
+              for (const r of sortedRows) {
+                const gs = hhmmToMinutes(r.start_time)
+                const ge = hhmmToMinutes(r.end_time)
+                if (gs - gapCursor >= 15) freeGaps.push([gapCursor, gs])
+                gapCursor = Math.max(gapCursor, ge)
+              }
+              if (closeMin - gapCursor >= 15) freeGaps.push([gapCursor, closeMin])
               const isDropTarget = drag && String(drag.tableId) === String(t.id)
+              // Húzás közben: az az asztal, ami önmagában kisebb a húzott foglalás létszámánál,
+              // piros/halvány (ejtéskor a szerver a szomszédokkal próbálja összevonni).
+              const dragging = !!drag
+              const tooSmall = dragging && t.capacity < (drag?.r.pax ?? 0)
               return (
                 <div
                   key={t.id}
                   className={`flex items-stretch border-t border-line transition-colors ${
-                    isDropTarget ? 'bg-gold/[0.16]' : 'hover:bg-[var(--dav-glass)]'
+                    isDropTarget
+                      ? tooSmall
+                        ? 'bg-red-500/[0.10] ring-1 ring-inset ring-red-400/70'
+                        : 'bg-gold/[0.16]'
+                      : dragging && tooSmall
+                        ? 'opacity-45'
+                        : 'hover:bg-[var(--dav-glass)]'
                   }`}
                 >
                   <div className={`${labelW} shrink-0 flex flex-col justify-center py-2 pr-2`}>
                     <span className="text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
-                    <span className="text-[11px] text-[#A8A496] tabular-nums leading-tight">{t.capacity} fő</span>
+                    <span className={`text-[11px] tabular-nums leading-tight ${tooSmall ? 'font-semibold text-red-500' : 'text-[#A8A496]'}`}>{t.capacity} fő</span>
                   </div>
                   <div
                     data-axis-table={t.id}
-                    className="relative flex-1 min-w-0 h-[54px] cursor-pointer"
+                    // Az üres sáv NEM kattintható (nem hoz létre foglalást) — csak drop-cél marad,
+                    // ide húzható meglévő foglalás. Új foglalás a fejléc „Új foglalás" gombjából.
+                    className="relative flex-1 min-w-0 h-[64px]"
                     style={fit ? undefined : { width: axisWidth }}
-                    onClick={(e) => {
-                      if (drag) return // húzás közben ne hozzon létre újat
-                      // Ha épp egy foglalás-blokkra kattintottunk (szerkesztés), a buborékoló
-                      // click-et itt elnyeljük — különben új foglalást hozna létre a sávon.
-                      if (blockNextRowClickRef.current) { blockNextRowClickRef.current = false; return }
-                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                      const min = openMin + Math.round((e.clientX - rect.left) / rect.width * totalMin / 15) * 15
-                      onCreate(minutesToHHMM(Math.max(openMin, Math.min(min, closeMin - turnMinutes))), t.id)
-                    }}
                   >
                     {hourMarks.map((m) => (
                       <span
                         key={m}
                         className="absolute inset-y-0 w-px bg-[rgba(120,110,70,.09)]"
                         style={{ left: left(m) }}
+                      />
+                    ))}
+                    {/* Üres rések — szaggatott hatch-pillek (húzáskor elrejtve, hogy ne takarják a drop-highlightot) */}
+                    {!dragging && freeGaps.map(([gs, ge], i) => (
+                      <span
+                        key={`gap-${i}`}
+                        aria-hidden
+                        className="pointer-events-none absolute top-[7px] bottom-[7px] rounded-[11px] border border-[rgba(120,110,70,.10)]"
+                        style={{
+                          left: `calc(${left(gs)} + 2px)`,
+                          width: `calc(${span(ge - gs)} - 4px)`,
+                          background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)',
+                        }}
                       />
                     ))}
                     {nowVisible && (
@@ -959,8 +1014,10 @@ function TableGrid({
                       const draft = isDraft(r)
                       const urgency = draft ? null : urgencyOf(r, nowMin)
                       // ≥ 2 óra: van vízszintes hely → név | badge egy sorban, létszám | idő egy sorban.
-                      // < 2 óra: keskeny blokk → minden egymás alatt (semmi nem csonkul a min-h miatt).
+                      // 30 perc – 2 óra: keskeny blokk → minden egymás alatt.
+                      // ≤ 30 perc: pici blokk → csak a név (minden más a tooltipben/kattintásra).
                       const wide = dur >= 120
+                      const tiny = dur <= 30
 
                       const badge = urgency ? (
                         <span
@@ -979,22 +1036,21 @@ function TableGrid({
                           <Users className="h-2.5 w-2.5 shrink-0" />{r.pax}
                         </span>
                       )
-                      const birthday = !!r.is_birthday
-                      const cakeChip = birthday ? (
-                        <span className="flex shrink-0 items-center gap-1 rounded bg-pink-600 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white">
-                          <Cake className="h-2.5 w-2.5 shrink-0" />Szülinap
+                      const occasion = r.occasion ?? null
+                      const OccIcon = occasion ? eventIconByKey(r.occasion_icon) : null
+                      // Alkalom-jelvény a pillen: KIS arany ikon-kör (ne takarja a nevet). A teljes
+                      // felirat a tooltipben + a megnyitott foglalás fejlécében látszik.
+                      const occasionBadge = occasion && OccIcon ? (
+                        <span title={occasion} className="flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full bg-gold text-ink-dark ring-1 ring-black/10">
+                          <OccIcon className="h-2.5 w-2.5" strokeWidth={2.4} />
                         </span>
                       ) : null
-                      const time = (
-                        <span className="flex min-w-0 items-center gap-1.5 text-[10px] leading-tight">
-                          {cakeChip}
-                          <span className="truncate tabular-nums opacity-75">{r.start_time}–{r.end_time}</span>
-                        </span>
-                      )
-                      // Keskeny blokkon a pontos időpont helyett kompakt időtartam (🕐 1,5ó),
-                      // így a létszám mellé fér egy sorba.
+                      // Keskeny blokkon a pontos időpont helyett kompakt időtartam (🕐 1,5ó).
                       const durLabel = `${(dur / 60).toFixed(dur % 60 === 0 ? 0 : 1).replace('.', ',')}ó`
-                      const durChip = cakeChip ?? (
+                      const time = (
+                        <span className="truncate text-[10px] tabular-nums opacity-75 leading-tight">{r.start_time}–{r.end_time}</span>
+                      )
+                      const durChip = (
                         <span className="flex shrink-0 items-center gap-1 text-[10px] opacity-75 leading-tight">
                           <Clock className="h-2.5 w-2.5 shrink-0" />{durLabel}
                         </span>
@@ -1009,14 +1065,23 @@ function TableGrid({
                           key={r.id}
                           onPointerDown={(ev) => { if (!draft) { ev.stopPropagation(); beginPointer(r, ev) } }}
                           title={`${draft ? 'VÁZLAT — ' : 'Kattints a szerkesztéshez, vagy húzd át másik időpontra/asztalra · '}${r.customer_name} · ${r.pax} fő · ${r.start_time}–${r.end_time} · ${urgency ? urgency.label : statusLabel[r.status]}`}
-                          className={`absolute top-[7px] bottom-[7px] rounded-[11px] border px-[11px] py-1 text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 transition-all ${draft ? 'border-2 border-dashed border-gold bg-gold/[0.18] text-ink-dark cursor-default' : `${statusBlock[r.status]} cursor-grab active:cursor-grabbing hover:brightness-[1.06]`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
+                          className={`absolute top-[7px] bottom-[7px] rounded-[11px] border px-[11px] text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 transition-all ${draft ? 'border-2 border-dashed border-gold bg-gold/[0.18] text-ink-dark cursor-default' : `${statusBlock[r.status]} cursor-grab active:cursor-grabbing hover:brightness-[1.06]`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
                           style={{ left: `calc(${left(s)} + 2px)`, width: `calc(${span(dur)} - 4px)`, touchAction: 'none' }}
                         >
-                          {wide ? (
+                          {tiny ? (
                             <>
-                              {/* széles blokk: név | badge, alatta létszám | idő (vízszintes párok) */}
+                              {/* pici blokk (≤30 perc): csak név (+ alkalom-ikon); a többi a tooltipben. */}
+                              <span className="flex w-full min-w-0 items-center gap-1 text-[11px] font-semibold leading-tight">
+                                {OccIcon && <OccIcon className="h-2.5 w-2.5 shrink-0 opacity-80" />}
+                                <span className="truncate">{draft ? '✎ ' : ''}{r.customer_name}</span>
+                              </span>
+                            </>
+                          ) : wide ? (
+                            <>
+                              {/* széles blokk: név | alkalom | badge, alatta létszám | idő */}
                               <span className="flex min-w-0 items-center gap-1.5">
                                 {name}
+                                {occasionBadge}
                                 {badge}
                               </span>
                               <span className="flex min-w-0 items-center gap-2">
@@ -1026,10 +1091,13 @@ function TableGrid({
                             </>
                           ) : (
                             <>
-                              {/* keskeny blokk: badge, név, majd létszám + időtartam egy sorban */}
+                              {/* keskeny blokk: badge, név + alkalom, majd létszám + időtartam */}
                               {badge}
-                              <span className="block w-full min-w-0 shrink-0 truncate font-semibold leading-tight">
-                                {draft ? '✎ ' : ''}{r.customer_name}
+                              <span className="flex w-full min-w-0 items-center gap-1.5">
+                                <span className="min-w-0 flex-1 truncate font-semibold leading-tight">
+                                  {draft ? '✎ ' : ''}{r.customer_name}
+                                </span>
+                                {occasionBadge}
                               </span>
                               <span className="flex min-w-0 shrink-0 items-center gap-2">
                                 {pax}
@@ -1093,7 +1161,7 @@ function FloorView({
   }
   const [atMin, setAtMin] = useState(initialMin)
   const [live, setLive] = useState(isTodayView)
-  const card = 'rounded-[26px] bg-white border border-line shadow-dav-card'
+  const card = 'rounded-[26px] dav-card-glass'
 
   // ÉLŐ: ha be van kapcsolva és ma van, ~fél percenként a valós időre ugrik.
   useEffect(() => {

@@ -32,6 +32,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       id: reservation.id,
       data: { status: 'cancelled' },
       overrideAccess: true,
+      context: { auditActor: 'Vendég (lemondás)' },
     })
 
     const restaurant = reservation.restaurant as Restaurant
@@ -67,7 +68,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
         overrideAccess: true,
       })
       for (const sib of siblings.docs as Reservation[]) {
-        await payload.update({ collection: 'reservations', id: sib.id, data: { status: 'cancelled' }, overrideAccess: true })
+        await payload.update({ collection: 'reservations', id: sib.id, data: { status: 'cancelled' }, overrideAccess: true, context: { auditActor: 'Vendég (lemondás)' } })
         if (restaurant && typeof restaurant === 'object' && restaurant.notification_prefs?.cancel_email !== false) {
           void sendReservationCancellation({ reservation: { ...sib, status: 'cancelled' }, restaurant })
         }

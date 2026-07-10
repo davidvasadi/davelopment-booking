@@ -8,9 +8,8 @@ import { NationalityCard } from '@/components/restaurant/NationalityCard'
 import PeriodFilter from '@/components/dashboard/PeriodFilter'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
-import { HeroKpi } from '@/components/dashboard/overview-ui'
+import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
-import { CalendarCheck, Users, CheckCircle2 } from 'lucide-react'
 
 const VALID_PERIODS = [1, 7, 30, 90, 180, 365]
 
@@ -152,6 +151,7 @@ export default async function RestaurantAnalyticsPage({
           Reveal NÉLKÜL, mint az Áttekintésen — azonnal renderel, a chartok mount-kor animálnak. */}
       <div className="flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
         <StatusPills
+          eager
           className="flex-1 lg:max-w-[760px]"
           segments={[
             { label: 'Teljesített', pct: completedPct, background: '#1D1C19', color: '#fff' },
@@ -161,9 +161,9 @@ export default async function RestaurantAnalyticsPage({
         />
 
         <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-          <HeroKpi icon={CalendarCheck} value={String(stats.periodReservations)} label="Foglalás" />
-          <HeroKpi icon={Users} value={`${stats.periodPax} fő`} label="Vendég (pax)" />
-          <HeroKpi icon={CheckCircle2} value={`${stats.completionRate}%`} label="Teljesítés" />
+          <CountUpKpi icon="check" value={stats.periodReservations} label="Foglalás" />
+          <CountUpKpi icon="users" value={stats.periodPax} label="Vendég (pax)" suffix=" fő" />
+          <CountUpKpi icon="done" value={stats.completionRate} label="Teljesítés" suffix="%" />
         </div>
       </div>
 

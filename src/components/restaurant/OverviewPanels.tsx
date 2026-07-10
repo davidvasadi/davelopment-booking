@@ -88,7 +88,7 @@ export type AccItem = { label: string; body: React.ReactNode }
 export function OverviewAccordion({ items, defaultOpen = 0 }: { items: AccItem[]; defaultOpen?: number }) {
   const [openIdx, setOpenIdx] = useState<number | null>(defaultOpen)
   return (
-    <div className="flex h-full flex-col rounded-[26px] bg-white px-[22px] py-1 shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]">
+    <div className="flex h-full flex-col rounded-[26px] bg-[var(--dav-glass-strong)] backdrop-blur-lg px-[22px] py-1 shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]">
       {items.map((item, i) => {
         const open = openIdx === i
         return (

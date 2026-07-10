@@ -54,7 +54,7 @@ export function AppShell({
   children: React.ReactNode
 }) {
   return (
-    <div className="font-onest min-h-screen bg-paper text-ink">
+    <div className="font-onest min-h-screen bg-paper bg-dav-container lg:bg-none text-ink">
       {/* Mobil fejléc + ⌘K (a desktop sidebart az új TopNav váltja) */}
       <DashboardNav
         mobileOnly
@@ -70,7 +70,7 @@ export function AppShell({
         activeBusinessKey={activeBusinessKey}
       />
 
-      {/* Desktopon lekerekített, gradientes konténer; mobilon sima paper háttér */}
+      {/* Desktopon lekerekített, gradientes konténer; mobilon a gradient a teljes oldal-háttér (a kártyák üvegesen ülnek rajta) */}
       <div className="lg:px-6 lg:py-7">
         <div className="lg:mx-auto lg:max-w-[1460px]">
           <div className="lg:rounded-dav-container lg:bg-dav-container lg:p-6 lg:shadow-dav-container">

@@ -98,18 +98,18 @@ export function OccupancyDonut({ pct, centerLabel }: { pct: number; centerLabel:
     { label: 'Szabad', pct: rest, color: C.track },
   ]
   return (
-    <div className="relative h-[150px] w-[170px]">
+    <div className="relative h-[168px] w-[188px]">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={pieData} dataKey="pct" nameKey="label" cx="50%" cy="50%" innerRadius={48} outerRadius={68} startAngle={90} endAngle={-270} cornerRadius={6} stroke="none" isAnimationActive animationDuration={800}>
+          <Pie data={pieData} dataKey="pct" nameKey="label" cx="50%" cy="50%" innerRadius={56} outerRadius={78} startAngle={90} endAngle={-270} cornerRadius={6} stroke="none" isAnimationActive animationDuration={800}>
             {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
           </Pie>
           <Tooltip content={<DonutTip />} wrapperStyle={{ zIndex: 60, opacity: 1 }} />
         </PieChart>
       </ResponsiveContainer>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
         <div className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink">{clamped}%</div>
-        <div className="mt-1 text-xs font-medium text-ink-soft">{centerLabel}</div>
+        <div className="mt-1 text-[11px] font-medium leading-tight text-ink-soft">{centerLabel}</div>
       </div>
     </div>
   )

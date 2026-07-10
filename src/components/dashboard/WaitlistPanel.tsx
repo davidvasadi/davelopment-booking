@@ -43,7 +43,7 @@ export default async function WaitlistPanel({
   if (entries.length === 0) return null
 
   return (
-    <div className="rounded-[22px] bg-white border border-line shadow-dav-card overflow-hidden">
+    <div className="rounded-[22px] dav-card-glass overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-4 border-b border-line">
         <Clock className="h-4 w-4 text-ink-soft" />
         <h2 className="text-sm font-semibold text-ink">Várólista</h2>

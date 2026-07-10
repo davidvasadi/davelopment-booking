@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { ChevronRight, User } from 'lucide-react'
+import { ChevronRight, User, Users } from 'lucide-react'
 import { EASE, DUR, STAGGER } from '@/lib/motion'
 import type { StaffMember, Media } from '@/payload/payload-types'
 import { makeT, type Locale } from '@/lib/i18n'
@@ -26,8 +26,15 @@ export default function PublicStaffSection({ staff, slug, locale = 'hu' }: Props
       viewport={{ once: true, margin: '-60px' }}
       transition={{ duration: DUR.base, ease: EASE }}
     >
-      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">{tt('public.staffEyebrow')}</p>
-      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">{tt('public.staff')}</h2>
+      <div className="mb-5 flex items-center gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-gold/15">
+          <Users className="h-5 w-5 text-ink" strokeWidth={1.7} />
+        </span>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{tt('public.staffEyebrow')}</p>
+          <h2 className="text-[24px] font-light leading-tight tracking-[-0.01em] text-ink">{tt('public.staff')}</h2>
+        </div>
+      </div>
 
       <motion.div
         className="grid grid-cols-2 sm:grid-cols-3 gap-3"
@@ -48,7 +55,7 @@ export default function PublicStaffSection({ staff, slug, locale = 'hu' }: Props
             >
               <Link
                 href={`/${slug}/book?staffId=${m.id}`}
-                className="relative rounded-3xl aspect-[3/4] group block overflow-hidden"
+                className="group relative block aspect-[5/6] overflow-hidden rounded-[22px]"
               >
                 <div className="absolute inset-0">
                   {avatarUrl ? (

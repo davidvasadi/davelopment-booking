@@ -24,7 +24,7 @@ export type StatusSeg = {
 const DURATION = 850 // ~ a recharts animationDuration
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
 
-export function StatusPills({ segments, className = '' }: { segments: StatusSeg[]; className?: string }) {
+export function StatusPills({ segments, className = '', eager = false }: { segments: StatusSeg[]; className?: string; eager?: boolean }) {
   const [p, setP] = useState(0) // 0 → 1 haladás
   const raf = useRef(0)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -50,24 +50,35 @@ export function StatusPills({ segments, className = '' }: { segments: StatusSeg[
       }
       raf.current = requestAnimationFrame(tick)
     }
-    // A számlálás csak akkor indul, amikor az elem LÁTHATÓVÁ válik — így a diagramokkal
-    // (Reveal) EGYSZERRE fut, és nem „ugrik be" a végén a láthatatlan alatt lefutott szám.
+    // FEJLÉC (mindig látható, pl. Áttekintés/Naptár/Munkatársak): mount után AZONNAL indul, IO nélkül.
+    // Az IO-gate ott bukott, ahol az elem 0-szélességgel indul (p=0) → a threshold sosem teljesül,
+    // így a pillek NEM rajzolódtak ki. Az eager mód ezt megkerüli — megbízható betöltési animáció.
+    if (eager) {
+      const id = requestAnimationFrame(() => requestAnimationFrame(run))
+      return () => { cancelAnimationFrame(id); cancelAnimationFrame(raf.current) }
+    }
+    // Alapból: a számlálás akkor indul, amikor az elem LÁTHATÓVÁ válik (below-fold koordináció a Reveal-lel).
     const io = new IntersectionObserver(
       (entries) => { if (entries[0]?.isIntersecting) { run(); io.disconnect() } },
       { threshold: 0.1, rootMargin: '0px 0px -40px 0px' },
     )
     io.observe(el)
     return () => { io.disconnect(); cancelAnimationFrame(raf.current) }
-  }, [])
+  }, [eager])
 
+  // Arányokhoz: az összes pill súlya. A SZÉLESSÉG a flex-basis-en át animálódik (lásd lent).
+  const totalGrow = segments.reduce((a, s) => a + Math.max(s.pct, 1), 0) || 1
   return (
     <div ref={rootRef} className={`flex min-w-0 items-end gap-2.5 ${className}`}>
       {segments.map((s) => (
         <div
           key={s.label}
           style={{
-            flexGrow: Math.max(s.pct, 1) * p,
-            flexBasis: 0,
+            // A SZÉLESSÉG 0-ról az arányos szélességig animálódik (nem csak a szám). Korábban a
+            // flexGrow*p KIESETT az arányból (minden pill ugyanúgy skálázódott p-vel) → a szélesség
+            // az első képkockán a végleges értékre ugrott. A flex-basis-t tesszük p-arányossá.
+            flexGrow: 0,
+            flexBasis: `${(Math.max(s.pct, 1) / totalGrow) * 100 * p}%`,
             minWidth: 64 * p,
           }}
         >

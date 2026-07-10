@@ -43,7 +43,8 @@ export const AuditLog: CollectionConfig = {
   },
   fields: [
     { name: 'actor', type: 'relationship', relationTo: 'users', label: 'Végrehajtó (user)' },
-    { name: 'actor_label', type: 'text', label: 'Végrehajtó (felirat)' },
+    { name: 'actor_label', type: 'text', label: 'Végrehajtó (név)' },
+    { name: 'actor_email', type: 'text', label: 'Végrehajtó (email)' },
     {
       name: 'action',
       type: 'select',
@@ -58,6 +59,12 @@ export const AuditLog: CollectionConfig = {
     { name: 'collection_name', type: 'text', label: 'Érintett collection' },
     { name: 'doc_id', type: 'text', label: 'Dokumentum azonosító' },
     { name: 'summary', type: 'text', label: 'Összegzés' },
+    {
+      name: 'changes',
+      type: 'json',
+      label: 'Változások (mező-diff)',
+      admin: { description: 'Módosításnál a változott mezők: [{ field, from, to }].' },
+    },
     { name: 'salon', type: 'relationship', relationTo: 'salons', label: 'Szalon' },
     { name: 'restaurant', type: 'relationship', relationTo: 'restaurants', label: 'Étterem' },
   ],

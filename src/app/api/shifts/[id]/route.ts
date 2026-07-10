@@ -44,12 +44,14 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
   const data: Record<string, unknown> = {
-    ...(body.date != null ? { date: body.date } : {}),
+    ...(body.date != null ? { date: /^\d{4}-\d{2}-\d{2}$/.test(String(body.date)) ? `${body.date}T12:00:00.000Z` : body.date } : {}),
     ...(body.type != null ? { type: body.type } : {}),
     ...('start_time' in body ? { start_time: body.start_time ?? null } : {}),
     ...('end_time' in body ? { end_time: body.end_time ?? null } : {}),
     ...('hours' in body ? { hours: body.hours ?? null } : {}),
     ...('note' in body ? { note: body.note ?? null } : {}),
+    ...('left_early_at' in body ? { left_early_at: body.left_early_at ?? null } : {}),
+    ...('left_early_reason' in body ? { left_early_reason: body.left_early_reason ?? null } : {}),
     ...(body.member != null ? { member: num(body.member) } : {}),
     ...(body.restaurant != null ? { restaurant: num(body.restaurant) } : {}),
     ...(body.staff != null ? { staff: num(body.staff) } : {}),
@@ -57,7 +59,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   try {
-    const doc = await loaded.payload.update({ collection: 'shifts', id, data: data as never, overrideAccess: true })
+    const doc = await loaded.payload.update({ collection: 'shifts', id, data: data as never, overrideAccess: true, user })
     return NextResponse.json(doc)
   } catch (e) {
     console.error('[api/shifts PATCH] update failed', e)
@@ -73,6 +75,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const loaded = await loadOwnedShift(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
-  await loaded.payload.delete({ collection: 'shifts', id, overrideAccess: true })
+  await loaded.payload.delete({ collection: 'shifts', id, overrideAccess: true, user })
   return NextResponse.json({ ok: true })
 }

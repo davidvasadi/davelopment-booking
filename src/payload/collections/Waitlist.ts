@@ -2,8 +2,9 @@ import type { CollectionConfig, Access, Where } from 'payload'
 
 /**
  * Várólista (waitlist) — additív, defenzív. A publikus foglaló-flow akkor iratkoztat fel,
- * ha a kért időpont telt ÉS az üzletnél be van kapcsolva a várólista
- * (feature_modules.waitlist_on && booking_rules.waitlist_enabled). Egy bejegyzés vagy egy
+ * ha a kért időpont telt ÉS az üzletnél be van kapcsolva a várólista — EGYETLEN kapcsoló:
+ * a Funkciók oldal `feature_modules.waitlist_on`-ja (a `booking_rules.waitlist_enabled`
+ * deprecated, nem használt). Egy bejegyzés vagy egy
  * szalonhoz vagy egy étteremhez tartozik (opcionális relációk). A create nyilvános (a vendég
  * iratkozik fel), a read/update csak a tulaj/admin (a saját üzletére szűrve).
  */

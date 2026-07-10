@@ -186,7 +186,7 @@ export function AvailabilityView({
         {/* BAL OSZLOP */}
         <div className="flex flex-col gap-[5px]">
           {/* HETI REND — idővonal */}
-          <div className="rounded-[26px] border border-line bg-white px-4 pb-4 pt-1 shadow-dav-card sm:px-6 sm:pb-5">
+          <div className="rounded-[26px] dav-card-glass px-4 pb-4 pt-1 sm:px-6 sm:pb-5">
             <div className="flex items-center justify-between border-b border-line py-4">
               <span className="text-[15px] font-semibold text-ink">Heti rend</span>
               <span className="flex items-center gap-1.5 text-xs font-medium text-ink-soft">
@@ -258,7 +258,7 @@ export function AvailabilityView({
           </div>
 
           {/* FOGLALÁSI SZABÁLYOK — csak valós mezők */}
-          <div className="rounded-[26px] border border-line bg-white px-5 py-5 shadow-dav-card sm:px-6">
+          <div className="rounded-[26px] dav-card-glass px-5 py-5 sm:px-6">
             <div className="flex items-center justify-between gap-3">
               <div className="text-[15px] font-semibold text-ink">Foglalási szabályok</div>
               <Link

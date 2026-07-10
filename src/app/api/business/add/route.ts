@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
       collection,
       data: { ...baseData, slug, is_active: true },
       overrideAccess: true,
+      user,
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

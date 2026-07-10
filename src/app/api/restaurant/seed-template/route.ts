@@ -38,12 +38,13 @@ export async function POST(req: Request) {
       lead_time_hours: template.lead_time_hours,
     },
     overrideAccess: true,
+    user,
   })
 
   // Wipe existing rooms, tables & opening hours (idempotent seed)
-  await payload.delete({ collection: 'tables', where: { restaurant: { equals: body.restaurantId } }, overrideAccess: true })
-  await payload.delete({ collection: 'rooms', where: { restaurant: { equals: body.restaurantId } }, overrideAccess: true })
-  await payload.delete({ collection: 'opening-hours', where: { restaurant: { equals: body.restaurantId } }, overrideAccess: true })
+  await payload.delete({ collection: 'tables', where: { restaurant: { equals: body.restaurantId } }, overrideAccess: true, user })
+  await payload.delete({ collection: 'rooms', where: { restaurant: { equals: body.restaurantId } }, overrideAccess: true, user })
+  await payload.delete({ collection: 'opening-hours', where: { restaurant: { equals: body.restaurantId } }, overrideAccess: true, user })
 
   // Seed rooms + their tables
   let tableCount = 0
@@ -52,12 +53,14 @@ export async function POST(req: Request) {
       collection: 'rooms',
       data: { restaurant: body.restaurantId, name: room.name, sort_order: room.sort_order ?? 0 },
       overrideAccess: true,
+      user,
     })
     for (const t of room.tables) {
       await payload.create({
         collection: 'tables',
         data: { restaurant: body.restaurantId, room: created.id, name: t.name, capacity: t.capacity, sort_order: t.sort_order ?? 0 },
         overrideAccess: true,
+        user,
       })
       tableCount++
     }
@@ -69,6 +72,7 @@ export async function POST(req: Request) {
       collection: 'opening-hours',
       data: { restaurant: body.restaurantId, ...h },
       overrideAccess: true,
+      user,
     })
   }
 

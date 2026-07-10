@@ -70,8 +70,8 @@ export default function NextAvailableSlots({
 
   if (loading) {
     return (
-      <div className="rounded-2xl px-5 py-5 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
-        <div className="flex items-center gap-2 text-sm text-zinc-400">
+      <div className="rounded-[16px] bg-white/40 px-5 py-5">
+        <div className="flex items-center gap-2 text-sm text-ink-soft">
           <CalendarClock className="h-4 w-4 animate-pulse" />
           Szabad időpontok keresése…
         </div>
@@ -81,8 +81,8 @@ export default function NextAvailableSlots({
 
   if (!date || !slots.length) {
     return (
-      <div className="rounded-2xl px-5 py-5 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
-        <p className="text-sm text-zinc-500">
+      <div className="rounded-[16px] bg-white/40 px-5 py-5">
+        <p className="text-sm text-ink-soft">
           A következő napokra nincs szabad időpont — kérjük, válasszon dátumot a foglalásnál.
         </p>
       </div>
@@ -93,14 +93,14 @@ export default function NextAvailableSlots({
   const more = slots.length - shown.length
 
   return (
-    <div className="rounded-3xl px-5 py-5 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
+    <div className="rounded-[16px] bg-white/40 px-5 py-5">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
           </span>
-          <p className="text-xs font-semibold text-zinc-500 uppercase tracking-widest">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">
             {t(locale, 'nextSlots.heading')} · {dayLabel(date, locale)}
           </p>
         </div>
@@ -111,7 +111,7 @@ export default function NextAvailableSlots({
             key={s.start}
             type="button"
             onClick={() => goToBook(date, s.start)}
-            className="h-10 px-4 rounded-full bg-zinc-950 text-white text-sm font-bold hover:bg-zinc-800 transition-colors"
+            className="h-10 px-4 rounded-full bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-colors"
           >
             {s.start}
           </button>
@@ -120,7 +120,7 @@ export default function NextAvailableSlots({
           <button
             type="button"
             onClick={() => goToBook(date)}
-            className="h-10 px-4 rounded-full bg-zinc-900/5 text-zinc-700 text-sm font-semibold hover:bg-zinc-900/10 transition-colors inline-flex items-center gap-1"
+            className="h-10 px-4 rounded-full bg-paper/50 text-ink-soft text-sm font-semibold hover:bg-paper/80 transition-colors inline-flex items-center gap-1"
           >
             {t(locale, 'nextSlots.moreSlots', { n: more })} <ChevronRight className="h-3.5 w-3.5" />
           </button>

@@ -32,13 +32,17 @@ interface Body {
   customer_name?: string
   customer_phone?: string
   customer_email?: string
+  country?: string
   notes?: string
   internal_notes?: string
   status?: Reservation['status']
   source?: Reservation['source']
-  is_birthday?: boolean
+  occasion?: string | null
+  occasion_icon?: string | null
   /** Egyedi ülésidő (perc). Üres → az étterem alap turnusa. */
   duration_minutes?: number | null
+  /** Drag & drop: ha a kért asztal önmagában kicsi, összevonás a szabad szomszédokkal. */
+  autoCombine?: boolean
 }
 
 /** Üres név esetén a forrás szerinti alapnév, hogy telt ház alatt ne kelljen nevet gépelni. */
@@ -89,6 +93,7 @@ export async function POST(req: NextRequest) {
     preferredTableIds: body.tableIds ?? null,
     excludeReservationId: reservationId,
     durationMinutes: body.duration_minutes ?? null,
+    autoCombine: body.autoCombine ?? false,
   })
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: 409 })
@@ -103,13 +108,15 @@ export async function POST(req: NextRequest) {
   }
   if (body.customer_name !== undefined) data.customer_name = body.customer_name
   if (body.customer_phone !== undefined) data.customer_phone = body.customer_phone
+  if (body.country !== undefined) data.country = body.country
   // Üres email-t ne küldjünk: a Payload 'email' mezője az üres stringet is validálja → hiba.
   if (body.customer_email) data.customer_email = body.customer_email
   if (body.notes !== undefined) data.notes = body.notes
   if (body.internal_notes !== undefined) data.internal_notes = body.internal_notes
   if (body.status !== undefined) data.status = body.status
   if (body.source !== undefined) data.source = body.source
-  if (body.is_birthday !== undefined) data.is_birthday = body.is_birthday
+  if (body.occasion !== undefined) data.occasion = body.occasion
+  if (body.occasion_icon !== undefined) data.occasion_icon = body.occasion_icon
 
   if (reservationId != null) {
     const updated = await payload.update({
@@ -117,6 +124,7 @@ export async function POST(req: NextRequest) {
       id: reservationId,
       data,
       overrideAccess: true,
+      user,
     })
     return NextResponse.json({ ok: true, reservation: updated })
   }
@@ -133,6 +141,7 @@ export async function POST(req: NextRequest) {
       source,
     } as Reservation,
     overrideAccess: true,
+    user,
   })
   return NextResponse.json({ ok: true, reservation: created })
 }

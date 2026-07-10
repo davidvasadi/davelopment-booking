@@ -137,7 +137,7 @@ export function UserMenu({
             onClick={() => openMenu('notifications')}
             aria-label="Értesítések"
             aria-expanded={open}
-            className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-[#faf9f6]"
+            className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none backdrop-blur-lg transition-colors hover:bg-white/70"
           >
             <Bell className="h-[19px] w-[19px]" strokeWidth={2} />
             {unread > 0 && (

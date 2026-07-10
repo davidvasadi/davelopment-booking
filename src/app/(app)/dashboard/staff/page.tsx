@@ -3,6 +3,7 @@ import { getPayloadClient } from '@/lib/payload'
 import type { StaffMember, Shift } from '@/payload/payload-types'
 import StaffManager from '@/components/dashboard/StaffManager'
 import { getStaffStats } from '@/lib/staffStats'
+import { getTeamRoster } from '@/lib/teamRoster'
 
 export default async function StaffPage() {
   const { salon } = await getOwnedSalon()
@@ -10,7 +11,7 @@ export default async function StaffPage() {
 
   const todayYmd = new Date().toISOString().slice(0, 10)
 
-  const [staffResult, stats, shiftsRes] = await Promise.all([
+  const [staffResult, stats, shiftsRes, roster] = await Promise.all([
     payload.find({
       collection: 'staff',
       where: { salon: { equals: salon.id } },
@@ -27,6 +28,7 @@ export default async function StaffPage() {
       limit: 2000,
       overrideAccess: true,
     }),
+    getTeamRoster('salon', salon.id),
   ])
 
   // staffId → közelgő (legkorábbi jövőbeli) műszak címkéje. VALÓS a Shifts-ből.
@@ -52,6 +54,7 @@ export default async function StaffPage() {
         totalBookings={stats.totalBookings}
         avgRating={stats.avgRating}
         upcomingShiftById={upcomingShiftById}
+        employees={roster}
       />
     </div>
   )

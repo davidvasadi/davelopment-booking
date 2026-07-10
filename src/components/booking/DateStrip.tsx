@@ -60,12 +60,12 @@ export function DateStrip({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-3 px-1">
-        <button onClick={() => shiftMonth(-1)} className="h-7 w-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
+      <div className="mb-3 flex items-center justify-between px-1">
+        <button onClick={() => shiftMonth(-1)} className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink">
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <p className="text-sm font-bold text-zinc-900 capitalize">{month}</p>
-        <button onClick={() => shiftMonth(1)} className="h-7 w-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 transition-colors">
+        <p className="text-[14px] font-semibold capitalize text-ink">{month}</p>
+        <button onClick={() => shiftMonth(1)} className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink">
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -86,16 +86,16 @@ export function DateStrip({
               variants={dayItem}
               onClick={() => onChange(str)}
               className={cn(
-                'flex flex-col items-center gap-1 py-3 px-3 rounded-2xl shrink-0 snap-center transition-colors min-w-[52px]',
+                'flex min-w-[52px] shrink-0 snap-center flex-col items-center gap-1 rounded-[14px] px-3 py-3 transition-colors',
                 isSelected
-                  ? 'bg-zinc-950 text-white'
+                  ? 'bg-ink-dark text-white'
                   : today
-                    ? 'bg-zinc-100 text-zinc-900'
-                    : 'bg-white text-zinc-600 hover:bg-zinc-50',
+                    ? 'bg-gold/25 text-ink'
+                    : 'bg-paper/50 text-ink-soft hover:bg-paper/80',
               )}
             >
-              <span className="text-[10px] font-semibold uppercase text-zinc-400">{dayNames[d.getDay()]}</span>
-              <span className="text-base font-black leading-none">{format(d, 'd')}</span>
+              <span className={cn('text-[10px] font-semibold uppercase', isSelected ? 'text-white/50' : 'text-ink-soft2')}>{dayNames[d.getDay()]}</span>
+              <span className="text-[16px] font-semibold leading-none">{format(d, 'd')}</span>
             </motion.button>
           )
         })}

@@ -20,6 +20,12 @@ export const ISO2_TO_ISO3: Record<string, string> = {
   AU: 'AUS', NZ: 'NZL', JP: 'JPN', CN: 'CHN', IN: 'IND', ZA: 'ZAF', EG: 'EGY',
   AE: 'ARE', IL: 'ISR', LT: 'LTU', LV: 'LVA', EE: 'EST', BA: 'BIH', ME: 'MNE',
   MK: 'MKD', AL: 'ALB', MD: 'MDA', CY: 'CYP', MT: 'MLT',
+  // Kiterjesztés a telefon-előhívó választó összes országára (satírozáshoz).
+  AF: 'AFG', DZ: 'DZA', AD: 'AND', AO: 'AGO', AM: 'ARM', AZ: 'AZE', BH: 'BHR',
+  BD: 'BGD', BY: 'BLR', CL: 'CHL', CO: 'COL', CR: 'CRI', GE: 'GEO', HK: 'HKG',
+  ID: 'IDN', JO: 'JOR', KZ: 'KAZ', KE: 'KEN', KR: 'KOR', KW: 'KWT', LB: 'LBN',
+  MY: 'MYS', MC: 'MCO', MA: 'MAR', NG: 'NGA', PK: 'PAK', PH: 'PHL', QA: 'QAT',
+  SA: 'SAU', SG: 'SGP', TW: 'TWN', TH: 'THA', VN: 'VNM',
 }
 
 export interface Capital {

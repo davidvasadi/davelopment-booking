@@ -51,8 +51,9 @@ export default async function RestaurantDashboardPage() {
   const rawAvatar = user?.avatar_url ?? null
   const userAvatar = rawAvatar && rawAvatar.includes('googleusercontent') ? rawAvatar.replace(/=s\d+-c/, '=s512-c') : rawAvatar
   const profileImg = userAvatar ?? logoUrl
-  const ROLE_LABEL: Record<string, string> = { admin: 'Adminisztrátor', restaurant_owner: 'Étterem tulajdonos', salon_owner: 'Szalon tulajdonos' }
-  const roleLabel = ROLE_LABEL[user?.role ?? ''] ?? 'Tulajdonos'
+  // A szerep a fiókból jön (lehet salon_owner akkor is, ha épp étteremben vagyunk), ezért
+  // nem az üzlet-típust írjuk ki, csak a semleges „Tulajdonos"-t (admin kivétel).
+  const roleLabel = user?.role === 'admin' ? 'Adminisztrátor' : 'Tulajdonos'
   const { active, businesses } = user ? await getActiveBusiness(user) : { active: null, businesses: [] }
 
   const [stats, todayAll, upcomingRes, tasksRes, openingRes] = await Promise.all([
@@ -112,7 +113,8 @@ export default async function RestaurantDashboardPage() {
       pax: r.pax,
       status: r.status,
       source: r.source,
-      birthday: !!r.is_birthday,
+      occasion: r.occasion ?? null,
+      occasionIcon: r.occasion_icon ?? null,
     }
     const names = (r.tables ?? []).map((t) => (typeof t === 'object' ? (t.name ?? `#${t.id}`) : `#${t}`))
     const keys = names.length ? names : ['Nincs asztal']
@@ -275,6 +277,7 @@ export default async function RestaurantDashboardPage() {
       {/* ── STÁTUSZ-CSÍK (bal) + 3 KPI (jobb) ── */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <StatusPills
+          eager
           className="flex-1 lg:max-w-[760px]"
           segments={[
             { label: 'Megerősített', pct: confirmedPct, background: '#1D1C19', color: '#fff' },

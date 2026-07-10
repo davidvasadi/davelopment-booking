@@ -49,10 +49,12 @@ export const Reservations: CollectionConfig = {
     { name: 'customer_name', type: 'text', required: true, label: 'Vendég neve' },
     { name: 'customer_email', type: 'email', label: 'Email' },
     { name: 'customer_phone', type: 'text', label: 'Telefon' },
+    { name: 'customer_city', type: 'text', label: 'Város', admin: { description: 'Opcionális — a vendég a foglalónál adja meg (vendég-analitika / térkép).' } },
     { name: 'country', type: 'text', label: 'Ország (ISO kód, pl. HU)', admin: { description: 'A foglaló országa a telefon-előhívó választóból (statisztikához).' } },
     { name: 'notes', type: 'textarea', label: 'Megjegyzés (vendégtől)' },
     { name: 'internal_notes', type: 'textarea', label: 'Belső megjegyzés' },
-    { name: 'is_birthday', type: 'checkbox', defaultValue: false, label: 'Szülinapos foglalás' },
+    { name: 'occasion', type: 'text', label: 'Alkalom', admin: { description: 'Milyen alkalomból foglaltak (pl. Születésnap). A vendég a foglalónál választja, vagy az étterem állítja.' } },
+    { name: 'occasion_icon', type: 'text', label: 'Alkalom ikon-kulcs', admin: { description: 'A választott alkalom Lucide ikon-kulcsa (a nézetekben jelenik meg).' } },
     {
       name: 'status',
       type: 'select',

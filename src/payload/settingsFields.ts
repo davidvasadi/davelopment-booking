@@ -39,8 +39,11 @@ export const settingsExtensionFields: Field[] = [
     label: 'Értesítési beállítások',
     fields: [
       { name: 'confirm_email', type: 'checkbox', defaultValue: true },
-      { name: 'reminder_email', type: 'checkbox', defaultValue: true },
       { name: 'cancel_email', type: 'checkbox', defaultValue: true },
+      // DEPRECATED (2026-07-08): az emlékeztető/visszajelzés gazdája a Funkciók oldal
+      // (`feature_modules`). A mezők megmaradnak (adatvesztés/migráció nélkül), de az app
+      // már NEM olvassa/írja őket — nincs dupla-gate. Törölni majd külön migrációval lehet.
+      { name: 'reminder_email', type: 'checkbox', defaultValue: true },
       { name: 'feedback_email', type: 'checkbox', defaultValue: false },
     ],
   },
@@ -50,6 +53,9 @@ export const settingsExtensionFields: Field[] = [
     label: 'Foglalási szabály-kapcsolók',
     fields: [
       { name: 'auto_confirm', type: 'checkbox', defaultValue: true },
+      // DEPRECATED (2026-07-08): a depozit/no-show fizetési integrációt igényel („Hamarosan"),
+      // a várólista gazdája a Funkciók oldal (`feature_modules.waitlist_on`). Megmaradnak, de
+      // az app már NEM olvassa/írja őket. Törlés külön migrációval.
       { name: 'deposit_enabled', type: 'checkbox', defaultValue: false },
       { name: 'waitlist_enabled', type: 'checkbox', defaultValue: false },
       { name: 'cancellation_protection', type: 'checkbox', defaultValue: false },
@@ -70,6 +76,43 @@ export const settingsExtensionFields: Field[] = [
       { name: 'waitlist_auto_promote', type: 'checkbox', defaultValue: false },
       { name: 'recurring_on', type: 'checkbox', defaultValue: false },
       { name: 'reviews_on', type: 'checkbox', defaultValue: false },
+      // Ha ki van töltve, a visszajelzés-email a Google értékelő-oldalra visz (különben a belső /review).
+      {
+        name: 'google_review_url',
+        type: 'text',
+        label: 'Google értékelés link',
+        admin: { description: 'A Google Cégprofil „Kérj értékeléseket" linkje (pl. https://g.page/r/…/review). Üresen a belső értékelés marad.' },
+      },
     ],
   },
+]
+
+/**
+ * Szerkeszthető email-tartalom (tárgy + bevezető) a tranzakciós vendég-emailekhez — a
+ * `booking_email_*` (visszaigazoló) mintájára, localized (nyelvenként a dashboard nyelvváltóval).
+ * A template üresen hagyva az alap tárgyat/bevezetőt használja. Bővíthető: új típus = új sor.
+ */
+const VARS_HINT = 'Változók: {{name}}, {{date}}, {{time}}, {{pax}}.'
+const emailContentPair = (type: string, labelHu: string): Field[] => [
+  {
+    name: `${type}_email_subject`,
+    type: 'text',
+    localized: true,
+    label: `${labelHu} email tárgya`,
+    admin: { description: `Opcionális, nyelvenként. Üresen → alap tárgy. ${VARS_HINT}` },
+  },
+  {
+    name: `${type}_email_intro`,
+    type: 'textarea',
+    localized: true,
+    label: `${labelHu} email bevezető szövege`,
+    admin: { description: `Sima szöveg, nyelvenként. Az email tetejére kerül. ${VARS_HINT}` },
+  },
+]
+
+/** A visszaigazolón (`booking_email_*`) túli tranzakciós emailek szerkeszthető tartalma. */
+export const emailTemplateFields: Field[] = [
+  ...emailContentPair('cancel', 'Lemondó'),
+  ...emailContentPair('reminder', 'Emlékeztető'),
+  ...emailContentPair('feedback', 'Visszajelzés-kérő'),
 ]

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { ChevronLeft, ChevronRight, ArrowUpRight, User } from 'lucide-react'
+import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 
 /**
  * Áttekintés — „Naptár" erőforrás-idővonal (Crextio-stílus). BAL oszlop = ASZTALOK (soronként
@@ -19,7 +20,8 @@ export type TimelineBlock = {
   pax: number
   status: string
   source: string
-  birthday: boolean
+  occasion?: string | null
+  occasionIcon?: string | null
 }
 export type TimelineRow = { table: string; blocks: TimelineBlock[] }
 
@@ -65,7 +67,7 @@ export function OverviewTimeline({
   const canNext = winStart < maxStart
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-[26px] bg-white p-[22px] shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]">
+    <div className="flex min-h-0 flex-1 flex-col rounded-[26px] bg-[var(--dav-glass-strong)] backdrop-blur-lg p-[22px] shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]">
       {/* Fejléc: BAL óra-léptető, KÖZÉPEN a cím (referencia), JOBBRA óra-léptető + ↗ a foglalásokra */}
       <div className="flex items-center gap-2">
         <div className="flex w-[84px] shrink-0 items-center">
@@ -219,8 +221,10 @@ function ReservationBlock({
   const showCount = b.pax > 3
   // A ring a BLOKK hátterével egyezik → tiszta kaszkád-elválasztás. Felszabadult blokknál semleges.
   const ringColor = freedEarly ? '#e6e3da' : tone.bg
-  const avatarBg = freedEarly ? '#d3cec0' : tone.onDark ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.22)'
-  const avatarFg = freedEarly ? '#6f6b5f' : tone.onDark ? 'rgba(255,255,255,0.85)' : '#1D1C19'
+  // TÖMÖR (nem átlátszó) avatar-chipek → átfedéskor tisztán takarják egymást; a gyűrű (tone.bg)
+  // adja a kaszkád-elválasztást. Sötét blokkon világos chip, világoson sötét chip.
+  const avatarBg = freedEarly ? '#d3cec0' : tone.onDark ? '#efece5' : '#1D1C19'
+  const avatarFg = freedEarly ? '#6f6b5f' : tone.onDark ? '#1D1C19' : '#ffffff'
   const countBg = freedEarly ? '#8a8779' : tone.onDark ? '#ffffff' : '#1D1C19'
   const countFg = freedEarly ? '#ffffff' : tone.onDark ? '#1D1C19' : '#ffffff'
 
@@ -228,20 +232,27 @@ function ReservationBlock({
     <div
       ref={ref}
       className={`absolute top-[5px] bottom-[5px] flex items-center gap-2 overflow-hidden rounded-[14px] px-2.5 ${
-        freedEarly ? 'border border-dashed border-[#c9c3b4] text-ink-soft2' : tone.text
+        freedEarly
+          ? 'border border-dashed border-[#c9c3b4] text-ink-soft2'
+          : b.status === 'completed'
+            ? `border border-[#c9c2ae] ${tone.text}`
+            : tone.text
       }`}
       style={{
         left: `calc(${left}% + 2px)`,
         width: `calc(${width}% - 4px)`,
         background: freedEarly
           ? 'repeating-linear-gradient(115deg, rgba(230,227,218,.6) 0 6px, rgba(214,210,196,.6) 6px 12px)'
-          : tone.bg,
+          : b.status === 'completed'
+            // Befejezett — szaggatott „börtön" hatch (mint a napi nézetben), nem szolid bézs.
+            ? 'repeating-linear-gradient(115deg, rgba(255,255,255,.55) 0 7px, rgba(190,180,140,.26) 7px 14px)'
+            : tone.bg,
       }}
       title={freedEarly ? `${b.name} · ${b.pax} fő · korán befejezve, felszabadult` : `${b.name} · ${b.pax} fő`}
     >
       <div className="min-w-0 flex-1">
         <div className={`flex items-center gap-1 truncate text-[12px] font-semibold leading-tight ${freedEarly ? 'line-through decoration-[#a9a498]' : ''}`}>
-          {b.name}{b.birthday && <span className="text-[10px]">🎂</span>}
+          {b.name}{b.occasion && (() => { const OccIcon = eventIconByKey(b.occasionIcon); return <OccIcon className="ml-1 h-3 w-3 shrink-0" /> })()}
         </div>
         <div className={`truncate text-[10px] ${freedEarly ? 'text-ink-soft2' : tone.sub}`}>
           {freedEarly ? 'korán zárt · felszabadult' : `${b.pax} fő · ${fmt(b.startMin)}`}

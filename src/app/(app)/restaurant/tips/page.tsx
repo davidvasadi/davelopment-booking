@@ -1,24 +1,37 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
+import { getRestaurantStats } from '@/lib/restaurantStats'
+import { getPayloadClient } from '@/lib/payload'
+import { buildRestaurantAdvisor, type SetupFlags } from '@/lib/tipsAdvisor'
+import { TipsAdvisorView } from '@/components/dashboard/TipsAdvisorView'
 import type { Restaurant } from '@/payload/payload-types'
 
-export const metadata = { title: 'Funkciók' }
+export const metadata = { title: 'Tippek' }
 
-export default async function RestaurantFeaturesPage() {
+export default async function RestaurantTipsPage() {
   const { restaurant } = await getOwnedRestaurant()
   const r = restaurant as Restaurant
-  const fm = r.feature_modules ?? {}
-  const initial: FeatureModules = {
-    reminders_on: fm.reminders_on ?? true,
-    reminder_ch_email: fm.reminder_ch_email ?? true,
-    reminder_ch_push: fm.reminder_ch_push ?? false,
-    reminder_t_24h: fm.reminder_t_24h ?? true,
-    reminder_t_3h: fm.reminder_t_3h ?? true,
-    reminder_t_1h: fm.reminder_t_1h ?? false,
-    waitlist_on: fm.waitlist_on ?? false,
-    waitlist_auto_promote: fm.waitlist_auto_promote ?? false,
-    recurring_on: fm.recurring_on ?? false,
-    reviews_on: fm.reviews_on ?? false,
-  }
-  return <BookingFeatures variant="restaurant" apiBase={`/api/restaurants/${r.id}`} initial={initial} />
+  const payload = await getPayloadClient()
+
+  const [stats, hoursRes, tablesRes] = await Promise.all([
+    getRestaurantStats(r.id, 30),
+    payload.find({
+      collection: 'opening-hours',
+      where: { and: [{ restaurant: { equals: r.id } }, { is_open: { equals: true } }] },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'tables',
+      where: { and: [{ restaurant: { equals: r.id } }, { is_active: { equals: true } }] },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  ])
+
+  const setup: SetupFlags = { openingHours: hoursRes.totalDocs > 0, catalog: tablesRes.totalDocs > 0 }
+  const data = buildRestaurantAdvisor(r, setup, stats)
+
+  return <TipsAdvisorView variant="restaurant" data={data} apiBase={`/api/restaurants/${r.id}`} />
 }

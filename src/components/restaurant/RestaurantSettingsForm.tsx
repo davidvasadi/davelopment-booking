@@ -11,10 +11,11 @@ import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
 import { NumberStepper } from '@/components/ui/NumberStepper'
 import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
-import { EmailVariablesHelp } from '@/components/settings/EmailVariablesHelp'
+import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor, type TermsSection } from '@/components/settings/TermsSectionsEditor'
 import { GoodToKnowEditor, type GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
+import { EventTypesEditor, type EventTypeItem } from '@/components/settings/EventTypesEditor'
 import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
@@ -112,6 +113,12 @@ type Settings = {
   notify_new_bookings: boolean
   booking_email_subject: string
   booking_email_intro: string
+  cancel_email_subject: string
+  cancel_email_intro: string
+  reminder_email_subject: string
+  reminder_email_intro: string
+  feedback_email_subject: string
+  feedback_email_intro: string
   email_show_phone: boolean
   email_contact_phone: string
   email_show_email: boolean
@@ -124,19 +131,22 @@ type Settings = {
   registered_seat: string
   terms_sections: TermsSection[]
   good_to_know: GoodToKnowItem[]
+  event_types: EventTypeItem[]
 }
 
+// Crextio/Apple mező: tiszta fehér + meleg hajszálvékony keret + arany fókusz-gyűrű (NINCS krém fill).
 const inputClass =
-  'h-[50px] w-full rounded-[14px] bg-paper border-line text-ink placeholder:text-ink-soft2/70 focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:border-gold/50'
+  'h-[50px] w-full rounded-[14px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
 const labelClass = 'text-[12.5px] font-medium text-ink-soft'
 
+// A Nyitvatartás/Foglalások kártya-mintája: bordered + fejléc-elválasztó + 15px semibold cím.
 function Section({ title, children, full }: { title: string; children: React.ReactNode; full?: boolean }) {
   return (
-    <div className={`bg-white border border-line rounded-[24px] shadow-dav-card overflow-hidden font-onest ${full ? 'lg:col-span-2' : ''}`}>
-      <div className="px-5 pt-5 pb-3.5 sm:px-6">
-        <h3 className="text-[13px] font-semibold text-ink">{title}</h3>
+    <div className={`rounded-[26px] dav-card-glass overflow-hidden font-onest ${full ? 'lg:col-span-2' : ''}`}>
+      <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
+        <span className="text-[15px] font-semibold text-ink">{title}</span>
       </div>
-      <div className="px-5 pb-6 space-y-4 sm:px-6">{children}</div>
+      <div className="px-5 py-5 space-y-4 sm:px-6">{children}</div>
     </div>
   )
 }
@@ -199,8 +209,15 @@ export function RestaurantSettingsForm({
     huValues: {
       booking_email_subject: initial.booking_email_subject,
       booking_email_intro: initial.booking_email_intro,
+      cancel_email_subject: initial.cancel_email_subject,
+      cancel_email_intro: initial.cancel_email_intro,
+      reminder_email_subject: initial.reminder_email_subject,
+      reminder_email_intro: initial.reminder_email_intro,
+      feedback_email_subject: initial.feedback_email_subject,
+      feedback_email_intro: initial.feedback_email_intro,
       terms_sections: initial.terms_sections.map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
       good_to_know: initial.good_to_know.map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
+      event_types: initial.event_types.map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
     },
   })
 
@@ -385,6 +402,21 @@ export function RestaurantSettingsForm({
   const saveAll = () =>
     persist(Object.values(TAB_FIELDS).flat(), true)
 
+  // Egy fül változásainak elvetése — vissza az utoljára mentett állapotra. A hub közös mentés-sávja
+  // ÉS a fülváltás-ConfirmDialog is ezt hívja (a localizált mezőket a `loc` hook kezeli, nem itt).
+  const discardTab = (tab: string) => {
+    setForm((f) => {
+      const next = { ...f }
+      for (const k of (TAB_FIELDS[tab] ?? [])) (next[k] as Settings[keyof Settings]) = saved[k]
+      return next
+    })
+    if (tab === 'general') {
+      setLogoModified(false); setLogoPreview(mediaUrl(logo)); setLogoId(mediaId(logo))
+      setCoverModified(false); setCoverPreview(mediaUrl(coverImage)); setCoverId(mediaId(coverImage))
+    }
+    if (tab === 'languages') setSupportedExtras(savedSupported)
+  }
+
   // Fülváltás: ha az aktuális fülön van mentetlen változás, rákérdezünk.
   const requestTab = (id: string) => {
     if (id === activeTab) return
@@ -406,13 +438,30 @@ export function RestaurantSettingsForm({
     { id: 'danger', label: 'Veszélyzóna' },
   ]
 
+  // ── Beágyazott mód: az aktív fül mentetlen-állapotát FELFELÉ jelezzük a hub közös mentés-sávjának,
+  //    és regisztráljuk a mentés/elvetés műveletet. A műveletek friss closure-t olvasnak ref-en át,
+  //    így az egyszeri regisztráció is a legutóbbi állapottal (aktív fül, mezők) fut.
+  const currentDirty = tabDirty(activeTab)
+  const activeTabRef = useRef(activeTab); activeTabRef.current = activeTab
+  const saveTabRef = useRef(saveTab); saveTabRef.current = saveTab
+  const discardRef = useRef(discardTab); discardRef.current = discardTab
+  const reportDirty = hubCtx?.reportDirty
+  const registerApi = hubCtx?.registerApi
+  useEffect(() => { reportDirty?.(currentDirty) }, [currentDirty, reportDirty])
+  useEffect(() => {
+    registerApi?.({
+      save: () => saveTabRef.current(activeTabRef.current),
+      discard: () => discardRef.current(activeTabRef.current),
+    })
+  }, [registerApi])
+
   return (
     <>
     <form onSubmit={onSubmit} className="space-y-5">
       {!embedded && !hideTabsNav && <TabsNav tabs={tabs} active={activeTab} onSelect={requestTab} />}
 
       {activeTab === 'general' && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+      <div className="flex flex-col gap-[5px]">
 
       {/* Cover image */}
       <Section title="Borítókép" full>
@@ -420,7 +469,7 @@ export function RestaurantSettingsForm({
           <button
             type="button"
             onClick={() => coverRef.current?.click()}
-            className="group relative w-full h-40 rounded-xl overflow-hidden bg-paper border border-line flex items-center justify-center hover:bg-paper/70 transition-colors"
+            className="group relative w-full h-40 rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong flex items-center justify-center hover:border-ink/25 transition-colors"
           >
             {uploadingCover ? (
               <Loader2 className="h-6 w-6 text-ink-soft animate-spin" />
@@ -443,7 +492,7 @@ export function RestaurantSettingsForm({
               type="button"
               aria-label="Borítókép eltávolítása"
               onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
-              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
+              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-bad transition-colors"
             >
               <X className="h-3 w-3 text-white" />
             </button>
@@ -465,12 +514,12 @@ export function RestaurantSettingsForm({
       <Section title="Alap adatok">
         <div className="space-y-5">
           <div className="space-y-2">
-            <Label className={labelClass}>Logó</Label>
-            <div className="relative inline-block">
+            <Label className={`${labelClass} block`}>Logó</Label>
+            <div className="relative w-fit">
               <button
                 type="button"
                 onClick={() => logoRef.current?.click()}
-                className="group relative flex h-16 min-w-16 max-w-[220px] items-center justify-center rounded-xl overflow-hidden bg-paper border border-line px-3 hover:bg-paper/70 transition-colors"
+                className="group relative flex h-20 min-w-20 max-w-[220px] items-center justify-center rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong px-3 hover:border-ink/25 transition-colors"
               >
                 {uploadingLogo ? (
                   <Loader2 className="h-5 w-5 text-ink-soft animate-spin" />
@@ -489,7 +538,7 @@ export function RestaurantSettingsForm({
                 <button
                   type="button"
                   onClick={() => removeImage(logoId, setLogoPreview, setLogoId, setLogoModified, logoRef)}
-                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-bad transition-colors"
                 >
                   <X className="h-3 w-3 text-white" />
                 </button>
@@ -517,25 +566,21 @@ export function RestaurantSettingsForm({
       </Section>
 
       <Section title="Elérhetőség">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Város</Label>
-            <Input className={inputClass} value={form.city} onChange={(e) => set('city', e.target.value)} />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Cím</Label>
-            <Input className={inputClass} value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Utca, házszám" />
-          </div>
+        <div className="space-y-1.5">
+          <Label className={labelClass}>Város</Label>
+          <Input className={inputClass} value={form.city} onChange={(e) => set('city', e.target.value)} />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Telefon</Label>
-            <Input className={inputClass} value={form.phone} onChange={(e) => set('phone', e.target.value)} type="tel" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Email</Label>
-            <Input className={inputClass} value={form.email} onChange={(e) => set('email', e.target.value)} type="email" />
-          </div>
+        <div className="space-y-1.5">
+          <Label className={labelClass}>Cím</Label>
+          <Input className={inputClass} value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Utca, házszám" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className={labelClass}>Telefon</Label>
+          <Input className={inputClass} value={form.phone} onChange={(e) => set('phone', e.target.value)} type="tel" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className={labelClass}>Email</Label>
+          <Input className={inputClass} value={form.email} onChange={(e) => set('email', e.target.value)} type="email" />
         </div>
         <div className="space-y-1.5">
           <Label className={labelClass}>Weboldal</Label>
@@ -569,14 +614,24 @@ export function RestaurantSettingsForm({
         <GoodToKnowEditor value={loc.current.good_to_know} onChange={(v) => loc.setField('good_to_know', v)} locale={loc.editLocale} />
       </Section>
 
-      <div className="lg:col-span-2">
-        <SaveBar dirty={tabDirty('general')} submitting={submitting} onSave={() => saveTab('general')} />
-      </div>
+      <Section title="Esemény-típusok (alkalmak)" full>
+        <p className="text-xs text-ink-soft">
+          Milyen alkalomból foglalhat a vendég — a foglaláskor választhat ezekből (pl. Születésnap, Évforduló, Céges vacsora). A kikapcsoltak nem jelennek meg. Ha egy sincs, az alapkészletet kínáljuk fel.
+        </p>
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
+        <EventTypesEditor value={loc.current.event_types} onChange={(v) => loc.setField('event_types', v)} />
+      </Section>
+
+      {!embedded && (
+        <div className="lg:col-span-2">
+          <SaveBar dirty={tabDirty('general')} submitting={submitting} onSave={() => saveTab('general')} />
+        </div>
+      )}
       </div>
       )}
 
       {activeTab === 'booking' && (
-      <div className="space-y-4 lg:space-y-6">
+      <div className="space-y-[5px]">
       <Section title="Foglalási beállítások">
         {/* Desktopon kétoszlopos: BAL = a 4 szám-beállító (egymás alatt) + alattuk a
             kapcsolók; JOBB = a naptár. Mobilon/tableten egymás alatt, a naptár full. */}
@@ -664,12 +719,12 @@ export function RestaurantSettingsForm({
         </div>
       </Section>
 
-      <SaveBar dirty={tabDirty('booking')} submitting={submitting} onSave={() => saveTab('booking')} />
+      {!embedded && <SaveBar dirty={tabDirty('booking')} submitting={submitting} onSave={() => saveTab('booking')} />}
       </div>
       )}
 
       {activeTab === 'languages' && (
-      <div className="space-y-4 lg:space-y-6">
+      <div className="space-y-[5px]">
       <Section title="Foglalón kínált nyelvek">
         <p className="text-xs text-ink-soft -mt-1">
           Mely nyelveken választhatnak a vendégek a foglaló oldalon. A magyar mindig elérhető (alap, és tartalék
@@ -683,36 +738,19 @@ export function RestaurantSettingsForm({
           </p>
         )}
       </Section>
-      <SaveBar dirty={tabDirty('languages')} submitting={submitting} onSave={() => saveTab('languages')} />
+      {!embedded && <SaveBar dirty={tabDirty('languages')} submitting={submitting} onSave={() => saveTab('languages')} />}
       </div>
       )}
 
       {activeTab === 'email' && (
-      <div className="space-y-4 lg:space-y-6">
-        {/* Tartalom */}
-        <Section title="Tartalom">
-          <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Email tárgya</Label>
-            <Input
-              className={inputClass}
-              value={loc.current.booking_email_subject}
-              onChange={(e) => loc.setField('booking_email_subject', e.target.value)}
-              placeholder="Asztalfoglalás visszaigazolva — {{name}}"
-            />
-            <p className="text-xs text-ink-soft">Üresen hagyva az alapértelmezett tárgy jelenik meg.</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Bevezető szöveg</Label>
-            <Textarea
-              className={inputClass + ' min-h-28 py-3'}
-              value={loc.current.booking_email_intro}
-              onChange={(e) => loc.setField('booking_email_intro', e.target.value)}
-              placeholder={'Kedves {{name}}!\n\nKöszönjük a foglalást, várunk szeretettel!'}
-            />
-            <p className="text-xs text-ink-soft">A visszaigazoló email tetejére, a foglalás részletei elé kerül.</p>
-          </div>
-          <EmailVariablesHelp type="restaurant" />
+      <div className="space-y-[5px]">
+        {/* Email-sablonok — típusonkénti (visszaigazolás/lemondás/emlékeztető/visszajelzés) tárgy + bevezető */}
+        <Section title="Email-sablonok">
+          <EmailTemplatesEditor
+            variant="restaurant"
+            loc={loc}
+            onPreview={(state, intro) => window.open(emailPreviewUrl('restaurant', form, loc.editLocale, state, intro), '_blank', 'noopener')}
+          />
         </Section>
 
         {/* Kapcsolat & útvonal */}
@@ -757,12 +795,12 @@ export function RestaurantSettingsForm({
           </div>
         </Section>
 
-        <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('restaurant', { ...form, booking_email_intro: loc.current.booking_email_intro }, loc.editLocale), '_blank', 'noopener')} />
+        {!embedded && <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('restaurant', { ...form, booking_email_intro: loc.current.booking_email_intro }, loc.editLocale), '_blank', 'noopener')} />}
       </div>
       )}
 
       {activeTab === 'documents' && (
-      <div className="space-y-4 lg:space-y-6">
+      <div className="space-y-[5px]">
       <Section title="Cégadatok">
         <p className="text-xs text-ink-soft">
           A „Szolgáltató adatai" blokk ezekből áll össze a Foglalási feltételek elején (a foglaló oldalon és emailben). Üres mezők kimaradnak.
@@ -795,19 +833,19 @@ export function RestaurantSettingsForm({
         <TermsSectionsEditor value={loc.current.terms_sections} onChange={(v) => loc.setField('terms_sections', v)} locale={loc.editLocale} />
       </Section>
 
-      <SaveBar dirty={tabDirty('documents')} submitting={submitting} onSave={() => saveTab('documents')} />
+      {!embedded && <SaveBar dirty={tabDirty('documents')} submitting={submitting} onSave={() => saveTab('documents')} />}
       </div>
       )}
 
       {activeTab === 'danger' && (
-      <div className="bg-red-500/[0.04] border border-red-500/20 rounded-[24px] overflow-hidden font-onest">
-        <div className="px-5 py-4 border-b border-red-500/20 sm:px-6">
-          <h3 className="font-bold text-sm uppercase tracking-widest text-red-400">Veszélyzóna</h3>
+      <div className="overflow-hidden rounded-[26px] border border-bad/25 bg-bad-bg/40 font-onest shadow-dav-card">
+        <div className="border-b border-bad/20 px-5 py-4 sm:px-6">
+          <h3 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-bad">Veszélyzóna</h3>
         </div>
-        <div className="px-5 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">{isLastBusiness ? 'Fiók törlése' : 'Étterem törlése'}</p>
-            <p className="text-xs text-ink-soft mt-0.5">
+            <p className="mt-0.5 text-xs text-ink-soft">
               {isLastBusiness
                 ? 'Minden adat (étterem, foglalások, asztalok, nyitvatartás) véglegesen törlődik.'
                 : 'Csak ezt az éttermet törli (foglalások, asztalok, nyitvatartás). A fiókod és a többi üzleted megmarad.'}
@@ -816,7 +854,7 @@ export function RestaurantSettingsForm({
           <button
             type="button"
             onClick={() => setDeleteOpen(true)}
-            className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center justify-center gap-2 transition-colors shrink-0 w-full sm:w-auto"
+            className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-dav-pill border-[1.5px] border-bad/40 px-5 text-sm font-semibold text-bad transition-colors hover:bg-bad-bg sm:w-auto"
           >
             <Trash2 className="h-4 w-4" />
             {isLastBusiness ? 'Fiók törlése' : 'Étterem törlése'}
@@ -842,16 +880,7 @@ export function RestaurantSettingsForm({
       }}
       onTertiary={() => {
         // Elvetés: az aktuális fül mezőit visszaállítjuk az utoljára mentett állapotra.
-        setForm((f) => {
-          const next = { ...f }
-          for (const k of (TAB_FIELDS[activeTab] ?? [])) (next[k] as Settings[keyof Settings]) = saved[k]
-          return next
-        })
-        if (activeTab === 'general') {
-          setLogoModified(false); setLogoPreview(mediaUrl(logo)); setLogoId(mediaId(logo))
-          setCoverModified(false); setCoverPreview(mediaUrl(coverImage)); setCoverId(mediaId(coverImage))
-        }
-        if (activeTab === 'languages') setSupportedExtras(savedSupported)
+        discardTab(activeTab)
         if (pendingTab) { setActiveTab(pendingTab); setPendingTab(null) }
       }}
       onCancel={() => setPendingTab(null)}
@@ -859,27 +888,27 @@ export function RestaurantSettingsForm({
 
     {deleteOpen && typeof document !== 'undefined' && createPortal(
       <div
-        className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-2xl"
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
         onClick={() => { if (!deleting) { setDeleteOpen(false); setDeleteConfirm('') } }}
       >
         <div
-          className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl border border-line shadow-2xl p-7 lg:p-9"
+          className="w-full max-w-md rounded-[26px] border border-line bg-white p-7 shadow-dav-card lg:p-9"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="h-12 w-12 rounded-2xl bg-red-500/10 flex items-center justify-center mb-5">
-            <Trash2 className="h-6 w-6 text-red-500" />
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[16px] bg-bad-bg">
+            <Trash2 className="h-6 w-6 text-bad" />
           </div>
-          <h3 className="text-xl font-black tracking-tight text-ink">
+          <h3 className="text-[22px] font-medium tracking-[-0.01em] text-ink">
             {isLastBusiness ? 'Fiók törlése' : 'Étterem törlése'}
           </h3>
-          <p className="text-sm text-ink-soft mt-2 leading-relaxed">
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
             Ez a művelet <span className="font-semibold text-ink">visszafordíthatatlan</span>.{' '}
             {isLastBusiness
               ? 'Az étterem, a foglalások, asztalok és nyitvatartás véglegesen törlődnek — ez az utolsó üzleted, ezért a teljes fiók is megszűnik.'
               : 'Csak ez az étterem törlődik (a foglalásaival, asztalaival, nyitvatartásával); a fiókod és a többi üzleted megmarad.'}
           </p>
-          <p className="text-xs text-ink-soft mt-5 mb-2">
-            A megerősítéshez írd be az étterem nevét: <span className="font-bold text-ink">{restaurantName}</span>
+          <p className="mb-2 mt-5 text-xs text-ink-soft">
+            A megerősítéshez írd be az étterem nevét: <span className="font-semibold text-ink">{restaurantName}</span>
           </p>
           <Input
             className={inputClass}
@@ -889,12 +918,12 @@ export function RestaurantSettingsForm({
             autoComplete="off"
             autoFocus
           />
-          <div className="flex items-center gap-2 mt-6">
+          <div className="mt-6 flex items-center gap-2">
             <button
               type="button"
               onClick={deleteAccount}
               disabled={deleting || deleteConfirm.trim() !== restaurantName.trim()}
-              className="flex-1 h-11 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-dav-pill bg-bad text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 className="h-4 w-4" />
               {deleting ? 'Törlés...' : 'Végleges törlés'}
@@ -903,7 +932,7 @@ export function RestaurantSettingsForm({
               type="button"
               onClick={() => { setDeleteOpen(false); setDeleteConfirm('') }}
               disabled={deleting}
-              className="h-11 px-5 rounded-dav-pill border border-line-strong text-sm font-semibold text-ink-soft hover:border-ink/40 transition-colors"
+              className="h-11 rounded-dav-pill border-[1.5px] border-line-strong px-5 text-sm font-semibold text-ink-soft transition-colors hover:border-ink/40"
             >
               Mégse
             </button>

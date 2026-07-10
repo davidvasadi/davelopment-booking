@@ -24,6 +24,7 @@ export async function POST(
     id: salonId,
     data,
     overrideAccess: true,
+    user,
   })
 
   return NextResponse.json({ ok: true })

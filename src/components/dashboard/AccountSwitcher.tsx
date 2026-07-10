@@ -55,7 +55,7 @@ export function AccountSwitcher({
   const canOpen = businesses.length > 0
 
   return (
-    <div className="overflow-hidden rounded-[26px] border border-line bg-white shadow-dav-card">
+    <div className="overflow-hidden rounded-[26px] dav-card-glass">
       {/* ── Fejléc ── */}
       <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
         <div className="flex items-center gap-3.5">

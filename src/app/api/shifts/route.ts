@@ -28,12 +28,16 @@ export async function POST(request: NextRequest) {
 
   const payload = await getPayloadClient()
   const data: Record<string, unknown> = {
-    date: body.date,
+    // A napot DÉL-UTC-re rögzítjük, hogy a date-only ne csússzon el időzóna miatt (nap ± 1).
+    date: /^\d{4}-\d{2}-\d{2}$/.test(String(body.date)) ? `${body.date}T12:00:00.000Z` : body.date,
     type: body.type,
     start_time: body.start_time ?? null,
     end_time: body.end_time ?? null,
     hours: body.hours ?? null,
     note: body.note ?? null,
+    ...('left_early_at' in body ? { left_early_at: body.left_early_at ?? null } : {}),
+    ...('left_early_reason' in body ? { left_early_reason: body.left_early_reason ?? null } : {}),
+    ...(body.owner_shift ? { owner_shift: true } : {}),
     ...(body.member != null ? { member: num(body.member) } : {}),
     ...(body.restaurant != null ? { restaurant: num(body.restaurant) } : {}),
     ...(body.staff != null ? { staff: num(body.staff) } : {}),
@@ -41,7 +45,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const doc = await payload.create({ collection: 'shifts', data: data as never, overrideAccess: true })
+    const doc = await payload.create({ collection: 'shifts', data: data as never, overrideAccess: true, user })
     return NextResponse.json(doc, { status: 201 })
   } catch (e) {
     console.error('[api/shifts POST] create failed', e)

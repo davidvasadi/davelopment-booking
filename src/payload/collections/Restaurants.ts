@@ -1,7 +1,7 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { slugify } from '../lib/slugify'
-import { settingsExtensionFields, businessTierField } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, emailTemplateFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
 import { auditAfterChange } from '../hooks/auditLog'
@@ -110,6 +110,40 @@ export const Restaurants: CollectionConfig = {
     { name: 'email', type: 'email', label: 'Email' },
     { name: 'website', type: 'text', label: 'Weboldal' },
     {
+      // Az étterem SAJÁT munkakörei (posztjai). A munkatárs-meghíváskor ezekből lehet
+      // választani; új poszt megadásakor a lista automatikusan bővül (a meghívó-route teszi hozzá).
+      name: 'positions',
+      type: 'array',
+      label: 'Kategóriák (szerepkörök)',
+      admin: { description: 'A tulajdonos saját szerepkörei (Felszolgáló, Konyhavezető…). A szint adja a jogosultságot: Vezető = mindent kezel (bér nélkül), Dolgozó = csak a sajátját.' },
+      fields: [
+        { name: 'label', type: 'text', required: true, label: 'Név' },
+        {
+          name: 'level',
+          type: 'select',
+          defaultValue: 'staff',
+          options: [
+            { label: 'Vezető', value: 'lead' },
+            { label: 'Dolgozó', value: 'staff' },
+          ],
+          label: 'Hozzáférési szint',
+        },
+      ],
+    },
+    {
+      // Napi KÖZPONTI borravaló-összeg (Ft) az adott napra. A Naptárban adja meg a tulaj; a profil
+      // havi szinten összegzi, az aznap dolgozó JOGOSULT munkatársak (tip_eligible) közt elosztva.
+      // A dátum date-only szöveg (ÉÉÉÉ-HH-NN), hogy ne csússzon el időzóna miatt.
+      name: 'daily_tips',
+      type: 'array',
+      label: 'Napi borravaló',
+      admin: { description: 'Napi központi borravaló-összeg; az aznap dolgozó jogosultak közt oszlik el.' },
+      fields: [
+        { name: 'date', type: 'text', required: true, label: 'Dátum (ÉÉÉÉ-HH-NN)' },
+        { name: 'amount', type: 'number', required: true, label: 'Összeg (Ft)' },
+      ],
+    },
+    {
       name: 'cover_image',
       type: 'upload',
       relationTo: 'media',
@@ -192,6 +226,8 @@ export const Restaurants: CollectionConfig = {
       label: 'Visszaigazoló email bevezető szövege',
       admin: { description: 'Sima szöveg, nyelvenként. A visszaigazoló email tetejére kerül. Változók: {{name}}, {{date}}, {{time}}, {{pax}}.' },
     },
+    // Lemondó / emlékeztető / visszajelzés-kérő emailek szerkeszthető tárgya + bevezetője (localized).
+    ...emailTemplateFields,
     {
       name: 'email_show_phone',
       type: 'checkbox',
@@ -253,6 +289,28 @@ export const Restaurants: CollectionConfig = {
         { name: 'icon', type: 'text', label: 'Ikon kulcs', defaultValue: 'info' },
         { name: 'title', type: 'text', localized: true, label: 'Pont címe' },
         { name: 'body', type: 'textarea', localized: true, label: 'Pont szövege' },
+      ],
+    },
+    {
+      name: 'event_types',
+      type: 'array',
+      label: 'Esemény-típusok (alkalmak)',
+      admin: { description: 'Milyen alkalomból foglalhat a vendég (ikon + megnevezés). A vendég a foglalónál választhat ezekből; ki-be kapcsolhatók. Ha üresen hagyod, az alapkészlet jelenik meg.' },
+      defaultValue: [
+        { icon: 'cake', label: 'Születésnap', enabled: true },
+        { icon: 'anniversary', label: 'Évforduló', enabled: true },
+        { icon: 'business', label: 'Céges vacsora', enabled: true },
+        { icon: 'date', label: 'Randi', enabled: true },
+        { icon: 'family', label: 'Családi esemény', enabled: true },
+        { icon: 'friends', label: 'Baráti összejövetel', enabled: true },
+        { icon: 'party', label: 'Legénybúcsú / lánybúcsú', enabled: true },
+        { icon: 'celebration', label: 'Ünnepség', enabled: true },
+        { icon: 'engagement', label: 'Eljegyzés', enabled: true },
+      ],
+      fields: [
+        { name: 'icon', type: 'text', label: 'Ikon kulcs', defaultValue: 'party' },
+        { name: 'label', type: 'text', required: true, localized: true, label: 'Megnevezés' },
+        { name: 'enabled', type: 'checkbox', defaultValue: true, label: 'Aktív' },
       ],
     },
     {

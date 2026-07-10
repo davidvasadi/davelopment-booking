@@ -1,6 +1,6 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
-import { settingsExtensionFields, businessTierField } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, emailTemplateFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
 import { auditAfterChange } from '../hooks/auditLog'
@@ -203,6 +203,8 @@ export const Salons: CollectionConfig = {
               label: 'Visszaigazoló email bevezető szövege',
               admin: { description: 'Sima szöveg, nyelvenként. A visszaigazoló email tetejére kerül. Változók: {{name}}, {{date}}, {{time}}, {{service}}.' },
             },
+            // Lemondó / emlékeztető / visszajelzés-kérő emailek szerkeszthető tárgya + bevezetője (localized).
+            ...emailTemplateFields,
             {
               name: 'email_show_phone',
               type: 'checkbox',

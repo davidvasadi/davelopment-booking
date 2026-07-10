@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
+import { Info, type LucideIcon } from 'lucide-react'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
 import { t, type Locale } from '@/lib/i18n'
 
@@ -15,8 +15,15 @@ export function GoodToKnowSection({ items, locale = 'hu' }: { items?: Item[] | n
 
   return (
     <section>
-      <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">{t(locale, 'goodToKnow.eyebrow')}</p>
-      <h2 className="text-2xl font-black tracking-tight text-zinc-900 mb-5">{t(locale, 'goodToKnow.title')}</h2>
+      <div className="mb-5 flex items-center gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-gold/15">
+          <Info className="h-5 w-5 text-ink" strokeWidth={1.7} />
+        </span>
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{t(locale, 'goodToKnow.eyebrow')}</p>
+          <h2 className="text-[24px] font-light leading-tight tracking-[-0.01em] text-ink">{t(locale, 'goodToKnow.title')}</h2>
+        </div>
+      </div>
       <div className="grid grid-cols-2 gap-3">
         {filled.map((p, i) => (
           <GoodToKnowCard key={p?.id ?? i} icon={iconByKey(p?.icon)} title={p?.title ?? ''} body={p?.body ?? ''} />
@@ -29,12 +36,12 @@ export function GoodToKnowSection({ items, locale = 'hu' }: { items?: Item[] | n
 /** Egységes „Jó tudni" csempe: kerek ikon-kör + cím + leírás. */
 function GoodToKnowCard({ icon: Icon, title, body }: { icon: LucideIcon; title: string; body: string }) {
   return (
-    <div className="rounded-2xl px-4 py-4 bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm">
-      <div className="h-9 w-9 rounded-full bg-zinc-950 flex items-center justify-center mb-3">
+    <div className="rounded-[16px] bg-white/40 px-4 py-4">
+      <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-ink-dark">
         <Icon className="h-4 w-4 text-white" />
       </div>
-      {title && <p className="font-black text-zinc-900 text-sm leading-tight">{title}</p>}
-      {body && <p className="text-xs text-zinc-500 mt-0.5 whitespace-pre-line">{body}</p>}
+      {title && <p className="text-[14px] font-semibold leading-tight text-ink">{title}</p>}
+      {body && <p className="mt-0.5 whitespace-pre-line text-[12px] text-ink-soft">{body}</p>}
     </div>
   )
 }

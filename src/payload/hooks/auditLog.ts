@@ -23,10 +23,61 @@ const refId = (ref: unknown): string | number | null => {
   return ref as string | number
 }
 
-function actorLabelOf(req: PayloadRequest): { actor: string | number | null; actor_label: string } {
+function actorLabelOf(req: PayloadRequest): {
+  actor: string | number | null
+  actor_label: string
+  actor_email: string | null
+} {
   const u = req.user as { id?: string | number; name?: string | null; email?: string | null } | undefined
-  if (!u) return { actor: null, actor_label: 'Rendszer' }
-  return { actor: u.id ?? null, actor_label: u.name || u.email || 'Ismeretlen' }
+  // Bejelentkezett user: a NEVET adjuk feliratnak és az EMAIL-t külön (snapshot — túléli a törlést).
+  if (u) return { actor: u.id ?? null, actor_label: u.name || u.email || 'Ismeretlen', actor_email: u.email || null }
+  // Nincs bejelentkezett user (publikus route vagy cron). A route a `context.auditActor`-ral
+  // adhat értelmes címkét (pl. 'Online foglalás', 'Vendég'); alapból 'Rendszer' (automatizmus).
+  const ctxLabel = (req.context as { auditActor?: unknown } | undefined)?.auditActor
+  if (typeof ctxLabel === 'string' && ctxLabel) return { actor: null, actor_label: ctxLabel, actor_email: null }
+  return { actor: null, actor_label: 'Rendszer', actor_email: null }
+}
+
+/** Zajos / belső mezők, amiket a diffből kihagyunk. */
+const DIFF_SKIP = new Set([
+  'id', 'createdAt', 'updatedAt', 'updated_at', 'created_at',
+  'invite_token', 'sizes', 'position_history', 'documents',
+])
+
+/** Egy mező összehasonlítható skalár-értéke: primitív marad, reláció → id, más → kihagyva (null). */
+function scalarOf(v: unknown): string | number | boolean | null | undefined {
+  if (v == null) return null
+  const t = typeof v
+  if (t === 'string' || t === 'number' || t === 'boolean') return v as string | number | boolean
+  if (t === 'object') {
+    const id = (v as { id?: string | number }).id
+    return id != null ? id : undefined // relációt id-vel hasonlítunk; egyéb objektum/tömb → skip
+  }
+  return undefined
+}
+
+const clip = (v: string | number | boolean | null): string | number | boolean | null =>
+  typeof v === 'string' && v.length > 120 ? `${v.slice(0, 117)}…` : v
+
+export type AuditChange = { field: string; from: string | number | boolean | null; to: string | number | boolean | null }
+
+/** before→after diff a változott, skalárrá redukálható mezőkről (max 12, klippelt értékek). */
+function computeDiff(prev: Record<string, unknown> | undefined, next: Record<string, unknown>): AuditChange[] {
+  if (!prev) return []
+  const out: AuditChange[] = []
+  for (const key of Object.keys(next)) {
+    if (DIFF_SKIP.has(key)) continue
+    const a = scalarOf(prev[key])
+    const b = scalarOf(next[key])
+    if (a === undefined || b === undefined) continue // nem összehasonlítható (objektum/tömb)
+    // Üres string és null ugyanaz → ne generáljon „üres → üres" zaj-diffet.
+    if ((a ?? '') === (b ?? '')) continue
+    if (a !== b) {
+      out.push({ field: key, from: clip(a), to: clip(b) })
+      if (out.length >= 12) break
+    }
+  }
+  return out
 }
 
 /** A collection-label + doc rövid azonosítója egy olvasható összegzéshez. */
@@ -49,8 +100,9 @@ async function writeAudit(opts: {
   entity: string
   action: 'create' | 'update' | 'delete'
   doc: Record<string, unknown>
+  previousDoc?: Record<string, unknown>
 }) {
-  const { req, scope, entity, action, doc } = opts
+  const { req, scope, entity, action, doc, previousDoc } = opts
   try {
     let salon: string | number | null = null
     let restaurant: string | number | null = null
@@ -63,7 +115,8 @@ async function writeAudit(opts: {
 
     // Ha se szalon, se étterem nem derül ki, akkor is naplózunk (üzlet nélkül),
     // de a legtöbb collectionnél megvan az egyik.
-    const { actor, actor_label } = actorLabelOf(req)
+    const { actor, actor_label, actor_email } = actorLabelOf(req)
+    const changes = action === 'update' ? computeDiff(previousDoc, doc) : []
 
     await req.payload.create({
       collection: 'audit-log',
@@ -72,10 +125,12 @@ async function writeAudit(opts: {
       data: {
         actor: actor ?? undefined,
         actor_label,
+        actor_email: actor_email ?? undefined,
         action,
         collection_name: entity,
         doc_id: String(refId(doc.id) ?? ''),
         summary: summarize(entity, action, doc),
+        changes: changes.length ? changes : undefined,
         salon: salon ?? undefined,
         restaurant: restaurant ?? undefined,
       },
@@ -92,9 +147,16 @@ async function writeAudit(opts: {
 
 /** afterChange napló (create/update). */
 export function auditAfterChange(entity: string, scope: Scope): CollectionAfterChangeHook {
-  return async ({ req, doc, operation }) => {
+  return async ({ req, doc, previousDoc, operation }) => {
     if (operation === 'create' || operation === 'update') {
-      await writeAudit({ req, scope, entity, action: operation, doc: doc as Record<string, unknown> })
+      await writeAudit({
+        req,
+        scope,
+        entity,
+        action: operation,
+        doc: doc as Record<string, unknown>,
+        previousDoc: previousDoc as Record<string, unknown> | undefined,
+      })
     }
     return doc
   }

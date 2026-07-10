@@ -73,6 +73,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       id,
       data: data as never,
       overrideAccess: true,
+      user,
       ...(locale ? { locale: locale as never } : {}),
     })
     return NextResponse.json(doc)
@@ -90,6 +91,6 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const loaded = await loadOwnedStaff(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
-  await loaded.payload.delete({ collection: 'staff', id, overrideAccess: true })
+  await loaded.payload.delete({ collection: 'staff', id, overrideAccess: true, user })
   return NextResponse.json({ ok: true })
 }

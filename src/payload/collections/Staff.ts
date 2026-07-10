@@ -106,6 +106,10 @@ export const Staff: CollectionConfig = {
       type: 'text',
       label: 'Telefon',
     },
+    { name: 'email', type: 'text', label: 'Email' },
+    { name: 'address', type: 'text', label: 'Cím' },
+    { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
+    { name: 'emergency_contact', type: 'text', label: 'Vészhelyzeti kontakt' },
     {
       name: 'documents',
       type: 'array',

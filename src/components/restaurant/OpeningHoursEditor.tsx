@@ -180,7 +180,7 @@ export function OpeningHoursEditor({
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-[26px] border border-line bg-white shadow-dav-card">
+      <div className="overflow-hidden rounded-[26px] dav-card-glass">
         {/* ── DESKTOP fejléc (lg+) ── */}
         <div className="hidden grid-cols-3 items-center gap-x-6 border-b border-line px-8 py-3.5 lg:grid">
           <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft2">Nap</span>

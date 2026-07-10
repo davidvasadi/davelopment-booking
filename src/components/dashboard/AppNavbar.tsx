@@ -78,7 +78,10 @@ export function AppNavbar({
   const settingsActive = isActive(settingsHref)
 
   return (
-    <div className="hidden lg:flex items-center justify-between gap-4">
+    // relative z-50: a nav (és a legördülői/popoverei) a tartalom fölé kerüljön. Kell, mert a
+    // nav és a foglalás-kártyák is backdrop-filteres stacking contextek → a később jövő kártya
+    // különben rárajzolódna a „Több" legördülőre / UserMenu popoverre.
+    <div className="relative z-50 hidden lg:flex items-center justify-between gap-4">
       {/* Bal: brand */}
       <Link
         href={items[0]?.href ?? '/'}
@@ -88,8 +91,8 @@ export function AppNavbar({
         <SchedulioLogo className="h-10" />
       </Link>
 
-      {/* Közép: pill-nav — CSAK SZÖVEG (Crextio: fehér pill, 40px sugár, soft shadow, keret nélkül) */}
-      <nav className="flex items-center gap-1.5 rounded-[40px] bg-white p-[6px] shadow-[0_2px_10px_rgba(0,0,0,.05)]">
+      {/* Közép: pill-nav — üveges háttér (a konténer-gradient átdereng), 40px sugár, soft shadow */}
+      <nav className="flex items-center gap-1.5 rounded-[40px] bg-[var(--dav-glass-strong)] p-[6px] shadow-[0_2px_10px_rgba(0,0,0,.05)] backdrop-blur-lg">
         {pillItems.map(({ href, label, exact }) => {
           const active = isActive(href, exact)
           const dim = isLocked
@@ -174,8 +177,8 @@ export function AppNavbar({
           aria-label="Beállítások"
           title="Beállítások"
           className={cn(
-            'flex h-[52px] shrink-0 items-center gap-2 rounded-[30px] px-[22px] text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors',
-            settingsActive ? 'bg-ink-dark text-white' : 'bg-white text-ink hover:bg-[#faf9f6]',
+            'flex h-[52px] shrink-0 items-center gap-2 rounded-[30px] px-[22px] text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors backdrop-blur-lg',
+            settingsActive ? 'bg-ink-dark text-white' : 'bg-[var(--dav-glass-strong)] text-ink hover:bg-white/70',
           )}
         >
           <Settings className="h-[16px] w-[16px]" strokeWidth={2} />

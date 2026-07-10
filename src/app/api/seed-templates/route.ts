@@ -88,6 +88,7 @@ export async function POST(req: NextRequest) {
             salon: salonId,
             is_active: true,
           },
+          user,
         })
       }
     }

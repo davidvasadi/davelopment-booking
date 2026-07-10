@@ -26,12 +26,15 @@ export function CountUpKpi({
   label,
   suffix = '',
   decimals = 0,
+  group = false,
 }: {
   icon: KpiIcon
   value: number
   label: string
   suffix?: string
   decimals?: number
+  /** Ezres tagolás (pl. bevétel: 125 000). A count-up közben is tagolva jelenik meg. */
+  group?: boolean
 }) {
   const Icon = ICONS[icon] ?? Users
   const [n, setN] = useState(0)
@@ -66,7 +69,9 @@ export function CountUpKpi({
     return () => { io.disconnect(); cancelAnimationFrame(raf) }
   }, [value])
 
-  const shown = decimals > 0 ? n.toFixed(decimals) : String(Math.round(n))
+  const shown = decimals > 0
+    ? (group ? n.toLocaleString('hu-HU', { minimumFractionDigits: decimals, maximumFractionDigits: decimals }) : n.toFixed(decimals))
+    : (group ? Math.round(n).toLocaleString('hu-HU') : String(Math.round(n)))
 
   return (
     <div ref={ref} className="flex flex-col items-start">

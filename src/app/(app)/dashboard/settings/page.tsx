@@ -97,6 +97,7 @@ export default async function SettingsPage() {
 
   const np = salon.notification_prefs ?? {}
   const br = salon.booking_rules ?? {}
+  const fm = salon.feature_modules ?? {}
 
   return (
     <div className="p-5 lg:p-0">
@@ -108,15 +109,21 @@ export default async function SettingsPage() {
         apiBase={`/api/salons/${salon.id}`}
         notificationPrefs={{
           confirm_email: np.confirm_email ?? true,
-          reminder_email: np.reminder_email ?? true,
           cancel_email: np.cancel_email ?? true,
-          feedback_email: np.feedback_email ?? false,
         }}
-        bookingRules={{
-          auto_confirm: br.auto_confirm ?? true,
-          deposit_enabled: br.deposit_enabled ?? false,
-          waitlist_enabled: br.waitlist_enabled ?? false,
-          cancellation_protection: br.cancellation_protection ?? false,
+        bookingRules={{ auto_confirm: br.auto_confirm ?? true }}
+        featureModules={{
+          reminders_on: fm.reminders_on ?? true,
+          reminder_ch_email: fm.reminder_ch_email ?? true,
+          reminder_ch_push: fm.reminder_ch_push ?? false,
+          reminder_t_24h: fm.reminder_t_24h ?? true,
+          reminder_t_3h: fm.reminder_t_3h ?? true,
+          reminder_t_1h: fm.reminder_t_1h ?? false,
+          waitlist_on: fm.waitlist_on ?? false,
+          waitlist_auto_promote: fm.waitlist_auto_promote ?? false,
+          recurring_on: fm.recurring_on ?? false,
+          reviews_on: fm.reviews_on ?? false,
+          google_review_url: fm.google_review_url ?? null,
         }}
         rules={rules}
         senderLabel={senderLabel}

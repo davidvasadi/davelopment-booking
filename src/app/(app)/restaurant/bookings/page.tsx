@@ -5,6 +5,7 @@ import { DailyView } from '@/components/restaurant/DailyView'
 import { PrintDayButton } from '@/components/restaurant/PrintDayButton'
 import WaitlistPanel from '@/components/dashboard/WaitlistPanel'
 import { hhmmToMinutes, getDayName } from '@/lib/utils'
+import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import { parseISO } from 'date-fns'
 import type { Reservation, Table, Room, OpeningHour } from '@/payload/payload-types'
 
@@ -91,11 +92,18 @@ export default async function RestaurantBookingsPage({
   const roomCount = rooms.length
   const tableCount = tables.length
 
+  // Esemény-típusok az admin szerkesztő-laphoz (a tulaj engedélyezettjei, vagy az alapkészlet).
+  const enabledEvents = ((restaurant as { event_types?: { icon?: string | null; label?: string | null; enabled?: boolean | null }[] | null }).event_types ?? [])
+    .filter((e) => e?.enabled !== false && e?.label)
+    .map((e) => ({ icon: e.icon ?? 'party', label: e.label as string }))
+  const eventTypes = enabledEvents.length > 0 ? enabledEvents : DEFAULT_EVENT_TYPES.map((e) => ({ icon: e.icon, label: e.label }))
+
   return (
     <div className="p-5 lg:p-0 space-y-5">
       <DailyView
         date={selectedDate}
         restaurantId={String(restaurant.id)}
+        eventTypes={eventTypes}
         reservations={reservations}
         rooms={rooms}
         tables={tables}

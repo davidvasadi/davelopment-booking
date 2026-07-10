@@ -93,6 +93,7 @@ export default async function RestaurantSettingsPage() {
 
   const np = r.notification_prefs ?? {}
   const br = r.booking_rules ?? {}
+  const fm = r.feature_modules ?? {}
 
   return (
     <div className="p-5 lg:p-0">
@@ -104,15 +105,21 @@ export default async function RestaurantSettingsPage() {
         apiBase={`/api/restaurants/${r.id}`}
         notificationPrefs={{
           confirm_email: np.confirm_email ?? true,
-          reminder_email: np.reminder_email ?? true,
           cancel_email: np.cancel_email ?? true,
-          feedback_email: np.feedback_email ?? false,
         }}
-        bookingRules={{
-          auto_confirm: br.auto_confirm ?? true,
-          deposit_enabled: br.deposit_enabled ?? false,
-          waitlist_enabled: br.waitlist_enabled ?? false,
-          cancellation_protection: br.cancellation_protection ?? false,
+        bookingRules={{ auto_confirm: br.auto_confirm ?? true }}
+        featureModules={{
+          reminders_on: fm.reminders_on ?? true,
+          reminder_ch_email: fm.reminder_ch_email ?? true,
+          reminder_ch_push: fm.reminder_ch_push ?? false,
+          reminder_t_24h: fm.reminder_t_24h ?? true,
+          reminder_t_3h: fm.reminder_t_3h ?? true,
+          reminder_t_1h: fm.reminder_t_1h ?? false,
+          waitlist_on: fm.waitlist_on ?? false,
+          waitlist_auto_promote: fm.waitlist_auto_promote ?? false,
+          recurring_on: fm.recurring_on ?? false,
+          reviews_on: fm.reviews_on ?? false,
+          google_review_url: fm.google_review_url ?? null,
         }}
         rules={rules}
         senderLabel={senderLabel}
@@ -147,6 +154,12 @@ export default async function RestaurantSettingsPage() {
               notify_new_bookings: r.notify_new_bookings ?? true,
               booking_email_subject: r.booking_email_subject ?? '',
               booking_email_intro: r.booking_email_intro ?? '',
+              cancel_email_subject: r.cancel_email_subject ?? '',
+              cancel_email_intro: r.cancel_email_intro ?? '',
+              reminder_email_subject: r.reminder_email_subject ?? '',
+              reminder_email_intro: r.reminder_email_intro ?? '',
+              feedback_email_subject: r.feedback_email_subject ?? '',
+              feedback_email_intro: r.feedback_email_intro ?? '',
               email_show_phone: r.email_show_phone ?? true,
               email_contact_phone: r.email_contact_phone ?? '',
               email_show_email: r.email_show_email ?? false,
@@ -159,6 +172,7 @@ export default async function RestaurantSettingsPage() {
               registered_seat: r.registered_seat ?? '',
               terms_sections: (r.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
               good_to_know: (r.good_to_know ?? []).map((s) => ({ icon: s.icon ?? 'info', title: s.title ?? '', body: s.body ?? '' })),
+              event_types: (r.event_types ?? []).map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
             }}
           />
         }

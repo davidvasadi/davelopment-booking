@@ -1,22 +1,41 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
+import { getDashboardStats } from '@/lib/dashboardStats'
+import { getPayloadClient } from '@/lib/payload'
+import { buildSalonAdvisor, type SetupFlags } from '@/lib/tipsAdvisor'
+import { TipsAdvisorView } from '@/components/dashboard/TipsAdvisorView'
 
-export const metadata = { title: 'Funkciók' }
+export const metadata = { title: 'Tippek' }
 
-export default async function SalonFeaturesPage() {
-  const { salon } = await getOwnedSalon(1)
-  const fm = salon.feature_modules ?? {}
-  const initial: FeatureModules = {
-    reminders_on: fm.reminders_on ?? true,
-    reminder_ch_email: fm.reminder_ch_email ?? true,
-    reminder_ch_push: fm.reminder_ch_push ?? false,
-    reminder_t_24h: fm.reminder_t_24h ?? true,
-    reminder_t_3h: fm.reminder_t_3h ?? true,
-    reminder_t_1h: fm.reminder_t_1h ?? false,
-    waitlist_on: fm.waitlist_on ?? false,
-    waitlist_auto_promote: fm.waitlist_auto_promote ?? false,
-    recurring_on: fm.recurring_on ?? false,
-    reviews_on: fm.reviews_on ?? false,
-  }
-  return <BookingFeatures variant="salon" apiBase={`/api/salons/${salon.id}`} initial={initial} />
+export default async function SalonTipsPage() {
+  const { salon } = await getOwnedSalon()
+  const payload = await getPayloadClient()
+
+  const [stats, availRes, servicesRes] = await Promise.all([
+    getDashboardStats(salon.id, 30),
+    payload.find({
+      collection: 'availability',
+      where: {
+        and: [
+          { salon: { equals: salon.id } },
+          { staff: { exists: false } },
+          { exception_date: { exists: false } },
+        ],
+      },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'services',
+      where: { salon: { equals: salon.id } },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  ])
+
+  const setup: SetupFlags = { openingHours: availRes.totalDocs > 0, catalog: servicesRes.totalDocs > 0 }
+  const data = buildSalonAdvisor(salon, setup, stats)
+
+  return <TipsAdvisorView variant="salon" data={data} apiBase={`/api/salons/${salon.id}`} />
 }

@@ -157,6 +157,32 @@ export const Shifts: CollectionConfig = {
       type: 'text',
       label: 'Megjegyzés',
     },
+    {
+      // STÁTUSZVÁLTÁS a napon belül: a dolgozó a műszak vége előtt hazament (pl. délben beteg lett).
+      // Egy soron marad (nincs duplázás) — a tényleges ledolgozott idő start→left_early_at.
+      name: 'left_early_at',
+      type: 'text',
+      label: 'Korai távozás (ÓÓ:PP)',
+      admin: { placeholder: '12:00', description: 'Ha a dolgozó a műszak vége előtt hazament.' },
+    },
+    {
+      name: 'left_early_reason',
+      type: 'select',
+      label: 'Korai távozás oka',
+      options: [
+        { label: 'Beteg lett', value: 'sick' },
+        { label: 'Hazament (egyéb)', value: 'personal' },
+      ],
+    },
+    {
+      // A TULAJ beosztása (étterem): nincs `member`, csak `restaurant` + ez a jelző. Kizárólag
+      // beosztás-fedettség (ki dolgozik aznap) — a tulajra NINCS bér/borravaló-számítás.
+      name: 'owner_shift',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Tulajdonos műszakja',
+      admin: { description: 'A tulajdonos beosztása (member nélkül). Csak fedettség; nincs bér/borravaló.' },
+    },
   ],
   timestamps: true,
 }

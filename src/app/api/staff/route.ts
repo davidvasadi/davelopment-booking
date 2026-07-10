@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
       collection: 'staff',
       data: data as never,
       overrideAccess: true,
+      user,
       ...(locale ? { locale: locale as never } : {}),
     })
     return NextResponse.json(doc, { status: 201 })

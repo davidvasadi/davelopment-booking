@@ -118,3 +118,77 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nem sikerült menteni' }, { status: 500 })
   }
 }
+
+/**
+ * DELETE /api/customers — a vendég VÉGLEGES törlése az aktív üzletnél: az ÖSSZES foglalása
+ * (reservations vagy bookings) + a customer-rekord. Visszafordíthatatlan. A vendéget e-mail
+ * VAGY telefon alapján azonosítjuk (match_index-et is nézve). Csak owner/admin, saját üzletre.
+ */
+export async function DELETE(req: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user || (user.role !== 'restaurant_owner' && user.role !== 'salon_owner' && user.role !== 'admin')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { active } = await getActiveBusiness(user)
+  if (!active) return NextResponse.json({ error: 'Nincs aktív üzlet' }, { status: 404 })
+
+  const body = (await req.json().catch(() => null)) as { email?: string | null; phone?: string | null } | null
+  const email = body?.email?.trim().toLowerCase() || null
+  const phone = body?.phone?.trim() || null
+  if (!email && !phone) {
+    return NextResponse.json({ error: 'A vendég azonosításához e-mail vagy telefon kell' }, { status: 400 })
+  }
+
+  const payload = await getPayloadClient()
+  const scope = active.type // 'salon' | 'restaurant'
+  const bizId: string | number = /^\d+$/.test(active.id) ? Number(active.id) : active.id
+  const bookingCollection = scope === 'salon' ? 'bookings' : 'reservations'
+
+  // A vendég azonosítói: közvetlen e-mail/telefon + a customer match_index (átírt régi értékek).
+  const idents = new Set<string>()
+  if (email) idents.add(email)
+  if (phone) idents.add(phone)
+
+  const custOr: Where[] = []
+  if (email) { custOr.push({ customer_email: { equals: email } }); custOr.push({ match_index: { contains: email } }) }
+  if (phone) { custOr.push({ customer_phone: { equals: phone } }); custOr.push({ match_index: { contains: phone } }) }
+  const custRes = await payload.find({
+    collection: 'customers',
+    where: { and: [{ [scope]: { equals: bizId } }, { or: custOr }] },
+    limit: 10,
+    depth: 0,
+    overrideAccess: true,
+  })
+  for (const c of custRes.docs as Customer[]) {
+    for (const k of (c.match_index ?? '').split('\n')) if (k) idents.add(k.trim().toLowerCase())
+    if (c.customer_email) idents.add(c.customer_email.trim().toLowerCase())
+    if (c.customer_phone) idents.add(c.customer_phone.trim())
+  }
+
+  const emails = Array.from(idents).filter((v) => v.includes('@'))
+  const phones = Array.from(idents).filter((v) => !v.includes('@'))
+  const bookingOr: Where[] = []
+  for (const e of emails) bookingOr.push({ customer_email: { equals: e } })
+  for (const p of phones) bookingOr.push({ customer_phone: { equals: p } })
+
+  try {
+    let deletedBookings = 0
+    if (bookingOr.length > 0) {
+      const del = await payload.delete({
+        collection: bookingCollection,
+        where: { and: [{ [scope]: { equals: bizId } }, { or: bookingOr }] },
+        overrideAccess: true,
+      })
+      deletedBookings = Array.isArray(del.docs) ? del.docs.length : 0
+    }
+    // Customer-rekord(ok) törlése is.
+    for (const c of custRes.docs as Customer[]) {
+      await payload.delete({ collection: 'customers', id: c.id, overrideAccess: true })
+    }
+    return NextResponse.json({ ok: true, deletedBookings })
+  } catch (e) {
+    console.error('[customers] delete error', e)
+    return NextResponse.json({ error: 'Nem sikerült törölni' }, { status: 500 })
+  }
+}

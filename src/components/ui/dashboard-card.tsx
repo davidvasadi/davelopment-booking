@@ -10,7 +10,7 @@ export function DashboardCard({ noPadding, className, children, ...props }: Dash
   return (
     <div
       className={cn(
-        'bg-white border border-line rounded-[22px] shadow-dav-card',
+        'dav-card-glass rounded-[22px]',
         !noPadding && 'px-5 py-4',
         className,
       )}

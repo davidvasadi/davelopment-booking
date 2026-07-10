@@ -8,6 +8,7 @@ import { MapContainer, TileLayer, Marker, ZoomControl, GeoJSON, useMap, useMapEv
 import { Maximize } from 'lucide-react'
 import type { CountryBucket } from '@/lib/guests'
 import { ISO2_TO_CAPITAL } from '@/lib/geoLookup'
+import { geocodeCities, cityKey } from '@/lib/geocodeClient'
 
 /** Flex-konténerben a Leaflet néha 0/rossz mérettel indul — mount után újraméretezzük. */
 function InvalidateSize() {
@@ -200,19 +201,52 @@ function FocusCountry({ buckets, focusIso }: { buckets: CountryBucket[]; focusIs
   return null
 }
 
-/** Zoom-figyelő: magas zoomon fővárosi város-markereket rak ki. */
+/** A buckets városait kliens-oldalon geokódolja (localStorage-cache-elt) →
+ *  { "város|ISO": [lat,lng] }. Csak a hiányzókra megy hálózati hívás. */
+function useGeocodedCities(buckets: CountryBucket[]): Record<string, [number, number]> {
+  const [coords, setCoords] = useState<Record<string, [number, number]>>({})
+  // Stabil aláírás a (város, ISO) párokból — csak tényleges változásra geokódolunk újra.
+  const sig = buckets
+    .flatMap((b) => (b.cities ?? []).map((c) => cityKey(c.name, b.iso)))
+    .sort()
+    .join(',')
+  useEffect(() => {
+    const pairs = buckets.flatMap((b) => (b.cities ?? []).map((c) => ({ name: c.name, iso: b.iso })))
+    if (pairs.length === 0) return
+    let cancelled = false
+    geocodeCities(pairs).then((r) => { if (!cancelled) setCoords((prev) => ({ ...prev, ...r })) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sig])
+  return coords
+}
+
+/** Zoom-figyelő: magas zoomon város-markereket rak ki — a vendégek VALÓS városaira
+ *  (geokódolva), fallbackként az ország fővárosára. A marker-stílus változatlan. */
 function CityMarkers({ buckets }: { buckets: CountryBucket[] }) {
   const map = useMap()
   const [zoom, setZoom] = useState(map.getZoom())
   useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
+  const cityCoords = useGeocodedCities(buckets)
 
   if (zoom < CITY_ZOOM) return null
   return (
     <>
       {buckets.map((b) => {
-        const cap = ISO2_TO_CAPITAL[b.iso.toUpperCase()]
+        const iso = b.iso.toUpperCase()
+        // Az ebben az országban geokódolt VALÓS vendég-városok.
+        const resolved = (b.cities ?? [])
+          .map((c) => ({ name: c.name, ll: cityCoords[cityKey(c.name, iso)] }))
+          .filter((c): c is { name: string; ll: [number, number] } => !!c.ll)
+        if (resolved.length > 0) {
+          return resolved.map((c) => (
+            <Marker key={`city-${iso}-${c.name}`} position={c.ll} icon={cityMarker(c.name)} />
+          ))
+        }
+        // Fallback (nincs megadott város, vagy még nincs geokódolva): az ország fővárosa — a régi viselkedés.
+        const cap = ISO2_TO_CAPITAL[iso]
         if (!cap) return null
-        return <Marker key={`city-${b.iso}`} position={cap.latlng} icon={cityMarker(cap.city)} />
+        return <Marker key={`city-${iso}`} position={cap.latlng} icon={cityMarker(cap.city)} />
       })}
     </>
   )

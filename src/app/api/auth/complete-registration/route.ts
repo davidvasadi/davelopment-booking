@@ -63,6 +63,7 @@ export async function GET(_req: NextRequest) {
             ...(pending.phone ? { phone: pending.phone } : {}),
           },
           overrideAccess: true,
+          user,
         })
         await payload.update({
           collection: 'users',
@@ -80,6 +81,7 @@ export async function GET(_req: NextRequest) {
             ...(pending.phone ? { phone: pending.phone } : {}),
           },
           overrideAccess: true,
+          user,
         })
         await payload.update({
           collection: 'users',

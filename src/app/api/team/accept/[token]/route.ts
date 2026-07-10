@@ -41,6 +41,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     collection: 'memberships',
     id: membership.id,
     overrideAccess: true,
+    user,
     data: {
       status: 'active',
       user: user.id,

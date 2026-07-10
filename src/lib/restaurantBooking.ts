@@ -320,6 +320,79 @@ function findCombinableGroup(
   return best
 }
 
+/**
+ * A megadott seed asztal(ok)ból kiindulva bővít a szabad, összetolható (combinable_with)
+ * szomszédokkal — kapacitás szerint növekvő sorrendben —, amíg az összkapacitás eléri a
+ * pax-ot. A seed maga is benne van a csoportban. null, ha így sem érhető el a pax.
+ * A drag & drop auto-összevonáshoz: a host egy (esetleg kicsi) asztalra ejti a foglalást,
+ * a rendszer köré vonja a szabad szomszédokat.
+ */
+function expandFromSeed(
+  seed: Table[],
+  freeById: Map<string, Table>,
+  adj: Map<string, Set<string>>,
+  pax: number,
+): Table[] | null {
+  const visited = new Set<string>(seed.map((t) => String(t.id)))
+  const group: Table[] = [...seed]
+  let cap = seed.reduce((s, t) => s + t.capacity, 0)
+
+  const expand = () => {
+    const frontier: Table[] = []
+    for (const member of group) {
+      for (const nid of adj.get(String(member.id)) ?? []) {
+        if (visited.has(nid)) continue
+        const n = freeById.get(nid)
+        if (n) frontier.push(n)
+      }
+    }
+    return frontier.sort((a, b) => a.capacity - b.capacity)[0]
+  }
+
+  while (cap < pax) {
+    const next = expand()
+    if (!next) break
+    visited.add(String(next.id))
+    group.push(next)
+    cap += next.capacity
+  }
+  return cap >= pax ? group : null
+}
+
+/**
+ * Az adott időablakban ténylegesen leültethető LEGNAGYOBB létszám a SZABAD asztalokból:
+ * a legnagyobb szabad egyedi asztal, vagy a legnagyobb szabad, összetolható komponens
+ * összkapacitása. Ez a foglalás-felvevő számlálójának felső korlátja (mennyit lehet még
+ * felvenni erre az időpontra). 0, ha nincs szabad asztal.
+ */
+function maxAllocatableInWindow(free: Table[], allTables: Table[]): number {
+  if (free.length === 0) return 0
+  const freeById = new Map(free.map((t) => [String(t.id), t]))
+  const adj = buildAdjacency(allTables)
+  let max = 0
+  for (const seed of free) {
+    if (seed.capacity > max) max = seed.capacity
+    // A seedből elérhető teljes SZABAD, összefüggő combinable-komponens összkapacitása.
+    const visited = new Set<string>([String(seed.id)])
+    const queue = [seed]
+    let cap = 0
+    while (queue.length) {
+      const t = queue.shift()!
+      cap += t.capacity
+      for (const nid of adj.get(String(t.id)) ?? []) {
+        if (visited.has(nid)) continue
+        const n = freeById.get(nid)
+        if (n) {
+          visited.add(nid)
+          queue.push(n)
+        }
+      }
+    }
+    if (cap > max) max = cap
+  }
+  return max
+}
+
 /** Adott időablakban az ÖSSZES szabad asztal (kapacitás-szűrés nélkül). Egy foglalás kizárható (áthelyezésnél önmaga). */
 function freeTablesInWindow(
   slotStart: number,
@@ -412,7 +485,7 @@ export async function getMoveOptions(params: {
   start_time: string
   pax: number
   excludeReservationId?: string | number
-}): Promise<{ end_time: string; tables: MoveOption[]; suggestedCombo: ComboOption | null }> {
+}): Promise<{ end_time: string; tables: MoveOption[]; suggestedCombo: ComboOption | null; maxPax: number }> {
   const { restaurantId, date, start_time, pax, excludeReservationId } = params
   const payload = await getPayloadClient()
 
@@ -452,6 +525,9 @@ export async function getMoveOptions(params: {
   const allTables = tablesRes.docs as Table[]
   const free = freeTablesInWindow(slotStart, slotEnd, allTables, resRes.docs as Reservation[], excludeReservationId)
 
+  // A számláló felső korlátja: mennyi fér még el (egyedi vagy összevont) erre az időpontra.
+  const maxPax = maxAllocatableInWindow(free, allTables)
+
   const tables: MoveOption[] = free
     .sort((a, b) => a.capacity - b.capacity)
     .map((t) => ({
@@ -476,7 +552,7 @@ export async function getMoveOptions(params: {
     }
   }
 
-  return { end_time, tables, suggestedCombo }
+  return { end_time, tables, suggestedCombo, maxPax }
 }
 
 /**
@@ -561,11 +637,14 @@ export async function validateManualReservation(params: {
   excludeReservationId?: string | number
   /** Egyedi ülésidő (perc). Ha nincs megadva, az étterem alap turnusa (turn_duration_minutes ?? 120). */
   durationMinutes?: number | null
+  /** Drag & drop: ha a ledobott asztal önmagában kicsi, a rendszer megpróbálja a szabad,
+   *  összetolható szomszédokkal kiegészíteni a pax-ig ahelyett, hogy elutasítaná. */
+  autoCombine?: boolean
 }): Promise<
   | { ok: true; tableIds: (number | string)[]; end_time: string }
   | { ok: false; error: string }
 > {
-  const { restaurantId, date, start_time, pax, preferredTableIds, excludeReservationId, durationMinutes } = params
+  const { restaurantId, date, start_time, pax, preferredTableIds, excludeReservationId, durationMinutes, autoCombine } = params
   const payload = await getPayloadClient()
 
   const restaurant = (await payload.findByID({
@@ -624,6 +703,20 @@ export async function validateManualReservation(params: {
     if (wanted.some((t) => !t)) return { ok: false, error: 'A választott asztal nem elérhető' }
     const chosen = wanted as Table[]
     const totalCap = chosen.reduce((s, t) => s + t.capacity, 0)
+
+    // Auto-összevonás (drag & drop): a ledobott asztal önmagában kicsi, de a szabad,
+    // összetolható szomszédokkal kiegészítve elérheti a pax-ot. A seed(ek)nek szabadnak kell lennie.
+    if (totalCap < pax && autoCombine) {
+      const free = freeTablesInWindow(slotStart, slotEnd, allTables, reservations, excludeReservationId)
+      const freeById = new Map(free.map((t) => [String(t.id), t]))
+      const seedFree = chosen.every((t) => freeById.has(String(t.id)))
+      if (seedFree) {
+        const combo = expandFromSeed(chosen, freeById, buildAdjacency(allTables), pax)
+        if (combo) return { ok: true, tableIds: combo.map((t) => t.id), end_time }
+      }
+      return { ok: false, error: `Erre az asztalra max ${totalCap} fő fér — a szabad szomszédokkal sem jön ki ${pax} fő` }
+    }
+
     if (totalCap < pax) return { ok: false, error: `A választott asztal(ok) csak ${totalCap} főre elég(ek)` }
     const free = freeTablesInWindow(slotStart, slotEnd, chosen, reservations, excludeReservationId)
     if (free.length < chosen.length) return { ok: false, error: 'A választott asztal(ok) erre az időpontra már foglaltak' }

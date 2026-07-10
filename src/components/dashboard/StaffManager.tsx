@@ -18,6 +18,7 @@ import { PageHeader } from '@/components/ui/page-header'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { HiringOverlay } from '@/components/dashboard/HiringOverlay'
+import type { Employee } from '@/components/dashboard/HiringView'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 /** Avatar-monogram háttér-gradiensek — determinisztikusan a névből (referencia hangulata). */
@@ -57,6 +58,8 @@ interface Props {
   avgRating?: number | null
   /** staffId → közelgő műszak címkéje (VALÓS, Shifts-ből) vagy hiányzik → „—" */
   upcomingShiftById?: Record<string, string>
+  /** VALÓS munkatárs-adatlap adat (HiringView overlay); ha nincs, a HiringView mock-ot mutat */
+  employees?: Employee[]
 }
 
 /** davelopment stat-csík pill (label felül, érték-pill alul). */
@@ -79,6 +82,7 @@ export default function StaffManager({
   initialStaff,
   supportedLocales,
   upcomingShiftById = {},
+  employees,
 }: Props) {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
@@ -256,6 +260,28 @@ export default function StaffManager({
     }
   }
 
+  // ── Tömeges törlés: a kijelölt munkatársak egyben ──
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  async function confirmBulkDelete() {
+    const ids = Array.from(selected)
+    if (ids.length === 0) { setBulkOpen(false); return }
+    setBulkBusy(true)
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) => fetch(`/api/staff/${id}`, { method: 'DELETE', credentials: 'include' })),
+      )
+      const okIds = ids.filter((id, i) => results[i].status === 'fulfilled' && (results[i] as PromiseFulfilledResult<Response>).value.ok)
+      setStaff((prev) => prev.filter((m) => !okIds.includes(String(m.id))))
+      setSelected(new Set())
+      setBulkOpen(false)
+      if (okIds.length < ids.length) toast.error(`${ids.length - okIds.length} törlése nem sikerült`)
+      else toast.success(`${okIds.length} munkatárs törölve`)
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   // Foglalható-toggle a kártyán: a MEGLÉVŐ is_active mezőt PATCH-eli (nincs séma-változás).
   const toggleActive = async (m: StaffMember) => {
     const next = m.is_active === false
@@ -327,6 +353,7 @@ export default function StaffManager({
         />
         <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <StatusPills
+            eager
             className="flex-1 lg:max-w-[760px]"
             segments={[
               { label: 'Foglalható', pct: utilization, value: activeCount, suffix: ' fő', background: '#1D1C19', color: '#fff' },
@@ -413,10 +440,9 @@ export default function StaffManager({
           <div className="flex flex-wrap items-center gap-2.5">
             <button
               onClick={openAdd}
-              title="Munkatárs hozzáadása"
-              className="flex h-[38px] w-[38px] items-center justify-center rounded-[13px] bg-white shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+              className="flex h-[38px] items-center gap-2 rounded-[18px] bg-ink-dark px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-ink"
             >
-              <Plus className="h-[15px] w-[15px] text-ink" strokeWidth={2} />
+              <Plus className="h-[15px] w-[15px]" strokeWidth={2} /> Új munkatárs
             </button>
             <button
               onClick={() => window.print()}
@@ -424,6 +450,14 @@ export default function StaffManager({
             >
               <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
             </button>
+            {selected.size > 0 && (
+              <button
+                onClick={() => setBulkOpen(true)}
+                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-[#C0392B] px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-[#a93226]"
+              >
+                <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.9} /> Kijelöltek törlése ({selected.size})
+              </button>
+            )}
           </div>
 
           {/* Fejléc-sor (desktop) */}
@@ -569,7 +603,7 @@ export default function StaffManager({
                     <Loader2 className="h-6 w-6 text-zinc-400 animate-spin" />
                   ) : avatarPreview ? (
                     <>
-                      <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover" />
+                      <img src={avatarPreview} alt="Avatar" className="h-full w-full object-cover object-top" />
                       <div className="absolute inset-0 bg-black/30 opacity-0 hover:opacity-100 flex items-center justify-center transition-opacity">
                         <Camera className="h-5 w-5 text-white" />
                       </div>
@@ -619,7 +653,7 @@ export default function StaffManager({
               <span className="relative inline-flex">
                 <input type="checkbox" id="staff_active" className="peer sr-only" {...register('is_active')} />
                 <span className={`h-[26px] w-[46px] rounded-full transition-colors ${activeWatch ? 'bg-ink-dark' : 'bg-line-strong'}`} />
-                <span className={`absolute top-[3px] h-5 w-5 rounded-full transition-all ${activeWatch ? 'left-[23px] bg-gold' : 'left-[3px] bg-white'}`} />
+                <span className={`absolute top-[3px] h-5 w-5 rounded-full bg-white transition-all ${activeWatch ? 'left-[23px]' : 'left-[3px]'}`} />
               </span>
             </label>
             )}
@@ -658,11 +692,24 @@ export default function StaffManager({
         onCancel={() => setDeleteId(null)}
       />
 
+      <ConfirmDialog
+        open={bulkOpen}
+        title="Kijelöltek törlése"
+        description={`Biztosan törlöd a kijelölt ${selected.size} munkatársat? A művelet nem vonható vissza.`}
+        confirmLabel={`Törlés (${selected.size})`}
+        cancelLabel="Mégse"
+        destructive
+        busy={bulkBusy}
+        onConfirm={confirmBulkDelete}
+        onCancel={() => setBulkOpen(false)}
+      />
+
       {/* Munkavállalók-adatlap overlay — a listasorra kattintva nyílik */}
       <HiringOverlay
         open={hiringIndex !== null}
         onClose={() => setHiringIndex(null)}
         variant="salon"
+        employees={employees}
         initialIndex={hiringIndex ?? 0}
       />
     </>

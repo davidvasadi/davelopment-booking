@@ -16,8 +16,11 @@ const schema = z.object({
   customer_name: z.string().min(2),
   customer_email: z.string().email(),
   customer_phone: z.string().optional(),
+  customer_city: z.string().max(120).optional(),
   country: z.string().optional(),
   notes: z.string().optional(),
+  occasion: z.string().max(80).optional(),
+  occasion_icon: z.string().max(40).optional(),
   locale: z.enum(['hu', 'en', 'de', 'es', 'it', 'fr']).default('hu'),
   // Opcionális ismétlődés. Hiánya → PONTOSAN a jelenlegi egyszeri viselkedés.
   repeat: z
@@ -40,7 +43,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, country, notes, locale, repeat } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, country, notes, occasion, occasion_icon, locale, repeat } = parsed.data
 
   try {
     const payload = await getPayloadClient()
@@ -115,14 +118,18 @@ export async function POST(request: NextRequest) {
           customer_name,
           customer_email,
           ...(customer_phone ? { customer_phone } : {}),
+          ...(customer_city ? { customer_city } : {}),
           ...(country ? { country } : {}),
           ...(notes ? { notes } : {}),
+          ...(occasion ? { occasion } : {}),
+          ...(occasion_icon ? { occasion_icon } : {}),
           status: reservationStatus,
           locale,
           cancel_token: randomBytes(24).toString('hex'),
           ...(seriesId ? { series_id: seriesId } : {}),
         },
         overrideAccess: true,
+        context: { auditActor: 'Online foglalás' },
         depth: 1,
       })) as Reservation
       created.push(reservation)

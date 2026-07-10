@@ -4,7 +4,7 @@ import { ArrowUpRight, ChevronDown, type LucideIcon } from 'lucide-react'
  *  ugyanezeket használja (davelopment-design, Crextio bento). */
 
 /** Fehér bento-kártya alap-osztály. */
-export const CARD = 'rounded-[26px] bg-white shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]'
+export const CARD = 'rounded-[26px] bg-[var(--dav-glass-strong)] backdrop-blur-lg shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]'
 
 /** Hero KPI: kis ikon + nagy szám + címke. */
 export function HeroKpi({ icon: Icon, value, label }: { icon: LucideIcon; value: string; label: string }) {

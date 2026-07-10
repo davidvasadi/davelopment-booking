@@ -409,7 +409,7 @@ export function TablesManager({
                 void saveRoomOrder()
               }
             }}
-            className={`rounded-[26px] border border-line bg-white p-4 sm:p-[22px] shadow-dav-card transition-opacity ${
+            className={`rounded-[26px] dav-card-glass p-4 sm:p-[22px] transition-opacity ${
               isDraggingThis ? 'opacity-40' : 'opacity-100'
             }`}
           >

@@ -80,6 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           customer_name: reservation.customer_name,
         },
         overrideAccess: true,
+        context: { auditActor: 'Vendég (értékelés)' },
       })
     } else {
       const salonId = typeof booking!.salon === 'object' ? booking!.salon.id : booking!.salon
@@ -93,6 +94,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           customer_name: booking!.customer_name,
         },
         overrideAccess: true,
+        context: { auditActor: 'Vendég (értékelés)' },
       })
     }
 

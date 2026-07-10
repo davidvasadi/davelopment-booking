@@ -21,6 +21,9 @@ function sizeLabel(m: Media | null): string {
   const kb = m.filesize / 1024
   return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.round(kb)} kb`
 }
+function mediaUrl(m: unknown): string | null {
+  return m && typeof m === 'object' && typeof (m as Media).url === 'string' ? ((m as Media).url as string) : null
+}
 
 export default async function SalonSchedulePage() {
   const { salon } = await getOwnedSalon()
@@ -49,6 +52,7 @@ export default async function SalonSchedulePage() {
     id: String(s.id),
     name: s.name,
     ini: initials(s.name),
+    avatarUrl: mediaUrl(s.avatar),
     role: s.role_title ?? '',
     birthday: s.birthday ? toYmd(s.birthday) : null,
     join_date: s.join_date ? toYmd(s.join_date) : null,
@@ -71,6 +75,8 @@ export default async function SalonSchedulePage() {
     end_time: sh.end_time ?? null,
     hours: typeof sh.hours === 'number' ? sh.hours : null,
     note: sh.note ?? null,
+    left_early_at: sh.left_early_at ?? null,
+    left_early_reason: (sh.left_early_reason ?? null) as 'sick' | 'personal' | null,
   }))
 
   const now = new Date()
@@ -107,7 +113,7 @@ export default async function SalonSchedulePage() {
           <PageHeader eyebrow="Csapat" title="Naptár" />
         </div>
         <div className="mt-0 flex flex-col gap-6 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
-          <StatusPills className="flex-1 lg:max-w-[620px]" segments={pills} />
+          <StatusPills eager className="flex-1 lg:max-w-[620px]" segments={pills} />
           <div className="flex flex-wrap items-start gap-8 lg:gap-10">
             <CountUpKpi icon="users" value={staff.length} label="Csapattag" />
             <CountUpKpi icon="clock" value={workedHours} label="Ledolgozott óra (hó)" />

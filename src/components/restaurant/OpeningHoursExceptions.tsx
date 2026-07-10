@@ -269,7 +269,7 @@ export function OpeningHoursExceptions({
     selectDay(new Date(dateStr + 'T00:00:00'))
   }
 
-  const card = 'bg-white border border-line shadow-dav-card rounded-[26px]'
+  const card = 'dav-card-glass rounded-[26px]'
 
   const MONTH_ABBR = ['JAN', 'FEB', 'MÁR', 'ÁPR', 'MÁJ', 'JÚN', 'JÚL', 'AUG', 'SZEP', 'OKT', 'NOV', 'DEC']
 

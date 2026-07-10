@@ -18,7 +18,9 @@ type Tab = 'today' | 'tomorrow' | 'yesterday'
 const EASE = [0.22, 1, 0.36, 1] as const
 const ROW_ICONS: LucideIcon[] = [Monitor, Zap, MessageSquare, Ruler, Link2]
 
-export function OverviewTasksPanel({ restaurantId, initial }: { restaurantId: string; initial: Task[] }) {
+export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaurantId?: string; salonId?: string; initial: Task[] }) {
+  // Az üzlet-scope: étterem VAGY szalon (a /api/tasks mindkettőt kezeli).
+  const scope = restaurantId ? { restaurantId } : { salonId }
   const [tasks, setTasks] = useState<Task[]>(initial)
   const [tab, setTab] = useState<Tab>('today')
   const [title, setTitle] = useState('')
@@ -27,13 +29,15 @@ export function OverviewTasksPanel({ restaurantId, initial }: { restaurantId: st
   const [busy, setBusy] = useState<string | null>(null)
 
   // A teendőket a lejárati dátum szerint 3 kosárba soroljuk: MAI / HOLNAPI (a maradék) / TEGNAPI.
-  // due_date nélküli teendő = MAI. A nap-határt helyi időben számoljuk.
+  // due_date nélküli teendő = a LÉTREHOZÁS napja (createdAt) — így nem ragad örökre „mai"-ban,
+  // hanem a naptárral együtt öregszik. A nap-határt helyi időben számoljuk.
   const dayStart = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x.getTime() }
   const DAY = 86_400_000
   const todayStart = dayStart(new Date())
   const bucketOf = (t: Task): Tab => {
-    if (!t.due_date) return 'today'
-    const d = dayStart(new Date(t.due_date))
+    const ref = t.due_date ?? t.createdAt
+    if (!ref) return 'today'
+    const d = dayStart(new Date(ref))
     if (d <= todayStart - DAY) return 'yesterday' // tegnap és korábbi
     if (d === todayStart) return 'today'
     return 'tomorrow' // holnap és minden későbbi = a maradék
@@ -64,7 +68,7 @@ export function OverviewTasksPanel({ restaurantId, initial }: { restaurantId: st
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ restaurantId, title: t, due_date: dueForTab(tab) }),
+        body: JSON.stringify({ ...scope, title: t, due_date: dueForTab(tab) }),
       })
       const data = (await res.json().catch(() => null)) as { task?: Task; error?: string } | null
       if (!res.ok || !data?.task) throw new Error(data?.error ?? 'hiba')
@@ -106,7 +110,7 @@ export function OverviewTasksPanel({ restaurantId, initial }: { restaurantId: st
   ]
 
   return (
-    <div className="flex h-full flex-col rounded-[26px] bg-white p-[18px] shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]">
+    <div className="flex h-full flex-col rounded-[26px] bg-[var(--dav-glass-strong)] backdrop-blur-lg p-[18px] shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]">
       {/* Fejléc: cím + nagy % (kész arány) */}
       <div className="flex items-center justify-between px-1">
         <div className="text-[19px] font-medium text-ink">Teendők</div>

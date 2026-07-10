@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bell, Users, Star, Repeat, Check, type LucideIcon } from 'lucide-react'
+import { Bell, Users, Star, Repeat, Check, ChevronDown, ExternalLink, type LucideIcon } from 'lucide-react'
 
 /**
  * FOGLALÁSI FUNKCIÓK — kapcsolható modulok (Crextio design, 1:1 a
@@ -26,6 +26,8 @@ export type FeatureModules = {
   waitlist_on: boolean; waitlist_auto_promote: boolean
   recurring_on: boolean
   reviews_on: boolean
+  /** Ha megadva, a visszajelzés-email a Google értékelő-oldalra visz (különben belső /review). */
+  google_review_url?: string | null
 }
 
 const EASE = [0.22, 1, 0.36, 1] as const
@@ -152,7 +154,7 @@ type Feats = {
   reminders: { on: boolean; times: { h24: boolean; h3: boolean; h1: boolean }; channels: { email: boolean; push: boolean } }
   waitlist: { on: boolean; autoPromote: boolean }
   recurring: { on: boolean; freq: 'weekly' | 'biweekly' | 'monthly' }
-  reviews: { on: boolean; delay: 'h1' | 'h2' | 'next' }
+  reviews: { on: boolean; delay: 'h1' | 'h2' | 'next'; googleUrl: string }
 }
 
 function featsFrom(fm: FeatureModules): Feats {
@@ -165,7 +167,7 @@ function featsFrom(fm: FeatureModules): Feats {
     waitlist: { on: fm.waitlist_on, autoPromote: fm.waitlist_auto_promote },
     // freq/delay-nek nincs séma-mezője → lokális UI-state alapérték.
     recurring: { on: fm.recurring_on, freq: 'weekly' },
-    reviews: { on: fm.reviews_on, delay: 'h2' },
+    reviews: { on: fm.reviews_on, delay: 'h2', googleUrl: fm.google_review_url ?? '' },
   }
 }
 
@@ -181,6 +183,7 @@ function featsToModules(f: Feats): FeatureModules {
     waitlist_auto_promote: f.waitlist.autoPromote,
     recurring_on: f.recurring.on,
     reviews_on: f.reviews.on,
+    google_review_url: f.reviews.googleUrl.trim() || null,
   }
 }
 
@@ -188,12 +191,16 @@ export function BookingFeatures({
   variant,
   apiBase,
   initial,
+  embedded = false,
 }: {
   variant: Variant
   /** VALÓS mentés végpont: `/api/salons/${id}` vagy `/api/restaurants/${id}`. */
   apiBase?: string
   /** `feature_modules` kezdőérték; ha nincs, alapértelmezett (mentés csak apiBase-szel). */
   initial?: FeatureModules
+  /** Beágyazott mód (Beállítások-panel): nincs saját nagy fejléc + külső padding —
+   *  a szekció-cím a HUB-ból jön, csak a modul-kártyák + egy finom „Mentve ✓" látszik. */
+  embedded?: boolean
 }) {
   const router = useRouter()
   const [feats, setFeats] = useState<Feats>(
@@ -201,10 +208,17 @@ export function BookingFeatures({
       reminders: { on: true, times: { h24: true, h3: true, h1: false }, channels: { email: true, push: false } },
       waitlist: { on: true, autoPromote: true },
       recurring: { on: true, freq: 'weekly' },
-      reviews: { on: true, delay: 'h2' },
+      reviews: { on: true, delay: 'h2', googleUrl: '' },
     },
   )
   const [saved, setSaved] = useState(false)
+  // A Google-link szöveges mező draftja — csak blur-kor (nem minden leütésre) mentünk.
+  const [googleUrlDraft, setGoogleUrlDraft] = useState(feats.reviews.googleUrl)
+  const [googleHelpOpen, setGoogleHelpOpen] = useState(false)
+  // Halk visszajelzés: Google-linknek tűnik-e? Elfogadjuk a rövid `g.page/…/review`-t, a
+  // `writereview` linket, ÉS a sima Google Kereső/Maps üzlet-linket is (amit a „Vélemény írása"
+  // után a címsorból másolnak) — ezek mind az adott üzlethez viszik a vendéget.
+  const looksLikeGoogleReview = /(g\.page\/r\/|\/local\/writereview|maps\.app\.goo\.gl|goo\.gl\/maps|google\.[a-z.]+\/(search|maps)|g\.co\/)/i.test(googleUrlDraft.trim())
 
   // AUTO-SAVE: minden toggle-váltás után PATCH-eli a `feature_modules` groupot.
   const update = (mutator: (f: Feats) => Feats) => {
@@ -233,32 +247,52 @@ export function BookingFeatures({
   const visitWord = isSalon ? 'kezelés' : 'látogatás'
 
   return (
-    <div className="space-y-6 p-5 font-onest lg:p-0">
-      {/* ── Fejléc ── */}
-      <div className="rounded-[26px] bg-white p-6 shadow-dav-card lg:p-7">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-[32px] font-light leading-[1.1] tracking-[-0.02em] text-ink lg:text-[42px]">
-              Foglalási funkciók
-            </h1>
-            <p className="mt-2 max-w-lg text-[13px] leading-relaxed text-ink-soft lg:text-sm">
-              Emlékeztetők, várólista, értékelések és több — kapcsolható modulok.
-            </p>
+    <div className={embedded ? 'space-y-4 font-onest' : 'space-y-6 p-5 font-onest lg:p-0'}>
+      {/* ── Fejléc (csak önálló oldalon; beágyazva a HUB adja a címet) ── */}
+      {!embedded && (
+        <div className="rounded-[26px] bg-white p-6 shadow-dav-card lg:p-7">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-[32px] font-light leading-[1.1] tracking-[-0.02em] text-ink lg:text-[42px]">
+                Foglalási funkciók
+              </h1>
+              <p className="mt-2 max-w-lg text-[13px] leading-relaxed text-ink-soft lg:text-sm">
+                Emlékeztetők, várólista, értékelések és több — kapcsolható modulok.
+              </p>
+            </div>
+            <AnimatePresence>
+              {saved && (
+                <motion.span
+                  initial={{ opacity: 0, y: -4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#2E9E63]"
+                >
+                  <Check className="h-4 w-4" strokeWidth={2.2} /> Mentve
+                </motion.span>
+              )}
+            </AnimatePresence>
           </div>
+        </div>
+      )}
+
+      {/* Beágyazott módban finom mentés-visszajelzés a kártyák felett. */}
+      {embedded && (
+        <div className="flex h-5 items-center justify-end">
           <AnimatePresence>
             {saved && (
               <motion.span
                 initial={{ opacity: 0, y: -4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
-                className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#2E9E63]"
+                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2E9E63]"
               >
                 <Check className="h-4 w-4" strokeWidth={2.2} /> Mentve
               </motion.span>
             )}
           </AnimatePresence>
         </div>
-      </div>
+      )}
 
       <div className="grid grid-cols-1 items-start gap-4">
         {/* ── Automata emlékeztetők ── */}
@@ -385,6 +419,93 @@ export function BookingFeatures({
                 {l}
               </Chip>
             ))}
+          </div>
+
+          {/* Google értékelés link — ha kitöltve, a visszajelzés-email a Google-re visz (különben belső /review). */}
+          <div className="mt-4 space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <GroupLabel>Google értékelés link</GroupLabel>
+              <button
+                type="button"
+                onClick={() => setGoogleHelpOpen((o) => !o)}
+                className="inline-flex items-center gap-1 text-[12px] font-semibold text-ink-soft transition-colors hover:text-ink"
+              >
+                Hogyan találom meg?
+                <ChevronDown className={`h-3.5 w-3.5 transition-transform ${googleHelpOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
+              </button>
+            </div>
+            <input
+              type="url"
+              inputMode="url"
+              value={googleUrlDraft}
+              onChange={(e) => setGoogleUrlDraft(e.target.value)}
+              onBlur={() => {
+                const v = googleUrlDraft.trim()
+                if (v !== feats.reviews.googleUrl) update((f) => ({ ...f, reviews: { ...f.reviews, googleUrl: v } }))
+              }}
+              placeholder="https://g.page/r/…/review"
+              className="h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink placeholder:text-ink-soft2/60 outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25"
+            />
+
+            {/* Halk visszajelzés: jó linknek tűnik-e (csak ha van beírva valami) */}
+            {googleUrlDraft.trim() !== '' && (
+              looksLikeGoogleReview ? (
+                <p className="inline-flex items-center gap-1 text-[12px] font-medium text-ok">
+                  <Check className="h-3.5 w-3.5" strokeWidth={2.4} /> Ez Google értékelés-linknek tűnik.
+                </p>
+              ) : (
+                <p className="text-[12px] font-medium text-warn">
+                  Ez nem úgy néz ki, mint egy Google értékelés-link. Nézd meg a „Hogyan találom meg?" lépéseket.
+                </p>
+              )
+            )}
+
+            {/* Súgó — hogyan szerzi meg a linket (lépések + közvetlen Cégprofil-link) */}
+            <AnimatePresence initial={false}>
+              {googleHelpOpen && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-1 rounded-[14px] border border-line bg-paper/50 p-4">
+                    <ol className="space-y-2 text-[12.5px] leading-relaxed text-ink-soft">
+                      <li>
+                        <b className="font-semibold text-ink">1.</b>{' '}
+                        <b className="font-semibold text-ink">Keresd rá az üzleted nevére a Google-ban.</b>
+                      </li>
+                      <li>
+                        <b className="font-semibold text-ink">2.</b> A „Vélemények" résznél kattints a{' '}
+                        <b className="font-semibold text-ink">„+ Vélemény írása"</b> gombra — megnyílik a csillagozó ablak.
+                      </li>
+                      <li>
+                        <b className="font-semibold text-ink">3.</b> Másold ki a böngésző{' '}
+                        <b className="font-semibold text-ink">címsorából a linket</b>, és illeszd be ide.
+                      </li>
+                    </ol>
+                    <p className="mt-2.5 text-[11.5px] leading-relaxed text-ink-soft2">
+                      Még tisztább link (a vendégnek egy kattintás): a Cégprofil <b className="font-medium text-ink-soft">„Értékelések kérése"</b> kártyája ad egy rövid{' '}
+                      <span className="rounded bg-white px-1 py-0.5 font-mono text-[11px] text-ink">g.page/…/review</span> linket.
+                    </p>
+                    <a
+                      href="https://support.google.com/business/answer/3474122"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-ink-dark px-3.5 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
+                    >
+                      Google súgó: értékelések kérése
+                      <ExternalLink className="h-3.5 w-3.5 text-gold" strokeWidth={2} />
+                    </a>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <p className="text-[12px] leading-relaxed text-ink-soft">
+              Ha megadod, a visszajelzés-email a <b className="font-semibold text-ink-soft">Google csillagozó-oldalára</b> visz; üresen a belső értékelés marad.
+            </p>
           </div>
         </ModuleCard>
       </div>

@@ -3,6 +3,7 @@ import { ChevronLeft } from 'lucide-react'
 import { getPayloadClient } from '@/lib/payload'
 import { RestaurantBookingWizard } from '@/components/restaurant/RestaurantBookingWizard'
 import { getMaxPax } from '@/lib/restaurantBooking'
+import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import type { Restaurant } from '@/payload/payload-types'
 import { t, resolveAvailableLocales, type Locale } from '@/lib/i18n'
 
@@ -34,6 +35,15 @@ export async function RestaurantBookView({ slug, requested = 'hu' }: { slug: str
 
   const maxPax = await getMaxPax(restaurant.id)
 
+  // Esemény-típusok a foglalóhoz: a tulaj engedélyezett (enabled) típusai a foglaló nyelvén.
+  // Ha még nincs beállítva egy sem (régi étterem / üres), az alapkészletet mutatjuk.
+  const enabledEvents = (restaurant.event_types ?? [])
+    .filter((e) => e?.enabled !== false && e?.label)
+    .map((e) => ({ icon: e.icon ?? 'party', label: e.label as string }))
+  const eventTypes = enabledEvents.length > 0
+    ? enabledEvents
+    : DEFAULT_EVENT_TYPES.map((e) => ({ icon: e.icon, label: e.label }))
+
   return (
     <main className="min-h-screen bg-zinc-50">
       <div className="max-w-lg mx-auto px-6 py-8">
@@ -52,6 +62,7 @@ export async function RestaurantBookView({ slug, requested = 'hu' }: { slug: str
           requirePhone={restaurant.require_phone ?? true}
           maxPax={maxPax || 20}
           bookingWindowDays={restaurant.booking_window_days ?? 60}
+          eventTypes={eventTypes}
           locale={locale}
           termsSections={restaurant.terms_sections}
           company={{

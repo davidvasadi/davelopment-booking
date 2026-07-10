@@ -43,6 +43,7 @@ export async function GET(
       id: booking.id,
       data: { status: 'cancelled' },
       overrideAccess: true,
+      context: { auditActor: 'Vendég (lemondás)' },
     })
 
     const [salon, service, staff] = await Promise.all([
@@ -75,7 +76,7 @@ export async function GET(
         overrideAccess: true,
       })
       for (const sib of siblings.docs as Booking[]) {
-        await payload.update({ collection: 'bookings', id: sib.id, data: { status: 'cancelled' }, overrideAccess: true })
+        await payload.update({ collection: 'bookings', id: sib.id, data: { status: 'cancelled' }, overrideAccess: true, context: { auditActor: 'Vendég (lemondás)' } })
         if (salon.notification_prefs?.cancel_email !== false) {
           void sendCancellationEmail({ booking: { ...sib, status: 'cancelled' }, salon, service, staff })
         }

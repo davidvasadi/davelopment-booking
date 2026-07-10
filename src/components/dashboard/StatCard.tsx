@@ -97,7 +97,7 @@ export function StatCard({ sub, label, value, diff, pct, icon: Icon, tint, onCli
   )
 
   const cardClass =
-    'rounded-[22px] p-5 lg:p-6 bg-white border border-line shadow-dav-card'
+    'rounded-[22px] p-5 lg:p-6 dav-card-glass'
 
   if (onClick) {
     return (

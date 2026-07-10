@@ -37,6 +37,7 @@ export default async function SalonGuestsPage() {
     email: b.customer_email,
     phone: b.customer_phone,
     date: b.date,
+    city: b.customer_city,
     status: b.status,
     time: b.start_time,
     svcName: serviceName(b.service),
@@ -112,14 +113,24 @@ export default async function SalonGuestsPage() {
     favFor: (_g, own) => favService(own),
     rowsFor: (_g, { past, upcoming }) => {
       const pastSpend = past.reduce((a, s) => a + priceOf(s), 0)
+      const note = latestNote([...past, ...upcoming])
       return [
         { label: 'Látogatás', value: String(past.length) },
         { label: 'Összes költés eddig', value: pastSpend > 0 ? fmtHuf(pastSpend) : '—' },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} foglalás` : '—' },
         { label: 'Kedvenc', value: favService([...past, ...upcoming]) },
+        ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
       ]
     },
     noteFor: (own) => ({ guest: latestNote(own), internal: null }),
+    historyDetailFor: (s) => {
+      const src = s as Src
+      const rows: Array<{ label: string; value: string }> = []
+      if (src.time) rows.push({ label: 'Időpont', value: src.time.slice(0, 5) })
+      if (src.svcName) rows.push({ label: 'Szolgáltatás', value: src.svcName })
+      if (typeof src.price === 'number') rows.push({ label: 'Ár', value: fmtHuf(src.price) })
+      return { rows, note: src.note?.trim() || null }
+    },
     blockedFor: (g) => !!custFor(g)?.blocked,
     blockReasonFor: (g) => custFor(g)?.block_reason ?? null,
   })

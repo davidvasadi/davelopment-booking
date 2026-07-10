@@ -7,7 +7,7 @@ import { Check, Loader2, AlertCircle, Users } from 'lucide-react'
 
 type Phase = 'loading' | 'ready' | 'submitting' | 'done' | 'already' | 'invalid' | 'error' | 'needsAuth' | 'mismatch'
 
-const ROLE_LABEL: Record<string, string> = { owner: 'Tulajdonos', manager: 'Menedzser', staff: 'Munkatárs' }
+const ROLE_LABEL: Record<string, string> = { owner: 'Tulajdonos', manager: 'Vezető', staff: 'Dolgozó' }
 
 export default function TeamAcceptPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
@@ -20,6 +20,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
   const [regPassword, setRegPassword] = useState('')
   const [regBusy, setRegBusy] = useState(false)
   const [regError, setRegError] = useState('')
+  const [logoutBusy, setLogoutBusy] = useState(false)
 
   const homeFor = (t?: 'salon' | 'restaurant') => (t === 'restaurant' ? '/restaurant' : '/dashboard')
 
@@ -62,6 +63,18 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
       setTimeout(() => router.push(homeFor(info.type)), 1200)
     } catch {
       setPhase('ready')
+    }
+  }
+
+  // Más fiókkal vagy bejelentkezve: kijelentkezés → újrapróba. Így a meghívott emailhez
+  // regisztráció (needsAuth) vagy bejelentkezés következik — nem ragad be a „nem jó fiók".
+  const logoutAndContinue = async () => {
+    setLogoutBusy(true)
+    try {
+      await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' }).catch(() => {})
+      await accept()
+    } finally {
+      setLogoutBusy(false)
     }
   }
 
@@ -195,8 +208,23 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
             <div className="inline-flex h-16 w-16 rounded-full bg-red-500/10 items-center justify-center mb-6">
               <AlertCircle className="h-8 w-8 text-red-500" />
             </div>
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">Nem a megfelelő fiók</h1>
-            <p className="text-zinc-500 dark:text-white/50">{errorMsg || 'Ez a meghívó egy másik email címre szól.'}</p>
+            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">Másik fiókkal vagy bejelentkezve</h1>
+            <p className="text-zinc-500 dark:text-white/50 mb-6">
+              A meghívó a(z) <b className="text-zinc-900 dark:text-white">{info.email}</b> címre szól. Jelentkezz ki a mostani fiókodból, és folytasd ezzel az emaillel.
+            </p>
+            <button
+              onClick={logoutAndContinue}
+              disabled={logoutBusy}
+              className="inline-flex h-12 w-full px-8 rounded-full bg-zinc-900 dark:bg-white hover:opacity-90 text-white dark:text-zinc-900 font-semibold text-sm transition items-center justify-center gap-2 disabled:opacity-60"
+            >
+              {logoutBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Kijelentkezés és folytatás'}
+            </button>
+            <p className="mt-4 text-sm text-zinc-400">
+              Van már fiókod ezzel az emaillel?{' '}
+              <Link href={`/login?redirect=/team/accept/${token}`} className="font-semibold text-zinc-700 dark:text-white/80 hover:underline">
+                Bejelentkezés
+              </Link>
+            </p>
           </>
         )}
 

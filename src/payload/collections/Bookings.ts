@@ -81,6 +81,12 @@ export const Bookings: CollectionConfig = {
       admin: { description: 'Kötelezőségét a szalon „Telefonszám kötelező" beállítása vezérli a foglaló oldalon.' },
     },
     {
+      name: 'customer_city',
+      type: 'text',
+      label: 'Ügyfél városa',
+      admin: { description: 'Opcionális — a vendég a foglalónál adja meg (vendég-analitika / térkép).' },
+    },
+    {
       name: 'date',
       type: 'text',
       required: true,

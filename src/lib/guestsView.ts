@@ -5,7 +5,7 @@
  */
 
 import { createHash } from 'crypto'
-import { monogram, flagEmoji, TIER_LABEL, guestKeyOf, isRealGuest, type Guest, type GuestSource, type CountryBucket } from '@/lib/guests'
+import { monogram, flagEmoji, TIER_LABEL, guestKeyOf, isRealGuest, displayName, type Guest, type GuestSource, type CountryBucket } from '@/lib/guests'
 import { isoFromPhone } from '@/lib/phoneCountry'
 import { ISO2_TO_CAPITAL } from '@/lib/geoLookup'
 import type { StatusSeg } from '@/components/dashboard/StatusPills'
@@ -136,7 +136,7 @@ export interface BuildOptions {
   favFor?: (guest: Guest, own: GuestSource[]) => string
   /** Profil-adatsorok (Látogatások, Összes létszám/költés, Közelgő, Kedvenc). */
   rowsFor?: (guest: Guest, split: GuestSplit) => Array<{ label: string; value: string }>
-  /** Szülinapos foglalás dátuma (a legutóbbi is_birthday foglalásból), vagy null. */
+  /** Alkalmas foglalás dátuma (a legutóbbi occasion-nel jelölt foglalásból), vagy null. */
   birthdayDateFor?: (own: GuestSource[]) => string | null
   /** Vendég- és belső megjegyzés (a legfrissebb nem-üres a foglalásokból). */
   noteFor?: (own: GuestSource[]) => { guest: string | null; internal: string | null }
@@ -144,6 +144,8 @@ export interface BuildOptions {
   blockedFor?: (guest: Guest) => boolean
   /** Tiltás indoka (a Customers-rekordból), ha van. */
   blockReasonFor?: (guest: Guest) => string | null
+  /** Egy múltbeli foglalás kibontható részletei (idő, asztal, létszám, státusz…) + jegyzet. */
+  historyDetailFor?: (s: GuestSource) => { rows: Array<{ label: string; value: string }>; note?: string | null }
 }
 
 export function buildGuestVMs(guests: Guest[], sources: GuestSource[], opts: BuildOptions = {}): GuestVM[] {
@@ -153,15 +155,22 @@ export function buildGuestVMs(guests: Guest[], sources: GuestSource[], opts: Bui
     const own = sources.filter((s) => matchKey(s) === g.key && s.status !== 'cancelled' && s.status !== 'no_show')
     const past = own.filter((s) => (s.date ?? '') <= today)
     const upcoming = own.filter((s) => (s.date ?? '') > today)
-    const history: GuestHistoryVM[] = past
-      .filter((s) => s.date)
+    // Látogatási ELŐZMÉNYEK = szigorúan a mai nap ELŐTTI látogatások. A mai (aktuális) és a
+    // közelgő foglalás NEM „előzmény" — így egy először, ma érkező vendég nem kap history-sort.
+    const history: GuestHistoryVM[] = own
+      .filter((s) => s.date && (s.date as string) < today)
       .sort((a, b) => (b.date as string).localeCompare(a.date as string))
       .slice(0, 5)
-      .map((s) => ({
-        d: shortDate(s.date ?? null),
-        w: opts.labelFor ? opts.labelFor(s) : 'Foglalás',
-        a: (opts.amountFor && opts.amountFor(s)) || '',
-      }))
+      .map((s) => {
+        const detail = opts.historyDetailFor ? opts.historyDetailFor(s) : null
+        return {
+          d: shortDate(s.date ?? null),
+          w: opts.labelFor ? opts.labelFor(s) : 'Foglalás',
+          a: (opts.amountFor && opts.amountFor(s)) || '',
+          details: detail?.rows,
+          note: detail?.note ?? null,
+        }
+      })
 
     const fav = opts.favFor ? opts.favFor(g, own) : '—'
     const rows = opts.rowsFor
@@ -178,6 +187,7 @@ export function buildGuestVMs(guests: Guest[], sources: GuestSource[], opts: Bui
       avText: av.fg,
       avatarUrl: gravatarUrl(g.email),
       tier: g.tier,
+      country: g.country?.trim().toUpperCase() || isoFromPhone(g.phone) || null,
       phone: g.phone,
       email: g.email,
       since: sinceYear(g, sources),
@@ -234,12 +244,14 @@ export function buildArrivals(
       const av = avatarFor(guestKey || s.name || String(i))
       // Ország: az étteremnél az explicit mező, egyébként (szalon is) a telefonból.
       const iso = s.country?.trim().toUpperCase() || isoFromPhone(s.phone) || null
-      const city = opts.cityFor ? opts.cityFor(s) : iso ? (ISO2_TO_CAPITAL[iso]?.city ?? null) : null
+      // A vendég által beírt város (ha van) előnyt élvez; egyébként az ország fővárosa a fallback.
+      const city = opts.cityFor ? opts.cityFor(s) : (s.city?.trim() || (iso ? (ISO2_TO_CAPITAL[iso]?.city ?? null) : null))
+      const shownName = g?.name ?? displayName(s)
       return {
         key: `${guestKey}-${i}`,
         guestKey,
-        name: g?.name ?? s.name,
-        ini: monogram(g?.name ?? s.name),
+        name: shownName,
+        ini: monogram(shownName),
         av: av.bg,
         avText: av.fg,
         avatarUrl: gravatarUrl(g?.email ?? s.email),

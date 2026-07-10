@@ -10,7 +10,7 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Plus, Trash2, Loader2, X, Search, Download, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, Loader2, X, Search, Download, ChevronDown, Check } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,21 +18,35 @@ import { PageHeader } from '@/components/ui/page-header'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { HiringOverlay } from '@/components/dashboard/HiringOverlay'
+import type { Employee } from '@/components/dashboard/HiringView'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export interface TeamCard {
   id: string | null // membership id; a tulaj-sornak null (nem kezelhető)
   name: string
   email: string
+  avatarUrl?: string | null // valós profilkép (media / Google avatar); null → monogram
   roleTone: 'owner' | 'manager' | 'staff'
   pending: boolean
+  status: 'active' | 'invited' | 'suspended'
   joinDate: string | null
+}
+
+/** Felfüggesztett sávozott (hatch) minta — a pill ÉS az EGÉSZ SOR is ezt kapja (mint a kijelölés-sárga, csak szaggatva). */
+const SUSPEND_HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.6), rgba(255,255,255,.6) 7px, rgba(190,180,140,.16) 7px, rgba(190,180,140,.16) 14px)'
+
+/** Státusz-pill kinézete. A FELFÜGGESZTETT sávozott + halványabb. */
+function statusPill(status: TeamCard['status']): { label: string; bg: string; color: string; border?: string; dot: string } {
+  if (status === 'suspended')
+    return { label: 'Felfüggesztett', bg: SUSPEND_HATCH, color: '#8A8779', border: '1px solid var(--dav-line)', dot: '#B7B2A4' }
+  if (status === 'invited') return { label: 'Függő', bg: '#FBEFC4', color: '#9A7B1E', dot: '#C9A227' }
+  return { label: 'Aktív', bg: '#E7F1E9', color: '#3B6B4B', dot: '#4F9E6A' }
 }
 
 const ROLE_LABEL: Record<'owner' | 'manager' | 'staff', string> = {
   owner: 'Tulajdonos',
-  manager: 'Menedzser',
-  staff: 'Munkatárs',
+  manager: 'Vezető',
+  staff: 'Dolgozó',
 }
 
 const AVATAR_GRADIENTS = [
@@ -53,17 +67,25 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-export default function RestaurantTeamManager({ initialTeam }: { initialTeam: TeamCard[] }) {
+export default function RestaurantTeamManager({ initialTeam, employees, positions = [], canManage = false, canEditSalary = false }: { initialTeam: TeamCard[]; employees?: Employee[]; positions?: { label: string; level: 'lead' | 'staff' }[]; canManage?: boolean; canEditSalary?: boolean }) {
   const [team, setTeam] = useState<TeamCard[]>(initialTeam)
+  // A roster (adatlap-adatok) helyi state — profil-szerkesztés után újranyitáskor is friss.
+  const [roster, setRoster] = useState<Employee[]>(employees ?? [])
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<'owner' | 'manager' | 'staff'>('staff')
+  const [category, setCategory] = useState('')
+  const [posts, setPosts] = useState<{ label: string; level: 'lead' | 'staff' }[]>(positions)
+  const [addingPost, setAddingPost] = useState(false)
+  const [newPost, setNewPost] = useState('')
+  const [newLevel, setNewLevel] = useState<'lead' | 'staff'>('staff')
   const [submitting, setSubmitting] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending'>('all')
   const [roleFilter, setRoleFilter] = useState<'all' | 'owner' | 'manager' | 'staff'>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Melyik tag státusz-menüje van nyitva (választás, nem instant-toggle → nem lehet elütni).
+  const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null)
   // Sorra kattintva nyílik a Munkavállalók-adatlap overlay (a kattintott sor indexével előre-kiválasztva).
   const [hiringIndex, setHiringIndex] = useState<number | null>(null)
 
@@ -105,20 +127,23 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
     }
     setSubmitting(true)
     try {
+      // A jogosultság a kiválasztott kategória szintjéből jön (Vezető→manager, Dolgozó→staff).
+      const cat = posts.find((p) => p.label === category)
+      const derivedRole: 'manager' | 'staff' = cat?.level === 'lead' ? 'manager' : 'staff'
       const res = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: em, role }),
+        body: JSON.stringify({ email: em, role: derivedRole, position: category || undefined }),
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error || 'Hiba')
       }
-      setTeam((prev) => [...prev, { id: `tmp-${em}`, name: em, email: em, roleTone: role, pending: true, joinDate: null }])
+      setTeam((prev) => [...prev, { id: `tmp-${em}`, name: em, email: em, roleTone: derivedRole, pending: true, status: 'invited', joinDate: null }])
       setOpen(false)
       setEmail('')
-      setRole('staff')
+      setCategory('')
       toast.success('Meghívó elküldve')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'A meghívás sikertelen')
@@ -147,6 +172,64 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
     }
   }
 
+  // Státusz-váltás (aktív ↔ felfüggesztett) — tulaj/vezető. A felfüggesztett tag kiesik a rendszerből.
+  async function changeStatus(m: TeamCard, status: 'active' | 'suspended') {
+    if (!m.id || m.id.startsWith('tmp-')) return
+    setBusyId(m.id)
+    try {
+      const res = await fetch(`/api/team/members/${m.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) throw new Error()
+      const today = new Date().toISOString().slice(0, 10)
+      setTeam((prev) => prev.map((x) => (x.id === m.id ? { ...x, status, pending: false } : x)))
+      setRoster((prev) => prev.map((e) => (e.id === m.id ? { ...e, status, hr: { ...e.hr, suspended_at: status === 'suspended' ? today : null } } : e)))
+      toast.success(status === 'suspended' ? 'Felfüggesztve' : 'Visszaállítva aktívra')
+    } catch {
+      toast.error('A státusz módosítása sikertelen')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  // ── Tömeges eltávolítás: a kijelölt tagok egyben (a tulaj-sor 'owner' + optimista 'tmp-' kihagyva). ──
+  const [bulkOpen, setBulkOpen] = useState(false)
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const removableSelected = Array.from(selected).filter((id) => id !== 'owner' && !id.startsWith('tmp-'))
+  // Kijelölhető (nem-tulaj, valós) tagok kulcsai — a „mind kijelölése" ezekkel dolgozik.
+  const selectableKeys = filtered
+    .filter((m) => m.roleTone !== 'owner' && m.id && !m.id.startsWith('tmp-'))
+    .map((m) => m.id as string)
+  const allSelected = selectableKeys.length > 0 && selectableKeys.every((k) => selected.has(k))
+  const toggleSelectAll = () =>
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (selectableKeys.length > 0 && selectableKeys.every((k) => prev.has(k))) selectableKeys.forEach((k) => next.delete(k))
+      else selectableKeys.forEach((k) => next.add(k))
+      return next
+    })
+  async function confirmBulkDelete() {
+    const ids = removableSelected
+    if (ids.length === 0) { setBulkOpen(false); setSelected(new Set()); return }
+    setBulkBusy(true)
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) => fetch(`/api/team/members/${id}`, { method: 'DELETE', credentials: 'include' })),
+      )
+      const okIds = ids.filter((id, i) => results[i].status === 'fulfilled' && (results[i] as PromiseFulfilledResult<Response>).value.ok)
+      setTeam((prev) => prev.filter((x) => !(x.id && okIds.includes(x.id))))
+      setSelected(new Set())
+      setBulkOpen(false)
+      if (okIds.length < ids.length) toast.error(`${ids.length - okIds.length} eltávolítása nem sikerült`)
+      else toast.success(`${okIds.length} tag eltávolítva`)
+    } finally {
+      setBulkBusy(false)
+    }
+  }
+
   return (
     <>
       {/* ── HEADER: cím felül → alatta a TELJES-SZÉLESSÉGŰ státusz-csík (bal) + 3 nagy szám (jobb) — 1:1 az Áttekintésről ── */}
@@ -158,6 +241,7 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
         />
         <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <StatusPills
+            eager
             className="flex-1 lg:max-w-[760px]"
             segments={[
               { label: 'Tulajdonos', pct: ownerPct, value: ownerNum, suffix: ' fő', background: '#1D1C19', color: '#fff' },
@@ -175,7 +259,7 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
 
       {/* ── MAPPA-FÜL kártya (davelopment App): NORMÁL folyású fül + szűrők + kereső + homorú notch-ív ── */}
       <div className="relative">
-        <div className="relative z-10 flex h-[48px] w-full max-w-[600px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6">
+        <div className="relative z-10 flex h-[48px] w-full max-w-[600px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6 print:hidden">
           {/* Szűrő: állapot */}
           <div className="relative shrink-0">
             <select
@@ -198,8 +282,8 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
             >
               <option value="all">Minden szerep</option>
               <option value="owner">Tulajdonos</option>
-              <option value="manager">Menedzser</option>
-              <option value="staff">Pincér</option>
+              <option value="manager">Vezető</option>
+              <option value="staff">Dolgozó</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
@@ -220,13 +304,12 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
         </div>
 
         <div className="rounded-b-[28px] rounded-tr-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
-          <div className="flex flex-wrap items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5 print:hidden">
             <button
               onClick={() => setOpen(true)}
-              title="Munkatárs meghívása"
-              className="flex h-[38px] w-[38px] items-center justify-center rounded-[13px] bg-white shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+              className="flex h-[38px] items-center gap-2 rounded-[18px] bg-ink-dark px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-ink"
             >
-              <Plus className="h-[15px] w-[15px] text-ink" strokeWidth={2} />
+              <Plus className="h-[15px] w-[15px]" strokeWidth={2} /> Új munkatárs
             </button>
             <button
               onClick={() => window.print()}
@@ -234,10 +317,28 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
             >
               <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
             </button>
+            {removableSelected.length > 0 && (
+              <button
+                onClick={() => setBulkOpen(true)}
+                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-[#C0392B] px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-[#a93226]"
+              >
+                <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.9} /> Kijelöltek törlése ({removableSelected.length})
+              </button>
+            )}
           </div>
 
           <div className={`mt-4 hidden ${GRID} items-center gap-3.5 border-b border-line pb-3.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-soft2 lg:grid`}>
-            <div />
+            <div>
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                aria-label="Mind kijelölése"
+                title="Mind kijelölése"
+                className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${allSelected ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
+              >
+                {allSelected && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
+              </button>
+            </div>
             <div>Név</div>
             <div>Pozíció</div>
             <div>Belépés</div>
@@ -249,7 +350,9 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
             const grad = gradientFor(m.name)
             const isOwner = m.roleTone === 'owner'
             const busy = busyId === m.id
-            const active = !m.pending
+            const sp = statusPill(m.status)
+            const canToggleStatus = canManage && !isOwner && m.status !== 'invited'
+            const suspended = m.status === 'suspended'
             const selKey = m.id ?? 'owner' // a tulaj-sor is kijelölhető (nincs membership id, de kulcsot kap)
             const isSel = selected.has(selKey)
             return (
@@ -258,9 +361,9 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
                 onClick={() => setHiringIndex(idx)}
                 role="button"
                 title="Adatlap megnyitása"
-                style={isSel ? { background: 'var(--dav-accent)' } : undefined}
+                style={isSel ? { background: 'var(--dav-accent)' } : suspended ? { background: SUSPEND_HATCH } : undefined}
                 className={`mt-2 cursor-pointer rounded-[18px] transition-all ${
-                  isSel ? 'shadow-[0_10px_24px_-12px_rgba(180,150,40,.55)]' : 'hover:bg-gold/10'
+                  isSel ? 'shadow-[0_10px_24px_-12px_rgba(180,150,40,.55)]' : suspended ? 'ring-1 ring-line' : 'hover:bg-gold/10'
                 }`}
               >
                 {/* DESKTOP */}
@@ -277,11 +380,15 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
                     {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
                   </button>
                   <div className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
-                      {initials(m.name)}
-                    </span>
+                    {m.avatarUrl ? (
+                      <img src={m.avatarUrl} alt="" className="h-[38px] w-[38px] shrink-0 rounded-full object-cover object-top" />
+                    ) : (
+                      <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
+                        {initials(m.name)}
+                      </span>
+                    )}
                     <div className="min-w-0">
-                      <p className="truncate text-[14.5px] font-semibold text-ink">{m.name}</p>
+                      <p className={`truncate text-[14.5px] font-semibold ${suspended ? 'text-ink-soft line-through' : 'text-ink'}`}>{m.name}</p>
                       {m.email && <p className="truncate text-[12px] font-medium text-ink-soft">{m.email}</p>}
                     </div>
                   </div>
@@ -295,14 +402,37 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
                     )}
                   </div>
                   <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(m.joinDate)}</div>
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold"
-                      style={active ? { background: '#E7F1E9', color: '#3B6B4B' } : { background: '#FBEFC4', color: '#9A7B1E' }}
+                  <div className="relative flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      disabled={!canToggleStatus || busy}
+                      onClick={(e) => { e.stopPropagation(); if (canToggleStatus) setStatusMenuFor(statusMenuFor === m.id ? null : m.id) }}
+                      className={`inline-flex items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold ${canToggleStatus ? 'cursor-pointer' : 'cursor-default'}`}
+                      style={{ background: sp.bg, color: sp.color, border: sp.border }}
                     >
-                      <span className="h-[7px] w-[7px] rounded-full" style={{ background: active ? '#4F9E6A' : '#C9A227' }} />
-                      {active ? 'Aktív' : 'Függő'}
-                    </span>
+                      <span className="h-[7px] w-[7px] rounded-full" style={{ background: sp.dot }} />
+                      {sp.label}
+                      {canToggleStatus && <ChevronDown className="h-3 w-3 opacity-60" />}
+                    </button>
+                    {canToggleStatus && statusMenuFor === m.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setStatusMenuFor(null) }} />
+                        <div className="absolute right-0 top-[36px] z-20 w-48 rounded-[14px] border border-line bg-white p-1.5 shadow-dav-container">
+                          {(['active', 'suspended'] as const).map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setStatusMenuFor(null); if (s !== m.status) changeStatus(m, s) }}
+                              className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-paper"
+                            >
+                              <span className="h-2 w-2 rounded-full" style={{ background: s === 'suspended' ? '#B7B2A4' : '#4F9E6A' }} />
+                              {s === 'suspended' ? 'Felfüggesztett' : 'Aktív'}
+                              {m.status === s && <Check className="ml-auto h-4 w-4 text-ink" strokeWidth={2} />}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                     {!isOwner && (
                       <button
                         type="button"
@@ -319,20 +449,60 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
 
                 {/* MOBIL */}
                 <div className="flex items-center gap-3 px-3.5 py-3 lg:hidden">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
-                    {initials(m.name)}
-                  </span>
+                  {!isOwner && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleSelect(selKey) }}
+                      aria-pressed={isSel}
+                      aria-label="Kijelölés"
+                      className={`flex h-[20px] w-[20px] shrink-0 items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong'}`}
+                    >
+                      {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
+                    </button>
+                  )}
+                  {m.avatarUrl ? (
+                    <img src={m.avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
+                  ) : (
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
+                      {initials(m.name)}
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold text-ink">{m.name}</p>
+                    <p className={`truncate text-[15px] font-semibold ${suspended ? 'text-ink-soft line-through' : 'text-ink'}`}>{m.name}</p>
                     <p className="truncate text-[12.5px] font-medium text-ink-soft">{ROLE_LABEL[m.roleTone]}</p>
                   </div>
-                  <span
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-[14px] px-2.5 py-[5px] text-[11px] font-semibold"
-                    style={active ? { background: '#E7F1E9', color: '#3B6B4B' } : { background: '#FBEFC4', color: '#9A7B1E' }}
-                  >
-                    <span className="h-[6px] w-[6px] rounded-full" style={{ background: active ? '#4F9E6A' : '#C9A227' }} />
-                    {active ? 'Aktív' : 'Függő'}
-                  </span>
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      disabled={!canToggleStatus || busy}
+                      onClick={(e) => { e.stopPropagation(); if (canToggleStatus) setStatusMenuFor(statusMenuFor === m.id ? null : m.id) }}
+                      className="inline-flex items-center gap-1.5 rounded-[14px] px-2.5 py-[5px] text-[11px] font-semibold"
+                      style={{ background: sp.bg, color: sp.color, border: sp.border }}
+                    >
+                      <span className="h-[6px] w-[6px] rounded-full" style={{ background: sp.dot }} />
+                      {sp.label}
+                      {canToggleStatus && <ChevronDown className="h-3 w-3 opacity-60" />}
+                    </button>
+                    {canToggleStatus && statusMenuFor === m.id && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={(e) => { e.stopPropagation(); setStatusMenuFor(null) }} />
+                        <div className="absolute right-0 top-[32px] z-20 w-44 rounded-[14px] border border-line bg-white p-1.5 shadow-dav-container">
+                          {(['active', 'suspended'] as const).map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setStatusMenuFor(null); if (s !== m.status) changeStatus(m, s) }}
+                              className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-paper"
+                            >
+                              <span className="h-2 w-2 rounded-full" style={{ background: s === 'suspended' ? '#B7B2A4' : '#4F9E6A' }} />
+                              {s === 'suspended' ? 'Felfüggesztett' : 'Aktív'}
+                              {m.status === s && <Check className="ml-auto h-4 w-4 text-ink" strokeWidth={2} />}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
                   {!isOwner && (
                     <button
                       type="button"
@@ -354,7 +524,7 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent>
           <SheetHeader>
-            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">Munkatárs meghívása</SheetTitle>
+            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">Új munkatárs</SheetTitle>
           </SheetHeader>
           <form
             onSubmit={(e) => {
@@ -374,24 +544,79 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Szerep</Label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['staff', 'manager', 'owner'] as const).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setRole(r)}
-                    className="rounded-xl px-3 py-3 text-[13px] font-semibold transition-colors"
-                    style={role === r ? { background: '#1D1C19', color: '#fff' } : { background: '#f3f2ef', color: '#5C5848' }}
-                  >
-                    {ROLE_LABEL[r]}
-                  </button>
-                ))}
-              </div>
+              <Label className="text-sm font-medium">Kategória (szerepkör)</Label>
+              {addingPost ? (
+                <div className="space-y-2">
+                  <Input
+                    autoFocus
+                    value={newPost}
+                    onChange={(e) => setNewPost(e.target.value)}
+                    placeholder="Pl. Konyhavezető"
+                    className="h-11 rounded-xl"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    {(['lead', 'staff'] as const).map((lv) => (
+                      <button
+                        key={lv}
+                        type="button"
+                        onClick={() => setNewLevel(lv)}
+                        className="rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors"
+                        style={newLevel === lv ? { background: '#1D1C19', color: '#fff' } : { background: '#f3f2ef', color: '#5C5848' }}
+                      >
+                        {lv === 'lead' ? 'Vezető' : 'Dolgozó'}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const v = newPost.trim()
+                        if (v) {
+                          setPosts((prev) => (prev.some((p) => p.label === v) ? prev : [...prev, { label: v, level: newLevel }]))
+                          setCategory(v)
+                          // AZONNAL elmentjük az étteremhez (nem csak meghíváskor) — így nem vész el.
+                          void fetch('/api/team/positions', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ label: v, level: newLevel }),
+                          }).catch(() => {})
+                        }
+                        setAddingPost(false)
+                        setNewPost('')
+                      }}
+                      className="h-10 flex-1 rounded-xl bg-ink-dark text-[13px] font-semibold text-white"
+                    >
+                      Hozzáadás
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setAddingPost(false); setNewPost('') }}
+                      className="h-10 shrink-0 rounded-xl border border-line px-4 text-[13px] font-medium text-ink-soft"
+                    >
+                      Mégse
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <select
+                  value={category}
+                  onChange={(e) => {
+                    if (e.target.value === '__new') { setAddingPost(true); setCategory('') }
+                    else setCategory(e.target.value)
+                  }}
+                  className="h-11 w-full rounded-xl border border-line bg-white px-3 text-[14px] text-ink focus:outline-none"
+                >
+                  <option value="">— Válassz kategóriát —</option>
+                  {posts.map((p) => (
+                    <option key={p.label} value={p.label}>{p.label} · {p.level === 'lead' ? 'Vezető' : 'Dolgozó'}</option>
+                  ))}
+                  <option value="__new">+ Új kategória…</option>
+                </select>
+              )}
               <p className="text-xs text-ink-soft">
-                {role === 'manager'
-                  ? 'A menedzser kezelheti a foglalásokat és a csapatot.'
-                  : 'A munkatárs a foglalásokat kezelheti.'}
+                A szerepkör (Felszolgáló, Konyhavezető…). A <b>Vezető</b> mindent kezel (bér nélkül), a <b>Dolgozó</b> a sajátját. A Tulajdonos te vagy.
               </p>
             </div>
             <button
@@ -421,11 +646,35 @@ export default function RestaurantTeamManager({ initialTeam }: { initialTeam: Te
         onCancel={() => setRemoveTarget(null)}
       />
 
+      <ConfirmDialog
+        open={bulkOpen}
+        title="Kijelöltek eltávolítása"
+        description={`Biztosan eltávolítod a kijelölt ${removableSelected.length} tagot? A hozzáférésük azonnal megszűnik.`}
+        confirmLabel={`Eltávolítás (${removableSelected.length})`}
+        cancelLabel="Mégse"
+        destructive
+        busy={bulkBusy}
+        onConfirm={confirmBulkDelete}
+        onCancel={() => setBulkOpen(false)}
+      />
+
       {/* Munkavállalók-adatlap overlay — a listasorra kattintva nyílik */}
       <HiringOverlay
         open={hiringIndex !== null}
         onClose={() => setHiringIndex(null)}
         variant="restaurant"
+        employees={roster}
+        positions={posts}
+        canManage={canManage}
+        canEditSalary={canEditSalary}
+        statusById={Object.fromEntries(
+          team.filter((t) => t.id).map((t): [string, 'active' | 'invited' | 'suspended'] => [t.id as string, t.status]),
+        )}
+        onStatusChange={(memberId, status) => setTeam((prev) => prev.map((x) => (x.id === memberId ? { ...x, status, pending: false } : x)))}
+        onProfileChange={(memberId, patch) => {
+          setRoster((prev) => prev.map((e) => (e.id === memberId ? { ...e, ...patch, hr: { ...e.hr, ...patch.hr } } : e)))
+          setTeam((prev) => prev.map((x) => (x.id === memberId ? { ...x, name: patch.name ?? x.name, joinDate: patch.hr?.join_date ? patch.hr.join_date.slice(0, 10) : x.joinDate } : x)))
+        }}
         initialIndex={hiringIndex ?? 0}
       />
     </>

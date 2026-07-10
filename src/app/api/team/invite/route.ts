@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  let body: { email?: string; role?: string }
+  let body: { email?: string; role?: string; position?: string }
   try {
     body = await request.json()
   } catch {
@@ -32,6 +32,7 @@ export async function POST(request: NextRequest) {
   }
   const role: TeamRole =
     body.role === 'owner' || body.role === 'manager' || body.role === 'staff' ? body.role : 'staff'
+  const position = (body.position ?? '').trim()
 
   const { active } = await getActiveBusiness(user)
   if (!active) return NextResponse.json({ error: 'Nincs aktív üzlet' }, { status: 400 })
@@ -71,14 +72,33 @@ export async function POST(request: NextRequest) {
   await payload.create({
     collection: 'memberships',
     overrideAccess: true,
+    user,
     data: {
       email,
       role,
       status: 'invited',
       invite_token: token,
+      ...(position ? { position } : {}),
       ...(active.type === 'salon' ? { salon: bizRel } : { restaurant: bizRel }),
     },
   })
+
+  // Új kategória → az étterem SAJÁT szerepkör-listája magától bővül (helyben, meghíváskor).
+  // A szint a szerepből jön: Vezető (manager→lead) / Dolgozó (staff→staff).
+  if (position && active.type === 'restaurant') {
+    const r = biz as Restaurant
+    const level: 'lead' | 'staff' = role === 'manager' ? 'lead' : 'staff'
+    const existingPositions = (r.positions ?? []).map((p) => p.label)
+    if (!existingPositions.includes(position)) {
+      await payload.update({
+        collection: 'restaurants',
+        id: active.id,
+        overrideAccess: true,
+        user,
+        data: { positions: [...(r.positions ?? []).map((p) => ({ label: p.label, level: p.level })), { label: position, level }] },
+      })
+    }
+  }
 
   const acceptUrl = `${APP_URL}/team/accept/${token}`
   // Az email-küldés NEM fatális: ha az SMTP nem elérhető (pl. lokál), a meghívó akkor is

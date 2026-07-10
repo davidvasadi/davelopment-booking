@@ -42,11 +42,11 @@ export function BookCtaButton({ label = 'Időpontfoglalás', href, onClick, disa
 
   const palette =
     variant === 'light'
-      ? 'bg-white text-zinc-950 hover:bg-zinc-100'
-      : 'bg-zinc-950 text-white hover:bg-zinc-800'
+      ? 'bg-white text-ink hover:bg-paper'
+      : 'bg-ink-dark text-white hover:opacity-90'
   const cls =
-    `group w-full h-14 rounded-2xl font-black text-sm transition-all shadow-lg disabled:opacity-40 ` +
-    `flex items-center justify-center gap-2 ${palette} ${className}`
+    `group flex h-14 w-full items-center justify-center gap-2 rounded-full text-[14px] font-semibold transition-all disabled:opacity-40 ` +
+    `shadow-[0_16px_38px_-22px_rgba(30,28,25,.7)] ${palette} ${className}`
 
   if (href) {
     return (

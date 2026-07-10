@@ -293,7 +293,7 @@ function CompositionDonut({ metric, onOpen }: { metric: OverviewMetric; onOpen?:
   ]
 
   return (
-    <div className="rounded-[26px] bg-white border border-line shadow-dav-card p-5 lg:p-6 flex flex-col h-full">
+    <div className="rounded-[26px] dav-card-glass p-5 lg:p-6 flex flex-col h-full">
       <div className="flex items-start justify-between mb-1">
         <div className="text-[19px] font-medium text-ink">{metric.label} · összetétel</div>
         <HeaderArrow label="Összetétel" onClick={onOpen} />
@@ -459,7 +459,7 @@ function ChartCard({ title, children, onOpen }: { title: string; children: React
   return (
     <div
       onClick={onOpen}
-      className="rounded-[26px] bg-[#ffffff] border border-line shadow-dav-card p-4 lg:p-5 flex flex-col min-w-0 min-h-[212px] cursor-pointer transition-colors hover:border-line-strong">
+      className="rounded-[26px] dav-card-glass p-4 lg:p-5 flex flex-col min-w-0 min-h-[212px] cursor-pointer transition-colors hover:border-line-strong">
       <div className="flex items-start justify-between mb-2">
         <span className="text-[17px] font-medium text-ink truncate">{title}</span>
         <HeaderArrow label={title} onClick={onOpen} />
@@ -473,7 +473,7 @@ function ChartCard({ title, children, onOpen }: { title: string; children: React
 function SourceStripCard({ title = 'Foglalási források', segments }: { title?: string; segments: OverviewSourceSeg[] }) {
   const stripe = 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 6px, rgba(190,180,140,.28) 6px, rgba(190,180,140,.28) 12px)'
   return (
-    <div className="rounded-[26px] bg-white border border-line shadow-dav-card p-4 lg:p-5 flex flex-col">
+    <div className="rounded-[26px] dav-card-glass p-4 lg:p-5 flex flex-col">
       <div className="flex items-start justify-between mb-3">
         <span className="text-[17px] font-medium text-ink truncate">{title}</span>
         <HeaderArrow label={title} />
@@ -621,7 +621,7 @@ export function AnalyticsOverview({
           </div>
 
           {/* Bontások accordion — kinyíló sorok (mobilon LEGALUL) */}
-          <div className="order-6 lg:order-none flex flex-1 flex-col rounded-[26px] bg-[#ffffff] border border-line shadow-dav-card p-4 lg:p-5">
+          <div className="order-6 lg:order-none flex flex-1 flex-col rounded-[26px] dav-card-glass p-4 lg:p-5">
             <div className="mb-3 text-[19px] font-medium text-[#22221e]">Bontások</div>
             <div className="flex flex-1 flex-col">
               {metrics.map((m, mi) => {
@@ -699,7 +699,7 @@ export function AnalyticsOverview({
         </div>
 
         {/* col2 · sor2 — trend-chart (detail) — mobilon a donut UTÁN: order-2 */}
-        <div onClick={() => setSheetMetricId(selected.id)} className="order-2 lg:order-none min-w-0 flex flex-col rounded-[26px] bg-[#ffffff] border border-line shadow-dav-card p-4 lg:p-5 cursor-pointer transition-colors hover:border-line-strong">
+        <div onClick={() => setSheetMetricId(selected.id)} className="order-2 lg:order-none min-w-0 flex flex-col rounded-[26px] dav-card-glass p-4 lg:p-5 cursor-pointer transition-colors hover:border-line-strong">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">

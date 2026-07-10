@@ -1,22 +1,76 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter,
-} from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { TimeSelect } from '@/components/ui/time-select'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, AlertTriangle, Cake } from 'lucide-react'
+import { Loader2, Trash2, AlertTriangle, X, CalendarClock, UserRound, Sparkles } from 'lucide-react'
+import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
 import { addDraft, updateDraft, removeDraft } from '@/lib/offlineDrafts'
 import { useOnline } from '@/lib/useOnline'
 import { urgencyOf } from './DailyView'
+import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
 import type { Reservation } from '@/payload/payload-types'
+
+// ISO ország-kód → nemzetközi előhívó (a tárolt teljes szám összeállításához / felbontásához).
+const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.dial]))
+
+// Az avatar-menü (UserMenu) „genie" belépője — a foglalás-panel PONTOSAN ezt használja
+// (azonos érzés: nagy scale-ugrás + overshoot = pulzáló pop, a gyerekek staggerrel folynak be).
+const GENIE = {
+  hidden: { opacity: 0, scale: 0.7, y: 14 },
+  show: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, stiffness: 520, damping: 26, mass: 0.9, staggerChildren: 0.045, delayChildren: 0.06 } },
+  exit: { opacity: 0, scale: 0.92, y: 8, transition: { duration: 0.14, ease: 'easeIn' as const } },
+} as const
+// A panel régiói (fejléc/törzs/lábléc) „folyami" belépője a genie-stagger alá.
+const PANEL_ITEM = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
+} as const
+
+/**
+ * Új foglalás alap-státusza a forrás + időpont alapján (a host felülírhatja):
+ *  - már véget ért (múltbeli nap, vagy ma de a vége elmúlt) → utólagos rögzítés = Befejezett
+ *  - beeső, ami épp zajlik / most kezdődik → Leültetve
+ *  - egyébként → Megerősítve
+ */
+function computeDefaultStatus(
+  source: Reservation['source'],
+  date: string,
+  startTime: string,
+  durationMin: number | null,
+): Reservation['status'] {
+  const now = new Date()
+  const todayYmd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const startMin = startTime ? hhmmToMinutes(startTime) : 0
+  const endMin = startMin + (durationMin && durationMin > 0 ? durationMin : 120)
+
+  if (date < todayYmd) return 'completed'
+  if (date === todayYmd && endMin <= nowMin) return 'completed'
+  if (source === 'walk_in' && date === todayYmd && startMin <= nowMin) return 'seated'
+  return 'confirmed'
+}
+
+/** A tárolt teljes telefonszámot (pl. „+36 30…") felbontja ISO ország-kódra + helyi részre. */
+function splitLocalPhone(full: string | null | undefined, fallbackCountry: string): { country: string; phone: string } {
+  const s = (full ?? '').trim()
+  if (!s) return { country: fallbackCountry, phone: '' }
+  const cur = DIAL_BY_CODE[fallbackCountry]
+  if (cur && s.startsWith(cur)) return { country: fallbackCountry, phone: s.slice(cur.length).trim() }
+  if (s.startsWith('+')) {
+    // A leghosszabb illeszkedő előhívót választjuk (pl. +1 vs +1XXX kétértelműség ellen).
+    const match = COUNTRIES.filter((c) => s.startsWith(c.dial)).sort((a, b) => b.dial.length - a.dial.length)[0]
+    if (match) return { country: match.code, phone: s.slice(match.dial.length).trim() }
+  }
+  return { country: fallbackCountry, phone: s }
+}
 
 /** A nézetekből érkező "ál-foglalás" lehet lokális vázlat (__draft jelölővel). */
 type MaybeDraft = Reservation & { __draft?: true; draftId?: string }
@@ -88,13 +142,15 @@ interface Props {
   onClose: () => void
   date: string
   restaurantId: string
+  /** Választható esemény-típusok (alkalmak) — a tulaj a foglaláshoz alkalmat rendelhet. */
+  eventTypes?: { icon: string; label: string }[]
   target: EditTarget | null
   /** A nap nyitvatartása (perc) — a TimeSelect ezt a tartományt kínálja (kemény korlát). */
   openMin?: number
   closeMin?: number
 }
 
-export function ReservationEditSheet({ open, onClose, date, restaurantId, target, openMin, closeMin }: Props) {
+export function ReservationEditSheet({ open, onClose, date, restaurantId, eventTypes = [], target, openMin, closeMin }: Props) {
   const router = useRouter()
   const online = useOnline()
   const reservation = target?.reservation ?? null
@@ -107,11 +163,18 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
   const [tableId, setTableId] = useState<string>('') // '' = auto
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
+  const [country, setCountry] = useState('HU')
   const [email, setEmail] = useState('')
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState<Reservation['status']>('confirmed')
+  // A host kézzel váltott-e státuszt: ha igen, az alap-státusz újraszámítás nem írja felül.
+  const [statusTouched, setStatusTouched] = useState(false)
   const [source, setSource] = useState<Reservation['source']>('walk_in')
-  const [isBirthday, setIsBirthday] = useState(false)
+  // Kiválasztott alkalom (occasion) — a megnevezés + ikon-kulcs, vagy null (nincs külön alkalom).
+  const [occasion, setOccasion] = useState<string | null>(null)
+  const [occasionIcon, setOccasionIcon] = useState<string | null>(null)
+  // Az adott időpontra még leültethető legnagyobb létszám (a számláló felső korlátja). 0 = ismeretlen.
+  const [maxPax, setMaxPax] = useState(0)
   // Ülésidő percben. null = az étterem alap turnusa (alapból 2 óra).
   const [duration, setDuration] = useState<number | null>(null)
 
@@ -120,6 +183,9 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
   const [optionsLoading, setOptionsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
+  // Dirty-guard: záráskor rákérdezünk, ha van mentetlen változás.
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const initSigRef = useRef<string>('')
 
   // Sürgősség-badge (késik / túlfut / mindjárt lejár) — csak meglévő foglalásnál és
   // ha a nézett nap MA van. A foglalási nézet ugyanezt a logikát használja (urgencyOf).
@@ -167,25 +233,61 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
         : []
     setTableId(currentTables.length ? currentTables.map(String).join(',') : '')
     setName(r?.customer_name ?? '')
-    setPhone(r?.customer_phone ?? '')
+    // A tárolt teljes szám (pl. „+36 30…") vissza ország-kódra + helyi részre a mezőhöz.
+    const initCountry = r?.country ?? 'HU'
+    const parsedPhone = splitLocalPhone(r?.customer_phone, initCountry)
+    setCountry(parsedPhone.country)
+    setPhone(parsedPhone.phone)
     setEmail(r?.customer_email ?? '')
     setNotes(r?.notes ?? '')
-    setStatus(r?.status ?? 'confirmed')
-    setSource(r?.source ?? 'walk_in')
-    setIsBirthday(r?.is_birthday ?? false)
+    const initSource = r?.source ?? 'walk_in'
+    setSource(initSource)
+    setOccasion(r?.occasion ?? null)
+    setOccasionIcon(r?.occasion_icon ?? null)
     // Meglévő foglalásnál a tárolt hossz; újnál null (= étterem alap turnusa).
-    setDuration(
+    const initDuration =
       r?.start_time && r?.end_time
         ? Math.max(0, hhmmToMinutes(r.end_time) - hhmmToMinutes(r.start_time))
-        : null,
-    )
+        : null
+    setDuration(initDuration)
+    // Új foglalás alap-státusza a forrás + időpont alapján (módosítható); meglévőnél a tárolt.
+    const initStart = r?.start_time ?? target.presetStart ?? nowStart
+    const initStatus = r?.status ?? computeDefaultStatus(initSource, date, initStart, initDuration)
+    setStatus(initStatus)
+    setStatusTouched(false)
+    setConfirmDiscard(false)
+    // A nyitáskori állapot aláírása — ehhez hasonlítjuk a dirty-guardhoz (mentetlen változás).
+    initSigRef.current = JSON.stringify([
+      r?.start_time ?? target.presetStart ?? nowStart,
+      r?.pax ?? 2,
+      currentTables.length ? currentTables.map(String).join(',') : '',
+      r?.customer_name ?? '',
+      parsedPhone.phone,
+      parsedPhone.country,
+      r?.customer_email ?? '',
+      r?.notes ?? '',
+      initStatus,
+      initSource,
+      r?.occasion ?? null,
+      r?.occasion_icon ?? null,
+      initDuration,
+    ])
   }, [open, target])
+
+  // Új foglalásnál a forrás/időpont változása frissíti az alap-státuszt, amíg a host kézzel
+  // nem választott mást (statusTouched). Meglévő foglalás státuszát nem érinti.
+  useEffect(() => {
+    if (!open || isEdit || statusTouched) return
+    setStatus(computeDefaultStatus(source, date, startTime, duration))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEdit, statusTouched, source, startTime, duration, date])
 
   // Szabad asztalok lekérése idő/létszám változásra
   const loadOptions = useCallback(async () => {
     if (!startTime || !pax) {
       setOptions([])
       setSuggestedCombo(null)
+      setMaxPax(0)
       return
     }
     setOptionsLoading(true)
@@ -196,9 +298,11 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
       const json = await res.json()
       setOptions(json.tables ?? [])
       setSuggestedCombo(json.suggestedCombo ?? null)
+      setMaxPax(typeof json.maxPax === 'number' ? json.maxPax : 0)
     } catch {
       setOptions([])
       setSuggestedCombo(null)
+      setMaxPax(0)
     } finally {
       setOptionsLoading(false)
     }
@@ -210,6 +314,11 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
 
   const selectedTableIds = tableId ? tableId.split(',') : null
 
+  // A számláló felső korlátja: az adott időpontra még leültethető létszám. 0 (ismeretlen,
+  // pl. betöltés közben vagy nincs szabad asztal) → visszaesünk a 50-es kemény korlátra.
+  const paxCap = maxPax > 0 ? maxPax : 50
+  const atPaxCap = maxPax > 0 && pax >= paxCap
+
   const draftFields = () => {
     const tableNames = (selectedTableIds ?? [])
       .map((id) => tableChoices.find((c) => String(c.id) === String(id))?.name ?? id)
@@ -220,11 +329,12 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
       pax,
       tableIds: selectedTableIds,
       customer_name: name,
-      customer_phone: phone,
+      customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
       customer_email: email,
       notes,
       status,
-      is_birthday: isBirthday,
+      occasion,
+      occasion_icon: occasionIcon,
       tableNames,
     }
   }
@@ -248,6 +358,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
 
   const save = async () => {
     if (!startTime) return toast.error('Adj meg időpontot')
+    // Érvénytelen e-mail: a mező alatt inline piros hiba jelzi (nem toast) → nem küldünk.
+    if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) return
     // Beeső/telefonos foglalásnál a név opcionális (alapnév kerül be: „Beeső" / „Telefon").
     // Online foglaláshoz továbbra is kell név.
     if (!isEdit && source === 'online' && !name.trim()) return toast.error('Online foglaláshoz adj meg nevet')
@@ -271,12 +383,15 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
           pax,
           tableIds: selectedTableIds,
           customer_name: name,
-          customer_phone: phone,
+          // A helyi szám elé az ország-előhívó (a publikus foglaló formátumával egyezően).
+          customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
+          country,
           customer_email: email,
           notes,
           status,
           source,
-          is_birthday: isBirthday,
+          occasion,
+          occasion_icon: occasionIcon,
           duration_minutes: duration,
         }),
       })
@@ -329,6 +444,28 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
     }
   }
 
+  // Dirty-guard: a jelenlegi állapot aláírása vs. a nyitáskori. Ha eltér → mentetlen változás.
+  const dirty = JSON.stringify([
+    startTime, pax, tableId, name, phone, country, email, notes, status, source, occasion, occasionIcon, duration,
+  ]) !== initSigRef.current
+
+  // Záráskor rákérdezünk, ha van mentetlen változás (X, háttér-kattintás, Esc).
+  const requestClose = useCallback(() => {
+    if (dirty) setConfirmDiscard(true)
+    else onClose()
+  }, [dirty, onClose])
+
+  // Inline (mező alatti) hiba az e-mailre — csak ha kitöltötték és formátum-hibás.
+  const emailErr = email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Érvénytelen e-mail cím' : null
+
+  // Esc-re zárás — a saját portál-panelhez (a Radix Sheet beépített kezelése helyett).
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') requestClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, requestClose])
+
   // A jelenlegi (esetleg összevont) asztalok nincsenek a szabad listában (mert önmagukat
   // foglalják) — adjuk hozzá őket a választhatók közé.
   const currentTables = (reservation?.tables ?? [])
@@ -341,146 +478,155 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
     }
   }
 
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>
-            {isDraft ? 'Vázlat szerkesztése' : isEdit ? 'Foglalás szerkesztése' : 'Új foglalás'}
-          </SheetTitle>
-          <SheetDescription>
-            {date}
-            {isDraft && ' · még nem véglegesített offline vázlat'}
-          </SheetDescription>
-          {isEdit && !isDraft && (
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-zinc-600'}`}>
-                {statusLabelOf(status)}
-              </span>
-              {source && source !== 'online' && (
-                <span className="rounded-full bg-zinc-100 dark:bg-white/[0.08] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600 dark:text-white/60">
-                  {sourceLabelOf[source]}
-                </span>
-              )}
-              {urgency && (
-                <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}>
-                  {urgency.label}
-                </span>
-              )}
-            </div>
-          )}
-        </SheetHeader>
-
-        <div className="space-y-5 py-5">
-          <div className="space-y-1.5">
-            <Label>Vendég neve {source !== 'online' && <span className="text-zinc-400 font-normal">(opcionális)</span>}</Label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder={source === 'walk_in' ? 'Üresen: „Beeső"' : source === 'phone' ? 'Üresen: „Telefon"' : 'Pl. Kovács Anna'}
+  if (typeof document === 'undefined') return null
+  return createPortal(
+    <>
+      <AnimatePresence>
+        {open && (
+          <div key="res-sheet" className="fixed inset-0 z-[90] flex items-end justify-center sm:items-center sm:p-4">
+            {/* Finom, elmosott háttér — 1:1 az avatar-menü érzésével (enyhe dim + 2px blur). */}
+            <motion.div
+              className="absolute inset-0 bg-black/[0.06] backdrop-blur-[2px]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              onClick={requestClose}
             />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Időpont</Label>
-              <TimeSelect
-                value={startTime}
-                onChange={setStartTime}
-                minTime={openMin != null ? minutesToHHMM(openMin) : undefined}
-                maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Létszám</Label>
-              {/* Érintőbarát stepper a natív number-input (egymásba csúszó fel/le nyilak)
-                  helyett — nagy +/− gombok, tableten kényelmes. 1–50 fő. */}
-              <div className="flex h-9 items-center rounded-lg border border-zinc-200 bg-zinc-50 dark:border-white/[0.1] dark:bg-white/[0.06]">
+            {/* Középre úszó panel — az avatar „genie" springje (pulzáló pop); mobilon alsó lap. */}
+            <motion.div
+              variants={GENIE}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+              style={{ transformOrigin: 'center' }}
+              className="relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] dark:bg-zinc-900 sm:max-h-[92vh] sm:max-w-[840px] sm:rounded-[26px]"
+            >
+              {/* Fejléc (fix) */}
+              <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 px-5 py-4 dark:border-white/[0.06] sm:px-6">
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold text-zinc-900 dark:text-white">
+                    {isDraft ? 'Vázlat szerkesztése' : isEdit ? 'Foglalás szerkesztése' : 'Új foglalás'}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-white/50">
+                    {date}{isDraft && ' · még nem véglegesített offline vázlat'}
+                  </p>
+                  {((isEdit && !isDraft) || occasion) && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {isEdit && !isDraft && (
+                        <>
+                          {/* Státusz-pont: pulzál, ha folyamatban (megerősítésre vár); egyébként statikus. */}
+                          <span
+                            title={status === 'pending' ? 'Folyamatban — megerősítésre vár' : statusLabelOf(status)}
+                            className={`h-2 w-2 shrink-0 rounded-full ${
+                              status === 'pending'
+                                ? 'bg-amber-400 animate-soft-pulse'
+                                : status === 'cancelled' || status === 'no_show'
+                                  ? 'bg-zinc-300 dark:bg-white/25'
+                                  : 'bg-emerald-500'
+                            }`}
+                          />
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-zinc-600'}`}>
+                            {statusLabelOf(status)}
+                          </span>
+                          {source && source !== 'online' && (
+                            <span className="rounded-full bg-zinc-100 dark:bg-white/[0.08] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600 dark:text-white/60">
+                              {sourceLabelOf[source]}
+                            </span>
+                          )}
+                          {urgency && (
+                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${urgency.cls} ${urgency.pulse ? 'animate-soft-pulse' : ''}`}>
+                              {urgency.label}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {/* Alkalom (occasion) — feltűnő jelvény fent, ahogy korábban a szülinapnál volt. */}
+                      {occasion && (() => {
+                        const OccIcon = eventIconByKey(occasionIcon)
+                        return (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink-dark shadow-[0_1px_4px_rgba(120,90,10,.28)]">
+                            <OccIcon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} /> {occasion}
+                          </span>
+                        )
+                      })()}
+                    </div>
+                  )}
+                </div>
                 <button
                   type="button"
-                  aria-label="Kevesebb fő"
-                  onClick={() => setPax((p) => Math.max(1, p - 1))}
-                  disabled={pax <= 1}
-                  className="flex h-full w-10 shrink-0 items-center justify-center text-lg font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+                  onClick={requestClose}
+                  aria-label="Bezárás"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200 dark:bg-white/[0.06] dark:text-white/60 dark:hover:bg-white/[0.12]"
                 >
-                  −
+                  <X className="h-4 w-4" />
                 </button>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  max={50}
-                  value={pax}
-                  onChange={(e) => setPax(Math.min(50, Math.max(1, Number(e.target.value) || 1)))}
-                  className="h-full min-w-0 flex-1 border-0 bg-transparent text-center text-sm font-bold tabular-nums text-zinc-900 outline-none dark:text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+              </motion.div>
+
+              {/* Törzs (görgethető) */}
+              <motion.div variants={PANEL_ITEM} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+          {/* ── Csoport: FOGLALÁS ── */}
+          <div className="space-y-4">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">
+              <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} /> Foglalás
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Időpont</Label>
+                <TimeSelect
+                  value={startTime}
+                  onChange={setStartTime}
+                  minTime={openMin != null ? minutesToHHMM(openMin) : undefined}
+                  maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
                 />
-                <button
-                  type="button"
-                  aria-label="Több fő"
-                  onClick={() => setPax((p) => Math.min(50, p + 1))}
-                  disabled={pax >= 50}
-                  className="flex h-full w-10 shrink-0 items-center justify-center text-lg font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
-                >
-                  +
-                </button>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Létszám</Label>
+                {/* Érintőbarát stepper a natív number-input (egymásba csúszó fel/le nyilak)
+                    helyett — nagy +/− gombok, tableten kényelmes. A felső korlát az adott
+                    időpontra még leültethető létszám (paxCap), nem a kemény 50. */}
+                <div className="flex h-9 items-center rounded-lg border border-zinc-200 bg-zinc-50 dark:border-white/[0.1] dark:bg-white/[0.06]">
+                  <button
+                    type="button"
+                    aria-label="Kevesebb fő"
+                    onClick={() => setPax((p) => Math.max(1, p - 1))}
+                    disabled={pax <= 1}
+                    className="flex h-full w-10 shrink-0 items-center justify-center text-lg font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+                  >
+                    −
+                  </button>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={paxCap}
+                    value={pax}
+                    onChange={(e) => setPax(Math.min(paxCap, Math.max(1, Number(e.target.value) || 1)))}
+                    className="h-full min-w-0 flex-1 border-0 bg-transparent text-center text-sm font-bold tabular-nums text-zinc-900 outline-none dark:text-white [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    aria-label="Több fő"
+                    onClick={() => setPax((p) => Math.min(paxCap, p + 1))}
+                    disabled={pax >= paxCap}
+                    className="flex h-full w-10 shrink-0 items-center justify-center text-lg font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 dark:text-white/50 dark:hover:text-white transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+                {atPaxCap && (
+                  <p className="text-[11px] font-medium text-amber-600 dark:text-amber-400">
+                    Erre az időpontra max {paxCap} fő fér el.
+                  </p>
+                )}
               </div>
             </div>
-          </div>
 
-          <div className="space-y-1.5">
-            <Label>Forrás</Label>
-            <div className="inline-flex w-full rounded-md bg-zinc-100 dark:bg-white/[0.06] p-1">
-              {sourceOptions.map((o) => (
-                <button
-                  key={o.value}
-                  type="button"
-                  onClick={() => setSource(o.value)}
-                  className={`flex-1 rounded px-2 py-1.5 text-xs font-semibold transition-colors ${
-                    source === o.value
-                      ? 'bg-white dark:bg-white/[0.14] text-zinc-900 dark:text-white shadow-sm'
-                      : 'text-zinc-500 dark:text-white/40'
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Ülésidő</Label>
-            <div className="inline-flex w-full rounded-md bg-zinc-100 dark:bg-white/[0.06] p-1">
-              {durationOptions.map((o) => (
-                <button
-                  key={String(o.value)}
-                  type="button"
-                  onClick={() => setDuration(o.value)}
-                  className={`flex-1 rounded px-2 py-1.5 text-xs font-semibold transition-colors ${
-                    duration === o.value
-                      ? 'bg-white dark:bg-white/[0.14] text-zinc-900 dark:text-white shadow-sm'
-                      : 'text-zinc-500 dark:text-white/40'
-                  }`}
-                >
-                  {o.label}
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-zinc-400">Ha üresen hagyod, az étterem alapja (általában 2 óra) érvényes.</p>
-            {clip && (
-              <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 dark:border-red-500/30 dark:bg-red-500/10">
-                <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">!</span>
-                <p className="text-xs text-red-700 dark:text-red-300">
-                  Ennyi időre nem fér bele — záráskor ({clip.actualEnd}) zártok.
-                  A foglalás <strong>{clip.actualEnd}</strong>-ig tart (nem {clip.wantedEnd}-ig).
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="flex items-center gap-2">
-              Asztal {optionsLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-            </Label>
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-2">
+                Asztal {optionsLoading && <Loader2 className="h-3 w-3 animate-spin" />}
+              </Label>
               <select
                 value={tableId.includes(',') ? '' : tableId}
                 onChange={(e) => setTableId(e.target.value)}
@@ -510,100 +656,213 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
               {!optionsLoading && options.length === 0 && !suggestedCombo && (
                 <p className="text-xs text-amber-600">Nincs szabad asztal erre az időpontra/létszámra.</p>
               )}
-          </div>
+            </div>
 
-          {isEdit && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Forrás</Label>
+                <div className="flex h-10 w-full items-center rounded-md bg-zinc-100 dark:bg-white/[0.06] p-1">
+                  {sourceOptions.map((o) => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => setSource(o.value)}
+                      className={`flex h-full flex-1 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
+                        source === o.value
+                          ? 'bg-white dark:bg-white/[0.14] text-zinc-900 dark:text-white shadow-sm'
+                          : 'text-zinc-500 dark:text-white/40'
+                      }`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Státusz</Label>
+                <select
+                  value={status}
+                  onChange={(e) => { setStatus(e.target.value as Reservation['status']); setStatusTouched(true) }}
+                  className="w-full h-10 rounded-md border border-zinc-200 dark:border-white/[0.1] bg-transparent px-3 text-sm"
+                >
+                  {statusOptions.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+                {!isEdit && !statusTouched && (
+                  <p className="text-[11px] text-zinc-400">
+                    Automatikus alapérték — módosíthatod.
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="space-y-1.5">
-              <Label>Státusz</Label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as Reservation['status'])}
-                className="w-full h-10 rounded-md border border-zinc-200 dark:border-white/[0.1] bg-transparent px-3 text-sm"
-              >
-                {statusOptions.map((s) => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
+              <Label>Ülésidő</Label>
+              <div className="flex h-10 w-full items-center rounded-md bg-zinc-100 dark:bg-white/[0.06] p-1">
+                {durationOptions.map((o) => (
+                  <button
+                    key={String(o.value)}
+                    type="button"
+                    onClick={() => setDuration(o.value)}
+                    className={`flex h-full flex-1 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
+                      duration === o.value
+                        ? 'bg-white dark:bg-white/[0.14] text-zinc-900 dark:text-white shadow-sm'
+                        : 'text-zinc-500 dark:text-white/40'
+                    }`}
+                  >
+                    {o.label}
+                  </button>
                 ))}
-              </select>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1.5">
-              <Label>Telefon</Label>
-              <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+36…" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Email</Label>
-              <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="opcionális" />
+              </div>
+              <p className="text-xs text-zinc-400">Ha üresen hagyod, az étterem alapja (általában 2 óra) érvényes.</p>
+              {clip && (
+                <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 dark:border-red-500/30 dark:bg-red-500/10">
+                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">!</span>
+                  <p className="text-xs text-red-700 dark:text-red-300">
+                    Ennyi időre nem fér bele — záráskor ({clip.actualEnd}) zártok.
+                    A foglalás <strong>{clip.actualEnd}</strong>-ig tart (nem {clip.wantedEnd}-ig).
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="space-y-1.5">
-            <Label>Megjegyzés</Label>
-            <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
+          {/* ── Csoport: VENDÉG ── */}
+          <div className="space-y-4 border-t border-zinc-100 pt-5 dark:border-white/[0.06]">
+            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">
+              <UserRound className="h-3.5 w-3.5" strokeWidth={2} /> Vendég
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Vendég neve {source !== 'online' && <span className="text-zinc-400 font-normal">(opcionális)</span>}</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={source === 'walk_in' ? 'Üresen: „Beeső"' : source === 'phone' ? 'Üresen: „Telefon"' : 'Pl. Kovács Anna'}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Telefon</Label>
+                <PhoneCountryInput
+                  country={country}
+                  phone={phone}
+                  onCountryChange={setCountry}
+                  onPhoneChange={setPhone}
+                  inputClass="h-10 rounded-lg border border-zinc-200 dark:border-white/[0.1] dark:bg-transparent px-3 text-sm text-zinc-900 dark:text-white outline-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Email</Label>
+                <Input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="opcionális"
+                  aria-invalid={!!emailErr}
+                  className={emailErr ? 'border-red-400 focus-visible:ring-red-400 dark:border-red-500/60' : undefined}
+                />
+                {emailErr && <p className="text-[11px] font-medium text-red-600 dark:text-red-400">{emailErr}</p>}
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Megjegyzés</Label>
+              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
+            </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsBirthday((b) => !b)}
-            aria-pressed={isBirthday}
-            className={`flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
-              isBirthday
-                ? 'border-pink-300 bg-pink-50 dark:border-pink-500/40 dark:bg-pink-500/10'
-                : 'border-zinc-200 bg-zinc-50 hover:border-zinc-300 dark:border-white/[0.1] dark:bg-white/[0.04] dark:hover:border-white/[0.2]'
-            }`}
-          >
-            <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isBirthday ? 'bg-pink-500 text-white' : 'bg-zinc-200 text-zinc-500 dark:bg-white/[0.1] dark:text-white/50'}`}>
-              <Cake className="h-4 w-4" />
-            </span>
-            <span className="flex-1 min-w-0">
-              <span className="block text-sm font-semibold text-zinc-900 dark:text-white">Szülinapos foglalás</span>
-              <span className="block text-xs text-zinc-500 dark:text-white/50">
-                {isBirthday ? 'Megjelölve — a foglalási nézetben is látszik' : 'Kapcsold be, ha szülinapot ünnepelnek'}
-              </span>
-            </span>
-            <span className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${isBirthday ? 'bg-pink-500' : 'bg-zinc-300 dark:bg-white/20'}`}>
-              <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${isBirthday ? 'translate-x-[1.375rem]' : 'translate-x-0.5'}`} />
-            </span>
-          </button>
-        </div>
-
-        <SheetFooter className="flex-col gap-2 sm:flex-col">
-          {/* A vázlat lokális → online/offline is menthető. Valódi foglalás szerkesztéséhez szerver kell. */}
-          <Button onClick={save} disabled={saving || (!online && isEdit && !isDraft)} className="w-full rounded-full">
-            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-            {isDraft
-              ? (online ? 'Vázlat véglegesítése' : 'Vázlat mentése (offline)')
-              : !online
-                ? (isEdit ? 'Offline — szerkesztés nem lehetséges' : 'Mentés vázlatként (offline)')
-                : (isEdit ? 'Mentés' : 'Foglalás rögzítése')}
-          </Button>
-          {isDraft ? (
-            <Button
-              onClick={discardDraft}
-              disabled={saving}
-              variant="ghost"
-              className="w-full text-red-600 hover:text-red-700"
-            >
-              <Trash2 className="h-4 w-4 mr-2" /> Vázlat törlése
-            </Button>
-          ) : (
-            isEdit && status !== 'cancelled' && (
-              <Button
-                onClick={() => setConfirmCancel(true)}
-                disabled={saving}
-                variant="ghost"
-                className="w-full text-red-600 hover:text-red-700"
-              >
-                <Trash2 className="h-4 w-4 mr-2" /> Foglalás lemondása
-              </Button>
+          {/* ── Csoport: ALKALOM (occasion) — a tulaj esemény-típusaiból; a foglalási nézetben látszik. ── */}
+          {(() => {
+            // Ha a jelenlegi alkalom nincs a listában (egyedi/régi), külön kiválasztott pillként mutatjuk.
+            const extra = occasion && !eventTypes.some((e) => e.label === occasion)
+              ? [{ icon: occasionIcon ?? 'party', label: occasion }]
+              : []
+            const options = [...eventTypes, ...extra]
+            if (options.length === 0) return null
+            return (
+              <div className="space-y-3 border-t border-zinc-100 pt-5 dark:border-white/[0.06]">
+                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400 dark:text-white/40">
+                  <Sparkles className="h-3.5 w-3.5" strokeWidth={2} /> Alkalom
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setOccasion(null); setOccasionIcon(null) }}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                      occasion == null
+                        ? 'border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-black'
+                        : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-white/70'
+                    }`}
+                  >
+                    Nincs
+                  </button>
+                  {options.map((et, i) => {
+                    const Icon = eventIconByKey(et.icon)
+                    const active = occasion === et.label
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => active ? (setOccasion(null), setOccasionIcon(null)) : (setOccasion(et.label), setOccasionIcon(et.icon))}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
+                          active
+                            ? 'border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-black'
+                            : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300 dark:border-white/[0.1] dark:bg-white/[0.04] dark:text-white/70'
+                        }`}
+                      >
+                        <Icon className={`h-4 w-4 ${active ? 'text-gold' : 'text-zinc-400 dark:text-white/40'}`} strokeWidth={1.8} />
+                        {et.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
             )
-          )}
-        </SheetFooter>
-      </SheetContent>
+          })()}
+              </motion.div>{/* /Törzs */}
 
-      {confirmCancel && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
+              {/* Lábléc (fix) */}
+              <motion.div variants={PANEL_ITEM} className="flex shrink-0 flex-col gap-2 border-t border-zinc-100 p-4 dark:border-white/[0.06] sm:px-6">
+                {/* A vázlat lokális → online/offline is menthető. Valódi foglalás szerkesztéséhez szerver kell. */}
+                <Button onClick={save} disabled={saving || (!online && isEdit && !isDraft)} className="w-full rounded-full">
+                  {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  {isDraft
+                    ? (online ? 'Vázlat véglegesítése' : 'Vázlat mentése (offline)')
+                    : !online
+                      ? (isEdit ? 'Offline — szerkesztés nem lehetséges' : 'Mentés vázlatként (offline)')
+                      : (isEdit ? 'Mentés' : 'Foglalás rögzítése')}
+                </Button>
+                {isDraft ? (
+                  <Button
+                    onClick={discardDraft}
+                    disabled={saving}
+                    variant="ghost"
+                    className="w-full text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" /> Vázlat törlése
+                  </Button>
+                ) : (
+                  isEdit && status !== 'cancelled' && (
+                    <Button
+                      onClick={() => setConfirmCancel(true)}
+                      disabled={saving}
+                      variant="ghost"
+                      className="w-full text-red-600 hover:text-red-700"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" /> Foglalás lemondása
+                    </Button>
+                  )
+                )}
+              </motion.div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {confirmCancel && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/[0.08] p-6 shadow-2xl">
             <div className="flex items-start gap-3 mb-4">
               <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
@@ -636,9 +895,44 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, target
               </button>
             </div>
           </div>
-        </div>,
-        document.body,
+        </div>
       )}
-    </Sheet>
+
+      {/* Dirty-guard — mentetlen változásnál zárás előtt rákérdezünk. */}
+      {confirmDiscard && (
+        <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/[0.08] p-6 shadow-2xl">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Elveted a módosításokat?</h3>
+                <p className="text-sm text-zinc-500 dark:text-white/50">
+                  Van mentetlen változás. Ha bezárod, elvész.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDiscard(false)}
+                className="flex-1 h-11 rounded-full bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-white/80 text-sm font-semibold hover:opacity-80 transition-opacity"
+              >
+                Mégse
+              </button>
+              <button
+                type="button"
+                onClick={() => { setConfirmDiscard(false); onClose() }}
+                className="flex-1 h-11 rounded-full bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors"
+              >
+                Elvetem
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>,
+    document.body,
   )
 }

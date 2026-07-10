@@ -18,6 +18,7 @@ const schema = z.object({
   customer_name: z.string().min(2),
   customer_email: z.string().email(),
   customer_phone: z.string().min(7),
+  customer_city: z.string().max(120).optional(),
   notes: z.string().optional(),
   locale: z.enum(['hu', 'en', 'de', 'es', 'it', 'fr']).default('hu'),
   // Opcionális ismétlődés. Hiánya → PONTOSAN a jelenlegi egyszeri viselkedés.
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, staffId, date, start_time, end_time, customer_name, customer_email, customer_phone, notes, locale, repeat } = parsed.data
+  const { salonId, serviceId, staffId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, notes, locale, repeat } = parsed.data
 
   // Tiltólista (üzletenként): tiltott e-mail/telefon → ÁLTALÁNOS hiba (nem áruljuk el a tiltást).
   if (await isGuestBlocked({ business: 'salon', businessId: salonId, email: customer_email, phone: customer_phone })) {
@@ -123,6 +124,7 @@ export async function POST(request: NextRequest) {
       const booking = (await payload.create({
         collection: 'bookings',
         overrideAccess: true,
+        context: { auditActor: 'Online foglalás' },
         data: {
           salon: Number(salonId),
           service: Number(serviceId),
@@ -135,6 +137,7 @@ export async function POST(request: NextRequest) {
           end_time,
           status: bookingStatus,
           notes: notes ?? undefined,
+          ...(customer_city ? { customer_city } : {}),
           locale,
           cancellation_token: randomBytes(32).toString('hex'),
           ...(seriesId ? { series_id: seriesId } : {}),

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -15,7 +15,7 @@ import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
 import { NumberStepper } from '@/components/ui/NumberStepper'
 import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
-import { EmailVariablesHelp } from '@/components/settings/EmailVariablesHelp'
+import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor } from '@/components/settings/TermsSectionsEditor'
 import { GoodToKnowEditor } from '@/components/settings/GoodToKnowEditor'
@@ -25,9 +25,10 @@ import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
 import { useSettingsFormContext } from '@/components/settings/settingsFormContext'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 
-/** davelopment input/label osztályok (közös). Touch-barát 50px magasság, gold focus. */
+/** davelopment input/label osztályok (közös). Touch-barát 50px magasság, gold focus.
+ *  Crextio/Apple: tiszta fehér + meleg hajszálvékony keret (NINCS krém fill). */
 const inputBase =
-  'h-[50px] w-full rounded-[14px] bg-paper border-line text-ink placeholder:text-ink-soft2/70 focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:border-gold/50'
+  'h-[50px] w-full rounded-[14px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
 const labelBase = 'text-[12.5px] font-medium text-ink-soft'
 
 /** davelopment fül-navigáció (üveg konténer, aktív = ink pill). */
@@ -129,13 +130,14 @@ const schema = z.object({
 })
 type FormData = z.infer<typeof schema>
 
+// A Nyitvatartás/Foglalások kártya-mintája: bordered + fejléc-elválasztó + 15px semibold cím.
 function Section({ title, children, full }: { title: string; children: React.ReactNode; full?: boolean }) {
   return (
-    <div className={`bg-white border border-line rounded-[24px] shadow-dav-card overflow-hidden font-onest ${full ? 'lg:col-span-2' : ''}`}>
-      <div className="px-5 pt-5 pb-3.5 sm:px-6">
-        <h3 className="text-[13px] font-semibold text-ink">{title}</h3>
+    <div className={`rounded-[26px] dav-card-glass overflow-hidden font-onest ${full ? 'lg:col-span-2' : ''}`}>
+      <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
+        <span className="text-[15px] font-semibold text-ink">{title}</span>
       </div>
-      <div className="px-5 pb-6 space-y-4 sm:px-6">{children}</div>
+      <div className="px-5 py-5 space-y-4 sm:px-6">{children}</div>
     </div>
   )
 }
@@ -220,8 +222,15 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     huValues: {
       booking_email_subject: salon.booking_email_subject ?? '',
       booking_email_intro: salon.booking_email_intro ?? '',
+      cancel_email_subject: salon.cancel_email_subject ?? '',
+      cancel_email_intro: salon.cancel_email_intro ?? '',
+      reminder_email_subject: salon.reminder_email_subject ?? '',
+      reminder_email_intro: salon.reminder_email_intro ?? '',
+      feedback_email_subject: salon.feedback_email_subject ?? '',
+      feedback_email_intro: salon.feedback_email_intro ?? '',
       terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
       good_to_know: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
+      event_types: [], // szalon-only: nincs esemény-típus (étterem-funkció)
     },
   })
 
@@ -314,6 +323,16 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     return okFields && okLoc
   }
 
+  // Egy fül változásainak elvetése — vissza az utoljára mentett baseline-ra (a hub közös mentés-sávja
+  // ÉS a fülváltás-ConfirmDialog is ezt hívja). A localizált mezőket a `loc` hook kezeli.
+  const discardTab = (tab: string) => {
+    for (const k of (TAB_FIELDS[tab] ?? [])) {
+      setValue(k, defaultsRef.current[k], { shouldDirty: false })
+    }
+    if (tab === 'general') { setLogoModified(false); setCoverModified(false) }
+    if (tab === 'languages') setSupportedExtras(savedSupported)
+  }
+
   const requestTab = (id: string) => {
     if (id === activeTab) return
     if (tabDirty(activeTab)) setPendingTab(id)
@@ -396,13 +415,29 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
   // Globális mentés: minden fül mezője egyben.
   const onSubmit = () => persist(Object.values(TAB_FIELDS).flat(), true)
 
+  // ── Beágyazott mód: az aktív fül mentetlen-állapotát FELFELÉ jelezzük a hub közös mentés-sávjának,
+  //    és regisztráljuk a mentés/elvetés műveletet. A műveletek friss closure-t olvasnak ref-en át.
+  const currentDirty = tabDirty(activeTab)
+  const activeTabRef = useRef(activeTab); activeTabRef.current = activeTab
+  const saveTabRef = useRef(saveTab); saveTabRef.current = saveTab
+  const discardRef = useRef(discardTab); discardRef.current = discardTab
+  const reportDirty = hubCtx?.reportDirty
+  const registerApi = hubCtx?.registerApi
+  useEffect(() => { reportDirty?.(currentDirty) }, [currentDirty, reportDirty])
+  useEffect(() => {
+    registerApi?.({
+      save: () => saveTabRef.current(activeTabRef.current),
+      discard: () => discardRef.current(activeTabRef.current),
+    })
+  }, [registerApi])
+
   return (
     <>
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
       {!embedded && !hideTabsNav && <TabsNav tabs={tabs} active={activeTab} onSelect={requestTab} />}
 
       {activeTab === 'general' && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
+      <div className="grid grid-cols-1 gap-[5px]">
 
       {/* Cover image */}
       <Section title="Borítókép" full>
@@ -411,7 +446,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
           <button
             type="button"
             onClick={() => coverRef.current?.click()}
-            className="relative w-full h-36 rounded-2xl overflow-hidden bg-paper border border-line flex items-center justify-center hover:opacity-90 transition-opacity"
+            className="relative w-full h-36 rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong flex items-center justify-center hover:border-ink/25 transition-colors"
           >
             {uploadingCover ? (
               <Loader2 className="h-6 w-6 text-ink-soft animate-spin" />
@@ -456,13 +491,13 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       <Section title="Alap adatok">
         <div className="flex flex-col gap-4">
           <div className="shrink-0 space-y-1.5">
-            <Label className={labelBase}>Logó</Label>
+            <Label className={`${labelBase} block`}>Logó</Label>
             {/* object-contain + rugalmas szélesség: a teljes logó látszik (nem négyzetbe vágva). */}
-            <div className="relative inline-block">
+            <div className="relative w-fit">
               <button
                 type="button"
                 onClick={() => logoRef.current?.click()}
-                className="group relative flex h-16 min-w-16 max-w-[220px] items-center justify-center rounded-xl overflow-hidden bg-paper border border-line px-3 hover:bg-paper/70 transition-colors"
+                className="group relative flex h-20 min-w-20 max-w-[220px] items-center justify-center rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong px-3 hover:border-ink/25 transition-colors"
               >
                 {uploadingLogo ? (
                   <Loader2 className="h-5 w-5 text-ink-soft animate-spin" />
@@ -481,7 +516,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
                 <button
                   type="button"
                   onClick={() => removeImage(logoId, setLogoPreview, setLogoId, setLogoModified, logoRef)}
-                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-red-500 transition-colors"
+                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-bad transition-colors"
                 >
                   <X className="h-3 w-3 text-white" />
                 </button>
@@ -555,14 +590,16 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         <GoodToKnowEditor value={loc.current.good_to_know} onChange={(v) => loc.setField('good_to_know', v)} locale={loc.editLocale} />
       </Section>
 
-      <div className="lg:col-span-2">
-        <SaveBar dirty={tabDirty('general')} submitting={submitting} onSave={() => saveTab('general')} />
-      </div>
+      {!embedded && (
+        <div className="lg:col-span-2">
+          <SaveBar dirty={tabDirty('general')} submitting={submitting} onSave={() => saveTab('general')} />
+        </div>
+      )}
       </div>
       )}
 
       {activeTab === 'booking' && (
-      <div className="space-y-4 lg:space-y-6">
+      <div className="space-y-[5px]">
       <Section title="Foglalási beállítások">
         {/* Desktopon kétoszlopos: BAL = a beállítók + kapcsolók; JOBB = a naptár.
             Mobilon egymás alatt, a naptár full. */}
@@ -612,12 +649,12 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         </div>
       </Section>
 
-      <SaveBar dirty={tabDirty('booking')} submitting={submitting} onSave={() => saveTab('booking')} />
+      {!embedded && <SaveBar dirty={tabDirty('booking')} submitting={submitting} onSave={() => saveTab('booking')} />}
       </div>
       )}
 
       {activeTab === 'languages' && (
-      <div className="space-y-4 lg:space-y-6">
+      <div className="space-y-[5px]">
       <Section title="Foglalón kínált nyelvek">
         <p className="text-xs text-ink-soft -mt-1">
           Mely nyelveken választhatnak a vendégek a foglaló oldalon. A magyar mindig elérhető (alap, és tartalék
@@ -631,36 +668,19 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
           </p>
         )}
       </Section>
-      <SaveBar dirty={tabDirty('languages')} submitting={submitting} onSave={() => saveTab('languages')} />
+      {!embedded && <SaveBar dirty={tabDirty('languages')} submitting={submitting} onSave={() => saveTab('languages')} />}
       </div>
       )}
 
       {activeTab === 'email' && (
-      <div className="space-y-4 lg:space-y-6">
-        {/* Tartalom */}
-        <Section title="Tartalom">
-          <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
-          <div className="space-y-1.5">
-            <Label className={labelBase}>Email tárgya</Label>
-            <Input
-              className={inputBase}
-              value={loc.current.booking_email_subject}
-              onChange={(e) => loc.setField('booking_email_subject', e.target.value)}
-              placeholder="Foglalás visszaigazolva — {{name}}"
-            />
-            <p className="text-xs text-ink-soft">Üresen hagyva az alapértelmezett tárgy jelenik meg.</p>
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelBase}>Bevezető szöveg</Label>
-            <Textarea
-              className={`${inputBase} min-h-28 py-3`}
-              value={loc.current.booking_email_intro}
-              onChange={(e) => loc.setField('booking_email_intro', e.target.value)}
-              placeholder={'Kedves {{name}}!\n\nKöszönjük a foglalást, várunk szeretettel!'}
-            />
-            <p className="text-xs text-ink-soft">A visszaigazoló email tetejére, a foglalás részletei elé kerül.</p>
-          </div>
-          <EmailVariablesHelp type="salon" />
+      <div className="space-y-[5px]">
+        {/* Email-sablonok — típusonkénti (visszaigazolás/lemondás/emlékeztető/visszajelzés) tárgy + bevezető */}
+        <Section title="Email-sablonok">
+          <EmailTemplatesEditor
+            variant="salon"
+            loc={loc}
+            onPreview={(state, intro) => window.open(emailPreviewUrl('salon', watch(), loc.editLocale, state, intro), '_blank', 'noopener')}
+          />
         </Section>
 
         {/* Kapcsolat & útvonal */}
@@ -703,12 +723,12 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
           </div>
         </Section>
 
-        <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('salon', { ...watch(), booking_email_intro: loc.current.booking_email_intro }, loc.editLocale), '_blank', 'noopener')} />
+        {!embedded && <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('salon', { ...watch(), booking_email_intro: loc.current.booking_email_intro }, loc.editLocale), '_blank', 'noopener')} />}
       </div>
       )}
 
       {activeTab === 'documents' && (
-      <div className="space-y-4 lg:space-y-6">
+      <div className="space-y-[5px]">
       <Section title="Cégadatok">
         <p className="text-xs text-ink-soft">
           A „Szolgáltató adatai" blokk ezekből áll össze a Foglalási feltételek elején (a foglaló oldalon és emailben). Üres mezők kimaradnak.
@@ -745,19 +765,19 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         />
       </Section>
 
-      <SaveBar dirty={tabDirty('documents')} submitting={submitting} onSave={() => saveTab('documents')} />
+      {!embedded && <SaveBar dirty={tabDirty('documents')} submitting={submitting} onSave={() => saveTab('documents')} />}
       </div>
       )}
 
       {activeTab === 'danger' && (
-      <div className="bg-red-500/[0.04] border border-red-500/20 rounded-[24px] overflow-hidden font-onest">
-        <div className="px-5 py-4 border-b border-red-500/20 sm:px-6">
-          <h3 className="font-bold text-sm uppercase tracking-widest text-red-400">Veszélyzóna</h3>
+      <div className="overflow-hidden rounded-[26px] border border-bad/25 bg-bad-bg/40 font-onest shadow-dav-card">
+        <div className="border-b border-bad/20 px-5 py-4 sm:px-6">
+          <h3 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-bad">Veszélyzóna</h3>
         </div>
-        <div className="px-5 sm:px-6 py-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+        <div className="flex flex-col gap-3 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:px-6">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">{isLastBusiness ? 'Fiók törlése' : 'Szalon törlése'}</p>
-            <p className="text-xs text-ink-soft mt-0.5">
+            <p className="mt-0.5 text-xs text-ink-soft">
               {isLastBusiness
                 ? 'Minden adat (szalon, foglalások, munkatársak) véglegesen törlődik.'
                 : `Csak ezt a szalont törli (foglalások, munkatársak). A fiókod és a többi üzleted megmarad.`}
@@ -766,7 +786,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
           <button
             type="button"
             onClick={() => setDeleteOpen(true)}
-            className="h-10 px-5 rounded-full border border-red-500/40 text-red-500 hover:bg-red-500/10 text-sm font-semibold flex items-center justify-center gap-2 transition-colors shrink-0 w-full sm:w-auto"
+            className="inline-flex h-11 w-full shrink-0 items-center justify-center gap-2 rounded-dav-pill border-[1.5px] border-bad/40 px-5 text-sm font-semibold text-bad transition-colors hover:bg-bad-bg sm:w-auto"
           >
             <Trash2 className="h-4 w-4" />
             {isLastBusiness ? 'Fiók törlése' : 'Szalon törlése'}
@@ -792,11 +812,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       }}
       onTertiary={() => {
         // Elvetés: az aktuális fül mezőit visszaállítjuk az utoljára mentett állapotra.
-        for (const k of (TAB_FIELDS[activeTab] ?? [])) {
-          setValue(k, defaultsRef.current[k], { shouldDirty: false })
-        }
-        if (activeTab === 'general') { setLogoModified(false); setCoverModified(false) }
-        if (activeTab === 'languages') setSupportedExtras(savedSupported)
+        discardTab(activeTab)
         if (pendingTab) { setActiveTab(pendingTab); setPendingTab(null) }
       }}
       onCancel={() => setPendingTab(null)}
@@ -804,27 +820,27 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
 
     {deleteOpen && typeof document !== 'undefined' && createPortal(
       <div
-        className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 dark:bg-black/60 backdrop-blur-2xl"
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30 p-4 backdrop-blur-xl"
         onClick={() => { if (!deleting) { setDeleteOpen(false); setDeleteConfirm('') } }}
       >
         <div
-          className="w-full max-w-md bg-white/95 backdrop-blur-xl rounded-3xl border border-line shadow-2xl p-7 lg:p-9"
+          className="w-full max-w-md rounded-[26px] border border-line bg-white p-7 shadow-dav-card lg:p-9"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="h-12 w-12 rounded-2xl bg-red-500/10 flex items-center justify-center mb-5">
-            <Trash2 className="h-6 w-6 text-red-500" />
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-[16px] bg-bad-bg">
+            <Trash2 className="h-6 w-6 text-bad" />
           </div>
-          <h3 className="text-xl font-black tracking-tight text-ink">
+          <h3 className="text-[22px] font-medium tracking-[-0.01em] text-ink">
             {isLastBusiness ? 'Fiók törlése' : 'Szalon törlése'}
           </h3>
-          <p className="text-sm text-ink-soft mt-2 leading-relaxed">
+          <p className="mt-2 text-sm leading-relaxed text-ink-soft">
             Ez a művelet <span className="font-semibold text-ink">visszafordíthatatlan</span>.{' '}
             {isLastBusiness
               ? 'A szalon, a foglalások és a munkatársak véglegesen törlődnek — ez az utolsó üzleted, ezért a teljes fiók is megszűnik.'
               : 'Csak ez a szalon törlődik (a foglalásaival és munkatársaival együtt); a fiókod és a többi üzleted megmarad.'}
           </p>
-          <p className="text-xs text-ink-soft mt-5 mb-2">
-            A megerősítéshez írd be a szalon nevét: <span className="font-bold text-ink">{salon.name}</span>
+          <p className="mb-2 mt-5 text-xs text-ink-soft">
+            A megerősítéshez írd be a szalon nevét: <span className="font-semibold text-ink">{salon.name}</span>
           </p>
           <Input
             className={inputClass}
@@ -834,12 +850,12 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
             autoComplete="off"
             autoFocus
           />
-          <div className="flex items-center gap-2 mt-6">
+          <div className="mt-6 flex items-center gap-2">
             <button
               type="button"
               onClick={deleteAccount}
               disabled={deleting || deleteConfirm.trim() !== (salon.name ?? '').trim()}
-              className="flex-1 h-11 rounded-full bg-red-500 hover:bg-red-600 text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="flex h-11 flex-1 items-center justify-center gap-2 rounded-dav-pill bg-bad text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Trash2 className="h-4 w-4" />
               {deleting ? 'Törlés...' : 'Végleges törlés'}
@@ -848,7 +864,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
               type="button"
               onClick={() => { setDeleteOpen(false); setDeleteConfirm('') }}
               disabled={deleting}
-              className="h-11 px-5 rounded-full border border-line-strong text-sm font-semibold text-ink-soft hover:border-ink/40 transition-colors"
+              className="h-11 rounded-dav-pill border-[1.5px] border-line-strong px-5 text-sm font-semibold text-ink-soft transition-colors hover:border-ink/40"
             >
               Mégse
             </button>

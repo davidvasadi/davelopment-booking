@@ -34,8 +34,8 @@ export function roleLabel(role: TeamRole | null | undefined): string {
     case 'owner':
       return 'Tulajdonos'
     case 'manager':
-      return 'Menedzser'
+      return 'Vezető'
     default:
-      return 'Munkatárs'
+      return 'Dolgozó'
   }
 }

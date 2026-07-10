@@ -138,3 +138,98 @@ html {
   from { transform: translateX(0); }
   to { transform: translateX(-33.333%); }
 }
+
+/* ── Nyomtatás ──
+   A `print:hidden` (Tailwind) mindenhonnan kiszedi a keresőt/szűrőt/akció-gombokat.
+   A `printing-profile` body-osztály (a profil Nyomtatás gombja teszi fel): a mögöttes app +
+   overlay-háttér eltűnik, az overlay konténereit „kioldjuk" → a profil NORMÁL folyásban
+   nyomtatódik (nem esik össze), csak a profil-oszlop (a lista/fejléc print:hidden). */
+@media print {
+  /* A4 ÁLLÓ, ésszerű margóval. */
+  @page { size: A4 portrait; margin: 12mm; }
+
+  /* A háttérszínek / gradiensek / pillok / diagram-színek NYOMTATÓDJANAK (a böngésző alapból elhagyná). */
+  body.printing-profile,
+  body.printing-profile .hv-panel,
+  body.printing-profile .hv-panel * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body.printing-profile > *:not(.hv-print) { display: none !important; }
+  body.printing-profile .hv-backdrop { display: none !important; }
+  body.printing-profile .hv-scroll {
+    position: static !important;
+    overflow: visible !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+  body.printing-profile .hv-panel {
+    position: static !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+
+  /* Nyomtatáskor a lap < 1024px, ezért a Tailwind lg: elrendezés elveszne → egyoszlopos lenne, és
+     a naptár full-width-re nőne. Kényszerítjük a DESKTOP 2-oszlopost, hogy ugyanúgy nézzen ki, mint
+     a képernyőn (a naptár a bal, keskeny oszlopban marad). */
+  body.printing-profile .hv-detail-grid {
+    display: grid !important;
+    grid-template-columns: 240px minmax(0, 1fr) !important;
+    gap: 1.1rem !important;
+    align-items: start !important;
+  }
+
+  /* ── Egy A4-re sűrítés (a GRAFIKONOK maradnak, csak kompaktabbak) ──
+     A profil képernyőn magasabb, mint egy A4; nyomtatásban visszafogjuk a méreteket, hogy
+     minden (naptár + adatok + mindkét diagram) egy oldalra férjen, csúszás nélkül. */
+  body.printing-profile [data-print-root] { padding: 1rem !important; }
+  /* A nagy „Havi munkaidő" chart magassága (y-tengely + rajzterület + svg) — a %-os csúcs-overlay
+     arányosan követi, így nem csúszik el. */
+  body.printing-profile .hv-chart-h { height: 132px !important; }
+  /* A jobb oszlop szekció-térközei szűkebbek — a fejléc/adat-blokk (címkék, megjegyzés, kontakt,
+     belépés-sor, pozíció-előzmény, bér-kártya) a legterjedelmesebb rész, ezt is sűrítjük, hogy egy
+     adat-gazdag profil is EGY A4-re férjen. */
+  body.printing-profile .hv-detail-grid .mt-8 { margin-top: 0.85rem !important; }
+  body.printing-profile .hv-detail-grid .mt-5 { margin-top: 0.7rem !important; }
+  body.printing-profile .hv-detail-grid .mt-4 { margin-top: 0.6rem !important; }
+  body.printing-profile .hv-detail-grid .mt-3 { margin-top: 0.5rem !important; }
+
+  /* Kép / diagram / kártya ne törjön szét oldalhatáron. */
+  body.printing-profile img,
+  body.printing-profile svg,
+  body.printing-profile [data-print-card] {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+@layer components {
+  /* ===== Üveges „view" kártya-felület =====
+     A davelopment-design etalon a fő tartalom-panelekhez (a régi tömör fehér
+     `bg-white border border-line shadow-dav-card` helyett). Áttetsző üveg: az
+     oldal-/konténer-gradient átdereng és elmosódik mögötte. A lekerekítést és a
+     paddinget a hívó adja hozzá (pl. `rounded-[26px] p-6 dav-card-glass`).
+     FONTOS: csak fő panelekre — a popover/modal/legördülő maradjon tömör fehér. */
+  .dav-card-glass {
+    background: var(--dav-glass-strong);
+    border: 1px solid var(--dav-line);
+    box-shadow: var(--dav-shadow-card);
+    -webkit-backdrop-filter: blur(18px) saturate(1.08);
+    backdrop-filter: blur(18px) saturate(1.08);
+  }
+
+  /* Nyomtatáskor az üveg olvashatatlan — tömör fehérré esik vissza. */
+  @media print {
+    .dav-card-glass {
+      background: #fff;
+      -webkit-backdrop-filter: none;
+      backdrop-filter: none;
+    }
+  }
+}

@@ -7,8 +7,9 @@ import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/A
 import PeriodFilter from '@/components/dashboard/PeriodFilter'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
-import { HeroKpi } from '@/components/dashboard/overview-ui'
-import { Wallet, CalendarCheck, CheckCircle2 } from 'lucide-react'
+import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
+import { StatusPills } from '@/components/dashboard/StatusPills'
+import { Sparkles } from 'lucide-react'
 
 const VALID_PERIODS = [1, 7, 30, 90, 180, 365]
 
@@ -33,6 +34,14 @@ export default async function AnalyticsPage({
 
   const days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
   const stats = await getDashboardStats(salon.id, days)
+
+  // ── Statisztika-specifikus, ELEMZŐ jobb-oldali KPI-k — szándékosan MÁST mérnek,
+  //    mint az áttekintő (az napi Foglalás/Bevétel/Teljesítés): havi átlagos bevétel
+  //    (időszakra vetített futó-ütem) · átlagos foglalás-érték (pénzügyi) · a
+  //    legnépszerűbb (legtöbbet foglalt) szolgáltatás neve. ──
+  const monthlyAvgRevenue = Math.round((stats.periodRevenue / Math.max(1, days)) * 30)
+  const topService = [...stats.byService].sort((a, b) => b.bookings - a.bookings)[0]?.name ?? '—'
+
   // Idősorok a metrika-diagramokhoz.
   const revenueSeries = stats.trend.map((d) => ({ label: d.label, value: d.revenue }))
   const bookingsSeries = stats.trend.map((d) => ({ label: d.label, value: d.bookings }))
@@ -132,30 +141,30 @@ export default async function AnalyticsPage({
 
       {/* ── Crextio stat-terület: státusz-csík (striped cellával) + nagy KPI-számok ── */}
       <div className="flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
-        <div className="min-w-0 flex-1 lg:max-w-[760px]">
-          <div className="mb-2 flex items-center gap-8 lg:gap-12 text-xs font-medium text-ink-soft">
-            <span>Teljesített</span>
-            <span>Lemondva</span>
-            <span className="ml-auto">Nyitott</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex h-11 shrink-0 items-center rounded-[21px] bg-ink-dark px-5 text-sm font-semibold text-white">{completedPct}%</div>
-            <div className="flex h-11 shrink-0 items-center rounded-[21px] bg-gold px-5 text-sm font-semibold text-ink-dark">{cancelledPct}%</div>
-            <div className="min-w-0 flex-1">
-              <div
-                className="flex h-11 items-center justify-end rounded-[21px] border border-line-strong px-5 text-sm font-semibold text-ink-soft2"
-                style={{ background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)' }}
-              >
-                {openPct}%
-              </div>
-            </div>
-          </div>
-        </div>
+        <StatusPills
+          eager
+          className="flex-1 lg:max-w-[760px]"
+          segments={[
+            { label: 'Teljesített', pct: completedPct, background: '#1D1C19', color: '#fff' },
+            { label: 'Lemondva', pct: cancelledPct, background: '#F1CE45', color: '#1D1C19' },
+            { label: 'Nyitott', pct: openPct, background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
+          ]}
+        />
 
         <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-          <HeroKpi icon={Wallet} value={formatPrice(stats.periodRevenue, 'HUF')} label="Bevétel" />
-          <HeroKpi icon={CalendarCheck} value={String(stats.periodBookings)} label="Foglalás" />
-          <HeroKpi icon={CheckCircle2} value={`${stats.completionRate}%`} label="Teljesítés" />
+          <CountUpKpi icon="wallet" value={monthlyAvgRevenue} label="Havi átl. bevétel" suffix=" Ft" group />
+          <CountUpKpi icon="gauge" value={stats.avgBookingValue} label="Átl. foglalás-érték" suffix=" Ft" group />
+          {/* Legnépszerűbb szolgáltatás — NÉV, nem szám: a KPI-ritmust követi, de kisebb
+              betűvel + truncate, hogy hosszú név se lógjon ki. */}
+          <div className="flex flex-col items-start">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="h-6 w-6 shrink-0 text-ink-soft" strokeWidth={1.6} />
+              <div className="max-w-[190px] truncate text-2xl lg:text-[26px] font-light leading-none tracking-[-0.02em] text-ink">
+                {topService}
+              </div>
+            </div>
+            <div className="mt-1.5 text-[13px] font-medium text-ink-soft">Legnépszerűbb szolgáltatás</div>
+          </div>
         </div>
       </div>
 

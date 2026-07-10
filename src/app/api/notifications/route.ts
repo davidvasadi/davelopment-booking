@@ -2,28 +2,23 @@ import { NextResponse } from 'next/server'
 import type { Where } from 'payload'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { getActiveBusiness } from '@/lib/activeBusiness'
+import type { User } from '@/payload/payload-types'
 
 /**
- * Több-üzlet (multi-tenant): a tulajdonos az ÖSSZES saját helye (szalon + étterem) owner-
- * értesítéseit látja — nem csak a régi `user.salon`/`user.restaurant` fix mezőét. Admin az
- * admin-közönségű értesítéseket.
+ * Több-üzlet (multi-tenant): a tulajdonos MINDIG az ÉPP AKTÍV üzlete (szalon VAGY étterem)
+ * owner-értesítéseit látja — az aktív üzletet a `schedulio_active_business` cookie adja
+ * (getActiveBusiness). Így szalon nézetben a szalon, étterem nézetben az étterem értesítései
+ * jelennek meg (nem keverve, nem mindig az étteremé). Admin az admin-közönségű értesítéseket.
  */
-async function placeFilter(user: { id: string | number; role: string }): Promise<Where | null> {
+async function placeFilter(user: User): Promise<Where | null> {
   if (user.role === 'admin') return { audience: { equals: 'admin' } }
 
-  const payload = await getPayloadClient()
-  const [salons, restaurants] = await Promise.all([
-    payload.find({ collection: 'salons', where: { owner: { equals: user.id } }, limit: 100, depth: 0, overrideAccess: true }),
-    payload.find({ collection: 'restaurants', where: { owner: { equals: user.id } }, limit: 100, depth: 0, overrideAccess: true }),
-  ])
-  const salonIds = salons.docs.map((s) => s.id)
-  const restaurantIds = restaurants.docs.map((r) => r.id)
-  const or: Where[] = []
-  if (salonIds.length) or.push({ salon: { in: salonIds } })
-  if (restaurantIds.length) or.push({ restaurant: { in: restaurantIds } })
-  if (or.length === 0) return null
-
-  return { and: [{ or }, { audience: { equals: 'owner' } }] }
+  const { active } = await getActiveBusiness(user)
+  if (!active) return null
+  const id: string | number = /^\d+$/.test(active.id) ? Number(active.id) : active.id
+  const place: Where = active.type === 'salon' ? { salon: { equals: id } } : { restaurant: { equals: id } }
+  return { and: [place, { audience: { equals: 'owner' } }] }
 }
 
 // GET — legutóbbi értesítések + olvasatlan számláló

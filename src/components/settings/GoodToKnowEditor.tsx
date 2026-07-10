@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Trash2, ChevronUp, ChevronDown, ChevronDown as Caret, Sparkles } from 'lucide-react'
+import { Plus, Trash2, ChevronUp, ChevronDown, ChevronDown as Caret, Sparkles, Info } from 'lucide-react'
 import { GOOD_TO_KNOW_ICONS, iconByKey } from './goodToKnowIcons'
 import { goodToKnowTemplate } from './contentTemplates'
 import type { Locale } from '@/lib/i18n'
@@ -9,10 +9,15 @@ import { cn } from '@/lib/utils'
 
 export type GoodToKnowItem = { icon: string; title: string; body: string }
 
+/** Közös mező-stílus (Crextio/Apple: tiszta fehér, meleg hajszál-keret, gold fókusz). */
+const fieldBase =
+  'w-full rounded-[12px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 focus:outline-none focus:border-gold/60 focus:ring-2 focus:ring-gold/25 transition-colors'
+
 /**
  * „Jó tudni" pont-szerkesztő a foglaló oldalhoz (ikon + cím + szöveg). Kontrollált:
  * a `value` a pontok tömbje, minden módosítás az `onChange`-en megy. Az ikon egy
- * popover-rácsból választható (nem 16 gomb egymás mellett), így a kártya letisztult.
+ * popover-rácsból választható, így a kártya letisztult. A stílus a davelopment
+ * design-rendszert követi (ink/line/paper/gold), NEM a régi zinc/dark palettát.
  */
 export function GoodToKnowEditor({
   value,
@@ -39,58 +44,60 @@ export function GoodToKnowEditor({
     onChange(next)
   }
 
-  return (
-    <div className="space-y-3">
-      {value.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-zinc-300 dark:border-white/[0.12] p-8 flex flex-col items-center gap-3 text-center">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black">
-            <Plus className="h-5 w-5" />
-          </span>
-          <span className="text-sm font-semibold text-zinc-700 dark:text-white/70">Még nincs „Jó tudni" pont</span>
-          <span className="text-xs text-zinc-400 dark:text-white/30">Pl. parkolás, módosítás, kisállat-barát…</span>
-          <div className="flex flex-wrap items-center justify-center gap-2 mt-1">
-            <button
-              type="button"
-              onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale)))}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black text-sm font-semibold hover:opacity-90 transition-opacity"
-            >
-              <Sparkles className="h-4 w-4" />
-              Sablon betöltése
-            </button>
-            <button
-              type="button"
-              onClick={add}
-              className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full border border-zinc-200 dark:border-white/[0.12] text-sm font-semibold text-zinc-600 dark:text-white/70 hover:border-zinc-400 dark:hover:bg-white/[0.04] transition-colors"
-            >
-              <Plus className="h-4 w-4" />
-              Üres pont
-            </button>
-          </div>
+  if (value.length === 0) {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-[18px] border border-dashed border-line-strong bg-white px-6 py-10 text-center">
+        <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-ink-dark text-gold">
+          <Info className="h-5 w-5" strokeWidth={1.7} />
+        </span>
+        <div>
+          <p className="text-sm font-semibold text-ink">Még nincs „Jó tudni" pont</p>
+          <p className="mt-0.5 text-xs text-ink-soft">Pl. parkolás, módosítás, kisállat-barát…</p>
         </div>
-      ) : (
-        <>
-          {value.map((s, i) => (
-            <GoodToKnowRow
-              key={i}
-              item={s}
-              index={i}
-              total={value.length}
-              onChange={(patch) => update(i, patch)}
-              onMove={(dir) => move(i, dir)}
-              onRemove={() => remove(i)}
-            />
-          ))}
-
+        <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale)))}
+            className="inline-flex items-center gap-1.5 rounded-[14px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <Sparkles className="h-4 w-4 text-gold" />
+            Sablon betöltése
+          </button>
           <button
             type="button"
             onClick={add}
-            className="inline-flex items-center gap-1.5 h-10 px-4 rounded-full border border-zinc-200 dark:border-white/[0.12] text-sm font-semibold text-zinc-600 dark:text-white/70 hover:border-zinc-400 dark:hover:bg-white/[0.04] transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-[14px] border border-line bg-white px-4 py-2.5 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink"
           >
             <Plus className="h-4 w-4" />
-            Új pont
+            Üres pont
           </button>
-        </>
-      )}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {value.map((s, i) => (
+        <GoodToKnowRow
+          key={i}
+          item={s}
+          index={i}
+          total={value.length}
+          onChange={(patch) => update(i, patch)}
+          onMove={(dir) => move(i, dir)}
+          onRemove={() => remove(i)}
+        />
+      ))}
+
+      <button
+        type="button"
+        onClick={add}
+        className="inline-flex items-center gap-1.5 rounded-[14px] border border-line bg-white px-4 py-2.5 text-[13px] font-semibold text-ink-soft shadow-dav-card transition-colors hover:text-ink"
+      >
+        <Plus className="h-4 w-4" />
+        Új pont
+      </button>
     </div>
   )
 }
@@ -125,7 +132,7 @@ function GoodToKnowRow({
   }, [pickerOpen])
 
   return (
-    <div className="rounded-2xl border border-zinc-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.02] p-4 space-y-3">
+    <div className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card">
       <div className="flex items-center gap-2.5">
         {/* Ikonválasztó popover */}
         <div ref={pickerRef} className="relative shrink-0">
@@ -133,28 +140,31 @@ function GoodToKnowRow({
             type="button"
             onClick={() => setPickerOpen((o) => !o)}
             aria-label="Ikon választása"
-            className="flex h-10 items-center gap-1 rounded-xl bg-zinc-950 dark:bg-white pl-2.5 pr-1.5 text-white dark:text-black hover:opacity-90 transition-opacity"
+            className="flex h-11 items-center gap-1.5 rounded-[12px] border border-line-strong bg-white pl-3 pr-2 text-ink transition-colors hover:border-ink/25"
           >
-            <ActiveIcon className="h-4 w-4" />
-            <Caret className="h-3.5 w-3.5 opacity-60" />
+            <ActiveIcon className="h-4 w-4" strokeWidth={1.8} />
+            <Caret className="h-3.5 w-3.5 text-ink-soft2" />
           </button>
           {pickerOpen && (
-            <div className="absolute top-full left-0 mt-2 z-50 w-60 rounded-xl border border-zinc-100 dark:border-white/[0.08] bg-white dark:bg-zinc-950 shadow-lg p-2">
+            <div className="absolute left-0 top-full z-50 mt-2 w-64 rounded-[16px] border border-line bg-white p-2 shadow-dav-card">
               <div className="grid grid-cols-5 gap-1">
                 {GOOD_TO_KNOW_ICONS.map(({ key, label, icon: Icon }) => (
                   <button
                     key={key}
                     type="button"
-                    onClick={() => { onChange({ icon: key }); setPickerOpen(false) }}
+                    onClick={() => {
+                      onChange({ icon: key })
+                      setPickerOpen(false)
+                    }}
                     title={label}
                     className={cn(
-                      'flex h-10 w-full items-center justify-center rounded-lg transition-colors',
+                      'flex h-10 w-full items-center justify-center rounded-[10px] transition-colors',
                       item.icon === key
-                        ? 'bg-zinc-900 dark:bg-white text-white dark:text-black'
-                        : 'text-zinc-500 dark:text-white/50 hover:bg-zinc-100 dark:hover:bg-white/[0.08]',
+                        ? 'bg-ink-dark text-gold'
+                        : 'text-ink-soft hover:bg-paper hover:text-ink',
                     )}
                   >
-                    <Icon className="h-4 w-4" />
+                    <Icon className="h-4 w-4" strokeWidth={1.8} />
                   </button>
                 ))}
               </div>
@@ -166,17 +176,17 @@ function GoodToKnowRow({
           value={item.title}
           onChange={(e) => onChange({ title: e.target.value })}
           placeholder="Pont címe (pl. Parkolás)"
-          className="flex-1 min-w-0 h-10 rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20 px-3 text-sm font-semibold focus:outline-none focus:border-zinc-400"
+          className={cn(fieldBase, 'h-11 flex-1 min-w-0 px-3.5 text-sm font-semibold')}
         />
 
         <div className="flex shrink-0 items-center">
-          <button type="button" onClick={() => onMove(-1)} disabled={index === 0} title="Fel" className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-white disabled:opacity-30 transition-colors">
+          <button type="button" onClick={() => onMove(-1)} disabled={index === 0} title="Fel" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
             <ChevronUp className="h-4 w-4" />
           </button>
-          <button type="button" onClick={() => onMove(1)} disabled={index === total - 1} title="Le" className="p-1.5 text-zinc-400 hover:text-zinc-700 dark:hover:text-white disabled:opacity-30 transition-colors">
+          <button type="button" onClick={() => onMove(1)} disabled={index === total - 1} title="Le" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
             <ChevronDown className="h-4 w-4" />
           </button>
-          <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-zinc-400 hover:text-red-500 transition-colors">
+          <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-red-500">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -187,7 +197,7 @@ function GoodToKnowRow({
         onChange={(e) => onChange({ body: e.target.value })}
         rows={2}
         placeholder="A pont szövege…"
-        className="w-full rounded-xl bg-zinc-50 border border-zinc-200 text-zinc-900 placeholder:text-zinc-400 dark:bg-white/[0.06] dark:border-white/[0.1] dark:text-white dark:placeholder:text-white/20 py-2.5 px-3.5 text-sm resize-y leading-relaxed focus:outline-none focus:border-zinc-400"
+        className={cn(fieldBase, 'resize-y px-3.5 py-2.5 text-sm leading-relaxed')}
       />
     </div>
   )

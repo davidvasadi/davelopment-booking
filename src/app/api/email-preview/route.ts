@@ -15,6 +15,7 @@ import {
   calendarBlock,
   formatBookingDate,
   bottomSpacer,
+  COLORS,
 } from '@/lib/emailLayout'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
@@ -50,6 +51,7 @@ export async function GET(req: NextRequest) {
   let realPhone: string | null = null
   let realEmail: string | null = null
   let realSlug: string | null = null
+  let realGoogleReview: string | null = null
 
   try {
     const user = await getCurrentUser()
@@ -72,6 +74,7 @@ export async function GET(req: NextRequest) {
         realEmail = biz.email ?? null
         realAddress = biz.address ? `${biz.address}${biz.city ? ', ' + biz.city : ''}` : null
         realSlug = biz.slug ?? null
+        realGoogleReview = (biz.feature_modules?.google_review_url ?? '').trim() || null
       }
     }
   } catch {
@@ -116,13 +119,35 @@ export async function GET(req: NextRequest) {
   const previewEndTime   = type === 'salon' ? '15:15' : '21:00'
   const previewTitle     = type === 'salon' ? `Hajvágás + szárítás – ${brandName}` : `${t(locale, 'rbooking.header')} – ${brandName}`
 
+  // A nem-visszaigazoló emaileknél (lemondás/emlékeztető/visszajelzés) a bevezető nyersen jelenik
+  // meg (üresen semmi, ahogy a valódi emailben is); a változók behelyettesítéséhez ez a minta-készlet.
+  const rawIntro = p.get('intro') ?? ''
+  const introVars = { name, date: PREVIEW_DATE, time: `${previewStartTime} – ${previewEndTime}`, pax: '4', service: 'Hajvágás + szárítás' }
+
   let header: string | undefined
   let content: string
 
   if (state === 'cancel') {
     content = `
       ${heroBlock({ icon: 'cancel', title: t(locale, 'email.cancel.title'), subtitle: t(locale, 'email.cancel.body') })}
+      ${introBlock(rawIntro, introVars)}
       ${detailsCard(detailRows)}
+      ${bottomSpacer()}`
+  } else if (state === 'reminder') {
+    content = `
+      ${heroBlock({ icon: 'bell', title: 'Közeleg a foglalásod', subtitle: `Kedves ${name}, csak hogy emlékeztessünk: hamarosan várunk!` })}
+      ${introBlock(rawIntro, introVars)}
+      ${detailsCard(detailRows)}
+      ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}
+      ${bottomSpacer()}`
+  } else if (state === 'feedback') {
+    content = `
+      ${heroBlock({ icon: 'bell', title: 'Milyen volt nálunk?', subtitle: `Kedves ${name}, reméljük jól érezted magad. Mondd el a véleményed!` })}
+      ${introBlock(rawIntro, introVars)}
+      ${detailsCard(detailRows)}
+      <tr><td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <a href="${realGoogleReview || '#'}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${realGoogleReview ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'}</a>
+      </td></tr>
       ${bottomSpacer()}`
   } else if (state === 'notify') {
     content = `

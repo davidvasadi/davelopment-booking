@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { popPanelCenter } from '@/lib/motion'
-import { HiringView } from './HiringView'
+import { HiringView, type Employee } from './HiringView'
 
 type Variant = 'salon' | 'restaurant'
 
@@ -15,7 +15,7 @@ type Variant = 'salon' | 'restaurant'
  * nyelv, mint az avatar/értesítés popover (UserMenu). `createPortal` a body-ra, hogy a fixed pozíció +
  * a teljes-képernyős blur helyesen üljön (nem tör meg a transform-context).
  */
-export function HiringOverlay({ open, onClose, variant, initialIndex = 0 }: { open: boolean; onClose: () => void; variant: Variant; initialIndex?: number }) {
+export function HiringOverlay({ open, onClose, variant, employees, positions = [], canManage = false, canEditSalary = false, statusById, onStatusChange, onProfileChange, initialIndex = 0 }: { open: boolean; onClose: () => void; variant: Variant; employees?: Employee[]; positions?: { label: string; level: 'lead' | 'staff' }[]; canManage?: boolean; canEditSalary?: boolean; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; initialIndex?: number }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
@@ -35,13 +35,13 @@ export function HiringOverlay({ open, onClose, variant, initialIndex = 0 }: { op
       {open && (
         <>
           <motion.div
-            className="fixed inset-0 z-[95] bg-black/25 backdrop-blur-[5px]"
+            className="hv-print hv-backdrop fixed inset-0 z-[95] bg-black/25 backdrop-blur-[5px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
           />
-          <div className="fixed inset-0 z-[96] flex items-start justify-center overflow-y-auto p-3 sm:p-6" onClick={onClose}>
+          <div className="hv-print hv-scroll fixed inset-0 z-[96] flex items-start justify-center overflow-y-auto p-3 sm:p-6" onClick={onClose}>
             <motion.div
               variants={popPanelCenter}
               initial="hidden"
@@ -49,10 +49,10 @@ export function HiringOverlay({ open, onClose, variant, initialIndex = 0 }: { op
               exit="exit"
               onClick={(e) => e.stopPropagation()}
               style={{ transformOrigin: 'center' }}
-              className="my-auto w-full max-w-[1120px] rounded-[30px] border border-line bg-dav-container p-5 shadow-dav-container sm:p-7 xl:max-w-[1360px]"
+              className="hv-panel my-auto w-full max-w-[1120px] rounded-[30px] border border-line bg-dav-container p-5 shadow-dav-container sm:p-7 xl:max-w-[1360px]"
               data-lenis-prevent
             >
-              <HiringView variant={variant} onClose={onClose} initialIndex={initialIndex} />
+              <HiringView variant={variant} employees={employees} positionOptions={positions} canManage={canManage} canEditSalary={canEditSalary} statusById={statusById} onStatusChange={onStatusChange} onProfileChange={onProfileChange} onClose={onClose} initialIndex={initialIndex} />
             </motion.div>
           </div>
         </>

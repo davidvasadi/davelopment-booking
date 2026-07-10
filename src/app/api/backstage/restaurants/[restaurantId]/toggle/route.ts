@@ -24,6 +24,7 @@ export async function POST(
     id: restaurantId,
     data,
     overrideAccess: true,
+    user,
   })
 
   return NextResponse.json({ ok: true })

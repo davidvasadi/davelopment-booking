@@ -82,6 +82,8 @@ export interface Restaurant {
   phone?: string | null
   email?: string | null
   website?: string | null
+  positions?: { label: string; level?: ('lead' | 'staff') | null; id?: string | null }[] | null
+  daily_tips?: { date: string; amount: number; id?: string | null }[] | null
   cover_image?: string | Media | null
   logo?: string | Media | null
   turn_duration_minutes?: number | null
@@ -116,9 +118,16 @@ export interface Restaurant {
     waitlist_auto_promote?: boolean | null
     recurring_on?: boolean | null
     reviews_on?: boolean | null
+    google_review_url?: string | null
   } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
+  cancel_email_subject?: string | null
+  cancel_email_intro?: string | null
+  reminder_email_subject?: string | null
+  reminder_email_intro?: string | null
+  feedback_email_subject?: string | null
+  feedback_email_intro?: string | null
   email_show_phone?: boolean | null
   email_contact_phone?: string | null
   email_show_email?: boolean | null
@@ -131,6 +140,7 @@ export interface Restaurant {
   registered_seat?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
+  event_types?: { icon?: string | null; label?: string | null; enabled?: boolean | null; id?: string | null }[] | null
   supported_locales?: Locale[] | null
   is_active?: boolean | null
   admin_notes?: string | null
@@ -200,10 +210,12 @@ export interface Reservation {
   customer_name: string
   customer_email: string
   customer_phone?: string | null
+  customer_city?: string | null
   country?: string | null
   notes?: string | null
   internal_notes?: string | null
-  is_birthday?: boolean | null
+  occasion?: string | null
+  occasion_icon?: string | null
   status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'no_show' | 'cancelled'
   source: 'online' | 'walk_in' | 'phone'
   reminder_sent?: boolean | null
@@ -270,8 +282,25 @@ export interface Membership {
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null
   role: 'owner' | 'manager' | 'staff'
-  status: 'active' | 'invited'
+  status: 'active' | 'invited' | 'suspended'
   invite_token?: string | null
+  position?: string | null
+  avatar?: string | Media | null
+  phone?: string | null
+  birthday?: string | null
+  address?: string | null
+  tax_id?: string | null
+  emergency_contact?: string | null
+  join_date?: string | null
+  weekly_hours?: number | null
+  pay_type?: ('daily' | 'hourly') | null
+  pay_rate?: number | null
+  tip_eligible?: boolean | null
+  salary?: number | null
+  bio?: string | null
+  suspended_at?: string | null
+  position_history?: { position?: string | null; changed_at?: string | null; id?: string | null }[] | null
+  documents?: { label?: string | null; file?: string | Media | null; id?: string | null }[] | null
   createdAt: string
   updatedAt: string
 }
@@ -280,14 +309,22 @@ export interface AuditLogEntry {
   id: string
   actor?: string | User | null
   actor_label?: string | null
+  actor_email?: string | null
   action: 'create' | 'update' | 'delete'
   collection_name?: string | null
   doc_id?: string | null
   summary?: string | null
+  changes?: AuditChangeEntry[] | null
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null
   createdAt: string
   updatedAt: string
+}
+
+export interface AuditChangeEntry {
+  field: string
+  from: string | number | boolean | null
+  to: string | number | boolean | null
 }
 
 export interface Notification {
@@ -321,6 +358,15 @@ export interface User {
   name: string
   email: string
   avatar_url?: string | null
+  /** Tulajdonos fiók-szintű adatlapja (nincs membershipje) — a HiringView szerkeszti /api/user/profile-on. */
+  phone?: string | null
+  birthday?: string | null
+  join_date?: string | null
+  address?: string | null
+  tax_id?: string | null
+  emergency_contact?: string | null
+  weekly_hours?: number | null
+  bio?: string | null
   role: 'admin' | 'salon_owner' | 'restaurant_owner'
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null
@@ -385,9 +431,16 @@ export interface Salon {
     waitlist_auto_promote?: boolean | null
     recurring_on?: boolean | null
     reviews_on?: boolean | null
+    google_review_url?: string | null
   } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
+  cancel_email_subject?: string | null
+  cancel_email_intro?: string | null
+  reminder_email_subject?: string | null
+  reminder_email_intro?: string | null
+  feedback_email_subject?: string | null
+  feedback_email_intro?: string | null
   email_show_phone?: boolean | null
   email_contact_phone?: string | null
   email_show_email?: boolean | null
@@ -421,6 +474,10 @@ export interface StaffMember {
   join_date?: string | null
   weekly_hours?: number | null
   phone?: string | null
+  email?: string | null
+  address?: string | null
+  tax_id?: string | null
+  emergency_contact?: string | null
   documents?: { label?: string | null; file?: string | Media | null; id?: string | null }[] | null
   createdAt: string
   updatedAt: string
@@ -438,6 +495,10 @@ export interface Shift {
   end_time?: string | null
   hours?: number | null
   note?: string | null
+  owner_shift?: boolean | null
+  /** Státuszváltás: a dolgozó a műszak vége előtt hazament (pl. délben beteg lett). */
+  left_early_at?: string | null
+  left_early_reason?: ('sick' | 'personal') | null
   createdAt: string
   updatedAt: string
 }
@@ -479,6 +540,7 @@ export interface Booking {
   customer_name: string
   customer_email: string
   customer_phone?: string | null
+  customer_city?: string | null
   date: string
   start_time: string
   end_time: string

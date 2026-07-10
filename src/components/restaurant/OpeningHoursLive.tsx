@@ -64,7 +64,7 @@ export default function OpeningHoursLive({ hours, locale = 'hu' }: { hours: DayH
   const todayKey = now ? JS_DAY_TO_KEY[now.getDay()] : null
 
   let label = t(locale, 'openingHours.title')
-  let dotClass = 'bg-zinc-300'
+  let dotClass = 'bg-ink-soft2'
   if (status) {
     if (status.open) {
       label = t(locale, 'openingHours.closeAt', { time: status.today?.close_time ?? '' })
@@ -83,19 +83,19 @@ export default function OpeningHoursLive({ hours, locale = 'hu' }: { hours: DayH
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/70 backdrop-blur-md ring-1 ring-zinc-900/5 shadow-sm px-5 py-4 text-left transition-colors hover:bg-white/90"
+        className="flex w-full items-center justify-between gap-3 rounded-[16px] bg-white/40 px-5 py-4 text-left transition-colors hover:bg-white/60"
       >
         <span className="flex items-center gap-3 min-w-0">
-          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-950">
+          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-dark">
             <Clock className="h-4 w-4 text-white" />
             <span className={`absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white ${dotClass}`} />
           </span>
           <span className="min-w-0">
-            <span className="block font-black text-zinc-900 text-sm leading-tight truncate">{label}</span>
-            <span className="block text-xs text-zinc-500 mt-0.5">{t(locale, "openingHours.viewHours")}</span>
+            <span className="block font-semibold text-ink text-sm leading-tight truncate">{label}</span>
+            <span className="block text-xs text-ink-soft mt-0.5">{t(locale, "openingHours.viewHours")}</span>
           </span>
         </span>
-        <ChevronRight className="h-4 w-4 text-zinc-400 shrink-0" />
+        <ChevronRight className="h-4 w-4 text-ink-soft shrink-0" />
       </button>
 
       {open && (
@@ -112,33 +112,33 @@ export default function OpeningHoursLive({ hours, locale = 'hu' }: { hours: DayH
           <div className="relative w-full sm:max-w-md mx-auto sm:mx-5 rounded-t-3xl sm:rounded-3xl bg-white/80 backdrop-blur-2xl ring-1 ring-white/60 shadow-2xl overflow-hidden animate-[slideup_.25s_ease-out]">
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <div>
-                <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">{t(locale, "openingHours.when")}</p>
-                <h3 className="text-xl font-black tracking-tight text-zinc-900">{t(locale, "openingHours.title")}</h3>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{t(locale, "openingHours.when")}</p>
+                <h3 className="text-xl font-semibold tracking-[-0.01em] text-ink">{t(locale, "openingHours.title")}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="h-9 w-9 rounded-full bg-zinc-900/5 hover:bg-zinc-900/10 flex items-center justify-center transition-colors"
+                className="h-9 w-9 rounded-full bg-paper/50 hover:bg-paper/80 flex items-center justify-center transition-colors"
                 aria-label={t(locale, "openingHours.close")}
               >
-                <X className="h-4 w-4 text-zinc-600" />
+                <X className="h-4 w-4 text-ink-soft" />
               </button>
             </div>
             <div className="px-3 pb-5">
-              <div className="rounded-2xl bg-white/60 ring-1 ring-zinc-900/5 divide-y divide-zinc-900/5 overflow-hidden">
+              <div className="rounded-[18px] bg-white/60 divide-y divide-line overflow-hidden">
                 {DAYS_OF_WEEK.map((d) => {
                   const h = byDay.get(d)
                   const isToday = d === todayKey
                   return (
                     <div
                       key={d}
-                      className={`flex items-center justify-between px-4 py-3 text-sm ${isToday ? 'bg-zinc-950 text-white' : ''}`}
+                      className={`flex items-center justify-between px-4 py-3 text-sm ${isToday ? 'bg-ink-dark text-white' : ''}`}
                     >
                       <span className="flex items-center gap-2">
                         {isToday && <span className="text-[10px] font-bold uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full">{t(locale, "openingHours.today")}</span>}
-                        <span className={isToday ? 'font-semibold' : 'text-zinc-700'}>{dayLbl[d]}</span>
+                        <span className={isToday ? 'font-semibold' : 'text-ink-soft'}>{dayLbl[d]}</span>
                       </span>
-                      <span className={h?.is_open ? (isToday ? 'font-semibold' : 'text-zinc-900 font-medium') : (isToday ? 'text-white/50' : 'text-zinc-400')}>
+                      <span className={h?.is_open ? (isToday ? 'font-semibold' : 'text-ink font-medium') : (isToday ? 'text-white/50' : 'text-ink-soft')}>
                         {h?.is_open ? `${h.open_time} – ${h.close_time}` : t(locale, "openingHours.closed")}
                       </span>
                     </div>

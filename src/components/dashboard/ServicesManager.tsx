@@ -10,9 +10,10 @@ import type { Service, ServiceCategory, StaffMember, Media } from '@/payload/pay
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { PopupModal } from '@/components/ui/popup-modal'
+import { Switch } from '@/components/ui/toggle-switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Image as ImageIcon, Scissors, Layers, Tag, CheckCircle2, type LucideIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Scissors, Layers, Tag, type LucideIcon } from 'lucide-react'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
@@ -63,6 +64,8 @@ interface Props {
   staffList: StaffMember[]
   initialCategories: ServiceCategory[]
   supportedLocales?: (Locale | string)[] | null
+  /** Idei bevétel kategóriánként (kategória-ID → Ft; a besorolatlan kulcsa '__none__'). */
+  revenueByCategory?: Record<string, number>
 }
 
 function serviceImageUrl(s: Service): string | null {
@@ -78,12 +81,30 @@ function categoryImageUrl(c: ServiceCategory | undefined): string | null {
   return null
 }
 
-export default function ServicesManager({ salonId, initialServices, initialCategories, supportedLocales }: Props) {
+// Kategória-tintek a Crextio referencia szerint (fejléc-csempe egyszínű + sor-ikon gradiens),
+// a kategória sorrendje szerint ciklikusan kiosztva. Halvány, deszaturált — nem harsány.
+const CAT_TINTS = [
+  { head: '#F0E4D4', grad: 'linear-gradient(135deg,#F3E7D6,#E7D2B6)' }, // meleg bézs
+  { head: '#EFE2F0', grad: 'linear-gradient(135deg,#EFE2F0,#E0CBE5)' }, // lila
+  { head: '#DDEBE5', grad: 'linear-gradient(135deg,#DDEBE5,#C7DCD1)' }, // zöld
+  { head: '#DCE6F0', grad: 'linear-gradient(135deg,#DCE6F0,#C3D5E8)' }, // kék
+  { head: '#F5E4E1', grad: 'linear-gradient(135deg,#F5E4E1,#EBCCC7)' }, // rózsa
+]
+const tintFor = (i: number) => CAT_TINTS[((i % CAT_TINTS.length) + CAT_TINTS.length) % CAT_TINTS.length]
+
+/** Kompakt Ft nagy összegre (a referencia „2,4 M Ft" formátuma). */
+function compactFt(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace('.', ',')} M Ft`
+  if (n >= 10_000) return `${Math.round(n / 1000)} e Ft`
+  return `${n.toLocaleString('hu-HU')} Ft`
+}
+
+
+export default function ServicesManager({ salonId, initialServices, initialCategories, supportedLocales, revenueByCategory }: Props) {
   const [services, setServices] = useState(initialServices)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
 
   // Nyelvkészlet a szalon supported_locales-éből (HU mindig benne). A name/description
   // localizált mezők — szerkesztéskor nyelvenként vihetők be a `?locale=` paraméterrel.
@@ -429,6 +450,25 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
     }
   }
 
+  // Inline aktív/inaktív váltás a sor toggle-jéből — optimista frissítés, hibánál visszaáll.
+  const toggleActive = async (s: Service) => {
+    const next = !(s.is_active !== false)
+    setServices(prev => prev.map(x => x.id === s.id ? { ...x, is_active: next } : x))
+    try {
+      const res = await fetch(`/api/services/${s.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ is_active: next }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success(next ? 'Aktiválva' : 'Kikapcsolva')
+    } catch {
+      setServices(prev => prev.map(x => x.id === s.id ? { ...x, is_active: !next } : x))
+      toast.error('Nem sikerült frissíteni')
+    }
+  }
+
   // Csoportosítás kategória-ID szerint (a relationship-ből). A megjelenített nevet a kategória-rekord
   // adja (catById); ismeretlen/üres → 'Egyéb'. Az alkategória is ID-kulcs.
   const categoryMap = services.reduce((acc, s) => {
@@ -443,17 +483,25 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
   const catName = (id: string): string => (id === '__none__' ? 'Egyéb' : catById.get(id)?.name ?? 'Egyéb')
 
   // ── Hero KPI-k és bevétel-megoszlás (valós adatból) ──
-  const activeServices = services.filter(s => s.is_active !== false)
   const catCount = new Set(services.map(s => relId(s.category) ?? '__none__')).size
   const avgPrice = services.length ? Math.round(services.reduce((sum, s) => sum + (s.price || 0), 0) / services.length) : 0
   const heroCurrency = services[0]?.currency ?? 'HUF'
 
-  // Megoszlás kategóriánként a szolgáltatás-darabszám alapján (a referencia „bevétel-csík" megfelelője).
-  const distEntries = Object.entries(categoryMap)
-    .map(([id, subMap]) => ({ id, count: Object.values(subMap).reduce((n, arr) => n + arr.length, 0) }))
-    .filter(d => d.count > 0)
-    .sort((a, b) => b.count - a.count)
-  const distTotal = distEntries.reduce((n, d) => n + d.count, 0) || 1
+  // ── Bevétel kategóriánként (idei foglalásokból). Ha van bevétel, azt mutatjuk (referencia:
+  //    „Bevétel kategóriánként · idén"); ha még nincs (új szalon), a szolgáltatás-darabszám
+  //    megoszlására esünk vissza, hogy a csík ne legyen üres. ──
+  const revByCat = revenueByCategory ?? {}
+  const totalRevenue = Object.values(revByCat).reduce((a, b) => a + b, 0)
+  const useRevenue = totalRevenue > 0
+  const barEntries = Object.entries(categoryMap)
+    .map(([id, subMap]) => ({
+      id,
+      count: Object.values(subMap).reduce((n, arr) => n + arr.length, 0),
+      val: useRevenue ? (revByCat[id] ?? 0) : Object.values(subMap).reduce((n, arr) => n + arr.length, 0),
+    }))
+    .filter(d => d.count > 0 && d.val > 0)
+    .sort((a, b) => b.val - a.val)
+  const barTotal = barEntries.reduce((n, d) => n + d.val, 0) || 1
 
   return (
     <>
@@ -473,31 +521,30 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
         className="mb-6"
       />
 
-      {/* KPI-csík */}
-      <div className="mb-6 grid grid-cols-2 gap-5 sm:flex sm:flex-wrap sm:items-start sm:gap-8 lg:gap-10">
+      {/* KPI-csík (Crextio: Szolgáltatás · Kategória · Átlagár) */}
+      <div className="mb-6 grid grid-cols-3 gap-5 sm:flex sm:flex-wrap sm:items-start sm:gap-10 lg:gap-12">
         <HeroStat icon={Scissors} value={String(services.length)} label="Szolgáltatás" />
         <HeroStat icon={Layers} value={String(catCount)} label="Kategória" />
         <HeroStat icon={Tag} value={formatPrice(avgPrice, heroCurrency)} label="Átlagár" />
-        <HeroStat icon={CheckCircle2} value={String(activeServices.length)} label="Aktív" />
       </div>
 
-      {/* Megoszlás-csík kategóriánként */}
-      {distEntries.length > 0 && (
+      {/* Bevétel-csík kategóriánként (idei) — új szalonnál a darabszám-megoszlásra esik vissza */}
+      {barEntries.length > 0 && (
         <div className="mb-6">
           <div className="mb-2 flex items-center justify-between">
-            <span className="text-[13px] font-medium text-ink">Megoszlás kategóriánként</span>
-            <span className="text-xs text-ink-soft">{services.length} szolgáltatás összesen</span>
+            <span className="text-[13px] font-medium text-ink">{useRevenue ? 'Bevétel kategóriánként · idén' : 'Megoszlás kategóriánként'}</span>
+            <span className="text-xs text-ink-soft">{useRevenue ? `${compactFt(totalRevenue)} összesen` : `${services.length} szolgáltatás összesen`}</span>
           </div>
           <div className="flex h-11 gap-1 sm:gap-1.5">
-            {distEntries.map((d, i) => {
-              const pct = Math.round((d.count / distTotal) * 100)
+            {barEntries.map((d, i) => {
+              const pct = Math.round((d.val / barTotal) * 100)
               const tone =
                 i === 0 ? 'bg-ink-dark text-white' : i === 1 ? 'bg-gold text-ink-dark' : 'border border-line-strong text-ink-soft2'
               return (
                 <div
                   key={d.id}
                   className={`flex min-w-0 items-center rounded-[12px] px-2.5 text-[12px] font-semibold sm:rounded-[14px] sm:px-4 sm:text-[13px] ${tone}`}
-                  style={{ flexGrow: d.count, flexBasis: 0 }}
+                  style={{ flexGrow: d.val, flexBasis: 0 }}
                 >
                   <span className="truncate">{catName(d.id)}</span>
                   <span className="ml-auto hidden pl-1.5 opacity-70 sm:inline sm:pl-2">{pct}%</span>
@@ -514,25 +561,26 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
         </DashboardCard>
       ) : (
         <div className="space-y-4">
-          {Object.entries(categoryMap).map(([categoryId, subMap]) => {
+          {Object.entries(categoryMap).map(([categoryId, subMap], catIdx) => {
             const subEntries = Object.entries(subMap)
             const catRecord = categoryId === '__none__' ? undefined : catById.get(categoryId)
             const catImgUrl = categoryImageUrl(catRecord)
             const catLabel = catName(categoryId)
             const catTotal = subEntries.reduce((n, [, arr]) => n + arr.length, 0)
+            const tint = tintFor(catIdx)
 
             return (
-              <div key={categoryId} className="rounded-[22px] bg-[#fcfbf7] px-3.5 py-4 shadow-dav-card sm:rounded-[26px] sm:px-[22px] sm:py-5">
-                {/* Kategória fejléc */}
+              <div key={categoryId} className="dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5">
+                {/* Kategória fejléc — tintelt ikon-csempe + név + darabszám */}
                 <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
                   <div className="flex min-w-0 items-center gap-3">
                     {catImgUrl ? (
-                      <div className="h-[38px] w-[38px] shrink-0 overflow-hidden rounded-[11px]">
+                      <div className="h-[42px] w-[42px] shrink-0 overflow-hidden rounded-[12px]">
                         <img src={catImgUrl} alt={catLabel} className="h-full w-full object-cover" />
                       </div>
                     ) : (
-                      <div className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-[11px] bg-[var(--dav-glass-strong)]">
-                        <ImageIcon className="h-[18px] w-[18px] text-ink-soft" strokeWidth={1.7} />
+                      <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px]" style={{ background: tint.head }}>
+                        <Scissors className="h-[19px] w-[19px] text-ink/55" strokeWidth={1.7} />
                       </div>
                     )}
                     <div className="min-w-0">
@@ -556,123 +604,83 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
                   )}
                 </div>
 
-                {/* Desktop: Crextio People-táblázat fejléc */}
-                <div className="mt-1 hidden grid-cols-[1.8fr_1fr_130px_120px_92px] items-center gap-3 px-2 pb-2.5 pt-3 md:grid">
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Szolgáltatás</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Munkatársak</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Időtartam</span>
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Állapot</span>
-                  <span className="text-right text-[11px] font-semibold uppercase tracking-widest text-ink-soft">Ár</span>
-                </div>
-
-                {subEntries.map(([subcategoryId, items]) => (
-                  <div key={subcategoryId || '__none'}>
-                    {subcategoryId && (
-                      <div className="px-2 pt-3.5">
-                        <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft2">{catName(subcategoryId)}</span>
-                      </div>
-                    )}
-                    {items.map((s) => {
-                      const imgUrl = serviceImageUrl(s)
-                      const isSel = selectedId === s.id
-                      const active = s.is_active !== false
-                      const staffMembers = (s.staff ?? []).filter((x): x is StaffMember => typeof x === 'object' && x !== null)
-                      const avatar = imgUrl
-                        ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
-                        : <span className="text-sm font-semibold text-ink">{s.name.slice(0, 1).toUpperCase()}</span>
-
-                      return (
-                        <div key={s.id}>
-                          {/* Desktop sor */}
+                {/* Szolgáltatás-sorok (Crextio: csempe · név+szakemberek · időtartam · ár · toggle · szerkesztés) */}
+                <div className="mt-1 divide-y divide-line/70">
+                  {subEntries.map(([subcategoryId, items]) => (
+                    <div key={subcategoryId || '__none'}>
+                      {subcategoryId && (
+                        <div className="px-1 pt-3.5">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft2">{catName(subcategoryId)}</span>
+                        </div>
+                      )}
+                      {items.map((s) => {
+                        const imgUrl = serviceImageUrl(s)
+                        const active = s.is_active !== false
+                        const staffMembers = (s.staff ?? []).filter((x): x is StaffMember => typeof x === 'object' && x !== null)
+                        return (
                           <div
-                            onClick={() => setSelectedId(isSel ? null : s.id)}
-                            className={`hidden cursor-pointer grid-cols-[1.8fr_1fr_130px_120px_92px] items-center gap-3 rounded-[14px] px-2 py-3 transition-colors md:grid ${
-                              isSel ? 'bg-gold/25' : 'hover:bg-[#F6F2E4]'
-                            }`}
+                            key={s.id}
+                            className="group flex items-center gap-3 rounded-[16px] px-1 py-3 transition-colors hover:bg-[var(--dav-glass)] sm:gap-4 sm:px-2"
                           >
-                            <div className="flex min-w-0 items-center gap-3">
-                              <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#EFE9D6]">{avatar}</span>
+                            {/* Csempe + név + szakemberek/INAKTÍV — kattintva szerkesztés */}
+                            <button onClick={() => openEdit(s)} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4">
+                              <span
+                                className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px]"
+                                style={imgUrl ? undefined : { background: tint.grad }}
+                              >
+                                {imgUrl
+                                  ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
+                                  : <Scissors className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
+                              </span>
                               <div className="min-w-0">
-                                <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
-                                {s.description && <p className="truncate text-xs text-ink-soft">{s.description}</p>}
-                              </div>
-                            </div>
-                            <div className="min-w-0">
-                              {staffMembers.length > 0 ? (
-                                <div className="flex items-center gap-1.5">
-                                  <div className="flex">
-                                    {staffMembers.slice(0, 4).map((m, mi) => (
-                                      <span key={m.id} className={`flex h-[23px] w-[23px] items-center justify-center rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
-                                        {m.name.slice(0, 1).toUpperCase()}
-                                      </span>
-                                    ))}
-                                  </div>
-                                  <span className="truncate text-[12px] text-ink-soft">{staffMembers.map(m => m.name).join(', ')}</span>
+                                <p className="truncate text-[15px] font-semibold text-ink">{s.name}</p>
+                                <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                                  {!active ? (
+                                    <span className="rounded-[7px] bg-[#E7E1D0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">Inaktív</span>
+                                  ) : staffMembers.length > 0 ? (
+                                    <>
+                                      <div className="flex shrink-0">
+                                        {staffMembers.slice(0, 4).map((m, mi) => (
+                                          <span key={m.id} className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
+                                            {m.name.slice(0, 1).toUpperCase()}
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <span className="truncate text-[12px] text-ink-soft">{staffMembers.map(m => m.name).join(', ')}</span>
+                                    </>
+                                  ) : (
+                                    <span className="text-[12px] text-ink-soft2">Nincs hozzárendelt szakember</span>
+                                  )}
                                 </div>
-                              ) : <span className="text-[12px] text-ink-soft2">—</span>}
-                            </div>
-                            <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-[var(--dav-glass-strong)] px-2.5 py-1 text-[12px] font-medium text-ink">
+                              </div>
+                            </button>
+
+                            {/* Időtartam-chip */}
+                            <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] bg-[#EFEEE9] px-3 py-1.5 text-[13px] font-medium text-ink sm:inline-flex">
                               <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
                             </span>
-                            <span>
-                              {active ? (
-                                <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1 text-[11px] font-semibold text-ink-dark"><span className="h-1.5 w-1.5 rounded-full bg-ink-dark" />Aktív</span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 rounded-full border border-line-strong px-2.5 py-1 text-[11px] font-semibold text-ink-soft2"><span className="h-1.5 w-1.5 rounded-full bg-line-strong" />Inaktív</span>
-                              )}
-                            </span>
-                            <div className="flex items-center justify-end gap-1">
-                              <span className="mr-1 text-sm font-semibold text-ink">{formatPrice(s.price, s.currency)}</span>
-                              <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink"><Pencil className="h-[14px] w-[14px]" /></button>
-                              <button onClick={(e) => { e.stopPropagation(); deleteService(s.id) }} className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500"><Trash2 className="h-[14px] w-[14px]" /></button>
-                            </div>
+                            {/* Ár */}
+                            <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{formatPrice(s.price, s.currency)}</span>
+                            {/* Aktív/inaktív toggle (közös Switch — ink-dark sín + fehér gomb, gold nélkül) */}
+                            <Switch checked={active} onChange={() => toggleActive(s)} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
+                            {/* Szerkesztés + törlés */}
+                            <button onClick={() => openEdit(s)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
+                            <button onClick={() => deleteService(s.id)} className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500 sm:flex" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
                           </div>
-
-                          {/* Mobil kártya */}
-                          <div
-                            onClick={() => setSelectedId(isSel ? null : s.id)}
-                            className={`mt-2.5 flex cursor-pointer items-center gap-3 rounded-[18px] border p-3 transition-colors md:hidden ${
-                              isSel ? 'border-gold bg-gold/20' : 'border-line bg-white'
-                            }`}
-                          >
-                            <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#EFE9D6]">{avatar}</span>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="truncate text-sm font-semibold text-ink">{s.name}</p>
-                                {!active && <span className="shrink-0 rounded-full border border-line-strong px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-ink-soft2">Inaktív</span>}
-                              </div>
-                              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-soft">
-                                <Clock className="h-3.5 w-3.5" />{s.duration_minutes} perc · {formatPrice(s.price, s.currency)}
-                              </p>
-                              {staffMembers.length > 0 && (
-                                <p className="mt-0.5 truncate text-[11px] text-ink-soft2">{staffMembers.map(m => m.name).join(', ')}</p>
-                              )}
-                            </div>
-                            <div className="flex shrink-0 flex-col gap-1">
-                              <button onClick={(e) => { e.stopPropagation(); openEdit(s) }} className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink transition-colors hover:bg-white"><Pencil className="h-[14px] w-[14px]" /></button>
-                              <button onClick={(e) => { e.stopPropagation(); deleteService(s.id) }} className="flex h-8 w-8 items-center justify-center rounded-full bg-paper text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500"><Trash2 className="h-[14px] w-[14px]" /></button>
-                            </div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                ))}
+                        )
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
             )
           })}
         </div>
       )}
 
-      {/* Service edit sheet */}
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">
-              {editing ? 'Szerkesztés' : 'Új szolgáltatás'}
-            </SheetTitle>
-          </SheetHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-6">
+      {/* Service edit — felugró modal (mint az étterem foglalás-szerkesztője) */}
+      <PopupModal open={open} onClose={() => setOpen(false)} title={editing ? 'Szolgáltatás szerkesztése' : 'Új szolgáltatás'}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 
             {editing && availableLocales.length > 1 && (
               <LocaleEditBar
@@ -818,18 +826,11 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
               {submitting ? 'Mentés...' : editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
           </form>
-        </SheetContent>
-      </Sheet>
+      </PopupModal>
 
-      {/* Category metadata sheet */}
-      <Sheet open={catSheetOpen} onOpenChange={setCatSheetOpen}>
-        <SheetContent className="overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">
-              Kategória: {editingCatName}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="space-y-4 mt-6">
+      {/* Category metadata — felugró modal */}
+      <PopupModal open={catSheetOpen} onClose={() => setCatSheetOpen(false)} title={`Kategória: ${editingCatName}`}>
+          <div className="space-y-4">
             {availableLocales.length > 1 && (
               <LocaleEditBar
                 available={availableLocales}
@@ -914,8 +915,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
               {catSubmitting ? 'Mentés...' : catEditLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
           </div>
-        </SheetContent>
-      </Sheet>
+      </PopupModal>
     </>
   )
 }

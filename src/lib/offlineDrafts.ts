@@ -25,7 +25,8 @@ export interface DraftPayload {
   customer_email: string
   notes: string
   status: string
-  is_birthday?: boolean
+  occasion?: string | null
+  occasion_icon?: string | null
   /** Vizuális segédlet a nézetekhez (a szerver úgyis újraszámolja). */
   end_time?: string
   /** A választott asztalok nevei a megjelenítéshez (offline nincs lookup). */

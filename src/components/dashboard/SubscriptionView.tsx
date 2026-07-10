@@ -155,7 +155,7 @@ export function SubscriptionView({
 
       {/* ── ÁLLAPOT-SOR — CSAK érdemi állapotnál (próba / lemondás / hiba). A plain „Aktív" sor kivéve. ── */}
       {!(isActivePro && !cancelScheduled) && (
-        <div className="flex items-center gap-3 rounded-[26px] border border-line bg-white px-5 py-4 shadow-dav-card">
+        <div className="flex items-center gap-3 rounded-[26px] dav-card-glass px-5 py-4">
           <span className={`h-2 w-2 shrink-0 rounded-full ${
             cancelScheduled ? 'bg-amber-400'
             : isTrial ? 'bg-blue-400'
@@ -184,7 +184,7 @@ export function SubscriptionView({
 
       {/* ── JUTALÉK-KALKULÁTOR + ÜZLET-BONTÁS (megjelenítés) ── */}
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[1.3fr_1fr]">
-        <div className="rounded-[26px] border border-line bg-white p-6 shadow-dav-card">
+        <div className="rounded-[26px] dav-card-glass p-6">
           <div className="flex items-center gap-2.5">
             <div className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-gold">
               <Coins className="h-[17px] w-[17px] text-ink-dark" strokeWidth={1.7} />
@@ -215,7 +215,7 @@ export function SubscriptionView({
           )}
         </div>
 
-        <div className="flex flex-col rounded-[26px] border border-line bg-white p-6 shadow-dav-card">
+        <div className="flex flex-col rounded-[26px] dav-card-glass p-6">
           <div className="flex items-center gap-2.5">
             <div className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-gold">
               <Layers className="h-[17px] w-[17px] text-ink-dark" strokeWidth={1.7} />
@@ -270,7 +270,7 @@ export function SubscriptionView({
       </div>
 
       {/* ── FIZETÉS / SZÁMLÁZÁS ── */}
-      <div className="overflow-hidden rounded-[26px] border border-line bg-white shadow-dav-card">
+      <div className="overflow-hidden rounded-[26px] dav-card-glass">
         <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4 lg:px-6">
           <div className="flex items-center gap-2.5">
             <div className="flex h-[34px] w-[34px] items-center justify-center rounded-[10px] bg-gold">

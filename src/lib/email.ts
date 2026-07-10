@@ -153,11 +153,15 @@ export async function sendCancellationEmail(data: BookingEmailData) {
   const resend = getResend()
   if (!resend) return
   const locale = normalizeLocale((booking as { locale?: string }).locale)
+  const subjectTpl = (salon.cancel_email_subject ?? '').trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, emailVars(data))
+    : t(locale, 'email.cancel.subjectFallback', { place: salon.name })
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
-      subject: t(locale, 'email.cancel.subjectFallback', { place: salon.name }),
+      subject,
       html: cancellationHtml(data),
     })
   } catch (err) {
@@ -169,12 +173,15 @@ export async function sendReminderEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
-  const locale = normalizeLocale((booking as { locale?: string }).locale)
+  const subjectTpl = (salon.reminder_email_subject ?? '').trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, emailVars(data))
+    : `Emlékeztető: közeleg a foglalásod – ${salon.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
-      subject: `Emlékeztető: közeleg a foglalásod – ${salon.name}`,
+      subject,
       html: reminderHtml(data),
     })
   } catch (err) {
@@ -186,11 +193,15 @@ export async function sendFeedbackRequestEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
+  const subjectTpl = (salon.feedback_email_subject ?? '').trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, emailVars(data))
+    : `Milyen volt nálunk? Értékeld a látogatásod – ${salon.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
-      subject: `Milyen volt nálunk? Értékeld a látogatásod – ${salon.name}`,
+      subject,
       html: feedbackHtml(data),
     })
   } catch (err) {
@@ -421,6 +432,7 @@ function reminderHtml(data: BookingEmailData): string {
       title: 'Közeleg a foglalásod',
       subtitle: `Kedves ${booking.customer_name}, csak hogy emlékeztessünk: hamarosan találkozunk!`,
     })}
+    ${introBlock(salon.reminder_email_intro ?? '', emailVars(data))}
     ${detailsCard(bookingRows(data))}
     ${calendarBlock({
       title: `${data.service.name} – ${salon.name}`,
@@ -437,9 +449,12 @@ function reminderHtml(data: BookingEmailData): string {
 
 function feedbackHtml(data: BookingEmailData): string {
   const { booking, salon, service } = data
-  const reviewUrl = (booking as { cancellation_token?: string }).cancellation_token
+  // Ha a szalon megadott Google értékelés-linket, oda visz (nyilvános review); különben a belső /review.
+  const googleUrl = (salon.feature_modules?.google_review_url ?? '').trim()
+  const reviewUrl = googleUrl || ((booking as { cancellation_token?: string }).cancellation_token
     ? `${APP_URL}/review/${(booking as { cancellation_token?: string }).cancellation_token}`
-    : `${APP_URL}/${salon.slug}`
+    : `${APP_URL}/${salon.slug}`)
+  const reviewCta = googleUrl ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'
   const rows = [
     infoRow('scissors', 'Szolgáltatás', service.name),
     infoRow('calendar', 'Dátum', booking.date),
@@ -450,10 +465,11 @@ function feedbackHtml(data: BookingEmailData): string {
       title: 'Milyen volt nálunk?',
       subtitle: `Kedves ${booking.customer_name}, reméljük elégedett voltál a látogatásoddal. Mondd el a véleményed!`,
     })}
+    ${introBlock(salon.feedback_email_intro ?? '', emailVars(data))}
     ${detailsCard(rows)}
     <tr>
       <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Értékelem a látogatásom</a>
+        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
       </td>
     </tr>
     ${bottomSpacer()}
@@ -476,6 +492,7 @@ function cancellationHtml(data: BookingEmailData): string {
       title: t(locale, 'email.cancel.title'),
       subtitle: t(locale, 'email.cancel.body'),
     })}
+    ${introBlock(salon.cancel_email_intro ?? '', emailVars(data))}
     ${detailsCard(rows)}
     <tr><td style="background:${COLORS.surface};padding:16px 32px 0;text-align:center">
       <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.cancel.hint')}</p>

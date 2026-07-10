@@ -9,12 +9,15 @@
  *
  * Két feladat:
  *  1) Emlékeztető: közelgő, még ki nem küldött (reminder_sent=false), nem lemondott
- *     foglalások, ahol az üzlet reminders_on && reminder_ch_email &&
- *     notification_prefs.reminder_email !== false, és a foglalás időpontja a legkorábbi
- *     bekapcsolt küszöb (24h/3h/1h) ablakába esett → sendReminderEmail + reminder_sent=true.
+ *     foglalások, ahol az üzlet feature_modules.reminders_on && reminder_ch_email, és a
+ *     foglalás időpontja a legkorábbi bekapcsolt küszöb (24h/3h/1h) ablakába esett →
+ *     sendReminderEmail + reminder_sent=true.
  *  2) Visszajelzés-kérés: ~1 nappal ezelőtt lezajlott (múltbeli), feedback_sent=false,
- *     nem lemondott foglalások, ahol reviews_on && notification_prefs.feedback_email !== false
- *     → sendFeedbackRequestEmail + feedback_sent=true.
+ *     nem lemondott foglalások, ahol feature_modules.reviews_on → sendFeedbackRequestEmail
+ *     + feedback_sent=true.
+ *
+ *  A kapcsolók GAZDÁJA a Funkciók oldal (`feature_modules`); a `notification_prefs` csak a
+ *  tranzakciós emaileket (visszaigazolás/lemondás) vezérli, ide NEM szól bele (nincs dupla-gate).
  *
  * Robusztus: foglalásonként try/catch, egy hiba nem állítja le a többit.
  */
@@ -43,16 +46,14 @@ function earliestReminderHours(fm: Salon['feature_modules'] | Restaurant['featur
   return null
 }
 
+// Egységes modell: az emlékeztető/értékelés KÉPESSÉG gazdája a Funkciók oldal (`feature_modules`).
+// Az `notification_prefs` NEM vétózza felül (megszűnt a korábbi dupla-gate) — a Funkciók a forrás.
 function reminderEnabled(biz: Salon | Restaurant): boolean {
-  return !!(
-    biz.feature_modules?.reminders_on &&
-    biz.feature_modules?.reminder_ch_email &&
-    biz.notification_prefs?.reminder_email !== false
-  )
+  return !!(biz.feature_modules?.reminders_on && biz.feature_modules?.reminder_ch_email)
 }
 
 function feedbackEnabled(biz: Salon | Restaurant): boolean {
-  return !!(biz.feature_modules?.reviews_on && biz.notification_prefs?.feedback_email !== false)
+  return !!biz.feature_modules?.reviews_on
 }
 
 export async function GET(request: NextRequest) {

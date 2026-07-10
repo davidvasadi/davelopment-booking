@@ -129,6 +129,18 @@ export const Users: CollectionConfig = {
       type: 'text',
       label: 'Profilkép URL',
     },
+    // ── Tulajdonos személyes adatlapja (fiók-szintű) — a tulajnak NINCS membershipje, ezért
+    //    a saját adatai (telefon, szül.nap stb.) itt, a User-fiókon élnek. A HiringView adatlap
+    //    ugyanúgy szerkeszti, mint a munkatársakét, csak a PATCH /api/user/profile-ra megy.
+    //    Bér/borravaló a tulajnál SOHA (azt a membershipek hordozzák).
+    { name: 'phone', type: 'text', label: 'Telefon' },
+    { name: 'birthday', type: 'date', label: 'Születésnap', admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } } },
+    { name: 'join_date', type: 'date', label: 'Belépés / alapítás', admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } } },
+    { name: 'address', type: 'text', label: 'Cím' },
+    { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
+    { name: 'emergency_contact', type: 'text', label: 'Vészhelyzeti kontakt' },
+    { name: 'weekly_hours', type: 'number', label: 'Heti óraszám' },
+    { name: 'bio', type: 'textarea', label: 'Megjegyzés / bemutatkozás' },
     {
       name: 'role',
       type: 'select',

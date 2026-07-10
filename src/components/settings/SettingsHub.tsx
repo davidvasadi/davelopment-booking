@@ -16,27 +16,27 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { SettingsFormContext } from './settingsFormContext'
+import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext'
 import {
   Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
   Plus, ScrollText, KeyRound, Building2, Mail, Check, Languages, FileText,
-  Trash2, X, Loader2,
+  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, type LucideIcon,
 } from 'lucide-react'
+import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
+// Értesítések = CSAK tranzakciós email (emlékeztető/visszajelzés a Funkciók gazdája).
 export type NotificationPrefs = {
   confirm_email: boolean
-  reminder_email: boolean
   cancel_email: boolean
-  feedback_email: boolean
 }
+// Foglalási szabályok = CSAK a valós, hatással bíró kapcsoló (auto_confirm). A deposit/no-show
+// „Hamarosan", a várólista a Funkciók gazdája — ezért nincsenek itt.
 export type BookingRulesToggles = {
   auto_confirm: boolean
-  deposit_enabled: boolean
-  waitlist_enabled: boolean
-  cancellation_protection: boolean
 }
 
 /* ── davelopment gold-knob kapcsoló (46×27 sín) ─────────────────────────── */
@@ -60,10 +60,10 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   )
 }
 
-/* ── Fehér kártya (26px sugár, dav árnyék) ──────────────────────────────── */
+/* ── Fehér kártya — a Nyitvatartás/Foglalások kártya-mintája (bordered, dav árnyék) ── */
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-[26px] border border-line bg-white p-6 shadow-dav-card ${className}`}>
+    <div className={`rounded-[26px] dav-card-glass p-6 ${className}`}>
       {children}
     </div>
   )
@@ -83,7 +83,7 @@ function StatBox({ label, value, unit }: { label: string; value: string; unit?: 
 }
 
 type RailId =
-  | 'profile' | 'booking' | 'languages' | 'email'
+  | 'profile' | 'booking' | 'features' | 'languages' | 'email'
   | 'rules' | 'notifications' | 'team' | 'audit'
   | 'documents' | 'billing' | 'sites'
   | 'integrations' | 'api' | 'danger'
@@ -96,7 +96,7 @@ const FORM_TABS: Record<string, string> = {
 
 // A kiválasztott szekció neve = a tartalom címe (mivel nincs felső fül-sor, ez jelzi „hol vagy").
 const RAIL_LABELS: Record<RailId, string> = {
-  profile: 'Üzlet profil', booking: 'Foglalás', languages: 'Nyelvek', email: 'Email-sablonok',
+  profile: 'Üzlet profil', booking: 'Foglalás', features: 'Foglalási funkciók', languages: 'Nyelvek', email: 'Email-sablonok',
   rules: 'Foglalási szabályok', notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
   documents: 'Dokumentumok', billing: 'Számlázás', sites: 'Telephelyek',
   integrations: 'Integrációk', api: 'API & webhookok', danger: 'Fiók törlése',
@@ -147,13 +147,22 @@ export interface SiteData {
   gold?: boolean                   // avatar arany háttér (nem-aktuális kiemeléshez)
 }
 
+/** Egy mező-változás a naplóban (módosításnál): mi → mire. */
+export interface AuditFieldChange {
+  field: string
+  from: string | number | boolean | null
+  to: string | number | boolean | null
+}
+
 /** Audit-napló — egy VALÓS bejegyzés (az AuditLog collectionből, üzletre szűrve). */
 export interface AuditEntry {
   id: string
-  actor: string                    // végrehajtó felirat (email/név vagy „Rendszer")
+  actor: string                    // végrehajtó neve (vagy „Online foglalás" / „Rendszer")
+  actorEmail?: string              // végrehajtó email címe (bejelentkezett usernél)
   action: 'create' | 'update' | 'delete'
   summary: string                  // olvasható összegzés, pl. „Foglalás módosítva — Nagy Péter"
   collection: string               // érintett collection-felirat
+  changes?: AuditFieldChange[]     // módosításnál a változott mezők (before→after)
   createdAt: string                // ISO időbélyeg
 }
 
@@ -168,6 +177,8 @@ export interface SettingsHubProps {
   notificationPrefs: NotificationPrefs
   /** Foglalási-szabály kapcsolók kezdőértéke (a betöltött üzlet `booking_rules`-a). */
   bookingRules: BookingRulesToggles
+  /** Foglalási funkciók (`feature_modules`) kezdőérték — a beágyazott BookingFeatures panelnek. */
+  featureModules: FeatureModules
   profilePanel: ReactNode          // a MEGLÉVŐ settings-form (Üzlet profil)
   rules: RulesData
   senderLabel: string              // Értesítések: jelenlegi feladó
@@ -185,11 +196,20 @@ export interface SettingsHubProps {
 export function SettingsHub({
   variant, subtitle, availabilityHref, profilePanel, rules, senderLabel, billing,
   team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
-  auditLog,
+  featureModules, auditLog,
 }: SettingsHubProps) {
   const router = useRouter()
   const [active, setActive] = useState<RailId>('profile')
   const [saving, setSaving] = useState(false)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false) // mobil szekció-választó legördülő
+
+  // ── A beágyazott profil-form FELFELÉ jelzi az aktív fül mentetlen-állapotát + regisztrálja
+  //    a mentés/elvetés műveletét → a hub egyetlen KÖZÖS lebegő sávból menti (nincs form-alji SaveBar).
+  const [formDirty, setFormDirty] = useState(false)
+  const [formSaved, setFormSaved] = useState(false)
+  const formApiRef = useRef<SettingsFormApi | null>(null)
+  const reportDirty = useCallback((d: boolean) => setFormDirty(d), [])
+  const registerApi = useCallback((api: SettingsFormApi) => { formApiRef.current = api }, [])
 
   const partyLabel = variant === 'salon' ? 'Max. létszám / foglalás' : 'Max. létszám / foglalás'
 
@@ -214,46 +234,29 @@ export function SettingsHub({
     }
   }
 
-  // ── Foglalási szabályok toggle-lista — VALÓS `booking_rules` group.
-  const [ruleToggles, setRuleToggles] = useState({
-    autoConfirm: bookingRules.auto_confirm,
-    deposit: bookingRules.deposit_enabled,
-    waitlist: bookingRules.waitlist_enabled,
-    cancelProtection: bookingRules.cancellation_protection,
-  })
-  const rulesBaseline = useMemo(() => ({
-    autoConfirm: bookingRules.auto_confirm,
-    deposit: bookingRules.deposit_enabled,
-    waitlist: bookingRules.waitlist_enabled,
-    cancelProtection: bookingRules.cancellation_protection,
-  }), [bookingRules])
+  // ── Foglalási szabályok — CSAK a valós, hatással bíró szabály: `auto_confirm`. A `deposit`/
+  //    `cancellation_protection` fizetési integrációt igényel (őszinte „Hamarosan"), a `waitlist`
+  //    gazdája a Funkciók oldal (`feature_modules.waitlist_on`) — ezért itt nem duplázzuk.
+  const [ruleToggles, setRuleToggles] = useState({ autoConfirm: bookingRules.auto_confirm })
+  const rulesBaseline = useMemo(() => ({ autoConfirm: bookingRules.auto_confirm }), [bookingRules])
   const rulesDirty = JSON.stringify(ruleToggles) !== JSON.stringify(rulesBaseline)
   const [rulesSaved, setRulesSaved] = useState(false)
   const saveRules = async () => {
-    const ok = await patchGroup({
-      booking_rules: {
-        auto_confirm: ruleToggles.autoConfirm,
-        deposit_enabled: ruleToggles.deposit,
-        waitlist_enabled: ruleToggles.waitlist,
-        cancellation_protection: ruleToggles.cancelProtection,
-      },
-    })
+    const ok = await patchGroup({ booking_rules: { auto_confirm: ruleToggles.autoConfirm } })
     if (ok) { setRulesSaved(true); setTimeout(() => setRulesSaved(false), 1800) }
   }
   const resetRules = () => setRuleToggles(rulesBaseline)
 
-  // ── Értesítések ESEMÉNY × E-MAIL mátrix — VALÓS `notification_prefs` group (email-only).
+  // ── Értesítések — CSAK a tranzakciós emailek (visszaigazolás + lemondás). Az emlékeztető és a
+  //    visszajelzés-kérés a Funkciók oldal gazdája (`feature_modules`), ezért ide már NEM kerül
+  //    (megszűnt a dupla-gate). VALÓS `notification_prefs` group.
   const [notif, setNotif] = useState({
     confirm: { email: notificationPrefs.confirm_email },
-    reminder: { email: notificationPrefs.reminder_email },
     cancel: { email: notificationPrefs.cancel_email },
-    feedback: { email: notificationPrefs.feedback_email },
   })
   const notifBaseline = useMemo(() => ({
     confirm: { email: notificationPrefs.confirm_email },
-    reminder: { email: notificationPrefs.reminder_email },
     cancel: { email: notificationPrefs.cancel_email },
-    feedback: { email: notificationPrefs.feedback_email },
   }), [notificationPrefs])
   const notifDirty = JSON.stringify(notif) !== JSON.stringify(notifBaseline)
   const [notifSaved, setNotifSaved] = useState(false)
@@ -261,9 +264,7 @@ export function SettingsHub({
     const ok = await patchGroup({
       notification_prefs: {
         confirm_email: notif.confirm.email,
-        reminder_email: notif.reminder.email,
         cancel_email: notif.cancel.email,
-        feedback_email: notif.feedback.email,
       },
     })
     if (ok) { setNotifSaved(true); setTimeout(() => setNotifSaved(false), 1800) }
@@ -271,17 +272,23 @@ export function SettingsHub({
   const resetNotif = () => setNotif(notifBaseline)
   const notifRows: { key: keyof typeof notif; title: string; sub: string }[] = [
     { key: 'confirm', title: 'Foglalás visszaigazolás', sub: 'Azonnal, .ics csatolmánnyal' },
-    { key: 'reminder', title: 'Emlékeztető', sub: '3 órával a foglalás előtt' },
     { key: 'cancel', title: 'Lemondás megerősítés', sub: 'Vendég lemondásakor' },
-    { key: 'feedback', title: 'Visszajelzés-kérés', sub: 'A látogatás után 1 nappal' },
   ]
 
-  // ── Audit-napló szűrő — kliens-oldali szűrés a VALÓS bejegyzéseken (akció-típus szerint).
+  // ── Audit-napló szűrő — kliens-oldali szűrés a VALÓS bejegyzéseken (akció-típus + dátum-ablak).
+  // A szerver a visszatekintési ablakon (90 nap) belüli sorokat adja; itt tovább szűkíthető.
   const [auditFilter, setAuditFilter] = useState<'all' | 'create' | 'update' | 'delete'>('all')
-  const filteredAudit = useMemo(
-    () => (auditFilter === 'all' ? auditLog : auditLog.filter((e) => e.action === auditFilter)),
-    [auditFilter, auditLog],
-  )
+  const [auditDays, setAuditDays] = useState<7 | 30 | 90>(90)
+  const [auditShown, setAuditShown] = useState(25)
+  const filteredAudit = useMemo(() => {
+    const cutoff = Date.now() - auditDays * 86_400_000
+    return auditLog.filter(
+      (e) =>
+        (auditFilter === 'all' || e.action === auditFilter) &&
+        new Date(e.createdAt).getTime() >= cutoff,
+    )
+  }, [auditFilter, auditDays, auditLog])
+  const visibleAudit = filteredAudit.slice(0, auditShown)
 
   // ── Csapat & jogok — VALÓS bekötés a /api/team végpontokra.
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -349,116 +356,185 @@ export function SettingsHub({
 
   const num = (n: number | null) => (n === null || n === undefined ? '—' : String(n))
 
-  // A fejléc Mégse/Mentés gombja az AKTÍV panelhez kötődik (Értesítések / Foglalási szabályok).
-  const headerSave =
-    active === 'notifications'
+  // A KÖZÖS lebegő mentés-sáv az AKTÍV panelhez kötődik: beágyazott profil-form fül (felfelé
+  // jelentett állapot) / Értesítések / Foglalási szabályok. Egyetlen mentés-hely az egész oldalra.
+  const saveForm = useCallback(async () => {
+    const ok = await formApiRef.current?.save()
+    if (ok) { setFormSaved(true); setTimeout(() => setFormSaved(false), 1800) }
+  }, [])
+  const activeBar =
+    active in FORM_TABS
+      ? { dirty: formDirty, saved: formSaved, onSave: saveForm, onCancel: () => formApiRef.current?.discard() }
+      : active === 'notifications'
       ? { dirty: notifDirty, saved: notifSaved, onSave: saveNotif, onCancel: resetNotif }
       : active === 'rules'
       ? { dirty: rulesDirty, saved: rulesSaved, onSave: saveRules, onCancel: resetRules }
       : null
 
+  // ── Navigáció adatvezérelten (a desktop rail ÉS a mobil legördülő EGY forrásból) ──
+  type NavItem =
+    | { kind: 'btn'; id: RailId; icon: LucideIcon; label: string; soon?: boolean }
+    | { kind: 'link'; href: string; icon: LucideIcon; label: string }
+  const navGroups: { group: string; items: NavItem[] }[] = [
+    { group: 'Üzlet', items: [
+      { kind: 'btn', id: 'profile', icon: Home, label: 'Üzlet profil' },
+      { kind: 'btn', id: 'booking', icon: CalendarDays, label: 'Foglalás' },
+      { kind: 'btn', id: 'rules', icon: Check, label: 'Foglalási szabályok' },
+      { kind: 'btn', id: 'features', icon: SlidersHorizontal, label: 'Foglalási funkciók' },
+      { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
+      { kind: 'btn', id: 'languages', icon: Languages, label: 'Nyelvek' },
+      { kind: 'btn', id: 'email', icon: Mail, label: 'Email-sablonok' },
+    ] },
+    { group: 'Működés', items: [
+      { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
+      { kind: 'btn', id: 'team', icon: Users, label: 'Csapat & jogok' },
+      { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
+    ] },
+    { group: 'Fiók', items: [
+      { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok' },
+      { kind: 'btn', id: 'billing', icon: CreditCard, label: 'Számlázás' },
+      { kind: 'link', href: variant === 'restaurant' ? '/restaurant/subscription' : '/dashboard/subscription', icon: Sparkles, label: 'Előfizetés' },
+      { kind: 'btn', id: 'sites', icon: Building2, label: 'Telephelyek' },
+    ] },
+    { group: 'Hamarosan', items: [
+      { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'Integrációk', soon: true },
+      { kind: 'btn', id: 'api', icon: KeyRound, label: 'API & webhookok', soon: true },
+    ] },
+  ]
+  const activeBtn = navGroups.flatMap((g) => g.items).find((it) => it.kind === 'btn' && it.id === active) as
+    | Extract<NavItem, { kind: 'btn' }> | undefined
+  const ActiveIcon = activeBtn?.icon ?? (active === 'danger' ? Trash2 : Home)
+
   return (
     <div className="space-y-5">
-      {/* Fejléc */}
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[42px]">
-            Beállítások
-          </h1>
-          <p className="mt-1.5 text-sm font-medium text-ink-soft">{subtitle}</p>
-        </div>
-        {headerSave && (
-          <div className="flex items-center gap-2.5">
-            {headerSave.saved && (
-              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2E9E63]">
-                <Check className="h-4 w-4" strokeWidth={2.2} /> Mentve
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={headerSave.onCancel}
-              disabled={!headerSave.dirty || saving}
-              className="rounded-[14px] border-[1.5px] border-line-strong px-5 py-2.5 text-[13px] font-semibold text-ink transition-opacity disabled:opacity-40"
-            >
-              Mégse
-            </button>
-            <button
-              type="button"
-              onClick={headerSave.onSave}
-              disabled={!headerSave.dirty || saving}
-              className="rounded-[14px] bg-ink-dark px-5 py-2.5 text-[13px] font-semibold text-white transition-opacity disabled:opacity-40"
-            >
-              {saving ? 'Mentés…' : 'Mentés'}
-            </button>
-          </div>
-        )}
+      {/* Fejléc — a mentés innen kikerült a KÖZÖS lebegő sávba (lásd lentebb). */}
+      <div>
+        <h1 className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[42px]">
+          Beállítások
+        </h1>
+        <p className="mt-1.5 text-sm font-medium text-ink-soft">{subtitle}</p>
       </div>
 
       {/* Bal-sáv + panel */}
       <div className="lg:grid lg:grid-cols-[262px_1fr] lg:items-start lg:gap-[18px]">
-        {/* RAIL — desktop függőleges, mobil vízszintes chip-sor */}
+        {/* RAIL — MOBIL: legördülő szekció-választó (a régi csúsztatható chip-sor helyett) */}
+        <div className="relative mb-4 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen((o) => !o)}
+            className="flex w-full items-center justify-between rounded-[18px] border border-line bg-white px-4 py-3.5 shadow-dav-card"
+          >
+            <span className="flex items-center gap-3 text-[15px] font-semibold text-ink">
+              <ActiveIcon className="h-[18px] w-[18px] text-ink-soft2" strokeWidth={1.6} />
+              {RAIL_LABELS[active]}
+            </span>
+            <ChevronDown className={`h-5 w-5 text-ink-soft2 transition-transform ${mobileNavOpen ? 'rotate-180' : ''}`} strokeWidth={1.8} />
+          </button>
+          <AnimatePresence>
+            {mobileNavOpen && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setMobileNavOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                  transition={{ type: 'spring', stiffness: 520, damping: 34 }}
+                  data-lenis-prevent
+                  className="absolute inset-x-0 top-full z-40 mt-2 max-h-[62vh] overflow-y-auto rounded-[20px] border border-line bg-white p-2 shadow-[0_20px_50px_-20px_rgba(40,35,15,.4)]"
+                >
+                  {navGroups.map((grp) => (
+                    <div key={grp.group}>
+                      <div className="px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{grp.group}</div>
+                      {grp.items.map((it) => {
+                        const Icon = it.icon
+                        return it.kind === 'btn' ? (
+                          <button
+                            key={it.id}
+                            type="button"
+                            onClick={() => { setActive(it.id); setMobileNavOpen(false) }}
+                            className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[14px] ${active === it.id ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-ink-soft'}`}
+                          >
+                            <Icon className={`h-[17px] w-[17px] ${active === it.id ? 'text-gold' : 'text-ink-soft2'}`} strokeWidth={1.5} />
+                            {it.label}
+                            {it.soon && (
+                              <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${active === it.id ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>Hamarosan</span>
+                            )}
+                          </button>
+                        ) : (
+                          <Link
+                            key={it.href}
+                            href={it.href}
+                            onClick={() => setMobileNavOpen(false)}
+                            className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-[14px] font-medium text-ink-soft"
+                          >
+                            <Icon className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.5} />
+                            {it.label}
+                          </Link>
+                        )
+                      })}
+                    </div>
+                  ))}
+                  <div className="my-1.5 h-px bg-line" />
+                  <button
+                    type="button"
+                    onClick={() => { setActive('danger'); setMobileNavOpen(false) }}
+                    className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[14px] font-medium ${active === 'danger' ? 'bg-ink-dark text-white' : 'text-[#C0453F]'}`}
+                  >
+                    <Trash2 className={`h-[17px] w-[17px] ${active === 'danger' ? 'text-gold' : 'text-[#C0453F]'}`} strokeWidth={1.5} />
+                    Fiók törlése
+                  </button>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* RAIL — DESKTOP: függőleges üveges sáv (a user kedvence) */}
         <nav
           data-lenis-prevent
-          className="-mx-5 mb-4 flex gap-1.5 overflow-x-auto px-5 pb-1 no-scrollbar lg:mx-0 lg:mb-0 lg:flex-col lg:gap-[3px] lg:overflow-visible lg:rounded-[24px] lg:border lg:border-line lg:bg-[var(--dav-glass)] lg:p-[11px]"
+          className="hidden lg:flex lg:flex-col lg:gap-[3px] lg:rounded-[24px] lg:bg-[var(--dav-glass)] lg:p-[11px] lg:shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_36px_-30px_rgba(80,70,30,0.18)]"
         >
-          {/* ── ÜZLET ── */}
-          <GroupLabel>Üzlet</GroupLabel>
-          <RailBtn id="profile" active={active} onClick={setActive} icon={Home} label="Üzlet profil" />
-          <RailBtn id="booking" active={active} onClick={setActive} icon={CalendarDays} label="Foglalás" />
-          <RailBtn id="rules" active={active} onClick={setActive} icon={Check} label="Foglalási szabályok" />
-          {/* Nyitvatartás → külső link a meglévő availability oldalra (nem panel) */}
-          <Link
-            href={availabilityHref}
-            className="flex shrink-0 items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink-soft transition-colors hover:text-ink lg:px-3.5"
-          >
-            <Clock className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.5} />
-            Nyitvatartás
-          </Link>
-          <RailBtn id="languages" active={active} onClick={setActive} icon={Languages} label="Nyelvek" />
-          <RailBtn id="email" active={active} onClick={setActive} icon={Mail} label="Email-sablonok" />
-
-          {/* ── MŰKÖDÉS ── */}
-          <GroupLabel>Működés</GroupLabel>
-          <RailBtn id="notifications" active={active} onClick={setActive} icon={Bell} label="Értesítések" />
-          <RailBtn id="team" active={active} onClick={setActive} icon={Users} label="Csapat & jogok" />
-          <RailBtn id="audit" active={active} onClick={setActive} icon={ScrollText} label="Audit-napló" />
-
-          {/* ── FIÓK ── */}
-          <GroupLabel>Fiók</GroupLabel>
-          <RailBtn id="documents" active={active} onClick={setActive} icon={FileText} label="Dokumentumok" />
-          <RailBtn id="billing" active={active} onClick={setActive} icon={CreditCard} label="Számlázás" />
-          {/* Előfizetés → külső link az Előfizetés oldalra (nem panel) — egységes név az avatar-menüvel */}
-          <Link
-            href={variant === 'restaurant' ? '/restaurant/subscription' : '/dashboard/subscription'}
-            className="flex shrink-0 items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink-soft transition-colors hover:text-ink lg:px-3.5"
-          >
-            <Sparkles className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.5} />
-            Előfizetés
-          </Link>
-          <RailBtn id="sites" active={active} onClick={setActive} icon={Building2} label="Telephelyek" />
-
-          {/* ── HAMAROSAN (placeholderek) ── */}
-          <GroupLabel>Hamarosan</GroupLabel>
-          <RailBtn id="integrations" active={active} onClick={setActive} icon={LayoutGrid} label="Integrációk" soon />
-          <RailBtn id="api" active={active} onClick={setActive} icon={KeyRound} label="API & webhookok" soon />
-
-          {/* ── Veszélyzóna (legalul, elválasztva) ── */}
-          <div className="my-1.5 hidden h-px bg-line lg:block" />
+          {navGroups.map((grp) => (
+            <div key={grp.group} className="contents">
+              <GroupLabel>{grp.group}</GroupLabel>
+              {grp.items.map((it) => {
+                const Icon = it.icon
+                return it.kind === 'btn' ? (
+                  <RailBtn key={it.id} id={it.id} active={active} onClick={setActive} icon={it.icon} label={it.label} soon={it.soon} />
+                ) : (
+                  <Link
+                    key={it.href}
+                    href={it.href}
+                    className="flex items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink-soft transition-colors hover:text-ink"
+                  >
+                    <Icon className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.5} />
+                    {it.label}
+                  </Link>
+                )
+              })}
+            </div>
+          ))}
+          <div className="my-1.5 h-px bg-line" />
           <RailBtn id="danger" active={active} onClick={setActive} icon={Trash2} label="Fiók törlése" danger />
         </nav>
 
         {/* PANEL */}
         <div className="min-w-0">
-          {/* Szekció-cím = a kiválasztott bal-lista elem neve (a felső fül-sor helyett jelzi, hol vagy). */}
-          <h2 className="mb-4 text-[22px] font-medium tracking-[-0.01em] text-ink lg:mb-5">{RAIL_LABELS[active]}</h2>
+          {/* Szekció-cím (desktop) — mobilon a legördülő gomb jelzi az aktív szekciót, itt elrejtjük. */}
+          <h2 className="hidden text-[22px] font-medium tracking-[-0.01em] text-ink lg:mb-5 lg:block">{RAIL_LABELS[active]}</h2>
 
           {/* Profil-form (Üzlet profil / Foglalás / Nyelvek / Email / Dokumentumok / Fiók törlése):
               MINDIG mountolva marad (a mentetlen mezők ne vesszenek el lista-váltáskor), csak a
               láthatóságot váltjuk. A fület a bal lista vezérli — a formhoz CONTEXTen át jut le
               (RSC-határon a cloneElement-prop nem megbízható), így a form a saját fül-sorát is elrejti. */}
-          <SettingsFormContext.Provider value={{ controlledTab: FORM_TABS[active] ?? 'general' }}>
+          <SettingsFormContext.Provider value={{ controlledTab: FORM_TABS[active] ?? 'general', reportDirty, registerApi }}>
             <div className={active in FORM_TABS ? '' : 'hidden'}>{profilePanel}</div>
           </SettingsFormContext.Provider>
+
+          {/* ── Foglalási funkciók — a beágyazott BookingFeatures (önmentő, saját PATCH). ── */}
+          {active === 'features' && (
+            <BookingFeatures variant={variant} apiBase={apiBase} initial={featureModules} embedded />
+          )}
 
           {active === 'rules' && (
             <div className="space-y-4">
@@ -481,28 +557,45 @@ export function SettingsHub({
                 </div>
               </Card>
 
-              {/* Toggle-lista — VALÓS `booking_rules` group (fejléc Mentés-gomb menti) */}
-              <div className="rounded-[26px] border border-line bg-white px-6 py-2 shadow-dav-card">
+              {/* Toggle-lista — CSAK a valós, hatással bíró szabály (`auto_confirm`). Mentés a lebegő sávból. */}
+              <div className="rounded-[26px] dav-card-glass px-6 py-2">
                 <RuleRow
                   title="Automatikus megerősítés"
                   desc="A foglalások emberi jóváhagyás nélkül visszaigazolódnak"
                   checked={ruleToggles.autoConfirm}
                   onChange={() => setRuleToggles((s) => ({ ...s, autoConfirm: !s.autoConfirm }))}
-                />
-                <RuleRow
-                  title="Depozit nagy foglalásokra"
-                  desc="Nagy létszám felett előleg a foglaláshoz"
-                  checked={ruleToggles.deposit}
-                  onChange={() => setRuleToggles((s) => ({ ...s, deposit: !s.deposit }))}
-                />
-                <RuleRow
-                  title="Lemondás & no-show védelem"
-                  desc="Ingyenes lemondás megadott időn belül"
-                  checked={ruleToggles.cancelProtection}
-                  onChange={() => setRuleToggles((s) => ({ ...s, cancelProtection: !s.cancelProtection }))}
                   last
                 />
               </div>
+
+              {/* Várólista — a „Foglalási funkciók" szekció a gazdája (nincs duplázás), ide csak ugró-gomb. */}
+              <button
+                type="button"
+                onClick={() => setActive('features')}
+                className="flex w-full items-center justify-between gap-3 rounded-[26px] dav-card-glass px-6 py-4 text-left transition-colors hover:border-ink/20"
+              >
+                <div className="min-w-0">
+                  <div className="text-[15px] font-medium text-ink">Várólista</div>
+                  <div className="mt-0.5 text-[13px] text-ink-soft">
+                    Feliratkozás telt háznál + automatikus előléptetés. A <b className="font-semibold text-ink-soft">Foglalási funkciók</b> szekcióban kapcsolható.
+                  </div>
+                </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-ink">
+                  Megnyitás <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                </span>
+              </button>
+
+              {/* Depozit / no-show — őszinte „Hamarosan" (fizetési integráció kell, mint Integrációk/API). */}
+              <div className="rounded-[26px] dav-card-glass px-6 py-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-[15px] font-medium text-ink">Depozit & no-show védelem</span>
+                  <span className="rounded-full bg-[#F2ECDA] px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.03em] text-ink-soft">Hamarosan</span>
+                </div>
+                <p className="mt-0.5 text-[13px] text-ink-soft">
+                  Előleg nagy foglalásokhoz és no-show elleni védelem — fizetési integrációval érkezik.
+                </p>
+              </div>
+
               <p className="px-1 text-xs text-ink-soft2">
                 A pontos foglalási időzítést az „Üzlet profil → Foglalás" fülön mentheted.
               </p>
@@ -511,7 +604,7 @@ export function SettingsHub({
 
           {active === 'notifications' && (
             <div className="space-y-4">
-              <div className="rounded-[26px] border border-line bg-white px-6 py-2 shadow-dav-card">
+              <div className="rounded-[26px] dav-card-glass px-6 py-2">
                 {/* fejléc-sor */}
                 <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                   <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Esemény</span>
@@ -553,7 +646,17 @@ export function SettingsHub({
                 </p>
               </div>
               <p className="px-1 text-xs text-ink-soft2">
-                A visszaigazoló email tartalmát és feladóját az „Üzlet profil → Email" fülön szerkesztheted.
+                Itt csak a tranzakciós emailek (visszaigazolás, lemondás) kapcsolhatók. Az{' '}
+                <b className="font-semibold text-ink-soft">emlékeztető</b> és a{' '}
+                <b className="font-semibold text-ink-soft">visszajelzés-kérés</b> a{' '}
+                <button
+                  type="button"
+                  onClick={() => setActive('features')}
+                  className="font-semibold text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
+                >
+                  Foglalási funkciók
+                </button>{' '}
+                szekcióban állítható (be/ki + időzítés). A sablonokat az „Üzlet profil → Email" fülön szerkeszted.
               </p>
             </div>
           )}
@@ -585,12 +688,12 @@ export function SettingsHub({
                       value={inviteEmail}
                       onChange={(e) => setInviteEmail(e.target.value)}
                       placeholder="email@pelda.hu"
-                      className="min-w-0 flex-1 rounded-[14px] border border-line-strong bg-[#FBF9F2] px-4 py-3 text-[14px] text-ink outline-none focus:border-ink-soft"
+                      className="min-w-0 flex-1 rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25"
                     />
                     <select
                       value={inviteRole}
                       onChange={(e) => setInviteRole(e.target.value as 'manager' | 'staff')}
-                      className="rounded-[14px] border border-line-strong bg-[#FBF9F2] px-4 py-3 text-[14px] font-medium text-ink outline-none"
+                      className="rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] font-medium text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25"
                     >
                       <option value="staff">Munkatárs</option>
                       <option value="manager">Menedzser</option>
@@ -608,7 +711,7 @@ export function SettingsHub({
                 </Card>
               )}
 
-              <div className="rounded-[26px] border border-line bg-white px-6 py-2 shadow-dav-card">
+              <div className="rounded-[26px] dav-card-glass px-6 py-2">
                 {team.map((m, i) => (
                   <div
                     key={(m.id ?? m.email) + i}
@@ -632,7 +735,7 @@ export function SettingsHub({
                           value={m.roleTone === 'manager' ? 'manager' : 'staff'}
                           disabled={rowBusy === m.id}
                           onChange={(e) => changeRole(m.id!, e.target.value as 'manager' | 'staff')}
-                          className="rounded-[12px] border border-line-strong bg-[#FBF9F2] px-3 py-1.5 text-[12px] font-semibold text-ink outline-none disabled:opacity-40"
+                          className="rounded-[12px] border border-line-strong bg-white px-3 py-1.5 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-gold/60 disabled:opacity-40"
                         >
                           <option value="staff">Munkatárs</option>
                           <option value="manager">Menedzser</option>
@@ -760,60 +863,116 @@ export function SettingsHub({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm font-medium text-ink-soft">Ki mit módosított — visszakövethetően</p>
                 <span className="text-[12.5px] font-medium text-ink-soft2">
-                  {auditLog.length} bejegyzés
+                  {filteredAudit.length} bejegyzés · utolsó {auditDays} nap
                 </span>
               </div>
-              <div className="rounded-[26px] border border-line bg-white p-5 shadow-dav-card">
-                <div className="flex flex-wrap items-center gap-2">
-                  {AUDIT_FILTERS.map((f) => (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setAuditFilter(f.id)}
-                      className={`rounded-[12px] px-3.5 py-2 text-[12px] font-semibold transition-colors ${
-                        auditFilter === f.id
-                          ? 'bg-ink-dark text-white'
-                          : 'border border-line bg-[#FBF9F2] text-ink-soft hover:text-ink'
-                      }`}
-                    >
-                      {f.label}
-                    </button>
-                  ))}
+              <div className="rounded-[26px] dav-card-glass p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {AUDIT_FILTERS.map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setAuditFilter(f.id)}
+                        className={`rounded-[12px] px-3.5 py-2 text-[12px] font-semibold transition-colors ${
+                          auditFilter === f.id
+                            ? 'bg-ink-dark text-white'
+                            : 'border border-line bg-[#FBF9F2] text-ink-soft hover:text-ink'
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                  {/* Dátum-ablak (visszatekintés). A szerver 90 napig ad adatot; itt szűkíthető. */}
+                  <div className="flex items-center gap-1 rounded-[13px] border border-line bg-[#FBF9F2] p-1">
+                    {AUDIT_DAY_WINDOWS.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setAuditDays(d)}
+                        className={`rounded-[9px] px-3 py-1.5 text-[12px] font-semibold transition-colors ${
+                          auditDays === d ? 'bg-white text-ink shadow-dav-card' : 'text-ink-soft hover:text-ink'
+                        }`}
+                      >
+                        {d} nap
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               {filteredAudit.length === 0 ? (
-                <div className="rounded-[26px] border border-line bg-white px-6 py-12 text-center shadow-dav-card">
+                <div className="rounded-[26px] dav-card-glass px-6 py-12 text-center">
                   <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#FBF9F2]">
                     <ScrollText className="h-5 w-5 text-ink-soft2" strokeWidth={1.6} />
                   </span>
-                  <p className="text-sm font-medium text-ink-soft">Még nincs naplózott esemény</p>
+                  <p className="text-sm font-medium text-ink-soft">Nincs naplózott esemény ebben az időszakban</p>
                 </div>
               ) : (
-                <div className="rounded-[26px] border border-line bg-white px-6 py-2 shadow-dav-card">
-                  {filteredAudit.map((e, i) => {
-                    const color = AUDIT_ACTION_COLOR[e.action]
-                    return (
-                      <div
-                        key={e.id}
-                        className={`flex gap-3.5 py-4 ${i < filteredAudit.length - 1 ? 'border-b border-line' : ''}`}
-                      >
-                        <span
-                          className="mt-0.5 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px]"
-                          style={{ background: `${color}1f` }}
+                <>
+                  <div className="rounded-[26px] dav-card-glass px-6 py-2">
+                    {visibleAudit.map((e, i) => {
+                      const color = AUDIT_ACTION_COLOR[e.action]
+                      const Icon = AUDIT_ACTION_ICON[e.action]
+                      // Csak az érdemi változások (az üres → üres, pl. null → '' zaj kiesik).
+                      const changes = (e.changes ?? []).filter(
+                        (c) => auditFormatVal(c.from) !== auditFormatVal(c.to),
+                      )
+                      return (
+                        <div
+                          key={e.id}
+                          className={`flex gap-3.5 py-4 ${i < visibleAudit.length - 1 ? 'border-b border-line' : ''}`}
                         >
-                          <span className="h-[9px] w-[9px] rounded-full" style={{ background: color }} />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[13.5px] leading-snug text-ink">
-                            <b className="font-semibold">{e.actor}</b>{' '}
-                            <span className="text-ink-soft">{e.summary || AUDIT_ACTION_LABEL[e.action]}</span>
+                          <span
+                            className="mt-0.5 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px]"
+                            style={{ background: `${color}1f` }}
+                          >
+                            <Icon className="h-[16px] w-[16px]" strokeWidth={1.9} style={{ color }} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            {/* Fő cím: a módosított tevékenység (mi történt) */}
+                            <div className="text-[13.5px] font-semibold leading-snug text-ink">
+                              {e.summary || AUDIT_ACTION_LABEL[e.action]}
+                            </div>
+                            {/* Alatta: KI csinálta — félkövér név + email mellette */}
+                            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 leading-snug">
+                              <b className="text-[12.5px] font-semibold text-ink">{e.actor}</b>
+                              {e.actorEmail && e.actorEmail !== e.actor && (
+                                <span className="text-[11.5px] font-normal text-ink-soft2">{e.actorEmail}</span>
+                              )}
+                            </div>
+                            {changes.length > 0 && (
+                              <div className="mt-1.5 flex flex-col gap-1">
+                                {changes.map((c, ci) => (
+                                  <div key={ci} className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
+                                    <span className="font-medium text-ink-soft">{auditFieldLabel(c.field)}:</span>
+                                    <span className="rounded-[6px] bg-[#FBF9F2] px-1.5 py-0.5 text-ink-soft2 line-through decoration-ink-soft2/40">
+                                      {auditFormatVal(c.from)}
+                                    </span>
+                                    <ArrowRight className="h-3 w-3 shrink-0 text-ink-soft2" strokeWidth={2} />
+                                    <span className="rounded-[6px] bg-[#F0EAD8] px-1.5 py-0.5 font-medium text-ink">
+                                      {auditFormatVal(c.to)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <div className="mt-1 text-[11.5px] text-ink-soft2">{relativeTime(e.createdAt)}</div>
                           </div>
-                          <div className="mt-1 text-[11.5px] text-ink-soft2">{relativeTime(e.createdAt)}</div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                  {filteredAudit.length > auditShown && (
+                    <button
+                      type="button"
+                      onClick={() => setAuditShown((n) => n + 25)}
+                      className="mx-auto flex items-center gap-2 rounded-[14px] border border-line bg-white px-5 py-2.5 text-[13px] font-semibold text-ink-soft shadow-dav-card transition-colors hover:text-ink"
+                    >
+                      További {Math.min(25, filteredAudit.length - auditShown)} megjelenítése
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -843,7 +1002,7 @@ export function SettingsHub({
                 </Link>
               </div>
 
-              <div className="rounded-[26px] border border-line bg-white px-6 py-2 shadow-dav-card">
+              <div className="rounded-[26px] dav-card-glass px-6 py-2">
                 <div className="py-3 text-[17px] font-medium text-ink">Üzleteid</div>
                 {sites.map((s, i) => (
                   <div
@@ -899,8 +1058,79 @@ export function SettingsHub({
               </div>
             </div>
           )}
+
+          {/* ── KÖZÖS lebegő „Mentetlen változások" sáv (Linear/Vercel-minta) ──
+              Bárhol van mentetlen módosítás (form-fül / Értesítések / Foglalási szabályok),
+              EGYETLEN sticky sáv jelenik meg alul — nincs többé fent/lent szétszórt mentés. */}
+          {activeBar && (
+            <UnsavedBar
+              dirty={activeBar.dirty}
+              saved={activeBar.saved}
+              saving={saving}
+              onSave={activeBar.onSave}
+              onCancel={activeBar.onCancel}
+            />
+          )}
         </div>
       </div>
+    </div>
+  )
+}
+
+/* ── KÖZÖS lebegő mentés-sáv — sticky a panel alján, rugós belépő ─────────── */
+function UnsavedBar({
+  dirty, saved, saving, onSave, onCancel,
+}: {
+  dirty: boolean
+  saved: boolean
+  saving: boolean
+  onSave: () => void
+  onCancel: () => void
+}) {
+  const shown = dirty || saved
+  return (
+    // Mobilon a lebegő MobileBottomNav (bottom-5 pill) FÖLÉ emeljük; desktopon nincs alsó nav.
+    <div className="pointer-events-none sticky bottom-[92px] z-30 mt-6 flex justify-center lg:bottom-6">
+      <AnimatePresence>
+        {shown && (
+          <motion.div
+            initial={{ y: 22, opacity: 0, scale: 0.96 }}
+            animate={{ y: 0, opacity: 1, scale: 1 }}
+            exit={{ y: 22, opacity: 0, scale: 0.96 }}
+            transition={{ type: 'spring', stiffness: 460, damping: 34, mass: 0.9 }}
+            className="pointer-events-auto flex items-center gap-3 rounded-[18px] border border-line bg-white/85 py-2.5 pl-4 pr-2.5 shadow-[0_18px_40px_-20px_rgba(40,35,15,.45)] backdrop-blur-xl"
+          >
+            {saved ? (
+              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2E9E63]">
+                <Check className="h-4 w-4" strokeWidth={2.2} /> Mentve
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 text-[13px] font-medium text-ink-soft">
+                <span className="h-1.5 w-1.5 rounded-full bg-gold" />
+                Mentetlen változások
+              </span>
+            )}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onCancel}
+                disabled={!dirty || saving}
+                className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[13px] font-semibold text-ink transition-opacity disabled:opacity-40"
+              >
+                Mégse
+              </button>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={!dirty || saving}
+                className="rounded-[13px] bg-ink-dark px-5 py-2 text-[13px] font-semibold text-white transition-opacity disabled:opacity-40"
+              >
+                {saving ? 'Mentés…' : 'Mentés'}
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -922,6 +1152,36 @@ const AUDIT_ACTION_LABEL: Record<'create' | 'update' | 'delete', string> = {
   update: 'módosított egy elemet',
   delete: 'törölt egy elemet',
 }
+const AUDIT_ACTION_ICON: Record<'create' | 'update' | 'delete', typeof Plus> = {
+  create: Plus,
+  update: Pencil,
+  delete: Trash2,
+}
+/** Visszatekintési dátum-ablakok (nap). A 90 a szerver által adott maximum. */
+const AUDIT_DAY_WINDOWS: (7 | 30 | 90)[] = [7, 30, 90]
+
+/** Gyakori mezőnevek emberi felirata a diffhez (ismeretlen → maga a mezőnév). */
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  status: 'Státusz', date: 'Dátum', start_time: 'Kezdés', end_time: 'Vége', time: 'Időpont',
+  pax: 'Létszám', party_size: 'Létszám', customer_name: 'Vendég neve', customer_phone: 'Telefon',
+  customer_email: 'Email', notes: 'Megjegyzés', internal_notes: 'Belső jegyzet', role: 'Szerep',
+  position: 'Pozíció', pay_rate: 'Bér', pay_type: 'Bér típusa', name: 'Név', email: 'Email',
+  phone: 'Telefon', is_birthday: 'Születésnap', tip_eligible: 'Borravaló', weekly_hours: 'Heti óraszám',
+  title: 'Megnevezés', price: 'Ár', duration_minutes: 'Ülésidő', source: 'Forrás', address: 'Cím',
+  occasion: 'Alkalom', join_date: 'Belépés', birthday: 'Születésnap', bio: 'Megjegyzés', note: 'Jegyzet',
+}
+function auditFieldLabel(field: string): string {
+  return AUDIT_FIELD_LABELS[field] || field
+}
+
+/** Diff-érték formázása: bool → Igen/Nem, üres → „—", egyébként szöveg. */
+function auditFormatVal(v: string | number | boolean | null): string {
+  if (v === true) return 'Igen'
+  if (v === false) return 'Nem'
+  if (v == null || v === '') return '—'
+  return String(v)
+}
+
 
 /** Relatív idő magyarul (pl. „2 órája", „Tegnap", teljes dátum régebbieknél). */
 function relativeTime(iso: string): string {
@@ -942,7 +1202,7 @@ function relativeTime(iso: string): string {
 /* ── Őszinte „Hamarosan" üres-állapot (Integrációk / API & webhookok) ─────── */
 function ComingSoon({ icon: Icon, title, body }: { icon: typeof Home; title: string; body: string }) {
   return (
-    <div className="rounded-[26px] border border-line bg-white px-6 py-14 text-center shadow-dav-card">
+    <div className="rounded-[26px] dav-card-glass px-6 py-14 text-center">
       <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[18px] bg-[#FBF9F2]">
         <Icon className="h-6 w-6 text-ink-soft2" strokeWidth={1.5} />
       </span>

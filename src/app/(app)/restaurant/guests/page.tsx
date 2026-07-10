@@ -39,8 +39,8 @@ export default async function RestaurantGuestsPage() {
       .map((t) => (typeof t === 'object' && t ? (t as { name?: string | null }).name ?? null : tableName.get(Number(t)) ?? null))
       .filter((v): v is string => !!v)
 
-  // Forrás + eredeti időpont/pax/jegyzet/szülinap/asztalok megőrzése a részletekhez.
-  type Src = GuestSource & { time?: string; birthday?: boolean; note?: string | null; internal?: string | null; tables?: string[] }
+  // Forrás + eredeti időpont/pax/jegyzet/alkalom/asztalok megőrzése a részletekhez.
+  type Src = GuestSource & { time?: string; occasion?: string | null; occasionIcon?: string | null; note?: string | null; internal?: string | null; tables?: string[] }
   const sources: Src[] = docs.map((r) => ({
     name: r.customer_name,
     email: r.customer_email,
@@ -48,9 +48,11 @@ export default async function RestaurantGuestsPage() {
     date: r.date,
     pax: r.pax,
     country: r.country,
+    city: r.customer_city,
     status: r.status,
     time: r.start_time,
-    birthday: !!r.is_birthday,
+    occasion: r.occasion ?? null,
+    occasionIcon: r.occasion_icon ?? null,
     note: r.notes,
     internal: r.internal_notes,
     tables: tablesOf(r.tables),
@@ -123,20 +125,31 @@ export default async function RestaurantGuestsPage() {
     rowsFor: (_g, { past, upcoming }) => {
       const upPax = upcoming.reduce((a, s) => a + (s.pax ?? 0), 0)
       const tables = Array.from(new Set([...past, ...upcoming].flatMap((s) => (s as Src).tables ?? [])))
+      const note = latestNote([...past, ...upcoming], (s) => s.note)
       return [
         { label: 'Látogatás', value: String(past.length) },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} · ${upPax} fő` : '—' },
         { label: 'Asztalok', value: tables.length > 0 ? tables.join(', ') : '—' },
         { label: 'Kedvenc nap', value: favDay([...past, ...upcoming]) },
+        ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
       ]
     },
     birthdayDateFor: (own) => {
       const bd = [...own]
-        .filter((s) => (s as Src).birthday && s.date)
+        .filter((s) => (s as Src).occasion && s.date)
         .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))[0]
       return bd?.date ?? null
     },
     noteFor: (own) => ({ guest: latestNote(own, (s) => s.note), internal: latestNote(own, (s) => s.internal) }),
+    historyDetailFor: (s) => {
+      const src = s as Src
+      const rows: Array<{ label: string; value: string }> = []
+      if (src.time) rows.push({ label: 'Időpont', value: src.time.slice(0, 5) })
+      rows.push({ label: 'Létszám', value: `${src.pax ?? 0} fő` })
+      if (src.tables && src.tables.length > 0) rows.push({ label: 'Asztal', value: src.tables.join(', ') })
+      if (src.occasion) rows.push({ label: 'Alkalom', value: src.occasion })
+      return { rows, note: src.note?.trim() || null }
+    },
     blockedFor: (g) => !!custFor(g)?.blocked,
     blockReasonFor: (g) => custFor(g)?.block_reason ?? null,
   })

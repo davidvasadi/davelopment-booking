@@ -9,9 +9,9 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Cake, Ban, Pencil, ShieldCheck, Check } from 'lucide-react'
+import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
-import { TIER_LABEL, flagEmoji, type GuestTier, type CountryBucket } from '@/lib/guests'
+import { TIER_LABEL, flagEmoji, countryName, type GuestTier, type CountryBucket } from '@/lib/guests'
 import { StatusPills, type StatusSeg } from '@/components/dashboard/StatusPills'
 import { CountUpKpi, type KpiIcon } from '@/components/dashboard/CountUpKpi'
 import GuestMapClient from '@/components/dashboard/GuestMapClient'
@@ -53,6 +53,9 @@ export interface GuestHistoryVM {
   d: string // rövid dátum (bal oszlop)
   w: string // leírás
   a: string // összeg / jobb oszlop
+  // Kibontható részletek az adott nap foglalásáról (idő, asztal, létszám, státusz…) + jegyzet.
+  details?: RowVM[]
+  note?: string | null
 }
 
 export interface RowVM {
@@ -68,6 +71,7 @@ export interface GuestVM {
   avText: string // avatar szöveg
   avatarUrl: string | null // Gravatar (van fallback a monogramra)
   tier: GuestTier
+  country: string | null // ISO2 (zászlóhoz a név mellé), vagy null
   phone: string | null
   email: string | null
   since: string // "vendég X óta"
@@ -167,12 +171,15 @@ export function GuestsView({
   })
   const [selKey, setSelKey] = useState(guests[0]?.key ?? '')
   const [historyOpen, setHistoryOpen] = useState(false)
+  const [openRow, setOpenRow] = useState<number | null>(null) // kibontott látogatás-sor indexe
+  useEffect(() => { setOpenRow(null); setHistoryOpen(false) }, [selKey]) // vendégváltáskor zárjuk az előzményeket
   const [focusIso, setFocusIso] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'blocked'>('all')
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
   const [form, setForm] = useState({ name: '', phone: '', email: '', note: '' })
   const [blockTarget, setBlockTarget] = useState<GuestVM | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<GuestVM | null>(null)
   const [blockReason, setBlockReason] = useState('')
   const detailRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -207,6 +214,25 @@ export function GuestsView({
     if (!blockTarget) return
     await saveCustomer({ email: blockTarget.email, phone: blockTarget.phone, blocked: true, block_reason: blockReason.trim() || null })
     setBlockTarget(null)
+  }
+
+  // Vendég VÉGLEGES törlése: az összes foglalása + customer-rekord. Törlés után a listán
+  // az első vendégre ugrunk (a törölt már nem lesz benne a friss adatban).
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    setBusy(true)
+    try {
+      await fetch('/api/customers', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: deleteTarget.email, phone: deleteTarget.phone }),
+      })
+      setDeleteTarget(null)
+      setSelKey('')
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
   }
 
   function startEdit(g: GuestVM) {
@@ -296,7 +322,7 @@ export function GuestsView({
 
       {/* ── FEJLÉC B: animált megoszlás-pillek (bal) + felszámoló számok (jobb) ── */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <StatusPills className="flex-1 lg:max-w-[620px]" segments={pills} />
+        <StatusPills eager className="flex-1 lg:max-w-[620px]" segments={pills} />
         <div className="flex flex-wrap items-start gap-8 lg:gap-10">
           {metrics.map((m) => (
             <CountUpKpi key={m.label} icon={m.icon} value={m.value} label={m.label} suffix={m.suffix} decimals={m.decimals} />
@@ -319,7 +345,7 @@ export function GuestsView({
         {/* JOBB: donut + érkezések */}
         <div className="flex flex-col gap-4 lg:h-[640px]">
           {/* Visszatérő vendég donut */}
-          <div className="flex flex-col rounded-[26px] border border-line bg-white p-5 shadow-[0_1px_2px_rgba(80,70,30,.05),0_18px_40px_-28px_rgba(80,70,30,.22)]">
+          <div className="flex flex-col rounded-[26px] border border-line bg-[var(--dav-glass-strong)] backdrop-blur-lg p-5 shadow-[0_1px_2px_rgba(80,70,30,.05),0_18px_40px_-28px_rgba(80,70,30,.22)]">
             <div className="flex items-start justify-between">
               <div className="text-[15px] font-medium text-ink">Visszatérő vendég</div>
               <div className="text-right text-[11px] font-medium text-ink-soft">{returningNum + newNum} vendég</div>
@@ -374,7 +400,7 @@ export function GuestsView({
                     <button
                       type="button"
                       key={a.key}
-                      onClick={() => a.guestKey && selectGuest(a.guestKey, { scroll: true, iso: a.iso })}
+                      onClick={() => a.guestKey && selectGuest(a.guestKey, { scroll: false, iso: a.iso })}
                       className={`flex items-center gap-[11px] rounded-[14px] px-1 py-[11px] text-left transition-colors ${a.guestKey ? 'cursor-pointer hover:bg-white/5' : 'cursor-default'} ${passed ? 'opacity-45' : ''}`}
                       style={{ borderBottom: i < orderedArrivals.length - 1 ? '1px solid rgba(255,255,255,.07)' : 'none' }}
                     >
@@ -388,8 +414,13 @@ export function GuestsView({
                       </div>
                       {(a.country || a.city) && (
                         <div className="text-right">
-                          {a.country ? <div className="text-[16px] leading-none">{flagEmoji(a.country)}</div> : null}
-                          {a.city ? <div className="mt-px text-[10.5px] font-medium text-white/50">{a.city}</div> : null}
+                          {a.country ? (
+                            <div className="flex items-center justify-end gap-1 text-[11px] font-medium text-white/70">
+                              <span className="text-[14px] leading-none">{flagEmoji(a.country)}</span>
+                              <span>{countryName(a.country)}</span>
+                            </div>
+                          ) : null}
+                          {a.city ? <div className="mt-px text-[10.5px] font-medium text-white/45">{a.city}</div> : null}
                         </div>
                       )}
                     </button>
@@ -480,6 +511,9 @@ export function GuestsView({
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5">
                         <span className={`text-[15px] font-semibold ${active ? 'text-white' : 'text-ink'}`}>{g.name}</span>
+                        {g.country && (
+                          <span title={countryName(g.country) ?? undefined} className="flex-shrink-0 text-[14px] leading-none">{flagEmoji(g.country)}</span>
+                        )}
                         {g.blocked && (
                           <span title="Tiltólistán" className="flex h-[17px] w-[17px] flex-shrink-0 items-center justify-center rounded-full bg-[#FBE3E3] text-[#C0453F]">
                             <Ban className="h-3 w-3" strokeWidth={2.2} />
@@ -512,6 +546,12 @@ export function GuestsView({
               <div className="flex-1">
                 <div className="flex flex-wrap items-center gap-2.5">
                   <div className="text-[26px] font-normal tracking-[-0.01em] text-ink">{sel.name}</div>
+                  {sel.country && (
+                    <span className="inline-flex items-center gap-1.5 rounded-[9px] bg-white/55 px-[9px] py-1 text-[12px] font-semibold text-ink-soft backdrop-blur-[6px]">
+                      <span className="text-[15px] leading-none">{flagEmoji(sel.country)}</span>
+                      {countryName(sel.country)}
+                    </span>
+                  )}
                   <span className="rounded-[9px] px-[11px] py-1 text-[11px] font-semibold tracking-[0.04em]" style={{ background: TIER_BG[sel.tier], color: TIER_FG[sel.tier] }}>
                     {TIER_LABEL[sel.tier]}
                   </span>
@@ -536,12 +576,24 @@ export function GuestsView({
                 <div className="mt-1 text-[12px] font-medium text-ink-soft2">{tierExplain(sel.tier, sel.visits)}</div>
               </div>
               <div className="flex flex-shrink-0 gap-2">
-                <a href={sel.phone ? `tel:${sel.phone}` : undefined} aria-disabled={!sel.phone} title="Hívás" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
-                  <Phone className="h-4 w-4" strokeWidth={1.6} />
-                </a>
-                <a href={sel.email ? `mailto:${sel.email}` : undefined} aria-disabled={!sel.email} title="E-mail" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
-                  <Mail className="h-4 w-4" strokeWidth={1.6} />
-                </a>
+                {sel.phone ? (
+                  <a href={`tel:${sel.phone}`} title={`Hívás — ${sel.phone}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
+                    <Phone className="h-4 w-4" strokeWidth={1.6} />
+                  </a>
+                ) : (
+                  <span title="Nincs telefonszám" aria-disabled className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full bg-white/30 text-ink-soft2 opacity-50">
+                    <Phone className="h-4 w-4" strokeWidth={1.6} />
+                  </span>
+                )}
+                {sel.email ? (
+                  <a href={`mailto:${sel.email}`} title={`E-mail — ${sel.email}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
+                    <Mail className="h-4 w-4" strokeWidth={1.6} />
+                  </a>
+                ) : (
+                  <span title="Nincs e-mail-cím" aria-disabled className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full bg-white/30 text-ink-soft2 opacity-50">
+                    <Mail className="h-4 w-4" strokeWidth={1.6} />
+                  </span>
+                )}
                 <button type="button" onClick={() => startEdit(sel)} title="Szerkesztés" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
                   <Pencil className="h-4 w-4" strokeWidth={1.7} />
                 </button>
@@ -554,17 +606,38 @@ export function GuestsView({
                 >
                   {sel.blocked ? <ShieldCheck className="h-4 w-4" strokeWidth={1.8} /> : <Ban className="h-4 w-4" strokeWidth={1.8} />}
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(sel)}
+                  disabled={busy}
+                  title="Vendég törlése"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 text-ink-soft backdrop-blur transition-colors hover:bg-[#FBE3E3] hover:text-[#C0453F] disabled:opacity-50"
+                >
+                  <Trash2 className="h-4 w-4" strokeWidth={1.7} />
+                </button>
               </div>
             </div>
 
             {/* Szerkesztő űrlap (kézi felülírás) */}
             {editing && (
               <div className="mt-4 rounded-[18px] border border-white/60 bg-white/55 p-4 backdrop-blur-[10px]">
-                <div className="grid gap-2.5 sm:grid-cols-2">
-                  <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Név" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
-                  <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="Telefon" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
-                  <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="E-mail" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none sm:col-span-2" />
-                  <input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Belső jegyzet" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none sm:col-span-2" />
+                <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11.5px] font-semibold text-ink-soft">Név</span>
+                    <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Vendég neve" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
+                  </label>
+                  <label className="flex flex-col gap-1">
+                    <span className="text-[11.5px] font-semibold text-ink-soft">Telefon</span>
+                    <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+36 20 123 4567" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
+                  </label>
+                  <label className="flex flex-col gap-1 sm:col-span-2">
+                    <span className="text-[11.5px] font-semibold text-ink-soft">E-mail</span>
+                    <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="vendeg@example.com" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
+                  </label>
+                  <label className="flex flex-col gap-1 sm:col-span-2">
+                    <span className="text-[11.5px] font-semibold text-ink-soft">Belső jegyzet</span>
+                    <input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Csak a személyzet látja" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
+                  </label>
                 </div>
                 <div className="mt-3 flex justify-end gap-2">
                   <button type="button" onClick={() => setEditing(false)} className="rounded-[12px] bg-white/70 px-4 py-2 text-[13px] font-semibold text-ink-soft hover:text-ink">Mégse</button>
@@ -586,25 +659,64 @@ export function GuestsView({
             {/* Adatsorok (Törzsvendég-pont gyűrű nélkül) */}
             <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
               {sel.rows.map((r) => (
-                <div key={r.label} className="flex items-center justify-between rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3">
-                  <span className="text-[13px] font-medium text-ink-soft">{r.label}</span>
-                  <span className="text-[15px] font-semibold text-ink">{r.value}</span>
-                </div>
+                r.label === 'Megjegyzés' ? (
+                  <div key={r.label} className="rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3 sm:col-span-2">
+                    <div className="mb-0.5 text-[13px] font-medium text-ink-soft">{r.label}</div>
+                    <div className="text-[14px] font-medium leading-[1.5] text-ink">{r.value}</div>
+                  </div>
+                ) : (
+                  <div key={r.label} className="flex items-center justify-between rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3">
+                    <span className="text-[13px] font-medium text-ink-soft">{r.label}</span>
+                    <span className="text-[15px] font-semibold text-ink">{r.value}</span>
+                  </div>
+                )
               ))}
             </div>
 
             <div className="mb-2 mt-6 text-[13px] font-semibold text-ink">Látogatási előzmények</div>
             <div className="flex flex-col gap-0.5">
               {sel.history.length === 0 ? (
-                <div className="py-3 text-[13px] text-ink-soft">Nincs korábbi látogatás.</div>
+                <div className="py-3 text-[13px] text-ink-soft">
+                  {sel.visits <= 1 ? 'Ez az első látogatása — még nincs korábbi.' : 'Nincs korábbi látogatás.'}
+                </div>
               ) : (
-                (historyOpen ? sel.history : sel.history.slice(0, 3)).map((h, i) => (
-                  <div key={i} className="flex items-center gap-3.5 border-b py-2.5" style={{ borderColor: 'rgba(120,110,70,.1)' }}>
-                    <div className="w-14 flex-shrink-0 text-[12.5px] font-semibold text-ink-soft">{h.d}</div>
-                    <div className="flex-1 text-[14px] font-medium text-ink">{h.w}</div>
-                    <div className="text-[14px] font-semibold text-ink">{h.a}</div>
-                  </div>
-                ))
+                (historyOpen ? sel.history : sel.history.slice(0, 3)).map((h, i) => {
+                  const expandable = (h.details && h.details.length > 0) || !!h.note
+                  const isOpen = openRow === i
+                  return (
+                    <div key={i} className="border-b" style={{ borderColor: 'rgba(120,110,70,.1)' }}>
+                      <button
+                        type="button"
+                        disabled={!expandable}
+                        onClick={() => setOpenRow((o) => (o === i ? null : i))}
+                        className={`flex w-full items-center gap-3.5 py-2.5 text-left transition-colors ${expandable ? 'cursor-pointer hover:bg-white/40' : 'cursor-default'}`}
+                      >
+                        <div className="w-14 flex-shrink-0 text-[12.5px] font-semibold text-ink-soft">{h.d}</div>
+                        <div className="flex-1 text-[14px] font-medium text-ink">{h.w}</div>
+                        {h.a && <div className="text-[14px] font-semibold text-ink">{h.a}</div>}
+                        {expandable && (
+                          <ChevronDown className={`h-4 w-4 flex-shrink-0 text-ink-soft transition-transform ${isOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
+                        )}
+                      </button>
+                      {expandable && isOpen && (
+                        <div className="mb-2.5 grid gap-x-4 gap-y-2 rounded-[14px] bg-white/55 px-3.5 py-3 backdrop-blur-[6px] sm:grid-cols-2">
+                          {h.details?.map((d) => (
+                            <div key={d.label} className="flex items-center justify-between gap-3">
+                              <span className="text-[12px] font-medium text-ink-soft">{d.label}</span>
+                              <span className="text-right text-[13px] font-semibold text-ink">{d.value}</span>
+                            </div>
+                          ))}
+                          {h.note && (
+                            <div className="flex items-center justify-between gap-3 sm:col-span-2">
+                              <span className="flex-shrink-0 text-[12px] font-medium text-ink-soft">Megjegyzés</span>
+                              <span className="text-right text-[13px] font-medium text-ink">{h.note}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })
               )}
               {sel.history.length > 3 ? (
                 <button type="button" onClick={() => setHistoryOpen((o) => !o)} className="mt-1 flex items-center justify-center gap-1.5 rounded-[14px] py-2.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-white/60">
@@ -631,9 +743,14 @@ export function GuestsView({
                 )}
               </div>
             ) : (
-              <div className="mt-4 flex items-start gap-[11px] rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3">
-                <Star className="mt-px h-[17px] w-[17px] flex-shrink-0 text-[#7C7B73]" strokeWidth={1.6} />
-                <div className="text-[13.5px] font-medium leading-[1.5] text-[#565550]">{sel.advice}</div>
+              <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-gold/25 bg-gradient-to-br from-[#FBF4DE]/70 to-white/40 px-4 py-3.5 backdrop-blur-[6px]">
+                <span className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-gold/15">
+                  <Star className="h-[15px] w-[15px] text-gold" strokeWidth={2} fill="currentColor" />
+                </span>
+                <div>
+                  <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#B99527]">Tipp</div>
+                  <div className="text-[13.5px] font-medium leading-[1.5] text-[#4A4740]">{sel.advice}</div>
+                </div>
               </div>
                 )}
               </div>
@@ -674,6 +791,34 @@ export function GuestsView({
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" onClick={() => setBlockTarget(null)} className="rounded-[13px] bg-[#F1F1EF] px-4 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
               <button type="button" onClick={confirmBlock} disabled={busy} className="rounded-[13px] bg-[#C0453F] px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Tiltás</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vendég VÉGLEGES törlése — visszafordíthatatlan, ezért külön megerősítés. */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setDeleteTarget(null)}>
+          <div className="w-full max-w-[420px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FBE3E3] text-[#C0453F]">
+                <AlertTriangle className="h-5 w-5" strokeWidth={1.8} />
+              </div>
+              <div>
+                <div className="text-[16px] font-semibold text-ink">Vendég törlése</div>
+                <div className="text-[12.5px] text-ink-soft">{deleteTarget.name}</div>
+              </div>
+            </div>
+            <p className="mt-4 text-[13.5px] leading-[1.6] text-ink-soft">
+              Ez véglegesen törli <span className="font-semibold text-ink">{deleteTarget.name}</span> összes foglalását és vendégadatát.
+              A művelet <span className="font-semibold text-[#C0453F]">nem visszavonható</span>, és a statisztikákból is eltűnik.
+            </p>
+            <p className="mt-2 text-[11.5px] leading-[1.5] text-ink-soft2">
+              Ha csak a listáról szeretnéd elrejteni, inkább tiltsd le a vendéget — úgy az adatok megmaradnak.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-[13px] bg-[#F1F1EF] px-4 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
+              <button type="button" onClick={confirmDelete} disabled={busy} className="rounded-[13px] bg-[#C0453F] px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Végleges törlés</button>
             </div>
           </div>
         </div>

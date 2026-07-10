@@ -23,6 +23,15 @@ const DIAL_TO_ISO: Record<string, string> = {
   '+355': 'AL', '+373': 'MD', '+357': 'CY', '+356': 'MT', '+354': 'IS', '+52': 'MX',
   '+55': 'BR', '+54': 'AR', '+61': 'AU', '+64': 'NZ', '+81': 'JP', '+86': 'CN',
   '+91': 'IN', '+27': 'ZA', '+20': 'EG', '+971': 'AE', '+972': 'IL',
+  // További gyakori előhívók (Afrika / Közel-Kelet / Ázsia / Amerika), hogy a ritkább
+  // nemzetközi számok is zászlót kapjanak a null helyett.
+  '+212': 'MA', '+216': 'TN', '+213': 'DZ', '+974': 'QA', '+966': 'SA', '+965': 'KW',
+  '+973': 'BH', '+968': 'OM', '+962': 'JO', '+961': 'LB', '+98': 'IR',
+  '+92': 'PK', '+880': 'BD', '+84': 'VN', '+66': 'TH', '+63': 'PH', '+62': 'ID',
+  '+60': 'MY', '+65': 'SG', '+82': 'KR', '+852': 'HK', '+886': 'TW', '+234': 'NG',
+  '+254': 'KE', '+233': 'GH', '+593': 'EC', '+57': 'CO', '+56': 'CL', '+51': 'PE',
+  '+58': 'VE', '+591': 'BO', '+598': 'UY', '+506': 'CR', '+507': 'PA', '+53': 'CU',
+  '+995': 'GE', '+374': 'AM', '+994': 'AZ', '+375': 'BY', '+383': 'XK',
 }
 
 // Hívókódok hosszúság szerint csökkenőben — a leghosszabb prefix nyer.
