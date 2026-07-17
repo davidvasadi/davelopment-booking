@@ -212,7 +212,7 @@ export function DashboardNav({
             {collapsed ? (
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new Event('schedulio:open-command'))}
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-command'))}
                 aria-label="Keresés"
                 title="Keresés"
                 className="group flex w-full items-center justify-center rounded-lg px-2 py-2.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
@@ -222,7 +222,7 @@ export function DashboardNav({
             ) : (
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new Event('schedulio:open-command'))}
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-command'))}
                 aria-label="Keresés"
                 className="group flex h-9 w-full items-center gap-2.5 rounded-xl border border-zinc-200 dark:border-white/[0.08] px-3 text-sm text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] dark:hover:border-white/[0.16] transition-colors"
               >
@@ -399,7 +399,7 @@ export function DashboardNav({
                 <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-52 rounded-[18px] border border-[#ececec] dark:border-white/[0.1] bg-white dark:bg-zinc-900 shadow-[0_18px_50px_-18px_rgba(0,0,0,.35)] p-1.5">
                   <button
                     type="button"
-                    onClick={() => { setMoreOpen(false); window.dispatchEvent(new Event('schedulio:open-command')) }}
+                    onClick={() => { setMoreOpen(false); window.dispatchEvent(new Event('davelopment:open-command')) }}
                     className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[13px] text-sm font-semibold text-[#3a352a] dark:text-white hover:bg-[#f4f4f5] dark:hover:bg-white/[0.06] transition-colors"
                   >
                     <Search className="h-[17px] w-[17px] text-[#8a8779]" /> Keresés

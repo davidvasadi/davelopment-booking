@@ -12,13 +12,13 @@ import type { User, Salon, Restaurant, Media, Membership, Role } from '@/payload
  * kezeljük: `{ type, id, name, slug, logoUrl }`.
  *
  * Az AKTÍV üzlet feloldási sorrendje (lásd docs/multi-business-plan.md):
- *   1. `schedulio_active_business` cookie  ("<type>:<id>")
+ *   1. `davelopment_active_business` cookie  ("<type>:<id>")
  *   2. `User.last_active_business` DB-mező (cookie törlését túléli)
  *   3. az első üzlet (createdAt szerint)
  * Ha a tárolt érték már nem a useré (eladott/törölt üzlet), a következő forrásra esünk.
  */
 
-export const ACTIVE_BUSINESS_COOKIE = 'schedulio_active_business'
+export const ACTIVE_BUSINESS_COOKIE = 'davelopment_active_business'
 
 export type BusinessType = 'restaurant' | 'salon'
 

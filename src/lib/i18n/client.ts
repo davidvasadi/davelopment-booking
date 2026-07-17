@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { LANG_COOKIE, normalizeLocale, type Locale } from './index'
 
-/** A `schedulio_lang` cookie kiolvasása a böngészőből. */
+/** A `davelopment_lang` cookie kiolvasása a böngészőből. */
 function readLocaleCookie(): Locale {
   if (typeof document === 'undefined') return 'hu'
   const m = document.cookie.match(new RegExp(`(?:^|; )${LANG_COOKIE}=([^;]*)`))
@@ -11,7 +11,7 @@ function readLocaleCookie(): Locale {
 }
 
 /**
- * Kliens-oldali locale a `schedulio_lang` cookie-ból. Hydration-biztos: az első renderen
+ * Kliens-oldali locale a `davelopment_lang` cookie-ból. Hydration-biztos: az első renderen
  * 'hu' (a szerverrel egyező default), majd useEffect után a tényleges érték.
  */
 export function useClientLocale(): Locale {

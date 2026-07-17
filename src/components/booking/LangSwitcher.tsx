@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils'
 
 /**
  * Vendég nyelv-kapcsoló a publikus foglalón. Csak a tulaj által engedélyezett nyelveket (`available`,
- * HU mindig benne) kínálja; 1 nyelvnél nem renderel. A `schedulio_lang` cookie-t állítja (1 év, lax),
+ * HU mindig benne) kínálja; 1 nyelvnél nem renderel. A `davelopment_lang` cookie-t állítja (1 év, lax),
  * majd `router.refresh()` — a szerver-komponensek újraolvassák a nyelvet.
  */
 export function LangSwitcher({ current, available, className }: { current: Locale; available: Locale[]; className?: string }) {

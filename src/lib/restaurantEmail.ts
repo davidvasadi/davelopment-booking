@@ -75,7 +75,7 @@ function wrap(restaurant: Restaurant, content: string): string {
 
 // ── ICS ────────────────────────────────────────────────────────────────────
 function generateICS({ reservation, restaurant }: ReservationEmailData): string {
-  const uid = `reservation-${reservation.id}@schedulio`
+  const uid = `reservation-${reservation.id}@davelopment`
   const now = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z'
   const [y, m, d] = reservation.date.split('-')
   const [sh, sm] = reservation.start_time.split(':')

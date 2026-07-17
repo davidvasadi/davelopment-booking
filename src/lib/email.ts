@@ -79,7 +79,7 @@ function wrap(salon: Salon, content: string): string {
 // ── ICS generator ────────────────────────────────────────────────────────────
 
 function generateICS({ booking, salon, service, staff }: BookingEmailData): string {
-  const uid = `booking-${booking.id}@schedulio`
+  const uid = `booking-${booking.id}@davelopment`
   const now = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15) + 'Z'
   const [y, m, d] = booking.date.split('-')
   const [sh, sm] = booking.start_time.split(':')

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import { EASE } from '@/lib/motion'
 
-const STORAGE_KEY = 'schedulio-cookie-consent'
+const STORAGE_KEY = 'davelopment-cookie-consent'
 
 /**
  * Egyszerű süti-tájékoztató banner. A döntést (accept/reject) localStorage-ban tárolja,

@@ -22,7 +22,7 @@
 import { cookies } from 'next/headers'
 import { SignJWT, jwtVerify } from 'jose'
 
-const COOKIE_NAME = 'schedulio-pending-reg'
+const COOKIE_NAME = 'davelopment-pending-reg'
 const TTL_SECONDS = 60 * 15 // 15 perc
 
 export type PendingRegistration = {

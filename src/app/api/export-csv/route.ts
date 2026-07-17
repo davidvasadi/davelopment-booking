@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
   }
 
   const csv = rows.join('\n')
-  const filename = `schedulio-foglalasok-${since}_${format(new Date(), 'yyyy-MM-dd')}.csv`
+  const filename = `davelopment-foglalasok-${since}_${format(new Date(), 'yyyy-MM-dd')}.csv`
 
   return new NextResponse(csv, {
     headers: {

@@ -3,7 +3,7 @@
  *
  * Több-üzlet (multi-tenant) aktív-üzlet váltó. Body: `{ type, id }`.
  * Ellenőrzi, hogy a bejelentkezett user TÉNYLEG birtokolja az üzletet, majd:
- *  - beállítja a `schedulio_active_business` cookie-t (HttpOnly — csak a szerver írja),
+ *  - beállítja a `davelopment_active_business` cookie-t (HttpOnly — csak a szerver írja),
  *  - elmenti a `User.last_active_business` DB-mezőt (cookie-törlést túlélő fallback),
  *  - visszaad egy redirect-célt az üzlet típusa szerint (/restaurant vagy /dashboard).
  *

@@ -14,7 +14,7 @@ import {
  * Nem coach-mark: az app elmosódik egy erős blur mögött, és képernyőnként EGY fogalmat mutat
  * be nagy tipográfiával, pötty-progresszel, slide + spring átmenetekkel. Bármikor kihagyható.
  *
- * Újrahívás: `window.dispatchEvent(new Event('schedulio:open-onboarding'))` (Súgó oldal gombja).
+ * Újrahívás: `window.dispatchEvent(new Event('davelopment:open-onboarding'))` (Súgó oldal gombja).
  */
 
 type Variant = 'restaurant' | 'salon'
@@ -59,10 +59,10 @@ const STEPS: Record<Variant, Step[]> = {
 
 // A kulcs user-specifikus, hogy ugyanabban a böngészőben egy ÚJ fiók is friss túrát kapjon.
 function storageKey(variant: Variant, userId?: string) {
-  return `schedulio_onboarding_seen_${variant}_${userId ?? 'anon'}`
+  return `davelopment_onboarding_seen_${variant}_${userId ?? 'anon'}`
 }
 
-const REOPEN_EVENT = 'schedulio:open-onboarding'
+const REOPEN_EVENT = 'davelopment:open-onboarding'
 
 /** Slide + fade a képernyők közt (irány-érzékeny: +1 előre, -1 vissza). */
 const SLIDE: Variants = {

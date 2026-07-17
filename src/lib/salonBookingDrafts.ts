@@ -14,7 +14,7 @@
  * elkülönül az étteremétől, hogy a kettő ne keveredjen.
  */
 
-const STORAGE_PREFIX = 'schedulio_salon_booking_drafts'
+const STORAGE_PREFIX = 'davelopment_salon_booking_drafts'
 
 /** Egy vázlat payload-ja = a manage-booking POST body egy az egyben. */
 export interface SalonDraftPayload {
@@ -70,7 +70,7 @@ function write(salonId: string, drafts: SalonBookingDraft[]): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(keyFor(salonId), JSON.stringify(drafts))
   // Saját fülön a 'storage' event nem sül el, ezért kézzel is jelzünk.
-  window.dispatchEvent(new CustomEvent('schedulio-salon-drafts-changed', { detail: { salonId } }))
+  window.dispatchEvent(new CustomEvent('davelopment-salon-drafts-changed', { detail: { salonId } }))
 }
 
 /** Új vázlat mentése. Visszaadja a létrejött vázlatot. */
@@ -114,10 +114,10 @@ export function subscribeDrafts(salonId: string, cb: (drafts: SalonBookingDraft[
   const storageHandler = (e: StorageEvent) => {
     if (e.key === keyFor(salonId)) cb(getDrafts(salonId))
   }
-  window.addEventListener('schedulio-salon-drafts-changed', handler as EventListener)
+  window.addEventListener('davelopment-salon-drafts-changed', handler as EventListener)
   window.addEventListener('storage', storageHandler)
   return () => {
-    window.removeEventListener('schedulio-salon-drafts-changed', handler as EventListener)
+    window.removeEventListener('davelopment-salon-drafts-changed', handler as EventListener)
     window.removeEventListener('storage', storageHandler)
   }
 }

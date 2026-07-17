@@ -7,7 +7,7 @@
  *  - API kérések: NEM cache-eljük (a foglalás-adat változékony; offline a kliens
  *    a már betöltött adatból + lokális vázlatokból dolgozik).
  */
-const CACHE = 'schedulio-v1'
+const CACHE = 'davelopment-booking-v1'
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()

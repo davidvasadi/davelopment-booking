@@ -472,7 +472,7 @@ export function TipsContent({ variant }: { variant: Variant }) {
   }, [tips])
 
   function restartTour() {
-    window.dispatchEvent(new Event('schedulio:open-onboarding'))
+    window.dispatchEvent(new Event('davelopment:open-onboarding'))
   }
 
   return (

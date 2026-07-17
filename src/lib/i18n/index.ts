@@ -17,8 +17,8 @@ export const LOCALE_LABELS: Record<Locale, string> = {
   hu: 'HU', en: 'EN', de: 'DE', es: 'ES', it: 'IT', fr: 'FR',
 }
 
-/** A `schedulio_lang` cookie neve — a vendég-kapcsoló ezt állítja. */
-export const LANG_COOKIE = 'schedulio_lang'
+/** A `davelopment_lang` cookie neve — a vendég-kapcsoló ezt állítja. */
+export const LANG_COOKIE = 'davelopment_lang'
 
 const DICTS: Record<Locale, Record<string, string>> = { hu, en, de, es, it, fr }
 

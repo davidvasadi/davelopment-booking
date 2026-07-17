@@ -12,7 +12,7 @@
  * oldalfrissítést / a böngésző újraindítását, mert localStorage-ban vannak.
  */
 
-const STORAGE_PREFIX = 'schedulio_offline_drafts'
+const STORAGE_PREFIX = 'davelopment_offline_drafts'
 
 /** Egy vázlat payload-ja = a manage-reservation POST body egy az egyben. */
 export interface DraftPayload {
@@ -70,7 +70,7 @@ function write(restaurantId: string, drafts: ReservationDraft[]): void {
   if (typeof window === 'undefined') return
   window.localStorage.setItem(keyFor(restaurantId), JSON.stringify(drafts))
   // Saját fülön a 'storage' event nem sül el, ezért kézzel is jelzünk.
-  window.dispatchEvent(new CustomEvent('schedulio-drafts-changed', { detail: { restaurantId } }))
+  window.dispatchEvent(new CustomEvent('davelopment-drafts-changed', { detail: { restaurantId } }))
 }
 
 /** Új vázlat mentése. Visszaadja a létrejött vázlatot. */
@@ -114,10 +114,10 @@ export function subscribeDrafts(restaurantId: string, cb: (drafts: ReservationDr
   const storageHandler = (e: StorageEvent) => {
     if (e.key === keyFor(restaurantId)) cb(getDrafts(restaurantId))
   }
-  window.addEventListener('schedulio-drafts-changed', handler as EventListener)
+  window.addEventListener('davelopment-drafts-changed', handler as EventListener)
   window.addEventListener('storage', storageHandler)
   return () => {
-    window.removeEventListener('schedulio-drafts-changed', handler as EventListener)
+    window.removeEventListener('davelopment-drafts-changed', handler as EventListener)
     window.removeEventListener('storage', storageHandler)
   }
 }

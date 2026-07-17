@@ -33,10 +33,10 @@ export function CommandPalette({ variant }: { variant: DashboardVariant }) {
     }
     const onOpen = () => setOpen(true)
     window.addEventListener('keydown', onKey)
-    window.addEventListener('schedulio:open-command', onOpen)
+    window.addEventListener('davelopment:open-command', onOpen)
     return () => {
       window.removeEventListener('keydown', onKey)
-      window.removeEventListener('schedulio:open-command', onOpen)
+      window.removeEventListener('davelopment:open-command', onOpen)
     }
   }, [])
 

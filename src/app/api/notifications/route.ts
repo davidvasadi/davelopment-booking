@@ -7,7 +7,7 @@ import type { User } from '@/payload/payload-types'
 
 /**
  * Több-üzlet (multi-tenant): a tulajdonos MINDIG az ÉPP AKTÍV üzlete (szalon VAGY étterem)
- * owner-értesítéseit látja — az aktív üzletet a `schedulio_active_business` cookie adja
+ * owner-értesítéseit látja — az aktív üzletet a `davelopment_active_business` cookie adja
  * (getActiveBusiness). Így szalon nézetben a szalon, étterem nézetben az étterem értesítései
  * jelennek meg (nem keverve, nem mindig az étteremé). Admin az admin-közönségű értesítéseket.
  */
