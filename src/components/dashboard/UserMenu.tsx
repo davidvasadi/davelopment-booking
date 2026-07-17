@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
-import { Loader2, Plus, MoreHorizontal, Bell, Monitor, Sun, Moon, LogOut, CreditCard, Settings, X, ExternalLink, Download } from 'lucide-react'
+import { MoreHorizontal, Bell, Monitor, Sun, Moon, LogOut, CreditCard, Settings, X, ExternalLink } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notificationVisual, type Notification } from '@/lib/useNotifications'
@@ -51,9 +51,7 @@ export function UserMenu({
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
-  const [uploading, setUploading] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
-  const fileRef = useRef<HTMLInputElement>(null)
   // A popovert a body-ra portáljuk (a sidebar overflow-ja különben levágja).
   // collapsed (felső nav) → LEFELÉ, jobbra-igazítva; egyébként (alsó sidebar) → felfelé, balra.
   const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number } | null>(null)
@@ -84,36 +82,8 @@ export function UserMenu({
     if (!open) { positionPanel(); setOpen(true) }
   }
 
-  // A kiválasztott képet a Payload Media-ba töltjük (mint a logó/borítókép a Beállításokban),
-  // majd a kapott URL-t mentjük a felhasználó avatar_url mezőjébe.
-  async function uploadAvatar(file: File) {
-    setUploading(true)
-    try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.set('_payload', JSON.stringify({ alt: file.name }))
-      const mediaRes = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
-      if (!mediaRes.ok) throw new Error('media')
-      const media = await mediaRes.json()
-      const imageUrl: string | undefined = media?.doc?.url
-      if (!imageUrl) throw new Error('url')
-
-      const res = await fetch('/api/user/avatar', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ avatar_url: imageUrl }),
-      })
-      if (!res.ok) throw new Error('save')
-      toast.success('Profilkép frissítve')
-      router.refresh()
-    } catch {
-      toast.error('Nem sikerült feltölteni a profilképet.')
-    } finally {
-      setUploading(false)
-      if (fileRef.current) fileRef.current.value = ''
-    }
-  }
+  // Az avatar-feltöltés + profil-szerkesztés a közös <ProfileEditor>-ben él (a popover
+  // account-módjában renderelve), így nincs itt duplikált feltöltő-logika.
 
   async function handleLogout() {
     await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
@@ -226,42 +196,30 @@ export function UserMenu({
           {/* ── FIÓK mód (avatar) — profil + gyorslinkek + téma + kijelentkezés ── */}
           {mode === 'account' && (
           <>
-          {/* Rejtett fájlválasztó — a profil-sorra/„+"-ra kattintva nyílik. */}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const f = e.target.files?.[0]
-              if (f) uploadAvatar(f)
-            }}
-          />
-          {/* Profil-sor — kattintásra képet tölthetsz fel a gépről. */}
-          <motion.button
-            variants={PANEL_ITEM}
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="flex w-full items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-[#f4f4f5] disabled:opacity-60"
-          >
-            <span className="relative shrink-0">
-              <UserAvatar name={name} src={avatarUrl} size={44} />
-              {/* „+" / spinner jelzi, hogy a kép cserélhető (feltöltés alatt pörög). */}
-              <span className="absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full bg-[#1d1d1b] text-white ring-2 ring-white">
-                {uploading ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Plus className="h-2.5 w-2.5" strokeWidth={3} />}
-              </span>
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[15px] font-semibold leading-tight text-[#2a2620]">{name ?? 'Fiók'}</span>
-              <span className="block truncate text-xs leading-tight text-[#9b9788] mt-0.5">{uploading ? 'Feltöltés…' : (email ?? '')}</span>
-            </span>
-          </motion.button>
+          {/* Profil-sor — NEM inline szerkesztő; kattintásra a Saját profil oldalra navigál
+              (a Beállítások „self" fülére). Ott van minden szerkesztés (név, avatar, jelszó, adatok). */}
+          {settingsHref && (
+            <motion.div variants={PANEL_ITEM}>
+              <Link
+                href={`${settingsHref}?tab=self`}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-[#f4f4f5]"
+              >
+                <UserAvatar name={name} src={avatarUrl} size={44} />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-[15px] font-semibold leading-tight text-[#2a2620]">{name ?? 'Fiók'}</span>
+                  <span className="block truncate text-xs leading-tight text-[#9b9788] mt-0.5">{email ?? 'Saját profil megnyitása'}</span>
+                </span>
+                <ExternalLink className="h-[16px] w-[16px] shrink-0 text-[#b0ac9e]" />
+              </Link>
+            </motion.div>
+          )}
 
           <div className="border-t border-[#efefef]" />
 
-          {/* Gyorslinkek: nyilvános oldal + CSV export + előfizetés + beállítások. */}
-          {(subscriptionHref || settingsHref || publicUrl || csvHref) && (
+          {/* Gyorslinkek: nyilvános oldal + előfizetés + beállítások. (CSV export a Vendégek/
+              Statisztikák oldalon van, nem a fiók-menüben.) */}
+          {(subscriptionHref || settingsHref || publicUrl) && (
             <motion.div variants={PANEL_ITEM} className="py-1.5">
               {publicUrl && (
                 <a
@@ -273,17 +231,6 @@ export function UserMenu({
                 >
                   <ExternalLink className="h-[17px] w-[17px] shrink-0 text-[#8a8779]" />
                   Nyilvános oldal
-                </a>
-              )}
-              {csvHref && (
-                <a
-                  href={csvHref}
-                  download
-                  onClick={() => setOpen(false)}
-                  className="group flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-[#3a352a] transition-colors hover:bg-[#f4f4f5]"
-                >
-                  <Download className="h-[17px] w-[17px] shrink-0 text-[#8a8779]" />
-                  CSV export
                 </a>
               )}
               {subscriptionHref && (

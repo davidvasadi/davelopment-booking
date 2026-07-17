@@ -49,9 +49,8 @@ function diffMinutes(start?: string | null, end?: string | null): number | '' {
 
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
-  if (!user || (user.role !== 'salon_owner' && user.role !== 'restaurant_owner' && user.role !== 'admin')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // A forrást az AKTÍV üzlet adja (nem a user.role) — vegyes fiók is működik.
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const payload = await getPayloadClient()
 
@@ -62,9 +61,8 @@ export async function GET(req: NextRequest) {
   // Az AKTÍV üzlet a forrás (több-üzletnél a cookie-ból), nem az első owner-találat.
   const { active } = await getActiveBusiness(user)
   const moduleParam = req.nextUrl.searchParams.get('module')
-  const isRestaurant = active
-    ? active.type === 'restaurant'
-    : moduleParam === 'restaurant' || (moduleParam == null && user.role === 'restaurant_owner')
+  // A modul az aktív üzletből jön; ha valamiért nincs aktív (edge), az explicit ?module= dönt.
+  const isRestaurant = active ? active.type === 'restaurant' : moduleParam === 'restaurant'
 
   let rows: string[]
 

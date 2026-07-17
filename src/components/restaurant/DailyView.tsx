@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { hhmmToMinutes, minutesToHHMM, durationMinutes } from '@/lib/utils'
+import { hhmmToMinutes, minutesToHHMM, durationMinutes, ymdLocal } from '@/lib/utils'
 import { List, LayoutGrid, Map as MapIcon, Plus, Users, Clock, Repeat } from 'lucide-react'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 import { StatusPills } from '@/components/dashboard/StatusPills'
@@ -116,10 +116,6 @@ type ViewProps = Pick<
   DailyViewProps,
   'date' | 'reservations' | 'rooms' | 'tables' | 'openMin' | 'closeMin' | 'turnMinutes'
 >
-
-function ymdLocal(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 /** Élő, percenként frissülő aktuális idő (perc éjféltől). null, ha a megtekintett nap nem ma van. */
 function useNowMinutes(date: string): number | null {

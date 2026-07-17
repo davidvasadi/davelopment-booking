@@ -103,7 +103,7 @@ async function findOrCreatePayloadUser(
 export { issuePayloadToken, PAYLOAD_COOKIE, TOKEN_TTL_SECONDS }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  // trustHost: a reverse-proxy (nginx) mögött a kérés-host (schedulio.hu) megbízható.
+  // trustHost: a reverse-proxy (nginx) mögött a kérés-host (booking.davelopment.hu) megbízható.
   // Nélküle az Auth.js v5 "UntrustedHost" hibát dob prod-ban, és az auth-flow elhasal
   // → a felhasználó visszakerül a loginra. (Lokálisan is biztonságos: egyetlen ismert host.)
   trustHost: true,

@@ -2,8 +2,8 @@
  * Értesítési cron — emlékeztetők + visszajelzés-kérések (email).
  *
  * VPS cron hívja (percenként vagy óránként), CRON_SECRET-tel védve, pl.:
- *   * * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://schedulio.hu/api/cron/notifications
- * vagy: curl -s "https://schedulio.hu/api/cron/notifications?secret=$CRON_SECRET"
+ *   * * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://booking.davelopment.hu/api/cron/notifications
+ * vagy: curl -s "https://booking.davelopment.hu/api/cron/notifications?secret=$CRON_SECRET"
  *
  * SMS-t SEHOL nem küld — kizárólag email csatorna.
  *

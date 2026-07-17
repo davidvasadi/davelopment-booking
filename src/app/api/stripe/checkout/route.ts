@@ -5,6 +5,7 @@ import { getStripe, hufToStripeMinor } from '@/lib/stripe'
 import { computeAccountFee, getOrCreateAccountSubscription } from '@/lib/accountSubscription'
 import { applyCycle } from '@/lib/tier'
 import { getPricing } from '@/lib/pricing'
+import { BRAND_NAME } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
 
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
           currency: 'huf',
           unit_amount: hufToStripeMinor(unitForint),
           recurring: { interval },
-          product_data: { name: `Schedulio előfizetés (${cycle === 'annual' ? 'éves' : 'havi'}) — ${fee.breakdown}` },
+          product_data: { name: `${BRAND_NAME} előfizetés (${cycle === 'annual' ? 'éves' : 'havi'}) — ${fee.breakdown}` },
         },
       },
     ],

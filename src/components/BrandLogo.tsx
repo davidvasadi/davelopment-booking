@@ -10,7 +10,7 @@ interface Props {
 
 const ALT = 'davelopment Booking'
 
-export function SchedulioLogo({ className, variant = 'auto', alt = ALT }: Props) {
+export function BrandLogo({ className, variant = 'auto', alt = ALT }: Props) {
   if (variant === 'dark') {
     return <img src="/logo_davelopment_booking_dark.svg" alt={alt} className={cn('w-auto', className)} />
   }

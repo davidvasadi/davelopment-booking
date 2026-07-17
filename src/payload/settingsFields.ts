@@ -27,7 +27,7 @@ export const businessTierField: Field = {
 }
 
 /**
- * Közös, valós beállítás-mezők a Salon ÉS Restaurant collectionhöz — a Schedulio
+ * Közös, valós beállítás-mezők a Salon ÉS Restaurant collectionhöz — a davelopment booking
  * Csomag roadmap „élővé" tett részei: értesítési preferenciák (esemény × csatorna),
  * foglalási-szabály kapcsolók, és a kapcsolható foglalási funkció-modulok.
  * Mentés a meglévő PATCH /api/salons|restaurants/:id úton (collection-mezők).

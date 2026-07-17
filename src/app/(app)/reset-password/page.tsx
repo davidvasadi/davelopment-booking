@@ -6,10 +6,28 @@ import { toast } from 'sonner'
 import { Label } from '@/components/ui/label'
 import { ArrowRight, Loader2, Eye, EyeOff, Check } from 'lucide-react'
 import Link from 'next/link'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 
 const inputBase =
   'w-full h-[50px] rounded-[14px] bg-paper border border-line text-ink placeholder:text-ink-soft2/70 px-4 text-sm outline-none transition-colors focus:ring-2 focus:ring-gold/40 focus:border-gold/50'
+
+// FONTOS: a Shell a komponensen KÍVÜL van definiálva. Ha a szülő render-függvényén
+// belül lenne, minden billentyűleütés új függvény-referenciát adna → a React újra-
+// mountolná a teljes fát (input is), ami elvenné a fókuszt minden karakter után.
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-paper flex flex-col items-center justify-center px-5 py-10 font-onest [color-scheme:light]">
+      <div className="w-full max-w-md">
+        <Link href="/" aria-label="davelopment booking" className="mx-auto mb-8 block w-fit hover:opacity-80 transition-opacity">
+          <BrandLogo variant="light" className="h-8" />
+        </Link>
+        <div className="bg-white border border-line rounded-[24px] shadow-dav-card px-6 py-8 sm:px-8 sm:py-9">
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function ResetPasswordPage() {
   return (
@@ -50,19 +68,6 @@ function ResetPasswordInner() {
       setLoading(false)
     }
   }
-
-  const Shell = ({ children }: { children: React.ReactNode }) => (
-    <div className="min-h-screen bg-paper flex flex-col items-center justify-center px-5 py-10 font-onest [color-scheme:light]">
-      <div className="w-full max-w-md">
-        <Link href="/" aria-label="Schedulio" className="mx-auto mb-8 block w-fit hover:opacity-80 transition-opacity">
-          <SchedulioLogo variant="light" className="h-8" />
-        </Link>
-        <div className="bg-white border border-line rounded-[24px] shadow-dav-card px-6 py-8 sm:px-8 sm:py-9">
-          {children}
-        </div>
-      </div>
-    </div>
-  )
 
   if (!token) {
     return (

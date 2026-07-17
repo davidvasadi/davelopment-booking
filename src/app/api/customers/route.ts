@@ -26,10 +26,10 @@ interface Body {
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
-  if (!user || (user.role !== 'restaurant_owner' && user.role !== 'salon_owner' && user.role !== 'admin')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // A jogosultságot az AKTÍV üzlet adja (getActiveBusiness), nem a user.role — így a vegyes
+  // fiók (alkalmazott máshol + tulaj itt) is működik. Minden lekérdezés az aktív üzletre szűr.
   const { active } = await getActiveBusiness(user)
   if (!active) return NextResponse.json({ error: 'Nincs aktív üzlet' }, { status: 404 })
 
@@ -126,10 +126,9 @@ export async function POST(req: NextRequest) {
  */
 export async function DELETE(req: NextRequest) {
   const user = await getCurrentUser()
-  if (!user || (user.role !== 'restaurant_owner' && user.role !== 'salon_owner' && user.role !== 'admin')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  // A jogosultságot az aktív üzlet adja (nem a user.role) — vegyes fiók is működik.
   const { active } = await getActiveBusiness(user)
   if (!active) return NextResponse.json({ error: 'Nincs aktív üzlet' }, { status: 404 })
 

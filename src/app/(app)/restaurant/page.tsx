@@ -327,7 +327,9 @@ export default async function RestaurantDashboardPage() {
 
         {/* ── COL1: Profil-kártya (kép-dominált, Crextio) + accordion ── */}
         <div className="flex flex-col gap-[5px]">
-          <div className={`${CARD} relative shrink-0 overflow-hidden p-0`} style={{ aspectRatio: '0.82', transform: 'translateZ(0)' }}>
+          <div className={`${CARD} group relative shrink-0 overflow-hidden p-0`} style={{ aspectRatio: '0.82', transform: 'translateZ(0)' }}>
+            {/* A teljes profil-kártya a Saját profil oldalra visz (stretched link). */}
+            <Link href="/restaurant/settings?tab=self" aria-label="Saját profil" className="absolute inset-0 z-20" />
             {profileImg ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={profileImg} alt="" className="absolute inset-0 h-full w-full object-cover" />

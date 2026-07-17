@@ -16,7 +16,7 @@ import { motion } from 'framer-motion'
 import { listStagger } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { MAIN_CATEGORIES, getSubTypesForCategory, type BusinessType, type MainCategory } from '@/lib/businessTemplates'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import { signIn } from 'next-auth/react'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import {
@@ -172,10 +172,13 @@ export function RegisterWizard() {
       const { doc: salon } = await salonRes.json()
       setSalonId(salon.id)
 
+      // A user.salon a PRIMER szalon-jelölés; az aktív üzletet is az újra állítjuk, hogy egy
+      // vegyes fiók (aki máshol alkalmazott) a saját friss szalonján kössön ki, ne a régi
+      // munkahelyén (különben a /dashboard redirect az aktív membership-üzletre vinné).
       await fetch(`/api/users/${userId_}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-        body: JSON.stringify({ salon: salon.id }),
+        body: JSON.stringify({ salon: salon.id, last_active_business: `salon:${salon.id}` }),
       })
 
       // A választott üzlet-típus(ok) alapján a háttérben feltöltjük a szolgáltatás-katalógust
@@ -225,7 +228,21 @@ export function RegisterWizard() {
     setStep(4)
   }
 
-  const finish = () => router.push('/dashboard')
+  const finish = async () => {
+    // Az aktív üzletet a friss szalonra állítjuk (cookie + DB), mielőtt a dashboardra
+    // navigálunk — így egy vegyes fiók (aki máshol alkalmazott) nem a régi munkahelyén
+    // köt ki. A switch tulajdonlás-ellenőrzött; ha bármiért hibázna, a /dashboard redirect
+    // fallbackje (last_active_business) akkor is a saját szalonra visz (fentebb beállítva).
+    if (salonId) {
+      await fetch('/api/business/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ type: 'salon', id: salonId }),
+      }).catch(() => null)
+    }
+    router.push('/dashboard')
+  }
 
   const TOTAL_STEPS = 4
   const progressWidth = (step / TOTAL_STEPS) * 100
@@ -337,7 +354,7 @@ export function RegisterWizard() {
                 </button>
               ) : (
                 <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-                  <SchedulioLogo variant="dark" className="h-8" />
+                  <BrandLogo variant="dark" className="h-8" />
                 </Link>
               )}
               <div className="flex gap-1.5">
@@ -391,7 +408,7 @@ export function RegisterWizard() {
         <div className="hidden lg:flex min-h-screen font-onest">
           <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
             <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-              <SchedulioLogo variant="dark" className="h-8" />
+              <BrandLogo variant="dark" className="h-8" />
             </Link>
             <div>
               <h1 className="text-white font-light text-[2.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
@@ -683,7 +700,7 @@ export function RegisterWizard() {
         {/* Left panel */}
         <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
           <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-            <SchedulioLogo variant="dark" className="h-8" />
+            <BrandLogo variant="dark" className="h-8" />
           </Link>
           <div>
             <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">

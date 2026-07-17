@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, MoreHorizontal, Download } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
@@ -182,10 +182,10 @@ export function DashboardNav({
                 )}
               </div>
             ) : isBackstage ? (
-              // Backstage fejléc: Schedulio logó + „Backstage" badge + admin email.
+              // Backstage fejléc: márka-logó + „Backstage" badge + admin email.
               <div className="flex flex-col gap-2">
-                <Link href="/backstage" aria-label="Schedulio Backstage" className="block w-fit hover:opacity-80 transition-opacity">
-                  <SchedulioLogo className="h-6" />
+                <Link href="/backstage" aria-label="davelopment booking Backstage" className="block w-fit hover:opacity-80 transition-opacity">
+                  <BrandLogo className="h-6" />
                 </Link>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-white dark:text-black">
@@ -331,13 +331,13 @@ export function DashboardNav({
         </div>
 
         <div className={cn('py-4', collapsed ? 'px-2' : 'px-3')}>
-          {/* Étterem navban: „powered by" felirat, ALATTA a Schedulio + davelopment logók. */}
+          {/* Étterem navban: „powered by" felirat, ALATTA a márka + davelopment logók. */}
           {variant === 'restaurant' && !collapsed && (
             <div className="mt-3 px-3">
               <p className="text-[10px] text-zinc-300 dark:text-white/20">powered by</p>
               <div className="mt-1.5 flex items-center justify-between gap-2">
-                <a href="https://schedulio.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
-                  <SchedulioLogo className="h-5" />
+                <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
+                  <BrandLogo className="h-5" />
                 </a>
                 <span className="text-zinc-200 dark:text-white/10">·</span>
                 <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
@@ -371,6 +371,19 @@ export function DashboardNav({
 
         <div className="flex items-center gap-1.5 shrink-0">
           <OfflineIndicator compact />
+          {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
+              (csengő = értesítések, avatar = fiók-menü → Saját profil). */}
+          {!isBackstage && (
+            <UserMenu
+              name={userName}
+              email={userEmail}
+              avatarUrl={userAvatarUrl}
+              collapsed
+              subscriptionHref={subscriptionHref}
+              settingsHref={settingsHref}
+              publicUrl={`/${salonSlug}`}
+            />
+          )}
           <div className="relative">
             <button
               type="button"

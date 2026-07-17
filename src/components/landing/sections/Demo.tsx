@@ -11,7 +11,7 @@ const eio = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3
 const GRAIN =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0.4'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E"
 
-const TEXT = 'Schedulio 26©'
+const TEXT = 'davelopment booking 26©'
 // Scroll window-ok a felirathoz — pontosan mint Vision
 const TEXT_IN_START  = 0.10
 const TEXT_IN_END    = 0.55
@@ -316,7 +316,7 @@ export function Demo() {
           <img src="/demo/schedulio-mobile.avif" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
         </div>
         <div ref={desktopHeroRef} className={tile} style={{ gridColumn:'3/5', gridRow:'2/3', borderRadius:r, boxShadow:'0 32px 80px rgba(0,0,0,0.6)' }}>
-          <img src="/demo/schedulio-laptop.webp" alt="Schedulio dashboard" className="w-full h-full object-cover" />
+          <img src="/demo/schedulio-laptop.webp" alt="davelopment booking dashboard" className="w-full h-full object-cover" />
         </div>
         <div className={tile} style={{ gridColumn:'5/7', gridRow:'2/3', borderRadius:r }}>
           <img src="/demo/schedulio-tablet.webp" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
@@ -346,7 +346,7 @@ export function Demo() {
           {/* Sor 2 — 3 kép, hero középen */}
           <div className={tile} style={{ gridColumn:'1/3', borderRadius:r }}><img src="/demo/schedulio-mobile.avif" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /></div>
           <div ref={mobileHeroRef} className={tile} style={{ gridColumn:'3/5', borderRadius:r, boxShadow:'0 12px 40px rgba(0,0,0,0.6)' }}>
-            <img src="/demo/schedulio-laptop.webp" alt="Schedulio dashboard" className="w-full h-full object-cover" />
+            <img src="/demo/schedulio-laptop.webp" alt="davelopment booking dashboard" className="w-full h-full object-cover" />
           </div>
           <div className={tile} style={{ gridColumn:'5/7', borderRadius:r }}><img src="/demo/schedulio-tablet.webp" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /></div>
 

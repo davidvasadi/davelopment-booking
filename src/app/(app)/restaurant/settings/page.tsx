@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import { RestaurantSettingsForm } from '@/components/restaurant/RestaurantSettingsForm'
+import { ProfileEditor } from '@/components/dashboard/ProfileEditor'
 import { getTeamForBusiness } from '@/lib/teamContext'
 import { getAuditLogForBusiness } from '@/lib/auditContext'
 import {
@@ -108,6 +109,20 @@ export default async function RestaurantSettingsPage() {
         businessName={r.name}
         subtitle={subtitle}
         availabilityHref="/restaurant/availability"
+        selfProfile={
+          <ProfileEditor
+            name={user.name}
+            email={user.email}
+            avatarUrl={(user as { avatar_url?: string | null }).avatar_url ?? null}
+            fields={{
+              phone: (user as { phone?: string | null }).phone ?? null,
+              address: (user as { address?: string | null }).address ?? null,
+              birthday: (user as { birthday?: string | null }).birthday ?? null,
+              emergency_contact: (user as { emergency_contact?: string | null }).emergency_contact ?? null,
+            }}
+            roles={businesses.map((b) => ({ type: b.type, name: b.name, roleName: b.roleName, isOwner: b.role === 'owner' }))}
+          />
+        }
         apiBase={`/api/restaurants/${r.id}`}
         notificationPrefs={{
           confirm_email: np.confirm_email ?? true,

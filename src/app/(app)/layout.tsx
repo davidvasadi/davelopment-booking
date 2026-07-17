@@ -5,6 +5,7 @@ import { SmoothScroll } from '@/components/SmoothScroll'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { MotionProvider } from '@/components/MotionProvider'
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
+import { BRAND_NAME } from '@/lib/brand'
 import './globals.css'
 
 const inter = Inter({ subsets: ['latin'] })
@@ -15,7 +16,7 @@ const martianMono = Martian_Mono({ subsets: ['latin'], variable: '--font-martian
 const onest = Onest({ subsets: ['latin'], variable: '--font-onest' })
 
 export const metadata: Metadata = {
-  title: { template: '%s — Schedulio', default: 'Schedulio — Online Időpontfoglaló' },
+  title: { template: `%s — ${BRAND_NAME}`, default: `${BRAND_NAME} — Online Időpontfoglaló` },
   description: 'Egyszerű, modern időpontfoglaló rendszer kis vállalkozásoknak',
   icons: {
     icon: [

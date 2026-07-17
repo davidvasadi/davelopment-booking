@@ -3,14 +3,14 @@ import { LegalPage, LegalSection } from '@/components/landing/LegalPage'
 
 export const metadata: Metadata = {
   title: 'Adatkezelési tájékoztató',
-  description: 'A Schedulio adatkezelési tájékoztatója a GDPR rendelkezéseivel összhangban.',
+  description: 'A davelopment booking adatkezelési tájékoztatója a GDPR rendelkezéseivel összhangban.',
 }
 
 export default function PrivacyPage() {
   return (
     <LegalPage title="Adatkezelési tájékoztató" updated="2026. június 24.">
       <p>
-        A jelen tájékoztató a Schedulio szolgáltatás (a továbbiakban: „Szolgáltatás") keretében
+        A jelen tájékoztató a davelopment booking szolgáltatás (a továbbiakban: „Szolgáltatás") keretében
         megvalósuló személyesadat-kezelést ismerteti az Európai Parlament és a Tanács (EU) 2016/679
         rendeletével (GDPR) és az információs önrendelkezési jogról szóló 2011. évi CXII. törvénnyel
         összhangban.
@@ -24,7 +24,7 @@ export default function PrivacyPage() {
           <li>Név / cégnév: <strong className="text-brand-ink">[Üzemeltető neve]</strong></li>
           <li>Székhely: <strong className="text-brand-ink">[Székhely]</strong></li>
           <li>Nyilvántartási szám: <strong className="text-brand-ink">[Nyilvántartási szám]</strong></li>
-          <li>Kapcsolat: <a href="mailto:hello@schedulio.hu" className="font-medium text-brand-ink underline underline-offset-2">hello@schedulio.hu</a></li>
+          <li>Kapcsolat: <a href="mailto:hello@davelopment.hu" className="font-medium text-brand-ink underline underline-offset-2">hello@davelopment.hu</a></li>
         </ul>
       </LegalSection>
 
@@ -107,8 +107,8 @@ export default function PrivacyPage() {
       <LegalSection heading="9. Jogorvoslat">
         <p>
           Adatvédelmi kérdéseivel forduljon hozzánk a{' '}
-          <a href="mailto:hello@schedulio.hu" className="font-medium text-brand-ink underline underline-offset-2">
-            hello@schedulio.hu
+          <a href="mailto:hello@davelopment.hu" className="font-medium text-brand-ink underline underline-offset-2">
+            hello@davelopment.hu
           </a>{' '}
           címen. Jogai sérelme esetén panasszal élhet a Nemzeti Adatvédelmi és Információszabadság
           Hatóságnál (NAIH, 1055 Budapest, Falk Miksa utca 9–11.), illetve bírósághoz fordulhat.

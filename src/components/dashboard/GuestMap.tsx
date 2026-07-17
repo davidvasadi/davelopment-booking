@@ -54,7 +54,7 @@ function MapRef({ onReady }: { onReady: (m: L.Map) => void }) {
 }
 
 /**
- * Kliens térkép-komponens (Leaflet + CartoDB light_all csempe — a Schedulio /
+ * Kliens térkép-komponens (Leaflet + CartoDB light_all csempe — a davelopment booking /
  * davelopment Vendég-térkép referencia szerint). SSR-ben törik (window), ezért a
  * page-ben next/dynamic + ssr:false tölti be.
  *

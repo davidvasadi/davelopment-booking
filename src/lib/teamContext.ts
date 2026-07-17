@@ -46,6 +46,7 @@ export async function getTeamForBusiness(opts: {
         roleTone: tone,
         customRoleId: custom ? String(custom.id) : null,
         pending: m.status === 'invited',
+        suspended: m.status === 'suspended',
       }
     })
   } catch {

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 
 /**
  * Közös elrendezés a jogi aloldalakhoz (Felhasználási feltételek, Adatkezelés, Sütik).
@@ -21,7 +21,7 @@ export function LegalPage({
       <header className="border-b border-zinc-100">
         <div className="mx-auto max-w-3xl px-6 py-5 flex items-center justify-between">
           <Link href="/" aria-label="Főoldal">
-            <SchedulioLogo variant="light" className="h-8" />
+            <BrandLogo variant="light" className="h-8" />
           </Link>
           <Link
             href="/"
@@ -46,7 +46,7 @@ export function LegalPage({
       {/* Lábléc */}
       <footer className="border-t border-zinc-100">
         <div className="mx-auto max-w-3xl px-6 py-8 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-zinc-400">
-          <span>©2026 Schedulio</span>
+          <span>©2026 davelopment booking</span>
           <Link href="/terms" className="hover:text-brand-ink transition-colors">Felhasználási feltételek</Link>
           <Link href="/privacy" className="hover:text-brand-ink transition-colors">Adatkezelési tájékoztató</Link>
           <Link href="/cookies" className="hover:text-brand-ink transition-colors">Sütikezelés</Link>

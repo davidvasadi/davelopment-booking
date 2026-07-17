@@ -55,7 +55,7 @@ export function CtaBanner({ trial_days }: { trial_days: number }) {
               className="relative z-10"
               style={{ rotate: 3.7 }}
             >
-              <img src="/app_screen.png" alt="Schedulio app" className="w-full h-auto drop-shadow-2xl" />
+              <img src="/app_screen.png" alt="davelopment booking app" className="w-full h-auto drop-shadow-2xl" />
             </motion.div>
           </div>
         </div>

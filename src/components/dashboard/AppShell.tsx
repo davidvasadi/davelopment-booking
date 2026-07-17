@@ -4,7 +4,7 @@ import MobileBottomNav from './MobileBottomNav'
 import { SubscriptionBanner } from './SubscriptionBanner'
 import { DashboardLockModal } from './DashboardLockModal'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import type { DashboardVariant } from './navConfig'
 import type { SwitcherBusiness } from './StoreSwitcher'
 import type { Capability } from '@/lib/permissions'
@@ -97,10 +97,10 @@ export function AppShell({
         </div>
       </div>
 
-      {/* Mobil lábléc — Schedulio logó */}
+      {/* Mobil lábléc — márka-logó */}
       <footer className="lg:hidden flex justify-center py-8">
-        <a href="https://schedulio.hu" target="_blank" rel="noopener noreferrer" className="opacity-50 hover:opacity-80 transition-opacity">
-          <SchedulioLogo className="h-5" />
+        <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="opacity-50 hover:opacity-80 transition-opacity">
+          <BrandLogo className="h-5" />
         </a>
       </footer>
 

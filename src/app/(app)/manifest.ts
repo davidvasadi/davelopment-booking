@@ -1,9 +1,10 @@
 import type { MetadataRoute } from 'next'
+import { BRAND_NAME } from '@/lib/brand'
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Schedulio',
-    short_name: 'Schedulio',
+    name: BRAND_NAME,
+    short_name: BRAND_NAME,
     description: 'Étterem- és szalonfoglaló — offline vázlat módban is működik',
     start_url: '/restaurant/bookings',
     display: 'standalone',

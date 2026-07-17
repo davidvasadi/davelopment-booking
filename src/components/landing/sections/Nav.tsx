@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { EASE } from '@/lib/motion'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import { RollButton } from '@/components/landing/sections/TestimonialButtons'
 
 /**
@@ -140,8 +140,8 @@ export function Nav() {
     >
       <div className="mx-auto px-5 py-2.5 flex items-center justify-between gap-4">
         {/* Logó */}
-        <Link href="/" aria-label="Schedulio" className="shrink-0">
-          <SchedulioLogo variant="light" className="h-[33px]" />
+        <Link href="/" aria-label="davelopment booking" className="shrink-0">
+          <BrandLogo variant="light" className="h-[33px]" />
         </Link>
 
         {/* Desktop menü-pill — világos sáv; az aktív szekció fehér pillben ül (Figma).

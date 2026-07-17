@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { readPendingRegistration, clearPendingRegistration } from '@/lib/pendingRegistration'
+import { ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
 
 export async function GET(_req: NextRequest) {
   // Publikus origin a redirectekhez (nginx-proxy mögött a _req.url localhost lenne).
@@ -37,6 +38,11 @@ export async function GET(_req: NextRequest) {
 
   const payload = await getPayloadClient()
 
+  // A frissen létrehozott üzlet kulcsa — a végén erre állítjuk az aktív üzletet (cookie + DB),
+  // hogy egy vegyes fiók (aki máshol alkalmazott) a saját friss üzletén kössön ki, ne a régi
+  // munkahelyén (a /dashboard|/restaurant redirect különben az aktív membership-üzletre vinne).
+  let activeKey: string | null = null
+
   try {
     // 1. User adatok frissítése (role + név), CSAK ha a user még nem rendelkezik place-szel.
     //    (Védelem: meglévő, beállított usernél ne írjuk át a role-ját pending cookie-ból.)
@@ -45,13 +51,6 @@ export async function GET(_req: NextRequest) {
       (user.role === 'restaurant_owner' && user.restaurant)
 
     if (!alreadyHasPlace) {
-      await payload.update({
-        collection: 'users',
-        id: user.id,
-        data: { role: pending.role, name: pending.ownerName || user.name },
-        overrideAccess: true,
-      })
-
       // 2. Place létrehozása + userhez kapcsolás
       if (pending.role === 'salon_owner') {
         const salon = await payload.create({
@@ -65,10 +64,11 @@ export async function GET(_req: NextRequest) {
           overrideAccess: true,
           user,
         })
+        activeKey = `salon:${salon.id}`
         await payload.update({
           collection: 'users',
           id: user.id,
-          data: { salon: salon.id },
+          data: { role: pending.role, name: pending.ownerName || user.name, salon: salon.id, last_active_business: activeKey },
           overrideAccess: true,
         })
       } else {
@@ -83,10 +83,11 @@ export async function GET(_req: NextRequest) {
           overrideAccess: true,
           user,
         })
+        activeKey = `restaurant:${restaurant.id}`
         await payload.update({
           collection: 'users',
           id: user.id,
-          data: { restaurant: restaurant.id },
+          data: { role: pending.role, name: pending.ownerName || user.name, restaurant: restaurant.id, last_active_business: activeKey },
           overrideAccess: true,
         })
       }
@@ -99,7 +100,17 @@ export async function GET(_req: NextRequest) {
     await clearPendingRegistration()
   }
 
-  // 3. Redirect a megfelelő dashboardra
+  // 3. Redirect a megfelelő dashboardra + az aktív üzlet cookie beállítása a friss üzletre.
   const dest = pending.role === 'restaurant_owner' ? '/restaurant' : '/dashboard'
-  return NextResponse.redirect(new URL(dest, baseUrl))
+  const res = NextResponse.redirect(new URL(dest, baseUrl))
+  if (activeKey) {
+    res.cookies.set(ACTIVE_BUSINESS_COOKIE, activeKey, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
+    })
+  }
+  return res
 }

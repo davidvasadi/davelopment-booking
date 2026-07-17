@@ -48,11 +48,9 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
-  // Bármely tulaj (több-üzlet fiók: a szerep lehet restaurant_owner is, miközben szalonban dolgozik)
-  // vagy admin — a tényleges jogosultságot a getOwnerSalon (aktív üzlet) szűkíti a saját szalonra.
-  if (!user || (user.role !== 'salon_owner' && user.role !== 'restaurant_owner' && user.role !== 'admin')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // A tényleges jogosultságot a getOwnerSalon (aktív üzlet) szűkíti a saját szalonra —
+  // nem a user.role. Így a vegyes fiók (alkalmazott máshol + tulaj itt) is működik.
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = (await req.json()) as Body
   const { bookingId, serviceId, staffId, date, start_time } = body

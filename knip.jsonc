@@ -1,0 +1,14 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/app/**/{page,layout,route,loading,error,not-found,template,default,sitemap,robots,manifest,opengraph-image,icon,apple-icon}.{ts,tsx}",
+    "src/app/**/globals.css",
+    "payload.config.ts",
+    "src/migrations/*.ts",
+    "next.config.{js,mjs,ts}"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": ["src/payload/payload-types.ts"],
+  "ignoreDependencies": [],
+  "ignoreBinaries": []
+}

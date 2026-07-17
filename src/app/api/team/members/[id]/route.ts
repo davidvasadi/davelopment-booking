@@ -74,6 +74,32 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       user,
       data: { status, suspended_at: status === 'suspended' ? new Date().toISOString() : null } as never,
     })
+
+    // SZINKRON a Munkatársak-felületre: szalon-tagnál a párosított `staff` rekord is_active-ját
+    // tükrözzük (salon + email párosítás). Így a Csapat-jogokban végzett suspend a Munkatársaknál
+    // is látszik. Best-effort — nem blokkolja a választ. (A staff→membership irány a staff route-ban.)
+    if (loaded.bizType === 'salon') {
+      try {
+        const mail = (loaded.membership.email ?? '').trim().toLowerCase()
+        if (mail) {
+          const staffRes = await loaded.payload.find({
+            collection: 'staff',
+            where: { and: [{ salon: { equals: loaded.bizId } }, { email: { equals: mail } }] },
+            limit: 10,
+            depth: 0,
+            overrideAccess: true,
+          })
+          const isActive = status === 'active'
+          for (const s of staffRes.docs) {
+            if (s.is_active === isActive) continue
+            await loaded.payload.update({ collection: 'staff', id: s.id, data: { is_active: isActive }, overrideAccess: true, user })
+          }
+        }
+      } catch (e) {
+        console.error('[team/members PATCH] staff is_active szinkron sikertelen', e)
+      }
+    }
+
     return NextResponse.json({ ok: true })
   }
 
@@ -151,6 +177,29 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const loaded = await loadManageableMembership(id, user)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
+  // Az emailt a törlés ELŐTT olvassuk ki (utána a rekord már nincs).
+  const mail = (loaded.membership.email ?? '').trim().toLowerCase()
+
   await loaded.payload.delete({ collection: 'memberships', id, overrideAccess: true, user })
+
+  // SZINKRON: szalon-tagnál a párosított `staff` rekord (Munkatársak) is törlődik, hogy ne
+  // maradjon árva. Best-effort — nem blokkolja a választ. (Étteremnél nincs külön staff-rekord.)
+  if (loaded.bizType === 'salon' && mail) {
+    try {
+      const res = await loaded.payload.find({
+        collection: 'staff',
+        where: { and: [{ salon: { equals: loaded.bizId } }, { email: { equals: mail } }] },
+        limit: 10,
+        depth: 0,
+        overrideAccess: true,
+      })
+      for (const s of res.docs) {
+        await loaded.payload.delete({ collection: 'staff', id: s.id, overrideAccess: true, user })
+      }
+    } catch (e) {
+      console.error('[team/members DELETE] staff-szinkron törlés sikertelen', e)
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }

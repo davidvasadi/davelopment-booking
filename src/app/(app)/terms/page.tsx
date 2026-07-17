@@ -3,14 +3,14 @@ import { LegalPage, LegalSection } from '@/components/landing/LegalPage'
 
 export const metadata: Metadata = {
   title: 'Felhasználási feltételek',
-  description: 'A Schedulio időpontfoglaló szolgáltatás Általános Szerződési Feltételei.',
+  description: 'A davelopment booking időpontfoglaló szolgáltatás Általános Szerződési Feltételei.',
 }
 
 export default function TermsPage() {
   return (
     <LegalPage title="Felhasználási feltételek" updated="2026. június 24.">
       <p>
-        A jelen Általános Szerződési Feltételek (a továbbiakban: „ÁSZF") a Schedulio online időpont-
+        A jelen Általános Szerződési Feltételek (a továbbiakban: „ÁSZF") a davelopment booking online időpont-
         és asztalfoglaló szolgáltatás (a továbbiakban: „Szolgáltatás") igénybevételének feltételeit
         szabályozzák a Szolgáltató és a Szolgáltatást igénybe vevő természetes vagy jogi személy
         (a továbbiakban: „Felhasználó") között. A regisztrációval, illetve a Szolgáltatás bármilyen
@@ -27,7 +27,7 @@ export default function TermsPage() {
           <li>Székhely: <strong className="text-brand-ink">[Székhely]</strong></li>
           <li>Nyilvántartási szám: <strong className="text-brand-ink">[Nyilvántartási szám]</strong></li>
           <li>Adószám: <strong className="text-brand-ink">[Adószám]</strong> (alanyi adómentes)</li>
-          <li>E-mail: <a href="mailto:hello@schedulio.hu" className="font-medium text-brand-ink underline underline-offset-2">hello@schedulio.hu</a></li>
+          <li>E-mail: <a href="mailto:hello@davelopment.hu" className="font-medium text-brand-ink underline underline-offset-2">hello@davelopment.hu</a></li>
         </ul>
         <p>
           A Szolgáltató alanyi adómentes egyéni vállalkozóként működik, ezért az általa kiállított
@@ -37,7 +37,7 @@ export default function TermsPage() {
 
       <LegalSection heading="2. A Szolgáltatás tárgya és jellege">
         <p>
-          A Schedulio felhőalapú, „szoftver mint szolgáltatás" (SaaS) modellben működő időpont- és
+          A davelopment booking felhőalapú, „szoftver mint szolgáltatás" (SaaS) modellben működő időpont- és
           asztalfoglaló rendszer. A Szolgáltató kizárólag a szoftveres eszközt biztosítja; a
           Felhasználó és annak ügyfelei közötti jogviszonyban, a foglalások teljesítésében, a
           szolgáltatások minőségében vagy bármely, a Felhasználó saját tevékenységéből eredő
@@ -143,8 +143,8 @@ export default function TermsPage() {
       <LegalSection heading="12. Kapcsolat">
         <p>
           Kérdés esetén írjon nekünk a{' '}
-          <a href="mailto:hello@schedulio.hu" className="font-medium text-brand-ink underline underline-offset-2">
-            hello@schedulio.hu
+          <a href="mailto:hello@davelopment.hu" className="font-medium text-brand-ink underline underline-offset-2">
+            hello@davelopment.hu
           </a>{' '}
           címre.
         </p>

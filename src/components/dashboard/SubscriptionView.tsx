@@ -12,7 +12,7 @@ import { applyCycle } from '@/lib/tier'
 import type { Subscription } from '@/payload/payload-types'
 
 /**
- * Fiók-szintű ELŐFIZETÉS nézet — davelopment-design (Crextio Pricing + Schedulio Csomag).
+ * Fiók-szintű ELŐFIZETÉS nézet — davelopment-design (Crextio Pricing + davelopment booking Csomag).
  * Szerver-render; az egyetlen interaktív sziget a `PricingCards` (csomag-választás + havi/éves
  * ELŐNÉZET). A csomag AZ AKTÍV üzletre vonatkozik; a fizetés egy összevont számla a fiókra.
  * Minden korábbi funkció megmaradt: fiók-státusz, próbaidő, díj-összetétel, lemondás, számlázás.
@@ -195,7 +195,7 @@ export function SubscriptionView({
           </div>
           <p className="mt-3 max-w-[520px] text-sm leading-relaxed text-ink-soft">
             A nemzetközi rendszerek foglalásonként jutalékot kérnek — minél jobban megy, annál többet fizetsz.
-            A Schedulio <b className="font-semibold text-ink">fix havidíjas</b>: ugyanannyi 20 vagy 200 foglalásnál.
+            A davelopment booking <b className="font-semibold text-ink">fix havidíjas</b>: ugyanannyi 20 vagy 200 foglalásnál.
           </p>
           <div className="mt-4 flex flex-col items-stretch gap-3 sm:flex-row">
             <div className="min-w-0 flex-1 rounded-[18px] p-4" style={{ background: '#F4ECD8' }}>

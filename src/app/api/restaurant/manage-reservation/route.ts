@@ -62,11 +62,9 @@ const defaultNameForSource: Record<NonNullable<Reservation['source']>, string> =
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
-  // Bármely tulaj (több-üzlet fiók: a szerep lehet salon_owner is, miközben étteremben dolgozik)
-  // vagy admin — a tényleges jogosultságot a getOwnerRestaurant (aktív üzlet) szűkíti a saját étteremre.
-  if (!user || (user.role !== 'salon_owner' && user.role !== 'restaurant_owner' && user.role !== 'admin')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // A tényleges jogosultságot a getOwnerRestaurant (aktív üzlet) szűkíti a saját étteremre —
+  // nem a user.role. Így a vegyes fiók (alkalmazott máshol + tulaj itt) is működik.
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = (await req.json()) as Body
   const { reservationId, date, start_time, pax } = body

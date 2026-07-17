@@ -11,10 +11,8 @@ import type { Restaurant } from '@/payload/payload-types'
  */
 export async function GET(req: NextRequest) {
   const user = await getCurrentUser()
-  // Bármely tulaj (több-üzlet fiók) vagy admin — a scope-ot az aktív étterem adja lentebb.
-  if (!user || (user.role !== 'salon_owner' && user.role !== 'restaurant_owner' && user.role !== 'admin')) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // A scope-ot az AKTÍV étterem adja lentebb (nem a user.role) — vegyes fiók is működik.
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { searchParams } = req.nextUrl
   const date = searchParams.get('date')

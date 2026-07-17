@@ -130,7 +130,7 @@ export function Vision() {
           }}
         >
           <p className="shrink-0 text-white text-sm sm:text-base font-geist font-medium tracking-widest">
-            (Mit tud a Schedulio)
+            (Mit tud a davelopment booking)
           </p>
 
           <div className="relative flex-1 flex flex-col items-center justify-center">
@@ -162,7 +162,7 @@ export function Vision() {
         >
           <img
             src="/phone-mockup.png"
-            alt="Schedulio app"
+            alt="davelopment booking app"
             className="w-full h-full object-cover object-center"
           />
         </div>

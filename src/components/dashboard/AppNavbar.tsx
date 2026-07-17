@@ -6,7 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -38,7 +38,7 @@ type SubInfo = {
 /**
  * Egységes felső pill-nav (davelopment-design) — a 34px konténer tetején, mindkét
  * modulhoz (szalon/étterem/backstage) UGYANEZ, csak a `variant` adja a tartalmat.
- * Bal: Schedulio brand. Közép: pill-nav (aktív elem sötét pillben). Jobb: Beállítás
+ * Bal: davelopment booking brand. Közép: pill-nav (aktív elem sötét pillben). Jobb: Beállítás
  * (fogaskerék) + avatar/értesítés-menü (UserMenu). A kereső később aloldalakba kerül;
  * a nyilvános oldal + CSV az avatar-menüben.
  */
@@ -89,10 +89,10 @@ export function AppNavbar({
       {/* Bal: brand */}
       <Link
         href={items[0]?.href ?? '/'}
-        aria-label="Schedulio"
+        aria-label="davelopment booking"
         className="flex items-center shrink-0 px-1"
       >
-        <SchedulioLogo className="h-10" />
+        <BrandLogo className="h-10" />
       </Link>
 
       {/* Közép: pill-nav — üveges háttér (a konténer-gradient átdereng), 40px sugár, soft shadow */}

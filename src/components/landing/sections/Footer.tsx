@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { ArrowUpRight } from 'lucide-react'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import { RollButton } from '@/components/landing/sections/TestimonialButtons'
 import { JoinWord } from '@/components/landing/JoinWord'
 import { EASE } from '@/lib/motion'
@@ -87,7 +87,7 @@ export function Footer({ trial_days }: { trial_days: number }) {
           {/* Márka-blokk + CTA (egy oszlop lg-n, teljes sor sm/mobile-on) */}
           <div className="sm:col-span-2 lg:col-span-1 flex flex-col gap-6">
             <div>
-              <SchedulioLogo variant="dark" className="h-12" />
+              <BrandLogo variant="dark" className="h-12" />
               <p className="mt-4 text-4xl lg:text-5xl font-bold tracking-tight">Online Időpontfoglaló.</p>
               <div className="text-white/70">
                 <p className="mt-4 tracking-tight">
@@ -95,9 +95,9 @@ export function Footer({ trial_days }: { trial_days: number }) {
                   fodrászatoknak, kis vállalkozásoknak. Próbáld ki {trial_days} napig ingyen.
                 </p>
                 <p className="mt-4 tracking-tight">
-                  ©2026 Schedulio ·{' '}
-                  <a href="mailto:hello@schedulio.hu" className="underline underline-offset-2 hover:text-white transition-colors">
-                    hello@schedulio.hu
+                  ©2026 davelopment booking ·{' '}
+                  <a href="mailto:hello@davelopment.hu" className="underline underline-offset-2 hover:text-white transition-colors">
+                    hello@davelopment.hu
                   </a>
                 </p>
               </div>

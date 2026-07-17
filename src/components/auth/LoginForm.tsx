@@ -12,7 +12,7 @@ import Link from 'next/link'
 import { ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { listStagger } from '@/lib/motion'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import { authInputBase, authLabelBase, authPillBtn, authInputDark, authLabelDark, authPillBtnLight, authGhostBtnDark, authDividerDark, authErrorText, authErrorTextDark, authDivider, BRAND_COPYRIGHT } from '@/components/auth/authStyles'
 
@@ -89,7 +89,7 @@ export function LoginForm() {
           /* Splash screen */
           <div className="flex flex-col justify-between flex-1 px-7 pt-12 pb-10">
             <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-              <SchedulioLogo variant="dark" className="h-8" />
+              <BrandLogo variant="dark" className="h-8" />
             </Link>
             <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.0] tracking-[-0.02em]">
               KEZELD <br />OKOSAN<br />A SZALONOD.
@@ -202,7 +202,7 @@ export function LoginForm() {
         {/* Left panel */}
         <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
           <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-            <SchedulioLogo variant="dark" className="h-8" />
+            <BrandLogo variant="dark" className="h-8" />
           </Link>
           <div>
             <h1 className="text-white font-light text-[3.5rem] uppercase leading-[1.05] tracking-[-0.02em]">

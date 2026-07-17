@@ -1,5 +1,5 @@
 /**
- * Közös email-vázlat (Schedulio / davelopment arculat) — v3 (Crextio).
+ * Közös email-vázlat (davelopment booking arculat) — v3 (Crextio).
  *
  * Dizájnfilozófia: meleg krém külső háttér, fehér floating kártya lágy sarokkal,
  * belül ink-sötét brand-sáv (logó) + fehér hero (státusz-ikon + arany dátum-pill),

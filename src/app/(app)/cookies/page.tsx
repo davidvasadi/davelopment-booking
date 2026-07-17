@@ -3,14 +3,14 @@ import { LegalPage, LegalSection } from '@/components/landing/LegalPage'
 
 export const metadata: Metadata = {
   title: 'Sütikezelés',
-  description: 'Tájékoztató a Schedulio által használt sütikről (cookie-król).',
+  description: 'Tájékoztató a davelopment booking által használt sütikről (cookie-król).',
 }
 
 export default function CookiesPage() {
   return (
     <LegalPage title="Sütikezelési tájékoztató" updated="2026. június 24.">
       <p>
-        A Schedulio sütiket (cookie-kat) és hasonló technológiákat használ a weboldal és a
+        A davelopment booking sütiket (cookie-kat) és hasonló technológiákat használ a weboldal és a
         Szolgáltatás megfelelő működéséhez, valamint a felhasználói élmény javításához. A jelen
         tájékoztató az Adatkezelési tájékoztató szerves részét képezi.
       </p>
@@ -65,8 +65,8 @@ export default function CookiesPage() {
       <LegalSection heading="5. Kapcsolat">
         <p>
           A sütikkel kapcsolatos kérdéseivel forduljon hozzánk a{' '}
-          <a href="mailto:hello@schedulio.hu" className="font-medium text-brand-ink underline underline-offset-2">
-            hello@schedulio.hu
+          <a href="mailto:hello@davelopment.hu" className="font-medium text-brand-ink underline underline-offset-2">
+            hello@davelopment.hu
           </a>{' '}
           címen.
         </p>

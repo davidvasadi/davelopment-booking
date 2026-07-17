@@ -25,15 +25,19 @@ import { getPayloadClient } from '@/lib/payload'
 export async function GET(req: NextRequest) {
   // A redirectekhez a PUBLIKUS origin-t használjuk (nginx-proxy mögött a req.url
   // http://localhost:3001 lenne → a böngésző localhost-ra navigálna). A NEXT_PUBLIC_APP_URL
-  // a https://schedulio.hu; fallback a req.url, ha valamiért nincs beállítva.
+  // a https://booking.davelopment.hu; fallback a req.url, ha valamiért nincs beállítva.
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || req.url
   const session = await auth()
-  console.log('[finalize] session:', JSON.stringify(session))
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[finalize] session:', JSON.stringify(session))
+  }
   const sessionToken = session as unknown as { payloadId?: string | number; payloadEmail?: string; user?: { email?: string; name?: string } } | null
 
   // Ha valami okból nincs session, vissza /login-ra
   if (!sessionToken?.payloadId || !sessionToken.payloadEmail) {
-    console.warn('[finalize] hiányzó payloadId/Email — session:', JSON.stringify(sessionToken))
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[finalize] hiányzó payloadId/Email — session:', JSON.stringify(sessionToken))
+    }
     // Fallback: ha az Auth.js session-ben van email, próbáljuk azzal megtalálni a Payload usert.
     const fallbackEmail = sessionToken?.user?.email
     if (!fallbackEmail) {

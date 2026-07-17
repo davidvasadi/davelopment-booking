@@ -24,13 +24,13 @@ export function DashboardSVG() {
       <circle cx="54" cy="18" r="5" fill="#28c840" />
       <rect x="140" y="10" width="200" height="16" rx="8" fill="#333" />
       <text x="240" y="22" textAnchor="middle" fill="#888" fontSize="9" fontFamily="monospace">
-        app.schedulio.hu/dashboard
+        booking.davelopment.hu/dashboard
       </text>
 
       {/* Sidebar */}
       <rect x="0" y="36" width="110" height="484" fill="#141414" />
       <text x="14" y="62" fill="#ecf95a" fontSize="11" fontWeight="700" fontFamily="sans-serif">
-        schedulio
+        booking
       </text>
       {[
         { label: 'Áttekintés', y: 88, active: true },
@@ -59,7 +59,7 @@ export function DashboardSVG() {
         Dave
       </text>
       <text x="33" y="488" fill="#555" fontSize="6" fontFamily="sans-serif">
-        schedulio × [davelopment]®
+        davelopment booking®
       </text>
 
       {/* Main content area */}
@@ -184,7 +184,7 @@ export function PhoneMockupSVG({ className }: { className?: string }) {
     <div className={cn('relative select-none', className)}>
       <img
         src="/hero-phone.png"
-        alt="Schedulio mobil app képernyő"
+        alt="davelopment booking mobil app képernyő"
         className="block w-full drop-shadow-2xl"
         draggable={false}
       />

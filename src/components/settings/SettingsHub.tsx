@@ -15,7 +15,7 @@
  */
 
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -23,7 +23,7 @@ import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext
 import {
   Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
   Plus, ScrollText, KeyRound, Building2, Mail, Check, Languages, FileText,
-  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, type LucideIcon,
+  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
@@ -86,7 +86,7 @@ function StatBox({ label, value, unit }: { label: string; value: string; unit?: 
 type RailId =
   | 'profile' | 'booking' | 'features' | 'languages' | 'email'
   | 'rules' | 'notifications' | 'team' | 'audit'
-  | 'documents' | 'billing' | 'sites'
+  | 'self' | 'documents' | 'billing' | 'sites'
   | 'integrations' | 'api' | 'danger'
 
 // A bal lista mely elemei a MEGLÉVŐ profil-form egy-egy fülét mutatják (rail vezérli a fület).
@@ -99,7 +99,7 @@ const FORM_TABS: Record<string, string> = {
 const RAIL_LABELS: Record<RailId, string> = {
   profile: 'Üzlet profil', booking: 'Foglalás', features: 'Foglalási funkciók', languages: 'Nyelvek', email: 'Email-sablonok',
   rules: 'Foglalási szabályok', notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
-  documents: 'Dokumentumok', billing: 'Számlázás', sites: 'Telephelyek',
+  self: 'Saját profil', documents: 'Dokumentumok', billing: 'Számlázás', sites: 'Telephelyek',
   integrations: 'Integrációk', api: 'API & webhookok', danger: 'Fiók törlése',
 }
 
@@ -137,6 +137,7 @@ export interface TeamMember {
   roleTone: 'owner' | 'manager' | 'staff'
   customRoleId?: string | null     // ha egyedi szerepe van, annak id-je (a legördülő értékéhez)
   pending?: boolean                // függő meghívó sor
+  suspended?: boolean              // felfüggesztett tag (a Munkatársak „Inaktív"-jával egységes)
 }
 
 /** Telephelyek — VALÓS: a fiók egy üzlete. */
@@ -182,6 +183,7 @@ export interface SettingsHubProps {
   /** Foglalási funkciók (`feature_modules`) kezdőérték — a beágyazott BookingFeatures panelnek. */
   featureModules: FeatureModules
   profilePanel: ReactNode          // a MEGLÉVŐ settings-form (Üzlet profil)
+  selfProfile?: ReactNode          // „Saját profil" — a bejelentkezett user szerkesztője (ProfileEditor)
   rules: RulesData
   senderLabel: string              // Értesítések: jelenlegi feladó
   billing: BillingData
@@ -200,12 +202,18 @@ export interface SettingsHubProps {
 }
 
 export function SettingsHub({
-  variant, subtitle, availabilityHref, profilePanel, rules, senderLabel, billing,
+  variant, subtitle, availabilityHref, profilePanel, selfProfile, rules, senderLabel, billing,
   team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
   featureModules, auditLog, rolesSection, customRoles = [],
 }: SettingsHubProps) {
   const router = useRouter()
-  const [active, setActive] = useState<RailId>('profile')
+  // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
+  const searchParams = useSearchParams()
+  const initialTab = ((): RailId => {
+    const t = searchParams.get('tab')
+    return t && t in RAIL_LABELS ? (t as RailId) : 'profile'
+  })()
+  const [active, setActive] = useState<RailId>(initialTab)
   const [saving, setSaving] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false) // mobil szekció-választó legördülő
 
@@ -303,6 +311,7 @@ export function SettingsHub({
   const [inviteRole, setInviteRole] = useState<string>(customRoles[0] ? `c:${customRoles[0].id}` : '')
   const [inviteBusy, setInviteBusy] = useState(false)
   const [rowBusy, setRowBusy] = useState<string | null>(null)
+  const [statusMenuId, setStatusMenuId] = useState<string | null>(null)
 
   const sendInvite = async () => {
     const email = inviteEmail.trim()
@@ -362,6 +371,27 @@ export function SettingsHub({
     }
   }
 
+  // Státusz-váltás a lenyíló menüből — a Munkatárs-adatlap (HiringView) státusz-menüjével AZONOS.
+  // A route a membership.status-t állítja ÉS a párosított staff.is_active-ot is szinkronizálja.
+  const setMemberStatus = async (id: string, status: 'active' | 'suspended') => {
+    setStatusMenuId(null)
+    setRowBusy(id)
+    try {
+      const res = await fetch(`/api/team/members/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) throw new Error()
+      router.refresh()
+    } catch {
+      toast.error('A státusz módosítása sikertelen')
+    } finally {
+      setRowBusy(null)
+    }
+  }
+
   const num = (n: number | null) => (n === null || n === undefined ? '—' : String(n))
 
   // A KÖZÖS lebegő mentés-sáv az AKTÍV panelhez kötődik: beágyazott profil-form fül (felfelé
@@ -399,6 +429,7 @@ export function SettingsHub({
       { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
     ] },
     { group: 'Fiók', items: [
+      { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
       { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok' },
       { kind: 'btn', id: 'billing', icon: CreditCard, label: 'Számlázás' },
       { kind: 'link', href: variant === 'restaurant' ? '/restaurant/subscription' : '/dashboard/subscription', icon: Sparkles, label: 'Előfizetés' },
@@ -739,6 +770,50 @@ export function SettingsHub({
                         {m.pending ? 'Meghívó elküldve · függőben' : m.email}
                       </div>
                     </div>
+                    {/* Státusz-LENYÍLÓ — a Munkatárs-adatlap (HiringView) státusz-menüjével AZONOS:
+                        pill + ChevronDown, kattintásra „Aktív / Felfüggesztett" opciók (pipa a jelenlegin).
+                        A route a staff.is_active-ot is szinkronizálja. Csak valódi tagnál (nem tulaj/meghívó). */}
+                    {!m.pending && m.id && m.roleTone !== 'owner' && (
+                      <div className="relative">
+                        <button
+                          type="button"
+                          disabled={rowBusy === m.id}
+                          onClick={() => setStatusMenuId((o) => (o === m.id ? null : m.id!))}
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold disabled:opacity-60"
+                          style={m.suspended ? { background: '#F1EEE6', color: '#86826F', border: '1px solid var(--dav-line)' } : { background: '#E7F1E9', color: '#3B6B4B' }}
+                        >
+                          {rowBusy === m.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <span className="h-2 w-2 rounded-full" style={{ background: m.suspended ? '#B7B2A4' : '#4F9E6A' }} />
+                          )}
+                          {m.suspended ? 'Felfüggesztett' : 'Aktív'}
+                          <ChevronDown className="h-3 w-3 opacity-60" />
+                        </button>
+                        {statusMenuId === m.id && (
+                          <>
+                            <div className="fixed inset-0 z-10" onClick={() => setStatusMenuId(null)} />
+                            <div className="absolute right-0 top-[34px] z-20 w-48 rounded-[14px] border border-line bg-white p-1.5 shadow-dav-container">
+                              {(['active', 'suspended'] as const).map((s) => {
+                                const isCur = (s === 'suspended') === !!m.suspended
+                                return (
+                                  <button
+                                    key={s}
+                                    type="button"
+                                    onClick={() => setMemberStatus(m.id!, s)}
+                                    className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-paper"
+                                  >
+                                    <span className="h-2 w-2 rounded-full" style={{ background: s === 'suspended' ? '#B7B2A4' : '#4F9E6A' }} />
+                                    {s === 'suspended' ? 'Felfüggesztett' : 'Aktív'}
+                                    {isCur && <Check className="ml-auto h-4 w-4 text-ink" strokeWidth={2} />}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
                     {/* A tulajdonos-sor (nincs id) csak badge; a tagoknál szerep-váltó + eltávolítás. */}
                     {m.roleTone === 'owner' || !m.id ? (
                       <RoleBadge role={m.role} tone={m.roleTone} pending={m.pending} />
@@ -773,6 +848,15 @@ export function SettingsHub({
                 A tulajdonos hozzáférése mindig megmarad. A meghívott tagok az email-linkkel csatlakoznak.
               </p>
               {rolesSection}
+            </div>
+          )}
+
+          {/* ── Saját profil ── a bejelentkezett user (bárki: tulaj/vezető/alkalmazott) szerkeszti
+              a saját nevét/avatarját/jelszavát. A panel-tartalom a settings page-ről jön (ProfileEditor),
+              hogy a user-adat ott, szerver-oldalon oldódjon fel. */}
+          {active === 'self' && (
+            <div className="w-full">
+              {selfProfile ?? <p className="text-sm text-ink-soft">A profil szerkesztő nem érhető el.</p>}
             </div>
           )}
 

@@ -36,7 +36,10 @@ import { Tasks } from './src/payload/collections/Tasks'
 // Globals
 import { PricingSettings } from './src/payload/globals/PricingSettings'
 
-// A publikus app-URL (prod: https://schedulio.hu). A CSRF/CORS/serverURL ehhez igazodik,
+// Központi márkanév (egyetlen forrás a rebrandhez).
+import { BRAND_NAME } from './src/lib/brand'
+
+// A publikus app-URL (prod: https://booking.davelopment.hu). A CSRF/CORS/serverURL ehhez igazodik,
 // különben az nginx-proxy mögött a böngésző-eredetű login CSRF-blokkolt → 401
 // (a curl átmegy, mert nincs Origin headere). Lokálban a localhost a fallback.
 const SERVER_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
@@ -50,7 +53,7 @@ export default buildConfig({
   admin: {
     user: Users.slug,
     meta: {
-      titleSuffix: ' - Schedulio Admin',
+      titleSuffix: ` - ${BRAND_NAME} Admin`,
       icons: {
         icon: '/favicon.ico',
       },
@@ -119,7 +122,7 @@ export default buildConfig({
   sharp,
   email: resendAdapter({
     defaultFromAddress: process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu',
-    defaultFromName: process.env.RESEND_FROM_NAME ?? 'Schedulio',
+    defaultFromName: process.env.RESEND_FROM_NAME ?? BRAND_NAME,
     apiKey: process.env.RESEND_API_KEY ?? '',
   }),
   typescript: {

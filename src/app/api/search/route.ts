@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { getActiveBusiness } from '@/lib/activeBusiness'
 
 export type SearchHit = {
   id: string | number
@@ -54,14 +55,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ hits })
     }
 
-    // Étterem-tulajdonos → reservations, szalon-tulajdonos → bookings.
-    if (user.role === 'restaurant_owner' && user.restaurant) {
-      const restaurantId = typeof user.restaurant === 'object' ? user.restaurant.id : user.restaurant
+    // Az AKTÍV üzletben keresünk (nem a user.role/user.restaurant mezőből) — így a vegyes
+    // fiók a store-switcherrel kiválasztott üzletben keres, akár tulaj, akár alkalmazott ott.
+    const { active } = await getActiveBusiness(user)
+    if (!active) return NextResponse.json({ hits: [] })
+
+    if (active.type === 'restaurant') {
       const res = await payload.find({
         collection: 'reservations',
         where: {
           and: [
-            { restaurant: { equals: restaurantId } },
+            { restaurant: { equals: active.id } },
             { or: [{ customer_name: like }, { customer_email: like }, { customer_phone: like }] },
           ],
         },
@@ -79,31 +83,26 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ hits })
     }
 
-    if (user.salon) {
-      const salonId = typeof user.salon === 'object' ? user.salon.id : user.salon
-      const res = await payload.find({
-        collection: 'bookings',
-        where: {
-          and: [
-            { salon: { equals: salonId } },
-            { or: [{ customer_name: like }, { customer_email: like }, { customer_phone: like }] },
-          ],
-        },
-        sort: '-date',
-        limit: 8,
-        overrideAccess: true,
-      })
-      const hits: SearchHit[] = res.docs.map((b) => ({
-        id: b.id,
-        kind: 'booking',
-        name: b.customer_name,
-        sub: `${b.date} · ${b.start_time}`,
-        href: `/dashboard/bookings?booking=${encodeURIComponent(String(b.id))}&t=${Date.now()}`,
-      }))
-      return NextResponse.json({ hits })
-    }
-
-    return NextResponse.json({ hits: [] })
+    const res = await payload.find({
+      collection: 'bookings',
+      where: {
+        and: [
+          { salon: { equals: active.id } },
+          { or: [{ customer_name: like }, { customer_email: like }, { customer_phone: like }] },
+        ],
+      },
+      sort: '-date',
+      limit: 8,
+      overrideAccess: true,
+    })
+    const hits: SearchHit[] = res.docs.map((b) => ({
+      id: b.id,
+      kind: 'booking',
+      name: b.customer_name,
+      sub: `${b.date} · ${b.start_time}`,
+      href: `/dashboard/bookings?booking=${encodeURIComponent(String(b.id))}&t=${Date.now()}`,
+    }))
+    return NextResponse.json({ hits })
   } catch {
     return NextResponse.json({ hits: [] }, { status: 500 })
   }

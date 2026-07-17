@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
+import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
 import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays } from 'lucide-react'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -36,10 +36,6 @@ const statusDot: Record<string, string> = {
 }
 const ACTIVE = new Set(['pending', 'confirmed', 'completed'])
 const STATUS_DARK_BG = new Set(['confirmed', 'completed'])
-
-function ymdLocal(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 /** Élő, percenként frissülő aktuális idő (perc éjféltől). null, ha a megtekintett nap nem ma van. */
 function useNowMinutes(date: string): number | null {

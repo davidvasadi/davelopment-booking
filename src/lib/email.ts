@@ -115,8 +115,9 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
-  const cancelUrl = (booking as any).cancellation_token
-    ? `${APP_URL}/booking/confirm-cancel/${(booking as any).cancellation_token}`
+  const cancellationToken = (booking as { cancellation_token?: string }).cancellation_token
+  const cancelUrl = cancellationToken
+    ? `${APP_URL}/booking/confirm-cancel/${cancellationToken}`
     : null
   const locale = normalizeLocale((booking as { locale?: string }).locale)
   const vars = emailVars(data)

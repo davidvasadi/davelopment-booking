@@ -41,11 +41,13 @@ export function UserAvatar({
     <span
       style={dim}
       className={cn(
-        'flex items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-white dark:text-black font-bold select-none',
+        // Crextio: halvány, semleges monogram-csempe (nem tömör fekete kör) — a világos
+        // felületbe simul, sötét betűvel. A finom keret adja a formát, nem a kontraszt.
+        'flex items-center justify-center rounded-full bg-[#F1EEE6] text-ink border border-line font-semibold select-none dark:bg-white/[0.08] dark:text-white dark:border-white/10',
         className,
       )}
     >
-      <span style={{ fontSize: size * 0.4 }}>{initials(name)}</span>
+      <span style={{ fontSize: size * 0.38 }}>{initials(name)}</span>
     </span>
   )
 }

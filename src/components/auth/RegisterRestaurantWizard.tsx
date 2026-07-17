@@ -13,7 +13,7 @@ import { motion } from 'framer-motion'
 import { listStagger } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { RESTAURANT_TEMPLATES } from '@/lib/restaurantTemplates'
-import { SchedulioLogo } from '@/components/SchedulioLogo'
+import { BrandLogo } from '@/components/BrandLogo'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
 import {
   authInputBase, authInputDark, authLabelBase, authLabelDark,
@@ -37,6 +37,7 @@ export function RegisterRestaurantWizard() {
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [loading, setLoading] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
+  const [restaurantId, setRestaurantId] = useState<string | number | null>(null)
 
   const { register, handleSubmit, formState: { errors }, getValues, trigger } = useForm<Step2Data>({
     resolver: zodResolver(step2Schema),
@@ -144,11 +145,15 @@ export function RegisterRestaurantWizard() {
         if (!restaurantRes.ok) throw new Error('Étterem létrehozása sikertelen')
       }
       const { doc: restaurant } = await restaurantRes.json()
+      setRestaurantId(restaurant.id)
 
+      // A user.restaurant a PRIMER étterem-jelölés; az aktív üzletet is az újra állítjuk, hogy
+      // egy vegyes fiók (aki máshol alkalmazott) a saját friss éttermén kössön ki, ne a régi
+      // munkahelyén (különben a /restaurant redirect az aktív membership-üzletre vinné).
       await fetch(`/api/users/${userId_}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-        body: JSON.stringify({ restaurant: restaurant.id }),
+        body: JSON.stringify({ restaurant: restaurant.id, last_active_business: `restaurant:${restaurant.id}` }),
       })
 
       // A választott asztalfoglalás-sablon alapján a háttérben feltöltjük az étterem kezdő-
@@ -179,7 +184,19 @@ export function RegisterRestaurantWizard() {
     }
   }
 
-  const finish = () => router.push('/restaurant')
+  const finish = async () => {
+    // Az aktív üzletet a friss étteremre állítjuk (cookie + DB), mielőtt navigálunk — így egy
+    // vegyes fiók (aki máshol alkalmazott) a saját friss éttermén köt ki, ne a régi munkahelyén.
+    if (restaurantId) {
+      await fetch('/api/business/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ type: 'restaurant', id: restaurantId }),
+      }).catch(() => null)
+    }
+    router.push('/restaurant')
+  }
 
   const templateCards = (isDark: boolean) => (
     <div className="grid grid-cols-1 gap-3">
@@ -239,7 +256,7 @@ export function RegisterRestaurantWizard() {
               </button>
             ) : (
               <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-                <SchedulioLogo variant="dark" className="h-8" />
+                <BrandLogo variant="dark" className="h-8" />
               </Link>
             )}
             <StepIndicator />
@@ -405,7 +422,7 @@ export function RegisterRestaurantWizard() {
       <div className="hidden lg:flex min-h-screen font-onest">
         <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
           <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-            <SchedulioLogo variant="dark" className="h-8" />
+            <BrandLogo variant="dark" className="h-8" />
           </Link>
           <div>
             <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">

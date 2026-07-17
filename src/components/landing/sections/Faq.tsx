@@ -12,7 +12,7 @@ import { ftFmt, type LandingPricing } from '@/components/landing/types'
 export function buildFaqItems(pricing: LandingPricing) {
   return [
     {
-      q: 'Mennyibe kerül a Schedulio?',
+      q: 'Mennyibe kerül a davelopment booking?',
       a: `Szalon Pro: ${ftFmt(pricing.salon_pro_huf)}/hó. Étterem Pro (asztalfoglalással): ${ftFmt(pricing.restaurant_pro_huf)}/hó. Mindkettő ${pricing.trial_days} napig ingyenes, kártya nélkül. Lemondható bármikor, visszamenőleges számlázás nélkül.`,
     },
     {

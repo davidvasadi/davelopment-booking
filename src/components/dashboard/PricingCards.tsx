@@ -243,7 +243,7 @@ export function PricingCards({
             <div className="mt-1.5 text-[12px] text-ink-soft2">a megrendelővel egyeztetve</div>
 
             <a
-              href={`mailto:hello@schedulio.hu?subject=Egyedi%20${encodeURIComponent(noun.toLowerCase())}%20csomag`}
+              href={`mailto:hello@davelopment.hu?subject=Egyedi%20${encodeURIComponent(noun.toLowerCase())}%20csomag`}
               className="mt-5 block rounded-2xl bg-ink-dark py-3 text-center text-sm font-semibold text-white transition-opacity hover:opacity-90"
             >
               Kapcsolatfelvétel
