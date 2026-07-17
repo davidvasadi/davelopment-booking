@@ -6,15 +6,21 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import { ChevronRight, ChevronLeft, Check, Loader2, UtensilsCrossed } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { listStagger } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { RESTAURANT_TEMPLATES } from '@/lib/restaurantTemplates'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
+import {
+  authInputBase, authInputDark, authLabelBase, authLabelDark,
+  authPillBtn, authPillBtnLight, authGhostBtnDark,
+  authDivider, authDividerDark, authErrorText, authErrorTextDark,
+  BRAND_COPYRIGHT,
+} from '@/components/auth/authStyles'
 
 const step2Schema = z.object({
   restaurantName: z.string().min(2, 'Minimum 2 karakter'),
@@ -145,13 +151,24 @@ export function RegisterRestaurantWizard() {
         body: JSON.stringify({ restaurant: restaurant.id }),
       })
 
+      // A választott asztalfoglalás-sablon alapján a háttérben feltöltjük az étterem kezdő-
+      // beállításait — a friss JWT-t fejlécként is átadjuk (nem csak a cookie-ra hagyatkozunk),
+      // és a hibát már nem nyeljük el csendben (log + diszkrét, nem blokkoló jelzés).
+      // Azonos minta a szalon-regisztrációval (RegisterWizard).
       if (selectedTemplate) {
         fetch('/api/restaurant/seed-template', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
           credentials: 'include',
           body: JSON.stringify({ restaurantId: restaurant.id, templateId: selectedTemplate }),
-        }).catch(() => {})
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`seed-template ${res.status}`)
+          })
+          .catch((e) => {
+            console.warn('[register] étterem-sablon seed sikertelen:', e)
+            toast.message('A beállításaidat később a vezérlőpulton módosíthatod.')
+          })
       }
 
       setStep(3)
@@ -175,17 +192,17 @@ export function RegisterRestaurantWizard() {
             className={cn(
               'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
               isDark
-                ? isSelected ? 'border-white bg-white/10 ring-1 ring-white' : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 hover:bg-zinc-800/60'
-                : isSelected ? 'border-zinc-900 bg-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50'
+                ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
+                : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
             )}
           >
             {isSelected && (
-              <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-white flex items-center justify-center">
-                <Check className="h-3 w-3 text-zinc-950" />
+              <div className="absolute top-3 right-3 h-5 w-5 rounded-full bg-gold flex items-center justify-center">
+                <Check className="h-3 w-3 text-ink-dark" />
               </div>
             )}
-            <p className={cn('font-bold text-sm leading-tight', isDark ? (isSelected ? 'text-white' : 'text-zinc-200') : (isSelected ? 'text-white' : 'text-zinc-800'))}>{tpl.label}</p>
-            <p className={cn('text-xs mt-1 leading-snug pr-6', isDark ? 'text-zinc-500' : (isSelected ? 'text-zinc-400' : 'text-zinc-500'))}>{tpl.description}</p>
+            <p className={cn('font-semibold text-sm leading-tight pr-6', isDark ? (isSelected ? 'text-white' : 'text-white/80') : 'text-ink')}>{tpl.label}</p>
+            <p className={cn('text-xs mt-1 leading-snug pr-6', isDark ? 'text-white/45' : 'text-ink-soft')}>{tpl.description}</p>
           </button>
         )
       })}
@@ -205,7 +222,7 @@ export function RegisterRestaurantWizard() {
   const StepIndicator = () => (
     <div className="flex gap-1.5">
       {([1, 2, 3] as const).map(s => (
-        <div key={s} className={cn('h-1.5 rounded-full transition-all duration-300', s === step ? 'bg-white w-4' : s < step ? 'w-1.5 bg-zinc-500' : 'w-1.5 bg-zinc-800')} />
+        <div key={s} className={cn('h-1.5 rounded-full transition-all duration-300', s === step ? 'bg-white w-4' : s < step ? 'w-1.5 bg-white/40' : 'w-1.5 bg-white/10')} />
       ))}
     </div>
   )
@@ -213,15 +230,15 @@ export function RegisterRestaurantWizard() {
   return (
     <>
       {/* ── MOBILE ── */}
-      <div className="lg:hidden min-h-screen bg-zinc-950 flex flex-col">
+      <div className="lg:hidden min-h-screen bg-ink-dark font-onest flex flex-col">
         <div className="flex flex-col flex-1 px-7 pt-12 pb-10 overflow-y-auto">
           <div className="flex items-center justify-between mb-auto">
             {step === 2 ? (
-              <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-zinc-400 text-sm hover:text-zinc-200 transition-colors">
+              <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-white/45 text-sm hover:text-white/80 transition-colors">
                 <ChevronLeft className="h-4 w-4" /> Vissza
               </button>
             ) : (
-              <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+              <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
                 <SchedulioLogo variant="dark" className="h-8" />
               </Link>
             )}
@@ -230,24 +247,23 @@ export function RegisterRestaurantWizard() {
 
           {step === 1 && (
             <div className="mt-12">
-              <h2 className="text-white font-black text-[2rem] uppercase leading-[1.0] tracking-tighter mb-2">
+              <h2 className="text-white font-light text-[2rem] uppercase leading-[1.0] tracking-[-0.02em] mb-2">
                 MILYEN<br />ÉTTERMET<br />VEZETSZ?
               </h2>
-              <p className="text-zinc-500 text-sm mb-6">Válassz egy sablont — később testreszabhatod.</p>
+              <p className="text-white/45 text-sm mb-6">Válassz egy sablont — később testreszabhatod.</p>
               {templateCards(true)}
               <div className="mt-6 space-y-3">
                 <button
                   onClick={() => selectedTemplate && setStep(2)}
                   disabled={!selectedTemplate}
-                  className={cn(
-                    'w-full h-14 rounded-full font-bold text-base flex items-center justify-center gap-2 transition-all duration-200',
-                    selectedTemplate ? 'bg-white text-zinc-950 hover:bg-zinc-100' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                  )}
+                  className={authPillBtnLight}
                 >
                   Tovább <ChevronRight className="h-4 w-4" />
                 </button>
-                <Link href="/login" className="w-full h-14 rounded-full flex items-center justify-center text-zinc-600 font-medium text-base">
-                  Van már fiókom
+                <Link href="/login" className="block">
+                  <button className={authGhostBtnDark}>
+                    Van már fiókom
+                  </button>
                 </Link>
               </div>
             </div>
@@ -255,81 +271,129 @@ export function RegisterRestaurantWizard() {
 
           {step === 2 && (
             <div className="mt-12">
-              <h2 className="text-white font-black text-[2.5rem] uppercase leading-[1.0] tracking-tighter mb-8">
+              <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
                 CSATLAKOZZ<br />HOZZÁNK.
               </h2>
-              <form onSubmit={handleSubmit(onStep2)} className="space-y-3" noValidate>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">Étterem neve</Label>
-                  <input placeholder="Pl. Bistro Central" className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.restaurantName ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`} {...register('restaurantName')} />
-                  {errors.restaurantName && <p className="text-xs text-red-400">{errors.restaurantName.message}</p>}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">A te neved</Label>
-                  <input placeholder="Pl. Nagy Gábor" className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.ownerName ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`} {...register('ownerName')} />
-                  {errors.ownerName && <p className="text-xs text-red-400">{errors.ownerName.message}</p>}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">Email</Label>
-                  <input type="email" placeholder="te@pelda.hu" className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.email ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`} {...register('email')} />
-                  {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">Jelszó</Label>
-                  <input type="password" autoComplete="new-password" className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.password ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`} {...register('password')} />
-                  {errors.password && <p className="text-xs text-red-400">{errors.password.message}</p>}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-zinc-400 text-sm">Város</Label>
-                    <input placeholder="Budapest" className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.city ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`} {...register('city')} />
-                    {errors.city && <p className="text-xs text-red-400">{errors.city.message}</p>}
+              <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={handleSubmit(onStep2)} className="space-y-3" noValidate>
+                <motion.div variants={listStagger.item} className="space-y-1.5">
+                  <Label className={authLabelDark}>Étterem neve</Label>
+                  <input
+                    placeholder="Pl. Bistro Central"
+                    autoComplete="organization"
+                    aria-invalid={!!errors.restaurantName}
+                    aria-describedby={errors.restaurantName ? 'rreg-m-name-err' : undefined}
+                    className={cn(authInputDark, errors.restaurantName && 'ring-2 ring-red-400 border-red-400')}
+                    {...register('restaurantName')}
+                  />
+                  {errors.restaurantName && <p id="rreg-m-name-err" role="alert" className={authErrorTextDark}>{errors.restaurantName.message}</p>}
+                </motion.div>
+                <motion.div variants={listStagger.item} className="space-y-1.5">
+                  <Label className={authLabelDark}>A te neved</Label>
+                  <input
+                    placeholder="Pl. Nagy Gábor"
+                    autoComplete="name"
+                    aria-invalid={!!errors.ownerName}
+                    aria-describedby={errors.ownerName ? 'rreg-m-owner-err' : undefined}
+                    className={cn(authInputDark, errors.ownerName && 'ring-2 ring-red-400 border-red-400')}
+                    {...register('ownerName')}
+                  />
+                  {errors.ownerName && <p id="rreg-m-owner-err" role="alert" className={authErrorTextDark}>{errors.ownerName.message}</p>}
+                </motion.div>
+                <motion.div variants={listStagger.item} className="space-y-1.5">
+                  <Label className={authLabelDark}>Email</Label>
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="te@pelda.hu"
+                    aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? 'rreg-m-email-err' : undefined}
+                    className={cn(authInputDark, errors.email && 'ring-2 ring-red-400 border-red-400')}
+                    {...register('email')}
+                  />
+                  {errors.email && <p id="rreg-m-email-err" role="alert" className={authErrorTextDark}>{errors.email.message}</p>}
+                </motion.div>
+                <motion.div variants={listStagger.item} className="space-y-1.5">
+                  <Label className={authLabelDark}>Jelszó</Label>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? 'rreg-m-pw-err' : undefined}
+                    className={cn(authInputDark, errors.password && 'ring-2 ring-red-400 border-red-400')}
+                    {...register('password')}
+                  />
+                  {errors.password && <p id="rreg-m-pw-err" role="alert" className={authErrorTextDark}>{errors.password.message}</p>}
+                </motion.div>
+                <motion.div variants={listStagger.item} className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className={authLabelDark}>Város</Label>
+                    <input
+                      placeholder="Budapest"
+                      autoComplete="address-level2"
+                      aria-invalid={!!errors.city}
+                      aria-describedby={errors.city ? 'rreg-m-city-err' : undefined}
+                      className={cn(authInputDark, errors.city && 'ring-2 ring-red-400 border-red-400')}
+                      {...register('city')}
+                    />
+                    {errors.city && <p id="rreg-m-city-err" role="alert" className={authErrorTextDark}>{errors.city.message}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-zinc-400 text-sm">Telefon</Label>
-                    <input placeholder="+36 30..." className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.phone ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`} {...register('phone')} />
-                    {errors.phone && <p className="text-xs text-red-400">{errors.phone.message}</p>}
+                  <div className="space-y-1.5">
+                    <Label className={authLabelDark}>Telefon</Label>
+                    <input
+                      type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
+                      placeholder="+36 30..."
+                      aria-invalid={!!errors.phone}
+                      aria-describedby={errors.phone ? 'rreg-m-phone-err' : undefined}
+                      className={cn(authInputDark, errors.phone && 'ring-2 ring-red-400 border-red-400')}
+                      {...register('phone')}
+                    />
+                    {errors.phone && <p id="rreg-m-phone-err" role="alert" className={authErrorTextDark}>{errors.phone.message}</p>}
                   </div>
-                </div>
-                <div className="pt-2 space-y-4">
-                  <button type="submit" disabled={loading} className="w-full h-14 rounded-full bg-white text-zinc-950 font-bold text-base flex items-center justify-center gap-2">
+                </motion.div>
+                <motion.div variants={listStagger.item} className="pt-2 space-y-4">
+                  <button type="submit" disabled={loading} className={authPillBtnLight}>
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
                   </button>
-                  <Link href="/login" className="w-full h-14 rounded-full border border-zinc-700 text-zinc-300 font-medium text-base flex items-center justify-center">
-                    Van már fiókom
+                  <Link href="/login" className="block">
+                    <button type="button" className={authGhostBtnDark}>
+                      Van már fiókom
+                    </button>
                   </Link>
                   {/* Alternatív: Google-folytatás (jelszó nélkül) — a regisztráció alján. */}
-                  <div className="pt-2 flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-600">
-                    <span className="h-px flex-1 bg-zinc-800" />vagy<span className="h-px flex-1 bg-zinc-800" />
+                  <div className={`${authDividerDark} pt-2`}>
+                    <span className="h-px flex-1 bg-white/10" />vagy<span className="h-px flex-1 bg-white/10" />
                   </div>
                   <GoogleSignInButton
                     variant="dark"
                     label="Folytatás Google-lel"
                     onClick={continueWithGoogle}
                   />
-                </div>
-              </form>
+                </motion.div>
+              </motion.form>
             </div>
           )}
 
           {step === 3 && (
             <div className="mt-12 flex-1 flex flex-col justify-between">
               <div>
-                <h2 className="text-white font-black text-[2.5rem] uppercase leading-[1.0] tracking-tighter mb-8">
+                <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
                   KÉSZEN<br />VAGYOK.
                 </h2>
                 <div className="space-y-3">
                   {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Dashboard hozzáférés aktív'].map(item => (
-                    <div key={item} className="flex items-center gap-3 p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-                      <div className="h-5 w-5 rounded-full bg-white flex items-center justify-center shrink-0">
-                        <Check className="h-3 w-3 text-zinc-950" />
+                    <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.04] border border-white/10 rounded-xl">
+                      <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
+                        <Check className="h-3 w-3 text-ink-dark" />
                       </div>
-                      <span className="text-sm font-medium text-zinc-300">{item}</span>
+                      <span className="text-sm font-medium text-white/80">{item}</span>
                     </div>
                   ))}
                 </div>
               </div>
-              <button onClick={finish} className="w-full h-14 rounded-full bg-white text-zinc-950 font-bold text-base flex items-center justify-center gap-2">
+              <button onClick={finish} className={authPillBtnLight}>
                 Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -338,52 +402,49 @@ export function RegisterRestaurantWizard() {
       </div>
 
       {/* ── DESKTOP ── */}
-      <div className="hidden lg:flex min-h-screen">
-        <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-          <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+      <div className="hidden lg:flex min-h-screen font-onest">
+        <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
+          <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
             <SchedulioLogo variant="dark" className="h-8" />
           </Link>
           <div>
-            <h1 className="text-white font-black text-[3.25rem] uppercase leading-[1.05] tracking-tighter whitespace-pre-line">
+            <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
               {leftText.headline}
             </h1>
-            <p className="text-zinc-500 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
+            <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
           </div>
-          <p className="text-zinc-700 text-xs">© 2026 Schedulio by [davelopment]®</p>
+          <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white overflow-y-auto">
+        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light] overflow-y-auto">
           <div className="w-full max-w-sm">
-            <div className="h-1 bg-zinc-100 rounded-full mb-10 overflow-hidden">
-              <div className="h-full bg-zinc-900 rounded-full transition-all duration-500" style={{ width: `${progressWidth}%` }} />
+            <div className="h-1 bg-line rounded-full mb-10 overflow-hidden">
+              <div className="h-full bg-ink-dark rounded-full transition-all duration-500" style={{ width: `${progressWidth}%` }} />
             </div>
 
             {step === 1 && (
               <>
                 <div className="mb-6">
-                  <div className="h-9 w-9 rounded-xl bg-zinc-100 flex items-center justify-center mb-3">
-                    <UtensilsCrossed className="text-zinc-700" style={{ width: 18, height: 18 }} />
+                  <div className="h-9 w-9 rounded-xl bg-paper flex items-center justify-center mb-3">
+                    <UtensilsCrossed className="text-ink-soft" style={{ width: 18, height: 18 }} />
                   </div>
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">1 / 3</p>
-                  <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Milyen éttermet vezetsz?</h2>
-                  <p className="text-zinc-500 text-sm mt-1">Válassz sablont, te csak testreszabod.</p>
+                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">1 / 3</p>
+                  <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Milyen éttermet vezetsz?</h2>
+                  <p className="text-ink-soft text-sm mt-1">Válassz sablont, te csak testreszabod.</p>
                 </div>
                 {templateCards(false)}
                 <div className="mt-6">
                   <button
                     onClick={() => selectedTemplate && setStep(2)}
                     disabled={!selectedTemplate}
-                    className={cn(
-                      'w-full h-12 rounded-full font-semibold text-sm flex items-center justify-center gap-2 transition-all duration-200',
-                      selectedTemplate ? 'bg-zinc-900 text-white hover:bg-zinc-800' : 'bg-zinc-100 text-zinc-400 cursor-not-allowed'
-                    )}
+                    className={authPillBtn}
                   >
                     Tovább <ChevronRight className="h-4 w-4" />
                   </button>
                 </div>
-                <p className="text-center text-sm text-zinc-400 mt-4">
+                <p className="text-center text-sm text-ink-soft mt-4">
                   Van már fiókod?{' '}
-                  <Link href="/login" className="font-semibold text-zinc-700 hover:underline">Bejelentkezés</Link>
+                  <Link href="/login" className="font-semibold text-ink hover:underline no-underline">Bejelentkezés</Link>
                 </p>
               </>
             )}
@@ -391,52 +452,98 @@ export function RegisterRestaurantWizard() {
             {step === 2 && (
               <>
                 <div className="mb-8">
-                  <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-zinc-400 text-xs mb-4 hover:text-zinc-600 transition-colors">
+                  <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
                     <ChevronLeft className="h-3 w-3" /> Vissza
                   </button>
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">2 / 3</p>
-                  <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Hozd létre a fiókodat</h2>
+                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">2 / 3</p>
+                  <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Hozd létre a fiókodat</h2>
                 </div>
-                <form onSubmit={handleSubmit(onStep2)} className="space-y-4" noValidate>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Étterem neve</Label>
-                    <Input placeholder="Pl. Bistro Central" className={`h-11 rounded-xl bg-zinc-50 ${errors.restaurantName ? 'border-red-500' : 'border-zinc-200'}`} {...register('restaurantName')} />
-                    {errors.restaurantName && <p className="text-xs text-red-500">{errors.restaurantName.message}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">A te neved</Label>
-                    <Input placeholder="Pl. Nagy Gábor" className={`h-11 rounded-xl bg-zinc-50 ${errors.ownerName ? 'border-red-500' : 'border-zinc-200'}`} {...register('ownerName')} />
-                    {errors.ownerName && <p className="text-xs text-red-500">{errors.ownerName.message}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Email</Label>
-                    <Input type="email" placeholder="te@pelda.hu" className={`h-11 rounded-xl bg-zinc-50 ${errors.email ? 'border-red-500' : 'border-zinc-200'}`} {...register('email')} />
-                    {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Jelszó</Label>
-                    <Input type="password" autoComplete="new-password" className={`h-11 rounded-xl bg-zinc-50 ${errors.password ? 'border-red-500' : 'border-zinc-200'}`} {...register('password')} />
-                    {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
+                <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={handleSubmit(onStep2)} className="space-y-4" noValidate>
+                  <motion.div variants={listStagger.item} className="space-y-1.5">
+                    <Label className={authLabelBase}>Étterem neve</Label>
+                    <input
+                      placeholder="Pl. Bistro Central"
+                      autoComplete="organization"
+                      aria-invalid={!!errors.restaurantName}
+                      aria-describedby={errors.restaurantName ? 'rreg-d-name-err' : undefined}
+                      className={cn(authInputBase, errors.restaurantName && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...register('restaurantName')}
+                    />
+                    {errors.restaurantName && <p id="rreg-d-name-err" role="alert" className={authErrorText}>{errors.restaurantName.message}</p>}
+                  </motion.div>
+                  <motion.div variants={listStagger.item} className="space-y-1.5">
+                    <Label className={authLabelBase}>A te neved</Label>
+                    <input
+                      placeholder="Pl. Nagy Gábor"
+                      autoComplete="name"
+                      aria-invalid={!!errors.ownerName}
+                      aria-describedby={errors.ownerName ? 'rreg-d-owner-err' : undefined}
+                      className={cn(authInputBase, errors.ownerName && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...register('ownerName')}
+                    />
+                    {errors.ownerName && <p id="rreg-d-owner-err" role="alert" className={authErrorText}>{errors.ownerName.message}</p>}
+                  </motion.div>
+                  <motion.div variants={listStagger.item} className="space-y-1.5">
+                    <Label className={authLabelBase}>Email</Label>
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      inputMode="email"
+                      placeholder="te@pelda.hu"
+                      aria-invalid={!!errors.email}
+                      aria-describedby={errors.email ? 'rreg-d-email-err' : undefined}
+                      className={cn(authInputBase, errors.email && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...register('email')}
+                    />
+                    {errors.email && <p id="rreg-d-email-err" role="alert" className={authErrorText}>{errors.email.message}</p>}
+                  </motion.div>
+                  <motion.div variants={listStagger.item} className="space-y-1.5">
+                    <Label className={authLabelBase}>Jelszó</Label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      aria-invalid={!!errors.password}
+                      aria-describedby={errors.password ? 'rreg-d-pw-err' : undefined}
+                      className={cn(authInputBase, errors.password && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...register('password')}
+                    />
+                    {errors.password && <p id="rreg-d-pw-err" role="alert" className={authErrorText}>{errors.password.message}</p>}
+                  </motion.div>
+                  <motion.div variants={listStagger.item} className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-sm font-medium text-zinc-700">Város</Label>
-                      <Input placeholder="Budapest" className={`h-11 rounded-xl bg-zinc-50 ${errors.city ? 'border-red-500' : 'border-zinc-200'}`} {...register('city')} />
-                      {errors.city && <p className="text-xs text-red-500">{errors.city.message}</p>}
+                      <Label className={authLabelBase}>Város</Label>
+                      <input
+                        placeholder="Budapest"
+                        autoComplete="address-level2"
+                        aria-invalid={!!errors.city}
+                        aria-describedby={errors.city ? 'rreg-d-city-err' : undefined}
+                        className={cn(authInputBase, errors.city && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...register('city')}
+                      />
+                      {errors.city && <p id="rreg-d-city-err" role="alert" className={authErrorText}>{errors.city.message}</p>}
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-sm font-medium text-zinc-700">Telefon</Label>
-                      <Input placeholder="+36 30..." className={`h-11 rounded-xl bg-zinc-50 ${errors.phone ? 'border-red-500' : 'border-zinc-200'}`} {...register('phone')} />
-                      {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
+                      <Label className={authLabelBase}>Telefon</Label>
+                      <input
+                        type="tel"
+                        autoComplete="tel"
+                        inputMode="tel"
+                        placeholder="+36 30..."
+                        aria-invalid={!!errors.phone}
+                        aria-describedby={errors.phone ? 'rreg-d-phone-err' : undefined}
+                        className={cn(authInputBase, errors.phone && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...register('phone')}
+                      />
+                      {errors.phone && <p id="rreg-d-phone-err" role="alert" className={authErrorText}>{errors.phone.message}</p>}
                     </div>
-                  </div>
-                  <Button type="submit" disabled={loading} className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold mt-2">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="flex items-center gap-2">Tovább <ChevronRight className="h-4 w-4" /></span>}
-                  </Button>
-                </form>
+                  </motion.div>
+                  <motion.button variants={listStagger.item} type="submit" disabled={loading} className={cn(authPillBtn, 'mt-2')}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
+                  </motion.button>
+                </motion.form>
                 {/* Alternatív: Google-folytatás (jelszó nélkül) — a regisztráció alján. */}
-                <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-400">
-                  <span className="h-px flex-1 bg-zinc-200" />vagy<span className="h-px flex-1 bg-zinc-200" />
+                <div className={`${authDivider} mt-6`}>
+                  <span className="h-px flex-1 bg-line" />vagy<span className="h-px flex-1 bg-line" />
                 </div>
                 <div className="mt-3">
                   <GoogleSignInButton
@@ -445,9 +552,9 @@ export function RegisterRestaurantWizard() {
                     onClick={continueWithGoogle}
                   />
                 </div>
-                <p className="mt-6 text-center text-sm text-zinc-500">
+                <p className="mt-6 text-center text-sm text-ink-soft">
                   Van már fiókod?{' '}
-                  <Link href="/login" className="font-semibold text-zinc-900 hover:underline">Bejelentkezés</Link>
+                  <Link href="/login" className="font-semibold text-ink hover:underline no-underline">Bejelentkezés</Link>
                 </p>
               </>
             )}
@@ -455,23 +562,23 @@ export function RegisterRestaurantWizard() {
             {step === 3 && (
               <>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">3 / 3</p>
-                  <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Készen vagy!</h2>
-                  <p className="text-zinc-500 text-sm mt-1">Az éttermed sikeresen létrejött.</p>
+                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">3 / 3</p>
+                  <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Készen vagy!</h2>
+                  <p className="text-ink-soft text-sm mt-1">Az éttermed sikeresen létrejött.</p>
                 </div>
                 <div className="space-y-3">
                   {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Dashboard hozzáférés aktív'].map(item => (
-                    <div key={item} className="flex items-center gap-3 p-3.5 bg-zinc-50 rounded-xl">
-                      <div className="h-5 w-5 rounded-full bg-zinc-900 flex items-center justify-center shrink-0">
-                        <Check className="h-3 w-3 text-white" />
+                    <div key={item} className="flex items-center gap-3 p-3.5 bg-paper rounded-xl">
+                      <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
+                        <Check className="h-3 w-3 text-ink-dark" />
                       </div>
-                      <span className="text-sm font-medium text-zinc-700">{item}</span>
+                      <span className="text-sm font-medium text-ink">{item}</span>
                     </div>
                   ))}
                 </div>
-                <Button onClick={finish} className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold mt-6">
-                  <span className="flex items-center gap-2">Ugrás a dashboardra <ChevronRight className="h-4 w-4" /></span>
-                </Button>
+                <button onClick={finish} className={cn(authPillBtn, 'mt-6')}>
+                  Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
+                </button>
               </>
             )}
           </div>

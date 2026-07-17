@@ -81,6 +81,10 @@ export async function GET(req: NextRequest) {
     // Auth/DB hiba esetén megy tovább a fallback brand-névvel.
   }
 
+  // Preview-override: ?cover=<url> — hogy borítóképpel is látszódjon a demo (az élesben a cég cover_image-e).
+  const coverOverride = p.get('cover')?.trim()
+  if (coverOverride) brandCoverUrl = coverOverride
+
   const name = type === 'salon' ? 'Tóth Béla' : 'Kovács Anna'
   const guestEmail = type === 'salon' ? 'toth.bela@example.com' : 'kovacs.anna@example.com'
 
@@ -146,7 +150,7 @@ export async function GET(req: NextRequest) {
       ${introBlock(rawIntro, introVars)}
       ${detailsCard(detailRows)}
       <tr><td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-        <a href="${realGoogleReview || '#'}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${realGoogleReview ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'}</a>
+        <a href="${realGoogleReview || '#'}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${realGoogleReview ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'}</a>
       </td></tr>
       ${bottomSpacer()}`
   } else if (state === 'notify') {

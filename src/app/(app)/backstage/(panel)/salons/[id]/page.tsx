@@ -12,19 +12,19 @@ import SalonNotesForm from './SalonNotesForm'
 import ImpersonateButton from './ImpersonateButton'
 import { PLAN_LABELS, STATUS_LABELS } from '@/lib/backstagePlaces'
 
-/* davelopment státusz-badge (előfizetés + foglalás) */
+/* davelopment státusz-badge (előfizetés + foglalás) — egységes tokenek */
 const SUB_BADGE: Record<string, string> = {
-  trialing: 'bg-[#FBF4DC] text-[#7A6A2E]',
-  active: 'bg-[#E7F2EA] text-[#1D9D63]',
-  past_due: 'bg-[#F8E9E7] text-[#C0392B]',
-  canceled: 'bg-[#F0EAD8] text-ink-soft',
-  paused: 'bg-[#FBF4DC] text-[#7A6A2E]',
+  trialing: 'bg-warn-bg text-warn',
+  active: 'bg-ok-bg text-ok',
+  past_due: 'bg-bad-bg text-bad',
+  canceled: 'bg-paper text-ink-soft',
+  paused: 'bg-warn-bg text-warn',
 }
 function bookingBadge(status: string): string {
-  if (status === 'confirmed') return 'bg-[#E7F2EA] text-[#1D9D63]'
-  if (status === 'cancelled' || status === 'no_show') return 'bg-[#F8E9E7] text-[#C0392B]'
-  if (status === 'completed') return 'bg-[#F0EAD8] text-ink-soft'
-  return 'bg-[#FBF4DC] text-[#7A6A2E]'
+  if (status === 'confirmed') return 'bg-ok-bg text-ok'
+  if (status === 'cancelled' || status === 'no_show') return 'bg-bad-bg text-bad'
+  if (status === 'completed') return 'bg-paper text-ink-soft'
+  return 'bg-warn-bg text-warn'
 }
 
 export default async function SalonDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -63,11 +63,11 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
 
   const recentBookings = bookingsResult.docs as Booking[]
 
-  const cardBase = 'rounded-[26px] bg-white border border-line shadow-dav-card'
+  const cardBase = 'rounded-[26px] dav-card-glass'
   const label = 'text-[11px] font-semibold uppercase tracking-wider text-ink-soft'
 
   return (
-    <div className="space-y-[22px] p-5 font-onest lg:p-8">
+    <div className="space-y-6 p-5 lg:p-0">
       {/* Back */}
       <Link href="/backstage/salons" className="inline-flex items-center gap-1.5 text-[13.5px] font-medium text-ink-soft transition-colors hover:text-ink">
         <ArrowLeft className="h-4 w-4" /> Szalonok
@@ -76,13 +76,13 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
       {/* Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-[#F6F2E4]">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[16px] bg-gold/20">
             <Building2 className="h-6 w-6 text-ink-soft" strokeWidth={1.7} />
           </div>
           <div>
             <h1 className="text-[28px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[34px]">{salon.name}</h1>
             <div className="mt-2 flex flex-wrap items-center gap-3">
-              <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${salon.is_active ? 'bg-[#E7F2EA] text-[#1D9D63]' : 'bg-[#F0EAD8] text-ink-soft'}`}>
+              <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${salon.is_active ? 'bg-ok-bg text-ok' : 'bg-paper text-ink-soft'}`}>
                 {salon.is_active ? 'Aktív' : 'Inaktív'}
               </span>
               {salon.city && (
@@ -97,7 +97,7 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
           <a
             href={`/${salon.slug}`}
             target="_blank"
-            className="flex items-center gap-1.5 rounded-[22px] bg-[#F6F2E4] px-[16px] py-[11px] text-[13.5px] font-semibold text-ink transition-colors hover:bg-[#EFE9D6]"
+            className="flex items-center gap-1.5 rounded-[22px] bg-paper px-[16px] py-[11px] text-[13.5px] font-semibold text-ink transition-colors hover:bg-line-strong"
           >
             <ExternalLink className="h-3.5 w-3.5" /> Nyilvános oldal
           </a>
@@ -111,11 +111,12 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
           <p className={`${label} mb-3`}>Tulajdonos</p>
           {owner ? (
             <div>
-              <p className="text-[14px] font-semibold text-ink">{owner.name}</p>
+              <Link href={`/backstage/accounts/${owner.id}`} className="text-[14px] font-semibold text-ink hover:underline">{owner.name || owner.email}</Link>
               <p className="mt-0.5 text-[12px] text-ink-soft">{owner.email}</p>
               <p className="mt-3 text-[12px] text-ink-soft2">
                 Regisztrált: {new Date(owner.createdAt).toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' })}
               </p>
+              <Link href={`/backstage/accounts/${owner.id}`} className="mt-2 inline-block text-[12px] font-semibold text-ink-soft underline hover:text-ink">Fiók megtekintése →</Link>
             </div>
           ) : (
             <p className="text-[14px] text-ink-soft">—</p>
@@ -129,7 +130,7 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
             <div>
               <div className="mb-2 flex items-center gap-2">
                 <span className="text-[14px] font-bold text-ink">{PLAN_LABELS[sub.plan]}</span>
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${SUB_BADGE[sub.status] ?? 'bg-[#F0EAD8] text-ink-soft'}`}>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${SUB_BADGE[sub.status] ?? 'bg-paper text-ink-soft'}`}>
                   {STATUS_LABELS[sub.status]}
                 </span>
               </div>

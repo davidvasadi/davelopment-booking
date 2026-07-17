@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
+import { assertCapability } from '@/lib/apiCapability'
 import type { Restaurant } from '@/payload/payload-types'
 
 /**
  * Kategória (szerepkör) HOZZÁADÁSA az AKTÍV étterem saját listájához. A meghíváskori
- * append mellett ez teszi lehetővé, hogy a tulaj a kategóriát AZONNAL (meghívás nélkül is)
- * elmentse — így nem vész el a „felét elfelejti" hiba szerint. Owner-only, idempotens.
+ * append mellett ez teszi lehetővé, hogy a kategória AZONNAL (meghívás nélkül is)
+ * elmentődjön — így nem vész el a „felét elfelejti" hiba szerint. RBAC: `team.manage`, idempotens.
  */
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
@@ -28,12 +29,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Kategóriák csak étteremhez tartoznak' }, { status: 400 })
   }
 
+  // RBAC: `team.manage` (owner + manager) az aktív étteremben.
+  const denied = await assertCapability(user.id, 'restaurant', active.id, 'team.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
+
   const payload = await getPayloadClient()
   const biz = (await payload.findByID({ collection: 'restaurants', id: active.id, depth: 0, overrideAccess: true })) as Restaurant
-  const ownerId = typeof biz.owner === 'object' && biz.owner ? biz.owner.id : biz.owner
-  if (String(ownerId) !== String(user.id)) {
-    return NextResponse.json({ error: 'Nincs jogosultság ehhez az üzlethez' }, { status: 403 })
-  }
 
   const existing = (biz.positions ?? []).map((p) => p.label)
   if (!existing.includes(label)) {

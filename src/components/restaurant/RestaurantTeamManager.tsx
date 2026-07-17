@@ -27,9 +27,15 @@ export interface TeamCard {
   email: string
   avatarUrl?: string | null // valós profilkép (media / Google avatar); null → monogram
   roleTone: 'owner' | 'manager' | 'staff'
+  roleName?: string | null // a megadott (egyedi) szerep NEVE; ha nincs, a roleTone címkéje jelenik meg
   pending: boolean
   status: 'active' | 'invited' | 'suspended'
   joinDate: string | null
+}
+
+/** A soron megjelenített szerep-címke: az egyedi szerep neve, különben a tone alap-címkéje. */
+function roleLabelOf(t: TeamCard): string {
+  return t.roleName || ROLE_LABEL[t.roleTone]
 }
 
 /** Felfüggesztett sávozott (hatch) minta — a pill ÉS az EGÉSZ SOR is ezt kapja (mint a kijelölés-sárga, csak szaggatva). */
@@ -67,22 +73,21 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-export default function RestaurantTeamManager({ initialTeam, employees, positions = [], canManage = false, canEditSalary = false }: { initialTeam: TeamCard[]; employees?: Employee[]; positions?: { label: string; level: 'lead' | 'staff' }[]; canManage?: boolean; canEditSalary?: boolean }) {
+export default function RestaurantTeamManager({ initialTeam, employees, customRoles = [], canManage = false, canEditSalary = false }: { initialTeam: TeamCard[]; employees?: Employee[]; customRoles?: { id: string; name: string }[]; canManage?: boolean; canEditSalary?: boolean }) {
   const [team, setTeam] = useState<TeamCard[]>(initialTeam)
   // A roster (adatlap-adatok) helyi state — profil-szerkesztés után újranyitáskor is friss.
   const [roster, setRoster] = useState<Employee[]>(employees ?? [])
   const [open, setOpen] = useState(false)
   const [email, setEmail] = useState('')
-  const [category, setCategory] = useState('')
-  const [posts, setPosts] = useState<{ label: string; level: 'lead' | 'staff' }[]>(positions)
-  const [addingPost, setAddingPost] = useState(false)
-  const [newPost, setNewPost] = useState('')
-  const [newLevel, setNewLevel] = useState<'lead' | 'staff'>('staff')
+  // Egységes szerep-modell: a meghívás a Beállításokban megadott (egyedi) szerepek közül választ.
+  // A szerep NEVE a pozíció, a JOGAI a jogosultság — nincs külön kategória.
+  const [roleId, setRoleId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending'>('all')
-  const [roleFilter, setRoleFilter] = useState<'all' | 'owner' | 'manager' | 'staff'>('all')
+  // Egységes: a szerep-szűrő a TÉNYLEGES szerep-nevekre szűr (amit a kártya is mutat), nem beépített tone-okra.
+  const [roleFilter, setRoleFilter] = useState<string>('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   // Melyik tag státusz-menüje van nyitva (választás, nem instant-toggle → nem lehet elütni).
   const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null)
@@ -100,16 +105,18 @@ export default function RestaurantTeamManager({ initialTeam, employees, position
   const ownerPct = totalTeam ? Math.round((ownerNum / totalTeam) * 100) : 0
   const managerPct = totalTeam ? Math.round((managerNum / totalTeam) * 100) : 0
   const staffPct = totalTeam ? Math.round((staffNum / totalTeam) * 100) : 0
+  // A szerep-szűrő opciói: a csapatban ELŐFORDULÓ tényleges szerep-nevek (Tulajdonos + egyedi szerepek).
+  const roleFilterOptions = Array.from(new Set(team.map(roleLabelOf).filter(Boolean)))
 
   const fmtDate = (iso: string | null) =>
     iso ? new Date(iso).toLocaleDateString('hu-HU', { year: 'numeric', month: '2-digit', day: '2-digit' }) : '—'
   const filtered = team.filter((t) => {
     if (statusFilter === 'active' && t.pending) return false
     if (statusFilter === 'pending' && !t.pending) return false
-    if (roleFilter !== 'all' && t.roleTone !== roleFilter) return false
+    if (roleFilter !== 'all' && roleLabelOf(t) !== roleFilter) return false
     if (!query.trim()) return true
     const q = query.toLowerCase()
-    return t.name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q) || ROLE_LABEL[t.roleTone].toLowerCase().includes(q)
+    return t.name.toLowerCase().includes(q) || t.email.toLowerCase().includes(q) || roleLabelOf(t).toLowerCase().includes(q)
   })
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -125,25 +132,24 @@ export default function RestaurantTeamManager({ initialTeam, employees, position
       toast.error('Érvényes email cím szükséges')
       return
     }
+    if (!roleId) { toast.error('Válassz szerepet (a Beállítások → Csapatban hozol létre)'); return }
     setSubmitting(true)
     try {
-      // A jogosultság a kiválasztott kategória szintjéből jön (Vezető→manager, Dolgozó→staff).
-      const cat = posts.find((p) => p.label === category)
-      const derivedRole: 'manager' | 'staff' = cat?.level === 'lead' ? 'manager' : 'staff'
+      // Egységes modell: a megadott (egyedi) szerep dönt — a NEVE a pozíció, a JOGAI a jogosultság.
       const res = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: em, role: derivedRole, position: category || undefined }),
+        body: JSON.stringify({ email: em, custom_role: roleId }),
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error || 'Hiba')
       }
-      setTeam((prev) => [...prev, { id: `tmp-${em}`, name: em, email: em, roleTone: derivedRole, pending: true, status: 'invited', joinDate: null }])
+      setTeam((prev) => [...prev, { id: `tmp-${em}`, name: em, email: em, roleTone: 'staff', pending: true, status: 'invited', joinDate: null }])
       setOpen(false)
       setEmail('')
-      setCategory('')
+      setRoleId('')
       toast.success('Meghívó elküldve')
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'A meghívás sikertelen')
@@ -277,13 +283,13 @@ export default function RestaurantTeamManager({ initialTeam, employees, position
           <div className="relative hidden shrink-0 md:block">
             <select
               value={roleFilter}
-              onChange={(e) => setRoleFilter(e.target.value as 'all' | 'owner' | 'manager' | 'staff')}
+              onChange={(e) => setRoleFilter(e.target.value)}
               className="cursor-pointer appearance-none rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
             >
               <option value="all">Minden szerep</option>
-              <option value="owner">Tulajdonos</option>
-              <option value="manager">Vezető</option>
-              <option value="staff">Dolgozó</option>
+              {roleFilterOptions.map((label) => (
+                <option key={label} value={label}>{label}</option>
+              ))}
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
@@ -397,7 +403,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, position
                       <span className="inline-flex rounded-[9px] bg-ink-dark px-2.5 py-[5px] text-[12px] font-semibold text-gold">Tulajdonos</span>
                     ) : (
                       <span className="inline-flex rounded-[9px] border border-line-strong px-2.5 py-[5px] text-[12px] font-semibold text-ink-soft">
-                        {ROLE_LABEL[m.roleTone]}
+                        {roleLabelOf(m)}
                       </span>
                     )}
                   </div>
@@ -469,7 +475,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, position
                   )}
                   <div className="min-w-0 flex-1">
                     <p className={`truncate text-[15px] font-semibold ${suspended ? 'text-ink-soft line-through' : 'text-ink'}`}>{m.name}</p>
-                    <p className="truncate text-[12.5px] font-medium text-ink-soft">{ROLE_LABEL[m.roleTone]}</p>
+                    <p className="truncate text-[12.5px] font-medium text-ink-soft">{roleLabelOf(m)}</p>
                   </div>
                   <div className="relative shrink-0">
                     <button
@@ -544,84 +550,28 @@ export default function RestaurantTeamManager({ initialTeam, employees, position
               />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Kategória (szerepkör)</Label>
-              {addingPost ? (
-                <div className="space-y-2">
-                  <Input
-                    autoFocus
-                    value={newPost}
-                    onChange={(e) => setNewPost(e.target.value)}
-                    placeholder="Pl. Konyhavezető"
-                    className="h-11 rounded-xl"
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    {(['lead', 'staff'] as const).map((lv) => (
-                      <button
-                        key={lv}
-                        type="button"
-                        onClick={() => setNewLevel(lv)}
-                        className="rounded-xl px-3 py-2.5 text-[13px] font-semibold transition-colors"
-                        style={newLevel === lv ? { background: '#1D1C19', color: '#fff' } : { background: '#f3f2ef', color: '#5C5848' }}
-                      >
-                        {lv === 'lead' ? 'Vezető' : 'Dolgozó'}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const v = newPost.trim()
-                        if (v) {
-                          setPosts((prev) => (prev.some((p) => p.label === v) ? prev : [...prev, { label: v, level: newLevel }]))
-                          setCategory(v)
-                          // AZONNAL elmentjük az étteremhez (nem csak meghíváskor) — így nem vész el.
-                          void fetch('/api/team/positions', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
-                            body: JSON.stringify({ label: v, level: newLevel }),
-                          }).catch(() => {})
-                        }
-                        setAddingPost(false)
-                        setNewPost('')
-                      }}
-                      className="h-10 flex-1 rounded-xl bg-ink-dark text-[13px] font-semibold text-white"
-                    >
-                      Hozzáadás
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setAddingPost(false); setNewPost('') }}
-                      className="h-10 shrink-0 rounded-xl border border-line px-4 text-[13px] font-medium text-ink-soft"
-                    >
-                      Mégse
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <select
-                  value={category}
-                  onChange={(e) => {
-                    if (e.target.value === '__new') { setAddingPost(true); setCategory('') }
-                    else setCategory(e.target.value)
-                  }}
-                  className="h-11 w-full rounded-xl border border-line bg-white px-3 text-[14px] text-ink focus:outline-none"
-                >
-                  <option value="">— Válassz kategóriát —</option>
-                  {posts.map((p) => (
-                    <option key={p.label} value={p.label}>{p.label} · {p.level === 'lead' ? 'Vezető' : 'Dolgozó'}</option>
-                  ))}
-                  <option value="__new">+ Új kategória…</option>
-                </select>
-              )}
+              <Label className="text-sm font-medium">Szerep *</Label>
+              <select
+                value={roleId}
+                onChange={(e) => setRoleId(e.target.value)}
+                disabled={customRoles.length === 0}
+                className="h-11 w-full rounded-xl border border-line bg-white px-3 text-[14px] text-ink focus:outline-none disabled:opacity-60"
+              >
+                <option value="">{customRoles.length === 0 ? 'Előbb hozz létre szerepet ↓' : '— Válassz szerepet —'}</option>
+                {customRoles.map((r) => (
+                  <option key={r.id} value={r.id}>{r.name}</option>
+                ))}
+              </select>
               <p className="text-xs text-ink-soft">
-                A szerepkör (Felszolgáló, Konyhavezető…). A <b>Vezető</b> mindent kezel (bér nélkül), a <b>Dolgozó</b> a sajátját. A Tulajdonos te vagy.
+                A szerep <b>neve</b> a pozíció (Felszolgáló, Konyhavezető…), a <b>jogai</b> a jogosultság.
+                {customRoles.length === 0
+                  ? ' Új szerepet a Beállítások → Csapat oldalon adsz meg.'
+                  : ' A szerepeket a Beállítások → Csapat oldalon szerkeszted. A Tulajdonos te vagy.'}
               </p>
             </div>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || !roleId}
               className="h-12 w-full rounded-dav-pill bg-ink-dark text-sm font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
             >
               {submitting ? 'Küldés...' : 'Meghívó küldése'}
@@ -664,7 +614,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, position
         onClose={() => setHiringIndex(null)}
         variant="restaurant"
         employees={roster}
-        positions={posts}
+        positions={customRoles.map((r) => ({ label: r.name, level: 'staff' as const }))}
         canManage={canManage}
         canEditSalary={canEditSalary}
         statusById={Object.fromEntries(

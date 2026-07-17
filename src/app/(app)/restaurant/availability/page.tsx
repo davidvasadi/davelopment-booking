@@ -1,4 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { AvailabilityView } from '@/components/restaurant/AvailabilityView'
 import { type Exception } from '@/components/restaurant/OpeningHoursExceptions'
@@ -6,7 +7,8 @@ import { DAYS_OF_WEEK, type DayOfWeek } from '@/lib/restaurantTemplates'
 import type { OpeningHour } from '@/payload/payload-types'
 
 export default async function RestaurantAvailabilityPage() {
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, capabilities } = await getOwnedRestaurant()
+  requireCapability(capabilities, 'settings.profile', '/restaurant')
   const payload = await getPayloadClient()
 
   const res = await payload.find({

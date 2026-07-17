@@ -27,7 +27,10 @@ import { Customers } from './src/payload/collections/Customers'
 import { Notifications } from './src/payload/collections/Notifications'
 import { Reviews } from './src/payload/collections/Reviews'
 import { Memberships } from './src/payload/collections/Memberships'
+import { Roles } from './src/payload/collections/Roles'
+import { PushSubscriptions } from './src/payload/collections/PushSubscriptions'
 import { AuditLog } from './src/payload/collections/AuditLog'
+import { EmailLog } from './src/payload/collections/EmailLog'
 import { Tasks } from './src/payload/collections/Tasks'
 
 // Globals
@@ -78,7 +81,10 @@ export default buildConfig({
     Notifications,
     Reviews,
     Memberships,
+    Roles,
+    PushSubscriptions,
     AuditLog,
+    EmailLog,
     Tasks,
   ],
   globals: [PricingSettings],

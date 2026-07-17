@@ -1,4 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { getPayloadClient } from '@/lib/payload'
 import { buildRestaurantAdvisor, type SetupFlags } from '@/lib/tipsAdvisor'
@@ -8,7 +9,8 @@ import type { Restaurant } from '@/payload/payload-types'
 export const metadata = { title: 'Tippek' }
 
 export default async function RestaurantTipsPage() {
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, capabilities } = await getOwnedRestaurant()
+  requireCapability(capabilities, 'analytics.view', '/restaurant')
   const r = restaurant as Restaurant
   const payload = await getPayloadClient()
 

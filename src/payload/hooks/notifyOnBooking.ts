@@ -1,4 +1,5 @@
 import type { CollectionAfterChangeHook } from 'payload'
+import { sendPushToUsers } from '../../lib/webPush'
 
 // Közös afterChange hook gyár: új foglaláskor (create) és lemondáskor (status → cancelled)
 // app-on belüli értesítést hoz létre — de csak ha a tulajnál `notify_new_bookings` be van kapcsolva.
@@ -53,6 +54,33 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
           [kind === 'restaurant' ? 'reservation' : 'booking']: doc.id,
         },
       })
+
+      // ── WEB PUSH: a tulaj + az aktív tagok opt-in eszközeire (csak akiknek van feliratkozása).
+      // Best-effort, külön try — az esetleges push-hiba ne érintse a foglalás/értesítés mentését.
+      try {
+        const ownerId = place.owner && typeof place.owner === 'object' ? (place.owner as { id: number | string }).id : (place as { owner?: number | string }).owner
+        const members = await req.payload.find({
+          collection: 'memberships',
+          where: { and: [{ [kind]: { equals: placeId } }, { status: { equals: 'active' } }] },
+          limit: 200,
+          depth: 0,
+          overrideAccess: true,
+          req,
+        })
+        const memberUserIds = members.docs.map((m) => m.user).filter(Boolean) as (string | number)[]
+        const url =
+          kind === 'restaurant'
+            ? `/restaurant/bookings?reservation=${doc.id}`
+            : `/dashboard/bookings?booking=${doc.id}`
+        await sendPushToUsers(req.payload, [ownerId, ...memberUserIds], {
+          title: `${title} · ${place.name ?? ''}`.trim().replace(/ ·\s*$/, ''),
+          body,
+          url,
+          tag: `${kind}-${doc.id}`,
+        })
+      } catch (pushErr) {
+        req.payload.logger.error(`notifyOnBooking push (${kind}) hiba: ${String(pushErr)}`)
+      }
     } catch (err) {
       // Az értesítés best-effort: ne bukjon el rajta a foglalás mentése.
       req.payload.logger.error(`notifyOnBooking (${kind}) hiba: ${String(err)}`)

@@ -1,11 +1,15 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { useSearchParams } from 'next/navigation'
 import { Building2, UtensilsCrossed, MapPin, CalendarCheck, Search } from 'lucide-react'
 import PlaceToggle from './PlaceToggle'
 import PlaceDetailSheet from '@/components/backstage/PlaceDetailSheet'
 import type { PlaceKind } from '@/lib/backstagePlaces'
+import { ActivePill } from '@/components/backstage/BackstageUi'
+import { EmptyState } from '@/components/ui/empty-state'
+import { listStagger } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 
 export type PlaceRow = {
@@ -78,10 +82,10 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Keresés név, email, város alapján…"
-            className="w-full rounded-[22px] border border-line bg-white py-[11px] pl-11 pr-4 text-[13.5px] text-ink placeholder:text-ink-soft2 focus:outline-none"
+            className="w-full rounded-[22px] border border-line bg-white py-[11px] pl-11 pr-4 text-[13.5px] text-ink placeholder:text-ink-soft2 focus:border-line-strong focus:outline-none"
           />
         </div>
-        <div className="flex shrink-0 items-center gap-0.5 rounded-[22px] bg-[#F6F2E4] p-1">
+        <div className="flex shrink-0 items-center gap-0.5 rounded-[22px] border border-line bg-white p-1">
           {FILTERS.map(f => (
             <button
               key={f.value}
@@ -100,7 +104,7 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
         </div>
       </div>
 
-      <div className="rounded-[24px] border border-line bg-white p-2.5 shadow-dav-card">
+      <div className="rounded-[26px] p-2.5 dav-card-glass">
         {/* Desktop header */}
         <div className="hidden grid-cols-[1fr_200px_110px_100px_60px] gap-4 px-[13px] py-2 lg:grid">
           {['Hely', 'Tulajdonos', 'Foglalások', 'Regisztrált', 'Aktív'].map(h => (
@@ -109,33 +113,29 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
         </div>
 
         {filtered.length === 0 ? (
-          <p className="px-5 py-10 text-center text-[13.5px] text-ink-soft">
-            {query || filter !== 'all' ? 'Nincs találat.' : 'Nincs egyetlen hely sem.'}
-          </p>
+          <EmptyState icon={Building2} title={query || filter !== 'all' ? 'Nincs találat' : 'Nincs egyetlen hely sem'} description={query || filter !== 'all' ? 'Próbálj más keresést vagy szűrőt.' : undefined} />
         ) : (
-          <div className="flex flex-col gap-[3px]">
+          <motion.div variants={listStagger.container} initial="hidden" animate="show" className="flex flex-col gap-[3px]">
             {filtered.map((p) => {
               const Icon = p.kind === 'restaurant' ? UtensilsCrossed : Building2
               const typeLabel = p.kind === 'restaurant' ? 'Étterem' : 'Szalon'
               const date = new Date(p.createdAt).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric', year: 'numeric' })
 
               return (
-                <div key={`${p.kind}-${p.id}`}>
+                <motion.div key={`${p.kind}-${p.id}`} variants={listStagger.item}>
                   {/* Mobile — card stack */}
                   <div
-                    className="flex cursor-pointer items-start gap-3 rounded-[20px] p-[13px] transition-colors hover:bg-[#FCFAF1] lg:hidden"
+                    className="flex cursor-pointer items-start gap-3 rounded-[20px] p-[13px] transition-colors hover:bg-white lg:hidden"
                     onClick={() => openDetail(p)}
                   >
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-[#F0EAD8]">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-gold/20">
                       <Icon className="h-4 w-4 text-ink" strokeWidth={1.7} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="mb-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <p className="truncate text-[14px] font-semibold text-ink">{p.name}</p>
                         <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-ink-soft">{typeLabel}</span>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${p.is_active ? 'bg-[#E7F2EA] text-[#1D9D63]' : 'bg-[#F0EAD8] text-ink-soft'}`}>
-                          {p.is_active ? 'Aktív' : 'Inaktív'}
-                        </span>
+                        <ActivePill active={!!p.is_active} />
                       </div>
                       <p className="truncate text-[11.5px] text-ink-soft">{p.ownerEmail ?? '—'}</p>
                       <div className="mt-1 flex flex-wrap items-center gap-3">
@@ -148,11 +148,11 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
 
                   {/* Desktop */}
                   <div
-                    className="hidden cursor-pointer grid-cols-[1fr_200px_110px_100px_60px] items-center gap-4 rounded-[20px] px-[13px] py-3 transition-colors hover:bg-[#FCFAF1] lg:grid"
+                    className="hidden cursor-pointer grid-cols-[1fr_200px_110px_100px_60px] items-center gap-4 rounded-[20px] px-[13px] py-3 transition-colors hover:bg-white lg:grid"
                     onClick={() => openDetail(p)}
                   >
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-[#F0EAD8]">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[13px] bg-gold/20">
                         <Icon className="h-4 w-4 text-ink" strokeWidth={1.7} />
                       </div>
                       <div className="min-w-0">
@@ -167,7 +167,7 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
                       <p className="flex items-center gap-1.5 truncate text-[13px] text-ink">
                         <span className="truncate">{p.ownerEmail ?? '—'}</span>
                         {(p.ownerBusinessCount ?? 1) > 1 && (
-                          <span className="shrink-0 rounded-full bg-[#FBF4DC] px-1.5 py-0.5 text-[10px] font-bold text-[#7A6A2E]">
+                          <span className="shrink-0 rounded-full bg-warn-bg px-1.5 py-0.5 text-[10px] font-bold text-warn">
                             {p.ownerBusinessCount} üzletből
                           </span>
                         )}
@@ -183,10 +183,10 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
                       <PlaceToggle kind={p.kind} placeId={p.id} isActive={p.is_active ?? false} />
                     </div>
                   </div>
-                </div>
+                </motion.div>
               )
             })}
-          </div>
+          </motion.div>
         )}
       </div>
       {(query || filter !== 'all') && filtered.length > 0 && (

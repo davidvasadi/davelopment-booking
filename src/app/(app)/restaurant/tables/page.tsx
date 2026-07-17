@@ -1,11 +1,13 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { TablesManager } from '@/components/restaurant/TablesManager'
 import type { Room, Table } from '@/payload/payload-types'
 import { PageHeader } from '@/components/ui/page-header'
 
 export default async function RestaurantTablesPage() {
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, capabilities } = await getOwnedRestaurant()
+  requireCapability(capabilities, 'catalog.view', '/restaurant')
   const payload = await getPayloadClient()
 
   const [roomsRes, tablesRes] = await Promise.all([

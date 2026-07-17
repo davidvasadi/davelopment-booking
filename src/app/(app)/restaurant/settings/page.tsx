@@ -1,4 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
@@ -9,6 +10,7 @@ import { getAuditLogForBusiness } from '@/lib/auditContext'
 import {
   SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
 } from '@/components/settings/SettingsHub'
+import { RolesManager } from '@/components/settings/RolesManager'
 import type { Restaurant } from '@/payload/payload-types'
 
 const initialsOf = (name: string) =>
@@ -23,7 +25,8 @@ function planName(sub: { plan?: string | null; status?: string | null } | null):
 }
 
 export default async function RestaurantSettingsPage() {
-  const { restaurant, businessCount, userId } = await getOwnedRestaurant()
+  const { restaurant, businessCount, userId, capabilities } = await getOwnedRestaurant()
+  requireCapability(capabilities, 'settings.profile', '/restaurant')
   const payload = await getPayloadClient()
   const r = restaurant as Restaurant
 
@@ -39,6 +42,9 @@ export default async function RestaurantSettingsPage() {
     ownerName: user.name || r.name,
     ownerEmail: (user.email || r.email) ?? '',
   })
+
+  // ── Egyedi szerepek (2. fázis) — az üzlet custom szerepei a RolesManager panelhez.
+  const rolesRes = await payload.find({ collection: 'roles', where: { restaurant: { equals: r.id } }, sort: 'name', limit: 100, overrideAccess: true })
 
   // ── Audit-napló — VALÓS legutóbbi bejegyzések (az étteremre szűrve).
   const auditLog = await getAuditLogForBusiness({ type: 'restaurant', businessId: r.id })
@@ -129,6 +135,16 @@ export default async function RestaurantSettingsPage() {
         businessCount={businessCount}
         planLabel={plan}
         auditLog={auditLog}
+        customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
+        rolesSection={
+          <RolesManager
+            key="roles-panel"
+            variant="restaurant"
+            businessId={String(restaurant.id)}
+            initialRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name, capabilities: r.capabilities ?? null }))}
+            myCapabilities={capabilities}
+          />
+        }
         profilePanel={
           <RestaurantSettingsForm
             restaurantId={r.id}

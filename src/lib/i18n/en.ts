@@ -40,6 +40,8 @@ export const en: Record<string, string> = {
   'booking.err.email': 'A valid email is required',
   'booking.err.phone': 'A valid phone number is required',
   'booking.err.generic': 'Something went wrong',
+  'booking.retry': 'Try again',
+  'booking.leaveConfirm': 'You will lose your booking progress. Leave anyway?',
 
   // ── Restaurant booking wizard ──
   'rbooking.step.datetime': 'Time',
@@ -67,6 +69,8 @@ export const en: Record<string, string> = {
   'rbooking.err.email': 'Invalid email address',
   'rbooking.err.phone': 'A phone number is required',
   'rbooking.err.generic': 'Reservation failed',
+  'rbooking.err.slots': 'Could not load time slots',
+  'rbooking.retry': 'Try again',
   'rbooking.guests': '{{n}} guests',
 
   // ── Date strip — day abbreviations, starting Sunday ──

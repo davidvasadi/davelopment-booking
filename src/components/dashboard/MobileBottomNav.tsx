@@ -8,7 +8,8 @@ import { toast } from 'sonner'
 import { motion } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { LogOut, Monitor, Sun, Moon, MoreHorizontal, Lock, Plus, Loader2, X, CreditCard } from 'lucide-react'
-import { getNavConfig, type DashboardVariant } from './navConfig'
+import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
+import type { Capability } from '@/lib/permissions'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notificationVisual } from '@/lib/useNotifications'
 
@@ -22,17 +23,20 @@ type SubInfo = {
 export default function MobileBottomNav({
   subscription,
   variant = 'salon',
+  capabilities = [],
   userName = null,
   userEmail = null,
   userAvatarUrl = null,
 }: {
   subscription?: SubInfo
   variant?: DashboardVariant
+  capabilities?: Capability[]
   userName?: string | null
   userEmail?: string | null
   userAvatarUrl?: string | null
 }) {
-  const { items: navItems, settingsHref, subscriptionHref } = getNavConfig(variant)
+  const { settingsHref, subscriptionHref } = getNavConfig(variant)
+  const navItems = navItemsForCapabilities(variant, capabilities)
   const pathname = usePathname()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
@@ -217,7 +221,10 @@ export default function MobileBottomNav({
                 </button>
               )}
             </div>
-            <div className="px-2 pb-1">
+            {/* Az értesítés-lista SAJÁT, korlátozott magasságú görgető — így sok értesítésnél
+                sem nő túl a panelen (nem folyik ki a kijelzőből), és a menü/kijelentkezés
+                alatta mindig elérhető marad. data-lenis-prevent: a Lenis ne nyelje el a scrollt. */}
+            <div className="px-2 pb-1 max-h-[42vh] overflow-y-auto overscroll-contain" data-lenis-prevent>
               {items.length === 0 ? (
                 <p className="px-3 pb-3 text-center text-xs text-zinc-400 dark:text-white/30">Nincs új értesítés</p>
               ) : (

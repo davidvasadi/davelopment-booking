@@ -1,6 +1,8 @@
 import Link from 'next/link'
-import { Lock, Settings, ArrowRight, Coins, Download, Layers, CreditCard } from 'lucide-react'
+import { Lock, Settings, ArrowRight, Coins, Layers, CreditCard } from 'lucide-react'
 import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
+import { StripeCheckoutButton } from '@/components/dashboard/StripeCheckoutButton'
+import { BillingPortalButton } from '@/components/dashboard/BillingPortalButton'
 import { PricingCards } from '@/components/dashboard/PricingCards'
 import { AccountSwitcher } from '@/components/dashboard/AccountSwitcher'
 import type { SwitcherBusiness } from '@/components/dashboard/StoreSwitcher'
@@ -278,10 +280,7 @@ export function SubscriptionView({
             </div>
             <h2 className="text-[18px] font-medium text-ink">Fizetés</h2>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-[13px] border border-line-strong px-3.5 py-2 text-[12px] font-semibold text-ink">
-            <Download className="h-3.5 w-3.5" />
-            Számla letöltése
-          </span>
+          {isActivePro && <BillingPortalButton variant="link" label="Számlák · kártya" />}
         </div>
         <div className="p-5 lg:p-6">
           {isActivePro ? (
@@ -302,16 +301,25 @@ export function SubscriptionView({
                     ? 'Éves számlázás. Bármikor lemondhatod.'
                     : 'Automatikusan megújul havonta. Bármikor lemondhatod.'}
               </p>
-              <div className="pt-1">
+              <div className="flex flex-wrap items-center gap-3 pt-1">
                 <CancelSubscriptionButton cancelScheduled={cancelScheduled} periodEndLabel={fmtDate(periodEnd)} />
+                <BillingPortalButton label="Bankkártya cseréje" />
               </div>
             </div>
           ) : (
-            <div className="py-4 text-center">
-              <p className="mb-1 text-sm font-semibold text-ink">Online fizetés hamarosan</p>
-              <p className="text-xs text-ink-soft">
-                Stripe integráció fejlesztés alatt. Addig írj nekünk:{' '}
-                <a href="mailto:hello@schedulio.hu" className="underline hover:opacity-70">hello@schedulio.hu</a>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-3 rounded-[16px] px-5 py-4" style={{ background: '#FBF9F2' }}>
+                <div>
+                  <div className="text-xs text-ink-soft">A próbaidő után a fiók díja</div>
+                  <div className="mt-0.5 text-sm font-semibold text-ink">Bankkártyás fizetés · bármikor lemondható</div>
+                </div>
+                <div className="text-[26px] font-light tracking-[-0.02em] text-ink">
+                  {feeHuf > 0 ? feeHuf.toLocaleString('hu-HU') : '0'} <span className="text-[13px] font-medium text-ink-soft">Ft{cycle === 'annual' ? '/hó (éves)' : '/hó'}</span>
+                </div>
+              </div>
+              <StripeCheckoutButton cycle={cycle} />
+              <p className="text-xs leading-relaxed text-ink-soft">
+                A fizetés a Stripe biztonságos oldalán történik. Számla a sikeres terhelés után.
               </p>
             </div>
           )}

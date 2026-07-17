@@ -1,4 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import { getAccountBilling } from '@/lib/accountBilling'
@@ -7,7 +8,8 @@ import { getUserBusinesses } from '@/lib/activeBusiness'
 import { SubscriptionView } from '@/components/dashboard/SubscriptionView'
 
 export default async function RestaurantSubscriptionPage() {
-  const { restaurant, userId } = await getOwnedRestaurant()
+  const { restaurant, userId, capabilities } = await getOwnedRestaurant()
+  requireCapability(capabilities, 'billing.manage', '/restaurant')
   const payload = await getPayloadClient()
 
   const [sub, billing, pricing, allBusinesses] = await Promise.all([

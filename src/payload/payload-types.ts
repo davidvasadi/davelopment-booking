@@ -24,7 +24,10 @@ export interface Config {
     notifications: Notification
     reviews: Review
     memberships: Membership
+    roles: Role
+    'push-subscriptions': PushSubscription
     'audit-log': AuditLogEntry
+    'email-log': EmailLogEntry
     tasks: Task
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
@@ -66,6 +69,9 @@ export interface Subscription {
   amount_huf?: number | null
   stripe_customer_id?: string | null
   stripe_subscription_id?: string | null
+  last_stripe_invoice_id?: string | null
+  last_invoice_number?: string | null
+  last_invoice_url?: string | null
   notes?: string | null
   createdAt: string
   updatedAt: string
@@ -273,6 +279,46 @@ export interface Review {
   updatedAt: string
 }
 
+export interface Role {
+  id: string
+  name: string
+  salon?: string | Salon | null
+  restaurant?: string | Restaurant | null
+  capabilities?:
+    | (
+        | 'overview.view'
+        | 'bookings.view'
+        | 'bookings.manage'
+        | 'schedule.view.own'
+        | 'schedule.manage'
+        | 'guests.view'
+        | 'guests.manage'
+        | 'catalog.view'
+        | 'catalog.manage'
+        | 'staff.view'
+        | 'staff.manage'
+        | 'analytics.view'
+        | 'settings.profile'
+        | 'team.view'
+        | 'team.manage'
+        | 'billing.manage'
+        | 'danger'
+        | 'audit.view'
+      )[]
+    | null
+  createdAt: string
+  updatedAt: string
+}
+export interface PushSubscription {
+  id: string
+  user: string | User
+  endpoint: string
+  p256dh: string
+  auth: string
+  user_agent?: string | null
+  createdAt: string
+  updatedAt: string
+}
 export interface Membership {
   id: string
   /** Üres, amíg a meghívó függőben van; elfogadáskor kötődik be. */
@@ -282,6 +328,7 @@ export interface Membership {
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null
   role: 'owner' | 'manager' | 'staff'
+  custom_role?: string | Role | null
   status: 'active' | 'invited' | 'suspended'
   invite_token?: string | null
   position?: string | null
@@ -317,6 +364,27 @@ export interface AuditLogEntry {
   changes?: AuditChangeEntry[] | null
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EmailLogEntry {
+  id: string
+  type:
+    | 'booking_confirmation'
+    | 'new_booking'
+    | 'cancellation'
+    | 'reminder'
+    | 'feedback'
+    | 'waitlist_signup'
+    | 'waitlist_opening'
+    | 'team_invite'
+    | 'password_reset'
+    | 'other'
+  to?: string | null
+  subject?: string | null
+  ok?: boolean | null
+  error?: string | null
   createdAt: string
   updatedAt: string
 }

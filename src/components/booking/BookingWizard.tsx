@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -66,6 +66,7 @@ export default function BookingWizard({
   }
   const [slots, setSlots] = useState<Slot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [slotsError, setSlotsError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const [state, setState] = useState<WizardState>({
@@ -78,30 +79,79 @@ export default function BookingWizard({
 
   const set = (patch: Partial<WizardState>) => setState(prev => ({ ...prev, ...patch }))
 
+  // ── Mező-szintű validáció (checklist §8: error-placement, inline-validation, focus-management) ──
+  type FieldKey = 'name' | 'email' | 'phone'
+  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
+  const fieldRefs = {
+    name: useRef<HTMLInputElement>(null),
+    email: useRef<HTMLInputElement>(null),
+    phone: useRef<HTMLInputElement>(null),
+  }
+
+  /** Egy mező validációja; visszaadja a hibaszöveget vagy null-t. */
+  const validateField = (key: FieldKey): string | null => {
+    if (key === 'name') return !state.name || state.name.trim().length < 2 ? tt('booking.err.name') : null
+    if (key === 'email') return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.email) ? tt('booking.err.email') : null
+    if (key === 'phone') return requirePhone && state.phone.replace(/\s/g, '').length < 7 ? tt('booking.err.phone') : null
+    return null
+  }
+
+  /** Blur-validálás: csak akkor jelöl hibát, ha a user már elhagyta a mezőt (nem gépelés közben). */
+  const onFieldBlur = (key: FieldKey) => {
+    const msg = validateField(key)
+    setErrors(prev => ({ ...prev, [key]: msg ?? undefined }))
+  }
+
+  /** Gépelés közben a meglévő hibát töröljük (a checklist szerint ne piszkáljuk gépelés közben). */
+  const clearError = (key: FieldKey) => {
+    if (errors[key]) setErrors(prev => ({ ...prev, [key]: undefined }))
+  }
+
   const selectedService = services.find(s => String(s.id) === String(state.serviceId))
   const selectedStaff = staff.find(m => String(m.id) === String(state.staffId))
   const selectedDate = new Date(state.date + 'T00:00:00')
 
-  useEffect(() => {
-    if (step !== 2 || !state.serviceId || !state.date) return
+  const loadSlots = () => {
+    if (!state.serviceId || !state.date) return
     setLoadingSlots(true)
+    setSlotsError(false)
     setSlots([])
     const params = new URLSearchParams({
       salonId, serviceId: state.serviceId, date: state.date,
       ...(state.staffId ? { staffId: state.staffId } : {}),
     })
     fetch(`/api/slots?${params}`)
-      .then(r => r.json())
+      .then(r => { if (!r.ok) throw new Error('slots'); return r.json() })
       .then(d => setSlots(d.slots ?? []))
-      .catch(() => toast.error(tt('booking.err.slots')))
+      // A hibát a nézetben, retry-gombbal kezeljük (checklist §8: error-recovery, timeout-feedback),
+      // nem eltűnő toasttal.
+      .catch(() => setSlotsError(true))
       .finally(() => setLoadingSlots(false))
+  }
+
+  useEffect(() => {
+    if (step !== 2) return
+    loadSlots()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, state.serviceId, state.staffId, state.date, salonId])
 
   const submit = async () => {
     if (!state.serviceId || !state.slot || !state.staffId) return
-    if (!state.name || state.name.length < 2) { toast.error(tt('booking.err.name')); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.email)) { toast.error(tt('booking.err.email')); return }
-    if (requirePhone && state.phone.replace(/\s/g, '').length < 7) { toast.error(tt('booking.err.phone')); return }
+
+    // Minden mezőt validálunk; a hibákat a mezők alá tesszük, és az ELSŐ hibás mezőre
+    // ugrunk fókusszal (checklist §8: focus-management, error-placement).
+    const order: FieldKey[] = ['name', 'email', 'phone']
+    const nextErrors: Partial<Record<FieldKey, string>> = {}
+    for (const key of order) {
+      const msg = validateField(key)
+      if (msg) nextErrors[key] = msg
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
+      const firstBad = order.find(k => nextErrors[k])
+      if (firstBad) fieldRefs[firstBad].current?.focus()
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -151,7 +201,13 @@ export default function BookingWizard({
         <div className="mx-auto flex max-w-lg items-center justify-between">
           <button
             onClick={() => {
-              if (step === 0) router.push(`/${salonSlug}`)
+              if (step === 0) {
+                // Kilépés-védelem (checklist §8: sheet-dismiss-confirm) — ha már választott
+                // szolgáltatást vagy elkezdte kitölteni az adatokat, rákérdezünk.
+                const dirty = state.serviceId || state.name || state.email || state.phone
+                if (dirty && !window.confirm(tt('booking.leaveConfirm'))) return
+                router.push(`/${salonSlug}`)
+              }
               else if (step === 2 && state.staffId !== null && preselectedStaffId) goStep(0)
               else goStep(step - 1)
             }}
@@ -324,6 +380,16 @@ export default function BookingWizard({
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span className="text-sm">{tt("booking.loading")}</span>
                 </div>
+              ) : slotsError ? (
+                <div className="py-8 text-center" role="alert">
+                  <p className="text-[13.5px] text-ink-soft">{tt('booking.err.slots')}</p>
+                  <button
+                    onClick={loadSlots}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+                  >
+                    {tt('booking.retry')}
+                  </button>
+                </div>
               ) : slots.length === 0 ? (
                 <div className="py-8 text-center">
                   <p className="text-[13.5px] text-ink-soft">{tt("booking.noSlots")}</p>
@@ -383,40 +449,69 @@ export default function BookingWizard({
 
             <div className="space-y-4 rounded-[20px] border border-white/50 bg-white/30 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_18px_40px_-28px_rgba(80,70,30,0.22)] backdrop-blur-[22px] backdrop-saturate-[0.4]">
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt("booking.field.name")}</Label>
+                <Label htmlFor="bk-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt("booking.field.name")}</Label>
                 <Input
+                  id="bk-name"
+                  ref={fieldRefs.name}
                   value={state.name}
-                  onChange={e => set({ name: e.target.value })}
+                  onChange={e => { set({ name: e.target.value }); clearError('name') }}
+                  onBlur={() => onFieldBlur('name')}
+                  autoComplete="name"
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? 'bk-name-err' : undefined}
                   placeholder={tt("booking.field.namePlaceholder")}
-                  className="h-12 rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus-visible:ring-1 focus-visible:ring-gold"
+                  className={cn(
+                    'h-12 rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus-visible:ring-1 focus-visible:ring-gold',
+                    errors.name && 'ring-1 ring-red-400 focus-visible:ring-red-400'
+                  )}
                 />
+                {errors.name && <p id="bk-name-err" role="alert" className="text-[12px] text-red-500">{errors.name}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt("booking.field.email")}</Label>
+                <Label htmlFor="bk-email" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt("booking.field.email")}</Label>
                 <Input
+                  id="bk-email"
+                  ref={fieldRefs.email}
                   type="email"
+                  inputMode="email"
+                  autoComplete="email"
                   value={state.email}
-                  onChange={e => set({ email: e.target.value })}
+                  onChange={e => { set({ email: e.target.value }); clearError('email') }}
+                  onBlur={() => onFieldBlur('email')}
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? 'bk-email-err' : undefined}
                   placeholder={tt("booking.field.emailPlaceholder")}
-                  className="h-12 rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus-visible:ring-1 focus-visible:ring-gold"
+                  className={cn(
+                    'h-12 rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus-visible:ring-1 focus-visible:ring-gold',
+                    errors.email && 'ring-1 ring-red-400 focus-visible:ring-red-400'
+                  )}
                 />
+                {errors.email && <p id="bk-email-err" role="alert" className="text-[12px] text-red-500">{errors.email}</p>}
               </div>
               <div className="space-y-1.5">
                 <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt('booking.field.phone')}{requirePhone ? ' *' : ''}</Label>
                 <PhoneCountryInput
+                  inputRef={fieldRefs.phone}
                   country={state.country}
                   phone={state.phone}
                   onCountryChange={(code) => set({ country: code })}
-                  onPhoneChange={(p) => set({ phone: p })}
+                  onPhoneChange={(p) => { set({ phone: p }); clearError('phone') }}
+                  onBlur={() => onFieldBlur('phone')}
                   required={requirePhone}
-                  inputClass="h-12 rounded-[12px] bg-paper/50 border-0 px-3 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none focus-visible:ring-1 focus-visible:ring-gold"
+                  inputClass={cn(
+                    'h-12 rounded-[12px] bg-paper/50 border-0 px-3 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none focus-visible:ring-1 focus-visible:ring-gold',
+                    errors.phone && 'ring-1 ring-red-400 focus-visible:ring-red-400'
+                  )}
                 />
+                {errors.phone && <p role="alert" className="text-[12px] text-red-500">{errors.phone}</p>}
               </div>
               <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt('booking.field.city')}</Label>
+                <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt('booking.field.city')}</Label>
                 <Input
+                  id="bk-city"
                   value={state.city}
                   onChange={e => set({ city: e.target.value })}
+                  autoComplete="address-level2"
                   placeholder={tt('booking.field.cityPlaceholder')}
                   className="h-12 rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus-visible:ring-1 focus-visible:ring-gold"
                 />

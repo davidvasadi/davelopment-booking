@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 import { LoginForm } from '@/components/auth/LoginForm'
 
-export const metadata = { title: 'Bejelentkezés — Schedulio' }
+export const metadata = { title: 'Bejelentkezés — davelopment booking' }
 
 export default function LoginPage() {
   return (

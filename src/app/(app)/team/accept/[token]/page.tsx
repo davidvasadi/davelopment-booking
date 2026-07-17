@@ -78,7 +78,11 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
     }
   }
 
-  // Új meghívott: fiók létrehozása (a meghívott emaillel) → bejelentkezés → meghívó elfogadása.
+  // Meghívott: fiók létrehozása (a meghívott emaillel) → bejelentkezés → meghívó elfogadása.
+  // Ha a meghívottnak MÁR van fiókja (pl. másik üzlet tulaja/tagja ugyanezzel az emaillel),
+  // a create 400-zal elbukik ("már regisztrált email"). Ilyenkor NEM hiba: a beírt jelszóval
+  // megpróbálunk bejelentkezni, és a meglévő fiókhoz kötjük a meghívót. Így egy email
+  // több üzlethez is tartozhat, és nem ragad be a regisztrációs képernyőn.
   const register = async () => {
     if (regPassword.length < 6) { setRegError('A jelszó legalább 6 karakter legyen.'); return }
     if (!info.email) { setRegError('Hiányzó email.'); return }
@@ -89,15 +93,26 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ name: regName.trim() || info.email, email: info.email, password: regPassword, role }),
       })
-      if (!cRes.ok) {
-        const j = await cRes.json().catch(() => ({}))
-        throw new Error(j?.errors?.[0]?.message || 'A fiók létrehozása sikertelen. Lehet, hogy már van fiókod — jelentkezz be.')
-      }
+      // A már létező email nem végzetes: ilyenkor bejelentkezéssel folytatjuk (lásd lentebb).
+      const alreadyExists = !cRes.ok && cRes.status === 400
+
       const lRes = await fetch('/api/users/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ email: info.email, password: regPassword }),
       })
-      if (!lRes.ok) throw new Error('Bejelentkezés sikertelen a regisztráció után.')
+      if (!lRes.ok) {
+        // Ha a create nem "már létezik" miatt bukott, azt a hibát mutatjuk; egyébként a bejelentkezés
+        // bukott meg — a meglévő fiókhoz nem stimmelt a jelszó.
+        if (!cRes.ok && !alreadyExists) {
+          const j = await cRes.json().catch(() => ({}))
+          throw new Error(j?.errors?.[0]?.message || 'A fiók létrehozása sikertelen.')
+        }
+        throw new Error(
+          alreadyExists
+            ? 'Ehhez az emailhez már tartozik fiók, de a jelszó nem stimmel. Add meg a meglévő jelszavad, vagy jelentkezz be.'
+            : 'Bejelentkezés sikertelen a regisztráció után.',
+        )
+      }
       const aRes = await fetch(`/api/team/accept/${token}`, { method: 'POST', credentials: 'include' })
       if (!aRes.ok) {
         const j = await aRes.json().catch(() => ({}))

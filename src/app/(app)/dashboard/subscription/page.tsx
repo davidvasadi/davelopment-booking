@@ -1,4 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import { getAccountBilling } from '@/lib/accountBilling'
@@ -7,7 +8,8 @@ import { getUserBusinesses } from '@/lib/activeBusiness'
 import { SubscriptionView } from '@/components/dashboard/SubscriptionView'
 
 export default async function SubscriptionPage() {
-  const { salon, userId } = await getOwnedSalon()
+  const { salon, userId, capabilities } = await getOwnedSalon()
+  requireCapability(capabilities, 'billing.manage', '/dashboard')
   const payload = await getPayloadClient()
   if (!salon) return null
 

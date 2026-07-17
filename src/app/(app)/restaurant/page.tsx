@@ -10,10 +10,15 @@ import { OccupancyDonut, WeekBarChart } from '@/components/restaurant/OverviewCh
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { OccupancyReportCard, OverviewAccordion, type AccItem } from '@/components/restaurant/OverviewPanels'
 import { OverviewTasksPanel } from '@/components/restaurant/OverviewTasksPanel'
+import { getSetupFlags } from '@/lib/setupFlags'
+import { SetupNudge } from '@/components/dashboard/SetupNudge'
 import { DetailSheet } from '@/components/restaurant/DetailSheet'
 import { OverviewTimeline, type TimelineBlock, type TimelineRow } from '@/components/restaurant/OverviewTimeline'
 import { CalendarDays, Users, Gauge, Plus } from 'lucide-react'
 import { CARD, HeroKpi } from '@/components/dashboard/overview-ui'
+import { can } from '@/lib/permissions'
+import { getMyUpcomingShifts } from '@/lib/myShifts'
+import { StaffOverview } from '@/components/dashboard/StaffOverview'
 import type { Reservation, Media, Task, OpeningHour } from '@/payload/payload-types'
 
 // Idő-függő tartalom (naptár + header-pillek a szolgáltatás-nap szerint) → mindig frissüljön.
@@ -31,7 +36,7 @@ function initials(name: string): string {
 }
 
 export default async function RestaurantDashboardPage() {
-  const [{ restaurant }, user] = await Promise.all([getOwnedRestaurant(), getCurrentUser()])
+  const [{ restaurant, capabilities, roleName }, user] = await Promise.all([getOwnedRestaurant(), getCurrentUser()])
   const payload = await getPayloadClient()
 
   const now = new Date()
@@ -53,7 +58,24 @@ export default async function RestaurantDashboardPage() {
   const profileImg = userAvatar ?? logoUrl
   // A szerep a fiókból jön (lehet salon_owner akkor is, ha épp étteremben vagyunk), ezért
   // nem az üzlet-típust írjuk ki, csak a semleges „Tulajdonos"-t (admin kivétel).
-  const roleLabel = user?.role === 'admin' ? 'Adminisztrátor' : 'Tulajdonos'
+  const roleLabel = user?.role === 'admin' ? 'Adminisztrátor' : roleName
+
+  // Személyes áttekintés (saját műszak) az üzleti KPI-k helyett annak, aki NEM lát üzleti
+  // statisztikát (`analytics.view`). A tulaj + a Statisztika-jogot kapó szerepek (Üzletvezető,
+  // Supervisor) a teljes KPI-dashboardot kapják; a felszolgáló a személyes nézetet.
+  if (user && !can(capabilities, 'analytics.view')) {
+    const myShifts = await getMyUpcomingShifts({ type: 'restaurant', id: restaurant.id }, { id: user.id, email: user.email })
+    return (
+      <StaffOverview
+        greeting={greeting}
+        userName={user.name ?? 'Dolgozó'}
+        roleLabel={roleLabel}
+        businessName={restaurant.name}
+        todayLabel={todayLabel}
+        shifts={myShifts}
+      />
+    )
+  }
   const { active, businesses } = user ? await getActiveBusiness(user) : { active: null, businesses: [] }
 
   const [stats, todayAll, upcomingRes, tasksRes, openingRes] = await Promise.all([
@@ -255,6 +277,9 @@ export default async function RestaurantDashboardPage() {
     },
   ]
 
+  // Onboarding-állapot a főoldali nudge-hoz (nyitvatartás + asztalok kész-e).
+  const setup = await getSetupFlags('restaurant', restaurant.id)
+
   return (
     <div className="space-y-6 p-5 lg:p-0">
       {/* ── HERO: köszönés + jobbra fiókváltó + Új foglalás ── */}
@@ -273,6 +298,9 @@ export default async function RestaurantDashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* ── Onboarding-nudge (csak ha a nyitvatartás/asztalok még hiányoznak) ── */}
+      <SetupNudge variant="restaurant" base="/restaurant" flags={setup} />
 
       {/* ── STÁTUSZ-CSÍK (bal) + 3 KPI (jobb) ── */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

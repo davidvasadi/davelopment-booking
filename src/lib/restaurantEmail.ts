@@ -16,16 +16,26 @@ import {
   COLORS,
 } from './emailLayout'
 import { t, normalizeLocale } from './i18n'
+import { logEmail } from './emailLog'
 
 let _resend: Resend | null = null
+let _warnedNoKey = false
 function getResend(): Resend | null {
-  if (!process.env.RESEND_API_KEY) return null
+  if (!process.env.RESEND_API_KEY) {
+    // Ne némán: jelezzük (egyszer), hogy a tranzakciós emailek NEM mennek ki — különben a
+    // tulaj sose tudja meg, hogy a vendégek nem kapnak visszaigazolást.
+    if (!_warnedNoKey) {
+      console.warn('[RestaurantEmail] RESEND_API_KEY nincs beállítva — a tranzakciós emailek NEM mennek ki.')
+      _warnedNoKey = true
+    }
+    return null
+  }
   if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
   return _resend
 }
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
-const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'Schedulio'
+const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'davelopment booking'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 export interface ReservationEmailData {
@@ -76,7 +86,7 @@ function generateICS({ reservation, restaurant }: ReservationEmailData): string 
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Schedulio//HU',
+    'PRODID:-//davelopment booking//HU',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
@@ -115,25 +125,32 @@ export async function sendReservationConfirmation(data: ReservationEmailData) {
       html: confirmationHtml(data, cancelUrl),
       attachments: [{ filename: 'foglalas.ics', content: Buffer.from(generateICS(data)) }],
     })
+    await logEmail('booking_confirmation', reservation.customer_email, subject, true)
   } catch (err) {
     console.error('[RestaurantEmail] Confirmation failed:', err)
+    await logEmail('booking_confirmation', reservation.customer_email, subject, false, String(err))
   }
 }
 
-export async function sendReservationNotification(data: ReservationEmailData) {
+export async function sendReservationNotification(data: ReservationEmailData, fallbackTo?: string) {
   const { restaurant } = data
-  if (!restaurant.email) return
+  // Az üzlet kapcsolati e-mailje, vagy ha üres, a megadott tartalék (pl. a tulaj fiók-emailje).
+  const to = restaurant.email || fallbackTo
+  if (!to) return
   const resend = getResend()
   if (!resend) return
+  const subject = `Új asztalfoglalás: ${data.reservation.customer_name} — ${data.reservation.date} ${data.reservation.start_time}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
-      to: restaurant.email,
-      subject: `Új asztalfoglalás: ${data.reservation.customer_name} — ${data.reservation.date} ${data.reservation.start_time}`,
+      to,
+      subject,
       html: notificationHtml(data),
     })
+    await logEmail('new_booking', to, subject, true)
   } catch (err) {
     console.error('[RestaurantEmail] Notification failed:', err)
+    await logEmail('new_booking', to, subject, false, String(err))
   }
 }
 
@@ -153,8 +170,10 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
       subject,
       html: cancellationHtml(data),
     })
+    await logEmail('cancellation', reservation.customer_email, subject, true)
   } catch (err) {
     console.error('[RestaurantEmail] Cancellation failed:', err)
+    await logEmail('cancellation', reservation.customer_email, subject, false, String(err))
   }
 }
 
@@ -173,8 +192,10 @@ export async function sendReminderEmail(data: ReservationEmailData) {
       subject,
       html: reminderHtml(data),
     })
+    await logEmail('reminder', reservation.customer_email, subject, true)
   } catch (err) {
     console.error('[RestaurantEmail] Reminder failed:', err)
+    await logEmail('reminder', reservation.customer_email, subject, false, String(err))
   }
 }
 
@@ -193,8 +214,10 @@ export async function sendFeedbackRequestEmail(data: ReservationEmailData) {
       subject,
       html: feedbackHtml(data),
     })
+    await logEmail('feedback', reservation.customer_email, subject, true)
   } catch (err) {
     console.error('[RestaurantEmail] Feedback request failed:', err)
+    await logEmail('feedback', reservation.customer_email, subject, false, String(err))
   }
 }
 
@@ -215,11 +238,12 @@ export interface WaitlistEmailData {
 export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
   const resend = getResend()
   if (!resend) return
+  const subject = `Felkerültél a várólistára – ${data.restaurant.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: data.customer_email,
-      subject: `Felkerültél a várólistára – ${data.restaurant.name}`,
+      subject,
       html: wrap(data.restaurant, `
         ${heroBlock({
           icon: 'bell',
@@ -234,8 +258,10 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
         ${bottomSpacer()}
       `),
     })
+    await logEmail('waitlist_signup', data.customer_email, subject, true)
   } catch (err) {
     console.error('[RestaurantEmail] Waitlist signup failed:', err)
+    await logEmail('waitlist_signup', data.customer_email, subject, false, String(err))
   }
 }
 
@@ -244,11 +270,12 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
   const resend = getResend()
   if (!resend) return
   const bookUrl = data.bookUrl ?? `${APP_URL}/${data.restaurant.slug}`
+  const subject = `Felszabadult egy asztal – ${data.restaurant.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: data.customer_email,
-      subject: `Felszabadult egy asztal – ${data.restaurant.name}`,
+      subject,
       html: wrap(data.restaurant, `
         ${heroBlock({
           icon: 'bell',
@@ -262,14 +289,16 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
         ].filter(Boolean).join(''))}
         <tr>
           <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-            <a href="${bookUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Asztalfoglalás</a>
+            <a href="${bookUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Asztalfoglalás</a>
           </td>
         </tr>
         ${bottomSpacer()}
       `),
     })
+    await logEmail('waitlist_opening', data.customer_email, subject, true)
   } catch (err) {
     console.error('[RestaurantEmail] Waitlist opening failed:', err)
+    await logEmail('waitlist_opening', data.customer_email, subject, false, String(err))
   }
 }
 
@@ -407,7 +436,7 @@ function feedbackHtml(data: ReservationEmailData): string {
     ${detailsCard(rows)}
     <tr>
       <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
+        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
       </td>
     </tr>
     ${bottomSpacer()}

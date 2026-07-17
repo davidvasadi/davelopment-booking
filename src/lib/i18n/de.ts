@@ -40,6 +40,8 @@ export const de: Record<string, string> = {
   'booking.err.email': 'Eine gültige E-Mail ist erforderlich',
   'booking.err.phone': 'Eine gültige Telefonnummer ist erforderlich',
   'booking.err.generic': 'Etwas ist schiefgelaufen',
+  'booking.retry': 'Erneut versuchen',
+  'booking.leaveConfirm': 'Deine begonnene Buchung geht verloren. Trotzdem verlassen?',
 
   // ── Restaurant-Buchungsassistent ──
   'rbooking.step.datetime': 'Uhrzeit',
@@ -67,6 +69,8 @@ export const de: Record<string, string> = {
   'rbooking.err.email': 'Ungültige E-Mail-Adresse',
   'rbooking.err.phone': 'Eine Telefonnummer ist erforderlich',
   'rbooking.err.generic': 'Reservierung fehlgeschlagen',
+  'rbooking.err.slots': 'Zeitfenster konnten nicht geladen werden',
+  'rbooking.retry': 'Erneut versuchen',
   'rbooking.guests': '{{n}} Personen',
 
   // ── Datumsleiste — Tageskürzel, ab Sonntag ──

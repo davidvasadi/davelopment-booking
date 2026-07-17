@@ -1,11 +1,12 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { ScheduleView, type StaffVM, type ShiftVM, type ShiftType } from '@/components/dashboard/ScheduleView'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { PageHeader } from '@/components/ui/page-header'
 import { roleLabel } from '@/lib/permissions'
-import type { Membership, Shift, User } from '@/payload/payload-types'
+import type { Membership, Shift, User, Role } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +28,10 @@ function mediaUrl(m: unknown): string | null {
  * `member`+`restaurant` párral megy az /api/shifts-en. SMS sehol.
  */
 export default async function RestaurantSchedulePage() {
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, capabilities } = await getOwnedRestaurant()
+  // A Naptár kezelő-eszköz (műszak felvétel/módosítás/törlés) → `schedule.manage`. A saját műszakot
+  // a munkatárs a személyes főoldalán látja; ide csak a beosztás-kezelők léphetnek be.
+  requireCapability(capabilities, 'schedule.manage', '/restaurant')
   const payload = await getPayloadClient()
 
   const [membersRes, shiftsRes] = await Promise.all([
@@ -54,12 +58,14 @@ export default async function RestaurantSchedulePage() {
   const members: StaffVM[] = (membersRes.docs as Membership[]).map((m) => {
     const u = typeof m.user === 'object' ? (m.user as User) : null
     const name = m.name || u?.name || m.email
+    // Egységes: a megjelenített szerep a megadott (egyedi) szerep NEVE, ha van; különben a régi mezők.
+    const custom = m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role) : null
     return {
       id: String(m.id),
       name,
       ini: initials(name),
       avatarUrl: mediaUrl(m.avatar) ?? (u?.avatar_url ?? null),
-      role: (m.position || roleLabel(m.role)) + (m.status !== 'active' ? ' · meghívva' : ''),
+      role: (custom?.name || m.position || roleLabel(m.role)) + (m.status !== 'active' ? ' · meghívva' : ''),
       birthday: m.birthday ? toYmd(m.birthday) : null,
       join_date: m.join_date ? toYmd(m.join_date) : m.createdAt ? toYmd(m.createdAt) : null,
       weekly_hours: typeof m.weekly_hours === 'number' ? m.weekly_hours : null,

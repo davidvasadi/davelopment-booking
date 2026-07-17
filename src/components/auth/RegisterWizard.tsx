@@ -6,19 +6,25 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
 import Link from 'next/link'
 import {
   ChevronRight, ChevronLeft, Check, Loader2,
   Sparkles, HeartPulse, Dumbbell, LayoutGrid, ChefHat,
 } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { listStagger } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { MAIN_CATEGORIES, getSubTypesForCategory, type BusinessType, type MainCategory } from '@/lib/businessTemplates'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
 import { signIn } from 'next-auth/react'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
+import {
+  authInputBase, authInputDark, authLabelBase, authLabelDark,
+  authPillBtn, authPillBtnLight, authGhostBtnDark,
+  authDivider, authDividerDark, authErrorText, authErrorTextDark,
+  BRAND_COPYRIGHT,
+} from '@/components/auth/authStyles'
 
 const MAIN_CAT_ICONS: Record<MainCategory, React.ElementType> = {
   szepseg: Sparkles,
@@ -172,14 +178,25 @@ export function RegisterWizard() {
         body: JSON.stringify({ salon: salon.id }),
       })
 
-      // Seed templates in background — don't block the wizard
+      // A választott üzlet-típus(ok) alapján a háttérben feltöltjük a szolgáltatás-katalógust
+      // (kategóriák + szolgáltatások árral/idővel) — így az új tulaj nem üres dashboarddal indul.
+      // Nem blokkoljuk a wizardot, DE a hibát már nem nyeljük el csendben: a friss JWT-t
+      // fejlécként is átadjuk (nem csak a cookie-ra hagyatkozunk), és ha mégsem sikerül,
+      // logolunk + diszkrét (nem blokkoló) jelzést adunk, mert a katalógus a dashboardon pótolható.
       if (selectedTypes.length > 0) {
         fetch('/api/seed-templates', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
           credentials: 'include',
           body: JSON.stringify({ salonId: salon.id, businessTypes: selectedTypes }),
-        }).catch(() => {})
+        })
+          .then((res) => {
+            if (!res.ok) throw new Error(`seed-templates ${res.status}`)
+          })
+          .catch((e) => {
+            console.warn('[register] szolgáltatás-sablon seed sikertelen:', e)
+            toast.message('A szolgáltatásaidat később a vezérlőpulton állíthatod be.')
+          })
       }
 
       setStep(3)
@@ -235,15 +252,20 @@ export function RegisterWizard() {
               className={cn(
                 'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
                 isDark
-                  ? isSelected ? 'border-white bg-white/10 ring-1 ring-white' : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 hover:bg-zinc-800/60'
-                  : isSelected ? 'border-zinc-900 bg-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50'
+                  ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
+                  : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
               )}
             >
-              <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? (isSelected ? 'bg-white' : 'bg-zinc-800') : (isSelected ? 'bg-white' : 'bg-zinc-100'))}>
-                <Icon className={cn(isDark ? (isSelected ? 'text-zinc-950' : 'text-zinc-300') : (isSelected ? 'text-zinc-950' : 'text-zinc-500'))} style={{ width: 18, height: 18 }} />
+              {isSelected && (
+                <div className="absolute top-2.5 right-2.5 h-5 w-5 rounded-full bg-gold flex items-center justify-center">
+                  <Check className="h-3 w-3 text-ink-dark" />
+                </div>
+              )}
+              <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? (isSelected ? 'bg-gold' : 'bg-white/10') : (isSelected ? 'bg-gold' : 'bg-paper'))}>
+                <Icon className={cn(isDark ? (isSelected ? 'text-ink-dark' : 'text-white/70') : (isSelected ? 'text-ink-dark' : 'text-ink-soft'))} style={{ width: 18, height: 18 }} />
               </div>
-              <p className={cn('font-bold text-sm leading-tight', isDark ? (isSelected ? 'text-white' : 'text-zinc-200') : (isSelected ? 'text-white' : 'text-zinc-800'))}>{cat.label}</p>
-              <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-zinc-500' : (isSelected ? 'text-zinc-400' : 'text-zinc-500'))}>{cat.description}</p>
+              <p className={cn('font-semibold text-sm leading-tight', isDark ? (isSelected ? 'text-white' : 'text-white/80') : 'text-ink')}>{cat.label}</p>
+              <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-white/45' : 'text-ink-soft')}>{cat.description}</p>
             </button>
           )
         })}
@@ -251,14 +273,14 @@ export function RegisterWizard() {
         <Link href="/register-restaurant" className={cn(
           'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
           isDark
-            ? 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 hover:bg-zinc-800/60'
-            : 'border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50'
+            ? 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
+            : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
         )}>
-          <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? 'bg-zinc-800' : 'bg-zinc-100')}>
-            <ChefHat className={isDark ? 'text-zinc-300' : 'text-zinc-500'} style={{ width: 18, height: 18 }} />
+          <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? 'bg-white/10' : 'bg-paper')}>
+            <ChefHat className={isDark ? 'text-white/70' : 'text-ink-soft'} style={{ width: 18, height: 18 }} />
           </div>
-          <p className={cn('font-bold text-sm leading-tight', isDark ? 'text-zinc-200' : 'text-zinc-800')}>Étterem</p>
-          <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-zinc-500' : 'text-zinc-500')}>Asztalfoglalás</p>
+          <p className={cn('font-semibold text-sm leading-tight', isDark ? 'text-white/80' : 'text-ink')}>Étterem</p>
+          <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-white/45' : 'text-ink-soft')}>Asztalfoglalás</p>
         </Link>
       </div>
     )
@@ -279,17 +301,17 @@ export function RegisterWizard() {
               className={cn(
                 'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
                 isDark
-                  ? isSelected ? 'border-white bg-white/10 ring-1 ring-white' : 'border-zinc-800 bg-zinc-900/60 hover:border-zinc-600 hover:bg-zinc-800/60'
-                  : isSelected ? 'border-zinc-900 bg-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200 bg-white hover:border-zinc-400 hover:bg-zinc-50'
+                  ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
+                  : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
               )}
             >
               {isSelected && (
-                <div className="absolute top-2.5 right-2.5 h-5 w-5 rounded-full bg-white flex items-center justify-center">
-                  <Check className="h-3 w-3 text-zinc-950" />
+                <div className="absolute top-2.5 right-2.5 h-5 w-5 rounded-full bg-gold flex items-center justify-center">
+                  <Check className="h-3 w-3 text-ink-dark" />
                 </div>
               )}
-              <p className={cn('font-bold text-sm leading-tight mt-1', isDark ? (isSelected ? 'text-white' : 'text-zinc-200') : (isSelected ? 'text-white' : 'text-zinc-800'))}>{opt.label}</p>
-              <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-zinc-500' : (isSelected ? 'text-zinc-400' : 'text-zinc-500'))}>{opt.description}</p>
+              <p className={cn('font-semibold text-sm leading-tight mt-1', isDark ? (isSelected ? 'text-white' : 'text-white/80') : 'text-ink')}>{opt.label}</p>
+              <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-white/45' : 'text-ink-soft')}>{opt.description}</p>
             </button>
           )
         })}
@@ -303,62 +325,59 @@ export function RegisterWizard() {
     return (
       <>
         {/* ── MOBILE ── */}
-        <div className="lg:hidden min-h-screen bg-zinc-950 flex flex-col">
+        <div className="lg:hidden min-h-screen bg-ink-dark font-onest flex flex-col">
           <div className="flex flex-col flex-1 px-7 pt-12 pb-10 overflow-y-auto">
             <div className="flex items-center justify-between mb-auto">
               {subStep === 'types' ? (
                 <button
                   onClick={() => setSubStep('category')}
-                  className="flex items-center gap-1.5 text-zinc-400 text-sm hover:text-zinc-200 transition-colors"
+                  className="flex items-center gap-1.5 text-white/45 text-sm hover:text-white/80 transition-colors"
                 >
                   <ChevronLeft className="h-4 w-4" /> Vissza
                 </button>
               ) : (
-                            <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
-              <SchedulioLogo variant="dark" className="h-8" />
-            </Link>
+                <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
+                  <SchedulioLogo variant="dark" className="h-8" />
+                </Link>
               )}
               <div className="flex gap-1.5">
                 {([1, 2, 3, 4] as const).map(s => (
-                  <div key={s} className={cn('h-1.5 rounded-full transition-all duration-300', s === step ? 'bg-white w-4' : s < step ? 'w-1.5 bg-zinc-500' : 'w-1.5 bg-zinc-800')} />
+                  <div key={s} className={cn('h-1.5 rounded-full transition-all duration-300', s === step ? 'bg-gold w-4' : s < step ? 'w-1.5 bg-white/40' : 'w-1.5 bg-white/10')} />
                 ))}
               </div>
             </div>
             <div className="mt-12">
               {subStep === 'category' ? (
                 <>
-                  <h2 className="text-white font-black text-[2rem] uppercase leading-[1.0] tracking-tighter mb-8">
+                  <h2 className="text-white font-light text-[2rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
                     MILYEN<br />VÁLLALKOZÁST<br />VEZETSZ?
                   </h2>
                   {mainCatCards(true)}
                   <div className="mt-6 space-y-3">
-                    <button onClick={() => setStep(2)} className="w-full h-14 rounded-full border border-zinc-700 text-zinc-400 font-medium text-base">
+                    <button onClick={() => setStep(2)} className={authGhostBtnDark}>
                       Kihagyás
                     </button>
-                    <Link href="/login" className="w-full h-14 rounded-full flex items-center justify-center text-zinc-600 font-medium text-base">
+                    <Link href="/login" className="w-full h-14 rounded-dav-pill flex items-center justify-center text-white/40 font-medium text-base hover:text-white/70 transition-colors">
                       Van már fiókom
                     </Link>
                   </div>
                 </>
               ) : (
                 <>
-                  <h2 className="text-white font-black text-[2rem] uppercase leading-[1.0] tracking-tighter mb-2">
+                  <h2 className="text-white font-light text-[2rem] uppercase leading-[1.0] tracking-[-0.02em] mb-2">
                     MILYEN<br />SZOLGÁL-<br />TATÁSOKAT<br />KÍNÁLSZ?
                   </h2>
-                  <p className="text-zinc-500 text-sm mb-6">Többet is választhatsz.</p>
+                  <p className="text-white/45 text-sm mb-6">Többet is választhatsz.</p>
                   {subTypeCards(true)}
                   <div ref={mobileCTARef} className="mt-6 space-y-4">
                     <button
                       onClick={() => selectedTypes.length > 0 && setStep(2)}
                       disabled={selectedTypes.length === 0}
-                      className={cn(
-                        'w-full h-14 rounded-full font-bold text-base flex items-center justify-center gap-2 transition-all duration-200',
-                        selectedTypes.length > 0 ? 'bg-white text-zinc-950 hover:bg-zinc-100' : 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-                      )}
+                      className={cn(authPillBtnLight, 'disabled:cursor-not-allowed')}
                     >
                       Tovább {selectedTypes.length > 0 && `(${selectedTypes.length})`} <ChevronRight className="h-4 w-4" />
                     </button>
-                    <button onClick={() => setStep(2)} className="w-full h-14 rounded-full border border-zinc-700 text-zinc-400 font-medium text-base">
+                    <button onClick={() => setStep(2)} className={authGhostBtnDark}>
                       Kihagyás
                     </button>
                   </div>
@@ -369,64 +388,62 @@ export function RegisterWizard() {
         </div>
 
         {/* ── DESKTOP ── */}
-        <div className="hidden lg:flex min-h-screen">
-          <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-            <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+        <div className="hidden lg:flex min-h-screen font-onest">
+          <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
+            <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
               <SchedulioLogo variant="dark" className="h-8" />
-            </Link>            <div>
-              <h1 className="text-white font-black text-[2.25rem] uppercase leading-[1.05] tracking-tighter whitespace-pre-line">
+            </Link>
+            <div>
+              <h1 className="text-white font-light text-[2.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
                 {desktopLeftHeadline.h}
               </h1>
-              <p className="text-zinc-500 mt-5 text-sm leading-relaxed max-w-xs">{desktopLeftHeadline.sub}</p>
+              <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{desktopLeftHeadline.sub}</p>
             </div>
-            <p className="text-zinc-700 text-xs">© 2026 Schedulio by [davelopment]®</p>
+            <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
           </div>
 
-          <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white overflow-y-auto">
+          <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light] overflow-y-auto">
             <div className="w-full max-w-sm">
-              <div className="h-1 bg-zinc-100 rounded-full mb-10 overflow-hidden">
-                <div className="h-full bg-zinc-900 rounded-full transition-all duration-500" style={{ width: '25%' }} />
+              <div className="h-1 bg-line rounded-full mb-10 overflow-hidden">
+                <div className="h-full bg-ink-dark rounded-full transition-all duration-500" style={{ width: '25%' }} />
               </div>
 
               {subStep === 'category' ? (
                 <>
                   <div className="mb-6">
-                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">1 / 4</p>
-                    <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Milyen vállalkozást vezetsz?</h2>
-                    <p className="text-zinc-500 text-sm mt-1">Beállítjuk az alapokat, te csak testreszabod.</p>
+                    <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">1 / 4</p>
+                    <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Milyen vállalkozást vezetsz?</h2>
+                    <p className="text-ink-soft text-sm mt-1">Beállítjuk az alapokat, te csak testreszabod.</p>
                   </div>
                   {mainCatCards(false)}
-                  <button onClick={() => setStep(2)} className="mt-4 w-full h-10 text-sm text-zinc-400 hover:text-zinc-600 transition-colors">
+                  <button onClick={() => setStep(2)} className="mt-4 w-full h-10 text-sm text-ink-soft hover:text-ink transition-colors">
                     Kihagyás — manuálisan töltöm fel
                   </button>
-                  <p className="text-center text-sm text-zinc-400 mt-2">
+                  <p className="text-center text-sm text-ink-soft mt-2">
                     Van már fiókod?{' '}
-                    <Link href="/login" className="font-semibold text-zinc-700 hover:underline">Bejelentkezés</Link>
+                    <Link href="/login" className="font-semibold text-ink hover:underline no-underline">Bejelentkezés</Link>
                   </p>
                 </>
               ) : (
                 <>
                   <div className="mb-6">
-                    <button onClick={() => setSubStep('category')} className="flex items-center gap-1.5 text-zinc-400 text-xs mb-4 hover:text-zinc-600 transition-colors">
+                    <button onClick={() => setSubStep('category')} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
                       <ChevronLeft className="h-3 w-3" /> Vissza
                     </button>
-                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">1 / 4 — {MAIN_CATEGORIES.find(c => c.id === selectedCategory)?.label}</p>
-                    <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Milyen szolgáltatásokat kínálsz?</h2>
-                    <p className="text-zinc-500 text-sm mt-1">Többet is választhatsz.</p>
+                    <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">1 / 4 — {MAIN_CATEGORIES.find(c => c.id === selectedCategory)?.label}</p>
+                    <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Milyen szolgáltatásokat kínálsz?</h2>
+                    <p className="text-ink-soft text-sm mt-1">Többet is választhatsz.</p>
                   </div>
                   {subTypeCards(false)}
                   <div className="mt-6 space-y-3">
                     <button
                       onClick={() => selectedTypes.length > 0 && setStep(2)}
                       disabled={selectedTypes.length === 0}
-                      className={cn(
-                        'w-full h-12 rounded-full font-semibold text-sm flex items-center justify-center gap-2 transition-all duration-200',
-                        selectedTypes.length > 0 ? 'bg-zinc-900 text-white hover:bg-zinc-800' : 'bg-zinc-100 text-zinc-400 cursor-not-allowed'
-                      )}
+                      className={cn(authPillBtn, 'disabled:cursor-not-allowed')}
                     >
                       Tovább {selectedTypes.length > 0 && `(${selectedTypes.length} kiválasztva)`} <ChevronRight className="h-4 w-4" />
                     </button>
-                    <button onClick={() => setStep(2)} className="w-full h-10 text-sm text-zinc-400 hover:text-zinc-600 transition-colors">
+                    <button onClick={() => setStep(2)} className="w-full h-10 text-sm text-ink-soft hover:text-ink transition-colors">
                       Kihagyás — manuálisan töltöm fel
                     </button>
                   </div>
@@ -450,18 +467,18 @@ export function RegisterWizard() {
   return (
     <>
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
-      <div className="lg:hidden min-h-screen bg-zinc-950 flex flex-col">
+      <div className="lg:hidden min-h-screen bg-ink-dark font-onest flex flex-col">
         <div className="flex flex-col flex-1 px-7 pt-12 pb-10">
           <div className="flex items-center justify-between mb-auto">
             {step === 2 ? (
               <button
                 onClick={() => setStep(1)}
-                className="flex items-center gap-1.5 text-zinc-400 text-sm hover:text-zinc-200 transition-colors"
+                className="flex items-center gap-1.5 text-white/45 text-sm hover:text-white/80 transition-colors"
               >
                 <ChevronLeft className="h-4 w-4" /> Vissza
               </button>
             ) : (
-              <Link href="/" className="text-white font-black text-xl tracking-tight hover:opacity-70 transition-opacity">Schedulio</Link>
+              <Link href="/" aria-label="davelopment booking" className="text-white font-light text-xl tracking-[-0.01em] hover:opacity-70 transition-opacity">davelopment booking</Link>
             )}
             <div className="flex gap-1.5">
               {([1, 2, 3, 4] as const).map(s => (
@@ -469,7 +486,7 @@ export function RegisterWizard() {
                   key={s}
                   className={cn(
                     'h-1.5 rounded-full transition-all duration-300',
-                    s === step ? 'bg-white w-4' : s < step ? 'w-1.5 bg-zinc-500' : 'w-1.5 bg-zinc-800'
+                    s === step ? 'bg-gold w-4' : s < step ? 'w-1.5 bg-white/40' : 'w-1.5 bg-white/10'
                   )}
                 />
               ))}
@@ -479,90 +496,112 @@ export function RegisterWizard() {
           {/* Step 2 — registration form */}
           {step === 2 && (
             <div className="mt-12">
-              <h2 className="text-white font-black text-[2.5rem] uppercase leading-[1.0] tracking-tighter mb-8">
+              <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
                 CSATLAKOZZ<br />HOZZÁNK.
               </h2>
-              <form onSubmit={handleSubmit(onStep2)} className="space-y-3" noValidate>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">Szalon neve</Label>
+              <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={handleSubmit(onStep2)} className="space-y-3" noValidate>
+                <motion.div variants={listStagger.item} className="space-y-1.5">
+                  <Label className={authLabelDark}>Szalon neve</Label>
                   <input
+                    autoComplete="organization"
                     placeholder="Pl. Anna Fodrászat"
-                    className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.salonName ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`}
+                    aria-invalid={!!errors.salonName}
+                    aria-describedby={errors.salonName ? 'reg-m-salon-err' : undefined}
+                    className={cn(authInputDark, errors.salonName && 'ring-2 ring-red-400 border-red-400')}
                     {...register('salonName')}
                   />
-                  {errors.salonName && <p className="text-xs text-red-400">{errors.salonName.message}</p>}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">A te neved</Label>
+                  {errors.salonName && <p id="reg-m-salon-err" role="alert" className={authErrorTextDark}>{errors.salonName.message}</p>}
+                </motion.div>
+                <motion.div variants={listStagger.item} className="space-y-1.5">
+                  <Label className={authLabelDark}>A te neved</Label>
                   <input
+                    autoComplete="name"
                     placeholder="Pl. Kiss Anna"
-                    className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.ownerName ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`}
+                    aria-invalid={!!errors.ownerName}
+                    aria-describedby={errors.ownerName ? 'reg-m-owner-err' : undefined}
+                    className={cn(authInputDark, errors.ownerName && 'ring-2 ring-red-400 border-red-400')}
                     {...register('ownerName')}
                   />
-                  {errors.ownerName && <p className="text-xs text-red-400">{errors.ownerName.message}</p>}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">Email</Label>
+                  {errors.ownerName && <p id="reg-m-owner-err" role="alert" className={authErrorTextDark}>{errors.ownerName.message}</p>}
+                </motion.div>
+                <motion.div variants={listStagger.item} className="space-y-1.5">
+                  <Label className={authLabelDark}>Email</Label>
                   <input
                     type="email"
+                    autoComplete="email"
+                    inputMode="email"
                     placeholder="te@pelda.hu"
-                    className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.email ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`}
+                    aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? 'reg-m-email-err' : undefined}
+                    className={cn(authInputDark, errors.email && 'ring-2 ring-red-400 border-red-400')}
                     {...register('email')}
                   />
-                  {errors.email && <p className="text-xs text-red-400">{errors.email.message}</p>}
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-zinc-400 text-sm">Jelszó</Label>
+                  {errors.email && <p id="reg-m-email-err" role="alert" className={authErrorTextDark}>{errors.email.message}</p>}
+                </motion.div>
+                <motion.div variants={listStagger.item} className="space-y-1.5">
+                  <Label className={authLabelDark}>Jelszó</Label>
                   <input
                     type="password"
                     autoComplete="new-password"
-                    className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.password ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`}
+                    aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? 'reg-m-pw-err' : undefined}
+                    className={cn(authInputDark, errors.password && 'ring-2 ring-red-400 border-red-400')}
                     {...register('password')}
                   />
-                  {errors.password && <p className="text-xs text-red-400">{errors.password.message}</p>}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-zinc-400 text-sm">Város</Label>
+                  {errors.password && <p id="reg-m-pw-err" role="alert" className={authErrorTextDark}>{errors.password.message}</p>}
+                </motion.div>
+                <motion.div variants={listStagger.item} className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className={authLabelDark}>Város</Label>
                     <input
+                      autoComplete="address-level2"
                       placeholder="Budapest"
-                      className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.city ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`}
+                      aria-invalid={!!errors.city}
+                      aria-describedby={errors.city ? 'reg-m-city-err' : undefined}
+                      className={cn(authInputDark, errors.city && 'ring-2 ring-red-400 border-red-400')}
                       {...register('city')}
                     />
-                    {errors.city && <p className="text-xs text-red-400">{errors.city.message}</p>}
+                    {errors.city && <p id="reg-m-city-err" role="alert" className={authErrorTextDark}>{errors.city.message}</p>}
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-zinc-400 text-sm">Telefon</Label>
+                  <div className="space-y-1.5">
+                    <Label className={authLabelDark}>Telefon</Label>
                     <input
+                      type="tel"
+                      autoComplete="tel"
+                      inputMode="tel"
                       placeholder="+36 30..."
-                      className={`w-full h-12 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.phone ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-500'}`}
+                      aria-invalid={!!errors.phone}
+                      aria-describedby={errors.phone ? 'reg-m-phone-err' : undefined}
+                      className={cn(authInputDark, errors.phone && 'ring-2 ring-red-400 border-red-400')}
                       {...register('phone')}
                     />
-                    {errors.phone && <p className="text-xs text-red-400">{errors.phone.message}</p>}
+                    {errors.phone && <p id="reg-m-phone-err" role="alert" className={authErrorTextDark}>{errors.phone.message}</p>}
                   </div>
-                </div>
-                <div className="pt-2 space-y-4">
+                </motion.div>
+                <motion.div variants={listStagger.item} className="pt-2 space-y-4">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full h-14 rounded-full bg-white text-zinc-950 font-bold text-base flex items-center justify-center gap-2"
+                    className={authPillBtnLight}
                   >
                     {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
                   </button>
-                  <Link href="/login" className="w-full h-14 rounded-full border border-zinc-700 text-zinc-300 font-medium text-base flex items-center justify-center">
-                    Van már fiókom
+                  <Link href="/login" className="block">
+                    <button type="button" className={authGhostBtnDark}>
+                      Van már fiókom
+                    </button>
                   </Link>
                   {/* Alternatív: Google-fiókkal folytatás (jelszó nélkül) — a wizard alján. */}
-                  <div className="pt-2 flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-600">
-                    <span className="h-px flex-1 bg-zinc-800" />vagy<span className="h-px flex-1 bg-zinc-800" />
+                  <div className={`${authDividerDark} pt-2`}>
+                    <span className="h-px flex-1 bg-white/10" />vagy<span className="h-px flex-1 bg-white/10" />
                   </div>
                   <GoogleSignInButton
                     variant="dark"
                     label="Folytatás Google-lel"
                     onClick={continueWithGoogle}
                   />
-                </div>
-              </form>
+                </motion.div>
+              </motion.form>
             </div>
           )}
 
@@ -570,15 +609,16 @@ export function RegisterWizard() {
           {step === 3 && (
             <div className="mt-12 flex-1 flex flex-col justify-between">
               <div>
-                <h2 className="text-white font-black text-[2.5rem] uppercase leading-[1.0] tracking-tighter mb-8">
+                <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
                   ADD HOZZÁ<br />A CSAPA<br />TODAT.
                 </h2>
                 <div className="space-y-3">
-                  <div className="space-y-1">
-                    <Label className="text-zinc-400 text-sm">Munkatárs neve</Label>
+                  <div className="space-y-1.5">
+                    <Label className={authLabelDark}>Munkatárs neve</Label>
                     <input
+                      autoComplete="name"
                       placeholder="Pl. Kovács Péter"
-                      className="w-full h-12 rounded-xl bg-zinc-900 border border-zinc-800 text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none focus:border-zinc-500"
+                      className={authInputDark}
                       value={staffName}
                       onChange={e => setStaffName(e.target.value)}
                     />
@@ -589,14 +629,14 @@ export function RegisterWizard() {
                 <button
                   onClick={onStep3}
                   disabled={loading}
-                  className="w-full h-14 rounded-full bg-white text-zinc-950 font-bold text-base flex items-center justify-center gap-2"
+                  className={authPillBtnLight}
                 >
                   {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
                 </button>
                 <button
                   type="button"
                   onClick={() => setStep(4)}
-                  className="w-full h-14 rounded-full border border-zinc-700 text-zinc-400 font-medium text-base"
+                  className={authGhostBtnDark}
                 >
                   Kihagyás
                 </button>
@@ -608,7 +648,7 @@ export function RegisterWizard() {
           {step === 4 && (
             <div className="mt-12 flex-1 flex flex-col justify-between">
               <div>
-                <h2 className="text-white font-black text-[2.5rem] uppercase leading-[1.0] tracking-tighter mb-8">
+                <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
                   KÉSZEN<br />VAGYOK.
                 </h2>
                 <div className="space-y-3">
@@ -618,18 +658,18 @@ export function RegisterWizard() {
                     'Foglalási oldal elérhető',
                     'Dashboard hozzáférés aktív',
                   ].map(item => (
-                    <div key={item} className="flex items-center gap-3 p-3.5 bg-zinc-900 border border-zinc-800 rounded-xl">
-                      <div className="h-5 w-5 rounded-full bg-white flex items-center justify-center shrink-0">
-                        <Check className="h-3 w-3 text-zinc-950" />
+                    <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.03] border border-white/10 rounded-xl">
+                      <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
+                        <Check className="h-3 w-3 text-ink-dark" />
                       </div>
-                      <span className="text-sm font-medium text-zinc-300">{item}</span>
+                      <span className="text-sm font-medium text-white/80">{item}</span>
                     </div>
                   ))}
                 </div>
               </div>
               <button
                 onClick={finish}
-                className="w-full h-14 rounded-full bg-white text-zinc-950 font-bold text-base flex items-center justify-center gap-2"
+                className={authPillBtnLight}
               >
                 Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
               </button>
@@ -639,29 +679,29 @@ export function RegisterWizard() {
       </div>
 
       {/* ── DESKTOP ────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex min-h-screen">
+      <div className="hidden lg:flex min-h-screen font-onest">
         {/* Left panel */}
-        <div className="w-[45%] bg-zinc-950 flex flex-col justify-between p-14 select-none">
-          <Link href="/" aria-label="Schedulio" className="w-fit hover:opacity-80 transition-opacity">
+        <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
+          <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
             <SchedulioLogo variant="dark" className="h-8" />
           </Link>
           <div>
-            <h1 className="text-white font-black text-[3.25rem] uppercase leading-[1.05] tracking-tighter whitespace-pre-line">
+            <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
               {leftText.headline}
             </h1>
-            <p className="text-zinc-500 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
+            <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
           </div>
-          <p className="text-zinc-700 text-xs">© 2026 Schedulio by [davelopment]®</p>
+          <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
         </div>
 
         {/* Right panel */}
-        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white">
+        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light]">
           <div className="w-full max-w-sm">
 
             {/* Progress bar */}
-            <div className="h-1 bg-zinc-100 rounded-full mb-10 overflow-hidden">
+            <div className="h-1 bg-line rounded-full mb-10 overflow-hidden">
               <div
-                className="h-full bg-zinc-900 rounded-full transition-all duration-500"
+                className="h-full bg-ink-dark rounded-full transition-all duration-500"
                 style={{ width: `${progressWidth}%` }}
               />
             </div>
@@ -670,52 +710,98 @@ export function RegisterWizard() {
             {step === 2 && (
               <>
                 <div className="mb-8">
-                  <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-zinc-400 text-xs mb-4 hover:text-zinc-600 transition-colors">
+                  <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
                     <ChevronLeft className="h-3 w-3" /> Vissza
                   </button>
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">2 / 4</p>
-                  <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Hozd létre a fiókodat</h2>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">2 / 4</p>
+                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Hozd létre a fiókodat</h2>
                 </div>
-                <form onSubmit={handleSubmit(onStep2)} className="space-y-4" noValidate>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Szalon neve</Label>
-                    <Input placeholder="Pl. Anna Fodrászat" className={`h-11 rounded-xl bg-zinc-50 ${errors.salonName ? 'border-red-500' : 'border-zinc-200'}`} {...register('salonName')} />
-                    {errors.salonName && <p className="text-xs text-red-500">{errors.salonName.message}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">A te neved</Label>
-                    <Input placeholder="Pl. Kiss Anna" className={`h-11 rounded-xl bg-zinc-50 ${errors.ownerName ? 'border-red-500' : 'border-zinc-200'}`} {...register('ownerName')} />
-                    {errors.ownerName && <p className="text-xs text-red-500">{errors.ownerName.message}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Email</Label>
-                    <Input type="email" placeholder="te@pelda.hu" className={`h-11 rounded-xl bg-zinc-50 ${errors.email ? 'border-red-500' : 'border-zinc-200'}`} {...register('email')} />
-                    {errors.email && <p className="text-xs text-red-500">{errors.email.message}</p>}
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Jelszó</Label>
-                    <Input type="password" autoComplete="new-password" className={`h-11 rounded-xl bg-zinc-50 ${errors.password ? 'border-red-500' : 'border-zinc-200'}`} {...register('password')} />
-                    {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
+                <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={handleSubmit(onStep2)} className="space-y-4" noValidate>
+                  <motion.div variants={listStagger.item} className="space-y-1.5">
+                    <Label className={authLabelBase}>Szalon neve</Label>
+                    <input
+                      autoComplete="organization"
+                      placeholder="Pl. Anna Fodrászat"
+                      aria-invalid={!!errors.salonName}
+                      aria-describedby={errors.salonName ? 'reg-d-salon-err' : undefined}
+                      className={cn(authInputBase, errors.salonName && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...register('salonName')}
+                    />
+                    {errors.salonName && <p id="reg-d-salon-err" role="alert" className={authErrorText}>{errors.salonName.message}</p>}
+                  </motion.div>
+                  <motion.div variants={listStagger.item} className="space-y-1.5">
+                    <Label className={authLabelBase}>A te neved</Label>
+                    <input
+                      autoComplete="name"
+                      placeholder="Pl. Kiss Anna"
+                      aria-invalid={!!errors.ownerName}
+                      aria-describedby={errors.ownerName ? 'reg-d-owner-err' : undefined}
+                      className={cn(authInputBase, errors.ownerName && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...register('ownerName')}
+                    />
+                    {errors.ownerName && <p id="reg-d-owner-err" role="alert" className={authErrorText}>{errors.ownerName.message}</p>}
+                  </motion.div>
+                  <motion.div variants={listStagger.item} className="space-y-1.5">
+                    <Label className={authLabelBase}>Email</Label>
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      inputMode="email"
+                      placeholder="te@pelda.hu"
+                      aria-invalid={!!errors.email}
+                      aria-describedby={errors.email ? 'reg-d-email-err' : undefined}
+                      className={cn(authInputBase, errors.email && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...register('email')}
+                    />
+                    {errors.email && <p id="reg-d-email-err" role="alert" className={authErrorText}>{errors.email.message}</p>}
+                  </motion.div>
+                  <motion.div variants={listStagger.item} className="space-y-1.5">
+                    <Label className={authLabelBase}>Jelszó</Label>
+                    <input
+                      type="password"
+                      autoComplete="new-password"
+                      aria-invalid={!!errors.password}
+                      aria-describedby={errors.password ? 'reg-d-pw-err' : undefined}
+                      className={cn(authInputBase, errors.password && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...register('password')}
+                    />
+                    {errors.password && <p id="reg-d-pw-err" role="alert" className={authErrorText}>{errors.password.message}</p>}
+                  </motion.div>
+                  <motion.div variants={listStagger.item} className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
-                      <Label className="text-sm font-medium text-zinc-700">Város</Label>
-                      <Input placeholder="Budapest" className={`h-11 rounded-xl bg-zinc-50 ${errors.city ? 'border-red-500' : 'border-zinc-200'}`} {...register('city')} />
-                      {errors.city && <p className="text-xs text-red-500">{errors.city.message}</p>}
+                      <Label className={authLabelBase}>Város</Label>
+                      <input
+                        autoComplete="address-level2"
+                        placeholder="Budapest"
+                        aria-invalid={!!errors.city}
+                        aria-describedby={errors.city ? 'reg-d-city-err' : undefined}
+                        className={cn(authInputBase, errors.city && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...register('city')}
+                      />
+                      {errors.city && <p id="reg-d-city-err" role="alert" className={authErrorText}>{errors.city.message}</p>}
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-sm font-medium text-zinc-700">Telefon</Label>
-                      <Input placeholder="+36 30..." className={`h-11 rounded-xl bg-zinc-50 ${errors.phone ? 'border-red-500' : 'border-zinc-200'}`} {...register('phone')} />
-                      {errors.phone && <p className="text-xs text-red-500">{errors.phone.message}</p>}
+                      <Label className={authLabelBase}>Telefon</Label>
+                      <input
+                        type="tel"
+                        autoComplete="tel"
+                        inputMode="tel"
+                        placeholder="+36 30..."
+                        aria-invalid={!!errors.phone}
+                        aria-describedby={errors.phone ? 'reg-d-phone-err' : undefined}
+                        className={cn(authInputBase, errors.phone && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...register('phone')}
+                      />
+                      {errors.phone && <p id="reg-d-phone-err" role="alert" className={authErrorText}>{errors.phone.message}</p>}
                     </div>
-                  </div>
-                  <Button type="submit" disabled={loading} className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold mt-2">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="flex items-center gap-2">Tovább <ChevronRight className="h-4 w-4" /></span>}
-                  </Button>
-                </form>
+                  </motion.div>
+                  <motion.button variants={listStagger.item} type="submit" disabled={loading} className={cn(authPillBtn, 'mt-2')}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
+                  </motion.button>
+                </motion.form>
                 {/* Alternatív: Google-folytatás (jelszó nélkül) — a regisztráció alján. */}
-                <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-widest text-zinc-400">
-                  <span className="h-px flex-1 bg-zinc-200" />vagy<span className="h-px flex-1 bg-zinc-200" />
+                <div className={`${authDivider} mt-6`}>
+                  <span className="h-px flex-1 bg-line" />vagy<span className="h-px flex-1 bg-line" />
                 </div>
                 <div className="mt-3">
                   <GoogleSignInButton
@@ -724,9 +810,9 @@ export function RegisterWizard() {
                     onClick={continueWithGoogle}
                   />
                 </div>
-                <p className="mt-6 text-center text-sm text-zinc-500">
+                <p className="mt-6 text-center text-sm text-ink-soft">
                   Van már fiókod?{' '}
-                  <Link href="/login" className="font-semibold text-zinc-900 hover:underline">Bejelentkezés</Link>
+                  <Link href="/login" className="font-semibold text-ink hover:underline no-underline">Bejelentkezés</Link>
                 </p>
               </>
             )}
@@ -735,27 +821,28 @@ export function RegisterWizard() {
             {step === 3 && (
               <>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">3 / 4</p>
-                  <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Add hozzá az első munkatársat</h2>
-                  <p className="text-zinc-500 text-sm mt-1">Kihagyható — később is hozzáadhatsz.</p>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">3 / 4</p>
+                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Add hozzá az első munkatársat</h2>
+                  <p className="text-ink-soft text-sm mt-1">Kihagyható — később is hozzáadhatsz.</p>
                 </div>
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label className="text-sm font-medium text-zinc-700">Munkatárs neve</Label>
-                    <Input
+                    <Label className={authLabelBase}>Munkatárs neve</Label>
+                    <input
+                      autoComplete="name"
                       placeholder="Pl. Kovács Péter"
-                      className="h-11 rounded-xl bg-zinc-50 border-zinc-200"
+                      className={authInputBase}
                       value={staffName}
                       onChange={e => setStaffName(e.target.value)}
                     />
                   </div>
-                  <Button onClick={onStep3} disabled={loading} className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold">
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <span className="flex items-center gap-2">Tovább <ChevronRight className="h-4 w-4" /></span>}
-                  </Button>
+                  <button onClick={onStep3} disabled={loading} className={authPillBtn}>
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
+                  </button>
                   <button
                     type="button"
                     onClick={() => setStep(4)}
-                    className="w-full h-12 rounded-full border border-zinc-200 text-sm text-zinc-500 hover:text-zinc-900 hover:border-zinc-400 transition-colors"
+                    className="w-full h-12 rounded-dav-pill border border-line-strong text-sm text-ink-soft hover:text-ink hover:bg-paper transition-colors"
                   >
                     Kihagyás
                   </button>
@@ -767,9 +854,9 @@ export function RegisterWizard() {
             {step === 4 && (
               <>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-widest mb-1">4 / 4</p>
-                  <h2 className="text-2xl font-bold tracking-tight text-zinc-900">Készen vagy!</h2>
-                  <p className="text-zinc-500 text-sm mt-1">A szalonod sikeresen létrejött.</p>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">4 / 4</p>
+                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Készen vagy!</h2>
+                  <p className="text-ink-soft text-sm mt-1">A szalonod sikeresen létrejött.</p>
                 </div>
                 <div className="space-y-3">
                   {[
@@ -778,17 +865,17 @@ export function RegisterWizard() {
                     'Foglalási oldal elérhető',
                     'Dashboard hozzáférés aktív',
                   ].map(item => (
-                    <div key={item} className="flex items-center gap-3 p-3.5 bg-zinc-50 rounded-xl">
-                      <div className="h-5 w-5 rounded-full bg-zinc-900 flex items-center justify-center shrink-0">
-                        <Check className="h-3 w-3 text-white" />
+                    <div key={item} className="flex items-center gap-3 p-3.5 bg-paper rounded-xl">
+                      <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
+                        <Check className="h-3 w-3 text-ink-dark" />
                       </div>
-                      <span className="text-sm font-medium text-zinc-700">{item}</span>
+                      <span className="text-sm font-medium text-ink">{item}</span>
                     </div>
                   ))}
                 </div>
-                <Button onClick={finish} className="w-full h-12 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-semibold mt-6">
-                  <span className="flex items-center gap-2">Ugrás a dashboardra <ChevronRight className="h-4 w-4" /></span>
-                </Button>
+                <button onClick={finish} className={cn(authPillBtn, 'mt-6')}>
+                  Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
+                </button>
               </>
             )}
           </div>

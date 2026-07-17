@@ -1,4 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { formatPrice } from '@/lib/utils'
@@ -29,7 +30,8 @@ export default async function AnalyticsPage({
   searchParams: Promise<{ period?: string }>
 }) {
   const { period: periodParam } = await searchParams
-  const { salon } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon()
+  requireCapability(capabilities, 'analytics.view', '/dashboard')
   const payload = await getPayloadClient()
 
   const days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30

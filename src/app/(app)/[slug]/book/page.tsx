@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getPayloadClient } from '@/lib/payload'
 import type { Salon, Service, StaffMember } from '@/payload/payload-types'
@@ -5,6 +6,10 @@ import BookingWizard from '@/components/booking/BookingWizard'
 import { RestaurantBookView } from '@/components/restaurant/RestaurantBookView'
 import { getLocale } from '@/lib/i18n/server'
 import { resolveAvailableLocales } from '@/lib/i18n'
+
+// A foglaló wizard interaktív, tartalmatlan a botnak — a canonical a profil-oldal (/[slug]),
+// ezt ne indexeljük (duplikált/üres tartalom elkerülése).
+export const metadata: Metadata = { robots: { index: false, follow: true } }
 
 export default async function BookPage({
   params,

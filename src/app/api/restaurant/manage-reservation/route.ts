@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { validateManualReservation } from '@/lib/restaurantBooking'
+import { sendReservationConfirmation, sendReservationNotification } from '@/lib/restaurantEmail'
 import type { User, Restaurant, Reservation } from '@/payload/payload-types'
 
 /**
@@ -60,7 +62,9 @@ const defaultNameForSource: Record<NonNullable<Reservation['source']>, string> =
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
-  if (!user || (user.role !== 'restaurant_owner' && user.role !== 'admin')) {
+  // Bármely tulaj (több-üzlet fiók: a szerep lehet salon_owner is, miközben étteremben dolgozik)
+  // vagy admin — a tényleges jogosultságot a getOwnerRestaurant (aktív üzlet) szűkíti a saját étteremre.
+  if (!user || (user.role !== 'salon_owner' && user.role !== 'restaurant_owner' && user.role !== 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -139,9 +143,20 @@ export async function POST(req: NextRequest) {
       customer_name: body.customer_name?.trim() || defaultNameForSource[source] || 'Foglalás',
       status: body.status ?? 'confirmed',
       source,
+      // Önlemondó token — hogy a visszaigazoló emailben legyen működő lemondás-link.
+      cancel_token: randomBytes(24).toString('hex'),
     } as Reservation,
     overrideAccess: true,
     user,
   })
+
+  // Visszaigazoló email a vendégnek (mint a publikus foglalónál) — a kézi (dashboard) rögzítésnél is.
+  // Csak ha van megadott email, és a tulaj nem tiltotta le a megerősítő emailt.
+  if (created.customer_email && restaurant.notification_prefs?.confirm_email !== false) {
+    void sendReservationConfirmation({ reservation: created as Reservation, restaurant })
+  }
+  // Értesítő a szolgáltatónak: az üzlet e-mail címére, vagy ha üres, a tulaj fiók-emailjére.
+  void sendReservationNotification({ reservation: created as Reservation, restaurant }, user.email)
+
   return NextResponse.json({ ok: true, reservation: created })
 }

@@ -2,6 +2,7 @@ import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { settingsExtensionFields, businessTierField, emailTemplateFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
+import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
 import { auditAfterChange } from '../hooks/auditLog'
 
@@ -61,6 +62,7 @@ export const Salons: CollectionConfig = {
     ],
     afterDelete: [
       revalidatePlaceOnDelete('salon'),
+      cleanupPlaceMedia(),
       async ({ req, doc }) => {
         // A szalon kikerült → a fiók előfizetési díja újraszámol (kevesebb üzlet).
         if (doc?.owner) await syncAccountSubscription({ payload: req.payload, req }, doc.owner).catch(() => null)

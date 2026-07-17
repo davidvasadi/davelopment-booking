@@ -1,12 +1,21 @@
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { getPayloadClient } from './payload'
 import type { User } from '@/payload/payload-types'
 
 export async function getCurrentUser(): Promise<User | null> {
   const cookieStore = await cookies()
-  const token = cookieStore.get('payload-token')
-  if (!token) return null
+  // Elsődlegesen a `payload-token` cookie-ból dolgozunk (a normál út). Fallback: a
+  // `Authorization: JWT <token>` fejléc — friss regisztrációnál a session-cookie néha még
+  // nincs beállítva, de a kliens a kezében tartja a friss tokent (pl. seed-templates hívás).
+  // A cookie-út teljesen változatlan; a fejléc CSAK akkor lép be, ha nincs cookie.
+  let tokenValue = cookieStore.get('payload-token')?.value
+  if (!tokenValue) {
+    const authHeader = (await headers()).get('authorization')
+    if (authHeader?.startsWith('JWT ')) tokenValue = authHeader.slice(4).trim()
+  }
+  if (!tokenValue) return null
+  const token = { value: tokenValue }
 
   // A token-t magunknak dekódoljuk (jose, HS256, PAYLOAD_SECRET) és kiolvassuk a user id-t.
   // A Payload `payload.auth()` valamiért nem fogadja el a JWT-t (vélhetően a v3 belső auth

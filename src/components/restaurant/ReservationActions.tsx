@@ -40,11 +40,12 @@ export function ReservationActions({ reservationId, status }: { reservationId: n
   const updateStatus = async (newStatus: string) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/reservations/${reservationId}`, {
-        method: 'PATCH',
+      // App-auth + capability-vezérelt route (nem a nyers, owner-only Payload REST).
+      const res = await fetch('/api/restaurant/reservation-status', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ reservationId, status: newStatus }),
       })
       if (!res.ok) throw new Error()
       toast.success('Státusz frissítve')

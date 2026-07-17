@@ -1,4 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { ReservationDateFilter } from '@/components/restaurant/ReservationDateFilter'
 import { DailyView } from '@/components/restaurant/DailyView'
@@ -18,7 +19,8 @@ export default async function RestaurantBookingsPage({
 }: {
   searchParams: Promise<{ date?: string; reservation?: string }>
 }) {
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, capabilities } = await getOwnedRestaurant()
+  requireCapability(capabilities, 'bookings.view', '/restaurant')
   const { date, reservation: reservationParam } = await searchParams
 
   const payload = await getPayloadClient()

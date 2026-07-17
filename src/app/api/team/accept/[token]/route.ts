@@ -50,6 +50,66 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     },
   })
 
+  // SZALON-PARITÁS: a szalon minden felülete (Munkatársak, Beosztás, publikus foglalás,
+  // statisztikák) a `staff` collectionből olvas — a membership önmagában láthatatlan ott.
+  // Ezért szalon-meghívónál a membership mellé egy `staff` rekordot is létrehozunk/párosítunk.
+  // Összekötés EMAIL alapján (nincs séma-változás): ha már van staff ezzel az emaillel a
+  // szalonhoz, azt aktiváljuk (nem duplikálunk); különben újat hozunk létre a tag adataiból.
+  // Étteremnél NINCS teendő — ott a membership maga a munkatárs.
+  const salonId = membership.salon
+    ? typeof membership.salon === 'object'
+      ? (membership.salon as { id: number | string }).id
+      : membership.salon
+    : null
+  if (salonId != null) {
+    try {
+      const email = (membership.email ?? '').trim().toLowerCase()
+      const existingStaff = email
+        ? await payload.find({
+            collection: 'staff',
+            where: { and: [{ salon: { equals: salonId } }, { email: { equals: email } }] },
+            limit: 1,
+            depth: 0,
+            overrideAccess: true,
+          })
+        : { docs: [] as { id: number | string }[] }
+
+      // A Postgres-relationship SZÁMOT vár; az id lehet string — coerce (mint az invite route-nál).
+      const salonRel = /^\d+$/.test(String(salonId)) ? Number(salonId) : salonId
+
+      if (existingStaff.docs.length > 0) {
+        // Már van staff ehhez az emailhez → csak biztosítjuk, hogy aktív (nem duplikálunk).
+        await payload.update({
+          collection: 'staff',
+          id: existingStaff.docs[0].id,
+          overrideAccess: true,
+          user,
+          data: { is_active: true },
+        })
+      } else {
+        await payload.create({
+          collection: 'staff',
+          overrideAccess: true,
+          user,
+          data: {
+            salon: salonRel,
+            name: user.name || membership.name || email,
+            email: email || undefined,
+            is_active: true,
+            role_title: membership.position || undefined,
+            phone: membership.phone || undefined,
+            join_date: membership.join_date || undefined,
+            weekly_hours: membership.weekly_hours ?? undefined,
+          },
+        })
+      }
+    } catch (e) {
+      // Nem fatális: a membership már aktív, a tag be tud lépni. A staff-párosítás
+      // legrosszabb esetben a tulaj kézi felvételével pótolható — ne bukjon el az elfogadás.
+      console.error('[team/accept] szalon staff-párosítás sikertelen', e)
+    }
+  }
+
   return NextResponse.json({ ok: true })
 }
 

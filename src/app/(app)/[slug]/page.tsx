@@ -1,5 +1,8 @@
+import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { getPublicSalon } from '@/lib/publicPlace'
+import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
+import { placeMetadata, placeJsonLd } from '@/lib/publicSeo'
+import { getReviewSummary } from '@/lib/reviews'
 import type { Media } from '@/payload/payload-types'
 import { MapPin, Phone, Mail, Globe, Scissors, Users } from 'lucide-react'
 import { RatingStars } from '@/components/booking/RatingStars'
@@ -16,6 +19,20 @@ import { RestaurantPublicView } from '@/components/restaurant/RestaurantPublicVi
 import { LangSwitcher } from '@/components/booking/LangSwitcher'
 import { getLocale } from '@/lib/i18n/server'
 import { t, resolveAvailableLocales } from '@/lib/i18n'
+
+/**
+ * Dinamikus SEO-metaadat az üzlet valós adataiból (title/description/OG/canonical).
+ * Ugyanaz a salon→restaurant fallback, mint a page-en; a cache-elt getterek miatt
+ * ez NEM jelent plusz DB-hívást (a page ugyanezt a cache-t olvassa).
+ */
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const salonData = await getPublicSalon(slug, 'hu')
+  if (salonData) return placeMetadata(salonData.salon, 'salon')
+  const restaurantData = await getPublicRestaurant(slug, 'hu')
+  if (restaurantData) return placeMetadata(restaurantData.restaurant, 'restaurant')
+  return {}
+}
 
 export default async function SalonPublicPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
@@ -37,6 +54,9 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
   const salonData = locale === 'hu' ? base : (await getPublicSalon(slug, locale)) ?? base
   const { salon, services, staff, serviceCategories } = salonData
 
+  // Valós értékelés-összegzés (belső Reviews); üresen (0 vélemény) nem jelenítünk meg csillagot.
+  const reviews = await getReviewSummary('salon', salon.id)
+
   const coverUrl = salon.cover_image && typeof salon.cover_image === 'object'
     ? (salon.cover_image as Media).url ?? null
     : null
@@ -46,6 +66,11 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
 
   return (
     <div className="font-onest min-h-screen bg-paper px-4 py-4 text-ink sm:px-6 sm:py-6">
+      {/* schema.org structured data (rich-result: név, cím, telefon, foglalás-akció). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(salon, 'salon')) }}
+      />
       {/* Nagy krém-gradient konténer (34px) — 1:1 az Áttekintés wrapperével. A szekciók
           EZEN lebegnek külön krém-kártyákként. */}
       <div
@@ -60,13 +85,15 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
               <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{t(locale, "public.eyebrow")}</p>
             </div>
             <h1 className="text-[40px] font-light leading-[1.0] tracking-[-0.03em] text-ink sm:text-[52px]">{salon.name}</h1>
-            <RatingStars rating={4.8} count={213} className="mt-3.5" />
+            {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mt-3.5" />}
           </div>
-          <div className="flex shrink-0 items-start gap-8 sm:gap-10">
-            {services.length > 0 && <CrextioKpi icon={Scissors} value={services.length} label={t(locale, 'public.services')} />}
-            {staff.length > 0 && <CrextioKpi icon={Users} value={staff.length} label={t(locale, 'public.staff')} />}
+          <div className="flex shrink-0 flex-col items-end gap-4">
+            {available.length > 1 && <LangSwitcher current={locale} available={available} />}
+            <div className="flex items-start gap-8 sm:gap-10">
+              {services.length > 0 && <CrextioKpi icon={Scissors} value={services.length} label={t(locale, 'public.services')} />}
+              {staff.length > 0 && <CrextioKpi icon={Users} value={staff.length} label={t(locale, 'public.staff')} />}
+            </div>
           </div>
-          <div className="absolute right-6 top-6 sm:right-8 sm:top-8"><LangSwitcher current={locale} available={available} /></div>
         </div>
 
         {/* ── HERO BENTO: bal = borítókép-kártya, jobb = két üveg-kártya (CTA + kapcsolat) ── */}

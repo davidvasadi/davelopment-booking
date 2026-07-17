@@ -10,8 +10,7 @@
 import { useMemo, useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal } from 'lucide-react'
-import { StatusPills } from '@/components/dashboard/StatusPills'
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal, BarChart3 } from 'lucide-react'
 
 export type ShiftType = 'shift' | 'leave' | 'sick' | 'vacation'
 
@@ -64,16 +63,16 @@ const HATCH = 'repeating-linear-gradient(45deg,#E4DECC 0 6px,#F1ECDD 6px 12px)'
  */
 // A davelopment Naptar HANDOFF eredeti notch-a: FIX méretű, középre igazított kis ív a toolbarnak
 // (desktop: 600×70 — 1:1 a handoff-fal; mobilon arányosan kisebb).
-const NOTCH_SVG = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='70'%3E%3Cpath d='M52 0Q64 0 64 24V38A26 26 0 0 0 90 64H510A26 26 0 0 0 536 38V24Q536 0 548 0Z' fill='white'/%3E%3C/svg%3E\")"
+const NOTCH_SVG = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='70'%3E%3Cpath d='M76 0Q92 0 92 16V42A26 26 0 0 0 118 68H482A26 26 0 0 0 508 42V16Q508 0 524 0Z' fill='white'/%3E%3C/svg%3E\")"
 const NOTCH_CSS = `.sched-folder{
   -webkit-mask-image:${NOTCH_SVG},linear-gradient(#000,#000);
   -webkit-mask-repeat:no-repeat,no-repeat;-webkit-mask-position:center top,center;
-  -webkit-mask-size:380px 66px,100% 100%;-webkit-mask-composite:xor;
+  -webkit-mask-size:420px 68px,100% 100%;-webkit-mask-composite:xor;
   mask-image:${NOTCH_SVG},linear-gradient(#000,#000);
   mask-repeat:no-repeat,no-repeat;mask-position:center top,center;
-  mask-size:380px 66px,100% 100%;mask-composite:exclude;
+  mask-size:420px 68px,100% 100%;mask-composite:exclude;
 }
-@media(min-width:640px){.sched-folder{-webkit-mask-size:600px 70px,100% 100%;mask-size:600px 70px,100% 100%;}}`
+@media(min-width:640px){.sched-folder{-webkit-mask-size:650px 76px,100% 100%;mask-size:650px 76px,100% 100%;}}`
 
 const TYPE_LABEL: Record<ShiftType, string> = { shift: 'Műszak', leave: 'Szabadság', sick: 'Betegszabadság', vacation: 'Fizetett szabadság' }
 
@@ -152,12 +151,12 @@ function Ava({ url, ini, className, style }: { url?: string | null; ini: string;
  */
 function SegFilter<T extends string>({ id, options, value, onChange }: { id: string; options: { v: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="flex items-center rounded-full bg-[#EDEBE4] p-1 shadow-[inset_0_1px_2px_rgba(70,60,20,.06)]">
+    <div className="flex items-center rounded-[11px] bg-[#E8E8EC] p-[3px]">
       {options.map((o) => {
         const active = o.v === value
         return (
-          <button key={o.v} type="button" onClick={() => onChange(o.v)} className="relative rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition-colors" style={{ color: active ? '#fff' : '#57564f' }}>
-            {active && <motion.span layoutId={`seg-${id}`} className="absolute inset-0 rounded-full bg-[#1D1C19]" transition={{ type: 'spring', stiffness: 480, damping: 40 }} />}
+          <button key={o.v} type="button" onClick={() => onChange(o.v)} className="relative flex-1 rounded-[9px] px-2 py-[7px] text-center text-[12.5px] font-medium transition-colors" style={{ color: active ? '#1D1C19' : '#6b665a' }}>
+            {active && <motion.span layoutId={`seg-${id}`} initial={false} className="absolute inset-0 rounded-[9px] bg-white shadow-[0_1px_3px_rgba(70,60,20,.16)]" transition={{ type: 'spring', stiffness: 480, damping: 40 }} />}
             <span className="relative z-[1] whitespace-nowrap">{o.label}</span>
           </button>
         )
@@ -177,7 +176,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
   const [selectedDay, setSelectedDay] = useState<string | null>(null) // kijelölt nap → a bal panel „Aznap" módja
   const [dayEditor, setDayEditor] = useState<string | null>(null) // nap-szerkesztő modal (hozzáadás/módosítás)
   const [busy, setBusy] = useState(false)
-  const [focusPerson, setFocusPerson] = useState(false) // személy-fókusz: csak a kijelölt dolgozó műszakai kiemelve
+  const [focusPerson] = useState(false) // személy-fókusz (a Kiemelés gomb helyére a Statisztika került; a dimmelés dormant marad)
   const [navDir, setNavDir] = useState(0) // hónapváltás iránya (-1 vissza / +1 előre / 0 ugrás) az animációhoz
   const [typeFilter, setTypeFilter] = useState<'all' | ShiftType>('all') // beosztás-típus szűrő (hatékonyabb áttekintés)
   const [posFilter, setPosFilter] = useState<string>('all') // pozíció-szűrő (csak az adott munkakör)
@@ -185,10 +184,9 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
   const [onlyUncovered, setOnlyUncovered] = useState(false) // csak a fedetlen napok kiemelése (a többi halványul)
   const [query, setQuery] = useState('') // munkatárs-kereső (név szerint)
   // Fül-toolbar EGY-aktív eszköze: a Kereső az ALAP; váltáskor átanimálódik (az nyílik ki, a másik összemegy).
-  const [activeTool, setActiveTool] = useState<'search' | 'filter'>('search')
+  const [activeTool, setActiveTool] = useState<'search' | 'filter' | 'stats'>('search')
   const toolbarRef = useRef<HTMLDivElement>(null)
   const folderRef = useRef<HTMLDivElement>(null)
-  const [addHover, setAddHover] = useState(false) // +Új gomb: hoverre kiírja a nevét
 
   // Félrekattintásra a toolbar VISSZAÁLL a keresőre (Apple-szerű alap-állapot).
   useEffect(() => {
@@ -199,6 +197,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [activeTool])
+
 
   const staffById = useMemo(() => new Map(staff.map((s) => [s.id, s])), [staff])
   const sel = useMemo(() => staff.find((s) => s.id === selStaff) ?? staff[0], [staff, selStaff])
@@ -445,8 +444,29 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
         {/* ── FÜL-toolbar (ÜVEGES): EGY-aktív — a Kereső az alap, váltáskor átanimálódik (az nyílik ki, a másik összemegy); active = FEKETE-FEHÉR ── */}
         <div className="pointer-events-none absolute inset-x-0 top-1.5 z-30 flex justify-center px-4">
           <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} ref={toolbarRef} className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/50 bg-white/40 p-1.5 shadow-dav-card backdrop-blur-md">
-            {/* Kereső — EGY elem, layout animálja a méretet (aktív: széles sötét mező; inaktív: ikon) */}
-            <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} onClick={() => activeTool !== 'search' && setActiveTool('search')} className={`flex h-10 items-center gap-2 overflow-hidden rounded-full ${activeTool === 'search' ? 'w-[150px] bg-white px-3.5 shadow-sm sm:w-[216px]' : 'w-10 flex-shrink-0 cursor-pointer justify-center hover:bg-white/70'}`}>
+            {/* Statisztika — BAL oldalt (a kereső előtt); egy-aktív popover a havi összegzővel (a régi közép stat-sávok helyett) */}
+            {sel && (
+              <div className="relative">
+                <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setActiveTool(activeTool === 'stats' ? 'search' : 'stats')} title="Havi összegző" className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors ${activeTool === 'stats' ? 'bg-[#1D1C19] text-white' : 'bg-white/55 text-ink-soft hover:bg-white'}`}>
+                  <BarChart3 className="h-[18px] w-[18px]" strokeWidth={2} />
+                </motion.button>
+                <AnimatePresence>
+                  {activeTool === 'stats' && (
+                    <motion.div initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -6 }} transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }} style={{ transformOrigin: 'top left' }} className="absolute left-0 top-full z-50 mt-2 w-[270px] rounded-[18px] border border-line bg-white p-3.5 shadow-dav-container">
+                      <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">{sel.name.split(' ')[0]} · {MONTHS[m]} összegző</div>
+                      {([['Ledolgozott', daysWorked, '#F1CE45'], ['Hiányzás', sickDays, '#1D1C19'], ['Szabadság', vacationDays, '#E4DECC']] as const).map(([label, val, color]) => (
+                        <div key={label} className="flex items-center justify-between py-1.5 text-[13px]">
+                          <span className="flex items-center gap-2 font-medium text-ink"><span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />{label}</span>
+                          <span className="font-semibold text-ink">{val} nap</span>
+                        </div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+            {/* Kereső — inaktívan kör; aktívan (ALAP) széles fehér mezővé nyílik, layout-animációval */}
+            <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} onClick={() => activeTool !== 'search' && setActiveTool('search')} className={`flex h-10 items-center gap-2 overflow-hidden rounded-full transition-colors ${activeTool === 'search' ? 'w-[150px] bg-white px-3.5 shadow-sm sm:w-[216px]' : 'w-10 flex-shrink-0 cursor-pointer justify-center bg-white/55 hover:bg-white'}`}>
               <Search className="h-[18px] w-[18px] flex-shrink-0 text-ink-soft" strokeWidth={2} />
               {activeTool === 'search' && (
                 <>
@@ -457,59 +477,66 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
             </motion.div>
             {/* Szűrők — aktív: fekete-fehér + label + panel; inaktív: ikon (aktív szűrőnél apró jelző) */}
             <div className="relative">
-              <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setActiveTool('filter')} title="Szűrők" className={`relative flex h-10 items-center justify-center gap-1.5 rounded-full ${activeTool === 'filter' ? 'bg-[#1D1C19] px-3.5 text-white' : 'w-10 flex-shrink-0 text-ink-soft hover:bg-white/70'}`}>
-                <SlidersHorizontal className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2} />
-                {activeTool === 'filter' && <span className="whitespace-nowrap text-[13px] font-semibold">Szűrők</span>}
+              <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setActiveTool(activeTool === 'filter' ? 'search' : 'filter')} title="Szűrők" className={`relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors ${activeTool === 'filter' ? 'bg-[#1D1C19] text-white' : 'bg-white/55 text-ink-soft hover:bg-white'}`}>
+                <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={2} />
                 {filtersActive && activeTool !== 'filter' && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#E8A23D]" />}
               </motion.button>
               <AnimatePresence>
                 {activeTool === 'filter' && (
-                  <motion.div initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -6 }} transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }} style={{ transformOrigin: 'top left' }} className="absolute left-0 top-full z-50 mt-2 w-[300px] rounded-[18px] border border-line bg-white p-3.5 shadow-dav-container">
-                    <div className="mb-2.5">
-                      <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">Típus</div>
+                  <motion.div initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }} style={{ transformOrigin: 'top center' }} className="absolute left-1/2 top-full z-50 mt-2.5 w-[288px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-black/[0.06] bg-white/90 shadow-[0_20px_50px_-12px_rgba(30,25,10,.3)] backdrop-blur-2xl">
+                    {/* fejléc */}
+                    <div className="flex items-center justify-between px-4 pb-1.5 pt-3.5">
+                      <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">Szűrők</span>
+                      {filtersActive && (
+                        <button type="button" onClick={() => { setTypeFilter('all'); setPosFilter('all'); setOnlyUncovered(false); setQuery('') }} className="text-[13px] font-medium text-[#0A84FF] transition-opacity hover:opacity-70">Törlés</button>
+                      )}
+                    </div>
+                    {/* típus — iOS szegmentált vezérlő */}
+                    <div className="px-3 pb-2.5 pt-1">
                       <SegFilter id="type" value={typeFilter} onChange={(v) => setTypeFilter(v)} options={[{ v: 'all', label: 'Mind' }, { v: 'shift', label: 'Műszak' }, { v: 'leave', label: 'Szab' }, { v: 'vacation', label: 'Fiz' }, { v: 'sick', label: 'Beteg' }]} />
                     </div>
-                    {positionOptions.length > 0 && (
-                      <div className="relative mb-2.5">
-                        <select value={posFilter} onChange={(e) => setPosFilter(e.target.value)} className="h-9 w-full cursor-pointer appearance-none truncate rounded-full border border-line bg-white pl-4 pr-9 text-[12.5px] font-semibold text-ink focus:outline-none" style={posFilter !== 'all' ? { background: '#1D1C19', color: '#fff', borderColor: '#1D1C19' } : undefined}>
-                          <option value="all">Minden pozíció</option>
-                          {positionOptions.map((p) => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                        <ChevronDown className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 ${posFilter !== 'all' ? 'text-white' : 'text-ink-soft'}`} strokeWidth={1.8} />
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => setOnlyUncovered((v) => !v)} className="flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-semibold transition-colors" style={onlyUncovered ? { background: '#1D1C19', color: '#fff', borderColor: '#1D1C19' } : { background: '#fff', color: '#5C5848', borderColor: 'var(--dav-line)' }}>
-                        <span className="h-2 w-2 rounded-full" style={{ background: '#E8A23D' }} /> Csak fedetlen
+                    {/* csoportosított lista (iOS-inset) */}
+                    <div className="mx-3 mb-3 overflow-hidden rounded-[15px] bg-[#F2F2F5]">
+                      {positionOptions.length > 0 && (
+                        <>
+                          <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
+                            <span className="text-[14px] text-ink">Pozíció</span>
+                            <div className="relative flex items-center">
+                              <select value={posFilter} onChange={(e) => setPosFilter(e.target.value)} className="max-w-[150px] cursor-pointer appearance-none truncate bg-transparent pr-5 text-right text-[14px] font-medium focus:outline-none" style={{ color: posFilter !== 'all' ? '#1D1C19' : '#8b8578' }}>
+                                <option value="all">Bármely</option>
+                                {positionOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+                              </select>
+                              <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4 text-ink-soft2" strokeWidth={1.8} />
+                            </div>
+                          </div>
+                          <div className="ml-3.5 h-px bg-black/[0.06]" />
+                        </>
+                      )}
+                      <button type="button" onClick={() => setOnlyUncovered((v) => !v)} className="flex w-full items-center justify-between px-3.5 py-2.5 text-left">
+                        <span className="text-[14px] text-ink">Csak fedetlen napok</span>
+                        <span className={`relative inline-flex h-[26px] w-[42px] flex-shrink-0 items-center rounded-full transition-colors duration-200 ${onlyUncovered ? 'bg-[#1D1C19]' : 'bg-[#E2E2E8]'}`}><span className={`h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.25)] transition-transform duration-200 ${onlyUncovered ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} /></span>
                       </button>
-                      <button type="button" onClick={() => setCoverWeekends((v) => !v)} className="flex h-9 items-center rounded-full border px-3.5 text-[12px] font-semibold transition-colors" style={coverWeekends ? { background: '#1D1C19', color: '#fff', borderColor: '#1D1C19' } : { background: '#fff', color: '#5C5848', borderColor: 'var(--dav-line)' }}>Hétvége is</button>
+                      <div className="ml-3.5 h-px bg-black/[0.06]" />
+                      <button type="button" onClick={() => setCoverWeekends((v) => !v)} className="flex w-full items-center justify-between px-3.5 py-2.5 text-left">
+                        <span className="text-[14px] text-ink">Hétvégét is figyelje</span>
+                        <span className={`relative inline-flex h-[26px] w-[42px] flex-shrink-0 items-center rounded-full transition-colors duration-200 ${coverWeekends ? 'bg-[#1D1C19]' : 'bg-[#E2E2E8]'}`}><span className={`h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.25)] transition-transform duration-200 ${coverWeekends ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} /></span>
+                      </button>
                     </div>
-                    {filtersActive && (
-                      <button type="button" onClick={() => { setTypeFilter('all'); setPosFilter('all'); setQuery('') }} className="mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-full bg-paper py-2 text-[12px] font-semibold text-ink-soft transition-colors hover:text-ink">Szűrők törlése <X className="h-3.5 w-3.5" strokeWidth={2} /></button>
-                    )}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
-            {/* Kiemelés — toggle; bekapcsolva kiírja a nevét (fekete-fehér active) */}
-            {sel && (
-              <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setFocusPerson((v) => !v)} title={focusPerson ? `Csak ${sel.name.split(' ')[0]} kiemelve` : 'Kijelölt dolgozó kiemelése'} className={`flex h-10 items-center justify-center gap-1.5 rounded-full transition-colors ${focusPerson ? 'bg-[#1D1C19] px-3.5 text-white' : 'w-10 flex-shrink-0 text-ink-soft hover:bg-white/70'}`}>
-                <User className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2} />
-                {focusPerson && <span className="whitespace-nowrap text-[13px] font-semibold">Kiemelés</span>}
-              </motion.button>
-            )}
-            {/* + Új műszak — hoverre kiírja a nevét */}
-            <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setDayEditor(selectedDay ?? todayStr)} onHoverStart={() => setAddHover(true)} onHoverEnd={() => setAddHover(false)} title="Új műszak felvétele" className={`flex h-10 flex-shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#1D1C19] text-white transition-colors hover:bg-ink ${addHover ? 'px-3.5' : 'w-10'}`}>
-              <Plus className="h-[18px] w-[18px] flex-shrink-0" strokeWidth={2.2} />
-              {addHover && <span className="whitespace-nowrap text-[13px] font-semibold">Új műszak</span>}
+            {/* + Új műszak — sötét kör */}
+            <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setDayEditor(selectedDay ?? todayStr)} title="Új műszak felvétele" className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white transition-colors hover:bg-ink">
+              <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} />
             </motion.button>
           </motion.div>
         </div>
 
-        <div ref={folderRef} className="sched-folder rounded-[34px] bg-[rgba(255,255,255,.55)] p-4 pt-[64px] shadow-[0_24px_60px_-34px_rgba(70,60,20,.4)] backdrop-blur-[18px] sm:p-5 sm:pt-[68px]">
-          <div className="grid gap-4 lg:grid-cols-[0.85fr_1.9fr_0.95fr] lg:items-start">
-        {/* ── BAL: csapat-lista VAGY (nap kijelölésekor) az aznap dolgozók ── */}
-        <div className="rounded-[26px] dav-card-glass p-3.5">
+        <div ref={folderRef} className="sched-folder rounded-[34px] bg-[rgba(255,255,255,.55)] p-4 pt-[68px] shadow-[0_24px_60px_-34px_rgba(70,60,20,.4)] backdrop-blur-[18px] sm:p-5 sm:pt-[76px]">
+          <div className="grid gap-4 lg:grid-cols-[1fr_1.5fr_1fr] lg:items-start">
+        {/* ── BAL: csapat-lista VAGY (nap kijelölésekor) az aznap dolgozók ── (fel a vállba) */}
+        <div className="rounded-[26px] dav-card-glass p-3.5 lg:-mt-16">
           <AnimatePresence mode="wait" initial={false}>
             {selectedDay ? (
               <motion.div key="day" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
@@ -603,8 +630,8 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
           </AnimatePresence>
         </div>
 
-        {/* ── KÖZÉP: fejléc + globális naptár ── */}
-        <div className="rounded-[26px]">
+        {/* ── KÖZÉP: fejléc + globális naptár ── (lejjebb, a luk alá) */}
+        <div className="rounded-[26px] lg:mt-5">
           <div className="flex items-start justify-between gap-3">
             <div className="text-[28px] font-light tracking-[-0.02em] text-ink lg:text-[32px]">
               {Math.round(totalWorked)} óra <span className="text-[16px] text-ink-soft lg:text-[18px]">· {sel?.name ?? '—'}</span>
@@ -622,24 +649,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
             </div>
           </div>
 
-          {/* összesítő PILLEK (kiválasztott dolgozó hónapja) — betöltéskor animálnak, mint az Áttekintésen:
-              arányos szélesség + felszámoló szám. A key=sel.id → személyváltáskor újra lejátszódik. */}
-          {(() => {
-            const tot = Math.max(1, daysWorked + sickDays + vacationDays)
-            const pctOf = (x: number) => Math.round((x / tot) * 100)
-            return (
-              <StatusPills
-                key={sel?.id ?? 'none'}
-                eager
-                className="mt-4"
-                segments={[
-                  { label: 'Ledolgozott', pct: pctOf(daysWorked), value: daysWorked, suffix: ' nap', background: '#F1CE45', color: '#1D1C19' },
-                  { label: 'Hiányzás', pct: pctOf(sickDays), value: sickDays, suffix: ' nap', background: '#1D1C19', color: '#fff' },
-                  { label: 'Szabadság', pct: pctOf(vacationDays), value: vacationDays, suffix: ' nap', background: HATCH, color: '#5C5848', border: '1px solid var(--dav-line-strong)', align: 'end' },
-                ]}
-              />
-            )
-          })()}
+          {/* (az összesítő stat-sávok a toolbar „Statisztika" gombjába kerültek — igény szerint jönnek elő) */}
 
           {/* naptár fejléc */}
           <div className="mt-5 grid grid-cols-7 gap-1.5 sm:gap-2">
@@ -701,20 +711,45 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                         ) : null}
                       </span>
                     </div>
-                    <div className="mt-1 flex flex-wrap gap-[3px]">
+                    {/* Egy SORBA, tördelés nélkül (a cella magassága állandó marad, akárhányan dolgoznak).
+                        Az avatarok enyhén egymásra csúsznak (avatar-stack), 3 fölött „+N". */}
+                    <div className="mt-1 flex h-[19px] items-center overflow-hidden sm:h-[22px]">
                       {(() => {
-                        // Kiemeléskor a fókuszált dolgozó chipje ELŐRE kerül, hogy a 4 látható közt mindig ott legyen.
+                        // Kiemeléskor a fókuszált dolgozó chipje ELŐRE kerül, hogy a 3 látható közt mindig ott legyen.
                         const ordered = focusPerson && sel ? [...dayShifts].sort((a, b) => Number(b.staffId === sel.id) - Number(a.staffId === sel.id)) : dayShifts
                         return (
                           <>
-                            {ordered.slice(0, 4).map((s) => {
+                            {ordered.slice(0, 3).map((s, idx) => {
                               const st = staffById.get(s.staffId)
                               const cs = chipStyle(s.type)
                               const isSelSt = st?.id === sel?.id
                               const dim = focusPerson && !selectedDay && !isSelSt // személy-fókusz: a többi halványul
-                              return <span key={s.id} title={`${st?.name ?? ''} · ${statusLabel(s)}`} className="flex h-[19px] w-[19px] items-center justify-center rounded-full text-[8.5px] font-bold transition-opacity sm:h-[22px] sm:w-[22px] sm:text-[9.5px]" style={{ background: cs.bg, color: cs.fg, boxShadow: isSelSt ? '0 0 0 1.5px #1D1C19' : undefined, opacity: dim ? 0.2 : 1 }}>{st?.ini ?? '?'}</span>
+                              const photo = st?.avatarUrl
+                              // Valódi profilkép a mini-avatarban. A műszak-TÍPUS így is olvasható: fotónál színes
+                              // belső gyűrű, monogramnál a kör kitöltése. FEHÉR külső gyűrű választja el az egymásra
+                              // csúszó avatarokat; kiemelt személynél sötét gyűrű.
+                              const layers: string[] = []
+                              if (photo) layers.push(`0 0 0 1.5px ${cs.bg}`)
+                              layers.push(`0 0 0 ${photo ? 2.5 : 1.5}px #fff`)
+                              if (isSelSt) layers.push(`0 0 0 ${photo ? 4 : 3}px #1D1C19`)
+                              return (
+                                <span
+                                  key={s.id}
+                                  title={`${st?.name ?? ''} · ${statusLabel(s)}`}
+                                  className={`relative flex h-[19px] w-[19px] flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-[8.5px] font-bold transition-opacity sm:h-[22px] sm:w-[22px] sm:text-[9.5px] ${idx > 0 ? '-ml-[5px]' : ''}`}
+                                  style={{
+                                    background: photo ? '#fff' : cs.bg,
+                                    color: cs.fg,
+                                    boxShadow: layers.join(', '),
+                                    zIndex: 3 - idx,
+                                    opacity: dim ? 0.2 : 1,
+                                  }}
+                                >
+                                  {photo ? <img src={photo} alt="" className="h-full w-full object-cover object-top" /> : (st?.ini ?? '?')}
+                                </span>
+                              )
                             })}
-                            {ordered.length > 4 && <span className="flex h-[19px] items-center rounded-full bg-[#EDE7D7] px-1.5 text-[8.5px] font-bold text-ink-soft sm:h-[22px] sm:text-[9.5px]">+{ordered.length - 4}</span>}
+                            {ordered.length > 3 && <span className="ml-1 flex h-[19px] flex-shrink-0 items-center rounded-full bg-[#EDE7D7] px-1.5 text-[8.5px] font-bold text-ink-soft sm:h-[22px] sm:text-[9.5px]">+{ordered.length - 3}</span>}
                           </>
                         )
                       })()}
@@ -769,7 +804,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
 
         {/* ── JOBB: profil (KOMPAKT fejléc — nincs borítókép-banner, hogy ne legyen magasabb a bal oldalnál) ── */}
         {sel ? (
-          <div className="overflow-hidden rounded-[26px] dav-card-glass">
+          <div className="overflow-hidden rounded-[26px] dav-card-glass lg:-mt-16">
             <div className="flex items-center gap-3 px-6 pb-4 pt-6">
               <Ava url={sel.avatarUrl} ini={sel.ini} className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full text-[18px] font-bold" style={{ background: '#F1CE45', color: '#1D1C19' }} />
               <div className="min-w-0">
@@ -853,7 +888,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
             </div>
           </div>
         ) : (
-          <div className="rounded-[26px] dav-card-glass p-6 text-center text-[13px] text-ink-soft">Válassz munkatársat.</div>
+          <div className="rounded-[26px] dav-card-glass p-6 text-center text-[13px] text-ink-soft lg:-mt-16">Válassz munkatársat.</div>
         )}
           </div>
         </div>

@@ -5,6 +5,8 @@ import { getPayloadClient } from '@/lib/payload'
 import { formatPrice } from '@/lib/utils'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { StoreSwitcher } from '@/components/dashboard/StoreSwitcher'
+import { getSetupFlags } from '@/lib/setupFlags'
+import { SetupNudge } from '@/components/dashboard/SetupNudge'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { OccupancyDonut, WeekBarChart } from '@/components/restaurant/OverviewCharts'
 import { OverviewAccordion, type AccItem } from '@/components/restaurant/OverviewPanels'
@@ -12,6 +14,9 @@ import { OverviewTasksPanel } from '@/components/restaurant/OverviewTasksPanel'
 import { DetailSheet } from '@/components/restaurant/DetailSheet'
 import { OverviewTimeline, type TimelineBlock, type TimelineRow } from '@/components/restaurant/OverviewTimeline'
 import { CARD, HeroKpi } from '@/components/dashboard/overview-ui'
+import { can } from '@/lib/permissions'
+import { getMyUpcomingShifts } from '@/lib/myShifts'
+import { StaffOverview } from '@/components/dashboard/StaffOverview'
 import { CalendarDays, Banknote, CheckCircle2, Plus } from 'lucide-react'
 import Link from 'next/link'
 import type { Booking, Service, StaffMember, Media, Task, Availability } from '@/payload/payload-types'
@@ -34,7 +39,7 @@ function initials(name: string): string {
 const minOfDay = (t: string | null | undefined) => { const [h, m] = (t ?? '00:00').split(':').map(Number); return (h || 0) * 60 + (m || 0) }
 
 export default async function DashboardPage() {
-  const [{ salon }, user] = await Promise.all([getOwnedSalon(), getCurrentUser()])
+  const [{ salon, capabilities, roleName }, user] = await Promise.all([getOwnedSalon(), getCurrentUser()])
   const payload = await getPayloadClient()
 
   const now = new Date()
@@ -51,7 +56,25 @@ export default async function DashboardPage() {
   const profileImg = userAvatar ?? logoUrl
   // A szerep a fiókból jön (lehet restaurant_owner akkor is, ha épp szalonban vagyunk), ezért
   // nem az üzlet-típust írjuk ki, csak a semleges „Tulajdonos"-t (admin kivétel).
-  const roleLabel = user?.role === 'admin' ? 'Adminisztrátor' : 'Tulajdonos'
+  const roleLabel = user?.role === 'admin' ? 'Adminisztrátor' : roleName
+
+  // Személyes áttekintés (saját műszak) az üzleti KPI-k helyett annak, aki NEM lát üzleti
+  // statisztikát (`analytics.view`). A tulaj + a Statisztika-jogot kapó szerepek (Üzletvezető,
+  // Supervisor) a teljes KPI-dashboardot kapják; a felszolgáló a személyes nézetet.
+  if (user && !can(capabilities, 'analytics.view')) {
+    const myShifts = await getMyUpcomingShifts({ type: 'salon', id: salon.id }, { id: user.id, email: user.email })
+    const todayLabel = now.toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' })
+    return (
+      <StaffOverview
+        greeting={greeting}
+        userName={user.name ?? 'Dolgozó'}
+        roleLabel={roleLabel}
+        businessName={salon.name}
+        todayLabel={todayLabel}
+        shifts={myShifts}
+      />
+    )
+  }
   const { active, businesses } = user ? await getActiveBusiness(user) : { active: null, businesses: [] }
 
   const [stats, todayAll, tasksRes, availRes, staffRes, servicesRes] = await Promise.all([
@@ -213,6 +236,9 @@ export default async function DashboardPage() {
     },
   ]
 
+  // Onboarding-állapot a főoldali nudge-hoz (nyitvatartás + szolgáltatások kész-e).
+  const setup = await getSetupFlags('salon', salon.id)
+
   return (
     <div className="space-y-6 p-5 lg:p-0">
       {/* ── HERO: köszönés + jobbra fiókváltó + Új foglalás ── */}
@@ -231,6 +257,9 @@ export default async function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* ── Onboarding-nudge (csak ha a nyitvatartás/szolgáltatások még hiányoznak) ── */}
+      <SetupNudge variant="salon" base="/dashboard" flags={setup} />
 
       {/* ── STÁTUSZ-CSÍK (bal) + 3 KPI (jobb) ── */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

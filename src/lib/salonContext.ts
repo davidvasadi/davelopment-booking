@@ -30,5 +30,5 @@ export async function getOwnedSalon(depth = 0) {
     overrideAccess: true,
   })) as Salon
 
-  return { userId: user.id, salon, businessCount: businesses.length }
+  return { userId: user.id, salon, businessCount: businesses.length, role: active.role, roleName: active.roleName, capabilities: active.capabilities }
 }

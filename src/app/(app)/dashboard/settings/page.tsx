@@ -1,4 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
@@ -9,6 +10,7 @@ import { getAuditLogForBusiness } from '@/lib/auditContext'
 import {
   SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
 } from '@/components/settings/SettingsHub'
+import { RolesManager } from '@/components/settings/RolesManager'
 
 const initialsOf = (name: string) =>
   name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
@@ -22,7 +24,8 @@ function planName(sub: { plan?: string | null; status?: string | null } | null):
 }
 
 export default async function SettingsPage() {
-  const { salon, businessCount } = await getOwnedSalon(1)
+  const { salon, businessCount, capabilities } = await getOwnedSalon(1)
+  requireCapability(capabilities, 'settings.profile', '/dashboard')
   const payload = await getPayloadClient()
   const user = await requireAuth()
 
@@ -41,6 +44,9 @@ export default async function SettingsPage() {
     ownerName,
     ownerEmail,
   })
+
+  // ── Egyedi szerepek (2. fázis) — az üzlet custom szerepei a RolesManager panelhez.
+  const rolesRes = await payload.find({ collection: 'roles', where: { salon: { equals: salon.id } }, sort: 'name', limit: 100, overrideAccess: true })
 
   // ── Audit-napló — VALÓS legutóbbi bejegyzések (a szalonra szűrve).
   const auditLog = await getAuditLogForBusiness({ type: 'salon', businessId: salon.id })
@@ -133,6 +139,16 @@ export default async function SettingsPage() {
         businessCount={businessCount}
         planLabel={plan}
         auditLog={auditLog}
+        customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
+        rolesSection={
+          <RolesManager
+            key="roles-panel"
+            variant="salon"
+            businessId={String(salon.id)}
+            initialRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name, capabilities: r.capabilities ?? null }))}
+            myCapabilities={capabilities}
+          />
+        }
         profilePanel={<SalonSettingsForm salon={salon} businessCount={businessCount} />}
       />
     </div>

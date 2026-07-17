@@ -24,7 +24,7 @@ export function LangSwitcher({ current, available, className }: { current: Local
   }
 
   return (
-    <div className={cn('inline-flex items-center rounded-full border border-zinc-200 bg-white/80 backdrop-blur p-0.5 text-xs font-bold', pending && 'opacity-60', className)}>
+    <div className={cn('font-onest inline-flex items-center rounded-dav-pill border border-line bg-white/85 backdrop-blur p-0.5 text-[11px] font-semibold shadow-dav-card', pending && 'opacity-60', className)}>
       {available.map((loc) => (
         <button
           key={loc}
@@ -32,8 +32,8 @@ export function LangSwitcher({ current, available, className }: { current: Local
           onClick={() => set(loc)}
           aria-pressed={current === loc}
           className={cn(
-            'px-2.5 py-1 rounded-full uppercase transition-colors',
-            current === loc ? 'bg-zinc-950 text-white' : 'text-zinc-500 hover:text-zinc-900',
+            'px-2.5 py-1 rounded-dav-pill uppercase tracking-wide transition-colors',
+            current === loc ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink',
           )}
         >
           {loc}

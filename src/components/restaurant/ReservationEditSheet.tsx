@@ -426,11 +426,12 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
     if (!reservation) return
     setSaving(true)
     try {
-      const res = await fetch(`/api/reservations/${reservation.id}`, {
-        method: 'PATCH',
+      // App-auth + capability-vezérelt route (nem a nyers, owner-only Payload REST).
+      const res = await fetch('/api/restaurant/reservation-status', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ status: 'cancelled' }),
+        body: JSON.stringify({ reservationId: reservation.id, status: 'cancelled' }),
       })
       if (!res.ok) throw new Error()
       toast.success('Foglalás lemondva')

@@ -7,19 +7,19 @@ import {
   PLAN_LABELS, STATUS_LABELS, type PlaceKind,
 } from '@/lib/backstagePlaces'
 
-/* davelopment státusz-badge */
+/* davelopment státusz-badge — token-alapú (ok/warn/bad), nem ad-hoc hex */
 const SUB_BADGE: Record<string, string> = {
-  trialing: 'bg-[#FBF4DC] text-[#7A6A2E]',
-  active: 'bg-[#E7F2EA] text-[#1D9D63]',
-  past_due: 'bg-[#F8E9E7] text-[#C0392B]',
-  canceled: 'bg-[#F0EAD8] text-ink-soft',
-  paused: 'bg-[#FBF4DC] text-[#7A6A2E]',
+  trialing: 'bg-warn-bg text-warn',
+  active: 'bg-ok-bg text-ok',
+  past_due: 'bg-bad-bg text-bad',
+  canceled: 'bg-paper text-ink-soft',
+  paused: 'bg-warn-bg text-warn',
 }
 function bookingBadge(status: string): string {
-  if (status === 'confirmed') return 'bg-[#E7F2EA] text-[#1D9D63]'
-  if (status === 'cancelled' || status === 'no_show') return 'bg-[#F8E9E7] text-[#C0392B]'
-  if (status === 'completed') return 'bg-[#F0EAD8] text-ink-soft'
-  return 'bg-[#FBF4DC] text-[#7A6A2E]'
+  if (status === 'confirmed') return 'bg-ok-bg text-ok'
+  if (status === 'cancelled' || status === 'no_show') return 'bg-bad-bg text-bad'
+  if (status === 'completed') return 'bg-paper text-ink-soft'
+  return 'bg-warn-bg text-warn'
 }
 
 type DetailData = {
@@ -87,7 +87,7 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
       <SheetContent className="w-full sm:max-w-xl overflow-y-auto">
         <SheetHeader className="mb-6">
           <div className="flex items-center gap-3 font-onest">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F6F2E4]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gold/20">
               <TypeIcon className="h-5 w-5 text-ink-soft" strokeWidth={1.7} />
             </div>
             <div>
@@ -117,7 +117,7 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
               <a
                 href={`/${placeDoc?.slug}`}
                 target="_blank"
-                className="flex items-center gap-1.5 rounded-[18px] bg-[#F6F2E4] px-[14px] py-2 text-[12px] font-semibold text-ink transition-colors hover:bg-[#EFE9D6]"
+                className="flex items-center gap-1.5 rounded-[18px] bg-paper px-[14px] py-2 text-[12px] font-semibold text-ink transition-colors hover:bg-line-strong"
               >
                 <ExternalLink className="h-3.5 w-3.5" /> Nyilvános oldal
               </a>
@@ -137,18 +137,18 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
 
             {/* Booking stats */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+              <div className="rounded-[18px] border border-line bg-white p-4">
                 <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Összes foglalás</p>
                 <p className="text-[28px] font-light leading-none tracking-[-0.02em] text-ink">{data.totalBookings}</p>
               </div>
-              <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+              <div className="rounded-[18px] border border-line bg-white p-4">
                 <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Ez a hónap</p>
                 <p className="text-[28px] font-light leading-none tracking-[-0.02em] text-ink">{data.monthBookings}</p>
               </div>
             </div>
 
             {/* Owner */}
-            <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+            <div className="rounded-[18px] border border-line bg-white p-4">
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Tulajdonos</p>
               {owner ? (
                 <div>
@@ -162,13 +162,13 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
             </div>
 
             {/* Subscription */}
-            <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+            <div className="rounded-[18px] border border-line bg-white p-4">
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Előfizetés</p>
               {sub ? (
                 <div>
                   <div className="mb-1.5 flex items-center gap-2">
-                    <span className="text-[14px] font-bold text-ink">{PLAN_LABELS[sub.plan] ?? sub.plan}</span>
-                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${SUB_BADGE[sub.status] ?? 'bg-[#F0EAD8] text-ink-soft'}`}>
+                    <span className="text-[14px] font-semibold text-ink">{PLAN_LABELS[sub.plan] ?? sub.plan}</span>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${SUB_BADGE[sub.status] ?? 'bg-paper text-ink-soft'}`}>
                       {STATUS_LABELS[sub.status] ?? sub.status}
                     </span>
                   </div>
@@ -191,7 +191,7 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
 
             {/* Contact */}
             {(placeDoc?.phone || placeDoc?.email || placeDoc?.website || placeDoc?.address) && (
-              <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+              <div className="rounded-[18px] border border-line bg-white p-4">
                 <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Elérhetőség</p>
                 <div className="space-y-2">
                   {placeDoc.phone && (
@@ -219,7 +219,7 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
             )}
 
             {/* Status + meta */}
-            <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+            <div className="rounded-[18px] border border-line bg-white p-4">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-[13.5px] font-medium text-ink">{typeLabel} aktív</p>
@@ -261,7 +261,7 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
             )}
 
             {/* Admin notes */}
-            <div className="rounded-[20px] border border-line bg-white p-4 shadow-dav-card">
+            <div className="rounded-[18px] border border-line bg-white p-4">
               <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Belső megjegyzés</p>
               <textarea
                 value={notes}
@@ -314,7 +314,7 @@ function ActiveToggle({ kind, placeId, isActive }: { kind: PlaceKind; placeId: s
       onClick={toggle}
       disabled={pending}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
-        active ? 'bg-[#1D9D63]' : 'bg-[#E5DEC9]'
+        active ? 'bg-[#1D9D63]' : 'bg-line-strong'
       }`}
     >
       <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${active ? 'translate-x-6' : 'translate-x-1'}`} />

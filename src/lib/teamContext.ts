@@ -1,6 +1,6 @@
 import { getPayloadClient } from './payload'
 import { roleLabel } from './permissions'
-import type { Membership, User } from '@/payload/payload-types'
+import type { Membership, User, Role } from '@/payload/payload-types'
 import type { TeamMember } from '@/components/settings/SettingsHub'
 
 /**
@@ -35,13 +35,16 @@ export async function getTeamForBusiness(opts: {
     })
     members = (res.docs as Membership[]).map((m) => {
       const u = typeof m.user === 'object' ? (m.user as User) : null
+      const custom = m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role) : null
       const tone = m.role === 'manager' ? 'manager' : 'staff'
       return {
         id: String(m.id),
         name: m.name || u?.name || m.email,
         email: m.email,
-        role: roleLabel(m.role),
+        // Egyedi szerep esetén a szerep NEVE a megjelenített cím/pozíció (nincs külön kategória).
+        role: custom ? custom.name : roleLabel(m.role),
         roleTone: tone,
+        customRoleId: custom ? String(custom.id) : null,
         pending: m.status === 'invited',
       }
     })

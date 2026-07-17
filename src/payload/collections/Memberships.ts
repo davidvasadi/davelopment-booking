@@ -94,6 +94,14 @@ export const Memberships: CollectionConfig = {
       label: 'Szerep (jogosultság)',
     },
     {
+      // 2. fázis: ha kitöltve, ennek a szerepnek a `capabilities`-e dönt a beépített `role` helyett.
+      name: 'custom_role',
+      type: 'relationship',
+      relationTo: 'roles',
+      hasMany: false,
+      label: 'Egyedi szerep',
+    },
+    {
       name: 'status',
       type: 'select',
       required: true,

@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
 import { Minus, Plus, Loader2, Trees, ArrowLeft } from 'lucide-react'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
@@ -62,6 +63,7 @@ export function RestaurantBookingWizard({
   )
   const [slots, setSlots] = useState<{ start: string; end: string; onlyOutdoor?: boolean }[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
+  const [slotsError, setSlotsError] = useState(false)
   const [time, setTime] = useState<string | null>(null)
 
   const [name, setName] = useState('')
@@ -74,14 +76,34 @@ export function RestaurantBookingWizard({
   const [occasionIdx, setOccasionIdx] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
-  // Slot-lekérés ha pax vagy date változik
+  // ── Mező-szintű validáció (a szalon-wizarddal AZONOS minta: error-placement, blur, focus) ──
+  type FieldKey = 'name' | 'email' | 'phone'
+  const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
+  const fieldRefs = {
+    name: useRef<HTMLInputElement>(null),
+    email: useRef<HTMLInputElement>(null),
+    phone: useRef<HTMLInputElement>(null),
+  }
+  const validateField = (key: FieldKey): string | null => {
+    if (key === 'name') return name.trim().length < 2 ? tt('rbooking.err.name') : null
+    if (key === 'email') return !/^\S+@\S+\.\S+$/.test(email) ? tt('rbooking.err.email') : null
+    if (key === 'phone') return requirePhone && phone.replace(/\s/g, '').length < 7 ? tt('rbooking.err.phone') : null
+    return null
+  }
+  const onFieldBlur = (key: FieldKey) => setErrors(prev => ({ ...prev, [key]: validateField(key) ?? undefined }))
+  const clearError = (key: FieldKey) => { if (errors[key]) setErrors(prev => ({ ...prev, [key]: undefined })) }
+
+  // Slot-lekérés ha pax vagy date változik. A retry-gomb ugyanezt hívja újra (checklist §8:
+  // error-recovery) — némán ürítés helyett a hibát a nézetben, retry-gombbal kezeljük.
+  const [slotsReloadKey, setSlotsReloadKey] = useState(0)
   useEffect(() => {
     let cancelled = false
     setTime(null)
+    setSlotsError(false)
     setLoadingSlots(true)
     const q = new URLSearchParams({ restaurantId: String(restaurantId), date, pax: String(pax) })
     fetch(`/api/restaurant/slots?${q}`)
-      .then((r) => r.json())
+      .then((r) => { if (!r.ok) throw new Error('slots'); return r.json() })
       .then((d) => {
         if (cancelled) return
         const next = d.slots ?? []
@@ -91,18 +113,30 @@ export function RestaurantBookingWizard({
           setTime(initialTime)
         }
       })
-      .catch(() => { if (!cancelled) setSlots([]) })
+      .catch(() => { if (!cancelled) { setSlots([]); setSlotsError(true) } })
       .finally(() => { if (!cancelled) setLoadingSlots(false) })
     return () => { cancelled = true }
-    // initialTime szándékosan kimarad: csak a date/pax váltás triggereli újra
+    // initialTime szándékosan kimarad: csak a date/pax váltás (és a retry) triggereli újra
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restaurantId, date, pax])
+  }, [restaurantId, date, pax, slotsReloadKey])
 
   const submit = async () => {
     if (!time) return
-    if (name.trim().length < 2) return toast.error(tt('rbooking.err.name'))
-    if (!/^\S+@\S+\.\S+$/.test(email)) return toast.error(tt('rbooking.err.email'))
-    if (requirePhone && phone.trim().length < 7) return toast.error(tt('rbooking.err.phone'))
+
+    // Minden mezőt validálunk; hiba a mező alá kerül, és az ELSŐ hibás mezőre ugrik a fókusz
+    // (a szalon-wizarddal azonos minta).
+    const order: FieldKey[] = ['name', 'email', 'phone']
+    const nextErrors: Partial<Record<FieldKey, string>> = {}
+    for (const key of order) {
+      const msg = validateField(key)
+      if (msg) nextErrors[key] = msg
+    }
+    if (Object.keys(nextErrors).length > 0) {
+      setErrors(nextErrors)
+      const firstBad = order.find(k => nextErrors[k])
+      if (firstBad) fieldRefs[firstBad].current?.focus()
+      return
+    }
 
     setSubmitting(true)
     try {
@@ -212,6 +246,16 @@ export function RestaurantBookingWizard({
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft mb-4">{tt("rbooking.time")}</p>
                 {loadingSlots ? (
                   <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-ink-soft" /></div>
+                ) : slotsError ? (
+                  <div className="py-6 text-center" role="alert">
+                    <p className="text-sm text-ink-soft">{tt('rbooking.err.slots')}</p>
+                    <button
+                      onClick={() => setSlotsReloadKey((k) => k + 1)}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+                    >
+                      {tt('rbooking.retry')}
+                    </button>
+                  </div>
                 ) : slots.length === 0 ? (
                   <p className="text-sm text-ink-soft text-center py-6">{tt("rbooking.noSlots")}</p>
                 ) : (
@@ -265,18 +309,56 @@ export function RestaurantBookingWizard({
 
               <div className={`${cardClass} space-y-3`}>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{tt("rbooking.details")}</p>
-                <input className={inputClass} placeholder={tt("rbooking.field.name")} value={name} onChange={(e) => setName(e.target.value)} />
-                <input className={inputClass} type="email" placeholder={tt("rbooking.field.email")} value={email} onChange={(e) => setEmail(e.target.value)} />
-                <PhoneCountryInput
-                  country={country}
-                  phone={phone}
-                  onCountryChange={setCountry}
-                  onPhoneChange={setPhone}
-                  required={requirePhone}
-                  inputClass="h-11 rounded-[12px] bg-paper/50 border-0 px-4 text-sm text-ink placeholder:text-ink-soft2 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold"
-                />
-                <input className={inputClass} placeholder={tt('rbooking.field.city')} value={city} onChange={(e) => setCity(e.target.value)} />
-                <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                <div>
+                  <input
+                    ref={fieldRefs.name}
+                    className={cn(inputClass, errors.name && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                    placeholder={tt("rbooking.field.name")}
+                    aria-label={tt("rbooking.field.name")}
+                    value={name}
+                    onChange={(e) => { setName(e.target.value); clearError('name') }}
+                    onBlur={() => onFieldBlur('name')}
+                    autoComplete="name"
+                    aria-invalid={!!errors.name}
+                    aria-describedby={errors.name ? 'rbk-name-err' : undefined}
+                  />
+                  {errors.name && <p id="rbk-name-err" role="alert" className="mt-1 text-[12px] text-red-500">{errors.name}</p>}
+                </div>
+                <div>
+                  <input
+                    ref={fieldRefs.email}
+                    className={cn(inputClass, errors.email && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    placeholder={tt("rbooking.field.email")}
+                    aria-label={tt("rbooking.field.email")}
+                    value={email}
+                    onChange={(e) => { setEmail(e.target.value); clearError('email') }}
+                    onBlur={() => onFieldBlur('email')}
+                    aria-invalid={!!errors.email}
+                    aria-describedby={errors.email ? 'rbk-email-err' : undefined}
+                  />
+                  {errors.email && <p id="rbk-email-err" role="alert" className="mt-1 text-[12px] text-red-500">{errors.email}</p>}
+                </div>
+                <div>
+                  <PhoneCountryInput
+                    inputRef={fieldRefs.phone}
+                    country={country}
+                    phone={phone}
+                    onCountryChange={setCountry}
+                    onPhoneChange={(p) => { setPhone(p); clearError('phone') }}
+                    onBlur={() => onFieldBlur('phone')}
+                    required={requirePhone}
+                    inputClass={cn(
+                      'h-11 rounded-[12px] bg-paper/50 border-0 px-4 text-sm text-ink placeholder:text-ink-soft2 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold',
+                      errors.phone && 'ring-2 ring-red-400 focus-visible:ring-red-400'
+                    )}
+                  />
+                  {errors.phone && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.phone}</p>}
+                </div>
+                <input className={inputClass} autoComplete="address-level2" placeholder={tt('rbooking.field.city')} aria-label={tt('rbooking.field.city')} value={city} onChange={(e) => setCity(e.target.value)} />
+                <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
 
               {/* Alkalom-választó — a tulaj esemény-típusaiból, Lucide-ikonos pillekkel. Opcionális. */}

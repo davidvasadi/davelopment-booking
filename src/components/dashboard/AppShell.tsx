@@ -7,6 +7,7 @@ import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
 import type { DashboardVariant } from './navConfig'
 import type { SwitcherBusiness } from './StoreSwitcher'
+import type { Capability } from '@/lib/permissions'
 
 type SubInfo = {
   plan: 'trial' | 'paid'
@@ -36,6 +37,7 @@ export function AppShell({
   userAvatarUrl = null,
   businesses = [],
   activeBusinessKey = null,
+  capabilities = [],
   children,
 }: {
   variant: DashboardVariant
@@ -51,6 +53,8 @@ export function AppShell({
   userAvatarUrl?: string | null
   businesses?: SwitcherBusiness[]
   activeBusinessKey?: string | null
+  /** A hatékony képesség-halmaz az aktív üzletben — a nav-láthatóság ez alapján szűr. */
+  capabilities?: Capability[]
   children: React.ReactNode
 }) {
   return (
@@ -62,6 +66,7 @@ export function AppShell({
         salonSlug={businessSlug}
         subscription={subscription}
         variant={variant}
+        capabilities={capabilities}
         brandLogoUrl={brandLogoUrl}
         userName={userName}
         userEmail={userEmail}
@@ -76,6 +81,7 @@ export function AppShell({
           <div className="lg:rounded-dav-container lg:bg-dav-container lg:p-6 lg:shadow-dav-container">
             <AppNavbar
               variant={variant}
+              capabilities={capabilities}
               businessSlug={businessSlug}
               subscription={subscription}
               userName={userName}
@@ -101,6 +107,7 @@ export function AppShell({
       <MobileBottomNav
         subscription={subscription}
         variant={variant}
+        capabilities={capabilities}
         userName={userName}
         userEmail={userEmail}
         userAvatarUrl={userAvatarUrl}

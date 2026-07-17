@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-import { assertBusinessOwner, numId as num } from '@/lib/shiftAuth'
+import { assertCapability } from '@/lib/apiCapability'
 import type { Shift } from '@/payload/payload-types'
 
 /**
- * Beosztás — egy műszak MÓDOSÍTÁSA / TÖRLÉSE. Defenzív: csak a műszak üzletének (szalon/
- * étterem) tulaja. A relationship id-k SZÁM-ra coerce-ölve.
+ * Beosztás — egy műszak MÓDOSÍTÁSA / TÖRLÉSE. RBAC: `schedule.manage` (owner + manager)
+ * a műszak üzletében (szalon/étterem). A relationship id-k SZÁM-ra coerce-ölve.
  */
+const num = (v: unknown) => (v == null ? v : /^\d+$/.test(String(v)) ? Number(v) : v)
 
 const relId = (v: string | { id: string | number } | null | undefined) =>
   v == null ? null : typeof v === 'object' ? v.id : v
 
-async function loadOwnedShift(id: string, userId: string | number) {
+async function loadManageableShift(id: string, userId: string | number) {
   const payload = await getPayloadClient()
   let shift: Shift | undefined
   try {
@@ -20,11 +21,14 @@ async function loadOwnedShift(id: string, userId: string | number) {
   } catch {
     return { error: 'A műszak nem található', status: 404 as const }
   }
-  const ownerErr = await assertBusinessOwner(
-    { salon: relId(shift.salon), restaurant: relId(shift.restaurant) },
-    userId,
-  )
-  if (ownerErr) return { error: ownerErr, status: 403 as const }
+  // Az üzlet-típus + id a műszak rekordjából (salon VAGY restaurant).
+  const restaurantId = relId(shift.restaurant)
+  const salonId = relId(shift.salon)
+  const bizType: 'salon' | 'restaurant' | null = restaurantId ? 'restaurant' : salonId ? 'salon' : null
+  const bizId = restaurantId ?? salonId
+  if (!bizType || !bizId) return { error: 'Érvénytelen műszak', status: 400 as const }
+  const denied = await assertCapability(userId, bizType, bizId, 'schedule.manage')
+  if (denied) return { error: denied.error, status: denied.status }
   return { payload }
 }
 
@@ -40,7 +44,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Hibás kérés' }, { status: 400 })
   }
 
-  const loaded = await loadOwnedShift(id, user.id)
+  const loaded = await loadManageableShift(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
   const data: Record<string, unknown> = {
@@ -72,7 +76,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  const loaded = await loadOwnedShift(id, user.id)
+  const loaded = await loadManageableShift(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
   await loaded.payload.delete({ collection: 'shifts', id, overrideAccess: true, user })

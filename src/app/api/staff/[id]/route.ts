@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-import type { Salon, StaffMember } from '@/payload/payload-types'
+import { assertCapability } from '@/lib/apiCapability'
+import type { StaffMember } from '@/payload/payload-types'
 
 /**
  * Egy szalon-munkatárs kezelése: GET (locale-lekérés), PATCH (mentés / lokalizált bio),
- * DELETE. Defenzív: csak a munkatárs szalonjának tulaja módosíthat. Az avatar relationship
- * SZÁM-ra coerce-ölve (a kliens string id-t küld).
+ * DELETE. RBAC: `staff.manage` (owner + manager) a munkatárs szalonjában. Az avatar
+ * relationship SZÁM-ra coerce-ölve (a kliens string id-t küld).
  */
 const num = (v: unknown) => (/^\d+$/.test(String(v)) ? Number(v) : v)
 
-async function loadOwnedStaff(id: string, userId: string | number) {
+async function loadManageableStaff(id: string, userId: string | number) {
   const payload = await getPayloadClient()
   let staff: StaffMember | undefined
   try {
@@ -20,9 +21,8 @@ async function loadOwnedStaff(id: string, userId: string | number) {
   }
   const salonId = staff.salon ? (typeof staff.salon === 'object' ? staff.salon.id : staff.salon) : null
   if (!salonId) return { error: 'Érvénytelen munkatárs', status: 400 as const }
-  const s = (await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })) as Salon
-  const ownerId = typeof s.owner === 'object' && s.owner ? s.owner.id : s.owner
-  if (String(ownerId) !== String(userId)) return { error: 'Nincs jogosultság', status: 403 as const }
+  const denied = await assertCapability(userId, 'salon', salonId, 'staff.manage')
+  if (denied) return { error: denied.error, status: denied.status }
   return { payload }
 }
 
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  const loaded = await loadOwnedStaff(id, user.id)
+  const loaded = await loadManageableStaff(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
   const locale = request.nextUrl.searchParams.get('locale') || undefined
@@ -57,7 +57,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Hibás kérés' }, { status: 400 })
   }
 
-  const loaded = await loadOwnedStaff(id, user.id)
+  const loaded = await loadManageableStaff(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
   const locale = request.nextUrl.searchParams.get('locale') || undefined
@@ -88,7 +88,7 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  const loaded = await loadOwnedStaff(id, user.id)
+  const loaded = await loadManageableStaff(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
   await loaded.payload.delete({ collection: 'staff', id, overrideAccess: true, user })

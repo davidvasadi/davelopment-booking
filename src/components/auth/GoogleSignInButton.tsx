@@ -49,15 +49,15 @@ export function GoogleSignInButton({
   onClick?: () => void | Promise<void>
 }) {
   const [loading, setLoading] = useState(false)
-  // Klasszikus social-pill: teljes szélességű, ikon balra, szöveg középen-balra.
+  // Klasszikus social-pill: teljes szélességű, ikon balra, szöveg középen-balra. Crextio pill.
   const base =
-    'w-full inline-flex h-12 items-center justify-center gap-3 rounded-full font-semibold text-sm transition-colors disabled:opacity-60'
+    'w-full inline-flex h-12 items-center justify-center gap-3 rounded-dav-pill font-semibold text-sm transition-colors disabled:opacity-60'
   const styles =
     variant === 'dark'
-      // Sötét hátteren: világos szegély, fehér szöveg (mint a "Van már fiókom" gomb)
-      ? 'border border-zinc-700 bg-transparent text-zinc-100 hover:bg-zinc-900 hover:border-zinc-600'
-      // Világos hátteren: fehér háttér, finom szegély, sötét szöveg (klasszikus social-pill)
-      : 'border border-zinc-200 bg-white text-zinc-900 hover:bg-zinc-50 hover:border-zinc-300 shadow-sm'
+      // Sötét (ink-dark) panelen: világos szegély, fehér szöveg
+      ? 'border border-white/15 bg-transparent text-white hover:bg-white/5'
+      // Világos hátteren: fehér háttér, meleg szegély, ink szöveg (Crextio social-pill)
+      : 'border border-line-strong bg-white text-ink hover:bg-paper shadow-dav-card'
   return (
     <button
       type="button"

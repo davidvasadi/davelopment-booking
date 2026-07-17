@@ -1,4 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { ScheduleView, type StaffVM, type ShiftVM, type ShiftType } from '@/components/dashboard/ScheduleView'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -26,7 +27,10 @@ function mediaUrl(m: unknown): string | null {
 }
 
 export default async function SalonSchedulePage() {
-  const { salon } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon()
+  // A Naptár kezelő-eszköz (műszak felvétel/módosítás/törlés) → `schedule.manage`. A saját műszakot
+  // a munkatárs a személyes főoldalán látja; ide csak a beosztás-kezelők léphetnek be.
+  requireCapability(capabilities, 'schedule.manage', '/dashboard')
   const payload = await getPayloadClient()
 
   const [staffRes, shiftsRes] = await Promise.all([

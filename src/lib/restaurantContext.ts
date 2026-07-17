@@ -28,5 +28,5 @@ export async function getOwnedRestaurant() {
     overrideAccess: true,
   })) as Restaurant
 
-  return { userId: user.id, restaurant, businessCount: businesses.length }
+  return { userId: user.id, restaurant, businessCount: businesses.length, role: active.role, roleName: active.roleName, capabilities: active.capabilities }
 }

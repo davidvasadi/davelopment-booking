@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers'
 import { getPayloadClient } from './payload'
 import { resolveTier, type Tier } from './tier'
-import type { User, Salon, Restaurant, Media, Membership } from '@/payload/payload-types'
+import { effectiveCapabilities, ALL_CAPABILITIES, type TeamRole, type Capability } from './permissions'
+import type { User, Salon, Restaurant, Media, Membership, Role } from '@/payload/payload-types'
 
 /**
  * Több-üzlet (multi-tenant) aktív-üzlet feloldás.
@@ -30,6 +31,12 @@ export interface Business {
   createdAt: string
   /** Az üzlet csomagja (Start/Pro), feloldva — a régi null tier Pro-ként jön. */
   tier: Tier
+  /** A bejelentkezett user szerepe EBBEN az üzletben: 'owner' (tulaj-mező) vagy a tagság szerepe. */
+  role: TeamRole
+  /** A megjelenített szerep-NÉV: 'Tulajdonos', vagy a tag egyedi szerepének neve (Felszolgáló…), különben 'Nincs szerep'. */
+  roleName: string
+  /** A hatékony képesség-halmaz (beépített szerep VAGY egyedi szerep alapján). A gating ezt használja. */
+  capabilities: Capability[]
 }
 
 const logoUrlOf = (logo: string | Media | null | undefined): string | null =>
@@ -74,6 +81,9 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       logoUrl: logoUrlOf(s.logo),
       createdAt: s.createdAt,
       tier: resolveTier(s.tier),
+      role: 'owner' as const,
+      roleName: 'Tulajdonos',
+      capabilities: ALL_CAPABILITIES,
     })),
     ...(restaurants.docs as Restaurant[]).map((r) => ({
       type: 'restaurant' as const,
@@ -83,6 +93,9 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       logoUrl: logoUrlOf(r.logo),
       createdAt: r.createdAt,
       tier: resolveTier(r.tier),
+      role: 'owner' as const,
+      roleName: 'Tulajdonos',
+      capabilities: ALL_CAPABILITIES,
     })),
   ]
 
@@ -91,13 +104,18 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
   for (const m of memberships.docs as Membership[]) {
     const s = m.salon && typeof m.salon === 'object' ? (m.salon as Salon) : null
     const r = m.restaurant && typeof m.restaurant === 'object' ? (m.restaurant as Restaurant) : null
+    const memRole = (m.role ?? 'staff') as TeamRole
+    const memCustomRole = m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role) : null
+    const memCaps = effectiveCapabilities(memRole, (memCustomRole?.capabilities as Capability[] | undefined) ?? null)
+    // Megjelenített szerep-név: owner-tagnál 'Tulajdonos', egyedi szerepnél annak neve, különben 'Nincs szerep'.
+    const memName = memRole === 'owner' ? 'Tulajdonos' : memCustomRole?.name ?? 'Nincs szerep'
     if (s && !seen.has(`salon:${s.id}`)) {
       seen.add(`salon:${s.id}`)
-      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: logoUrlOf(s.logo), createdAt: s.createdAt, tier: resolveTier(s.tier) })
+      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: logoUrlOf(s.logo), createdAt: s.createdAt, tier: resolveTier(s.tier), role: memRole, roleName: memName, capabilities: memCaps })
     }
     if (r && !seen.has(`restaurant:${r.id}`)) {
       seen.add(`restaurant:${r.id}`)
-      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: logoUrlOf(r.logo), createdAt: r.createdAt, tier: resolveTier(r.tier) })
+      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: logoUrlOf(r.logo), createdAt: r.createdAt, tier: resolveTier(r.tier), role: memRole, roleName: memName, capabilities: memCaps })
     }
   }
 

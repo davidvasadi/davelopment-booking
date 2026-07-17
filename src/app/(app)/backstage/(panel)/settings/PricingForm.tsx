@@ -66,15 +66,15 @@ export default function PricingForm({ initial }: { initial: Pricing }) {
       <p className="text-[13.5px] text-ink-soft">Kattints egy mezőbe és írd át az értéket, majd <span className="font-semibold text-ink">Árazás mentése</span>.</p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {fields.map(f => (
-          <div key={f.label} className="rounded-[24px] border border-line bg-white p-5 shadow-dav-card">
+          <div key={f.label} className="rounded-[24px] p-5 dav-card-glass">
             <div className="flex items-center gap-2 mb-3">
-              <span className="h-9 w-9 rounded-[13px] bg-[#F6F2E4] flex items-center justify-center shrink-0">
-                <f.icon className="h-4 w-4 text-ink-soft" />
+              <span className="h-9 w-9 rounded-[13px] bg-gold/20 flex items-center justify-center shrink-0">
+                <f.icon className="h-4 w-4 text-ink-dark" />
               </span>
               <label htmlFor={f.id} className="text-[12px] font-medium text-ink-soft">{f.label}</label>
             </div>
-            {/* Szerkeszthető input-keret: fókuszra sötét keret, a mértékegység a kereten belül. */}
-            <div className="flex items-center rounded-[22px] border border-line bg-white px-[18px] focus-within:border-strong transition-colors">
+            {/* Szerkeszthető input-keret: fókuszra erős keret, a mértékegység a kereten belül. */}
+            <div className="flex items-center rounded-[22px] border border-line bg-white px-[18px] focus-within:border-line-strong transition-colors">
               <input
                 id={f.id}
                 type="number"
@@ -102,7 +102,7 @@ export default function PricingForm({ initial }: { initial: Pricing }) {
         {dirty && !saving && <span className="text-[12px] font-medium text-[#7A6A2E]">Nem mentett változás</span>}
       </div>
 
-      <div className="rounded-[16px] border border-line bg-[#FCFAF1] px-4 py-3">
+      <div className="rounded-[16px] border border-line bg-white px-4 py-3">
         <p className="text-[12px] text-ink-soft leading-relaxed">
           <span className="font-semibold text-ink">Hogyan érvényesül:</span> az árváltozás azonnal
           látszik a publikus árazásban és az új előfizetéseken. A <span className="font-semibold text-ink">már fizető ügyfelek</span> a

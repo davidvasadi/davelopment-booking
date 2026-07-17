@@ -9,7 +9,7 @@ import type { StaffMember, Media } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
+import { PopupModal } from '@/components/ui/popup-modal'
 import { Plus, Pencil, CalendarDays, Camera, Loader2, X, Trash2, Search, Download, ChevronDown } from 'lucide-react'
 import StaffCalendarSheet from './StaffCalendarSheet'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
@@ -38,6 +38,8 @@ function gradientFor(seed: string) {
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
   bio: z.string().optional(),
+  // Szakember e-mail — ide megy a hozzá rendelt foglalás értesítője (.ics-melléklettel).
+  email: z.string().email('Érvénytelen email cím').optional().or(z.literal('')),
   is_active: z.boolean(),
 })
 type FormData = z.infer<typeof schema>
@@ -118,7 +120,7 @@ export default function StaffManager({
   const activeWatch = watch('is_active')
 
   const openAdd = () => {
-    reset({ name: '', bio: '', is_active: true })
+    reset({ name: '', bio: '', email: '', is_active: true })
     setEditing(null)
     setEditLocale('hu')
     setAvatarId(null)
@@ -128,7 +130,7 @@ export default function StaffManager({
   }
 
   const openEdit = (m: StaffMember) => {
-    reset({ name: m.name, bio: m.bio ?? '', is_active: m.is_active ?? true })
+    reset({ name: m.name, bio: m.bio ?? '', email: m.email ?? '', is_active: m.is_active ?? true })
     setEditing(m)
     setEditLocale('hu')
     const url = avatarUrl(m)
@@ -228,7 +230,11 @@ export default function StaffManager({
       })
       if (!res.ok) throw new Error()
       const json = await res.json()
-      const saved: StaffMember = json.doc
+      // A /api/staff route a doc-ot KÖZVETLENÜL adja vissza (nem { doc }-ba csomagolva) —
+      // mindkét alakot kezeljük, és sose engedünk érvénytelen elemet a listába (különben a
+      // toDelete `.find` undefined-en hasal el).
+      const saved: StaffMember = (json?.doc ?? json) as StaffMember
+      if (!saved?.id) throw new Error('Érvénytelen szerver-válasz')
       setStaff(prev => editing ? prev.map(m => m.id === saved.id ? saved : m) : [...prev, saved])
       setOpen(false)
       toast.success(editing ? 'Frissítve' : 'Munkatárs hozzáadva')
@@ -571,15 +577,9 @@ export default function StaffManager({
         </div>
       </div>
 
-      {/* Edit / Add sheet */}
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">
-              {editing ? 'Szerkesztés' : 'Új munkatárs'}
-            </SheetTitle>
-          </SheetHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 mt-6">
+      {/* Edit / Add — felugró modal (mint a szolgáltatásoknál) */}
+      <PopupModal open={open} onClose={() => setOpen(false)} title={editing ? 'Munkatárs szerkesztése' : 'Új munkatárs'}>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
 
             {editing && availableLocales.length > 1 && (
               <LocaleEditBar
@@ -640,6 +640,13 @@ export default function StaffManager({
               {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
             </div>
             )}
+            {editLocale === 'hu' && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Email <span className="font-normal text-ink-soft2">(a foglalás-értesítőkhöz)</span></Label>
+              <Input type="email" className="h-11 rounded-xl" {...register('email')} placeholder="szakember@example.com" />
+              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+            </div>
+            )}
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Bemutatkozás</Label>
               <Textarea className="rounded-xl" {...register('bio')} rows={3} placeholder={editLocale !== 'hu' ? (editing?.bio ?? '') : undefined} />
@@ -665,8 +672,7 @@ export default function StaffManager({
               {submitting ? 'Mentés...' : editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
           </form>
-        </SheetContent>
-      </Sheet>
+      </PopupModal>
 
       {/* Availability calendar sheet */}
       {calendarStaff && (

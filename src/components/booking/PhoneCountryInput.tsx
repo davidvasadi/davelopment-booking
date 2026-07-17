@@ -140,6 +140,8 @@ export function PhoneCountryInput({
   onPhoneChange,
   required,
   inputClass = '',
+  inputRef,
+  onBlur,
 }: {
   country: string
   phone: string
@@ -147,6 +149,10 @@ export function PhoneCountryInput({
   onPhoneChange: (phone: string) => void
   required?: boolean
   inputClass?: string
+  /** A tényleges szám-inputra mutató ref (pl. fókusz-ugráshoz validációs hibánál). */
+  inputRef?: React.Ref<HTMLInputElement>
+  /** A szám-input elhagyásakor hívódik (blur-validáláshoz). */
+  onBlur?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -172,18 +178,24 @@ export function PhoneCountryInput({
       <button
         type="button"
         onClick={() => { setOpen((o) => !o); setQuery('') }}
+        aria-label={`Országhívó: ${selected.dial}`}
+        aria-expanded={open}
         className={`flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm ${inputClass}`}
       >
         <span className="tabular-nums font-semibold text-zinc-900">{selected.dial}</span>
         <ChevronDown className={`h-3.5 w-3.5 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <input
+        ref={inputRef}
         type="tel"
         inputMode="tel"
+        autoComplete="tel"
         required={required}
+        aria-label="Telefonszám"
         placeholder={`Telefonszám${required ? '' : ' (opcionális)'}`}
         value={phone}
         onChange={(e) => onPhoneChange(formatLocalPhone(e.target.value, country))}
+        onBlur={onBlur}
         className={`flex-1 min-w-0 ${inputClass}`}
       />
       {open && (

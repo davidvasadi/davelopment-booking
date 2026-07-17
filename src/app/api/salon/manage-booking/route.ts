@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
+import { sendBookingConfirmation, sendNewBookingNotification } from '@/lib/email'
 import type { User, Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
 /**
@@ -46,7 +48,9 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/
  */
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
-  if (!user || (user.role !== 'salon_owner' && user.role !== 'admin')) {
+  // Bármely tulaj (több-üzlet fiók: a szerep lehet restaurant_owner is, miközben szalonban dolgozik)
+  // vagy admin — a tényleges jogosultságot a getOwnerSalon (aktív üzlet) szűkíti a saját szalonra.
+  if (!user || (user.role !== 'salon_owner' && user.role !== 'restaurant_owner' && user.role !== 'admin')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
@@ -154,9 +158,21 @@ export async function POST(req: NextRequest) {
       salon: Number(salon.id),
       customer_name: body.customer_name?.trim() || 'Vendég',
       status: body.status ?? 'confirmed',
+      // Önlemondó token — hogy a visszaigazoló emailben legyen működő lemondás-link.
+      cancellation_token: randomBytes(32).toString('hex'),
     } as unknown as Booking,
     overrideAccess: true,
     user,
   })
+
+  // Visszaigazoló email a vendégnek (mint a publikus foglalónál) — a kézi (dashboard) rögzítésnél is.
+  // Csak ha a tulaj nem tiltotta le a megerősítő emailt.
+  const emailData = { booking: created as unknown as Booking, salon, service, staff }
+  if (salon.notification_prefs?.confirm_email !== false) {
+    void sendBookingConfirmation(emailData)
+  }
+  // Értesítő a szolgáltatónak: az üzlet e-mail címére, vagy ha üres, a tulaj fiók-emailjére.
+  void sendNewBookingNotification(emailData, user.email)
+
   return NextResponse.json({ ok: true, booking: created })
 }

@@ -13,19 +13,30 @@ import {
   formatBookingDate,
   bottomSpacer,
   renderSubject,
+  escapeHtml,
   COLORS,
 } from './emailLayout'
 import { t, normalizeLocale } from './i18n'
+import { logEmail } from './emailLog'
 
 let _resend: Resend | null = null
+let _warnedNoKey = false
 function getResend(): Resend | null {
-  if (!process.env.RESEND_API_KEY) return null
+  if (!process.env.RESEND_API_KEY) {
+    // Ne némán: jelezzük (egyszer), hogy a tranzakciós emailek NEM mennek ki — különben a
+    // tulaj sose tudja meg, hogy a vendégek nem kapnak visszaigazolást.
+    if (!_warnedNoKey) {
+      console.warn('[Email] RESEND_API_KEY nincs beállítva — a tranzakciós emailek NEM mennek ki.')
+      _warnedNoKey = true
+    }
+    return null
+  }
   if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
   return _resend
 }
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
-const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'Schedulio'
+const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'davelopment booking'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
 
 export interface BookingEmailData {
@@ -81,7 +92,7 @@ function generateICS({ booking, salon, service, staff }: BookingEmailData): stri
   return [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//Schedulio//HU',
+    'PRODID:-//davelopment booking//HU',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',
@@ -126,25 +137,44 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
         },
       ],
     })
+    await logEmail('booking_confirmation', booking.customer_email, subject, true)
   } catch (err) {
     console.error('[Email] Booking confirmation failed:', err)
+    await logEmail('booking_confirmation', booking.customer_email, subject, false, String(err))
   }
 }
 
-export async function sendNewBookingNotification(data: BookingEmailData) {
-  const { salon } = data
-  if (!salon.email) return
+export async function sendNewBookingNotification(data: BookingEmailData, fallbackTo?: string) {
+  const { salon, staff } = data
+  // Címzettek: az üzlet kapcsolati e-mailje (vagy tartalék: a tulaj fiók-emailje) + a foglaláshoz
+  // rendelt SZAKEMBER e-mailje — így a szakember is megkapja a saját foglalását, a vendégéhez
+  // hasonló .ics-melléklettel, amit egy koppintással felvehet a telefon-naptárába.
+  const businessTo = salon.email || fallbackTo
+  const staffEmail = staff && typeof staff === 'object' ? staff.email : null
+  const recipients = [...new Set(
+    [businessTo, staffEmail].filter((e): e is string => !!e && /^\S+@\S+\.\S+$/.test(e)),
+  )]
+  if (recipients.length === 0) return
   const resend = getResend()
   if (!resend) return
+  const subject = `Új foglalás: ${data.booking.customer_name} — ${data.booking.date} ${data.booking.start_time}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
-      to: salon.email,
-      subject: `Új foglalás: ${data.booking.customer_name} — ${data.booking.date} ${data.booking.start_time}`,
+      to: recipients,
+      subject,
       html: notificationHtml(data),
+      attachments: [
+        {
+          filename: 'foglalas.ics',
+          content: Buffer.from(generateICS(data)),
+        },
+      ],
     })
+    await logEmail('new_booking', recipients.join(', '), subject, true)
   } catch (err) {
     console.error('[Email] New booking notification failed:', err)
+    await logEmail('new_booking', recipients.join(', '), subject, false, String(err))
   }
 }
 
@@ -164,8 +194,10 @@ export async function sendCancellationEmail(data: BookingEmailData) {
       subject,
       html: cancellationHtml(data),
     })
+    await logEmail('cancellation', booking.customer_email, subject, true)
   } catch (err) {
     console.error('[Email] Cancellation email failed:', err)
+    await logEmail('cancellation', booking.customer_email, subject, false, String(err))
   }
 }
 
@@ -184,8 +216,10 @@ export async function sendReminderEmail(data: BookingEmailData) {
       subject,
       html: reminderHtml(data),
     })
+    await logEmail('reminder', booking.customer_email, subject, true)
   } catch (err) {
     console.error('[Email] Reminder email failed:', err)
+    await logEmail('reminder', booking.customer_email, subject, false, String(err))
   }
 }
 
@@ -204,8 +238,10 @@ export async function sendFeedbackRequestEmail(data: BookingEmailData) {
       subject,
       html: feedbackHtml(data),
     })
+    await logEmail('feedback', booking.customer_email, subject, true)
   } catch (err) {
     console.error('[Email] Feedback request email failed:', err)
+    await logEmail('feedback', booking.customer_email, subject, false, String(err))
   }
 }
 
@@ -225,11 +261,12 @@ export interface WaitlistEmailData {
 export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
   const resend = getResend()
   if (!resend) return
+  const subject = `Felkerültél a várólistára – ${data.salon.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: data.customer_email,
-      subject: `Felkerültél a várólistára – ${data.salon.name}`,
+      subject,
       html: wrap(data.salon, `
         ${heroBlock({
           icon: 'bell',
@@ -243,8 +280,10 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
         ${bottomSpacer()}
       `),
     })
+    await logEmail('waitlist_signup', data.customer_email, subject, true)
   } catch (err) {
     console.error('[Email] Waitlist signup failed:', err)
+    await logEmail('waitlist_signup', data.customer_email, subject, false, String(err))
   }
 }
 
@@ -253,11 +292,12 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
   const resend = getResend()
   if (!resend) return
   const bookUrl = data.bookUrl ?? `${APP_URL}/${data.salon.slug}`
+  const subject = `Felszabadult egy időpont – ${data.salon.name}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: data.customer_email,
-      subject: `Felszabadult egy időpont – ${data.salon.name}`,
+      subject,
       html: wrap(data.salon, `
         ${heroBlock({
           icon: 'bell',
@@ -270,14 +310,16 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
         ].join(''))}
         <tr>
           <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-            <a href="${bookUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Időpont foglalása</a>
+            <a href="${bookUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Időpont foglalása</a>
           </td>
         </tr>
         ${bottomSpacer()}
       `),
     })
+    await logEmail('waitlist_opening', data.customer_email, subject, true)
   } catch (err) {
     console.error('[Email] Waitlist opening failed:', err)
+    await logEmail('waitlist_opening', data.customer_email, subject, false, String(err))
   }
 }
 
@@ -286,6 +328,8 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
 export interface TeamInviteEmailData {
   to: string
   businessName: string
+  /** Az invitáló üzlet (szalon/étterem) logójának abszolút URL-je — a fejlécbe kerül. */
+  businessLogoUrl?: string | null
   roleLabel: string
   inviterName?: string | null
   acceptUrl: string
@@ -293,43 +337,33 @@ export interface TeamInviteEmailData {
 
 /**
  * Csapat-meghívó email: egy tulaj meghív egy tagot egy szerep-körrel. A link az
- * accept-oldalra mutat (token). Egyszerű, márka-független layout (nincs Salon/logó).
+ * accept-oldalra mutat (token). A fejlécben az INVITÁLÓ üzlet logója (vagy ha nincs,
+ * a neve) jelenik meg — nem a platform-brand.
  */
 export async function sendTeamInviteEmail(data: TeamInviteEmailData) {
   const resend = getResend()
   if (!resend) return
-  const inviter = data.inviterName ? `${data.inviterName} · ` : ''
+  const inviter = data.inviterName ? `${escapeHtml(data.inviterName)} ` : ''
+  const subtitle = `${inviter}meghívott, hogy csatlakozz a(z) ${escapeHtml(data.businessName)} csapatához <b style="color:${COLORS.text}">${escapeHtml(data.roleLabel)}</b> szerepkörben.`
+  const content = `
+    ${heroBlock({ icon: 'bell', title: 'Meghívtak a csapatba', subtitle })}
+    <tr><td style="background:${COLORS.surface};padding:12px 32px 0;text-align:center">
+      <a href="${data.acceptUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:14px;font-weight:600;text-decoration:none;padding:14px 32px;border-radius:999px;letter-spacing:-0.1px">Meghívó elfogadása</a>
+      <p style="margin:20px 0 0;color:${COLORS.textFaint};font-size:12px;line-height:1.5">Ha nem számítottál erre a meghívóra, hagyd figyelmen kívül ezt az emailt.</p>
+    </td></tr>
+    ${bottomSpacer()}`
+  const subject = `Meghívó a csapatba – ${data.businessName}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: data.to,
-      subject: `Meghívó a csapatba – ${data.businessName}`,
-      html: `<!DOCTYPE html>
-<html lang="hu"><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f4f4f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px"><tr><td align="center">
-    <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08)">
-      <tr><td style="background:#09090b;padding:24px 32px">
-        <span style="color:#fff;font-size:18px;font-weight:900;letter-spacing:-0.5px">Schedulio</span>
-      </td></tr>
-      <tr><td style="background:#fff;padding:32px">
-        <h1 style="margin:0 0 8px;font-size:22px;font-weight:900;color:#09090b;letter-spacing:-0.5px">Meghívtak a csapatba</h1>
-        <p style="margin:0 0 20px;color:#71717a;font-size:14px;line-height:1.6">
-          ${inviter}meghívott, hogy csatlakozz a(z) <b style="color:#09090b">${data.businessName}</b> csapatához
-          <b style="color:#09090b">${data.roleLabel}</b> szerepkörben.
-        </p>
-        <a href="${data.acceptUrl}" style="display:inline-block;background:#09090b;color:#fff;padding:14px 32px;border-radius:100px;font-size:14px;font-weight:600;text-decoration:none">Meghívó elfogadása</a>
-        <p style="margin:20px 0 0;color:#a1a1aa;font-size:12px">Ha nem számítottál erre a meghívóra, hagyd figyelmen kívül ezt az emailt.</p>
-      </td></tr>
-      <tr><td style="background:#09090b;padding:20px 32px;text-align:center">
-        <p style="margin:0;color:#3f3f46;font-size:11px">© 2026 Schedulio · Minden jog fenntartva</p>
-      </td></tr>
-    </table>
-  </td></tr></table>
-</body></html>`,
+      subject,
+      html: emailLayout({ brandName: data.businessName, brandLogoUrl: data.businessLogoUrl ?? null, content }),
     })
+    await logEmail('team_invite', data.to, subject, true)
   } catch (err) {
     console.error('[Email] Team invite failed:', err)
+    await logEmail('team_invite', data.to, subject, false, String(err))
   }
 }
 
@@ -469,7 +503,7 @@ function feedbackHtml(data: BookingEmailData): string {
     ${detailsCard(rows)}
     <tr>
       <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
+        <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
       </td>
     </tr>
     ${bottomSpacer()}

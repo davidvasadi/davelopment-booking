@@ -5,6 +5,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { sendTeamInviteEmail } from '@/lib/email'
+import { assertCapability } from '@/lib/apiCapability'
 import { roleLabel, type TeamRole } from '@/lib/permissions'
 import type { Salon, Restaurant } from '@/payload/payload-types'
 
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  let body: { email?: string; role?: string; position?: string }
+  let body: { email?: string; role?: string; position?: string; custom_role?: string }
   try {
     body = await request.json()
   } catch {
@@ -37,16 +38,38 @@ export async function POST(request: NextRequest) {
   const { active } = await getActiveBusiness(user)
   if (!active) return NextResponse.json({ error: 'Nincs aktív üzlet' }, { status: 400 })
 
+  // RBAC: `team.manage` (owner + manager) az AKTÍV üzletben.
+  const denied = await assertCapability(user.id, active.type, active.id, 'team.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
+
   const payload = await getPayloadClient()
 
-  // Tulajdonos-ellenőrzés: a bejelentkezett user tényleg birtokolja-e az aktív üzletet.
+  // Az aktív üzlet betöltése (logó/név/pozíciók az email- és kategória-append-hez).
   const biz =
     active.type === 'salon'
-      ? ((await payload.findByID({ collection: 'salons', id: active.id, depth: 0, overrideAccess: true })) as Salon)
-      : ((await payload.findByID({ collection: 'restaurants', id: active.id, depth: 0, overrideAccess: true })) as Restaurant)
-  const ownerId = typeof biz.owner === 'object' && biz.owner ? biz.owner.id : biz.owner
-  if (String(ownerId) !== String(user.id)) {
-    return NextResponse.json({ error: 'Nincs jogosultság ehhez az üzlethez' }, { status: 403 })
+      ? ((await payload.findByID({ collection: 'salons', id: active.id, depth: 1, overrideAccess: true })) as Salon)
+      : ((await payload.findByID({ collection: 'restaurants', id: active.id, depth: 1, overrideAccess: true })) as Restaurant)
+
+  // OWNER szerepben meghívni CSAK a tulaj tud (a manager team.manage-je manager/staff-ig terjed).
+  const bizOwnerId = typeof biz.owner === 'object' && biz.owner ? biz.owner.id : biz.owner
+  if (role === 'owner' && String(bizOwnerId) !== String(user.id)) {
+    return NextResponse.json({ error: 'Tulajdonos szerepet csak a tulajdonos adhat' }, { status: 403 })
+  }
+
+  // Egyedi (custom) szerep: ha megadva, tartozzon EHHEZ az üzlethez. A neve = a tag pozíciója,
+  // a képességei = a jogosultsága (nincs külön munkakör-kategória).
+  let customRoleId: string | number | null = null
+  let customRoleName: string | null = null
+  if (body.custom_role) {
+    const cr = await payload.findByID({ collection: 'roles', id: body.custom_role, depth: 0, overrideAccess: true }).catch(() => null)
+    const crBiz = cr
+      ? active.type === 'salon'
+        ? (typeof cr.salon === 'object' && cr.salon ? cr.salon.id : cr.salon)
+        : (typeof cr.restaurant === 'object' && cr.restaurant ? cr.restaurant.id : cr.restaurant)
+      : null
+    if (!cr || String(crBiz) !== String(active.id)) return NextResponse.json({ error: 'Érvénytelen szerep' }, { status: 400 })
+    customRoleId = /^\d+$/.test(String(cr.id)) ? Number(cr.id) : cr.id
+    customRoleName = cr.name
   }
 
   const scope: Where = active.type === 'salon' ? { salon: { equals: active.id } } : { restaurant: { equals: active.id } }
@@ -76,6 +99,7 @@ export async function POST(request: NextRequest) {
     data: {
       email,
       role,
+      ...(customRoleId ? { custom_role: customRoleId } : {}),
       status: 'invited',
       invite_token: token,
       ...(position ? { position } : {}),
@@ -83,31 +107,22 @@ export async function POST(request: NextRequest) {
     },
   })
 
-  // Új kategória → az étterem SAJÁT szerepkör-listája magától bővül (helyben, meghíváskor).
-  // A szint a szerepből jön: Vezető (manager→lead) / Dolgozó (staff→staff).
-  if (position && active.type === 'restaurant') {
-    const r = biz as Restaurant
-    const level: 'lead' | 'staff' = role === 'manager' ? 'lead' : 'staff'
-    const existingPositions = (r.positions ?? []).map((p) => p.label)
-    if (!existingPositions.includes(position)) {
-      await payload.update({
-        collection: 'restaurants',
-        id: active.id,
-        overrideAccess: true,
-        user,
-        data: { positions: [...(r.positions ?? []).map((p) => ({ label: p.label, level: p.level })), { label: position, level }] },
-      })
-    }
-  }
-
   const acceptUrl = `${APP_URL}/team/accept/${token}`
+  // Az invitáló üzlet logója (abszolút URL) a meghívó-email fejlécébe; ha nincs, a neve jelenik meg.
+  const bizLogo = biz.logo
+  const businessLogoUrl =
+    bizLogo && typeof bizLogo === 'object' && bizLogo.url
+      ? (bizLogo.url.startsWith('http') ? bizLogo.url : `${APP_URL}${bizLogo.url}`)
+      : null
   // Az email-küldés NEM fatális: ha az SMTP nem elérhető (pl. lokál), a meghívó akkor is
   // létrejön — a linket a tulaj kézzel is megoszthatja (visszaadjuk a válaszban).
   try {
     await sendTeamInviteEmail({
       to: email,
       businessName: biz.name,
-      roleLabel: roleLabel(role),
+      businessLogoUrl,
+      // Egységes: a meghívó a megadott (egyedi) szerep NEVÉT mutatja, ha van; különben a beépített címke.
+      roleLabel: customRoleName || roleLabel(role),
       inviterName: user.name,
       acceptUrl,
     })

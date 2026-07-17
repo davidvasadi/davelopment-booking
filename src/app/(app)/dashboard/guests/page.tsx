@@ -1,4 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
 import { aggregateGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
@@ -6,7 +7,8 @@ import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit }
 import type { Booking, Service, Customer } from '@/payload/payload-types'
 
 export default async function SalonGuestsPage() {
-  const { salon } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon()
+  requireCapability(capabilities, 'guests.view', '/dashboard')
   const payload = await getPayloadClient()
 
   const res = await payload.find({

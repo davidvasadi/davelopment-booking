@@ -1,4 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
 import { aggregateGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
@@ -8,7 +9,8 @@ import type { Reservation, Customer } from '@/payload/payload-types'
 const DAYS = ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat']
 
 export default async function RestaurantGuestsPage() {
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, capabilities } = await getOwnedRestaurant()
+  requireCapability(capabilities, 'guests.view', '/restaurant')
   const payload = await getPayloadClient()
 
   const res = await payload.find({

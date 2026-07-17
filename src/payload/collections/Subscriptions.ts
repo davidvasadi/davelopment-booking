@@ -229,6 +229,27 @@ export const Subscriptions: CollectionConfig = {
       label: 'Stripe Subscription ID',
       admin: { position: 'sidebar' },
     },
+    // ── Számlázz.hu (automata e-számla a Stripe-fizetés után) ──
+    {
+      // Idempotencia: az UTOLSÓ már-kiszámlázott Stripe invoice azonosítója. A webhook ezt
+      // nézi, hogy egy `invoice.paid` eseményt (a Stripe újraküldheti) ne számlázzon kétszer.
+      name: 'last_stripe_invoice_id',
+      type: 'text',
+      label: 'Utolsó számlázott Stripe invoice',
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'last_invoice_number',
+      type: 'text',
+      label: 'Utolsó Számlázz.hu számlaszám',
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'last_invoice_url',
+      type: 'text',
+      label: 'Utolsó számla PDF-URL',
+      admin: { position: 'sidebar', readOnly: true },
+    },
     {
       name: 'notes',
       type: 'textarea',

@@ -1,4 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { getDayName, hhmmToMinutes } from '@/lib/utils'
 import { parseISO } from 'date-fns'
@@ -18,7 +19,8 @@ export default async function BookingsPage({
 }) {
   const { date, booking: bookingParam } = await searchParams
 
-  const { salon } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon()
+  requireCapability(capabilities, 'bookings.view', '/dashboard')
   const payload = await getPayloadClient()
 
   // Értesítésből érkezve (?booking=) a foglalás napjára ugrunk, hogy a sheet a megfelelő

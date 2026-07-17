@@ -44,6 +44,8 @@ export const hu: Record<string, string> = {
   'booking.err.email': 'Érvényes email szükséges',
   'booking.err.phone': 'Érvényes telefonszám szükséges',
   'booking.err.generic': 'Hiba történt',
+  'booking.retry': 'Újrapróbálom',
+  'booking.leaveConfirm': 'Elveszíted a megkezdett foglalást. Biztosan kilépsz?',
 
   // ── Étterem foglaló wizard ──
   'rbooking.step.datetime': 'Időpont',
@@ -71,6 +73,8 @@ export const hu: Record<string, string> = {
   'rbooking.err.email': 'Érvénytelen email cím',
   'rbooking.err.phone': 'A telefonszám megadása kötelező',
   'rbooking.err.generic': 'A foglalás sikertelen',
+  'rbooking.err.slots': 'Nem sikerült betölteni az időpontokat',
+  'rbooking.retry': 'Újrapróbálom',
   'rbooking.guests': '{{n}} fő',
 
   // ── Dátum-csík (DateStrip) — nap-rövidítések, V-tól ──

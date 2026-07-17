@@ -267,7 +267,10 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
     })
     if (!res.ok) throw new Error()
     const json = await res.json()
-    const saved: ServiceCategory = json.doc
+    // A route a doc-ot közvetlenül is visszaadhatja (nem { doc }-ba csomagolva) — mindkét alak,
+    // és sose kerüljön érvénytelen elem a listába.
+    const saved: ServiceCategory = (json?.doc ?? json) as ServiceCategory
+    if (!saved?.id) throw new Error('Érvénytelen szerver-válasz')
     setCategories(prev => [...prev, saved])
     return String(saved.id)
   }

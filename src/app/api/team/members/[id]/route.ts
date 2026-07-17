@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Where } from 'payload'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-import type { Membership, Salon, Restaurant } from '@/payload/payload-types'
+import { assertCapability } from '@/lib/apiCapability'
+import type { Membership, Salon, Restaurant, Role } from '@/payload/payload-types'
 import type { User } from '@/payload/payload-types'
 import type { TeamRole } from '@/lib/permissions'
 
@@ -26,30 +26,24 @@ async function loadManageableMembership(id: string, user: User) {
   const salonId = membership.salon ? (typeof membership.salon === 'object' ? membership.salon.id : membership.salon) : null
   const restaurantId = membership.restaurant ? (typeof membership.restaurant === 'object' ? membership.restaurant.id : membership.restaurant) : null
 
-  let ownerId: string | number | null = null
-  if (salonId) {
-    const s = (await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })) as Salon
-    ownerId = typeof s.owner === 'object' && s.owner ? s.owner.id : s.owner
-  } else if (restaurantId) {
-    const r = (await payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 0, overrideAccess: true })) as Restaurant
-    ownerId = typeof r.owner === 'object' && r.owner ? r.owner.id : r.owner
-  }
+  // Az üzlet-típus + id a tag rekordjából jön (salon VAGY restaurant).
+  const bizType: 'salon' | 'restaurant' | null = salonId ? 'salon' : restaurantId ? 'restaurant' : null
+  const bizId = salonId ?? restaurantId
+  if (!bizType || !bizId) return { error: 'Érvénytelen tag', status: 400 as const }
 
+  // RBAC: `team.manage` (owner + manager) — státusz/eltávolítás mindkettőnek szabad.
+  const denied = await assertCapability(user.id, bizType, bizId, 'team.manage')
+  if (denied) return { error: denied.error, status: denied.status }
+
+  // A SZEREP-váltás és a BÉR-mezők owner-only-ok — az owner-flag ehhez kell.
+  const biz =
+    bizType === 'salon'
+      ? ((await payload.findByID({ collection: 'salons', id: bizId, depth: 0, overrideAccess: true })) as Salon)
+      : ((await payload.findByID({ collection: 'restaurants', id: bizId, depth: 0, overrideAccess: true })) as Restaurant)
+  const ownerId = typeof biz.owner === 'object' && biz.owner ? biz.owner.id : biz.owner
   const isOwner = String(ownerId) === String(user.id)
-  if (!isOwner) {
-    // Vezető (aktív manager-tagság ehhez az üzlethez) is kezelhet.
-    const scope: Where = salonId ? { salon: { equals: salonId } } : { restaurant: { equals: restaurantId } }
-    const mgr = await payload.find({
-      collection: 'memberships',
-      where: { and: [scope, { user: { equals: user.id } }, { role: { equals: 'manager' } }, { status: { equals: 'active' } }] },
-      limit: 1,
-      depth: 0,
-      overrideAccess: true,
-    })
-    if (mgr.docs.length === 0) return { error: 'Nincs jogosultság', status: 403 as const }
-  }
 
-  return { membership, payload, isOwner }
+  return { membership, payload, isOwner, bizType, bizId }
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -83,16 +77,37 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ ok: true })
   }
 
-  // SZEREP — CSAK a tulaj.
+  // SZEREP — a team.manage (owner + manager) válthat (B-döntés: a vezető is adhat szerepet).
+  // De OWNER szerepet adni CSAK a tulaj tud (privilégium-eszkaláció ellen).
   if (body.role !== undefined) {
     const role = String(body.role)
     if (role !== 'owner' && role !== 'manager' && role !== 'staff') {
       return NextResponse.json({ error: 'Érvénytelen szerep' }, { status: 400 })
     }
-    if (!loaded.isOwner) {
-      return NextResponse.json({ error: 'Csak a tulajdonos válthat szerepet' }, { status: 403 })
+    if (role === 'owner' && !loaded.isOwner) {
+      return NextResponse.json({ error: 'Tulajdonos szerepet csak a tulajdonos adhat' }, { status: 403 })
     }
-    await loaded.payload.update({ collection: 'memberships', id, overrideAccess: true, user, data: { role: role as TeamRole } })
+    // Beépített szerepre váltáskor az egyedi szerepet leszedjük (különben az felülírná).
+    await loaded.payload.update({ collection: 'memberships', id, overrideAccess: true, user, data: { role: role as TeamRole, custom_role: null } as never })
+    return NextResponse.json({ ok: true })
+  }
+
+  // EGYEDI SZEREP hozzárendelése/eltávolítása (team.manage). A neve = pozíció, a jogai = jogosultság.
+  if (body.custom_role !== undefined) {
+    const val = body.custom_role
+    if (!val) {
+      await loaded.payload.update({ collection: 'memberships', id, overrideAccess: true, user, data: { custom_role: null } as never })
+      return NextResponse.json({ ok: true })
+    }
+    const cr = (await loaded.payload.findByID({ collection: 'roles', id: String(val), depth: 0, overrideAccess: true }).catch(() => null)) as Role | null
+    const crBiz = cr
+      ? loaded.bizType === 'salon'
+        ? (typeof cr.salon === 'object' && cr.salon ? cr.salon.id : cr.salon)
+        : (typeof cr.restaurant === 'object' && cr.restaurant ? cr.restaurant.id : cr.restaurant)
+      : null
+    if (!cr || String(crBiz) !== String(loaded.bizId)) return NextResponse.json({ error: 'Érvénytelen szerep' }, { status: 400 })
+    const crId = /^\d+$/.test(String(cr.id)) ? Number(cr.id) : cr.id
+    await loaded.payload.update({ collection: 'memberships', id, overrideAccess: true, user, data: { custom_role: crId, role: 'staff' } as never })
     return NextResponse.json({ ok: true })
   }
 

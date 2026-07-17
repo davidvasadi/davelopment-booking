@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-import { assertBusinessOwner, numId } from '@/lib/shiftAuth'
+import { assertCapability } from '@/lib/apiCapability'
 import type { Restaurant } from '@/payload/payload-types'
+
+/** Relationship-id STRING → SZÁM coerce (Postgres). null/undefined változatlan marad. */
+const numId = (v: unknown) => (v == null ? v : /^\d+$/.test(String(v)) ? Number(v) : v)
 
 /**
  * Napi KÖZPONTI borravaló beállítása egy napra. A Naptár nap-szerkesztője POST-ol ide.
  * Body: { restaurant, date: 'YYYY-MM-DD', amount: number }. amount <= 0 → törli az adott napot.
  * Az összeg a Restaurant.daily_tips tömbben él (date-only szöveg, hogy ne csússzon időzóna miatt);
- * a profil havi szinten összegzi az aznap dolgozó jogosultak közt elosztva. Auth: tulaj/vezető.
+ * a profil havi szinten összegzi az aznap dolgozó jogosultak közt elosztva. RBAC: `settings.profile`.
  */
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
@@ -27,8 +30,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Hiányzó étterem vagy dátum' }, { status: 400 })
   }
 
-  const ownerErr = await assertBusinessOwner({ restaurant }, user.id)
-  if (ownerErr) return NextResponse.json({ error: ownerErr }, { status: 403 })
+  const denied = await assertCapability(user.id, 'restaurant', restaurant as string, 'settings.profile')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const amount = Number(body.amount)
   const keep = Number.isFinite(amount) && amount > 0

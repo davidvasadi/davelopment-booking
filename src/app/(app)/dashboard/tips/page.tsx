@@ -1,4 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { getPayloadClient } from '@/lib/payload'
 import { buildSalonAdvisor, type SetupFlags } from '@/lib/tipsAdvisor'
@@ -7,7 +8,8 @@ import { TipsAdvisorView } from '@/components/dashboard/TipsAdvisorView'
 export const metadata = { title: 'Tippek' }
 
 export default async function SalonTipsPage() {
-  const { salon } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon()
+  requireCapability(capabilities, 'analytics.view', '/dashboard')
   const payload = await getPayloadClient()
 
   const [stats, availRes, servicesRes] = await Promise.all([

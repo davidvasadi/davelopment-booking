@@ -40,8 +40,8 @@ export function CoverCard({
       <div className="absolute inset-x-0 bottom-0 p-6">
         <div className="flex items-end justify-between gap-3">
           <div className="min-w-0" style={{ textShadow: '0 1px 6px rgba(0,0,0,.5)' }}>
-            <div className="truncate text-[28px] font-light leading-[1.05] tracking-[-0.015em] text-white sm:text-[32px]">{title}</div>
-            {subtitle && <div className="mt-1.5 truncate text-[13px] font-medium text-white/80">{subtitle}</div>}
+            <div className="line-clamp-2 text-[28px] font-light leading-[1.05] tracking-[-0.015em] text-white sm:text-[32px]">{title}</div>
+            {subtitle && <div className="mt-1.5 line-clamp-2 text-[13px] font-medium text-white/80">{subtitle}</div>}
           </div>
           {badge}
         </div>

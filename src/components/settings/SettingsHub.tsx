@@ -26,6 +26,7 @@ import {
   Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
+import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
 // Értesítések = CSAK tranzakciós email (emlékeztető/visszajelzés a Funkciók gazdája).
@@ -132,8 +133,9 @@ export interface TeamMember {
   id?: string                      // membership id (a tulaj-sornak nincs → nem kezelhető)
   name: string
   email: string
-  role: string                     // szerep-felirat (Tulajdonos / Menedzser / …)
+  role: string                     // szerep-felirat (Tulajdonos / Menedzser / egyedi szerep neve)
   roleTone: 'owner' | 'manager' | 'staff'
+  customRoleId?: string | null     // ha egyedi szerepe van, annak id-je (a legördülő értékéhez)
   pending?: boolean                // függő meghívó sor
 }
 
@@ -191,12 +193,16 @@ export interface SettingsHubProps {
   planLabel: string                // Telephelyek fejléc / összesített csomag-felirat
   /** Audit-napló — VALÓS legutóbbi bejegyzések (üzletre szűrve, ~30). */
   auditLog: AuditEntry[]
+  /** Egyedi szerepek panel (2. fázis) — a Csapat tab alján renderelődik. */
+  rolesSection?: ReactNode
+  /** Egyedi szerepek (id + név) — a meghívó/tag-szerep legördülőhöz. */
+  customRoles?: { id: string; name: string }[]
 }
 
 export function SettingsHub({
   variant, subtitle, availabilityHref, profilePanel, rules, senderLabel, billing,
   team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
-  featureModules, auditLog,
+  featureModules, auditLog, rolesSection, customRoles = [],
 }: SettingsHubProps) {
   const router = useRouter()
   const [active, setActive] = useState<RailId>('profile')
@@ -293,27 +299,29 @@ export function SettingsHub({
   // ── Csapat & jogok — VALÓS bekötés a /api/team végpontokra.
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<'manager' | 'staff'>('staff')
+  // Érték: `c:<roleId>` (a megadott egyedi szerepek közül). Nincs hardcoded szerep.
+  const [inviteRole, setInviteRole] = useState<string>(customRoles[0] ? `c:${customRoles[0].id}` : '')
   const [inviteBusy, setInviteBusy] = useState(false)
   const [rowBusy, setRowBusy] = useState<string | null>(null)
 
   const sendInvite = async () => {
     const email = inviteEmail.trim()
     if (!email) return
+    if (!inviteRole.startsWith('c:')) { toast.error('Válassz szerepet (hozz létre egyet a lenti panelen)'); return }
     setInviteBusy(true)
     try {
       const res = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, role: inviteRole }),
+        body: JSON.stringify({ email, custom_role: inviteRole.slice(2) }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Hiba')
       toast.success('Meghívó elküldve')
       setInviteOpen(false)
       setInviteEmail('')
-      setInviteRole('staff')
+      setInviteRole(customRoles[0] ? `c:${customRoles[0].id}` : '')
       router.refresh()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Hiba történt')
@@ -322,14 +330,14 @@ export function SettingsHub({
     }
   }
 
-  const changeRole = async (id: string, role: 'manager' | 'staff') => {
+  const changeRole = async (id: string, value: string) => {
     setRowBusy(id)
     try {
       const res = await fetch(`/api/team/members/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ role }),
+        body: JSON.stringify(value.startsWith('c:') ? { custom_role: value.slice(2) } : { role: value }),
       })
       if (!res.ok) throw new Error()
       router.refresh()
@@ -604,6 +612,8 @@ export function SettingsHub({
 
           {active === 'notifications' && (
             <div className="space-y-4">
+              {/* Eszköz-szintű PUSH (böngésző/OS) — az e-mail-mátrix fölött, mert ez a leggyorsabb csatorna. */}
+              <PushSubscribeToggle />
               <div className="rounded-[26px] dav-card-glass px-6 py-2">
                 {/* fejléc-sor */}
                 <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
@@ -692,16 +702,19 @@ export function SettingsHub({
                     />
                     <select
                       value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value as 'manager' | 'staff')}
-                      className="rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] font-medium text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25"
+                      onChange={(e) => setInviteRole(e.target.value)}
+                      disabled={customRoles.length === 0}
+                      className="rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] font-medium text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25 disabled:opacity-50"
                     >
-                      <option value="staff">Munkatárs</option>
-                      <option value="manager">Menedzser</option>
+                      {customRoles.length === 0 && <option value="">Előbb hozz létre szerepet ↓</option>}
+                      {customRoles.map((r) => (
+                        <option key={r.id} value={`c:${r.id}`}>{r.name}</option>
+                      ))}
                     </select>
                     <button
                       type="button"
                       onClick={sendInvite}
-                      disabled={inviteBusy || !inviteEmail.trim()}
+                      disabled={inviteBusy || !inviteEmail.trim() || !inviteRole.startsWith('c:')}
                       className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-opacity disabled:opacity-40"
                     >
                       {inviteBusy && <Loader2 className="h-4 w-4 animate-spin" />}
@@ -732,13 +745,15 @@ export function SettingsHub({
                     ) : (
                       <div className="flex items-center gap-2">
                         <select
-                          value={m.roleTone === 'manager' ? 'manager' : 'staff'}
-                          disabled={rowBusy === m.id}
-                          onChange={(e) => changeRole(m.id!, e.target.value as 'manager' | 'staff')}
+                          value={m.customRoleId ? `c:${m.customRoleId}` : ''}
+                          disabled={rowBusy === m.id || customRoles.length === 0}
+                          onChange={(e) => changeRole(m.id!, e.target.value)}
                           className="rounded-[12px] border border-line-strong bg-white px-3 py-1.5 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-gold/60 disabled:opacity-40"
                         >
-                          <option value="staff">Munkatárs</option>
-                          <option value="manager">Menedzser</option>
+                          {!m.customRoleId && <option value="" disabled>{m.role} (beépített)</option>}
+                          {customRoles.map((r) => (
+                            <option key={r.id} value={`c:${r.id}`}>{r.name}</option>
+                          ))}
                         </select>
                         <button
                           type="button"
@@ -757,6 +772,7 @@ export function SettingsHub({
               <p className="px-1 text-xs text-ink-soft2">
                 A tulajdonos hozzáférése mindig megmarad. A meghívott tagok az email-linkkel csatlakoznak.
               </p>
+              {rolesSection}
             </div>
           )}
 

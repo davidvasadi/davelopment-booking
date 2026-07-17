@@ -1,4 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
 import { ReservationTrendChart, DowChart, HourChart, DaypartChart } from '@/components/dashboard/DashboardCharts'
@@ -29,7 +30,8 @@ export default async function RestaurantAnalyticsPage({
   searchParams: Promise<{ period?: string }>
 }) {
   const { period: periodParam } = await searchParams
-  const { restaurant } = await getOwnedRestaurant()
+  const { restaurant, capabilities } = await getOwnedRestaurant()
+  requireCapability(capabilities, 'analytics.view', '/restaurant')
 
   const days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
   const stats = await getRestaurantStats(restaurant.id, days)

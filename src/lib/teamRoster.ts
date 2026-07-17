@@ -2,7 +2,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { getStaffStats } from '@/lib/staffStats'
 import { roleLabel } from '@/lib/permissions'
 import type { Employee } from '@/components/dashboard/HiringView'
-import type { Shift, StaffMember, Membership, Media, User, Restaurant } from '@/payload/payload-types'
+import type { Shift, StaffMember, Membership, Media, User, Restaurant, Role } from '@/payload/payload-types'
 
 /**
  * VALÓS munkatárs-adatlap adat (a HiringView „Employee" VM-je) — a mock helyett.
@@ -253,7 +253,8 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
         id,
         name: m.name || user?.name || m.email,
         avatarUrl: mediaUrl(m.avatar) ?? (user?.avatar_url ?? null),
-        position: m.position || roleLabel(m.role),
+        // Egyedi szerep esetén annak NEVE a pozíció (nincs külön munkakör-kategória).
+        position: (m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role).name : null) || m.position || roleLabel(m.role),
         roleTone: m.role,
         email: m.email || user?.email || '',
         phone: m.phone || '',

@@ -191,7 +191,7 @@ export function TipsAdvisorView({
         </AnimatePresence>
 
         {/* Egészség-score */}
-        <div className="flex flex-col rounded-[30px] bg-[#FCFAF1] p-6 shadow-dav-card">
+        <div className="flex flex-col rounded-[30px] p-6 dav-card-glass">
           <div className="text-[17px] font-semibold text-ink">{healthWord}</div>
           <div className="mt-3 flex items-center gap-5">
             <div className="relative flex shrink-0 items-center justify-center">
@@ -292,7 +292,7 @@ function RecCard({
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: EASE, delay: Math.min(index * 0.04, 0.24) }}
-      className="flex flex-col rounded-[26px] bg-[#FCFAF1] p-5 shadow-dav-card lg:p-6"
+      className="flex flex-col rounded-[26px] p-5 dav-card-glass lg:p-6"
     >
       <div className="flex items-start justify-between gap-3">
         <span

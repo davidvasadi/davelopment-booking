@@ -232,4 +232,68 @@ html {
       backdrop-filter: none;
     }
   }
+
+  /* ===== Kártya-hover lift (ui-ux-reference „Standard" tier) =====
+     Kattintható kártyákra: y: -3px + kissé mélyebb árnyék, 200ms ease-out. CSAK transform +
+     box-shadow animál (nincs layout-reflow). Reduced-motion alatt kikapcsol. */
+  .dav-hover-lift {
+    transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease-out;
+  }
+  .dav-hover-lift:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 28px -14px rgba(80, 70, 30, 0.28);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dav-hover-lift { transition: none; }
+    .dav-hover-lift:hover { transform: none; }
+  }
+
+  /* ===== Belépő fade-up (ui-ux-reference scroll-reveal „Subtle") =====
+     Szerver-oldali kártyák/sorok lágy belépője JS nélkül. A stagger a hívó inline
+     animation-delay-jével (pl. style={{ animationDelay: `${i*40}ms` }}). Reduced-motion: kikapcsol. */
+  @keyframes dav-fade-up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .dav-fade-up {
+    animation: dav-fade-up 0.42s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dav-fade-up { animation: none; }
+  }
+}
+
+/* ===== Toast (sonner) — az app palettájához igazítva =====
+   Fehér lebegő kártya (mint a popoverek), ink szöveg, finom keret + dav-árnyék, kerek sarkok.
+   Az ikon-szín a státusz szerint az app-paletta (sage-zöld / meleg piros / arany). A .dav-toast
+   osztály a <Toaster toastOptions.className>-ből jön; a réteg-en kívüli szabály felülírja a sonner-alapokat. */
+[data-sonner-toaster] { --width: 360px; }
+[data-sonner-toast].dav-toast {
+  border-radius: 18px;
+  border: 1px solid var(--dav-line-strong);
+  background: #fff;
+  color: #2B2A28;
+  box-shadow: 0 16px 44px -18px rgba(70, 60, 20, 0.30);
+  font-family: inherit;
+  font-size: 13.5px;
+  padding: 14px 16px;
+  gap: 11px;
+}
+[data-sonner-toast].dav-toast [data-title] {
+  font-weight: 600;
+  color: #2B2A28;
+  letter-spacing: -0.01em;
+}
+[data-sonner-toast].dav-toast [data-description] {
+  color: #8A8779;
+  font-size: 12.5px;
+}
+[data-sonner-toast].dav-toast[data-type="success"] [data-icon] { color: #4F9E6A; }
+[data-sonner-toast].dav-toast[data-type="error"] [data-icon] { color: #D0574B; }
+[data-sonner-toast].dav-toast[data-type="warning"] [data-icon] { color: #C9A227; }
+[data-sonner-toast].dav-toast[data-type="info"] [data-icon] { color: #1D1C19; }
+[data-sonner-toast].dav-toast [data-close-button] {
+  background: #fff;
+  border: 1px solid var(--dav-line);
+  color: #8A8779;
 }

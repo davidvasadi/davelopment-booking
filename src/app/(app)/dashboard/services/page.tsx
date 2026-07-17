@@ -1,10 +1,12 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import type { Service, ServiceCategory, StaffMember, Booking } from '@/payload/payload-types'
 import ServicesManager from '@/components/dashboard/ServicesManager'
 
 export default async function ServicesPage() {
-  const { salon } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon()
+  requireCapability(capabilities, 'catalog.view', '/dashboard')
   const payload = await getPayloadClient()
 
   const yearStart = `${new Date().getFullYear()}-01-01`

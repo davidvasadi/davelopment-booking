@@ -1,4 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
+import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import type { StaffMember, Shift } from '@/payload/payload-types'
 import StaffManager from '@/components/dashboard/StaffManager'
@@ -6,7 +7,8 @@ import { getStaffStats } from '@/lib/staffStats'
 import { getTeamRoster } from '@/lib/teamRoster'
 
 export default async function StaffPage() {
-  const { salon } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon()
+  requireCapability(capabilities, 'staff.view', '/dashboard')
   const payload = await getPayloadClient()
 
   const todayYmd = new Date().toISOString().slice(0, 10)

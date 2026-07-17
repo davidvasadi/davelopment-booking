@@ -352,6 +352,7 @@ function DonutTip({ active, payload }: TipProps) {
 }
 
 const DOW_SHORT = ['Hét', 'Ked', 'Sze', 'Csü', 'Pén', 'Szo', 'Vas']
+const DOW_FULL = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap']
 
 /** Nap×óra mátrixot a metrika napi sorozata × óránkénti eloszlásból közelít
  *  (ha nincs kész `heatmap` prop). A nap-of-week súly a sorozat-értékekből, az
@@ -401,16 +402,21 @@ function HeatmapCard({ metric, heatmap }: { metric: OverviewMetric; heatmap?: Ov
   return (
     <div className="rounded-[26px] bg-ink-dark p-5 lg:p-6 flex flex-col">
       <div className="flex items-start justify-between mb-4">
-        <span className="text-[15px] font-medium text-white">Foglaltsági jelentés</span>
+        <span
+          className="text-[15px] font-medium text-white cursor-help"
+          title="Melyik napszakban a legforgalmasabb. Minden pötty egy nap+óra cella: minél sárgább (a jobb alsó jelmagyarázat szerint), annál több a foglalás. Vidd az egeret egy pöttyre a pontos számért."
+        >
+          Foglaltsági jelentés
+        </span>
         <HeaderArrow label="Foglaltsági jelentés" dark />
       </div>
 
       <div className="flex items-center gap-5 mb-5">
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 cursor-help" title="Forgalmas cellák — ahol az adott nap+óra foglaltsága kiemelkedő.">
           <span className="text-[30px] font-light leading-none text-white">{activeCount}</span>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#3ecf8e" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" /></svg>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 cursor-help" title="Csendes cellák — ahol alig vagy egyáltalán nincs foglalás.">
           <span className="text-[30px] font-light leading-none text-white/55">{quietCount}</span>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#e08a3c" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="7" y1="7" x2="17" y2="17" /><polyline points="17 7 17 17 7 17" /></svg>
         </div>
@@ -423,14 +429,24 @@ function HeatmapCard({ metric, heatmap }: { metric: OverviewMetric; heatmap?: Ov
         ))}
       </div>
 
-      {/* Nap×óra rács — flex-1 cellák, így SOHA nem lóg ki (mobilon is kifér) */}
+      {/* Nap×óra rács — flex-1 cellák, így SOHA nem lóg ki (mobilon is kifér). Minden cella
+          natív hover-tooltipet kap: „<Nap> <óra>h · N foglalás" — így érthető a hőtérkép. */}
       <div className="space-y-1 sm:space-y-1.5">
         {norm.map((row, di) => (
           <div key={di} className="flex items-center gap-1 sm:gap-1.5">
             <span className="w-6 shrink-0 text-[10px] font-medium text-white/40">{DOW_SHORT[di]}</span>
-            {row.map((t, hi) => (
-              <span key={hi} className="flex-1 aspect-square rounded-full" style={{ background: heatColor(t) }} />
-            ))}
+            {row.map((t, hi) => {
+              const raw = hm.grid[di]?.[hi] ?? 0
+              const hour = hm.hours[hi]
+              return (
+                <span
+                  key={hi}
+                  className="flex-1 aspect-square rounded-full cursor-help transition-transform duration-150 hover:scale-[1.55] hover:ring-2 hover:ring-white/60"
+                  style={{ background: heatColor(t) }}
+                  title={`${DOW_FULL[di]} ${String(hour).padStart(2, '0')}:00 · ${raw} foglalás`}
+                />
+              )
+            })}
           </div>
         ))}
       </div>

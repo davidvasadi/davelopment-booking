@@ -3,6 +3,7 @@ import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { slugify } from '../lib/slugify'
 import { settingsExtensionFields, businessTierField, emailTemplateFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
+import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
 import { auditAfterChange } from '../hooks/auditLog'
 
@@ -57,6 +58,7 @@ export const Restaurants: CollectionConfig = {
     ],
     afterDelete: [
       revalidatePlaceOnDelete('restaurant'),
+      cleanupPlaceMedia(),
       async ({ req, doc }) => {
         if (doc?.owner) await syncAccountSubscription({ payload: req.payload, req }, doc.owner).catch(() => null)
       },

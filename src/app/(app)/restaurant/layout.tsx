@@ -59,6 +59,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
         userAvatarUrl={user.avatar_url ?? null}
         businesses={businesses}
         activeBusinessKey={`${active.type}:${active.id}`}
+        capabilities={active.capabilities}
       >
         <PageTransition>{children}</PageTransition>
       </AppShell>

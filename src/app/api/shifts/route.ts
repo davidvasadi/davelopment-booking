@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-import { assertBusinessOwner, numId as num } from '@/lib/shiftAuth'
+import { assertCapability } from '@/lib/apiCapability'
 
 /**
  * Beosztás — műszak LÉTREHOZÁSA. A ScheduleView ide POST-ol
  * (`{ member/staff, restaurant/salon, date, type, start_time, end_time, hours, note }`).
- * A relationship id-k STRING-ként érkeznek → SZÁM-ra coerce (Postgres). Defenzív: csak az
- * adott üzlet (szalon/étterem) tulaja hozhat létre műszakot.
+ * A relationship id-k STRING-ként érkeznek → SZÁM-ra coerce (Postgres).
+ * RBAC: `schedule.manage` (owner + manager) az adott üzletben (szalon/étterem).
  */
+const num = (v: unknown) => (v == null ? v : /^\d+$/.test(String(v)) ? Number(v) : v)
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
@@ -21,8 +22,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Hibás kérés' }, { status: 400 })
   }
 
-  const ownerErr = await assertBusinessOwner({ salon: body.salon, restaurant: body.restaurant }, user.id)
-  if (ownerErr) return NextResponse.json({ error: ownerErr }, { status: 403 })
+  // Az üzlet a body-ból: étterem VAGY szalon (a kettő közül a jelenlévő).
+  const bizType: 'salon' | 'restaurant' | null = body.restaurant ? 'restaurant' : body.salon ? 'salon' : null
+  const bizId = (body.restaurant ?? body.salon) as string | undefined
+  const denied = await assertCapability(user.id, bizType ?? 'salon', bizId, 'schedule.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   if (!body.date || !body.type) return NextResponse.json({ error: 'Hiányzó dátum vagy típus' }, { status: 400 })
 

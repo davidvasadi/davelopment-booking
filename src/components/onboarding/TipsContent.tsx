@@ -4,12 +4,14 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Lightbulb, ChevronDown, Search, ChevronsDownUp, ChevronsUpDown, ArrowRight, X, type LucideIcon,
+  Lightbulb, ChevronDown, Search, ArrowRight, X, Sparkles, type LucideIcon,
 } from 'lucide-react'
 import {
   CalendarDays, Briefcase, Users, Clock, Settings, BarChart2, Armchair, LayoutDashboard, Printer, Bell,
   MapPin, CalendarRange, CreditCard, Coins,
 } from 'lucide-react'
+import { PageHeader } from '@/components/ui/page-header'
+import { popItem, expandHeight } from '@/lib/motion'
 
 /**
  * SÚGÓ / rendszer-tájékoztató — kereshető, akkordeonos tudásbázis a bejelentkezett
@@ -416,8 +418,22 @@ function normalize(s: string) {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
-/** Crextio-nyílás easing. */
-const EASE = [0.22, 1, 0.36, 1] as const
+/* ── Tematikus csoportok — a monoton rács helyett szekciók, csoportonként eltérő ikon-tile
+ *    (sötét / gold / zöld accent). A hovatartozást a tip `id`-ja adja (variant-független). ── */
+type GroupId = 'daily' | 'setup' | 'growth'
+
+const GROUP_OF: Record<string, GroupId> = {
+  overview: 'daily', bookings: 'daily', print: 'daily', guests: 'daily',
+  services: 'setup', tables: 'setup', schedule: 'setup', staff: 'setup',
+  availability: 'setup', notifications: 'setup', settings: 'setup',
+  tips: 'growth', analytics: 'growth', 'tips-money': 'growth', subscription: 'growth',
+}
+
+const GROUPS: { id: GroupId; label: string; tile: string; iconColor: string }[] = [
+  { id: 'daily', label: 'Napi munka', tile: 'bg-ink-dark', iconColor: 'text-gold' },
+  { id: 'setup', label: 'Beüzemelés & testreszabás', tile: 'bg-gold', iconColor: 'text-ink-dark' },
+  { id: 'growth', label: 'Növekedés & elemzés', tile: 'bg-[#1D9D63]/10', iconColor: 'text-[#1D9D63]' },
+]
 
 export function TipsContent({ variant }: { variant: Variant }) {
   const tips = TIPS[variant]
@@ -443,12 +459,6 @@ export function TipsContent({ variant }: { variant: Variant }) {
     })
   }, [tips, query])
 
-  const allOpen = filtered.length > 0 && filtered.every((t) => openIds.has(t.id))
-
-  function toggleAll() {
-    setOpenIds(allOpen ? new Set() : new Set(filtered.map((t) => t.id)))
-  }
-
   // Mélylink: a #id-ra mutató URL-nél nyisd meg és görgess az adott kártyához.
   useEffect(() => {
     const id = window.location.hash.replace('#', '')
@@ -467,67 +477,46 @@ export function TipsContent({ variant }: { variant: Variant }) {
 
   return (
     <div className="space-y-6 p-5 lg:p-0 font-onest">
-      {/* ── HERO fejléc — davelopment cream kártya ── */}
-      <div className="rounded-[26px] bg-white p-6 shadow-dav-card lg:p-7">
-        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-gold text-ink-dark">
-              <Lightbulb className="h-6 w-6" strokeWidth={1.8} />
-            </span>
-            <div>
-              <h1 className="text-2xl font-light tracking-[-0.02em] text-ink lg:text-[32px] lg:leading-[1.1]">
-                Súgó
-              </h1>
-              <p className="mt-1.5 max-w-md text-[13px] leading-relaxed text-ink-soft">
-                Minden, amit a rendszerről tudni érdemes — egy helyen. Kattints egy sorra a részletekért, keress rá egy funkcióra, vagy indítsd újra a vezetett bemutatót.
-              </p>
-            </div>
-          </div>
+      {/* ── Fejléc — az etalon PageHeader; jobbra a (Crextio) bemutató-indító. ── */}
+      <PageHeader
+        eyebrow="Tudásbázis"
+        title="Súgó"
+        description="Minden a rendszerről egy helyen — nyiss ki egy témát a részletekért, vagy keress rá egy funkcióra."
+        action={
           <button
             onClick={restartTour}
-            className="flex shrink-0 items-center justify-center gap-2 self-start rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] sm:self-auto"
+            className="inline-flex items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
           >
-            <Lightbulb className="h-4 w-4" strokeWidth={1.8} />
-            Bevezető újraindítása
+            <Sparkles className="h-4 w-4 text-gold" strokeWidth={1.8} />
+            Bevezető indítása
           </button>
-        </div>
-      </div>
+        }
+      />
 
-      {/* ── Eszköztár: kereső + „összes kinyitása/bezárása" ── */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="relative flex-1">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" strokeWidth={1.8} />
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Keresés a súgóban…"
-            className="h-12 w-full rounded-[18px] border border-line bg-white pl-11 pr-11 text-sm text-ink placeholder:text-ink-soft focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-gold/40 transition-all"
-          />
-          {query && (
-            <button
-              type="button"
-              onClick={() => setQuery('')}
-              aria-label="Keresés törlése"
-              className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={toggleAll}
-          disabled={filtered.length === 0}
-          className="flex shrink-0 items-center justify-center gap-2 rounded-[18px] border border-line bg-white px-5 py-3 text-[13px] font-semibold text-ink-soft2 transition-all hover:border-line-strong hover:text-ink disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          {allOpen ? <ChevronsDownUp className="h-4 w-4" strokeWidth={1.8} /> : <ChevronsUpDown className="h-4 w-4" strokeWidth={1.8} />}
-          {allOpen ? 'Összes bezárása' : 'Összes kinyitása'}
-        </button>
+      {/* ── Kereső ── */}
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" strokeWidth={1.8} />
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Keresés a súgóban…"
+          className="h-12 w-full rounded-[18px] border border-line bg-white pl-11 pr-11 text-sm text-ink placeholder:text-ink-soft focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-gold/40 transition-all"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            aria-label="Keresés törlése"
+            className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-[26px] border border-dashed border-line-strong bg-white py-14 text-center shadow-dav-card">
+        <div className="rounded-[26px] border border-dashed border-line-strong bg-white/50 py-14 text-center">
           <Search className="mx-auto h-6 w-6 text-ink-soft" strokeWidth={1.6} />
           <p className="mt-3 text-sm font-medium text-ink-soft">
             Nincs találat a(z) „{query}” keresésre.
@@ -541,66 +530,92 @@ export function TipsContent({ variant }: { variant: Variant }) {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2">
-          {filtered.map((tip) => (
-            <TipCard
-              key={tip.id}
-              tip={tip}
-              open={openIds.has(tip.id)}
-              onToggle={() => toggle(tip.id)}
-            />
-          ))}
-        </div>
+        <motion.div
+          variants={{ hidden: {}, show: { transition: { staggerChildren: 0.07, delayChildren: 0.04 } } }}
+          initial="hidden"
+          animate="show"
+          className="space-y-7"
+        >
+          {GROUPS.map((g) => {
+            const items = filtered.filter((t) => (GROUP_OF[t.id] ?? 'setup') === g.id)
+            if (items.length === 0) return null
+            return (
+              <motion.section key={g.id} variants={popItem} className="space-y-3">
+                {/* Szekció-eyebrow — vékony elválasztóval, jobbra a darabszám. */}
+                <div className="flex items-center gap-2.5 px-1.5">
+                  <span className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#A29B82]">{g.label}</span>
+                  <span className="h-px flex-1 bg-line" />
+                  <span className="text-[11px] font-semibold text-ink-soft2">{items.length}</span>
+                </div>
+                {/* iOS-szerű csoport-lista: egy üveg-konténer, benne hairline-elválasztott sorok. */}
+                <div className="overflow-hidden rounded-[26px] dav-card-glass">
+                  {items.map((tip, i) => (
+                    <HelpRow
+                      key={tip.id}
+                      tip={tip}
+                      tileClass={g.tile}
+                      iconClass={g.iconColor}
+                      first={i === 0}
+                      open={openIds.has(tip.id)}
+                      onToggle={() => toggle(tip.id)}
+                    />
+                  ))}
+                </div>
+              </motion.section>
+            )
+          })}
+        </motion.div>
       )}
     </div>
   )
 }
 
 /**
- * Egy tipp-kártya: davelopment cream kártya, Crextio-akkordeon (label + ChevronDown,
- * solid #efebdf divider, framer-motion nyílás). A fejléc külön button; a kibomló
- * részben link (<a>) is van, ezért a kártya div (nem button).
+ * Egy súgó-sor — iOS-szerű grouped-list elem (Apple × Crextio): bal ikon-tile (csoport-szín),
+ * cím + egy soros preview, jobbra spring-forgó chevron. Kinyitva a részletek ease-in-out
+ * height-tel bomlanak (motion.ts `expandHeight`), a cím alá igazítva. A kinyitott sor finoman
+ * kiemelt (áttetsző fehér). A sor `<div>` (nem button), mert a kibomló részben link van.
  */
-function TipCard({ tip, open, onToggle }: { tip: Tip; open: boolean; onToggle: () => void }) {
+function HelpRow({
+  tip, open, onToggle, tileClass, iconClass, first,
+}: {
+  tip: Tip; open: boolean; onToggle: () => void; tileClass: string; iconClass: string; first: boolean
+}) {
   const { id, icon: Icon, title, body, details, bullets, href, linkLabel } = tip
 
   return (
     <div
       id={`tip-${id}`}
-      className="scroll-mt-24 rounded-[22px] bg-white p-5 shadow-dav-card transition-shadow hover:shadow-[0_2px_8px_rgba(0,0,0,.04),0_18px_40px_-28px_rgba(80,70,30,.28)]"
+      className={`scroll-mt-24 transition-colors ${first ? '' : 'border-t border-line'} ${open ? 'bg-white/55' : ''}`}
     >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={open}
         aria-controls={`tip-panel-${id}`}
-        className="flex w-full items-center gap-3 text-left"
+        className="flex w-full items-center gap-4 px-5 py-4 text-left lg:px-6 lg:py-[18px]"
       >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] bg-[#fcfbf7] text-ink-soft2 ring-1 ring-line transition-colors">
-          <Icon className="h-5 w-5" strokeWidth={1.7} />
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] ${tileClass}`}>
+          <Icon className={`h-[19px] w-[19px] ${iconClass}`} strokeWidth={1.7} />
         </span>
-        <h2 className="flex-1 text-[16px] font-medium tracking-[-0.01em] text-ink">{title}</h2>
-        <ChevronDown
-          className={`h-4 w-4 shrink-0 text-ink-soft transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
-          strokeWidth={2}
-        />
+        <span className="min-w-0 flex-1">
+          <span className="block text-[15px] font-semibold tracking-[-0.01em] text-ink">{title}</span>
+          <span className={`mt-0.5 block text-[12.5px] leading-snug text-ink-soft ${open ? '' : 'truncate'}`}>{body}</span>
+        </span>
+        <motion.span
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+          className="shrink-0 text-ink-soft"
+        >
+          <ChevronDown className="h-4 w-4" strokeWidth={2} />
+        </motion.span>
       </button>
 
-      <p className="mt-2.5 text-[13px] leading-relaxed text-ink-soft">{body}</p>
-
-      {/* Kibomló részletek — Crextio framer-motion nyílás, solid divider */}
+      {/* Kibomló részletek — ease-in-out height (motion.ts expandHeight), a cím alá igazítva. */}
       <AnimatePresence initial={false}>
         {open && (
-          <motion.div
-            id={`tip-panel-${id}`}
-            key="panel"
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.32, ease: EASE }}
-            className="overflow-hidden"
-          >
-            <div className="mt-4 border-t border-[#efebdf] pt-4">
+          <motion.div id={`tip-panel-${id}`} key="panel" {...expandHeight} className="overflow-hidden">
+            <div className="px-5 pb-5 pl-[76px] lg:px-6 lg:pb-6 lg:pl-[80px]">
               <p className="text-[13px] leading-relaxed text-ink-soft2">{details}</p>
               <ul className="mt-3 space-y-2">
                 {bullets.map((b, i) => (

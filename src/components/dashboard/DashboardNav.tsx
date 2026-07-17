@@ -7,7 +7,8 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
 import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, MoreHorizontal, Download } from 'lucide-react'
-import { getNavConfig, type DashboardVariant } from './navConfig'
+import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
+import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
 import { CommandPalette } from './CommandPalette'
 import { StoreSwitcher, type SwitcherBusiness } from './StoreSwitcher'
@@ -22,9 +23,9 @@ function OfflineIndicator({ compact = false }: { compact?: boolean }) {
     return (
       <span
         title="Nincs internetkapcsolat"
-        className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
+        className="inline-flex items-center justify-center h-11 w-11 rounded-full bg-amber-100 text-amber-700 shadow-[0_2px_8px_rgba(0,0,0,.06)] dark:bg-amber-500/15 dark:text-amber-300"
       >
-        <WifiOff className="h-4 w-4" />
+        <WifiOff className="h-[18px] w-[18px]" />
       </span>
     )
   }
@@ -70,6 +71,7 @@ export function DashboardNav({
   salonSlug,
   subscription,
   variant = 'salon',
+  capabilities = [],
   brandLogoUrl = null,
   userName = null,
   userEmail = null,
@@ -82,6 +84,7 @@ export function DashboardNav({
   salonSlug: string
   subscription?: SubInfo
   variant?: DashboardVariant
+  capabilities?: Capability[]
   /** davelopment-design: csak a mobil fejléc + ⌘K (a desktop sidebart az új TopNav váltja). */
   mobileOnly?: boolean
   /** Az üzlet logója a fejléc store-switcher blokkjához. */
@@ -95,7 +98,8 @@ export function DashboardNav({
   /** Az aktív üzlet "<type>:<id>" kulcsa. */
   activeBusinessKey?: string | null
 }) {
-  const { items: navItems, publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
+  const { publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
+  const navItems = navItemsForCapabilities(variant, capabilities)
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -350,48 +354,51 @@ export function DashboardNav({
       )}
 
       {/* ── MOBILE TOP BAR — vissza + cím + „…" menü ───────────── */}
-      <header className="lg:hidden relative z-40 bg-white border-b border-zinc-100 dark:bg-black dark:border-white/[0.06] px-2 h-14 flex items-center justify-between shrink-0">
+      {/* Crextio-stílus: NINCS tömör sáv/határvonal — a fejléc a krém gradiensen ül, a
+          gombok lebegő fehér KÖRÖK (üveg + lágy árnyék + blur), mint a referencia „←" ikon.
+          A cím középen marad (kompakt sáv-elrendezés). */}
+      <header className="lg:hidden relative z-40 px-3 h-16 flex items-center justify-between gap-2 shrink-0">
         <button
           type="button"
           onClick={goBack}
           aria-label="Vissza"
-          className="flex items-center justify-center h-10 w-10 rounded-xl text-zinc-700 hover:bg-zinc-100 dark:text-white/70 dark:hover:bg-white/[0.06] transition-colors"
+          className="flex items-center justify-center h-11 w-11 shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.06)] backdrop-blur-lg outline-none transition-colors hover:bg-white/80 active:scale-95 dark:bg-white/[0.08] dark:text-white/80 dark:hover:bg-white/[0.14]"
         >
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
         </button>
 
-        <p className="flex-1 min-w-0 text-center font-bold text-zinc-900 dark:text-white truncate px-2">{pageTitle}</p>
+        <p className="flex-1 min-w-0 text-center text-[17px] font-bold text-ink dark:text-white truncate px-1">{pageTitle}</p>
 
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 shrink-0">
           <OfflineIndicator compact />
           <div className="relative">
             <button
               type="button"
               onClick={() => setMoreOpen((v) => !v)}
               aria-label="Több művelet"
-              className="flex items-center justify-center h-10 w-10 rounded-xl text-zinc-700 hover:bg-zinc-100 dark:text-white/70 dark:hover:bg-white/[0.06] transition-colors"
+              className="flex items-center justify-center h-11 w-11 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.06)] backdrop-blur-lg outline-none transition-colors hover:bg-white/80 active:scale-95 dark:bg-white/[0.08] dark:text-white/80 dark:hover:bg-white/[0.14]"
             >
               <MoreHorizontal className="h-5 w-5" />
             </button>
             {moreOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} />
-                <div className="absolute right-1 top-12 z-20 w-52 rounded-2xl border border-zinc-100 dark:border-white/[0.1] bg-white dark:bg-zinc-900 shadow-xl p-1.5">
+                <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-52 rounded-[18px] border border-[#ececec] dark:border-white/[0.1] bg-white dark:bg-zinc-900 shadow-[0_18px_50px_-18px_rgba(0,0,0,.35)] p-1.5">
                   <button
                     type="button"
                     onClick={() => { setMoreOpen(false); window.dispatchEvent(new Event('schedulio:open-command')) }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-white/[0.06]"
+                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[13px] text-sm font-semibold text-[#3a352a] dark:text-white hover:bg-[#f4f4f5] dark:hover:bg-white/[0.06] transition-colors"
                   >
-                    <Search className="h-4 w-4 text-zinc-400" /> Keresés
+                    <Search className="h-[17px] w-[17px] text-[#8a8779]" /> Keresés
                   </button>
                   {!isBackstage && (
                     <a
                       href={`/${salonSlug}`}
                       target="_blank"
                       onClick={() => setMoreOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-white/[0.06]"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[13px] text-sm font-semibold text-[#3a352a] dark:text-white hover:bg-[#f4f4f5] dark:hover:bg-white/[0.06] transition-colors"
                     >
-                      <ExternalLink className="h-4 w-4 text-zinc-400" /> Nyilvános oldal
+                      <ExternalLink className="h-[17px] w-[17px] text-[#8a8779]" /> Nyilvános oldal
                     </a>
                   )}
                   {!isBackstage && (
@@ -399,9 +406,9 @@ export function DashboardNav({
                       href={csvHref}
                       download
                       onClick={() => setMoreOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-sm font-semibold text-zinc-900 dark:text-white hover:bg-zinc-50 dark:hover:bg-white/[0.06]"
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[13px] text-sm font-semibold text-[#3a352a] dark:text-white hover:bg-[#f4f4f5] dark:hover:bg-white/[0.06] transition-colors"
                     >
-                      <Download className="h-4 w-4 text-zinc-400" /> CSV export
+                      <Download className="h-[17px] w-[17px] text-[#8a8779]" /> CSV export
                     </a>
                   )}
                 </div>

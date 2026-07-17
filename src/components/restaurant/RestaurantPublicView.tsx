@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getPublicRestaurant } from '@/lib/publicPlace'
+import { getReviewSummary } from '@/lib/reviews'
 import { MapPin, Phone, Mail, Globe, Clock, Info } from 'lucide-react'
 import { RatingStars } from '@/components/booking/RatingStars'
 import { GoodToKnowSection } from '@/components/booking/GoodToKnowSection'
@@ -9,6 +10,7 @@ import { BookCtaButton } from '@/components/booking/BookCtaButton'
 import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
 import { CoverCard } from '@/components/booking/CoverCard'
 import { GlassCard, CrextioKpi } from '@/components/booking/crextio'
+import { placeJsonLd } from '@/lib/publicSeo'
 import type { Media } from '@/payload/payload-types'
 import OpeningHoursLive from '@/components/restaurant/OpeningHoursLive'
 import NextAvailableSlots from '@/components/restaurant/NextAvailableSlots'
@@ -32,6 +34,9 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
   const data = locale === 'hu' ? base : (await getPublicRestaurant(slug, locale)) ?? base
   const { restaurant } = data
 
+  // Valós értékelés-összegzés (belső Reviews); üresen (0 vélemény) nem jelenítünk meg csillagot.
+  const reviews = await getReviewSummary('restaurant', restaurant.id)
+
   const openingHours = data.openingHours.map((h) => ({
     day_of_week: h.day_of_week,
     is_open: h.is_open,
@@ -49,6 +54,11 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
 
   return (
     <div className="font-onest min-h-screen bg-paper px-4 py-4 text-ink sm:px-6 sm:py-6">
+      {/* schema.org structured data (rich-result: név, cím, telefon, asztalfoglalás-akció). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(restaurant, 'restaurant')) }}
+      />
       {/* Nagy krém-gradient konténer (34px) — 1:1 az Áttekintés wrapperével. A szekciók
           EZEN lebegnek külön krém-kártyákként. */}
       <div
@@ -78,7 +88,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
               <h1 className="text-[34px] font-light leading-[1.03] tracking-[-0.02em] text-ink sm:text-[40px]">{restaurant.name}</h1>
 
               {/* Google-értékelés (jelenleg placeholder — a Places API bekötésekor valós adat) */}
-              <RatingStars rating={4.8} count={213} className="mt-3" />
+              {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mt-3" />}
 
               {/* KPI-sor — valós adatból, a Crextio nagy vékony szám-tipográfiával */}
               <div className="mt-6 flex flex-wrap gap-x-10 gap-y-4">

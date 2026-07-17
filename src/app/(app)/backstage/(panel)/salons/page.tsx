@@ -1,7 +1,10 @@
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
 import type { Salon, Restaurant, User } from '@/payload/payload-types'
+import { BackstageHeader } from '@/components/backstage/BackstageUi'
 import PlacesClient, { type PlaceRow } from './PlacesClient'
+
+export const dynamic = 'force-dynamic'
 
 export default async function BackstagePlacesPage() {
   await requireAuth('admin')
@@ -62,13 +65,11 @@ export default async function BackstagePlacesPage() {
   ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
   return (
-    <div className="space-y-[22px] p-5 font-onest lg:p-8">
-      <div>
-        <h1 className="text-[34px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[43px]">Helyek</h1>
-        <p className="mt-1 text-[13.5px] font-medium text-ink-soft">
-          {salonDocs.length} szalon · {restaurantDocs.length} étterem
-        </p>
-      </div>
+    <div className="space-y-6 p-5 lg:p-0">
+      <BackstageHeader
+        title="Helyek"
+        subtitle={`${salonDocs.length} szalon · ${restaurantDocs.length} étterem`}
+      />
       <PlacesClient places={places} />
     </div>
   )

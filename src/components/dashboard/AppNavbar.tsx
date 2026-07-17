@@ -7,7 +7,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SchedulioLogo } from '@/components/SchedulioLogo'
-import { getNavConfig, type DashboardVariant } from './navConfig'
+import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
+import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
 
 // A „staggered spring" belépő (etalon: a UserMenu popover) — a „Több" legördülő is ezt kapja:
@@ -43,6 +44,7 @@ type SubInfo = {
  */
 export function AppNavbar({
   variant,
+  capabilities = [],
   businessSlug,
   subscription,
   userName = null,
@@ -50,13 +52,15 @@ export function AppNavbar({
   userAvatarUrl = null,
 }: {
   variant: DashboardVariant
+  capabilities?: Capability[]
   businessSlug: string
   subscription?: SubInfo
   userName?: string | null
   userEmail?: string | null
   userAvatarUrl?: string | null
 }) {
-  const { items, publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
+  const { publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
+  const items = navItemsForCapabilities(variant, capabilities)
   const pathname = usePathname()
   const searchParams = useSearchParams()
 

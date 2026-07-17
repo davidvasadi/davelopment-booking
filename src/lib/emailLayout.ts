@@ -1,8 +1,9 @@
 /**
- * Közös email-vázlat (Schedulio arculat) — v2.
+ * Közös email-vázlat (Schedulio / davelopment arculat) — v3 (Crextio).
  *
- * Dizájnfilozófia: sötét külső háttér (glassmorphism-kontextus), fehér floating kártya,
- * belül dark hero szekció (logó + státusz + dátum üveg pillben), majd clean white body.
+ * Dizájnfilozófia: meleg krém külső háttér, fehér floating kártya lágy sarokkal,
+ * belül ink-sötét brand-sáv (logó) + fehér hero (státusz-ikon + arany dátum-pill),
+ * majd tiszta fehér body, végül ink-sötét footer a wordmarkokkal.
  * Minden tranzakciós email (salon + restaurant) ezt használja.
  *
  * Email-kliens kompat.: csak inline style, table-layout, rgba() bg → Gmail, Apple Mail,
@@ -13,27 +14,27 @@
 import { t, type Locale } from './i18n'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-const SCHEDULIO_URL = 'https://schedulio.hu'
 const DAVELOPMENT_URL = 'https://davelopment.hu'
 
-const SCHEDULIO_WORDMARK = `${APP_URL}/email/schedulio-wordmark.png`
-const DAVELOPMENT_WORDMARK = `${APP_URL}/email/davelopment-wordmark.png`
+const BOOKING_LOCKUP = `${APP_URL}/email/davelopment-booking-wordmark.png`
 
+// Crextio/davelopment email-paletta: meleg krém háttér, fehér kártyák, ink-sötét sáv, arany accent.
 const COLORS = {
-  // Card body
-  surface:      '#ffffff',
-  muted:        '#f8f8fc',
-  border:       '#e9e9eb',
-  text:         '#18181b',
-  textSoft:     '#52525b',
-  textFaint:    '#8b8b8f',
-  // Accents
-  accent:       '#ecf95a',   // Schedulio yellow
-  ink:          '#09090b',   // header/footer strip
-  footerText:   '#71717a',
-  // Glass date pill (on white bg)
-  glassBg:      'rgba(14,107,255,0.05)',
-  glassBorder:  'rgba(14,107,255,0.15)',
+  // Üveges fehér kártya — a háttér-gradiens (+ arany glow) átdereng rajta.
+  // bgcolor-fallback (Outlook) minden blokknál külön: #FFFFFF.
+  surface:      'rgba(255,255,255,0.58)',
+  muted:        'rgba(255,255,255,0.34)',   // beágyazott üveg-panel (detail-doboz)
+  border:       'rgba(59,59,59,0.12)',      // semleges hajszál-vonal (üvegen is látszik)
+  text:         '#3B3B3B',                  // márka sötét
+  textSoft:     '#6E6E6E',                  // semleges szürke
+  textFaint:    '#9A9A9A',
+  // Accentek — a te színeid
+  accent:       '#FFD85F',                  // márka arany
+  ink:          '#3B3B3B',                  // sötét sáv (brand-hero, footer)
+  footerText:   '#BDBDBD',                  // világos szöveg a sötét footeren
+  // Arany chip (dátum-pill)
+  glassBg:      'rgba(255,216,95,0.24)',
+  glassBorder:  'rgba(255,216,95,0.55)',
 }
 
 export function escapeHtml(s: string): string {
@@ -75,18 +76,18 @@ const DETAIL_ICONS: Record<DetailIcon, string> = {
 type HeroIcon = 'success' | 'cancel' | 'bell'
 const HERO_ICONS: Record<HeroIcon, { color: string; bg: string; path: string }> = {
   success: {
-    color: '#22c55e',
-    bg:    'rgba(34,197,94,0.18)',
+    color: '#3B3B3B',
+    bg:    'rgba(255,216,95,0.32)',
     path:  '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
   },
   cancel: {
-    color: '#ef4444',
-    bg:    'rgba(239,68,68,0.18)',
+    color: '#3B3B3B',
+    bg:    'rgba(59,59,59,0.09)',
     path:  '<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>',
   },
   bell: {
-    color: '#ecf95a',
-    bg:    'rgba(236,249,90,0.15)',
+    color: '#3B3B3B',
+    bg:    'rgba(255,216,95,0.32)',
     path:  '<path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/>',
   },
 }
@@ -122,7 +123,7 @@ export function infoRow(icon: DetailIcon, label: string, value: string): string 
 export function detailsCard(rows: string): string {
   return `<tr>
     <td style="background:${COLORS.surface};padding:24px 28px 0">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${COLORS.border};border-radius:14px;overflow:hidden;border-collapse:collapse">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${COLORS.muted};border:1px solid ${COLORS.border};border-radius:18px;overflow:hidden;border-collapse:separate">
         ${rows}
       </table>
     </td>
@@ -134,6 +135,31 @@ export function detailsCard(rows: string): string {
 //    2. vékony fekete brand-sáv (logó vagy brand név)
 //    3. fehér hero terület: státusz-ikon + cím + köszöntés + glass dátum-pill
 //    G-Shock-stílus: fehér kártya, dark sávok fent/lent.
+
+// A brand-fejléc teteje: ha van borító, a logó a KÉPEN ül (a kép látszik mögötte).
+// Böngészőben `background:#FFFFFF 0%` + `backdrop-filter: blur+saturate(0.4)` = színtelen üveg;
+// az email-appok a backdrop-filtert kihagyják → ott a sáv áttetsző, a kép élesen jön át.
+function brandTopRow(
+  brandCoverUrl: string | null | undefined,
+  brandLogoUrl: string | null | undefined,
+  alt: string,
+): string {
+  if (brandCoverUrl) {
+    const logoLight = brandLogoUrl
+      ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:170px;object-fit:contain;border:0;display:inline-block" />`
+      : `<span style="font-size:15px;font-weight:700;letter-spacing:-0.2px;color:#ffffff;text-shadow:0 1px 5px rgba(0,0,0,.55)">${alt}</span>`
+    return `<tr><td style="padding:0;position:relative;font-size:0;line-height:0">
+      <img src="${brandCoverUrl}" alt="" width="560" style="width:100%;height:190px;object-fit:cover;display:block;border:0" />
+      <div style="position:absolute;left:0;right:0;bottom:0;height:96px;background:rgba(255,255,255,0);-webkit-backdrop-filter:blur(10px) saturate(0.6);backdrop-filter:blur(10px) saturate(0.6);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 52px);mask-image:linear-gradient(to bottom,transparent 0,#000 52px)"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 32px;text-align:center;line-height:normal">${logoLight}</div>
+    </td></tr>`
+  }
+  // Borító nélkül: nincs sáv/szín — a logó/név sötéten, közvetlenül az üveges kártyán.
+  const logoDark = brandLogoUrl
+    ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:170px;object-fit:contain;border:0;display:inline-block" />`
+    : `<span style="font-size:15px;font-weight:700;letter-spacing:-0.2px;color:#3B3B3B">${alt}</span>`
+  return `<tr><td style="padding:22px 32px 2px;text-align:center;background:${COLORS.surface}">${logoDark}</td></tr>`
+}
 
 export function brandHeroBlock(opts: {
   brandName: string
@@ -150,22 +176,8 @@ export function brandHeroBlock(opts: {
   const iconSvg = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${def.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">${def.path}</svg>`
   const alt = escapeHtml(brandName)
 
-  // 1. Cover image (optional)
-  const coverRow = brandCoverUrl
-    ? `<tr><td style="padding:0;font-size:0;line-height:0">
-        <img src="${brandCoverUrl}" alt="" width="560" style="width:100%;max-height:200px;object-fit:cover;display:block;border:0" />
-      </td></tr>`
-    : ''
-
-  // 2. Vékony fekete brand-sáv
-  const logoInk = brandLogoUrl
-    ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:160px;object-fit:contain;border:0;display:inline-block" />`
-    : `<span style="font-size:14px;font-weight:700;color:#ffffff;letter-spacing:-0.2px">${alt}</span>`
-  const brandStrip = `<tr>
-    <td style="background:${COLORS.ink};padding:14px 32px;text-align:center">
-      ${logoInk}
-    </td>
-  </tr>`
+  // 1–2. Borító + logó egyben (a logó a KÉPEN ül, a kép látszik mögötte).
+  const brandTop = brandTopRow(brandCoverUrl, brandLogoUrl, alt)
 
   // 3. Glass dátum-pill (fehér háttéren, kékes glass-hatással)
   const datePill = (formattedDate && time && icon !== 'cancel')
@@ -185,18 +197,18 @@ export function brandHeroBlock(opts: {
     <td style="background:${COLORS.surface};padding:32px 32px 28px;text-align:center">
       <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 16px">
         <tr>
-          <td style="width:52px;height:52px;border-radius:50%;background:${def.bg};text-align:center;vertical-align:middle">
+          <td style="width:56px;height:56px;border-radius:18px;background:${def.bg};text-align:center;vertical-align:middle">
             ${iconSvg}
           </td>
         </tr>
       </table>
-      <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;color:${COLORS.text};letter-spacing:-0.5px">${escapeHtml(title)}</h1>
-      <p style="margin:0 auto;max-width:300px;color:${COLORS.textSoft};font-size:14px;line-height:1.5">${escapeHtml(subtitle)}</p>
+      <h1 style="margin:0 0 7px;font-size:27px;font-weight:300;color:${COLORS.text};letter-spacing:-0.6px;line-height:1.1">${escapeHtml(title)}</h1>
+      <p style="margin:0 auto;max-width:320px;color:${COLORS.textFaint};font-size:14px;line-height:1.55">${escapeHtml(subtitle)}</p>
       ${datePill}
     </td>
   </tr>`
 
-  return `${coverRow}${brandStrip}${heroSection}`
+  return `${brandTop}${heroSection}`
 }
 
 // ── brandHeader: notify/cancel emailekhez (ugyanolyan thin dark strip stílus) ──
@@ -207,19 +219,7 @@ function brandHeader(opts: {
   brandCoverUrl?: string | null
 }): string {
   const { brandName, brandLogoUrl, brandCoverUrl } = opts
-  const alt = escapeHtml(brandName)
-
-  const coverRow = brandCoverUrl
-    ? `<tr><td style="padding:0;font-size:0;line-height:0">
-        <img src="${brandCoverUrl}" alt="${alt}" width="560" style="width:100%;max-height:200px;object-fit:cover;display:block;border:0" />
-      </td></tr>`
-    : ''
-
-  const logoInk = brandLogoUrl
-    ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:160px;object-fit:contain;border:0;display:inline-block" />`
-    : `<span style="font-size:14px;font-weight:700;color:#ffffff;letter-spacing:-0.2px">${alt}</span>`
-
-  return `${coverRow}<tr><td style="background:${COLORS.ink};padding:14px 32px;text-align:center">${logoInk}</td></tr>`
+  return brandTopRow(brandCoverUrl, brandLogoUrl, escapeHtml(brandName))
 }
 
 export function heroBlock(opts: { icon: HeroIcon; title: string; subtitle: string }): string {
@@ -228,10 +228,10 @@ export function heroBlock(opts: { icon: HeroIcon; title: string; subtitle: strin
   return `<tr>
     <td style="background:${COLORS.surface};padding:28px 32px 0;text-align:center">
       <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 14px">
-        <tr><td style="width:54px;height:54px;border-radius:50%;background:${def.bg};text-align:center;vertical-align:middle">${svg}</td></tr>
+        <tr><td style="width:56px;height:56px;border-radius:18px;background:${def.bg};text-align:center;vertical-align:middle">${svg}</td></tr>
       </table>
-      <h1 style="margin:0 0 6px;font-size:22px;font-weight:800;color:${COLORS.text};letter-spacing:-0.5px">${opts.title}</h1>
-      <p style="margin:0 auto;max-width:340px;color:${COLORS.textSoft};font-size:14px;line-height:1.5">${opts.subtitle}</p>
+      <h1 style="margin:0 0 7px;font-size:27px;font-weight:300;color:${COLORS.text};letter-spacing:-0.6px;line-height:1.1">${opts.title}</h1>
+      <p style="margin:0 auto;max-width:340px;color:${COLORS.textFaint};font-size:14px;line-height:1.55">${opts.subtitle}</p>
     </td>
   </tr>`
 }
@@ -275,11 +275,11 @@ export function calendarBlock(opts: {
     (location    ? `&location=${encodeURIComponent(location)}`    : '') +
     (description ? `&details=${encodeURIComponent(description)}`  : '')
 
-  const calSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#09090b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:7px"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>`
+  const calSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B3B3B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:7px"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>`
 
   return `<tr>
     <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-      <a href="${gcUrl}" style="display:inline-block;background:${COLORS.accent};color:#09090b;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}</a>
+      <a href="${gcUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:999px;letter-spacing:-0.1px">${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}</a>
       <p style="margin:10px 0 0;color:${COLORS.textFaint};font-size:11px">${escapeHtml(t(locale, 'email.ics.hint'))}</p>
     </td>
   </tr>`
@@ -393,36 +393,22 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
 </head>
-<body style="margin:0;padding:0;background:#e8eaed;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#e8eaed" style="background:#e8eaed;min-height:100vh;padding:36px 16px">
+<body style="margin:0;padding:0;background:#EFEFEF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EFEFEF" style="background:#EFEFEF;background-image:radial-gradient(130% 90% at 96% -6%, rgba(255,216,95,0.52) 0%, rgba(255,216,95,0) 50%),linear-gradient(160deg,#FBFBFB 0%,#EDEDED 55%,#E0E0E0 100%);min-height:100vh;padding:44px 16px">
     <tr><td align="center" style="padding:0">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;border-radius:20px;overflow:hidden;box-shadow:0 4px 32px rgba(0,0,0,0.14),0 1px 4px rgba(0,0,0,0.08)">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;border-radius:30px;overflow:hidden;border:1px solid rgba(255,255,255,0.6);box-shadow:0 30px 60px -30px rgba(40,40,40,0.30),0 2px 8px rgba(40,40,40,0.06)">
 
         ${headerHtml}
 
         ${content}
 
-        <!-- Schedulio + davelopment footer -->
+        <!-- davelopment Booking footer -->
         <tr>
-          <td style="background:#09090b;padding:24px 32px;text-align:center;border-top:1px solid rgba(255,255,255,0.05)">
-            <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto">
-              <tr>
-                <td style="padding:0 14px;vertical-align:middle">
-                  <a href="${SCHEDULIO_URL}" style="text-decoration:none;display:block">
-                    <img src="${SCHEDULIO_WORDMARK}" alt="Schedulio" height="22" style="height:22px;display:block;border:0" />
-                  </a>
-                </td>
-                <td style="padding:0;vertical-align:middle">
-                  <div style="width:1px;height:22px;background:#27272a;line-height:22px;font-size:0">&nbsp;</div>
-                </td>
-                <td style="padding:0 14px;vertical-align:middle">
-                  <a href="${DAVELOPMENT_URL}" style="text-decoration:none;display:block">
-                    <img src="${DAVELOPMENT_WORDMARK}" alt="davelopment" height="22" style="height:22px;display:block;border:0" />
-                  </a>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:14px 0 0;color:#3f3f46;font-size:11px">© ${new Date().getFullYear()} Schedulio · Minden jog fenntartva</p>
+          <td style="background:${COLORS.ink};padding:28px 32px;text-align:center;border-top:1px solid rgba(255,255,255,0.05)">
+            <a href="${DAVELOPMENT_URL}" style="text-decoration:none;display:inline-block">
+              <img src="${BOOKING_LOCKUP}" alt="davelopment Booking" width="120" height="44" style="width:120px;height:44px;display:block;border:0" />
+            </a>
+            <p style="margin:16px 0 0;color:${COLORS.footerText};font-size:11px">© ${new Date().getFullYear()} davelopment booking · Minden jog fenntartva</p>
           </td>
         </tr>
 

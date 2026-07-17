@@ -40,10 +40,10 @@ export default function SubscriptionStatusSelect({ subId, currentStatus, current
     })
   }
 
-  const selectClass = 'text-[12px] font-medium bg-white border border-line text-ink rounded-[14px] px-2.5 py-1.5 focus:outline-none disabled:opacity-50 cursor-pointer'
+  const selectClass = 'min-w-0 flex-1 text-[12px] font-medium bg-white border border-line text-ink rounded-[14px] px-2 py-1.5 focus:outline-none disabled:opacity-50 cursor-pointer'
 
   return (
-    <div className="flex gap-1.5">
+    <div className="flex min-w-0 gap-1.5">
       <select
         value={plan}
         disabled={isPending}

@@ -45,37 +45,44 @@ export async function RestaurantBookView({ slug, requested = 'hu' }: { slug: str
     : DEFAULT_EVENT_TYPES.map((e) => ({ icon: e.icon, label: e.label }))
 
   return (
-    <main className="min-h-screen bg-zinc-50">
-      <div className="max-w-lg mx-auto px-6 py-8">
-        <Link
-          href={`/${restaurant.slug}`}
-          className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-700 transition-colors mb-6"
-        >
-          <ChevronLeft className="h-4 w-4" />{restaurant.name}
-        </Link>
-        <h1 className="text-3xl font-black tracking-tight text-zinc-900 mb-1">{t(locale, 'public.bookTable')}</h1>
-        <p className="text-zinc-500 text-sm mb-8">{t(locale, 'rbooking.viewSubtitle')}</p>
+    // A szalon-foglalóval AZONOS keret: krém `bg-paper` + Onest tipográfia, és a tartalom
+    // egy 34px-es davelopment konténer-gradienten ül (lásd BookingWizard gyökere).
+    <div className="font-onest min-h-screen bg-paper px-4 py-4 text-ink sm:px-6 sm:py-6">
+      <div
+        className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-2xl flex-col rounded-[34px] p-5 shadow-[0_34px_70px_-34px_rgba(80,70,30,.20),0_0_0_1px_rgba(120,110,70,.06)] sm:min-h-[calc(100vh-3rem)] sm:p-7"
+        style={{ background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)' }}
+      >
+        <div className="mx-auto w-full max-w-lg">
+          <Link
+            href={`/${restaurant.slug}`}
+            className="inline-flex items-center gap-1 text-[13px] font-medium text-ink-soft transition-colors hover:text-ink mb-6"
+          >
+            <ChevronLeft className="h-4 w-4" />{restaurant.name}
+          </Link>
+          <h1 className="text-[26px] font-light tracking-[-0.01em] text-ink mb-1">{t(locale, 'public.bookTable')}</h1>
+          <p className="text-[13.5px] text-ink-soft mb-8">{t(locale, 'rbooking.viewSubtitle')}</p>
 
-        <RestaurantBookingWizard
-          restaurantId={restaurant.id}
-          slug={restaurant.slug}
-          requirePhone={restaurant.require_phone ?? true}
-          maxPax={maxPax || 20}
-          bookingWindowDays={restaurant.booking_window_days ?? 60}
-          eventTypes={eventTypes}
-          locale={locale}
-          termsSections={restaurant.terms_sections}
-          company={{
-            name: restaurant.name,
-            legal_name: restaurant.legal_name,
-            tax_number: restaurant.tax_number,
-            company_reg_number: restaurant.company_reg_number,
-            registered_seat: restaurant.registered_seat,
-            email: restaurant.email,
-            phone: restaurant.phone,
-          }}
-        />
+          <RestaurantBookingWizard
+            restaurantId={restaurant.id}
+            slug={restaurant.slug}
+            requirePhone={restaurant.require_phone ?? true}
+            maxPax={maxPax || 20}
+            bookingWindowDays={restaurant.booking_window_days ?? 60}
+            eventTypes={eventTypes}
+            locale={locale}
+            termsSections={restaurant.terms_sections}
+            company={{
+              name: restaurant.name,
+              legal_name: restaurant.legal_name,
+              tax_number: restaurant.tax_number,
+              company_reg_number: restaurant.company_reg_number,
+              registered_seat: restaurant.registered_seat,
+              email: restaurant.email,
+              phone: restaurant.phone,
+            }}
+          />
+        </div>
       </div>
-    </main>
+    </div>
   )
 }
