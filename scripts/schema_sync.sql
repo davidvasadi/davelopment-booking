@@ -1260,3 +1260,46 @@ ALTER TABLE audit_log
   ADD COLUMN IF NOT EXISTS changes         jsonb,
   ADD COLUMN IF NOT EXISTS salon_id        integer,
   ADD COLUMN IF NOT EXISTS restaurant_id   integer;
+
+-- ============================================================
+-- FIX: roles_capabilities — Payload v3 select+hasMany uses
+-- parent_id / order (no underscore), NOT _parent_id / _order.
+-- The migration accidentally used array-field naming convention.
+-- ============================================================
+ALTER TABLE roles_capabilities ADD COLUMN IF NOT EXISTS parent_id integer;
+ALTER TABLE roles_capabilities ADD COLUMN IF NOT EXISTS "order"   integer;
+UPDATE roles_capabilities SET parent_id = _parent_id WHERE parent_id IS NULL AND _parent_id IS NOT NULL;
+UPDATE roles_capabilities SET "order"   = _order     WHERE "order" IS NULL AND _order IS NOT NULL;
+DO $$ BEGIN
+  ALTER TABLE roles_capabilities ADD CONSTRAINT roles_capabilities_parent_id_roles_id_fk
+    FOREIGN KEY (parent_id) REFERENCES roles(id) ON DELETE CASCADE;
+EXCEPTION WHEN duplicate_object THEN null; END $$;
+GRANT ALL ON roles_capabilities TO schedulio;
+
+-- ============================================================
+-- FIX: payload internal rels tables — need FK columns for every
+-- collection, including all new ones added after baseline.
+-- ============================================================
+ALTER TABLE payload_locked_documents_rels
+  ADD COLUMN IF NOT EXISTS shifts_id             integer,
+  ADD COLUMN IF NOT EXISTS memberships_id        integer,
+  ADD COLUMN IF NOT EXISTS roles_id              integer,
+  ADD COLUMN IF NOT EXISTS customers_id          integer,
+  ADD COLUMN IF NOT EXISTS reviews_id            integer,
+  ADD COLUMN IF NOT EXISTS waitlist_id           integer,
+  ADD COLUMN IF NOT EXISTS audit_log_id          integer,
+  ADD COLUMN IF NOT EXISTS email_log_id          integer,
+  ADD COLUMN IF NOT EXISTS push_subscriptions_id integer,
+  ADD COLUMN IF NOT EXISTS tasks_id              integer;
+
+ALTER TABLE payload_preferences_rels
+  ADD COLUMN IF NOT EXISTS shifts_id             integer,
+  ADD COLUMN IF NOT EXISTS memberships_id        integer,
+  ADD COLUMN IF NOT EXISTS roles_id              integer,
+  ADD COLUMN IF NOT EXISTS customers_id          integer,
+  ADD COLUMN IF NOT EXISTS reviews_id            integer,
+  ADD COLUMN IF NOT EXISTS waitlist_id           integer,
+  ADD COLUMN IF NOT EXISTS audit_log_id          integer,
+  ADD COLUMN IF NOT EXISTS email_log_id          integer,
+  ADD COLUMN IF NOT EXISTS push_subscriptions_id integer,
+  ADD COLUMN IF NOT EXISTS tasks_id              integer;
