@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { PopupModal } from '@/components/ui/popup-modal'
-import { Plus, Pencil, CalendarDays, Camera, Loader2, X, Trash2, Search, Download, ChevronDown } from 'lucide-react'
+import { Plus, CalendarDays, Camera, Loader2, X, Trash2, Search, Download, ChevronDown } from 'lucide-react'
 import StaffCalendarSheet from './StaffCalendarSheet'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
@@ -493,9 +493,9 @@ export default function StaffManager({
             return (
               <div
                 key={m.id}
-                onClick={() => setHiringIndex(idx)}
+                onClick={() => openEdit(m)}
                 role="button"
-                title="Adatlap megnyitása"
+                title="Szerkesztés"
                 style={isSel ? { background: 'var(--dav-accent)' } : undefined}
                 className={`mt-2 cursor-pointer rounded-[18px] transition-all ${
                   isSel ? 'shadow-[0_10px_24px_-12px_rgba(180,150,40,.55)]' : 'hover:bg-gold/10'
@@ -541,7 +541,6 @@ export default function StaffManager({
                       {active ? 'Aktív' : 'Inaktív'}
                     </button>
                     <button onClick={(e) => { e.stopPropagation(); setCalendarStaff(m) }} title="Elérhetőség" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
-                    <button onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
                     <button onClick={(e) => { e.stopPropagation(); setDeleteId(String(m.id)) }} title="Törlés" className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-white"><Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
                   </div>
                 </div>
@@ -569,7 +568,7 @@ export default function StaffManager({
                     <p className="truncate text-[15px] font-semibold text-ink">{m.name}</p>
                     <p className="truncate text-[12.5px] font-medium text-ink-soft">{position}</p>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Szerkesztés" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); setCalendarStaff(m) }} title="Elérhetőség" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
                 </div>
               </div>
             )
@@ -663,6 +662,16 @@ export default function StaffManager({
                 <span className={`absolute top-[3px] h-5 w-5 rounded-full bg-white transition-all ${activeWatch ? 'left-[23px]' : 'left-[3px]'}`} />
               </span>
             </label>
+            )}
+            {editing && editLocale === 'hu' && (
+              <button
+                type="button"
+                onClick={() => { setOpen(false); setCalendarStaff(editing) }}
+                className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3.5 text-sm font-medium text-ink transition-colors hover:bg-white"
+              >
+                <CalendarDays className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
+                Elérhetőség naptár szerkesztése
+              </button>
             )}
             <button
               type="submit"
