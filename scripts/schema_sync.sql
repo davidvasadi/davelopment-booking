@@ -1131,3 +1131,132 @@ DO $$ BEGIN
   ALTER TABLE tasks ADD CONSTRAINT tasks_salon_fk
     FOREIGN KEY (salon_id) REFERENCES salons(id) ON DELETE CASCADE;
 EXCEPTION WHEN duplicate_object THEN null; END $$;
+
+-- ============================================================
+-- PATCH: ALTER TABLE for tables that already existed in baseline
+-- but are missing newer columns (CREATE TABLE IF NOT EXISTS skips them)
+-- ============================================================
+
+ALTER TABLE subscriptions
+  ADD COLUMN IF NOT EXISTS owner_id              integer,
+  ADD COLUMN IF NOT EXISTS plan                  varchar,
+  ADD COLUMN IF NOT EXISTS status                varchar,
+  ADD COLUMN IF NOT EXISTS salon_count           integer,
+  ADD COLUMN IF NOT EXISTS restaurant_count      integer,
+  ADD COLUMN IF NOT EXISTS breakdown             varchar,
+  ADD COLUMN IF NOT EXISTS trial_ends_at         timestamp(3) with time zone,
+  ADD COLUMN IF NOT EXISTS current_period_end    timestamp(3) with time zone,
+  ADD COLUMN IF NOT EXISTS cancel_at_period_end  boolean,
+  ADD COLUMN IF NOT EXISTS billing_cycle         varchar,
+  ADD COLUMN IF NOT EXISTS amount_huf            numeric,
+  ADD COLUMN IF NOT EXISTS stripe_customer_id    varchar,
+  ADD COLUMN IF NOT EXISTS stripe_subscription_id varchar,
+  ADD COLUMN IF NOT EXISTS last_stripe_invoice_id varchar,
+  ADD COLUMN IF NOT EXISTS last_invoice_number   varchar,
+  ADD COLUMN IF NOT EXISTS last_invoice_url      varchar,
+  ADD COLUMN IF NOT EXISTS notes                 text;
+
+ALTER TABLE notifications
+  ADD COLUMN IF NOT EXISTS restaurant_id  integer,
+  ADD COLUMN IF NOT EXISTS salon_id       integer,
+  ADD COLUMN IF NOT EXISTS audience       varchar,
+  ADD COLUMN IF NOT EXISTS type           varchar,
+  ADD COLUMN IF NOT EXISTS title          varchar,
+  ADD COLUMN IF NOT EXISTS body           varchar,
+  ADD COLUMN IF NOT EXISTS read           boolean,
+  ADD COLUMN IF NOT EXISTS reservation_id integer,
+  ADD COLUMN IF NOT EXISTS booking_id     integer;
+
+ALTER TABLE rooms
+  ADD COLUMN IF NOT EXISTS restaurant_id integer,
+  ADD COLUMN IF NOT EXISTS name          varchar,
+  ADD COLUMN IF NOT EXISTS is_outdoor    boolean,
+  ADD COLUMN IF NOT EXISTS is_active     boolean,
+  ADD COLUMN IF NOT EXISTS seasonal      boolean,
+  ADD COLUMN IF NOT EXISTS season_start  varchar,
+  ADD COLUMN IF NOT EXISTS season_end    varchar,
+  ADD COLUMN IF NOT EXISTS sort_order    integer;
+
+ALTER TABLE tables
+  ADD COLUMN IF NOT EXISTS restaurant_id integer,
+  ADD COLUMN IF NOT EXISTS name          varchar,
+  ADD COLUMN IF NOT EXISTS capacity      integer,
+  ADD COLUMN IF NOT EXISTS room_id       integer,
+  ADD COLUMN IF NOT EXISTS is_active     boolean,
+  ADD COLUMN IF NOT EXISTS sort_order    integer;
+
+ALTER TABLE tasks
+  ADD COLUMN IF NOT EXISTS restaurant_id integer,
+  ADD COLUMN IF NOT EXISTS salon_id      integer,
+  ADD COLUMN IF NOT EXISTS title         varchar,
+  ADD COLUMN IF NOT EXISTS done          boolean,
+  ADD COLUMN IF NOT EXISTS due_date      timestamp(3) with time zone;
+
+ALTER TABLE services
+  ADD COLUMN IF NOT EXISTS category_id      integer,
+  ADD COLUMN IF NOT EXISTS subcategory_id   integer,
+  ADD COLUMN IF NOT EXISTS image_id         integer,
+  ADD COLUMN IF NOT EXISTS salon_id         integer,
+  ADD COLUMN IF NOT EXISTS duration_minutes integer,
+  ADD COLUMN IF NOT EXISTS price            numeric,
+  ADD COLUMN IF NOT EXISTS currency         varchar,
+  ADD COLUMN IF NOT EXISTS is_active        boolean;
+
+ALTER TABLE availability
+  ADD COLUMN IF NOT EXISTS salon_id       integer,
+  ADD COLUMN IF NOT EXISTS staff_id       integer,
+  ADD COLUMN IF NOT EXISTS day_of_week    varchar,
+  ADD COLUMN IF NOT EXISTS start_time     varchar,
+  ADD COLUMN IF NOT EXISTS end_time       varchar,
+  ADD COLUMN IF NOT EXISTS is_available   boolean,
+  ADD COLUMN IF NOT EXISTS recurring      boolean,
+  ADD COLUMN IF NOT EXISTS exception_date varchar;
+
+ALTER TABLE opening_hours
+  ADD COLUMN IF NOT EXISTS restaurant_id integer,
+  ADD COLUMN IF NOT EXISTS day_of_week   varchar,
+  ADD COLUMN IF NOT EXISTS is_open       boolean,
+  ADD COLUMN IF NOT EXISTS open_time     varchar,
+  ADD COLUMN IF NOT EXISTS close_time    varchar;
+
+ALTER TABLE opening_hours_exceptions
+  ADD COLUMN IF NOT EXISTS restaurant_id integer,
+  ADD COLUMN IF NOT EXISTS label         varchar,
+  ADD COLUMN IF NOT EXISTS start_date    varchar,
+  ADD COLUMN IF NOT EXISTS end_date      varchar,
+  ADD COLUMN IF NOT EXISTS is_closed     boolean,
+  ADD COLUMN IF NOT EXISTS open_time     varchar,
+  ADD COLUMN IF NOT EXISTS close_time    varchar;
+
+ALTER TABLE reservations
+  ADD COLUMN IF NOT EXISTS country       varchar,
+  ADD COLUMN IF NOT EXISTS internal_notes text,
+  ADD COLUMN IF NOT EXISTS occasion      varchar,
+  ADD COLUMN IF NOT EXISTS occasion_icon varchar,
+  ADD COLUMN IF NOT EXISTS pax           integer,
+  ADD COLUMN IF NOT EXISTS customer_name varchar,
+  ADD COLUMN IF NOT EXISTS customer_email varchar,
+  ADD COLUMN IF NOT EXISTS customer_phone varchar,
+  ADD COLUMN IF NOT EXISTS customer_city varchar;
+
+ALTER TABLE waitlist
+  ADD COLUMN IF NOT EXISTS locale varchar;
+
+ALTER TABLE email_log
+  ADD COLUMN IF NOT EXISTS type    varchar,
+  ADD COLUMN IF NOT EXISTS "to"    varchar,
+  ADD COLUMN IF NOT EXISTS subject varchar,
+  ADD COLUMN IF NOT EXISTS ok      boolean,
+  ADD COLUMN IF NOT EXISTS error   varchar;
+
+ALTER TABLE audit_log
+  ADD COLUMN IF NOT EXISTS actor_id        integer,
+  ADD COLUMN IF NOT EXISTS actor_label     varchar,
+  ADD COLUMN IF NOT EXISTS actor_email     varchar,
+  ADD COLUMN IF NOT EXISTS action          varchar,
+  ADD COLUMN IF NOT EXISTS collection_name varchar,
+  ADD COLUMN IF NOT EXISTS doc_id          varchar,
+  ADD COLUMN IF NOT EXISTS summary         varchar,
+  ADD COLUMN IF NOT EXISTS changes         jsonb,
+  ADD COLUMN IF NOT EXISTS salon_id        integer,
+  ADD COLUMN IF NOT EXISTS restaurant_id   integer;
