@@ -40,7 +40,6 @@ export const ServiceCategories: CollectionConfig = {
       name: 'name',
       type: 'text',
       required: true,
-      localized: true,
       label: 'Kategória neve',
     },
     {
@@ -52,7 +51,6 @@ export const ServiceCategories: CollectionConfig = {
     {
       name: 'duration_label',
       type: 'text',
-      localized: true,
       label: 'Időtartam felirat',
       admin: {
         placeholder: 'Pl. 30-90 perc',
@@ -61,7 +59,6 @@ export const ServiceCategories: CollectionConfig = {
     {
       name: 'description',
       type: 'textarea',
-      localized: true,
       label: 'Leírás',
     },
     {

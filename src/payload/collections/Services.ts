@@ -42,13 +42,11 @@ export const Services: CollectionConfig = {
       name: 'name',
       type: 'text',
       required: true,
-      localized: true,
       label: 'Szolgáltatás neve',
     },
     {
       name: 'description',
       type: 'textarea',
-      localized: true,
       label: 'Leírás',
     },
     {
