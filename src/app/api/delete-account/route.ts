@@ -36,7 +36,7 @@ export async function DELETE() {
 
   // Utolsó üzlet → teljes fiók-törlés (a Users beforeDelete hook mindent kaszkádol).
   // id alapján töröljük (nem where-rel) — csak az előbbi megbízhatóan triggereli a beforeDelete hookot.
-  await payload.delete({ collection: 'users', id: user.id as number, overrideAccess: true })
+  await payload.delete({ collection: 'users', id: Number(user.id), overrideAccess: true })
   cookieStore.delete('payload-token')
   cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
   return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: true })
