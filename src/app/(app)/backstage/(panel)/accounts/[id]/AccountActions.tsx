@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { LogIn, ChevronDown, Power, PlayCircle, PauseCircle, CheckCircle2, XCircle, Loader2 } from 'lucide-react'
+import { LogIn, ChevronDown, Power, PlayCircle, PauseCircle, CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react'
 import { popItem } from '@/lib/motion'
 import type { SubStatus } from '@/lib/backstageMetrics'
 
@@ -32,6 +32,7 @@ function AccountActions({ ownerId, status, plan, anyActive, hasSub }: {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [deleteArmed, setDeleteArmed] = useState(false)
 
   async function patch(body: Record<string, unknown>, successMsg: string) {
     setBusy(true)
@@ -49,6 +50,20 @@ function AccountActions({ ownerId, status, plan, anyActive, hasSub }: {
     } finally {
       setBusy(false)
       setMenuOpen(false)
+    }
+  }
+
+  async function deleteAccount() {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/backstage/accounts/${ownerId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('delete')
+      toast.success('Fiók törölve.')
+      router.push('/backstage/accounts')
+    } catch {
+      toast.error('A törlés nem sikerült.')
+      setBusy(false)
+      setDeleteArmed(false)
     }
   }
 
@@ -120,6 +135,28 @@ function AccountActions({ ownerId, status, plan, anyActive, hasSub }: {
             )}
           </AnimatePresence>
         </div>
+      )}
+      {/* Fiók törlése */}
+      {deleteArmed ? (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={deleteAccount}
+          className="flex items-center gap-1.5 rounded-[22px] bg-red-600 px-[16px] py-[11px] text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+          Biztos vagy benne?
+        </button>
+      ) : (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setDeleteArmed(true)}
+          onBlur={() => setTimeout(() => setDeleteArmed(false), 2000)}
+          className="flex items-center gap-1.5 rounded-[22px] border border-red-200 bg-white px-[16px] py-[11px] text-[13px] font-semibold text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
+        >
+          <Trash2 className="h-3.5 w-3.5" /> Fiók törlése
+        </button>
       )}
     </div>
   )

@@ -56,3 +56,26 @@ export async function PATCH(
 
   return NextResponse.json({ ok: true })
 }
+
+/**
+ * DELETE /api/backstage/accounts/[ownerId]
+ * Teljes fiók törlése backstage adminból. A Users beforeDelete hook kaszkádolja a
+ * szalonokat, éttermeket és az előfizetést.
+ */
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ ownerId: string }> },
+) {
+  const user = await getCurrentUser()
+  if (!user || user.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { ownerId } = await params
+  const id = Number(ownerId)
+  if (!id || isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
+
+  const payload = await getPayloadClient()
+  await payload.delete({ collection: 'users', id, overrideAccess: true })
+  return NextResponse.json({ ok: true })
+}

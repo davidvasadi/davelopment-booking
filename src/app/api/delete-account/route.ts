@@ -30,13 +30,13 @@ export async function DELETE() {
     // Több üzlet → csak az aktívat töröljük. A salons/restaurants beforeDelete hook kaszkádol.
     const collection = active.type === 'salon' ? 'salons' : 'restaurants'
     await payload.delete({ collection, id: active.id, overrideAccess: true })
-    // Az aktív cookie érvénytelen lett → töröljük, a feloldás a következő üzletre esik.
     cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
     return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: false })
   }
 
   // Utolsó üzlet → teljes fiók-törlés (a Users beforeDelete hook mindent kaszkádol).
-  await payload.delete({ collection: 'users', where: { id: { equals: user.id } }, overrideAccess: true })
+  // id alapján töröljük (nem where-rel) — csak az előbbi megbízhatóan triggereli a beforeDelete hookot.
+  await payload.delete({ collection: 'users', id: user.id as number, overrideAccess: true })
   cookieStore.delete('payload-token')
   cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
   return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: true })
