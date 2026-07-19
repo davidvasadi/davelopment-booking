@@ -30,7 +30,18 @@ export function ServiceWorkerRegister() {
       })
     }
     window.addEventListener('load', onLoad)
-    return () => window.removeEventListener('load', onLoad)
+
+    // Új SW aktiválásakor (deploy után) az összes nyitott lap újratölt,
+    // hogy az elavult JS-bundle / Server Action ID-k ne okozzanak hibát.
+    const onMessage = (e: MessageEvent) => {
+      if (e.data?.type === 'SW_UPDATED') window.location.reload()
+    }
+    navigator.serviceWorker.addEventListener('message', onMessage)
+
+    return () => {
+      window.removeEventListener('load', onLoad)
+      navigator.serviceWorker.removeEventListener('message', onMessage)
+    }
   }, [])
 
   return null

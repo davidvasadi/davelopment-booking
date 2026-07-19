@@ -7,7 +7,7 @@
  *  - API kérések: NEM cache-eljük (a foglalás-adat változékony; offline a kliens
  *    a már betöltött adatból + lokális vázlatokból dolgozik).
  */
-const CACHE = 'davelopment-booking-v1'
+const CACHE = 'davelopment-booking-v2'
 
 self.addEventListener('install', (event) => {
   self.skipWaiting()
@@ -18,7 +18,11 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
-    ).then(() => self.clients.claim()),
+    ).then(() => self.clients.claim()).then(() =>
+      self.clients.matchAll({ type: 'window' }).then((clients) =>
+        clients.forEach((c) => c.postMessage({ type: 'SW_UPDATED' }))
+      )
+    )
   )
 })
 
