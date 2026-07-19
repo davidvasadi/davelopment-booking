@@ -129,12 +129,17 @@ export async function POST(req: Request) {
         const ownerId = typeof our.owner === 'object' && our.owner ? (our.owner as { id: string | number }).id : our.owner
         if (!ownerId) break
 
-        // Vevő adatok: az owner első szalonjából/éttermanéből (billing mezők) + user email fallback.
-        const salonsRes = await payload.find({ collection: 'salons', where: { owner: { equals: ownerId } }, limit: 1, depth: 0, overrideAccess: true })
-        const biz = salonsRes.docs[0] ?? (await payload.find({ collection: 'restaurants', where: { owner: { equals: ownerId } }, limit: 1, depth: 0, overrideAccess: true })).docs[0] ?? null
+        // Vevő adatok: az owner összes üzlete közül az első amelyiknek van billing_city kitöltve
+        // (a felhasználó bármelyik üzlet beállításaiban menthette az adatokat).
+        const [salonsRes, restaurantsRes] = await Promise.all([
+          payload.find({ collection: 'salons', where: { owner: { equals: ownerId } }, limit: 50, depth: 0, overrideAccess: true }),
+          payload.find({ collection: 'restaurants', where: { owner: { equals: ownerId } }, limit: 50, depth: 0, overrideAccess: true }),
+        ])
+        const allBiz = [...salonsRes.docs, ...restaurantsRes.docs] as Record<string, unknown>[]
+        const biz = (allBiz.find((b) => b.billing_city) ?? allBiz[0] ?? null) as Record<string, string | null | undefined> | null
         const user = await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true }).catch(() => null) as { email?: string; name?: string } | null
 
-        const b = biz as Record<string, string | null | undefined> | null
+        const b = biz
         const buyerName = b?.legal_name || b?.name || user?.name || ''
         const buyerEmail = b?.billing_email || b?.email || user?.email || ''
 
