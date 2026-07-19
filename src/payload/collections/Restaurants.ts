@@ -271,7 +271,11 @@ export const Restaurants: CollectionConfig = {
     { name: 'legal_name', type: 'text', label: 'Hivatalos cégnév' },
     { name: 'tax_number', type: 'text', label: 'Adószám' },
     { name: 'company_reg_number', type: 'text', label: 'Cégjegyzékszám' },
-    { name: 'registered_seat', type: 'text', label: 'Székhely' },
+    { name: 'registered_seat', type: 'text', label: 'Székhely (jogilag bejegyzett)' },
+    { name: 'billing_email', type: 'email', label: 'Számlázási email' },
+    { name: 'billing_postal_code', type: 'text', label: 'Számlázási cím — irányítószám' },
+    { name: 'billing_city', type: 'text', label: 'Számlázási cím — város' },
+    { name: 'billing_street', type: 'text', label: 'Számlázási cím — utca, házszám' },
     {
       name: 'terms_sections',
       type: 'array',

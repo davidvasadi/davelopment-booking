@@ -102,7 +102,10 @@ export default async function RestaurantSettingsPage() {
     legalName: r.legal_name ?? '',
     taxNumber: r.tax_number ?? '',
     companyRegNumber: r.company_reg_number ?? '',
-    registeredSeat: r.registered_seat ?? '',
+    billingEmail: r.billing_email ?? '',
+    billingPostalCode: r.billing_postal_code ?? '',
+    billingCity: r.billing_city ?? '',
+    billingStreet: r.billing_street ?? '',
     lastInvoiceNumber: sub?.last_invoice_number ?? null,
     lastInvoiceUrl: sub?.last_invoice_url ?? null,
   }

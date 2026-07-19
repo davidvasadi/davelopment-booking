@@ -105,7 +105,10 @@ export default async function SettingsPage() {
     legalName: salon.legal_name ?? '',
     taxNumber: salon.tax_number ?? '',
     companyRegNumber: salon.company_reg_number ?? '',
-    registeredSeat: salon.registered_seat ?? '',
+    billingEmail: salon.billing_email ?? '',
+    billingPostalCode: salon.billing_postal_code ?? '',
+    billingCity: salon.billing_city ?? '',
+    billingStreet: salon.billing_street ?? '',
     lastInvoiceNumber: sub?.last_invoice_number ?? null,
     lastInvoiceUrl: sub?.last_invoice_url ?? null,
   }

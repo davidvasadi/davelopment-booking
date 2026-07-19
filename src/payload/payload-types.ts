@@ -144,6 +144,10 @@ export interface Restaurant {
   tax_number?: string | null
   company_reg_number?: string | null
   registered_seat?: string | null
+  billing_email?: string | null
+  billing_postal_code?: string | null
+  billing_city?: string | null
+  billing_street?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
   event_types?: { icon?: string | null; label?: string | null; enabled?: boolean | null; id?: string | null }[] | null
@@ -519,6 +523,10 @@ export interface Salon {
   tax_number?: string | null
   company_reg_number?: string | null
   registered_seat?: string | null
+  billing_email?: string | null
+  billing_postal_code?: string | null
+  billing_city?: string | null
+  billing_street?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
   supported_locales?: Locale[] | null
