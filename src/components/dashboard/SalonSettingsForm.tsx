@@ -263,7 +263,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     general: ['name', 'slug', 'postal_code', 'city', 'address', 'phone', 'email', 'website'],
     booking: ['booking_buffer_minutes', 'booking_window_days', 'require_phone', 'notify_new_bookings'],
     email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
-    documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat'],
+    documents: [],
   }
   // Mely fülön van localizált tartalom (a `loc.dirty` is számít a fül „mentetlen" jelzésénél).
   const LOC_TABS = new Set(['general', 'email', 'documents'])
@@ -729,30 +729,6 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
 
       {activeTab === 'documents' && (
       <div className="space-y-[5px]">
-      <Section title="Cégadatok">
-        <p className="text-xs text-ink-soft">
-          A „Szolgáltató adatai" blokk ezekből áll össze a Foglalási feltételek elején (a foglaló oldalon és emailben). Üres mezők kimaradnak.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className={labelBase}>Hivatalos cégnév</Label>
-            <Input className={inputBase} {...register('legal_name')} placeholder="pl. Példa Kft." />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelBase}>Adószám</Label>
-            <Input className={inputBase} {...register('tax_number')} placeholder="12345678-2-42" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelBase}>Cégjegyzékszám</Label>
-            <Input className={inputBase} {...register('company_reg_number')} placeholder="01-09-123456" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelBase}>Székhely</Label>
-            <Input className={inputBase} {...register('registered_seat')} placeholder="1051 Budapest, Példa u. 1." />
-          </div>
-        </div>
-      </Section>
-
       <Section title="Foglalási feltételek">
         <p className="text-xs text-ink-soft">
           Szakaszonként add meg a feltételeket (cím + szöveg). Megjelenik a nyilvános foglaló oldalon és a visszaigazoló emailben. Hagyd üresen, ha nincs.

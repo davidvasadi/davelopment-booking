@@ -12,7 +12,8 @@ import {
   SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
 } from '@/components/settings/SettingsHub'
 import { RolesManager } from '@/components/settings/RolesManager'
-import { getStripeBillingDetails } from '@/lib/stripeBillingDetails'
+import { getAccountBilling } from '@/lib/accountBilling'
+import { getPricing } from '@/lib/pricing'
 
 const initialsOf = (name: string) =>
   name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
@@ -80,8 +81,11 @@ export default async function SettingsPage() {
     windowDays: salon.booking_window_days ?? null,
   }
 
-  // ── Számlázás — VALÓS fiók-előfizetés + Stripe kártya/számlák.
-  const stripeDetails = await getStripeBillingDetails(sub?.stripe_customer_id)
+  // ── Számlázás — VALÓS fiók-előfizetés + üzlet-díjak + globális árazás.
+  const [billingAccount, pricing] = await Promise.all([
+    getAccountBilling(typeof salon.owner === 'object' && salon.owner ? salon.owner.id : salon.owner ?? user.id),
+    getPricing(),
+  ])
 
   const nextChargeDate = sub?.current_period_end
     ? new Date(sub.current_period_end).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -98,14 +102,12 @@ export default async function SettingsPage() {
     nextChargeDate,
     nextChargeAmount: HUF(sub?.amount_huf ?? 0),
     hasStripeCustomer: !!sub?.stripe_customer_id,
-    subscriptionHref: '/dashboard/subscription',
-    card: stripeDetails.card,
-    details: {
-      legalName: salon.legal_name ?? '',
-      taxNumber: salon.tax_number ?? '',
-      address: salon.registered_seat ?? [salon.postal_code, salon.city, salon.address].filter(Boolean).join(' '),
-    },
-    invoices: stripeDetails.invoices,
+    legalName: salon.legal_name ?? '',
+    taxNumber: salon.tax_number ?? '',
+    companyRegNumber: salon.company_reg_number ?? '',
+    registeredSeat: salon.registered_seat ?? '',
+    lastInvoiceNumber: sub?.last_invoice_number ?? null,
+    lastInvoiceUrl: sub?.last_invoice_url ?? null,
   }
 
   const senderLabel = `${salon.name}${salon.email ? ` <${salon.email}>` : ''}`
@@ -157,6 +159,11 @@ export default async function SettingsPage() {
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}
+        sub={sub}
+        billingAccount={billingAccount}
+        pricing={pricing}
+        activeBusinessId={String(salon.id)}
+        startedAt={salon.createdAt}
         team={team}
         sites={sites}
         businessCount={businessCount}

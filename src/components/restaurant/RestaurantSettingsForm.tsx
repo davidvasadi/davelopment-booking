@@ -253,7 +253,7 @@ export function RestaurantSettingsForm({
       'lead_time_hours', 'booking_window_days', 'require_phone', 'notify_new_bookings',
     ],
     email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
-    documents: ['legal_name', 'tax_number', 'company_reg_number', 'registered_seat'],
+    documents: [],
   }
   const LOC_TABS = new Set(['general', 'email', 'documents'])
   const [internalTab, setActiveTab] = useState('general')
@@ -801,30 +801,6 @@ export function RestaurantSettingsForm({
 
       {activeTab === 'documents' && (
       <div className="space-y-[5px]">
-      <Section title="Cégadatok">
-        <p className="text-xs text-ink-soft">
-          A „Szolgáltató adatai" blokk ezekből áll össze a Foglalási feltételek elején (a foglaló oldalon és emailben). Üres mezők kimaradnak.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Hivatalos cégnév</Label>
-            <Input className={inputClass} value={form.legal_name} onChange={(e) => set('legal_name', e.target.value)} placeholder="pl. Példa Kft." />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Adószám</Label>
-            <Input className={inputClass} value={form.tax_number} onChange={(e) => set('tax_number', e.target.value)} placeholder="12345678-2-42" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Cégjegyzékszám</Label>
-            <Input className={inputClass} value={form.company_reg_number} onChange={(e) => set('company_reg_number', e.target.value)} placeholder="01-09-123456" />
-          </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Székhely</Label>
-            <Input className={inputClass} value={form.registered_seat} onChange={(e) => set('registered_seat', e.target.value)} placeholder="1051 Budapest, Példa u. 1." />
-          </div>
-        </div>
-      </Section>
-
       <Section title="Foglalási feltételek">
         <p className="text-xs text-ink-soft">
           Szakaszonként add meg a feltételeket (cím + szöveg). Megjelenik a nyilvános foglaló oldalon és a visszaigazoló emailben. Hagyd üresen, ha nincs.

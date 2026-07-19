@@ -12,7 +12,8 @@ import {
   SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
 } from '@/components/settings/SettingsHub'
 import { RolesManager } from '@/components/settings/RolesManager'
-import { getStripeBillingDetails } from '@/lib/stripeBillingDetails'
+import { getAccountBilling } from '@/lib/accountBilling'
+import { getPricing } from '@/lib/pricing'
 import type { Restaurant } from '@/payload/payload-types'
 
 const initialsOf = (name: string) =>
@@ -77,8 +78,11 @@ export default async function RestaurantSettingsPage() {
     windowDays: r.booking_window_days ?? null,
   }
 
-  // ── Számlázás — VALÓS fiók-előfizetés + Stripe kártya/számlák.
-  const stripeDetails = await getStripeBillingDetails(sub?.stripe_customer_id)
+  // ── Számlázás — VALÓS fiók-előfizetés + üzlet-díjak + globális árazás.
+  const [billingAccount, pricing] = await Promise.all([
+    getAccountBilling(userId),
+    getPricing(),
+  ])
 
   const nextChargeDate = sub?.current_period_end
     ? new Date(sub.current_period_end).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
@@ -95,14 +99,12 @@ export default async function RestaurantSettingsPage() {
     nextChargeDate,
     nextChargeAmount: HUF(sub?.amount_huf ?? 0),
     hasStripeCustomer: !!sub?.stripe_customer_id,
-    subscriptionHref: '/restaurant/subscription',
-    card: stripeDetails.card,
-    details: {
-      legalName: r.legal_name ?? '',
-      taxNumber: r.tax_number ?? '',
-      address: r.registered_seat ?? [r.city, r.address].filter(Boolean).join(', '),
-    },
-    invoices: stripeDetails.invoices,
+    legalName: r.legal_name ?? '',
+    taxNumber: r.tax_number ?? '',
+    companyRegNumber: r.company_reg_number ?? '',
+    registeredSeat: r.registered_seat ?? '',
+    lastInvoiceNumber: sub?.last_invoice_number ?? null,
+    lastInvoiceUrl: sub?.last_invoice_url ?? null,
   }
 
   const senderLabel = `${r.name}${r.email ? ` <${r.email}>` : ''}`
@@ -154,6 +156,11 @@ export default async function RestaurantSettingsPage() {
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}
+        sub={sub}
+        billingAccount={billingAccount}
+        pricing={pricing}
+        activeBusinessId={String(r.id)}
+        startedAt={r.createdAt}
         team={team}
         sites={sites}
         businessCount={businessCount}
