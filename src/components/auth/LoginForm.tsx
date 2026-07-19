@@ -87,7 +87,7 @@ export function LoginForm() {
       <div className="min-h-screen bg-ink-dark font-onest flex flex-col">
         {!showForm ? (
           /* Splash screen */
-          <div className="flex flex-col justify-between flex-1 px-7 pt-12 pb-10">
+          <div className="flex flex-col justify-between flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
             <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
               <BrandLogo variant="dark" className="h-8" />
             </Link>
@@ -119,7 +119,7 @@ export function LoginForm() {
           </div>
         ) : (
           /* Login form on dark bg */
-          <div className="flex flex-col justify-between flex-1 px-7 pt-12 pb-10">
+          <div className="flex flex-col justify-between flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
             <button
               onClick={() => setShowForm(false)}
               className="text-white/50 text-sm text-left w-fit hover:text-white/80 transition-colors"

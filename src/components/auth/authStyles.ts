@@ -8,11 +8,11 @@
 
 /** Fő szöveges input (világos felületen, pl. a jobb panel / kártya). */
 export const authInputBase =
-  'w-full h-[50px] rounded-[14px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 px-4 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
+  'w-full h-[50px] rounded-[14px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 px-4 text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
 
 /** Input a SÖTÉT panelen / mobil splash-en (ink-dark háttéren). */
 export const authInputDark =
-  'w-full h-[50px] rounded-[14px] bg-white/[0.06] border border-white/10 text-white placeholder:text-white/35 px-4 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:border-gold/50'
+  'w-full h-[50px] rounded-[14px] bg-white/[0.06] border border-white/10 text-white placeholder:text-white/35 px-4 text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:border-gold/50'
 
 /** Mező-címke. */
 export const authLabelBase = 'text-[12.5px] font-medium text-ink-soft'

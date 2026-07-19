@@ -25,6 +25,7 @@ import {
   authDivider, authDividerDark, authErrorText, authErrorTextDark,
   BRAND_COPYRIGHT,
 } from '@/components/auth/authStyles'
+import { PasswordInput } from '@/components/auth/PasswordInput'
 
 const MAIN_CAT_ICONS: Record<MainCategory, React.ElementType> = {
   szepseg: Sparkles,
@@ -355,7 +356,7 @@ export function RegisterWizard() {
       <>
         {/* ── MOBILE ── */}
         <div className="lg:hidden min-h-screen bg-ink-dark font-onest flex flex-col">
-          <div className="flex flex-col flex-1 px-7 pt-12 pb-10 overflow-y-auto">
+          <div className="flex flex-col flex-1 px-7 pb-10 overflow-y-auto" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
             <div className="flex items-center justify-between mb-auto">
               {subStep === 'types' ? (
                 <button
@@ -497,7 +498,7 @@ export function RegisterWizard() {
     <>
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
       <div className="lg:hidden min-h-screen bg-ink-dark font-onest flex flex-col">
-        <div className="flex flex-col flex-1 px-7 pt-12 pb-10">
+        <div className="flex flex-col flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
           <div className="flex items-center justify-between mb-auto">
             {step === 2 ? (
               <button
@@ -569,8 +570,8 @@ export function RegisterWizard() {
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Jelszó</Label>
-                  <input
-                    type="password"
+                  <PasswordInput
+                    dark
                     autoComplete="new-password"
                     aria-invalid={!!mobileForm.formState.errors.password}
                     aria-describedby={mobileForm.formState.errors.password ? 'reg-m-pw-err' : undefined}
@@ -786,8 +787,7 @@ export function RegisterWizard() {
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Jelszó</Label>
-                    <input
-                      type="password"
+                    <PasswordInput
                       autoComplete="new-password"
                       aria-invalid={!!desktopForm.formState.errors.password}
                       aria-describedby={desktopForm.formState.errors.password ? 'reg-d-pw-err' : undefined}
