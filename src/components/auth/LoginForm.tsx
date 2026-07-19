@@ -77,14 +77,14 @@ export function LoginForm() {
   // Mount előtt egy semleges sötét hátteret adunk (megegyezik mindkét layout alap-bg-jével),
   // hogy ne legyen villanás és ne renderelődjön egyik form sem a kliens-detektálás előtt.
   if (!mounted) {
-    return <div className="min-h-screen bg-ink-dark" />
+    return <div className="min-h-dvh bg-ink-dark" />
   }
 
   return (
     <>
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
       {!isDesktop && (
-      <div className="min-h-screen bg-ink-dark font-onest flex flex-col">
+      <div className="min-h-dvh bg-ink-dark font-onest flex flex-col">
         {!showForm ? (
           /* Splash screen */
           <div className="flex flex-col justify-between flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
@@ -198,7 +198,7 @@ export function LoginForm() {
 
       {/* ── DESKTOP ────────────────────────────────────────────────── */}
       {isDesktop && (
-      <div className="flex min-h-screen font-onest">
+      <div className="flex min-h-dvh font-onest">
         {/* Left panel */}
         <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
           <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">

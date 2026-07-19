@@ -355,7 +355,7 @@ export function RegisterWizard() {
     return (
       <>
         {/* ── MOBILE ── */}
-        <div className="lg:hidden min-h-screen bg-ink-dark font-onest flex flex-col">
+        <div className="lg:hidden min-h-dvh bg-ink-dark font-onest flex flex-col">
           <div className="flex flex-col flex-1 px-7 pb-10 overflow-y-auto" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
             <div className="flex items-center justify-between mb-auto">
               {subStep === 'types' ? (
@@ -418,7 +418,7 @@ export function RegisterWizard() {
         </div>
 
         {/* ── DESKTOP ── */}
-        <div className="hidden lg:flex min-h-screen font-onest">
+        <div className="hidden lg:flex min-h-dvh font-onest">
           <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
             <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
               <BrandLogo variant="dark" className="h-8" />
@@ -497,7 +497,7 @@ export function RegisterWizard() {
   return (
     <>
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
-      <div className="lg:hidden min-h-screen bg-ink-dark font-onest flex flex-col">
+      <div className="lg:hidden min-h-dvh bg-ink-dark font-onest flex flex-col">
         <div className="flex flex-col flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
           <div className="flex items-center justify-between mb-auto">
             {step === 2 ? (
@@ -709,7 +709,7 @@ export function RegisterWizard() {
       </div>
 
       {/* ── DESKTOP ────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex min-h-screen font-onest">
+      <div className="hidden lg:flex min-h-dvh font-onest">
         {/* Left panel */}
         <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
           <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">

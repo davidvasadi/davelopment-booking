@@ -1,3 +1,4 @@
+import type { Viewport } from 'next'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { findAccountSubscription } from '@/lib/accountSubscription'
@@ -5,6 +6,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { NewBusinessForm } from '@/components/business/NewBusinessForm'
 
 export const metadata = { title: 'Új üzlet hozzáadása' }
+export const viewport: Viewport = { themeColor: '#1D1C19' }
 
 /**
  * Több-üzlet: új szalon/étterem hozzáadása a MÁR BEJELENTKEZETT felhasználóhoz.

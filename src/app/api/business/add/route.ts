@@ -21,8 +21,17 @@ import { slugify } from '@/payload/lib/slugify'
 import { ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
 
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  let user: Awaited<ReturnType<typeof getCurrentUser>>
+  try {
+    user = await getCurrentUser()
+  } catch (err) {
+    console.error('[business/add] getCurrentUser failed:', err)
+    return NextResponse.json({ error: 'Auth hiba' }, { status: 500 })
+  }
+  if (!user) {
+    console.warn('[business/add] 401 — nincs bejelentkezett user')
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   let body: { type?: string; name?: string; city?: string; phone?: string }
   try {
@@ -33,15 +42,23 @@ export async function POST(req: NextRequest) {
 
   const type = body.type
   const name = (body.name ?? '').trim()
+
+  console.log(`[business/add] user=${user.id} type=${type} name="${name}"`)
+
   if ((type !== 'restaurant' && type !== 'salon') || name.length < 2) {
+    console.warn(`[business/add] validáció meghiúsult: type=${type} name="${name}"`)
     return NextResponse.json({ error: 'Adj meg típust és nevet (min. 2 karakter)' }, { status: 400 })
   }
 
-  const payload = await getPayloadClient()
-  const collection = type === 'salon' ? 'salons' : 'restaurants'
+  let payload: Awaited<ReturnType<typeof getPayloadClient>>
+  try {
+    payload = await getPayloadClient()
+  } catch (err) {
+    console.error('[business/add] getPayloadClient failed:', err)
+    return NextResponse.json({ error: 'Szerver hiba (payload)' }, { status: 500 })
+  }
 
-  // Az owner reláció int-oszlop a DB-ben — ha a user.id numerikus string, számmá alakítjuk
-  // (különben a downstream hookok NaN-t kaphatnak a where-feltételben).
+  const collection = type === 'salon' ? 'salons' : 'restaurants'
   const ownerId = typeof user.id === 'string' && /^\d+$/.test(user.id) ? Number(user.id) : user.id
 
   const baseData = {
@@ -51,22 +68,22 @@ export async function POST(req: NextRequest) {
     ...(body.phone ? { phone: body.phone } : {}),
   }
 
-  // Slug: a Restaurants hookja auto-generál a névből, a Salons NEM — ezért egységesen
-  // előállítjuk. SEO-barát, OLVASHATÓ slug: a tiszta névből; ütközéskor `-2`, `-3`, …
-  // inkrementálisan (nem random suffix). A slug a két collection KÖZÖS namespace-ében
-  // egyedi (a /[slug] route szalont és éttermet is kiszolgál).
   const baseSlug = slugify(name) || 'uzlet'
 
-  const slugTaken = async (slug: string): Promise<boolean> => {
-    const [s, r] = await Promise.all([
-      payload.find({ collection: 'salons', where: { slug: { equals: slug } }, limit: 1, depth: 0, overrideAccess: true }),
-      payload.find({ collection: 'restaurants', where: { slug: { equals: slug } }, limit: 1, depth: 0, overrideAccess: true }),
-    ])
-    return s.docs.length > 0 || r.docs.length > 0
-  }
-
   let slug = baseSlug
-  for (let i = 2; (await slugTaken(slug)) && i < 100; i++) slug = `${baseSlug}-${i}`
+  try {
+    const slugTaken = async (s: string): Promise<boolean> => {
+      const [sl, r] = await Promise.all([
+        payload.find({ collection: 'salons', where: { slug: { equals: s } }, limit: 1, depth: 0, overrideAccess: true }),
+        payload.find({ collection: 'restaurants', where: { slug: { equals: s } }, limit: 1, depth: 0, overrideAccess: true }),
+      ])
+      return sl.docs.length > 0 || r.docs.length > 0
+    }
+    for (let i = 2; (await slugTaken(slug)) && i < 100; i++) slug = `${baseSlug}-${i}`
+  } catch (err) {
+    console.error('[business/add] slug-keresés meghiúsult:', err)
+    return NextResponse.json({ error: 'Szerver hiba (slug-ellenőrzés)' }, { status: 500 })
+  }
 
   let created: { id: string | number } | null = null
   try {
@@ -76,6 +93,7 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       user,
     })
+    console.log(`[business/add] létrehozva: ${collection}#${created.id} slug="${slug}"`)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[business/add] create failed:', msg, err)
@@ -88,11 +106,10 @@ export async function POST(req: NextRequest) {
   const key = `${type}:${created.id}`
   const redirectTo = type === 'restaurant' ? '/restaurant' : '/dashboard'
 
-  // Aktív üzlet = az új (cookie + DB), hogy egyből oda jusson a felhasználó.
   try {
     await payload.update({ collection: 'users', id: user.id, data: { last_active_business: key }, overrideAccess: true })
-  } catch {
-    /* nem blokkoló */
+  } catch (err) {
+    console.warn('[business/add] last_active_business frissítés meghiúsult (nem blokkoló):', err)
   }
 
   const res = NextResponse.json({ ok: true, redirectTo })
