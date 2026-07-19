@@ -16,13 +16,20 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
-    ).then(() => self.clients.claim()).then(() =>
-      self.clients.matchAll({ type: 'window' }).then((clients) =>
-        clients.forEach((c) => c.postMessage({ type: 'SW_UPDATED' }))
-      )
-    )
+    caches.keys().then((keys) => {
+      const oldKeys = keys.filter((k) => k !== CACHE)
+      // isUpgrade: csak akkor igaz, ha léteztek régi cache-ek (nem első telepítés).
+      // Első látogatásnál SW_UPDATED nélkül resetelnénk az éppen kitöltött form-ot.
+      const isUpgrade = oldKeys.length > 0
+      return Promise.all(oldKeys.map((k) => caches.delete(k)))
+        .then(() => self.clients.claim())
+        .then(() => {
+          if (!isUpgrade) return
+          return self.clients.matchAll({ type: 'window' }).then((clients) =>
+            clients.forEach((c) => c.postMessage({ type: 'SW_UPDATED' }))
+          )
+        })
+    })
   )
 })
 

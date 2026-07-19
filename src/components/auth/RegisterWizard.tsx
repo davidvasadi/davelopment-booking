@@ -56,9 +56,10 @@ export function RegisterWizard() {
   const [token, setToken] = useState('')
   const [staffName, setStaffName] = useState('')
 
-  const { register, handleSubmit, formState: { errors }, getValues, trigger } = useForm<Step2Data>({
-    resolver: zodResolver(step2Schema),
-  })
+  // Két különálló useForm példány a mobil + desktop form-hoz, hogy a react-hook-form
+  // ne olvasson üres desktop-inputokból mobilon (és fordítva).
+  const mobileForm = useForm<Step2Data>({ resolver: zodResolver(step2Schema) })
+  const desktopForm = useForm<Step2Data>({ resolver: zodResolver(step2Schema) })
 
   /**
    * „Folytatás Google-lel" a 2. lépés végén: a cégadatok (név, város, telefon, sajátnév)
@@ -66,14 +67,14 @@ export function RegisterWizard() {
    * /api/auth/complete-registration létrehozza a szalont és userhez kapcsolja.
    * A jelszó-mező itt nem kell — a Google adja az emailt és identifies a usert.
    */
-  const continueWithGoogle = async () => {
+  const continueWithGoogle = async (form: typeof mobileForm) => {
     // Validáljuk a Google-fluxhoz szükséges mezőket (a `password` nem kell)
-    const ok = await trigger(['salonName', 'ownerName', 'city', 'phone'])
+    const ok = await form.trigger(['salonName', 'ownerName', 'city', 'phone'])
     if (!ok) {
       toast.error('Töltsd ki a kötelező mezőket')
       return
     }
-    const v = getValues()
+    const v = form.getValues()
     try {
       const res = await fetch('/api/auth/prepare-registration', {
         method: 'POST',
@@ -106,22 +107,30 @@ export function RegisterWizard() {
       let userId_: string
       let authToken_: string
 
+      // Az email-t normalizáljuk: mobilon az autocapitalize nagybetűssé teheti az első karaktert,
+      // Payload pedig kisbetűsítve tárolja → login case-sensitive keresés esetén nem találna.
+      const email = data.email.toLowerCase().trim()
+      const password = data.password
+
       const userRes = await fetch('/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: data.ownerName, email: data.email, password: data.password, role: 'salon_owner' }),
+        body: JSON.stringify({ name: data.ownerName, email, password, role: 'salon_owner' }),
       })
 
       if (!userRes.ok) {
         const err = await userRes.json()
         const msg: string = err.errors?.[0]?.message ?? ''
-        const isDuplicate = msg.toLowerCase().includes('uniqueness') || msg.toLowerCase().includes('email')
-        if (!isDuplicate) throw new Error('Regisztráció sikertelen. Ellenőrizd az adatokat.')
+        const isDuplicate = msg.toLowerCase().includes('uniqueness') || msg.toLowerCase().includes('already registered')
+        if (!isDuplicate) {
+          const status = userRes.status
+          throw new Error(`Regisztráció sikertelen (${status}). Ellenőrizd az adatokat.`)
+        }
 
         const recoveryLogin = await fetch('/api/users/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: data.email, password: data.password }),
+          body: JSON.stringify({ email, password }),
           credentials: 'include',
         })
         if (!recoveryLogin.ok) throw new Error('Ez az email már regisztrált, de a jelszó nem stimmel. Jelentkezz be!')
@@ -142,10 +151,13 @@ export function RegisterWizard() {
         const loginRes = await fetch('/api/users/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: data.email, password: data.password }),
+          body: JSON.stringify({ email, password }),
           credentials: 'include',
         })
-        if (!loginRes.ok) throw new Error('Bejelentkezés sikertelen a regisztráció után')
+        if (!loginRes.ok) {
+          const loginStatus = loginRes.status
+          throw new Error(`Bejelentkezés sikertelen (${loginStatus}) a regisztráció után. Próbálj belépni manuálisan.`)
+        }
         const loginData = await loginRes.json()
         authToken_ = loginData.token
       }
@@ -516,30 +528,30 @@ export function RegisterWizard() {
               <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
                 CSATLAKOZZ<br />HOZZÁNK.
               </h2>
-              <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={handleSubmit(onStep2)} className="space-y-3" noValidate>
+              <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={mobileForm.handleSubmit(onStep2)} className="space-y-3" noValidate>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Szalon neve</Label>
                   <input
                     autoComplete="organization"
                     placeholder="Pl. Anna Fodrászat"
-                    aria-invalid={!!errors.salonName}
-                    aria-describedby={errors.salonName ? 'reg-m-salon-err' : undefined}
-                    className={cn(authInputDark, errors.salonName && 'ring-2 ring-red-400 border-red-400')}
-                    {...register('salonName')}
+                    aria-invalid={!!mobileForm.formState.errors.salonName}
+                    aria-describedby={mobileForm.formState.errors.salonName ? 'reg-m-salon-err' : undefined}
+                    className={cn(authInputDark, mobileForm.formState.errors.salonName && 'ring-2 ring-red-400 border-red-400')}
+                    {...mobileForm.register('salonName')}
                   />
-                  {errors.salonName && <p id="reg-m-salon-err" role="alert" className={authErrorTextDark}>{errors.salonName.message}</p>}
+                  {mobileForm.formState.errors.salonName && <p id="reg-m-salon-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.salonName.message}</p>}
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>A te neved</Label>
                   <input
                     autoComplete="name"
                     placeholder="Pl. Kiss Anna"
-                    aria-invalid={!!errors.ownerName}
-                    aria-describedby={errors.ownerName ? 'reg-m-owner-err' : undefined}
-                    className={cn(authInputDark, errors.ownerName && 'ring-2 ring-red-400 border-red-400')}
-                    {...register('ownerName')}
+                    aria-invalid={!!mobileForm.formState.errors.ownerName}
+                    aria-describedby={mobileForm.formState.errors.ownerName ? 'reg-m-owner-err' : undefined}
+                    className={cn(authInputDark, mobileForm.formState.errors.ownerName && 'ring-2 ring-red-400 border-red-400')}
+                    {...mobileForm.register('ownerName')}
                   />
-                  {errors.ownerName && <p id="reg-m-owner-err" role="alert" className={authErrorTextDark}>{errors.ownerName.message}</p>}
+                  {mobileForm.formState.errors.ownerName && <p id="reg-m-owner-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.ownerName.message}</p>}
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Email</Label>
@@ -548,24 +560,24 @@ export function RegisterWizard() {
                     autoComplete="email"
                     inputMode="email"
                     placeholder="te@pelda.hu"
-                    aria-invalid={!!errors.email}
-                    aria-describedby={errors.email ? 'reg-m-email-err' : undefined}
-                    className={cn(authInputDark, errors.email && 'ring-2 ring-red-400 border-red-400')}
-                    {...register('email')}
+                    aria-invalid={!!mobileForm.formState.errors.email}
+                    aria-describedby={mobileForm.formState.errors.email ? 'reg-m-email-err' : undefined}
+                    className={cn(authInputDark, mobileForm.formState.errors.email && 'ring-2 ring-red-400 border-red-400')}
+                    {...mobileForm.register('email')}
                   />
-                  {errors.email && <p id="reg-m-email-err" role="alert" className={authErrorTextDark}>{errors.email.message}</p>}
+                  {mobileForm.formState.errors.email && <p id="reg-m-email-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.email.message}</p>}
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Jelszó</Label>
                   <input
                     type="password"
                     autoComplete="new-password"
-                    aria-invalid={!!errors.password}
-                    aria-describedby={errors.password ? 'reg-m-pw-err' : undefined}
-                    className={cn(authInputDark, errors.password && 'ring-2 ring-red-400 border-red-400')}
-                    {...register('password')}
+                    aria-invalid={!!mobileForm.formState.errors.password}
+                    aria-describedby={mobileForm.formState.errors.password ? 'reg-m-pw-err' : undefined}
+                    className={cn(authInputDark, mobileForm.formState.errors.password && 'ring-2 ring-red-400 border-red-400')}
+                    {...mobileForm.register('password')}
                   />
-                  {errors.password && <p id="reg-m-pw-err" role="alert" className={authErrorTextDark}>{errors.password.message}</p>}
+                  {mobileForm.formState.errors.password && <p id="reg-m-pw-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.password.message}</p>}
                 </motion.div>
                 <motion.div variants={listStagger.item} className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
@@ -573,12 +585,12 @@ export function RegisterWizard() {
                     <input
                       autoComplete="address-level2"
                       placeholder="Budapest"
-                      aria-invalid={!!errors.city}
-                      aria-describedby={errors.city ? 'reg-m-city-err' : undefined}
-                      className={cn(authInputDark, errors.city && 'ring-2 ring-red-400 border-red-400')}
-                      {...register('city')}
+                      aria-invalid={!!mobileForm.formState.errors.city}
+                      aria-describedby={mobileForm.formState.errors.city ? 'reg-m-city-err' : undefined}
+                      className={cn(authInputDark, mobileForm.formState.errors.city && 'ring-2 ring-red-400 border-red-400')}
+                      {...mobileForm.register('city')}
                     />
-                    {errors.city && <p id="reg-m-city-err" role="alert" className={authErrorTextDark}>{errors.city.message}</p>}
+                    {mobileForm.formState.errors.city && <p id="reg-m-city-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.city.message}</p>}
                   </div>
                   <div className="space-y-1.5">
                     <Label className={authLabelDark}>Telefon</Label>
@@ -587,12 +599,12 @@ export function RegisterWizard() {
                       autoComplete="tel"
                       inputMode="tel"
                       placeholder="+36 30..."
-                      aria-invalid={!!errors.phone}
-                      aria-describedby={errors.phone ? 'reg-m-phone-err' : undefined}
-                      className={cn(authInputDark, errors.phone && 'ring-2 ring-red-400 border-red-400')}
-                      {...register('phone')}
+                      aria-invalid={!!mobileForm.formState.errors.phone}
+                      aria-describedby={mobileForm.formState.errors.phone ? 'reg-m-phone-err' : undefined}
+                      className={cn(authInputDark, mobileForm.formState.errors.phone && 'ring-2 ring-red-400 border-red-400')}
+                      {...mobileForm.register('phone')}
                     />
-                    {errors.phone && <p id="reg-m-phone-err" role="alert" className={authErrorTextDark}>{errors.phone.message}</p>}
+                    {mobileForm.formState.errors.phone && <p id="reg-m-phone-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.phone.message}</p>}
                   </div>
                 </motion.div>
                 <motion.div variants={listStagger.item} className="pt-2 space-y-4">
@@ -615,7 +627,7 @@ export function RegisterWizard() {
                   <GoogleSignInButton
                     variant="dark"
                     label="Folytatás Google-lel"
-                    onClick={continueWithGoogle}
+                    onClick={() => continueWithGoogle(mobileForm)}
                   />
                 </motion.div>
               </motion.form>
@@ -733,30 +745,30 @@ export function RegisterWizard() {
                   <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">2 / 4</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Hozd létre a fiókodat</h2>
                 </div>
-                <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={handleSubmit(onStep2)} className="space-y-4" noValidate>
+                <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={desktopForm.handleSubmit(onStep2)} className="space-y-4" noValidate>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Szalon neve</Label>
                     <input
                       autoComplete="organization"
                       placeholder="Pl. Anna Fodrászat"
-                      aria-invalid={!!errors.salonName}
-                      aria-describedby={errors.salonName ? 'reg-d-salon-err' : undefined}
-                      className={cn(authInputBase, errors.salonName && 'ring-2 ring-bad/40 border-bad/60')}
-                      {...register('salonName')}
+                      aria-invalid={!!desktopForm.formState.errors.salonName}
+                      aria-describedby={desktopForm.formState.errors.salonName ? 'reg-d-salon-err' : undefined}
+                      className={cn(authInputBase, desktopForm.formState.errors.salonName && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...desktopForm.register('salonName')}
                     />
-                    {errors.salonName && <p id="reg-d-salon-err" role="alert" className={authErrorText}>{errors.salonName.message}</p>}
+                    {desktopForm.formState.errors.salonName && <p id="reg-d-salon-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.salonName.message}</p>}
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>A te neved</Label>
                     <input
                       autoComplete="name"
                       placeholder="Pl. Kiss Anna"
-                      aria-invalid={!!errors.ownerName}
-                      aria-describedby={errors.ownerName ? 'reg-d-owner-err' : undefined}
-                      className={cn(authInputBase, errors.ownerName && 'ring-2 ring-bad/40 border-bad/60')}
-                      {...register('ownerName')}
+                      aria-invalid={!!desktopForm.formState.errors.ownerName}
+                      aria-describedby={desktopForm.formState.errors.ownerName ? 'reg-d-owner-err' : undefined}
+                      className={cn(authInputBase, desktopForm.formState.errors.ownerName && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...desktopForm.register('ownerName')}
                     />
-                    {errors.ownerName && <p id="reg-d-owner-err" role="alert" className={authErrorText}>{errors.ownerName.message}</p>}
+                    {desktopForm.formState.errors.ownerName && <p id="reg-d-owner-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.ownerName.message}</p>}
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Email</Label>
@@ -765,24 +777,24 @@ export function RegisterWizard() {
                       autoComplete="email"
                       inputMode="email"
                       placeholder="te@pelda.hu"
-                      aria-invalid={!!errors.email}
-                      aria-describedby={errors.email ? 'reg-d-email-err' : undefined}
-                      className={cn(authInputBase, errors.email && 'ring-2 ring-bad/40 border-bad/60')}
-                      {...register('email')}
+                      aria-invalid={!!desktopForm.formState.errors.email}
+                      aria-describedby={desktopForm.formState.errors.email ? 'reg-d-email-err' : undefined}
+                      className={cn(authInputBase, desktopForm.formState.errors.email && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...desktopForm.register('email')}
                     />
-                    {errors.email && <p id="reg-d-email-err" role="alert" className={authErrorText}>{errors.email.message}</p>}
+                    {desktopForm.formState.errors.email && <p id="reg-d-email-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.email.message}</p>}
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Jelszó</Label>
                     <input
                       type="password"
                       autoComplete="new-password"
-                      aria-invalid={!!errors.password}
-                      aria-describedby={errors.password ? 'reg-d-pw-err' : undefined}
-                      className={cn(authInputBase, errors.password && 'ring-2 ring-bad/40 border-bad/60')}
-                      {...register('password')}
+                      aria-invalid={!!desktopForm.formState.errors.password}
+                      aria-describedby={desktopForm.formState.errors.password ? 'reg-d-pw-err' : undefined}
+                      className={cn(authInputBase, desktopForm.formState.errors.password && 'ring-2 ring-bad/40 border-bad/60')}
+                      {...desktopForm.register('password')}
                     />
-                    {errors.password && <p id="reg-d-pw-err" role="alert" className={authErrorText}>{errors.password.message}</p>}
+                    {desktopForm.formState.errors.password && <p id="reg-d-pw-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.password.message}</p>}
                   </motion.div>
                   <motion.div variants={listStagger.item} className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
@@ -790,12 +802,12 @@ export function RegisterWizard() {
                       <input
                         autoComplete="address-level2"
                         placeholder="Budapest"
-                        aria-invalid={!!errors.city}
-                        aria-describedby={errors.city ? 'reg-d-city-err' : undefined}
-                        className={cn(authInputBase, errors.city && 'ring-2 ring-bad/40 border-bad/60')}
-                        {...register('city')}
+                        aria-invalid={!!desktopForm.formState.errors.city}
+                        aria-describedby={desktopForm.formState.errors.city ? 'reg-d-city-err' : undefined}
+                        className={cn(authInputBase, desktopForm.formState.errors.city && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...desktopForm.register('city')}
                       />
-                      {errors.city && <p id="reg-d-city-err" role="alert" className={authErrorText}>{errors.city.message}</p>}
+                      {desktopForm.formState.errors.city && <p id="reg-d-city-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.city.message}</p>}
                     </div>
                     <div className="space-y-1.5">
                       <Label className={authLabelBase}>Telefon</Label>
@@ -804,12 +816,12 @@ export function RegisterWizard() {
                         autoComplete="tel"
                         inputMode="tel"
                         placeholder="+36 30..."
-                        aria-invalid={!!errors.phone}
-                        aria-describedby={errors.phone ? 'reg-d-phone-err' : undefined}
-                        className={cn(authInputBase, errors.phone && 'ring-2 ring-bad/40 border-bad/60')}
-                        {...register('phone')}
+                        aria-invalid={!!desktopForm.formState.errors.phone}
+                        aria-describedby={desktopForm.formState.errors.phone ? 'reg-d-phone-err' : undefined}
+                        className={cn(authInputBase, desktopForm.formState.errors.phone && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...desktopForm.register('phone')}
                       />
-                      {errors.phone && <p id="reg-d-phone-err" role="alert" className={authErrorText}>{errors.phone.message}</p>}
+                      {desktopForm.formState.errors.phone && <p id="reg-d-phone-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.phone.message}</p>}
                     </div>
                   </motion.div>
                   <motion.button variants={listStagger.item} type="submit" disabled={loading} className={cn(authPillBtn, 'mt-2')}>
@@ -824,7 +836,7 @@ export function RegisterWizard() {
                   <GoogleSignInButton
                     variant="light"
                     label="Folytatás Google-lel"
-                    onClick={continueWithGoogle}
+                    onClick={() => continueWithGoogle(desktopForm)}
                   />
                 </div>
                 <p className="mt-6 text-center text-sm text-ink-soft">
