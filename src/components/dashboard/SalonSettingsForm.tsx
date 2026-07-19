@@ -131,9 +131,9 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 // A Nyitvatartás/Foglalások kártya-mintája: bordered + fejléc-elválasztó + 15px semibold cím.
-function Section({ title, children, full }: { title: string; children: React.ReactNode; full?: boolean }) {
+function Section({ title, children, full, id }: { title: string; children: React.ReactNode; full?: boolean; id?: string }) {
   return (
-    <div className={`rounded-[26px] dav-card-glass overflow-hidden font-onest ${full ? 'lg:col-span-2' : ''}`}>
+    <div id={id} className={`rounded-[26px] dav-card-glass overflow-hidden font-onest scroll-mt-6 ${full ? 'lg:col-span-2' : ''}`}>
       <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
         <span className="text-[15px] font-semibold text-ink">{title}</span>
       </div>
@@ -440,7 +440,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       <div className="grid grid-cols-1 gap-[5px]">
 
       {/* Cover image */}
-      <Section title="Borítókép" full>
+      <Section id="cover" title="Borítókép" full>
         <p className="text-xs text-ink-soft -mt-1">A nyilvános oldalon a felső sötét sávon jelenik meg háttérként.</p>
         <div className="relative">
           <button
@@ -488,7 +488,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       </Section>
 
       {/* Logo + basic info */}
-      <Section title="Alap adatok">
+      <Section id="general" title="Alap adatok">
         <div className="flex flex-col gap-4">
           <div className="shrink-0 space-y-1.5">
             <Label className={`${labelBase} block`}>Logó</Label>
@@ -551,7 +551,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         </div>
       </Section>
 
-      <Section title="Elérhetőség">
+      <Section id="contact" title="Elérhetőség">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label className={labelBase}>Irányítószám</Label>
@@ -582,7 +582,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         </div>
       </Section>
 
-      <Section title="Jó tudni (foglaló oldal)" full>
+      <Section id="good-to-know" title="Jó tudni (foglaló oldal)" full>
         <p className="text-xs text-ink-soft -mt-1">
           Saját „Jó tudni" pontok (ikon + cím + szöveg) a nyilvános foglaló oldalon. Pl. „Parkolás: az udvarban ingyenes" vagy „Lemondás: legkésőbb a foglalás előtt 24 órával".
         </p>
@@ -600,7 +600,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
 
       {activeTab === 'booking' && (
       <div className="space-y-[5px]">
-      <Section title="Foglalási beállítások">
+      <Section id="booking-settings" title="Foglalási beállítások">
         {/* Desktopon kétoszlopos: BAL = a beállítók + kapcsolók; JOBB = a naptár.
             Mobilon egymás alatt, a naptár full. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
@@ -770,7 +770,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       )}
 
       {activeTab === 'danger' && (
-      <div className="overflow-hidden rounded-[26px] border border-bad/25 bg-bad-bg/40 font-onest shadow-dav-card">
+      <div className="overflow-hidden rounded-[26px] border border-bad/30 bg-white font-onest shadow-dav-card">
         <div className="border-b border-bad/20 px-5 py-4 sm:px-6">
           <h3 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-bad">Veszélyzóna</h3>
         </div>

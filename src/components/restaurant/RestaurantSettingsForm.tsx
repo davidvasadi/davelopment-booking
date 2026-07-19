@@ -140,9 +140,9 @@ const inputClass =
 const labelClass = 'text-[12.5px] font-medium text-ink-soft'
 
 // A Nyitvatartás/Foglalások kártya-mintája: bordered + fejléc-elválasztó + 15px semibold cím.
-function Section({ title, children, full }: { title: string; children: React.ReactNode; full?: boolean }) {
+function Section({ title, children, full, id }: { title: string; children: React.ReactNode; full?: boolean; id?: string }) {
   return (
-    <div className={`rounded-[26px] dav-card-glass overflow-hidden font-onest ${full ? 'lg:col-span-2' : ''}`}>
+    <div id={id} className={`rounded-[26px] dav-card-glass overflow-hidden font-onest scroll-mt-6 ${full ? 'lg:col-span-2' : ''}`}>
       <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
         <span className="text-[15px] font-semibold text-ink">{title}</span>
       </div>
@@ -464,7 +464,7 @@ export function RestaurantSettingsForm({
       <div className="flex flex-col gap-[5px]">
 
       {/* Cover image */}
-      <Section title="Borítókép" full>
+      <Section id="cover" title="Borítókép" full>
         <div className="relative">
           <button
             type="button"
@@ -511,7 +511,7 @@ export function RestaurantSettingsForm({
       </Section>
 
       {/* Logo + name */}
-      <Section title="Alap adatok">
+      <Section id="general" title="Alap adatok">
         <div className="space-y-5">
           <div className="space-y-2">
             <Label className={`${labelClass} block`}>Logó</Label>
@@ -565,7 +565,7 @@ export function RestaurantSettingsForm({
         </div>
       </Section>
 
-      <Section title="Elérhetőség">
+      <Section id="contact" title="Elérhetőség">
         <div className="space-y-1.5">
           <Label className={labelClass}>Város</Label>
           <Input className={inputClass} value={form.city} onChange={(e) => set('city', e.target.value)} />
@@ -589,7 +589,7 @@ export function RestaurantSettingsForm({
       </Section>
 
       {/* Public booking URL */}
-      <Section title="Nyilvános foglaló oldal" full>
+      <Section id="booking-url" title="Nyilvános foglaló oldal" full>
         <p className="text-xs text-ink-soft">Ezen a linken tudnak a vendégek online asztalt foglalni.</p>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <code className="min-w-0 flex-1 h-11 flex items-center px-4 rounded-[14px] bg-paper border border-line text-sm text-ink truncate">
@@ -606,7 +606,7 @@ export function RestaurantSettingsForm({
         </div>
       </Section>
 
-      <Section title="Jó tudni (foglaló oldal)" full>
+      <Section id="good-to-know" title="Jó tudni (foglaló oldal)" full>
         <p className="text-xs text-ink-soft">
           Saját „Jó tudni" pontok (cím + szöveg) a nyilvános foglaló oldalon, az automatikus kártyák (foglalási idő, legkorábbi foglalás) alatt. Pl. „Módosítás: az adott napon csak telefonon".
         </p>
@@ -632,7 +632,7 @@ export function RestaurantSettingsForm({
 
       {activeTab === 'booking' && (
       <div className="space-y-[5px]">
-      <Section title="Foglalási beállítások">
+      <Section id="booking-settings" title="Foglalási beállítások">
         {/* Desktopon kétoszlopos: BAL = a 4 szám-beállító (egymás alatt) + alattuk a
             kapcsolók; JOBB = a naptár. Mobilon/tableten egymás alatt, a naptár full. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
@@ -838,7 +838,7 @@ export function RestaurantSettingsForm({
       )}
 
       {activeTab === 'danger' && (
-      <div className="overflow-hidden rounded-[26px] border border-bad/25 bg-bad-bg/40 font-onest shadow-dav-card">
+      <div className="overflow-hidden rounded-[26px] border border-bad/30 bg-white font-onest shadow-dav-card">
         <div className="border-b border-bad/20 px-5 py-4 sm:px-6">
           <h3 className="text-[13px] font-semibold uppercase tracking-[0.12em] text-bad">Veszélyzóna</h3>
         </div>

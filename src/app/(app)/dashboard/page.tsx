@@ -17,7 +17,7 @@ import { CARD, HeroKpi } from '@/components/dashboard/overview-ui'
 import { can } from '@/lib/permissions'
 import { getMyUpcomingShifts } from '@/lib/myShifts'
 import { StaffOverview } from '@/components/dashboard/StaffOverview'
-import { CalendarDays, Banknote, CheckCircle2, Plus } from 'lucide-react'
+import { CalendarDays, Banknote, CheckCircle2, Plus, UserRound } from 'lucide-react'
 import Link from 'next/link'
 import type { Booking, Service, StaffMember, Media, Task, Availability } from '@/payload/payload-types'
 
@@ -50,10 +50,10 @@ export default async function DashboardPage() {
   const todayDow = JS_TO_DOW[now.getDay()]
 
   const logoUrl = salon.logo && typeof salon.logo === 'object' ? (salon.logo as Media).url ?? null : null
-  // Profil-kép a nagy kártyára: a fiók avatarja (Google-nál nagyobb méret), fallback a logó, végül monogram.
+  // Profil-kép a nagy kártyára: a fiók avatarja (Google-nál nagyobb méret), fallback monogram.
   const rawAvatar = user?.avatar_url ?? null
   const userAvatar = rawAvatar && rawAvatar.includes('googleusercontent') ? rawAvatar.replace(/=s\d+-c/, '=s512-c') : rawAvatar
-  const profileImg = userAvatar ?? logoUrl
+  const profileImg = userAvatar
   // A szerep a fiókból jön (lehet restaurant_owner akkor is, ha épp szalonban vagyunk), ezért
   // nem az üzlet-típust írjuk ki, csak a semleges „Tulajdonos"-t (admin kivétel).
   const roleLabel = user?.role === 'admin' ? 'Adminisztrátor' : roleName
@@ -291,8 +291,9 @@ export default async function DashboardPage() {
               // eslint-disable-next-line @next/next/no-img-element
               <img src={profileImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
             ) : (
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#3a2f12] via-[#9A7B1E] to-[#F1CE45] text-[56px] font-semibold text-white/90">
-                {initials(user?.name ?? salon.name)}
+              <div className="absolute inset-0 flex items-center justify-center text-white/30" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.07) 0%, transparent 55%)' }} />
+                <UserRound className="relative h-20 w-20" strokeWidth={1.2} />
               </div>
             )}
             <div className="absolute inset-x-0 bottom-0 p-4">

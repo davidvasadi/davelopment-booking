@@ -144,10 +144,7 @@ export default async function RestaurantAnalyticsPage({
   return (
     <div className="p-5 lg:p-0 space-y-6">
 
-      {/* Header — mobilon a cím a globális headerben van, ezért itt csak desktopon */}
-      <div className="hidden lg:block">
-        <PageHeader eyebrow="Részletes nézet" title="Statisztikák" />
-      </div>
+      <PageHeader eyebrow="Részletes nézet" title="Statisztikák" />
 
       {/* ── Crextio stat-terület: státusz-csík (striped cellával) + nagy KPI-számok ──
           Reveal NÉLKÜL, mint az Áttekintésen — azonnal renderel, a chartok mount-kor animálnak. */}

@@ -12,6 +12,7 @@ import {
   SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
 } from '@/components/settings/SettingsHub'
 import { RolesManager } from '@/components/settings/RolesManager'
+import { getStripeBillingDetails } from '@/lib/stripeBillingDetails'
 
 const initialsOf = (name: string) =>
   name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
@@ -79,8 +80,9 @@ export default async function SettingsPage() {
     windowDays: salon.booking_window_days ?? null,
   }
 
-  // ── Számlázás — VALÓS fiók-előfizetésből. Számla-adat (invoice) egyelőre nincs a sémában
-  //    → üres állapot. Fizetési mód kártya sincs rögzítve → null (üzenet).
+  // ── Számlázás — VALÓS fiók-előfizetés + Stripe kártya/számlák.
+  const stripeDetails = await getStripeBillingDetails(sub?.stripe_customer_id)
+
   const nextChargeDate = sub?.current_period_end
     ? new Date(sub.current_period_end).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
     : sub?.trial_ends_at
@@ -89,15 +91,21 @@ export default async function SettingsPage() {
 
   const billing: BillingData = {
     planLabel: planName(sub),
+    subscriptionStatus: sub?.status ?? null,
+    billingCycle: sub?.billing_cycle === 'annual' ? 'annual' : 'monthly',
+    cancelAtPeriodEnd: sub?.cancel_at_period_end ?? false,
+    trialEndsAt: sub?.trial_ends_at ?? null,
     nextChargeDate,
     nextChargeAmount: HUF(sub?.amount_huf ?? 0),
-    card: null,
+    hasStripeCustomer: !!sub?.stripe_customer_id,
+    subscriptionHref: '/dashboard/subscription',
+    card: stripeDetails.card,
     details: {
       legalName: salon.legal_name ?? '',
       taxNumber: salon.tax_number ?? '',
       address: salon.registered_seat ?? [salon.postal_code, salon.city, salon.address].filter(Boolean).join(' '),
     },
-    invoices: [],
+    invoices: stripeDetails.invoices,
   }
 
   const senderLabel = `${salon.name}${salon.email ? ` <${salon.email}>` : ''}`

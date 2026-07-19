@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, MoreHorizontal, Download } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -103,16 +103,11 @@ export function DashboardNav({
   const pathname = usePathname()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [moreOpen, setMoreOpen] = useState(false)
 
   // CSV export a header „…" menüjébe — a szűrésnek (URL period) megfelelő exporttal.
   const csvDays = searchParams.get('period') ?? '30'
   const csvHref = `/api/export-csv?days=${csvDays}&module=${variant}`
 
-  // A mobil header címe: a leghosszabb illeszkedő nav-elem címkéje (a legspecifikusabb).
-  const sortedNav = [...navItems].sort((a, b) => b.href.length - a.href.length)
-  const matched = sortedNav.filter((it) => pathname.startsWith(it.href))
-  const pageTitle = matched[0]?.label ?? salonName
   // A vissza-gomb az ELŐZŐ oldalra visz (böngésző-history).
   const goBack = () => router.back()
 
@@ -367,7 +362,7 @@ export function DashboardNav({
           <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
         </button>
 
-        <p className="flex-1 min-w-0 text-center text-[17px] font-bold text-ink dark:text-white truncate px-1">{pageTitle}</p>
+        <div className="flex-1" />
 
         <div className="flex items-center gap-1.5 shrink-0">
           <OfflineIndicator compact />
@@ -384,54 +379,8 @@ export function DashboardNav({
               publicUrl={`/${salonSlug}`}
             />
           )}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMoreOpen((v) => !v)}
-              aria-label="Több művelet"
-              className="flex items-center justify-center h-11 w-11 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.06)] backdrop-blur-lg outline-none transition-colors hover:bg-white/80 active:scale-95 dark:bg-white/[0.08] dark:text-white/80 dark:hover:bg-white/[0.14]"
-            >
-              <MoreHorizontal className="h-5 w-5" />
-            </button>
-            {moreOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} />
-                <div className="absolute right-0 top-[calc(100%+8px)] z-20 w-52 rounded-[18px] border border-[#ececec] dark:border-white/[0.1] bg-white dark:bg-zinc-900 shadow-[0_18px_50px_-18px_rgba(0,0,0,.35)] p-1.5">
-                  <button
-                    type="button"
-                    onClick={() => { setMoreOpen(false); window.dispatchEvent(new Event('davelopment:open-command')) }}
-                    className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[13px] text-sm font-semibold text-[#3a352a] dark:text-white hover:bg-[#f4f4f5] dark:hover:bg-white/[0.06] transition-colors"
-                  >
-                    <Search className="h-[17px] w-[17px] text-[#8a8779]" /> Keresés
-                  </button>
-                  {!isBackstage && (
-                    <a
-                      href={`/${salonSlug}`}
-                      target="_blank"
-                      onClick={() => setMoreOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[13px] text-sm font-semibold text-[#3a352a] dark:text-white hover:bg-[#f4f4f5] dark:hover:bg-white/[0.06] transition-colors"
-                    >
-                      <ExternalLink className="h-[17px] w-[17px] text-[#8a8779]" /> Nyilvános oldal
-                    </a>
-                  )}
-                  {!isBackstage && (
-                    <a
-                      href={csvHref}
-                      download
-                      onClick={() => setMoreOpen(false)}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-[13px] text-sm font-semibold text-[#3a352a] dark:text-white hover:bg-[#f4f4f5] dark:hover:bg-white/[0.06] transition-colors"
-                    >
-                      <Download className="h-[17px] w-[17px] text-[#8a8779]" /> CSV export
-                    </a>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
         </div>
       </header>
-
-      {/* (A mobil üzletváltó a kezdőlapi köszönő-heroba költözött — StoreSwitcher hero variáns.) */}
 
       {/* A ⌘K kereső-palette — desktopon a sidebar keresője, mobilon a header ikonja nyitja. */}
       <CommandPalette variant={variant} />

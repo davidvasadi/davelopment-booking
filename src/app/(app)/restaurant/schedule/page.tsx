@@ -131,9 +131,7 @@ export default async function RestaurantSchedulePage() {
   return (
     <div className="space-y-6">
       <div className="px-4 pt-4 lg:px-0 lg:pt-0">
-        <div className="hidden lg:block">
-          <PageHeader eyebrow="Csapat" title="Naptár" />
-        </div>
+        <PageHeader eyebrow="Csapat" title="Naptár" />
         <div className="mt-0 flex flex-col gap-6 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
           <StatusPills eager className="flex-1 lg:max-w-[620px]" segments={pills} />
           <div className="flex flex-wrap items-start gap-8 lg:gap-10">

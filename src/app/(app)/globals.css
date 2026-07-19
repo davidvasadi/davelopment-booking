@@ -96,6 +96,16 @@ html {
   scroll-behavior: smooth;
 }
 
+/* Mobilon az arany radial-glow a viewport teteje fölé (−8%) esett → státuszsáv alatt látszott.
+   1024px alatt lentebb toljuk, hogy a header alá kerüljön. */
+@media (max-width: 1023px) {
+  :root {
+    --dav-container-gradient:
+      radial-gradient(125% 80% at 100% 30%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%),
+      linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
+  }
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -139,6 +149,29 @@ html {
   to { transform: translateX(-33.333%); }
 }
 
+/* ── HiringView detail panel reszponzív layout ──
+   A Tailwind JIT nem mindig generálja az arbitrary-value lg:w-[Xpx] osztályokat
+   dinamikus template literálban — ezért CSS-ben definiáljuk a reszponzív szélességet. */
+.hv-left-col { flex-shrink: 0; width: 100%; }
+.hv-right-col { flex: 1; min-width: 0; }
+@media (min-width: 1024px) {
+  .hv-left-col { width: 280px; }
+  .hv-left-col[data-wide="true"] { width: 420px; }
+}
+
+/* ── RadialGauge: abszolút jobb felső sarok a profil-kártyán.
+   A .hv-profile-block position:relative; a padding-right helyet hagy.
+   Ha a naptárszerkesztő nyitva van (data-wide="true"): gauge elrejt + padding törlés,
+   hogy a fejléc-gomboknak teljes szélesség maradjon. */
+.hv-right-col .hv-profile-block { position: relative; padding-right: 170px; }
+.hv-right-col .hv-profile-gauge { position: absolute; right: 0; top: 0; }
+.hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-block { padding-right: 0; }
+.hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-gauge { display: none; }
+@media (max-width: 1023px) {
+  .hv-right-col .hv-profile-block { padding-right: 0; }
+  .hv-right-col .hv-profile-gauge { display: none; }
+}
+
 /* ── Nyomtatás ──
    A `print:hidden` (Tailwind) mindenhonnan kiszedi a keresőt/szűrőt/akció-gombokat.
    A `printing-profile` body-osztály (a profil Nyomtatás gombja teszi fel): a mögöttes app +
@@ -175,15 +208,24 @@ html {
     background: #fff !important;
   }
 
-  /* Nyomtatáskor a lap < 1024px, ezért a Tailwind lg: elrendezés elveszne → egyoszlopos lenne, és
-     a naptár full-width-re nőne. Kényszerítjük a DESKTOP 2-oszlopost, hogy ugyanúgy nézzen ki, mint
-     a képernyőn (a naptár a bal, keskeny oszlopban marad). */
+  /* Nyomtatáskor flex-row kényszerítés + bal oszlop fix szélesség (a CSS media query nem fut
+     print-nél, ezért itt explicit). */
   body.printing-profile .hv-detail-grid {
-    display: grid !important;
-    grid-template-columns: 240px minmax(0, 1fr) !important;
+    display: flex !important;
+    flex-direction: row !important;
     gap: 1.1rem !important;
     align-items: start !important;
   }
+  body.printing-profile .hv-left-col {
+    width: 240px !important;
+    flex-shrink: 0 !important;
+  }
+  body.printing-profile .hv-right-col {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+  body.printing-profile .hv-profile-block { padding-right: 170px !important; }
+  body.printing-profile .hv-profile-gauge { display: block !important; position: absolute; right: 0; top: 0; }
 
   /* ── Egy A4-re sűrítés (a GRAFIKONOK maradnak, csak kompaktabbak) ──
      A profil képernyőn magasabb, mint egy A4; nyomtatásban visszafogjuk a méreteket, hogy

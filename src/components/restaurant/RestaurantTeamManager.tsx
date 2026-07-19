@@ -265,7 +265,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
 
       {/* ── MAPPA-FÜL kártya (davelopment App): NORMÁL folyású fül + szűrők + kereső + homorú notch-ív ── */}
       <div className="relative">
-        <div className="relative z-10 flex h-[48px] w-full max-w-[600px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6 print:hidden">
+        <div className="relative z-10 flex h-[48px] w-full items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6 print:hidden">
           {/* Szűrő: állapot */}
           <div className="relative shrink-0">
             <select
@@ -303,13 +303,9 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
               className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none"
             />
           </div>
-          <span
-            className="pointer-events-none absolute -right-[24px] bottom-0 h-[24px] w-[24px]"
-            style={{ background: 'radial-gradient(circle at top right, transparent 23px, rgba(255,255,255,.62) 23.5px)' }}
-          />
         </div>
 
-        <div className="rounded-b-[28px] rounded-tr-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
+        <div className="rounded-b-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
           <div className="flex flex-wrap items-center gap-2.5 print:hidden">
             <button
               onClick={() => setOpen(true)}

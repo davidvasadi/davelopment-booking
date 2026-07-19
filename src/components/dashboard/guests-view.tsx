@@ -435,9 +435,9 @@ export function GuestsView({
       {/* ── MAPPA-FÜL konténer (mint a Munkatársak): fül = hónap-léptető + kereső + Új vendég ── */}
       <div ref={detailRef} className="relative scroll-mt-6">
         {/* FÜL */}
-        <div className="relative z-10 flex h-[52px] w-full max-w-[720px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6">
+        <div className="relative z-10 flex w-full flex-wrap items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 py-2 backdrop-blur-[20px] sm:h-[52px] sm:flex-nowrap sm:py-0 sm:px-6">
           {/* Hónap-léptető */}
-          <div className="flex flex-shrink-0 items-center gap-1">
+          <div className="flex w-full shrink-0 items-center gap-1 sm:w-auto sm:justify-start">
             <button
               type="button"
               onClick={() => stepMonth(-1)}
@@ -446,7 +446,7 @@ export function GuestsView({
             >
               <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
             </button>
-            <div className="min-w-[112px] text-center text-[13px] font-semibold text-ink">{MONTH_FULL[ym.m]} {ym.y}</div>
+            <div className="flex-1 text-center text-[15px] font-semibold text-ink sm:min-w-[112px] sm:flex-none sm:text-[13px]">{MONTH_FULL[ym.m]} {ym.y}</div>
             <button
               type="button"
               onClick={() => stepMonth(1)}
@@ -479,15 +479,10 @@ export function GuestsView({
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
-          {/* Homorú notch-ív a fül jobb szélén → mappa-hatás */}
-          <span
-            className="pointer-events-none absolute -right-[24px] bottom-0 h-[24px] w-[24px]"
-            style={{ background: 'radial-gradient(circle at top right, transparent 23px, rgba(255,255,255,.62) 23.5px)' }}
-          />
         </div>
 
         {/* TEST: lista + profil (azonos magasság) */}
-        <div className="rounded-b-[28px] rounded-tr-[28px] border border-white/40 bg-white/60 p-4 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[22px] sm:p-5">
+        <div className="rounded-b-[28px] border border-white/40 bg-white/60 p-4 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[22px] sm:p-5">
           <div className="grid items-stretch gap-4 lg:grid-cols-[352px_1fr]">
             {/* LISTA */}
             <div className="flex flex-col rounded-[22px] border border-white/55 bg-[var(--dav-glass-strong)] backdrop-blur-[14px] p-2.5 lg:h-[560px]">
@@ -541,32 +536,36 @@ export function GuestsView({
             {/* PROFIL */}
             {sel ? (
               <div className="flex flex-col overflow-y-auto rounded-[22px] border border-white/55 bg-[var(--dav-glass-strong)] backdrop-blur-[14px] p-5 lg:h-[560px] lg:p-6" data-lenis-prevent>
-            <div className="flex items-start gap-[18px]">
-              <Avatar url={sel.avatarUrl} ini={sel.ini} bg={sel.av} fg={sel.avText} size={74} text={26} />
-              <div className="flex-1">
-                <div className="flex flex-wrap items-center gap-2.5">
-                  <div className="text-[26px] font-normal tracking-[-0.01em] text-ink">{sel.name}</div>
-                  {sel.country && (
-                    <span className="inline-flex items-center gap-1.5 rounded-[9px] bg-white/55 px-[9px] py-1 text-[12px] font-semibold text-ink-soft backdrop-blur-[6px]">
-                      <span className="text-[15px] leading-none">{flagEmoji(sel.country)}</span>
-                      {countryName(sel.country)}
-                    </span>
-                  )}
-                  <span className="rounded-[9px] px-[11px] py-1 text-[11px] font-semibold tracking-[0.04em]" style={{ background: TIER_BG[sel.tier], color: TIER_FG[sel.tier] }}>
-                    {TIER_LABEL[sel.tier]}
-                  </span>
-                  {sel.birthdayDate && (
-                    <span className="inline-flex items-center gap-1 rounded-[9px] bg-[#F7DEDE] px-[9px] py-1 text-[11px] font-semibold text-[#C2557A]">
-                      <Cake className="h-3.5 w-3.5" strokeWidth={1.8} /> Szülinap · {birthdayLabel(sel.birthdayDate)}
-                    </span>
-                  )}
-                  {sel.blocked && (
-                    <span className="inline-flex items-center gap-1 rounded-[9px] bg-[#FBE3E3] px-[9px] py-1 text-[11px] font-semibold text-[#C0453F]">
-                      <Ban className="h-3.5 w-3.5" strokeWidth={2} /> Tiltólistán
-                    </span>
-                  )}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-[18px]">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start gap-4 sm:gap-[18px]">
+                  <Avatar url={sel.avatarUrl} ini={sel.ini} bg={sel.av} fg={sel.avText} size={74} text={26} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1">
+                      <div className="text-[26px] font-normal tracking-[-0.01em] text-ink">{sel.name}</div>
+                      {sel.country && (
+                        <span className="inline-flex items-center gap-1.5 rounded-[9px] bg-white/55 px-[9px] py-1 text-[12px] font-semibold text-ink-soft backdrop-blur-[6px]">
+                          <span className="text-[15px] leading-none">{flagEmoji(sel.country)}</span>
+                          {countryName(sel.country)}
+                        </span>
+                      )}
+                      <span className="rounded-[9px] px-[11px] py-1 text-[11px] font-semibold tracking-[0.04em]" style={{ background: TIER_BG[sel.tier], color: TIER_FG[sel.tier] }}>
+                        {TIER_LABEL[sel.tier]}
+                      </span>
+                      {sel.birthdayDate && (
+                        <span className="inline-flex items-center gap-1 rounded-[9px] bg-[#F7DEDE] px-[9px] py-1 text-[11px] font-semibold text-[#C2557A]">
+                          <Cake className="h-3.5 w-3.5" strokeWidth={1.8} /> Szülinap · {birthdayLabel(sel.birthdayDate)}
+                        </span>
+                      )}
+                      {sel.blocked && (
+                        <span className="inline-flex items-center gap-1 rounded-[9px] bg-[#FBE3E3] px-[9px] py-1 text-[11px] font-semibold text-[#C0453F]">
+                          <Ban className="h-3.5 w-3.5" strokeWidth={2} /> Tiltólistán
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-[5px] flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px] text-ink-soft">
+                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px] text-ink-soft">
                   {sel.phone && <span>{sel.phone}</span>}
                   {sel.phone && sel.email && <span className="text-ink-soft2">·</span>}
                   {sel.email && <span className="break-all">{sel.email}</span>}

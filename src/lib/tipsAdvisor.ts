@@ -155,6 +155,7 @@ function buildConfigChecks(
 ): { checks: Weighted[]; cards: TipCard[] } {
   const base = variant === 'salon' ? '/dashboard' : '/restaurant'
   const settings = `${base}/settings`
+  const profileSettings = `${settings}?tab=profile`
   const catalogHref = variant === 'salon' ? `${base}/services` : `${base}/tables`
   const catalogWord = variant === 'salon' ? 'szolgáltatás' : 'asztal'
   const locales = b.supported_locales ?? []
@@ -175,7 +176,7 @@ function buildConfigChecks(
       label: 'Borítókép feltöltve',
       category: 'profil',
       done: has(b.cover_image),
-      href: settings,
+      href: `${profileSettings}#cover`,
       weight: 2,
       card: {
         title: 'Tölts fel borítóképet',
@@ -188,7 +189,7 @@ function buildConfigChecks(
       label: 'Logó feltöltve',
       category: 'profil',
       done: has(b.logo),
-      href: settings,
+      href: `${profileSettings}#general`,
       weight: 1,
     },
     {
@@ -196,7 +197,7 @@ function buildConfigChecks(
       label: 'Bemutatkozás kitöltve',
       category: 'profil',
       done: hasDescription(b),
-      href: settings,
+      href: `${profileSettings}#general`,
       weight: 1,
       card: {
         title: 'Írj rövid bemutatkozást',
@@ -208,7 +209,7 @@ function buildConfigChecks(
       label: 'Cím és telefonszám megadva',
       category: 'profil',
       done: has(b.address) && has(b.phone),
-      href: settings,
+      href: `${profileSettings}#contact`,
       weight: 1,
       card: {
         title: 'Add meg a cím és telefon adatokat',
@@ -244,7 +245,7 @@ function buildConfigChecks(
       label: '„Jó tudni" pontok kitöltve',
       category: 'foglalas',
       done: (b.good_to_know ?? []).length > 0,
-      href: settings,
+      href: `${profileSettings}#good-to-know`,
       weight: 1,
       card: {
         title: 'Töltsd ki a „Jó tudni" pontokat',
@@ -256,7 +257,7 @@ function buildConfigChecks(
       label: 'Többnyelvű oldal bekapcsolva',
       category: 'marketing',
       done: multilingual,
-      href: settings,
+      href: `${settings}?tab=languages`,
       weight: 1,
       card: {
         title: 'Kapcsold be a többnyelvű oldalt',
@@ -341,7 +342,7 @@ function buildFeatureCards(b: Salon | Restaurant, variant: 'salon' | 'restaurant
     impact: d.impact,
     state: d.on ? ('enabled' as const) : ('apply' as const),
     action: d.on
-      ? ({ kind: 'nav', href: `${variant === 'salon' ? '/dashboard' : '/restaurant'}/settings` } as TipAction)
+      ? ({ kind: 'nav', href: `${variant === 'salon' ? '/dashboard' : '/restaurant'}/settings?tab=features` } as TipAction)
       : ({ kind: 'patch', body: enableFeatureBody(b.feature_modules, d.changes), toast: d.toast } as TipAction),
   }))
 }
@@ -442,7 +443,7 @@ export function buildSalonAdvisor(salon: Salon, setup: SetupFlags, stats: Dashbo
       actionLabel: off ? 'Emlékeztető bekapcsolása' : 'Beállítások',
       action: off
         ? { kind: 'patch', body: enableFeatureBody(salon.feature_modules, { reminders_on: true, reminder_ch_email: true, reminder_t_24h: true }), toast: 'Emlékeztetők bekapcsolva' }
-        : { kind: 'nav', href: `${base}/settings` },
+        : { kind: 'nav', href: `${base}/settings?tab=features` },
       priority: 60 + (80 - stats.completionRate),
     })
   }
@@ -529,7 +530,7 @@ export function buildRestaurantAdvisor(
         body: `A vendégeidnek csak ${onlineShare}%-a foglal online — a többi telefon/beeső. Oszd meg a foglaló linkedet a közösségi oldalakon és a Google-profilodon.`,
         metric: `${onlineShare}% online`,
         actionLabel: 'Foglaló oldal',
-        action: { kind: 'nav', href: `${base}/settings` },
+        action: { kind: 'nav', href: `${base}/settings?tab=profile#booking-url` },
         priority: 35 + (50 - onlineShare),
       })
     }

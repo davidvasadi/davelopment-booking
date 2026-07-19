@@ -63,16 +63,15 @@ const HATCH = 'repeating-linear-gradient(45deg,#E4DECC 0 6px,#F1ECDD 6px 12px)'
  */
 // A davelopment Naptar HANDOFF eredeti notch-a: FIX méretű, középre igazított kis ív a toolbarnak
 // (desktop: 600×70 — 1:1 a handoff-fal; mobilon arányosan kisebb).
-const NOTCH_SVG = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='70'%3E%3Cpath d='M76 0Q92 0 92 16V42A26 26 0 0 0 118 68H482A26 26 0 0 0 508 42V16Q508 0 524 0Z' fill='white'/%3E%3C/svg%3E\")"
-const NOTCH_CSS = `.sched-folder{
+const NOTCH_SVG = "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='70'%3E%3Cpath d='M40%200Q56%200%2056%2016V42A26%2026%200%200%200%2082%2068H518A26%2026%200%200%200%20544%2042V16Q544%200%20560%200Z' fill='white'/%3E%3C/svg%3E\")"
+const NOTCH_CSS = `@media(min-width:640px){.sched-folder{
   -webkit-mask-image:${NOTCH_SVG},linear-gradient(#000,#000);
   -webkit-mask-repeat:no-repeat,no-repeat;-webkit-mask-position:center top,center;
-  -webkit-mask-size:420px 68px,100% 100%;-webkit-mask-composite:xor;
+  -webkit-mask-size:650px 76px,100% 100%;-webkit-mask-composite:xor;
   mask-image:${NOTCH_SVG},linear-gradient(#000,#000);
   mask-repeat:no-repeat,no-repeat;mask-position:center top,center;
-  mask-size:420px 68px,100% 100%;mask-composite:exclude;
-}
-@media(min-width:640px){.sched-folder{-webkit-mask-size:650px 76px,100% 100%;mask-size:650px 76px,100% 100%;}}`
+  mask-size:650px 76px,100% 100%;mask-composite:exclude;
+}}`
 
 const TYPE_LABEL: Record<ShiftType, string> = { shift: 'Műszak', leave: 'Szabadság', sick: 'Betegszabadság', vacation: 'Fizetett szabadság' }
 
@@ -442,11 +441,11 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
       <style>{NOTCH_CSS}</style>
       <div className="relative">
         {/* ── FÜL-toolbar (ÜVEGES): EGY-aktív — a Kereső az alap, váltáskor átanimálódik (az nyílik ki, a másik összemegy); active = FEKETE-FEHÉR ── */}
-        <div className="pointer-events-none absolute inset-x-0 top-1.5 z-30 flex justify-center px-4">
-          <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} ref={toolbarRef} className="pointer-events-auto flex items-center gap-1 rounded-full border border-white/50 bg-white/40 p-1.5 shadow-dav-card backdrop-blur-md">
+        <div className="pointer-events-none absolute inset-x-0 top-1.5 z-30 flex px-4 sm:justify-center">
+          <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} ref={toolbarRef} className="pointer-events-auto flex w-full items-center gap-1 rounded-full border border-white/50 bg-white/40 p-1.5 shadow-dav-card backdrop-blur-md sm:w-auto">
             {/* Statisztika — BAL oldalt (a kereső előtt); egy-aktív popover a havi összegzővel (a régi közép stat-sávok helyett) */}
             {sel && (
-              <div className="relative">
+              <div className="relative hidden sm:block">
                 <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setActiveTool(activeTool === 'stats' ? 'search' : 'stats')} title="Havi összegző" className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors ${activeTool === 'stats' ? 'bg-[#1D1C19] text-white' : 'bg-white/55 text-ink-soft hover:bg-white'}`}>
                   <BarChart3 className="h-[18px] w-[18px]" strokeWidth={2} />
                 </motion.button>
@@ -466,7 +465,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
               </div>
             )}
             {/* Kereső — inaktívan kör; aktívan (ALAP) széles fehér mezővé nyílik, layout-animációval */}
-            <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} onClick={() => activeTool !== 'search' && setActiveTool('search')} className={`flex h-10 items-center gap-2 overflow-hidden rounded-full transition-colors ${activeTool === 'search' ? 'w-[150px] bg-white px-3.5 shadow-sm sm:w-[216px]' : 'w-10 flex-shrink-0 cursor-pointer justify-center bg-white/55 hover:bg-white'}`}>
+            <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} onClick={() => activeTool !== 'search' && setActiveTool('search')} className={`flex h-10 items-center gap-2 overflow-hidden rounded-full transition-colors ${activeTool === 'search' ? 'flex-1 bg-white px-3.5 shadow-sm sm:w-[216px] sm:flex-none' : 'w-10 flex-shrink-0 cursor-pointer justify-center bg-white/55 hover:bg-white'}`}>
               <Search className="h-[18px] w-[18px] flex-shrink-0 text-ink-soft" strokeWidth={2} />
               {activeTool === 'search' && (
                 <>
@@ -675,7 +674,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                 className="grid grid-cols-7 gap-1.5 sm:gap-2"
               >
             {cells.map((c, i) => {
-              if (!c.inMonth) return <div key={i} className="min-h-[62px] rounded-[10px] sm:min-h-[84px] sm:rounded-[14px]" style={{ background: 'rgba(255,255,255,.25)' }} />
+              if (!c.inMonth) return <div key={i} className="aspect-square rounded-[10px] sm:aspect-auto sm:min-h-[84px] sm:rounded-[14px]" style={{ background: 'repeating-linear-gradient(-45deg, rgba(160,150,120,.13) 0px, rgba(160,150,120,.13) 1px, transparent 1px, transparent 7px), rgba(255,255,255,.18)' }} />
               const dayAll = c.date ? byDate.get(c.date) ?? [] : [] // TELJES nap (fedettséghez)
               const dayShifts = filtersActive ? dayAll.filter(passesFilter) : dayAll // szűrt (chipekhez)
               const isToday = c.date === todayStr
@@ -689,7 +688,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                   <button
                     type="button"
                     onClick={() => c.date && setSelectedDay(c.date)}
-                    className="flex min-h-[62px] w-full flex-col rounded-[10px] border p-1.5 text-left transition-all sm:min-h-[84px] sm:rounded-[14px] sm:p-2"
+                    className="flex aspect-square w-full flex-col overflow-hidden rounded-[10px] border p-1.5 text-left transition-all sm:aspect-auto sm:min-h-[84px] sm:overflow-visible sm:rounded-[14px] sm:p-2"
                     style={{
                       background: isSelDay ? 'rgba(241,206,69,.24)' : isToday ? 'rgba(241,206,69,.1)' : 'rgba(255,255,255,.6)',
                       borderColor: isSelDay ? '#E0B325' : isUncovered ? 'rgba(232,162,61,.65)' : isToday ? 'rgba(241,206,69,.5)' : 'rgba(120,110,70,.1)',
@@ -713,7 +712,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                     </div>
                     {/* Egy SORBA, tördelés nélkül (a cella magassága állandó marad, akárhányan dolgoznak).
                         Az avatarok enyhén egymásra csúsznak (avatar-stack), 3 fölött „+N". */}
-                    <div className="mt-1 flex h-[19px] items-center overflow-hidden sm:h-[22px]">
+                    <div className="mt-1 hidden items-center overflow-hidden h-[19px] sm:flex sm:h-[22px]">
                       {(() => {
                         // Kiemeléskor a fókuszált dolgozó chipje ELŐRE kerül, hogy a 3 látható közt mindig ott legyen.
                         const ordered = focusPerson && sel ? [...dayShifts].sort((a, b) => Number(b.staffId === sel.id) - Number(a.staffId === sel.id)) : dayShifts
@@ -728,19 +727,15 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                               // Valódi profilkép a mini-avatarban. A műszak-TÍPUS így is olvasható: fotónál színes
                               // belső gyűrű, monogramnál a kör kitöltése. FEHÉR külső gyűrű választja el az egymásra
                               // csúszó avatarokat; kiemelt személynél sötét gyűrű.
-                              const layers: string[] = []
-                              if (photo) layers.push(`0 0 0 1.5px ${cs.bg}`)
-                              layers.push(`0 0 0 ${photo ? 2.5 : 1.5}px #fff`)
-                              if (isSelSt) layers.push(`0 0 0 ${photo ? 4 : 3}px #1D1C19`)
                               return (
                                 <span
                                   key={s.id}
                                   title={`${st?.name ?? ''} · ${statusLabel(s)}`}
-                                  className={`relative flex h-[19px] w-[19px] flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-[8.5px] font-bold transition-opacity sm:h-[22px] sm:w-[22px] sm:text-[9.5px] ${idx > 0 ? '-ml-[5px]' : ''}`}
+                                  className={`relative flex h-[19px] w-[19px] flex-shrink-0 items-center justify-center overflow-hidden rounded-full text-[8.5px] font-bold transition-opacity sm:h-[22px] sm:w-[22px] sm:text-[9.5px] ${idx > 0 ? '-ml-[4px]' : ''}`}
                                   style={{
                                     background: photo ? '#fff' : cs.bg,
                                     color: cs.fg,
-                                    boxShadow: layers.join(', '),
+                                    boxShadow: isSelSt ? `0 0 0 1.5px #1D1C19` : `0 0 0 1px rgba(255,255,255,0.7)`,
                                     zIndex: 3 - idx,
                                     opacity: dim ? 0.2 : 1,
                                   }}

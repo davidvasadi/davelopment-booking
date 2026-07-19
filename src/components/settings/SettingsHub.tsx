@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
+import { BillingPortalButton } from '@/components/dashboard/BillingPortalButton'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
 // Értesítések = CSAK tranzakciós email (emlékeztető/visszajelzés a Funkciók gazdája).
@@ -68,6 +69,19 @@ function Card({ children, className = '' }: { children: ReactNode; className?: s
       {children}
     </div>
   )
+}
+
+/* ── Előfizetés-státusz badge ────────────────────────────────────────────── */
+function StatusBadge({ status }: { status: BillingData['subscriptionStatus'] }) {
+  const cfg: Record<string, { label: string; cls: string }> = {
+    trialing:  { label: 'Próbaidőszak',   cls: 'bg-[#FDF3CF] text-[#8A6D12]' },
+    active:    { label: 'Aktív',          cls: 'bg-[#E3F0D8] text-[#4A7A2A]' },
+    past_due:  { label: 'Lejárt fizetés', cls: 'bg-[#FDE2DD] text-[#C0564A]' },
+    canceled:  { label: 'Lemondva',       cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' },
+    paused:    { label: 'Szüneteltetve',  cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' },
+  }
+  const { label, cls } = (status && cfg[status]) ?? { label: '—', cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' }
+  return <span className={`inline-block rounded-[8px] px-2.5 py-[3px] text-[11px] font-semibold ${cls}`}>{label}</span>
 }
 
 /* ── Stat-kártya (FBF9F2, nagy vékony érték + egység) ───────────────────── */
@@ -117,12 +131,19 @@ export interface BillingInvoice {
   plan: string
   amount: string
   status: string
+  downloadUrl?: string | null
 }
 
 export interface BillingData {
-  planLabel: string                // fizetési mód alatti csomag felirat (subtitle-ből)
+  planLabel: string
+  subscriptionStatus: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused' | null
+  billingCycle: 'monthly' | 'annual'
+  cancelAtPeriodEnd: boolean
+  trialEndsAt: string | null
   nextChargeDate: string | null
-  nextChargeAmount: string         // pl. „12 900 Ft"
+  nextChargeAmount: string
+  hasStripeCustomer: boolean
+  subscriptionHref: string
   card: { brand: string; last4: string; expiry: string; holder: string } | null
   details: { legalName: string; taxNumber: string; address: string }
   invoices: BillingInvoice[]
@@ -216,6 +237,19 @@ export function SettingsHub({
   const [active, setActive] = useState<RailId>(initialTab)
   const [saving, setSaving] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false) // mobil szekció-választó legördülő
+
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash) {
+      const t = setTimeout(() => {
+        const el = document.querySelector(hash)
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        else window.scrollTo({ top: 0, behavior: 'smooth' })
+      }, 80)
+      return () => clearTimeout(t)
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [active])
 
   // ── A beágyazott profil-form FELFELÉ jelzi az aktív fül mentetlen-állapotát + regisztrálja
   //    a mentés/elvetés műveletét → a hub egyetlen KÖZÖS lebegő sávból menti (nincs form-alji SaveBar).
@@ -871,70 +905,127 @@ export function SettingsHub({
 
           {active === 'billing' && (
             <div className="space-y-4">
+
+              {/* ── Csomag + státusz sor ── */}
+              <Card>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <StatusBadge status={billing.subscriptionStatus} />
+                    <div>
+                      <div className="text-[15px] font-semibold text-ink">{billing.planLabel}</div>
+                      <div className="mt-0.5 text-[12px] text-ink-soft">
+                        {billing.billingCycle === 'annual' ? 'Éves számlázás · 20% kedvezménnyel' : 'Havi számlázás'}
+                        {billing.cancelAtPeriodEnd && ' · Lemondva, az időszak végéig aktív'}
+                      </div>
+                    </div>
+                  </div>
+                  <Link
+                    href={billing.subscriptionHref}
+                    className="inline-flex items-center gap-1.5 rounded-dav-pill border border-line-strong px-4 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:bg-paper"
+                  >
+                    Előfizetés kezelése <ArrowRight className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              </Card>
+
+              {/* ── Fizetési mód | Számlázási adatok ── */}
               <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.3fr_1fr]">
                 <Card>
                   <div className="text-[17px] font-medium text-ink">Fizetési mód</div>
+
                   {billing.card ? (
                     <div className="mt-[18px] flex items-center gap-4">
-                      <div className="flex h-[42px] w-[62px] items-center justify-center rounded-[10px] bg-gradient-to-br from-ink-dark to-[#3a3833]">
+                      <div className="flex h-[42px] w-[62px] shrink-0 items-center justify-center rounded-[10px] bg-gradient-to-br from-ink-dark to-[#3a3833]">
                         <span className="text-[11px] font-bold tracking-[0.06em] text-gold">{billing.card.brand}</span>
                       </div>
-                      <div className="flex-1">
+                      <div className="flex-1 min-w-0">
                         <div className="text-[14px] font-semibold text-ink">•••• •••• •••• {billing.card.last4}</div>
-                        <div className="mt-0.5 text-[12px] text-ink-soft">Lejárat {billing.card.expiry} · {billing.card.holder}</div>
+                        <div className="mt-0.5 text-[12px] text-ink-soft">
+                          Lejárat {billing.card.expiry}{billing.card.holder ? ` · ${billing.card.holder}` : ''}
+                        </div>
                       </div>
-                      <span className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[12px] font-semibold text-ink">Csere</span>
                     </div>
+                  ) : billing.subscriptionStatus === 'trialing' ? (
+                    <p className="mt-[18px] text-sm text-ink-soft">
+                      Próbaidőszakban vagy — bankkártya az előfizetés indításakor kerül rögzítésre.
+                    </p>
                   ) : (
                     <p className="mt-[18px] text-sm text-ink-soft">
-                      Nincs rögzített fizetési mód. Az előfizetés kezelése a Számlázás oldalon.
+                      Nincs rögzített bankkártya.
                     </p>
                   )}
+
                   <div className="mt-[18px] flex items-center justify-between rounded-[16px] bg-[#FBF9F2] px-4 py-3.5">
                     <div>
-                      <div className="text-[12px] text-ink-soft">Következő terhelés</div>
+                      <div className="text-[12px] text-ink-soft">
+                        {billing.subscriptionStatus === 'trialing' ? 'Próbaidőszak vége' : 'Következő terhelés'}
+                      </div>
                       <div className="mt-0.5 text-[14px] font-semibold text-ink">{billing.nextChargeDate ?? '—'}</div>
                     </div>
-                    <div className="text-[26px] font-light tracking-[-0.02em] text-ink">
-                      {billing.nextChargeAmount}
-                    </div>
+                    {billing.subscriptionStatus !== 'trialing' && (
+                      <div className="text-[26px] font-light tracking-[-0.02em] text-ink">
+                        {billing.nextChargeAmount}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4">
+                    {billing.hasStripeCustomer ? (
+                      <BillingPortalButton variant="link" label="Bankkártya csere · számlák · lemondás" />
+                    ) : (
+                      <Link
+                        href={billing.subscriptionHref}
+                        className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-gold underline-offset-2 hover:underline"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                        Előfizetés indítása
+                      </Link>
+                    )}
                   </div>
                 </Card>
 
                 <Card>
-                  <div className="text-[17px] font-medium text-ink">Számlázási adatok</div>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="text-[17px] font-medium text-ink">Számlázási adatok</div>
+                    <button
+                      type="button"
+                      onClick={() => setActive('profile')}
+                      className="shrink-0 text-[12px] font-semibold text-ink-soft2 transition-colors hover:text-ink"
+                    >
+                      Szerkesztés
+                    </button>
+                  </div>
                   <div className="mt-[18px] flex flex-col gap-3.5">
                     <BillField label="Cégnév" value={billing.details.legalName} />
                     <BillField label="Adószám" value={billing.details.taxNumber} />
                     <BillField label="Cím" value={billing.details.address} />
                   </div>
+                  <p className="mt-4 text-[11.5px] leading-relaxed text-ink-soft2">
+                    Ezek az adatok kerülnek a kiállított számlákon. Módosításhoz: Üzlet profil → Jogi adatok.
+                  </p>
                 </Card>
               </div>
 
+              {/* ── Számlák ── */}
               <Card>
-                <div className="flex items-center justify-between">
-                  <div className="text-[17px] font-medium text-ink">Számlák</div>
-                  {billing.invoices.length > 0 && (
-                    <span className="rounded-[12px] border-[1.5px] border-line-strong px-3.5 py-2 text-[12px] font-semibold text-ink">
-                      Összes letöltése
-                    </span>
-                  )}
-                </div>
+                <div className="text-[17px] font-medium text-ink">Számlák</div>
                 {billing.invoices.length === 0 ? (
                   <p className="mt-6 rounded-[16px] bg-[#FBF9F2] px-4 py-8 text-center text-sm text-ink-soft">
-                    Még nincs kiállított számla.
+                    {billing.subscriptionStatus === 'trialing'
+                      ? 'Próbaidőszak alatt nincs kiállított számla.'
+                      : 'Még nincs kiállított számla.'}
                   </p>
                 ) : (
                   <div className="mt-2 overflow-x-auto">
                     <div className="min-w-[560px]">
-                      <div className="grid grid-cols-[1.1fr_1.2fr_1fr_.9fr_70px] gap-2 border-b border-line py-3.5 text-[10.5px] font-semibold uppercase tracking-[0.05em] text-ink-soft2">
+                      <div className="grid grid-cols-[1.1fr_1.2fr_1fr_.9fr_64px] gap-2 border-b border-line py-3.5 text-[10.5px] font-semibold uppercase tracking-[0.05em] text-ink-soft2">
                         <span>Dátum</span><span>Számlaszám</span><span>Csomag</span><span>Összeg</span>
                         <span className="text-right">Állapot</span>
                       </div>
                       {billing.invoices.map((inv, i) => (
                         <div
-                          key={inv.number}
-                          className={`grid grid-cols-[1.1fr_1.2fr_1fr_.9fr_70px] items-center gap-2 py-[15px] ${
+                          key={`${inv.number}-${i}`}
+                          className={`grid grid-cols-[1.1fr_1.2fr_1fr_.9fr_64px] items-center gap-2 py-[15px] ${
                             i < billing.invoices.length - 1 ? 'border-b border-line' : ''
                           }`}
                         >
@@ -942,11 +1033,21 @@ export function SettingsHub({
                           <span className="text-[12.5px] text-ink-soft">{inv.number}</span>
                           <span className="text-[12.5px] font-medium text-ink-soft">{inv.plan}</span>
                           <span className="text-[13px] font-semibold text-ink">{inv.amount}</span>
-                          <span className="flex items-center justify-end gap-2.5">
-                            <span className="rounded-[7px] bg-[rgba(63,184,113,.14)] px-2.5 py-[3px] text-[10.5px] font-semibold text-[#2E9E63]">
+                          <span className="flex items-center justify-end gap-2">
+                            <span className={`rounded-[7px] px-2.5 py-[3px] text-[10.5px] font-semibold ${
+                              inv.status === 'Kifizetve'
+                                ? 'bg-[rgba(63,184,113,.14)] text-[#2E9E63]'
+                                : 'bg-[rgba(192,86,74,.12)] text-[#C0564A]'
+                            }`}>
                               {inv.status}
                             </span>
-                            <Download className="h-4 w-4 text-ink-soft" strokeWidth={1.7} />
+                            {inv.downloadUrl ? (
+                              <a href={inv.downloadUrl} target="_blank" rel="noopener noreferrer" aria-label="Letöltés">
+                                <Download className="h-4 w-4 text-ink-soft transition-colors hover:text-ink" strokeWidth={1.7} />
+                              </a>
+                            ) : (
+                              <Download className="h-4 w-4 text-ink-soft/30" strokeWidth={1.7} />
+                            )}
                           </span>
                         </div>
                       ))}

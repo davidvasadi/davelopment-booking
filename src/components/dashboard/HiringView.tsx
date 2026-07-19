@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, animate, type Variants } from 'framer-motion'
-import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock } from 'lucide-react'
+import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock, CalendarDays, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { popItem } from '@/lib/motion'
+import { Switch } from '@/components/ui/toggle-switch'
+import { TimeSelect } from '@/components/ui/time-select'
 
 /** Felfüggesztett sávozott (hatch) minta — a lista sorával konzisztens. */
 const SUSPEND_HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.6), rgba(255,255,255,.6) 7px, rgba(190,180,140,.16) 7px, rgba(190,180,140,.16) 14px)'
@@ -550,7 +552,10 @@ const DAY_STYLE: Record<string, { bg: string; color: string }> = {
   leave: { bg: '#D9EAD3', color: '#3B6B4B' },
   sick: { bg: '#F3D9D6', color: '#B0453F' },
 }
-function MiniCalendar({ calendar }: { calendar: Record<string, 'shift' | 'leave' | 'sick' | 'vacation'> }) {
+type AvailRec = { id?: string; is_available: boolean; start_time: string; end_time: string }
+const CAL_DOW: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' }
+
+function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { calendar: Record<string, 'shift' | 'leave' | 'sick' | 'vacation'>; exceptions?: Record<string, AvailRec>; selectedDay?: string | null; onDaySelect?: (dateStr: string) => void }) {
   const [view, setView] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() } })
   const first = new Date(view.y, view.m, 1)
   const firstWeekday = (first.getDay() + 6) % 7 // hétfő = 0
@@ -578,18 +583,26 @@ function MiniCalendar({ calendar }: { calendar: Record<string, 'shift' | 'leave'
         ))}
         {cells.map((c, i) => {
           if (c === null) return <div key={`b${i}`} />
-          const t = calendar[keyOf(c)]
+          const dateStr = keyOf(c)
+          const t = calendar[dateStr]
           const st = t ? DAY_STYLE[t] : { bg: '#F5F3EC', color: '#B7B2A4' }
+          const isSelected = selectedDay === dateStr
+          const exc = exceptions?.[dateStr]
+          const isClickable = !!onDaySelect
           return (
             <motion.div
               key={`${view.y}-${view.m}-${c}`}
               initial={{ opacity: 0, scale: 0.6 }}
               animate={{ opacity: 1, scale: 1 }}
               transition={{ delay: 0.02 + i * 0.008, type: 'spring', stiffness: 500, damping: 26 }}
-              className="flex aspect-square items-center justify-center rounded-[9px] text-[11.5px] font-semibold"
+              className={`relative flex aspect-square items-center justify-center rounded-[9px] text-[11.5px] font-semibold ${isClickable ? 'cursor-pointer hover:ring-2 hover:ring-gold/40 hover:ring-offset-1' : ''} ${isSelected ? 'ring-2 ring-gold ring-offset-1' : ''}`}
               style={{ background: st.bg, color: st.color }}
+              onClick={() => isClickable && onDaySelect(dateStr)}
             >
               {c}
+              {exc && (
+                <span className="absolute bottom-[3px] right-[3px] h-[5px] w-[5px] rounded-full" style={{ background: exc.is_available ? '#3B6B4B' : '#B0453F' }} />
+              )}
             </motion.div>
           )
         })}
@@ -613,7 +626,7 @@ function pageWindow(current: number, total: number): (number | '…')[] {
   return [1, '…', current - 1, current, current + 1, '…', total]
 }
 
-export function HiringView({ variant, employees, positionOptions = [], currentUser = null, canManage = false, canEditSalary = false, statusById, onStatusChange, onProfileChange, onClose, initialIndex = 0 }: { variant: Variant; employees?: Employee[]; positionOptions?: { label: string; level: 'lead' | 'staff' }[]; currentUser?: CurrentUser | null; canManage?: boolean; canEditSalary?: boolean; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onClose?: () => void; initialIndex?: number }) {
+export function HiringView({ variant, employees, positionOptions = [], currentUser = null, canManage = false, canEditSalary = false, statusById, onStatusChange, onProfileChange, onOpenEdit, onCalendarRequest, onClose, initialIndex = 0, salonId, openCalendar }: { variant: Variant; employees?: Employee[]; positionOptions?: { label: string; level: 'lead' | 'staff' }[]; currentUser?: CurrentUser | null; canManage?: boolean; canEditSalary?: boolean; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onOpenEdit?: (id: string) => void; onCalendarRequest?: (id: string) => void; onClose?: () => void; initialIndex?: number; salonId?: string; openCalendar?: boolean }) {
   // Valós adat, ha kaptunk (akár üres listát is tiszteletben tartunk); különben mock-fallback.
   const data = employees ?? mockData(variant)
   const startId = data.length ? (data[Math.min(Math.max(initialIndex, 0), data.length - 1)]?.id ?? data[0].id) : ''
@@ -629,6 +642,14 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   const [editing, setEditing] = useState(false)
   const [savingProfile, setSavingProfile] = useState(false)
   const [savedOverride, setSavedOverride] = useState<Record<string, Partial<Employee>>>({})
+
+  // ── Inline naptár (szalon-variáns): availability exceptions szerkesztése az adatlapon ──
+  const calendarRef = useRef<HTMLDivElement>(null)
+  const [calSelDay, setCalSelDay] = useState<string | null>(null)
+  const [calExceptions, setCalExceptions] = useState<Record<string, AvailRec>>({})
+  const [calSalonDefaults, setCalSalonDefaults] = useState<Record<string, AvailRec>>({})
+  const [calEditState, setCalEditState] = useState<AvailRec | null>(null)
+  const [calSaving, setCalSaving] = useState(false)
 
   if (data.length === 0) {
     return (
@@ -788,6 +809,107 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
     }
   }
 
+  // ── Availability exceptions betöltése amikor szalon-variánsban változik a kiválasztott tag ──
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (variant !== 'salon' || !salonId || !sel?.id) return
+    setCalSelDay(null)
+    setCalEditState(null)
+    setCalExceptions({})
+    setCalSalonDefaults({})
+    Promise.all([
+      fetch(`/api/availability?where[staff][equals]=${sel.id}&limit=300`, { credentials: 'include' }).then(r => r.json()),
+      fetch(`/api/availability?where[salon][equals]=${salonId}&where[recurring][equals]=true&limit=300`, { credentials: 'include' }).then(r => r.json()),
+    ]).then(([staffJson, salonJson]) => {
+      const excMap: Record<string, AvailRec> = {}
+      for (const r of (staffJson.docs ?? [])) {
+        if (!r.recurring && r.exception_date) excMap[r.exception_date] = { id: String(r.id), is_available: r.is_available ?? true, start_time: r.start_time ?? '09:00', end_time: r.end_time ?? '18:00' }
+      }
+      const defMap: Record<string, AvailRec> = {}
+      for (const r of (salonJson.docs ?? [])) {
+        if (r.staff || !r.recurring || !r.day_of_week) continue
+        defMap[r.day_of_week] = { id: String(r.id), is_available: r.is_available ?? false, start_time: r.start_time ?? '09:00', end_time: r.end_time ?? '18:00' }
+      }
+      setCalExceptions(excMap)
+      setCalSalonDefaults(defMap)
+    }).catch(() => {})
+  }, [variant, salonId, sel?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-open calendar section when openCalendar prop is true (pl. lista CalendarDays gombból).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!openCalendar || variant !== 'salon' || !salonId) return
+    const today = new Date().toISOString().split('T')[0]
+    setCalSelDay(today)
+    setTimeout(() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 500)
+  }, [openCalendar, salonId, sel?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Ha frissen töltöttek be exceptionök és már ki van jelölve egy nap, frissítjük az editState-t.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!calSelDay || (!Object.keys(calExceptions).length && !Object.keys(calSalonDefaults).length)) return
+    const exc = calExceptions[calSelDay]
+    if (exc) setCalEditState(prev => prev?.id === exc.id ? prev : { ...exc })
+    else if (!calEditState?.id) {
+      const dow = CAL_DOW[new Date(calSelDay + 'T00:00:00').getDay()]
+      const base = calSalonDefaults[dow]
+      setCalEditState(prev => prev ?? { is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' })
+    }
+  }, [calExceptions, calSalonDefaults])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCalDayClick = (dateStr: string) => {
+    if (!salonId || variant !== 'salon') return
+    setCalSelDay(dateStr)
+    const exc = calExceptions[dateStr]
+    if (exc) {
+      setCalEditState({ ...exc })
+    } else {
+      const dow = CAL_DOW[new Date(dateStr + 'T00:00:00').getDay()]
+      const base = calSalonDefaults[dow]
+      setCalEditState({ is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' })
+    }
+  }
+
+  const saveCalDay = async () => {
+    if (!calEditState || !calSelDay || !salonId || !sel?.id) return
+    setCalSaving(true)
+    try {
+      const dow = CAL_DOW[new Date(calSelDay + 'T00:00:00').getDay()]
+      const body = { salon: Number(salonId), staff: Number(sel.id), day_of_week: dow, is_available: calEditState.is_available, start_time: calEditState.start_time, end_time: calEditState.end_time, recurring: false, exception_date: calSelDay }
+      const res = calEditState.id
+        ? await fetch(`/api/availability/${calEditState.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) })
+        : await fetch('/api/availability', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) })
+      if (!res.ok) throw new Error()
+      const json = await res.json()
+      const saved: AvailRec = { ...calEditState, id: String(json.doc.id) }
+      setCalExceptions(prev => ({ ...prev, [calSelDay]: saved }))
+      setCalEditState(saved)
+      toast.success('Mentve')
+    } catch {
+      toast.error('Hiba történt')
+    } finally {
+      setCalSaving(false)
+    }
+  }
+
+  const resetCalDay = async () => {
+    if (!calEditState?.id || !calSelDay) return
+    setCalSaving(true)
+    try {
+      const res = await fetch(`/api/availability/${calEditState.id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) throw new Error()
+      setCalExceptions(prev => { const next = { ...prev }; delete next[calSelDay]; return next })
+      const dow = CAL_DOW[new Date(calSelDay + 'T00:00:00').getDay()]
+      const base = calSalonDefaults[dow]
+      setCalEditState({ is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' })
+      toast.success('Visszaállítva szalon alapra')
+    } catch {
+      toast.error('Hiba történt')
+    } finally {
+      setCalSaving(false)
+    }
+  }
+
   const filtered = data.filter((c) => {
     const q = query.trim().toLowerCase()
     const matchQ = !q || c.name.toLowerCase().includes(q) || c.position.toLowerCase().includes(q)
@@ -872,7 +994,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
         {/* ── BAL: csapat-lista ── */}
-        <motion.div variants={popItem} className="flex flex-col print:hidden">
+        <motion.div variants={popItem} className="order-last flex flex-col print:hidden lg:order-first">
           <motion.div variants={listContainer} className="space-y-3">
             {filtered.length === 0 && <p className="py-8 text-center text-sm text-ink-soft">Nincs találat.</p>}
             {paged.map((c) => {
@@ -931,16 +1053,22 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
         </motion.div>
 
         {/* ── JOBB: adatlap (kiválasztáskor újra-animálódik) ── */}
-        <motion.div variants={popItem} data-print-root className="rounded-[26px] dav-card-glass p-6 sm:p-8">
+        <motion.div variants={popItem} data-print-root className="order-first rounded-[26px] dav-card-glass p-6 sm:p-8 lg:order-last">
           <motion.div
             key={sel.id}
             initial="hidden"
             animate="show"
             variants={{ hidden: {}, show: { transition: { staggerChildren: 0.09, delayChildren: 0.02 } } }}
-            className="hv-detail-grid grid grid-cols-1 gap-6 lg:grid-cols-[280px_1fr] lg:gap-8"
+            className="hv-detail-grid flex flex-col gap-6 lg:flex-row lg:gap-8"
           >
-            {/* Bal belső: fotó + Alapadatok + Havi órák */}
-            <motion.div variants={detailCol} className="space-y-5">
+            {/* Bal belső: fotó + naptár + szerkesztő */}
+            <motion.div
+              layout
+              variants={detailCol}
+              className="hv-left-col space-y-5"
+              data-wide={calSelDay && calEditState && variant === 'salon' && salonId ? 'true' : 'false'}
+              transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
+            >
               <motion.div variants={detailItem} className="relative h-[240px] overflow-hidden rounded-[22px]" style={{ background: GRADS[0] }}>
                 {headAvatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -950,25 +1078,82 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                 )}
               </motion.div>
 
-              {/* Mely napokon dolgozott — mini havi naptár (a kontakt-kártya helyén) */}
+              {/* Mely napokon dolgozott — mini havi naptár; szalon-variánsban kattintható */}
               <motion.div variants={detailItem}>
-                <MiniCalendar calendar={eff.calendar ?? {}} />
+                <MiniCalendar
+                  calendar={eff.calendar ?? {}}
+                  exceptions={variant === 'salon' && salonId ? calExceptions : undefined}
+                  selectedDay={variant === 'salon' && salonId ? calSelDay : undefined}
+                  onDaySelect={variant === 'salon' && salonId ? handleCalDayClick : undefined}
+                />
               </motion.div>
 
-              {/* Havi órák kártya (előző hónaphoz hasonlítva) */}
-              <motion.div variants={detailItem} data-print-card className="rounded-[22px] p-6" style={{ background: 'var(--dav-accent)' }}>
-                <p className="text-[14px] font-semibold text-ink-dark">Ledolgozott órák — e hó</p>
-                <div className="mt-1.5"><Spark data={eff.monthWeeks ?? eff.recent} /></div>
-                <div className="mt-2 flex items-baseline gap-2">
-                  <span className="text-[36px] font-light leading-none tracking-[-0.02em] text-ink-dark"><CountUp to={sel.hoursThisMonth} /><span className="text-[17px]"> ó</span></span>
-                  <span className="text-[12.5px] font-semibold" style={{ color: hoursDelta >= 0 ? '#3B6B4B' : '#B0453F' }}>{hoursDelta >= 0 ? '+' : '−'}{Math.abs(hoursDelta)} ó</span>
-                </div>
-                <p className="mt-1.5 text-[11.5px] font-medium text-ink-dark/65">Előző hónap: {sel.hoursLastMonth} ó</p>
+              {/* Havi órák / availability editor (AnimatePresence slide) */}
+              <motion.div variants={detailItem} data-print-card ref={calendarRef}>
+                <AnimatePresence mode="wait" initial={false}>
+                  {calSelDay && calEditState && variant === 'salon' && salonId ? (
+                    <motion.div key="cal-editor" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ type: 'spring', stiffness: 420, damping: 34 }}>
+                      <div className="rounded-[22px] border border-line bg-white p-5">
+                        {/* Fejléc: dátum + X gomb */}
+                        <div className="mb-4 flex items-start justify-between gap-2">
+                          <div>
+                            <p className="text-[13px] font-semibold text-ink">
+                              {new Date(calSelDay + 'T00:00:00').toLocaleDateString('hu-HU', { month: 'long', day: 'numeric', weekday: 'long' })}
+                            </p>
+                            <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${calExceptions[calSelDay] ? 'bg-emerald-100 text-emerald-700' : 'bg-paper text-ink-soft'}`}>
+                              {calExceptions[calSelDay] ? 'Egyéni beállítás' : 'Szalon alap'}
+                            </span>
+                          </div>
+                          <button type="button" onClick={() => { setCalSelDay(null); setCalEditState(null) }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><X className="h-3.5 w-3.5" /></button>
+                        </div>
+                        {/* Dolgozik e napon toggle */}
+                        <div className="mb-4 flex items-center justify-between">
+                          <span className="text-[13px] font-medium text-ink">Dolgozik ezen a napon</span>
+                          <Switch checked={calEditState.is_available} onChange={(v) => setCalEditState(prev => prev ? { ...prev, is_available: v } : null)} />
+                        </div>
+                        {/* Időpontok */}
+                        {calEditState.is_available && (
+                          <div className="mb-4 grid grid-cols-2 gap-3">
+                            <div>
+                              <p className="mb-1 text-[11px] font-semibold text-ink-soft">Kezdés</p>
+                              <TimeSelect value={calEditState.start_time} onChange={(v) => setCalEditState(prev => prev ? { ...prev, start_time: v } : null)} />
+                            </div>
+                            <div>
+                              <p className="mb-1 text-[11px] font-semibold text-ink-soft">Végzés</p>
+                              <TimeSelect value={calEditState.end_time} onChange={(v) => setCalEditState(prev => prev ? { ...prev, end_time: v } : null)} />
+                            </div>
+                          </div>
+                        )}
+                        {/* Mentés / visszaállítás */}
+                        <div className="flex gap-2">
+                          {calExceptions[calSelDay] && (
+                            <button type="button" onClick={resetCalDay} disabled={calSaving} className="rounded-[12px] border border-line px-3 py-2 text-[12.5px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50">Visszaállítás</button>
+                          )}
+                          <button type="button" onClick={saveCalDay} disabled={calSaving} className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-ink-dark px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50">
+                            {calSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mentés'}
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ) : (
+                    <motion.div key="hours-card" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ type: 'spring', stiffness: 420, damping: 34 }}>
+                      <div className="rounded-[22px] p-6" style={{ background: 'var(--dav-accent)' }}>
+                        <p className="text-[14px] font-semibold text-ink-dark">Ledolgozott órák — e hó</p>
+                        <div className="mt-1.5"><Spark data={eff.monthWeeks ?? eff.recent} /></div>
+                        <div className="mt-2 flex items-baseline gap-2">
+                          <span className="text-[36px] font-light leading-none tracking-[-0.02em] text-ink-dark"><CountUp to={sel.hoursThisMonth} /><span className="text-[17px]"> ó</span></span>
+                          <span className="text-[12.5px] font-semibold" style={{ color: hoursDelta >= 0 ? '#3B6B4B' : '#B0453F' }}>{hoursDelta >= 0 ? '+' : '−'}{Math.abs(hoursDelta)} ó</span>
+                        </div>
+                        <p className="mt-1.5 text-[11.5px] font-medium text-ink-dark/65">Előző hónap: {sel.hoursLastMonth} ó</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </motion.div>
             </motion.div>
 
             {/* Jobb belső: fejléc + szerep + állomások + megjegyzés + jelenlét, alul stat-ok + chart */}
-            <motion.div variants={detailCol}>
+            <motion.div layout variants={detailCol} className="hv-right-col" transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}>
               {editing ? (
                 <ProfileEditForm
                   initial={{
@@ -996,9 +1181,9 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                 />
               ) : (
               <>
-              <motion.div variants={detailItem} className="flex flex-wrap items-start justify-between gap-6">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
+              <motion.div variants={detailItem} className="hv-profile-block">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
                         <h2 className="text-[28px] font-semibold leading-tight text-ink">{headName}</h2>
@@ -1043,9 +1228,15 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       </div>
                       <p className="mt-1.5 text-[16px] text-ink-soft">{eff.position}</p>
                     </div>
-                    <div className="flex gap-2 print:hidden">
+                    <div className="flex shrink-0 gap-2 print:hidden">
                       {canEditProfile && (
                         <button type="button" onClick={() => setEditing(true)} title="Szerkesztés" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><Pencil className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
+                      )}
+                      {variant === 'salon' && onOpenEdit && (
+                        <button type="button" onClick={() => { onOpenEdit(sel.id); onClose?.() }} title="Profil szerkesztése" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><Pencil className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
+                      )}
+                      {variant === 'salon' && salonId && (
+                        <button type="button" onClick={() => { const today = new Date().toISOString().split('T')[0]; handleCalDayClick(today); setTimeout(() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }} title="Ugrás a mai naphoz" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><CalendarDays className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
                       )}
                       <button type="button" onClick={printProfileNow} title="Profil nyomtatása" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink print:hidden"><Printer className="h-[18px] w-[18px]" strokeWidth={1.7} /></button>
                       {eff.phone ? (
@@ -1113,7 +1304,9 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                     </div>
                   )}
                 </div>
-                <RadialGauge value={sel.attendance} label="Jelenlét (hó)" />
+                <div className="hv-profile-gauge">
+                  <RadialGauge value={sel.attendance} label="Jelenlét (hó)" />
+                </div>
               </motion.div>
 
               {/* Havi napok — ARÁNYOS pillek. A profilon SAJÁT, NAGYOBB belépő (a listaoldalak közös

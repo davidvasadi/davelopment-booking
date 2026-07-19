@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { Plus, CalendarDays, Camera, Loader2, X, Trash2, Search, Download, ChevronDown } from 'lucide-react'
-import StaffCalendarSheet from './StaffCalendarSheet'
+
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
@@ -111,7 +111,7 @@ export default function StaffManager({
   const [avatarModified, setAvatarModified] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const [calendarStaff, setCalendarStaff] = useState<StaffMember | null>(null)
+  const [openCalendar, setOpenCalendar] = useState(false)
 
   const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -378,7 +378,7 @@ export default function StaffManager({
       {/* ── MAPPA-FÜL kártya (davelopment App 67–75): NORMÁL folyású fül + homorú notch-ív (nem takarja a stat-csíkot) ── */}
       <div className="relative">
         {/* Fül: szűrők + kereső — a kártya bal-felső sarkára ül, jobbra homorú ív köti a kártyához */}
-        <div className="relative z-10 flex h-[48px] w-full max-w-[600px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6">
+        <div className="relative z-10 flex h-[48px] w-full items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6">
           {/* Szűrő: állapot */}
           <div className="relative shrink-0">
             <select
@@ -434,14 +434,9 @@ export default function StaffManager({
               className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none"
             />
           </div>
-          {/* homorú csatlakozó ív (notch) a fül jobb szélén → mappa-hatás */}
-          <span
-            className="pointer-events-none absolute -right-[24px] bottom-0 h-[24px] w-[24px]"
-            style={{ background: 'radial-gradient(circle at top right, transparent 23px, rgba(255,255,255,.62) 23.5px)' }}
-          />
         </div>
 
-        <div className="rounded-b-[28px] rounded-tr-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
+        <div className="rounded-b-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
           {/* Akció-sor */}
           <div className="flex flex-wrap items-center gap-2.5">
             <button
@@ -493,9 +488,9 @@ export default function StaffManager({
             return (
               <div
                 key={m.id}
-                onClick={() => openEdit(m)}
+                onClick={() => setHiringIndex(idx)}
                 role="button"
-                title="Szerkesztés"
+                title="Adatlap megnyitása"
                 style={isSel ? { background: 'var(--dav-accent)' } : undefined}
                 className={`mt-2 cursor-pointer rounded-[18px] transition-all ${
                   isSel ? 'shadow-[0_10px_24px_-12px_rgba(180,150,40,.55)]' : 'hover:bg-gold/10'
@@ -540,7 +535,7 @@ export default function StaffManager({
                       <span className="h-[7px] w-[7px] rounded-full" style={{ background: active ? '#4F9E6A' : '#B3AE9E' }} />
                       {active ? 'Aktív' : 'Inaktív'}
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); setCalendarStaff(m) }} title="Elérhetőség" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); const empIdx = employees?.findIndex(emp => String(emp.id) === String(m.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : idx); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
                     <button onClick={(e) => { e.stopPropagation(); setDeleteId(String(m.id)) }} title="Törlés" className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-white"><Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
                   </div>
                 </div>
@@ -568,7 +563,7 @@ export default function StaffManager({
                     <p className="truncate text-[15px] font-semibold text-ink">{m.name}</p>
                     <p className="truncate text-[12.5px] font-medium text-ink-soft">{position}</p>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); setCalendarStaff(m) }} title="Elérhetőség" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); const empIdx = employees?.findIndex(emp => String(emp.id) === String(m.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : idx); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
                 </div>
               </div>
             )
@@ -666,7 +661,7 @@ export default function StaffManager({
             {editing && editLocale === 'hu' && (
               <button
                 type="button"
-                onClick={() => { setOpen(false); setCalendarStaff(editing) }}
+                onClick={() => { setOpen(false); const empIdx = employees?.findIndex(emp => String(emp.id) === String(editing!.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : staff.findIndex(s => s.id === editing!.id)); setOpenCalendar(true) }}
                 className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3.5 text-sm font-medium text-ink transition-colors hover:bg-white"
               >
                 <CalendarDays className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
@@ -682,17 +677,6 @@ export default function StaffManager({
             </button>
           </form>
       </PopupModal>
-
-      {/* Availability calendar sheet */}
-      {calendarStaff && (
-        <StaffCalendarSheet
-          open={!!calendarStaff}
-          onClose={() => setCalendarStaff(null)}
-          staffId={String(calendarStaff.id)}
-          staffName={calendarStaff.name}
-          salonId={salonId}
-        />
-      )}
 
       {/* Törlés megerősítő modal (natív confirm helyett) */}
       <ConfirmDialog
@@ -722,10 +706,18 @@ export default function StaffManager({
       {/* Munkavállalók-adatlap overlay — a listasorra kattintva nyílik */}
       <HiringOverlay
         open={hiringIndex !== null}
-        onClose={() => setHiringIndex(null)}
+        onClose={() => { setHiringIndex(null); setOpenCalendar(false) }}
         variant="salon"
         employees={employees}
         initialIndex={hiringIndex ?? 0}
+        salonId={salonId}
+        openCalendar={openCalendar}
+        onOpenEdit={(id) => {
+          setHiringIndex(null)
+          setOpenCalendar(false)
+          const m = staff.find((x) => String(x.id) === id)
+          if (m) openEdit(m)
+        }}
       />
     </>
   )

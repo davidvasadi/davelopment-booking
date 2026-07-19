@@ -32,7 +32,10 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   const dayName = getDayName(dateObj)
 
   // 4. Fetch availability records — priority: exception > staff recurring > salon recurring
-  const [exceptions, staffAllRecurring, salonAvail] = await Promise.all([
+  const [allExceptionsRes, staffAllRecurring, salonAvail] = await Promise.all([
+    // Összes kivétel erre a dátumra (mind a staff-specifikus, mind a szalon-szintű).
+    // Client-oldali szűréssel különítjük el — a { staff: { exists: false } } Payload-operator
+    // nem megbízható PostgreSQL/Drizzle alatt, véletlenszerűen visszaadhat staff-specifikus sorokat is.
     payload.find({
       collection: 'availability',
       where: {
@@ -42,8 +45,11 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
           { exception_date: { equals: date } },
         ],
       },
+      depth: 1,
+      overrideAccess: true,
+      limit: 50,
     }),
-    // Fetch ALL recurring records for this staff (any day) so we know if they have a custom schedule
+    // A munkatárs összes ismétlődő beosztása (bármely napra) — kell tudni, van-e egyéni schedule
     staffId ? payload.find({
       collection: 'availability',
       where: {
@@ -53,28 +59,35 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
           { recurring: { equals: true } },
         ],
       },
+      depth: 0,
+      overrideAccess: true,
       limit: 10,
     }) : Promise.resolve({ docs: [] }),
+    // Szalon-szintű ismétlődő beosztás erre a napra (alap fallback)
     payload.find({
       collection: 'availability',
       where: {
         and: [
           { salon: { equals: salonId } },
-          { staff: { exists: false } },
           { day_of_week: { equals: dayName } },
           { recurring: { equals: true } },
         ],
       },
+      depth: 1,
+      overrideAccess: true,
     }),
   ])
 
-  // Apply priority: exception first (for this staff or salon-wide)
-  const staffException = staffId ? exceptions.docs.find((e) => {
-    if (!e.staff) return false
-    const refId = typeof e.staff === 'object' ? (e.staff as { id: number | string }).id : e.staff
-    return String(refId) === String(staffId)
-  }) : undefined
-  const salonException = exceptions.docs.find((e) => !e.staff)
+  // Client-oldali szétválasztás: staff-specifikus vs. szalon-szintű kivétel
+  const staffException = staffId
+    ? allExceptionsRes.docs.find((e) => {
+        if (!e.staff) return false
+        const sid = typeof e.staff === 'object' ? (e.staff as { id: number | string }).id : e.staff
+        return String(sid) === String(staffId)
+      })
+    : undefined
+  // Szalon-szintű kivétel: ahol a staff mező null/undefined (az egész szalon zárva van aznap)
+  const salonException = allExceptionsRes.docs.find((e) => !e.staff)
   const activeException = staffException ?? salonException
 
   // Staff-specific recurring record for this exact day
@@ -96,15 +109,12 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   } else if (staffHasCustomSchedule) {
     // Staff has a schedule but this day isn't in it → closed for this day
     return []
-  } else if (salonAvail.docs.length > 0) {
-    // Staff has no schedule at all → inherit salon-level hours
-    const rule = salonAvail.docs[0]
-    if (!rule.is_available) return []
-    workStart = rule.start_time
-    workEnd = rule.end_time
   } else {
-    // No rule anywhere → closed
-    return []
+    // Csak a szalon-szintű ismétlődő beosztást nézzük fallbacknek (staff = null)
+    const salonRule = salonAvail.docs.find((r) => !r.staff)
+    if (!salonRule || !salonRule.is_available) return []
+    workStart = salonRule.start_time
+    workEnd = salonRule.end_time
   }
 
   const openMin = hhmmToMinutes(workStart)

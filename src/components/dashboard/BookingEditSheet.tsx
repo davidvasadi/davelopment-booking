@@ -132,6 +132,10 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
   const [confirmDiscard, setConfirmDiscard] = useState(false)
   const initSigRef = useRef<string>('')
 
+  // Szabad időpontok az aktuális szakember/szolgáltatás/dátum kombinációra (csak új foglalásnál).
+  const [fetchedSlots, setFetchedSlots] = useState<{ start: string; end: string }[]>([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
+
   const activeServices = useMemo(() => services.filter((s) => s.is_active !== false), [services])
   const selectedService = useMemo(() => services.find((s) => String(s.id) === serviceId) ?? null, [services, serviceId])
   const duration = selectedService?.duration_minutes ?? 0
@@ -214,6 +218,31 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceId, open])
+
+  // Szabad időpontok lekérése az aktuális staffId+serviceId+date kombinációra (csak új foglalásnál).
+  useEffect(() => {
+    if (isEdit || !open || !staffId || !serviceId || !salonId) {
+      setFetchedSlots([])
+      setSlotsLoading(false)
+      return
+    }
+    const ctrl = new AbortController()
+    setSlotsLoading(true)
+    setFetchedSlots([])
+    const params = new URLSearchParams({ salonId, staffId, serviceId, date })
+    fetch(`/api/slots?${params}`, { credentials: 'include', signal: ctrl.signal })
+      .then(r => r.json())
+      .then((json: { slots?: { start: string; end: string }[] }) => {
+        const slots = json.slots ?? []
+        setFetchedSlots(slots)
+        setSlotsLoading(false)
+        // Ha nincs szabad slot, az előzetesen beállított időpontot töröljük (ne lehessen menteni).
+        if (slots.length === 0) setStartTime('')
+      })
+      .catch((err: Error) => { if (err.name !== 'AbortError') setSlotsLoading(false) })
+    return () => ctrl.abort()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, open, staffId, serviceId, salonId, date])
 
   // Új foglalásnál az időpont változása frissíti az alap-státuszt, amíg a tulaj kézzel nem választ.
   useEffect(() => {
@@ -433,12 +462,42 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label>Időpont</Label>
-                      <TimeSelect
-                        value={startTime}
-                        onChange={setStartTime}
-                        minTime={openMin != null ? minutesToHHMM(openMin) : undefined}
-                        maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
-                      />
+                      {/* Új foglalásnál: szabad időpontok picker (elérhető slotok a staffId+serviceId alapján) */}
+                      {!isEdit && staffId && serviceId ? (
+                        slotsLoading ? (
+                          <div className="flex h-10 items-center gap-2 text-sm text-zinc-400">
+                            <Loader2 className="h-4 w-4 animate-spin shrink-0" /> Időpontok betöltése…
+                          </div>
+                        ) : fetchedSlots.length === 0 ? (
+                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                            Ezen a napon nincs szabad időpont ehhez a szakemberhez.
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {fetchedSlots.map(sl => (
+                              <button
+                                key={sl.start}
+                                type="button"
+                                onClick={() => setStartTime(sl.start)}
+                                className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium tabular-nums transition-colors ${
+                                  startTime === sl.start
+                                    ? 'border-amber-400 bg-amber-50 text-amber-900'
+                                    : 'border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50'
+                                }`}
+                              >
+                                {sl.start}
+                              </button>
+                            ))}
+                          </div>
+                        )
+                      ) : (
+                        <TimeSelect
+                          value={startTime}
+                          onChange={setStartTime}
+                          minTime={openMin != null ? minutesToHHMM(openMin) : undefined}
+                          maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
+                        />
+                      )}
                       {endTime && (
                         <p className="text-[11px] text-zinc-400 tabular-nums">
                           Vége: {endTime} ({duration} perc)
