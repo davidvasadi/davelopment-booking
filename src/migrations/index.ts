@@ -5,6 +5,7 @@ import * as migration_20260719_000000_add_billing_fields from './20260719_000000
 import * as migration_20260719_100000_add_invoices_table from './20260719_100000_add_invoices_table';
 import * as migration_20260719_200000_add_invoice_pdf from './20260719_200000_add_invoice_pdf';
 import * as migration_20260719_300000_add_invoice_pdfs_table from './20260719_300000_add_invoice_pdfs_table';
+import * as migration_20260719_400000_add_invoices_rels_col from './20260719_400000_add_invoices_rels_col';
 
 export const migrations = [
   {
@@ -41,5 +42,10 @@ export const migrations = [
     up: migration_20260719_300000_add_invoice_pdfs_table.up,
     down: migration_20260719_300000_add_invoice_pdfs_table.down,
     name: '20260719_300000_add_invoice_pdfs_table',
+  },
+  {
+    up: migration_20260719_400000_add_invoices_rels_col.up,
+    down: migration_20260719_400000_add_invoices_rels_col.down,
+    name: '20260719_400000_add_invoices_rels_col',
   },
 ];
