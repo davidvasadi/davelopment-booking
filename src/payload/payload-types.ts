@@ -372,6 +372,20 @@ export interface AuditLogEntry {
   updatedAt: string
 }
 
+export interface Invoice {
+  id: string
+  subscription: string | Subscription
+  invoice_number: string
+  invoice_url?: string | null
+  amount_huf?: number | null
+  stripe_invoice_id?: string | null
+  invoice_pdf_base64?: string | null
+  issued_at?: string | null
+  test?: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface EmailLogEntry {
   id: string
   type:

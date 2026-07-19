@@ -9,10 +9,33 @@ import { toast } from 'sonner'
  * A `returnPath` az aktuális oldal (a Checkout ide tér vissza `?checkout=success|cancel`-lel).
  * Ha a Stripe nincs konfigurálva (nincs kulcs), a szerver 503-at ad → érthető toast.
  */
-export function StripeCheckoutButton({ cycle }: { cycle: 'monthly' | 'annual' }) {
+export function StripeCheckoutButton({
+  cycle,
+  billFieldsComplete = true,
+  billDirty = false,
+  onMarkBillTouched,
+}: {
+  cycle: 'monthly' | 'annual'
+  /** Minden kötelező számlázási mező ki van-e töltve. */
+  billFieldsComplete?: boolean
+  /** A számlázási form mentetlen változásokat tartalmaz. */
+  billDirty?: boolean
+  /** Hiányos mezők esetén hívódik — a szülő megjelöli az érintetlen mezőket érintettként. */
+  onMarkBillTouched?: () => void
+}) {
   const [busy, setBusy] = useState(false)
 
   const start = async () => {
+    if (!billFieldsComplete) {
+      onMarkBillTouched?.()
+      document.getElementById('bill-details-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      toast.error('Töltsd ki a kötelező számlázási adatokat a fizetés előtt.')
+      return
+    }
+    if (billDirty) {
+      toast.error('Mentsd el a számlázási adatokat a fizetés megkezdése előtt.')
+      return
+    }
     setBusy(true)
     try {
       const res = await fetch('/api/stripe/checkout', {

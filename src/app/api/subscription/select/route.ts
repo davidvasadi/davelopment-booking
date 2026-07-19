@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
 import { findAccountSubscription, syncAccountSubscription } from '@/lib/accountSubscription'
+import { getStripe } from '@/lib/stripe'
 
 /**
  * POST /api/subscription/select
@@ -56,8 +57,30 @@ export async function POST(req: Request) {
     }
   }
 
+  // 2b) Ha a user korábban lemondta az előfizetést (cancel_at_period_end = true) de most
+  //     csomagot választ, az egyértelmű szándéka a folytatásnak — automatikusan visszavonjuk.
+  let cancelReversed = false
+  if (sub?.cancel_at_period_end) {
+    const stripe = getStripe()
+    if (stripe && sub.stripe_subscription_id) {
+      try {
+        await stripe.subscriptions.update(sub.stripe_subscription_id, { cancel_at_period_end: false })
+      } catch (e) {
+        console.error('[subscription/select] Lemondás-visszavonás Stripe-on sikertelen:', e)
+        // Nem fatális — a webhook szinkronizálja vissza ha késik, a DB-t frissítjük
+      }
+    }
+    await payload.update({
+      collection: 'subscriptions',
+      id: sub.id,
+      data: { cancel_at_period_end: false },
+      overrideAccess: true,
+    })
+    cancelReversed = true
+  }
+
   // 3) Effektív díj újraszámolása (tier + ciklus alapján).
   await syncAccountSubscription({ payload }, user.id)
 
-  return NextResponse.json({ ok: true, tier, cycle: cycleLocked ? sub?.billing_cycle : cycle, cycleLocked })
+  return NextResponse.json({ ok: true, tier, cycle: cycleLocked ? sub?.billing_cycle : cycle, cycleLocked, cancelReversed })
 }

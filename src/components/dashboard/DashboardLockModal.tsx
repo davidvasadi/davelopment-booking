@@ -53,7 +53,7 @@ export function DashboardLockModal({ status }: { status: 'past_due' | 'canceled'
         </p>
 
         <Link
-          href={settingsHref}
+          href={`${settingsHref}?tab=billing`}
           className="flex items-center justify-center gap-2 h-12 w-full rounded-full bg-zinc-900 dark:bg-white text-white dark:text-black font-semibold text-sm hover:opacity-90 transition-opacity"
         >
           <Settings className="h-4 w-4" />

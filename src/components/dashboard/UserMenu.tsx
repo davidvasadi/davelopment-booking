@@ -5,12 +5,12 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useTheme } from 'next-themes'
 import { toast } from 'sonner'
-import { MoreHorizontal, Bell, Monitor, Sun, Moon, LogOut, CreditCard, Settings, X, ExternalLink } from 'lucide-react'
+import { MoreHorizontal, Bell, LogOut, CreditCard, Settings, X, ExternalLink, Check, Loader2, Plus, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notificationVisual, type Notification } from '@/lib/useNotifications'
+import type { SwitcherBusiness } from './StoreSwitcher'
 
 /** A panel gyerek-elemeinek „folyami" belépője (a genie-spring stagger alá). */
 const PANEL_ITEM = {
@@ -34,6 +34,8 @@ export function UserMenu({
   settingsHref,
   publicUrl,
   csvHref,
+  businesses = [],
+  activeBusinessKey = null,
 }: {
   name?: string | null
   email?: string | null
@@ -46,9 +48,11 @@ export function UserMenu({
   publicUrl?: string
   /** CSV export URL — a fiók-menübe. */
   csvHref?: string
+  /** Összes fiók-üzlet (üzletváltóhoz) — csak ha 2+ üzlet van. */
+  businesses?: SwitcherBusiness[]
+  activeBusinessKey?: string | null
 }) {
   const router = useRouter()
-  const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
@@ -85,17 +89,35 @@ export function UserMenu({
   // Az avatar-feltöltés + profil-szerkesztés a közös <ProfileEditor>-ben él (a popover
   // account-módjában renderelve), így nincs itt duplikált feltöltő-logika.
 
+  const [switching, setSwitching] = useState<string | null>(null)
+
+  async function switchBusiness(b: SwitcherBusiness) {
+    const key = `${b.type}:${b.id}`
+    if (key === activeBusinessKey || switching) return
+    setSwitching(key)
+    try {
+      const res = await fetch('/api/business/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ type: b.type, id: b.id }),
+      })
+      const data = (await res.json().catch(() => null)) as { redirectTo?: string } | null
+      if (res.ok && data?.redirectTo) {
+        setOpen(false)
+        router.push(data.redirectTo)
+        router.refresh()
+      }
+    } finally {
+      setSwitching(null)
+    }
+  }
+
   async function handleLogout() {
     await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
     router.push('/login')
     toast.success('Kijelentkezve')
   }
-
-  const themeOptions = [
-    { value: 'system', icon: Monitor, label: 'Rendszer' },
-    { value: 'light', icon: Sun, label: 'Világos' },
-    { value: 'dark', icon: Moon, label: 'Sötét' },
-  ] as const
 
   return (
     <div ref={anchorRef} className={cn('flex items-center', collapsed ? 'gap-2.5' : 'gap-1.5')}>
@@ -256,37 +278,57 @@ export function UserMenu({
             </motion.div>
           )}
 
-          <div className="border-t border-[#efefef]" />
-
-          {/* Téma-váltó: a háttér-pill layoutId-vel átsiklik az aktív téma alá. */}
-          <motion.div variants={PANEL_ITEM} className="px-3 py-3">
-            <div className="flex gap-0.5 rounded-[30px] bg-[#f1f1f1] p-1">
-              {themeOptions.map(({ value, icon: Icon, label }) => {
-                const isActive = mounted && theme === value
-                return (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setTheme(value)}
-                    title={label}
-                    className={cn(
-                      'relative flex h-8 flex-1 items-center justify-center rounded-[30px] transition-colors',
-                      isActive ? 'text-white' : 'text-[#8a8779] hover:text-[#3a352a]',
-                    )}
-                  >
-                    {isActive && (
-                      <motion.span
-                        layoutId="theme-pill"
-                        className="absolute inset-0 -z-0 rounded-[30px] bg-[#1d1d1b]"
-                        transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-                      />
-                    )}
-                    <Icon className="relative z-10 h-4 w-4" />
-                  </button>
-                )
-              })}
-            </div>
-          </motion.div>
+          {/* Üzletváltó — csak ha 2+ üzlet van a fiókban. */}
+          {businesses.length > 1 && (
+            <>
+              <div className="border-t border-[#efefef]" />
+              <motion.div variants={PANEL_ITEM} className="py-1.5">
+                <p className="px-4 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-[#b0ac9e]">Üzletek</p>
+                {businesses.map((b) => {
+                  const key = `${b.type}:${b.id}`
+                  const isActive = key === activeBusinessKey
+                  const isBusy = switching === key
+                  const mono = b.name?.trim()?.[0]?.toUpperCase() ?? '?'
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => switchBusiness(b)}
+                      disabled={isBusy || isActive}
+                      className={cn(
+                        'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
+                        isActive ? 'cursor-default bg-[#f4f4f5]' : 'hover:bg-[#f4f4f5]',
+                      )}
+                    >
+                      {b.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={b.logoUrl} alt={b.name} className="h-[30px] w-[30px] shrink-0 rounded-[8px] object-cover" />
+                      ) : (
+                        <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#1d1c19] text-[12px] font-bold text-[#f1ce45]">{mono}</span>
+                      )}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-[#3a352a]">{b.name}</span>
+                        <span className="block text-[11px] text-[#9b9788]">{b.type === 'restaurant' ? 'Étterem' : 'Szalon'}</span>
+                      </span>
+                      {isBusy
+                        ? <Loader2 className="h-[15px] w-[15px] shrink-0 animate-spin text-[#8a8779]" />
+                        : isActive
+                          ? <Check className="h-[15px] w-[15px] shrink-0 text-[#3a352a]" />
+                          : null}
+                    </button>
+                  )
+                })}
+                <button
+                  type="button"
+                  onClick={() => { setOpen(false); router.push('/business/new') }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-[#8a8779] transition-colors hover:bg-[#f4f4f5] hover:text-[#3a352a]"
+                >
+                  <Building2 className="h-[17px] w-[17px] shrink-0" />
+                  Üzlet hozzáadása
+                </button>
+              </motion.div>
+            </>
+          )}
 
           <div className="border-t border-[#efefef]" />
 

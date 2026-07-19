@@ -12,9 +12,10 @@ import {
   SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
 } from '@/components/settings/SettingsHub'
 import { RolesManager } from '@/components/settings/RolesManager'
+import { ImportPanel } from '@/components/settings/ImportPanel'
 import { getAccountBilling } from '@/lib/accountBilling'
 import { getPricing } from '@/lib/pricing'
-import type { Restaurant } from '@/payload/payload-types'
+import type { Restaurant, Invoice } from '@/payload/payload-types'
 
 const initialsOf = (name: string) =>
   name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
@@ -60,6 +61,8 @@ export default async function RestaurantSettingsPage() {
       ? [r.city, r.address, plan].filter(Boolean).join(' · ')
       : `${b.type === 'salon' ? 'Szalon' : 'Étterem'}`
     return {
+      id: b.id,
+      type: b.type,
       initials: initialsOf(b.name),
       name: b.name,
       meta: meta || plan,
@@ -90,6 +93,15 @@ export default async function RestaurantSettingsPage() {
     ? new Date(sub.trial_ends_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
     : null
 
+  const invoicesRes = sub ? await payload.find({
+    collection: 'invoices',
+    where: { subscription: { equals: sub.id } },
+    sort: '-issued_at',
+    limit: 50,
+    depth: 0,
+    overrideAccess: true,
+  }) : null
+
   const billing: BillingData = {
     planLabel: planName(sub),
     subscriptionStatus: sub?.status ?? null,
@@ -106,6 +118,14 @@ export default async function RestaurantSettingsPage() {
     billingPostalCode: r.billing_postal_code ?? '',
     billingCity: r.billing_city ?? '',
     billingStreet: r.billing_street ?? '',
+    invoices: (invoicesRes?.docs ?? [] as Invoice[]).map((inv) => ({
+      id: String(inv.id),
+      invoice_number: inv.invoice_number,
+      invoice_url: inv.invoice_url ?? null,
+      amount_huf: inv.amount_huf ?? null,
+      issued_at: inv.issued_at ?? null,
+      test: inv.test ?? null,
+    })),
     lastInvoiceNumber: sub?.last_invoice_number ?? null,
     lastInvoiceUrl: sub?.last_invoice_url ?? null,
   }
@@ -170,6 +190,7 @@ export default async function RestaurantSettingsPage() {
         planLabel={plan}
         auditLog={auditLog}
         customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
+        importPanel={<ImportPanel />}
         rolesSection={
           <RolesManager
             key="roles-panel"

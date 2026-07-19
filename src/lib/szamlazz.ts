@@ -46,8 +46,8 @@ export interface CreateInvoiceParams {
 }
 
 export type CreateInvoiceResult =
-  | { ok: true; invoiceNumber: string; test: boolean }
-  | { ok: false; disabled: true } // nincs kulcs → az integráció ki van kapcsolva
+  | { ok: true; invoiceNumber: string; invoiceUrl: string | null; pdfBase64: string | null; test: boolean }
+  | { ok: false; disabled: true }
   | { ok: false; disabled?: false; error: string; code?: string }
 
 export function isSzamlazzEnabled(): boolean {
@@ -166,11 +166,30 @@ export async function createInvoice(params: CreateInvoiceParams, now: Date = new
   const invoiceNumber =
     res.headers.get('szlahu_szamlaszam') || res.headers.get('x-szlahu-szamlaszam') || ''
   if (!invoiceNumber) {
-    // Nincs hiba-fejléc, de számlaszám sincs → a válasz-XML tartalmazhat hibát (defenzív).
     const body = await res.text().catch(() => '')
     const m = body.match(/<hibauzenet>(.*?)<\/hibauzenet>/s)
     return { ok: false, error: m ? m[1] : 'Ismeretlen Számlázz.hu válasz (nincs számlaszám)' }
   }
 
-  return { ok: true, invoiceNumber, test: isTestMode() }
+  // valaszVerzio=2 esetén a body XML, amiben a <pdf> tag base64 PDF-et tartalmaz.
+  let pdfBase64: string | null = null
+  try {
+    const body = await res.text()
+    const pdfMatch = body.match(/<pdf>([\s\S]*?)<\/pdf>/)
+    if (pdfMatch) {
+      pdfBase64 = pdfMatch[1].replace(/\s/g, '')
+    } else {
+      // Ha mégis nyers PDF jönne (valaszVerzio=1 fallback)
+      const buf = Buffer.from(body, 'binary')
+      if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) {
+        pdfBase64 = buf.toString('base64')
+      } else {
+        console.warn('[szamlazz] PDF nem található a válaszban, body (500 char):', body.slice(0, 500))
+      }
+    }
+  } catch (e) {
+    console.warn('[szamlazz] PDF kiolvasás hiba:', e)
+  }
+
+  return { ok: true, invoiceNumber, invoiceUrl: null, pdfBase64, test: isTestMode() }
 }

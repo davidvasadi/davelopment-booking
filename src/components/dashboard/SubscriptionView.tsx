@@ -3,6 +3,7 @@ import { Lock, Settings, ArrowRight, Coins, Layers, CreditCard } from 'lucide-re
 import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
 import { StripeCheckoutButton } from '@/components/dashboard/StripeCheckoutButton'
 import { BillingPortalButton } from '@/components/dashboard/BillingPortalButton'
+import { SwitchCycleButton } from '@/components/dashboard/SwitchCycleButton'
 import { PricingCards } from '@/components/dashboard/PricingCards'
 import { AccountSwitcher } from '@/components/dashboard/AccountSwitcher'
 import type { SwitcherBusiness } from '@/components/dashboard/StoreSwitcher'
@@ -145,7 +146,7 @@ export function SubscriptionView({
             </div>
           </div>
           <Link
-            href={`${settingsBase}/settings`}
+            href={`${settingsBase}/settings?tab=billing`}
             className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-dav-pill bg-ink-dark px-6 text-sm font-semibold text-white transition-opacity hover:opacity-90 sm:w-auto"
           >
             <Settings className="h-4 w-4" />
@@ -182,6 +183,7 @@ export function SubscriptionView({
         currentCycle={cycle}
         activeBusiness={activeBusiness}
         isTrial={isTrial}
+        needsCheckout={!isTrial && !isActivePro}
       />
 
       {/* ── JUTALÉK-KALKULÁTOR + ÜZLET-BONTÁS (megjelenítés) ── */}
@@ -304,6 +306,7 @@ export function SubscriptionView({
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <CancelSubscriptionButton cancelScheduled={cancelScheduled} periodEndLabel={fmtDate(periodEnd)} />
                 <BillingPortalButton label="Bankkártya cseréje" />
+                {!cancelScheduled && <SwitchCycleButton currentCycle={cycle} />}
               </div>
             </div>
           ) : (

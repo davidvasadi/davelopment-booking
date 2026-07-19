@@ -44,6 +44,8 @@ export function PricingCards({
   currentCycle,
   activeBusiness,
   isTrial,
+  needsCheckout = false,
+  onCycleChange,
 }: {
   kind: Kind
   pricing: Pricing
@@ -52,10 +54,15 @@ export function PricingCards({
   /** Az AKTÍV üzlet (amire a csomag vonatkozik). Null → csak megjelenítés. */
   activeBusiness: { type: Kind; id: string; tier: 'pro' | 'egyedi'; staffCount: number } | null
   isTrial: boolean
+  /** Lejárt/megszűnt előfizetésnél true → a Pro CTA csak elmenti a ciklust (checkout külön). */
+  needsCheckout?: boolean
+  /** Ha a szülő követni akarja a kiválasztott ciklust (pl. checkout gombhoz). */
+  onCycleChange?: (cycle: Cycle) => void
 }) {
   const router = useRouter()
   const [previewCycle, setPreviewCycle] = useState<Cycle>(currentCycle)
   const [pending, setPending] = useState(false)
+
 
   const noun = kind === 'restaurant' ? 'Étterem' : 'Szalon'
   const isSalon = kind === 'salon'
@@ -100,11 +107,13 @@ export function PricingCards({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: activeBusiness.type, id: activeBusiness.id, tier: 'pro', cycle: previewCycle }),
       })
-      if (!res.ok) {
-        const e = (await res.json().catch(() => ({}))) as { error?: string }
-        throw new Error(e.error || 'hiba')
+      const data = (await res.json().catch(() => ({}))) as { error?: string; cancelReversed?: boolean }
+      if (!res.ok) throw new Error(data.error || 'hiba')
+      if (data.cancelReversed) {
+        toast.success('Az előfizetés visszaállt — a lemondás törölve')
+      } else {
+        toast.success(`Mentve · ${isAnnual ? 'éves' : 'havi'} számlázás`)
       }
-      toast.success(`Mentve · ${isAnnual ? 'éves' : 'havi'} számlázás`)
       router.refresh()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Nem sikerült menteni.')
@@ -114,9 +123,11 @@ export function PricingCards({
   }
 
   const sameCycle = previewCycle === currentCycle
-  const proCta = sameCycle
-    ? (isTrial ? 'Jelenlegi (próba)' : 'Jelenlegi csomag')
-    : `Váltás ${isAnnual ? 'éves' : 'havi'} számlázásra`
+  const proCta = needsCheckout
+    ? (sameCycle ? 'Kiválasztva' : `Kiválasztom — ${isAnnual ? 'éves' : 'havi'}`)
+    : sameCycle
+      ? (isTrial ? 'Jelenlegi (próba)' : 'Jelenlegi csomag')
+      : `Váltás ${isAnnual ? 'éves' : 'havi'} számlázásra`
   const tabLabel = activeBusiness?.tier === 'egyedi' ? 'Egyedi' : isTrial ? 'Próba' : 'Aktív'
 
   return (
@@ -163,7 +174,7 @@ export function PricingCards({
                   <button
                     key={c}
                     type="button"
-                    onClick={() => setPreviewCycle(c)}
+                    onClick={() => { setPreviewCycle(c); onCycleChange?.(c) }}
                     className={`rounded-[15px] px-3.5 py-1.5 text-[12.5px] transition-colors ${
                       previewCycle === c ? 'bg-white font-semibold text-ink-dark' : 'font-medium text-white/60 hover:text-white'
                     }`}

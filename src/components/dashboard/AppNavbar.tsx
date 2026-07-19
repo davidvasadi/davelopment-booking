@@ -10,6 +10,7 @@ import { BrandLogo } from '@/components/BrandLogo'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
+import type { SwitcherBusiness } from './StoreSwitcher'
 
 // A „staggered spring" belépő (etalon: a UserMenu popover) — a „Több" legördülő is ezt kapja:
 // a panel a triggerből kinőve rugósan pattan ki, az elemek egymás után úsznak be.
@@ -50,6 +51,8 @@ export function AppNavbar({
   userName = null,
   userEmail = null,
   userAvatarUrl = null,
+  businesses = [],
+  activeBusinessKey = null,
 }: {
   variant: DashboardVariant
   capabilities?: Capability[]
@@ -58,6 +61,8 @@ export function AppNavbar({
   userName?: string | null
   userEmail?: string | null
   userAvatarUrl?: string | null
+  businesses?: SwitcherBusiness[]
+  activeBusinessKey?: string | null
 }) {
   const { publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
   const items = navItemsForCapabilities(variant, capabilities)
@@ -198,6 +203,8 @@ export function AppNavbar({
           settingsHref={settingsHref}
           publicUrl={publicUrl}
           csvHref={variant === 'backstage' ? undefined : csvHref}
+          businesses={businesses}
+          activeBusinessKey={activeBusinessKey}
         />
       </div>
     </div>

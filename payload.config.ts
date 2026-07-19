@@ -32,6 +32,7 @@ import { PushSubscriptions } from './src/payload/collections/PushSubscriptions'
 import { AuditLog } from './src/payload/collections/AuditLog'
 import { EmailLog } from './src/payload/collections/EmailLog'
 import { Tasks } from './src/payload/collections/Tasks'
+import { Invoices } from './src/payload/collections/Invoices'
 
 // Globals
 import { PricingSettings } from './src/payload/globals/PricingSettings'
@@ -89,6 +90,7 @@ export default buildConfig({
     AuditLog,
     EmailLog,
     Tasks,
+    Invoices,
   ],
   globals: [PricingSettings],
   // Többnyelvű publikus foglaló: a tulaj-content (szolgáltatás/kategória nevek, leírások, „jó tudni",

@@ -1,8 +1,22 @@
 import { NextResponse } from 'next/server'
 import type Stripe from 'stripe'
 import type { Payload } from 'payload'
+import { Pool } from 'pg'
 import { getStripe, mapStripeStatus } from '@/lib/stripe'
 import { getPayloadClient } from '@/lib/payload'
+import { createInvoice } from '@/lib/szamlazz'
+
+async function savePdfToDb(invoiceId: string | number, pdfBase64: string) {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URI })
+  try {
+    await pool.query(
+      'INSERT INTO invoice_pdfs (invoice_id, pdf_base64) VALUES ($1, $2) ON CONFLICT (invoice_id) DO UPDATE SET pdf_base64 = EXCLUDED.pdf_base64',
+      [invoiceId, pdfBase64]
+    )
+  } finally {
+    await pool.end()
+  }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -105,7 +119,77 @@ export async function POST(req: Request) {
         break
       }
 
-      // invoice.paid → később: automata Számlázz.hu számla.
+      // Sikeres ismétlődő terhelés (megújulás) → Számlázz.hu számla.
+      case 'invoice.paid': {
+        const inv = event.data.object as Stripe.Invoice
+        const custId = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
+        const our = custId ? await findSubBy(payload, 'stripe_customer_id', custId) : null
+        if (!our) break
+
+        const ownerId = typeof our.owner === 'object' && our.owner ? (our.owner as { id: string | number }).id : our.owner
+        if (!ownerId) break
+
+        // Vevő adatok: az owner első szalonjából/éttermanéből (billing mezők) + user email fallback.
+        const salonsRes = await payload.find({ collection: 'salons', where: { owner: { equals: ownerId } }, limit: 1, depth: 0, overrideAccess: true })
+        const biz = salonsRes.docs[0] ?? (await payload.find({ collection: 'restaurants', where: { owner: { equals: ownerId } }, limit: 1, depth: 0, overrideAccess: true })).docs[0] ?? null
+        const user = await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true }).catch(() => null) as { email?: string; name?: string } | null
+
+        const b = biz as Record<string, string | null | undefined> | null
+        const buyerName = b?.legal_name || b?.name || user?.name || ''
+        const buyerEmail = b?.billing_email || b?.email || user?.email || ''
+
+        const label = `davelopment booking előfizetés — ${our.billing_cycle === 'annual' ? 'éves' : 'havi'}`
+        const grossHuf = our.amount_huf ?? Math.round((inv.amount_paid ?? 0) / 100)
+
+        // Idempotencia: ha már feldolgoztuk ezt a Stripe invoice-t, kihagyjuk.
+        const stripeInvId = typeof inv.id === 'string' ? inv.id : null
+        if (stripeInvId) {
+          const existing = await payload.find({ collection: 'invoices', where: { stripe_invoice_id: { equals: stripeInvId } }, limit: 1, overrideAccess: true })
+          if (existing.totalDocs > 0) break
+        }
+
+        const result = await createInvoice({
+          buyer: {
+            name: buyerName,
+            email: buyerEmail,
+            zip: b?.billing_postal_code ?? null,
+            city: b?.billing_city ?? null,
+            address: b?.billing_street ?? null,
+            taxNumber: b?.tax_number ?? null,
+          },
+          lines: [{ label, grossHuf }],
+          orderRef: stripeInvId ?? undefined,
+          paid: true,
+        })
+
+        if (result.ok) {
+          const newInv = await payload.create({
+            collection: 'invoices',
+            overrideAccess: true,
+            data: {
+              subscription: our.id,
+              invoice_number: result.invoiceNumber,
+              invoice_url: result.invoiceUrl ?? undefined,
+              amount_huf: grossHuf,
+              stripe_invoice_id: stripeInvId ?? undefined,
+              issued_at: new Date().toISOString(),
+              test: result.test,
+            },
+          })
+          if (result.pdfBase64) {
+            await savePdfToDb(newInv.id, result.pdfBase64).catch((e) =>
+              console.error('[Stripe webhook] PDF mentés hiba:', e)
+            )
+          }
+          // Visszafelé kompatibilitás: az utolsó számla mezői is frissülnek a sub-on.
+          await payload.update({ collection: 'subscriptions', id: our.id, overrideAccess: true, data: { last_invoice_number: result.invoiceNumber, ...(result.invoiceUrl ? { last_invoice_url: result.invoiceUrl } : {}) } })
+          console.log(`[Stripe webhook] Számla kiállítva: ${result.invoiceNumber}${result.test ? ' (TESZT)' : ''}`)
+        } else if (!result.disabled) {
+          console.error('[Stripe webhook] Számlázz.hu hiba:', result.error)
+        }
+        break
+      }
+
       default:
         break
     }

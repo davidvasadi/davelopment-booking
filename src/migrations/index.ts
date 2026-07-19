@@ -2,6 +2,9 @@ import * as migration_20260618_134215_baseline from './20260618_134215_baseline'
 import * as migration_20260702_081938_add_tasks from './20260702_081938_add_tasks';
 import * as migration_20260717_000000_add_new_collections from './20260717_000000_add_new_collections';
 import * as migration_20260719_000000_add_billing_fields from './20260719_000000_add_billing_fields';
+import * as migration_20260719_100000_add_invoices_table from './20260719_100000_add_invoices_table';
+import * as migration_20260719_200000_add_invoice_pdf from './20260719_200000_add_invoice_pdf';
+import * as migration_20260719_300000_add_invoice_pdfs_table from './20260719_300000_add_invoice_pdfs_table';
 
 export const migrations = [
   {
@@ -23,5 +26,20 @@ export const migrations = [
     up: migration_20260719_000000_add_billing_fields.up,
     down: migration_20260719_000000_add_billing_fields.down,
     name: '20260719_000000_add_billing_fields',
+  },
+  {
+    up: migration_20260719_100000_add_invoices_table.up,
+    down: migration_20260719_100000_add_invoices_table.down,
+    name: '20260719_100000_add_invoices_table',
+  },
+  {
+    up: migration_20260719_200000_add_invoice_pdf.up,
+    down: migration_20260719_200000_add_invoice_pdf.down,
+    name: '20260719_200000_add_invoice_pdf',
+  },
+  {
+    up: migration_20260719_300000_add_invoice_pdfs_table.up,
+    down: migration_20260719_300000_add_invoice_pdfs_table.down,
+    name: '20260719_300000_add_invoice_pdfs_table',
   },
 ];

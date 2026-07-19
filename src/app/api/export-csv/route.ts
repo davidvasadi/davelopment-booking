@@ -87,7 +87,7 @@ export async function GET(req: NextRequest) {
     })
 
     rows = [
-      ['Dátum', 'Időpont', 'Vége', 'Fő', 'Asztal', 'Vendég', 'Email', 'Telefon', 'Forrás', 'Időtartam (perc)', 'Státusz'].join(','),
+      ['Dátum', 'Időpont', 'Vége', 'Fő', 'Asztal', 'Vendég', 'Email', 'Telefon', 'Forrás', 'Időtartam (perc)', 'Státusz', 'Megjegyzés', 'Belső megjegyzés'].join(','),
     ]
     for (const r of reservations.docs as Reservation[]) {
       const tableNames = (r.tables ?? [])
@@ -106,6 +106,8 @@ export async function GET(req: NextRequest) {
         escapeCsv(SOURCE_LABEL[r.source] ?? r.source),
         escapeCsv(diffMinutes(r.start_time, r.end_time)),
         escapeCsv(STATUS_LABEL[r.status] ?? r.status),
+        escapeCsv(r.notes),
+        escapeCsv(r.internal_notes),
       ].join(','))
     }
   } else {
@@ -129,7 +131,7 @@ export async function GET(req: NextRequest) {
     })
 
     rows = [
-      ['Dátum', 'Időpont', 'Ügyfél', 'Email', 'Telefon', 'Szolgáltatás', 'Munkatárs', 'Időtartam (perc)', 'Ár (Ft)', 'Státusz'].join(','),
+      ['Dátum', 'Időpont', 'Ügyfél', 'Email', 'Telefon', 'Szolgáltatás', 'Munkatárs', 'Időtartam (perc)', 'Ár (Ft)', 'Státusz', 'Megjegyzés'].join(','),
     ]
     for (const b of bookings.docs as Booking[]) {
       const svc = b.service as Service | null
@@ -145,6 +147,7 @@ export async function GET(req: NextRequest) {
         escapeCsv(typeof svc === 'object' ? svc?.duration_minutes : ''),
         escapeCsv(typeof svc === 'object' ? svc?.price : ''),
         escapeCsv(STATUS_LABEL[b.status] ?? b.status),
+        escapeCsv(b.notes),
       ].join(','))
     }
   }

@@ -87,6 +87,8 @@ export function AppShell({
               userName={userName}
               userEmail={userEmail}
               userAvatarUrl={userAvatarUrl}
+              businesses={businesses}
+              activeBusinessKey={activeBusinessKey}
             />
 
             <div className="lg:mt-6">

@@ -23,7 +23,7 @@ import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext
 import {
   Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
   Plus, ScrollText, KeyRound, Building2, Mail, Check, Languages, FileText,
-  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, type LucideIcon,
+  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
@@ -105,7 +105,7 @@ function StatBox({ label, value, unit }: { label: string; value: string; unit?: 
 
 type RailId =
   | 'profile' | 'booking' | 'features' | 'languages' | 'email'
-  | 'rules' | 'notifications' | 'team' | 'audit'
+  | 'rules' | 'notifications' | 'team' | 'audit' | 'import'
   | 'self' | 'documents' | 'billing' | 'sites'
   | 'integrations' | 'api' | 'danger'
 
@@ -118,7 +118,7 @@ const FORM_TABS: Record<string, string> = {
 // A kiválasztott szekció neve = a tartalom címe (mivel nincs felső fül-sor, ez jelzi „hol vagy").
 const RAIL_LABELS: Record<RailId, string> = {
   profile: 'Üzlet profil', booking: 'Foglalás', features: 'Foglalási funkciók', languages: 'Nyelvek', email: 'Email-sablonok',
-  rules: 'Foglalási szabályok', notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
+  rules: 'Foglalási szabályok', notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló', import: 'Adatok importálása',
   self: 'Saját profil', documents: 'Dokumentumok', billing: 'Számlázás', sites: 'Telephelyek',
   integrations: 'Integrációk', api: 'API & webhookok', danger: 'Fiók törlése',
 }
@@ -148,7 +148,8 @@ export interface BillingData {
   billingPostalCode: string
   billingCity: string
   billingStreet: string
-  /** Számlázz.hu utolsó kiállított számla */
+  /** Számlázz.hu kiállított számlák (legújabb elől) */
+  invoices: Array<{ id: string; invoice_number: string; invoice_url?: string | null; amount_huf?: number | null; issued_at?: string | null; test?: boolean | null }>
   lastInvoiceNumber: string | null
   lastInvoiceUrl: string | null
 }
@@ -167,6 +168,8 @@ export interface TeamMember {
 
 /** Telephelyek — VALÓS: a fiók egy üzlete. */
 export interface SiteData {
+  id: string
+  type: 'salon' | 'restaurant'
   initials: string
   name: string
   meta: string                     // „Budapest, V. · Király u. 8. · Étterem Pro"
@@ -220,6 +223,8 @@ export interface SettingsHubProps {
   planLabel: string                // Telephelyek fejléc / összesített csomag-felirat
   /** Audit-napló — VALÓS legutóbbi bejegyzések (üzletre szűrve, ~30). */
   auditLog: AuditEntry[]
+  /** Adatok importálása panel (CSV import más foglalórendszerekből). */
+  importPanel?: ReactNode
   /** Egyedi szerepek panel (2. fázis) — a Csapat tab alján renderelődik. */
   rolesSection?: ReactNode
   /** Egyedi szerepek (id + név) — a meghívó/tag-szerep legördülőhöz. */
@@ -260,7 +265,7 @@ function maskCompanyReg(raw: string): string {
 export function SettingsHub({
   variant, subtitle, availabilityHref, profilePanel, selfProfile, rules, senderLabel, billing,
   team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
-  featureModules, auditLog, rolesSection, customRoles = [],
+  featureModules, auditLog, importPanel, rolesSection, customRoles = [],
   sub, billingAccount, pricing, activeBusinessId, startedAt,
 }: SettingsHubProps) {
   const router = useRouter()
@@ -272,9 +277,18 @@ export function SettingsHub({
   })()
   const [active, setActive] = useState<RailId>(initialTab)
   const [saving, setSaving] = useState(false)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false) // mobil szekció-választó legördülő
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
+
+  useEffect(() => {
+    if (searchParams.get('checkout') === 'success') {
+      setActive('billing')
+      toast.success('Fizetés sikeres — előfizetés aktiválva!')
+    }
+  }, []) // mobil szekció-választó legördülő
 
   // ── Számlázási adatok helyi form (Számlázás panel) — PATCH az apiBase-re.
+  const [selectedCycle, setSelectedCycle] = useState<'monthly' | 'annual'>(billing.billingCycle)
+
   const [billDetails, setBillDetails] = useState({
     legalName: billing.legalName,
     taxNumber: billing.taxNumber,
@@ -286,6 +300,15 @@ export function SettingsHub({
   })
   const [billDirty, setBillDirty] = useState(false)
   const [billSaving, setBillSaving] = useState(false)
+  type BillKey = keyof typeof billDetails
+  const BILL_REQUIRED: BillKey[] = ['legalName', 'billingEmail', 'billingPostalCode', 'billingCity', 'billingStreet']
+  const [billTouched, setBillTouched] = useState<Partial<Record<BillKey, boolean>>>({})
+  const touchBillField = (k: BillKey) => setBillTouched((p) => ({ ...p, [k]: true }))
+  const markAllBillTouched = () =>
+    setBillTouched(Object.fromEntries(BILL_REQUIRED.map((k) => [k, true])) as Record<BillKey, boolean>)
+  const billError = (k: BillKey): string | null =>
+    billTouched[k] && !billDetails[k]?.trim() ? 'Kötelező mező' : null
+  const billFieldsComplete = BILL_REQUIRED.every((k) => !!billDetails[k]?.trim())
   const activeBizForPricing = useMemo(() => {
     const item = billingAccount.items.find((i) => i.id === activeBusinessId)
     if (!item) return null
@@ -299,11 +322,13 @@ export function SettingsHub({
   const saveBillDetails = async () => {
     setBillSaving(true)
     try {
-      const res = await fetch(apiBase, {
+      const res = await fetch('/api/billing/update', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          type: variant,
+          id: activeBusinessId,
           legal_name: billDetails.legalName,
           tax_number: billDetails.taxNumber,
           company_reg_number: billDetails.companyRegNumber,
@@ -547,6 +572,7 @@ export function SettingsHub({
       { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
       { kind: 'btn', id: 'team', icon: Users, label: 'Csapat & jogok' },
       { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
+      { kind: 'btn', id: 'import', icon: Upload, label: 'Adatok importálása' },
     ] },
     { group: 'Fiók', items: [
       { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
@@ -999,9 +1025,164 @@ export function SettingsHub({
                 currentCycle={billing.billingCycle}
                 activeBusiness={activeBizForPricing}
                 isTrial={billing.subscriptionStatus === 'trialing'}
+                needsCheckout={billing.subscriptionStatus !== 'trialing' && billing.subscriptionStatus !== 'active'}
+                onCycleChange={setSelectedCycle}
               />
 
-              {/* 2. ── Fizetés & előfizetés */}
+              {/* 2. ── Számlázási adatok (szerkeszthető) */}
+              <Card>
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <div className="text-[17px] font-medium text-ink">Számlázási adatok</div>
+                    <p className="mt-0.5 text-[12.5px] text-ink-soft2">
+                      Ezek az adatok kerülnek a Számlázz.hu által kiállított számlákon.
+                    </p>
+                  </div>
+                  {billDirty && (
+                    <button
+                      type="button"
+                      disabled={billSaving}
+                      onClick={saveBillDetails}
+                      className="inline-flex shrink-0 items-center gap-2 rounded-dav-pill bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity disabled:opacity-60"
+                    >
+                      {billSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      Mentés
+                    </button>
+                  )}
+                </div>
+                <div id="bill-details-form" className="mt-5 space-y-4">
+                  {/* Sor 1: Cégnév + Adószám */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">
+                        Cégnév / Teljes név <span className="text-bad" aria-hidden>*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={billDetails.legalName}
+                        onChange={(e) => setBillField('legalName', e.target.value)}
+                        onBlur={() => touchBillField('legalName')}
+                        placeholder="Pl. Minta Bt."
+                        aria-required
+                        aria-invalid={!!billError('legalName')}
+                        className={`h-[44px] w-full rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('legalName') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                      />
+                      {billError('legalName') && (
+                        <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('legalName')}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Adószám</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={billDetails.taxNumber}
+                        onChange={(e) => setBillField('taxNumber', maskTaxNumber(e.target.value))}
+                        placeholder="12345678-1-23"
+                        maxLength={13}
+                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
+                      />
+                    </div>
+                  </div>
+                  {/* Sor 2: Cégjegyzékszám + Számlázási email */}
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Cégjegyzékszám</label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={billDetails.companyRegNumber}
+                        onChange={(e) => setBillField('companyRegNumber', maskCompanyReg(e.target.value))}
+                        placeholder="01-09-123456"
+                        maxLength={12}
+                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">
+                        Számlázási email <span className="text-bad" aria-hidden>*</span>
+                      </label>
+                      <input
+                        type="email"
+                        value={billDetails.billingEmail}
+                        onChange={(e) => setBillField('billingEmail', e.target.value)}
+                        onBlur={() => touchBillField('billingEmail')}
+                        placeholder="szamlazas@ceg.hu"
+                        aria-required
+                        aria-invalid={!!billError('billingEmail')}
+                        className={`h-[44px] w-full rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingEmail') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                      />
+                      {billError('billingEmail') && (
+                        <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingEmail')}</p>
+                      )}
+                    </div>
+                  </div>
+                  {/* Sor 3: Számlázási cím */}
+                  <div>
+                    <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">
+                      Számlázási cím <span className="text-bad" aria-hidden>*</span>
+                    </label>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[120px_1fr_2fr]">
+                      <div>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={billDetails.billingPostalCode}
+                          onChange={(e) => setBillField('billingPostalCode', e.target.value.replace(/\D/g, '').slice(0, 4))}
+                          onBlur={() => touchBillField('billingPostalCode')}
+                          placeholder="1234"
+                          maxLength={4}
+                          aria-label="Irányítószám"
+                          aria-required
+                          aria-invalid={!!billError('billingPostalCode')}
+                          className={`h-[44px] w-full rounded-[14px] border bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingPostalCode') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                        />
+                        {billError('billingPostalCode') && (
+                          <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingPostalCode')}</p>
+                        )}
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={billDetails.billingCity}
+                          onChange={(e) => setBillField('billingCity', e.target.value)}
+                          onBlur={() => touchBillField('billingCity')}
+                          placeholder="Budapest"
+                          aria-label="Város"
+                          aria-required
+                          aria-invalid={!!billError('billingCity')}
+                          className={`h-[44px] w-full rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingCity') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                        />
+                        {billError('billingCity') && (
+                          <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingCity')}</p>
+                        )}
+                      </div>
+                      <div>
+                        <input
+                          type="text"
+                          value={billDetails.billingStreet}
+                          onChange={(e) => setBillField('billingStreet', e.target.value)}
+                          onBlur={() => touchBillField('billingStreet')}
+                          placeholder="Példa u. 1."
+                          aria-label="Utca, házszám"
+                          aria-required
+                          aria-invalid={!!billError('billingStreet')}
+                          className={`h-[44px] w-full rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingStreet') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                        />
+                        {billError('billingStreet') && (
+                          <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingStreet')}</p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-ink-soft2">Irányítószám · Város · Utca, házszám</p>
+                  </div>
+                  <p className="text-[11px] text-ink-soft2">
+                    <span className="text-bad">*</span> Kötelező mezők — a számla kiállításához szükségesek
+                  </p>
+                </div>
+              </Card>
+
+              {/* 3. ── Fizetés & előfizetés */}
               <Card>
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-[17px] font-medium text-ink">Fizetés & előfizetés</div>
@@ -1048,7 +1229,12 @@ export function SettingsHub({
                   {(billing.subscriptionStatus === 'trialing' ||
                     billing.subscriptionStatus === 'past_due' ||
                     billing.subscriptionStatus === 'canceled') && (
-                    <StripeCheckoutButton cycle={billing.billingCycle} />
+                    <StripeCheckoutButton
+                      cycle={selectedCycle}
+                      billFieldsComplete={billFieldsComplete}
+                      billDirty={billDirty}
+                      onMarkBillTouched={markAllBillTouched}
+                    />
                   )}
                   {billing.subscriptionStatus === 'active' && billing.hasStripeCustomer && (
                     <BillingPortalButton variant="button" label="Fizetési mód kezelése" />
@@ -1068,7 +1254,7 @@ export function SettingsHub({
                 )}
               </Card>
 
-              {/* 3. ── Üzletek & díjak */}
+              {/* 4. ── Üzletek & díjak */}
               <Card>
                 <div className="text-[17px] font-medium text-ink">Üzletek & díjak</div>
                 <div className="mt-4 space-y-2">
@@ -1129,137 +1315,38 @@ export function SettingsHub({
                 )}
               </Card>
 
-              {/* 4. ── Számlázási adatok (szerkeszthető) */}
-              <Card>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-[17px] font-medium text-ink">Számlázási adatok</div>
-                    <p className="mt-0.5 text-[12.5px] text-ink-soft2">
-                      Ezek az adatok kerülnek a Számlázz.hu által kiállított számlákon.
-                    </p>
-                  </div>
-                  {billDirty && (
-                    <button
-                      type="button"
-                      disabled={billSaving}
-                      onClick={saveBillDetails}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-dav-pill bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity disabled:opacity-60"
-                    >
-                      {billSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                      Mentés
-                    </button>
-                  )}
-                </div>
-                <div className="mt-5 space-y-4">
-                  {/* Sor 1: Cégnév + Adószám */}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Cégnév / Teljes név</label>
-                      <input
-                        type="text"
-                        value={billDetails.legalName}
-                        onChange={(e) => setBillField('legalName', e.target.value)}
-                        placeholder="Pl. Minta Bt."
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Adószám</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={billDetails.taxNumber}
-                        onChange={(e) => setBillField('taxNumber', maskTaxNumber(e.target.value))}
-                        placeholder="12345678-1-23"
-                        maxLength={13}
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
-                    </div>
-                  </div>
-                  {/* Sor 2: Cégjegyzékszám + Számlázási email */}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Cégjegyzékszám</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={billDetails.companyRegNumber}
-                        onChange={(e) => setBillField('companyRegNumber', maskCompanyReg(e.target.value))}
-                        placeholder="01-09-123456"
-                        maxLength={12}
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Számlázási email</label>
-                      <input
-                        type="email"
-                        value={billDetails.billingEmail}
-                        onChange={(e) => setBillField('billingEmail', e.target.value)}
-                        placeholder="szamlazas@ceg.hu"
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
-                    </div>
-                  </div>
-                  {/* Sor 3: Számlázási cím */}
-                  <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Számlázási cím</label>
-                    <div className="grid grid-cols-[120px_1fr_2fr] gap-2">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={billDetails.billingPostalCode}
-                        onChange={(e) => setBillField('billingPostalCode', e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        placeholder="1234"
-                        maxLength={4}
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
-                      <input
-                        type="text"
-                        value={billDetails.billingCity}
-                        onChange={(e) => setBillField('billingCity', e.target.value)}
-                        placeholder="Budapest"
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
-                      <input
-                        type="text"
-                        value={billDetails.billingStreet}
-                        onChange={(e) => setBillField('billingStreet', e.target.value)}
-                        placeholder="Példa u. 1."
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </Card>
-
               {/* 5. ── Számlák (Számlázz.hu) */}
               <Card>
                 <div className="text-[17px] font-medium text-ink">Számlák</div>
-                {billing.lastInvoiceNumber ? (
-                  <div className="mt-4 flex items-center justify-between gap-3 rounded-[16px] bg-[#FBF9F2] px-4 py-3.5">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-white shadow-dav-card">
-                        <FileText className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
+                {billing.invoices.length > 0 ? (
+                  <div className="mt-4 flex flex-col gap-2">
+                    {billing.invoices.map((inv) => (
+                      <div key={inv.id} className="flex items-center justify-between gap-3 rounded-[16px] bg-[#FBF9F2] px-4 py-3.5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-white shadow-dav-card">
+                            <FileText className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[13.5px] font-semibold text-ink">{inv.invoice_number}</span>
+                              {inv.test && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Teszt</span>}
+                            </div>
+                            <div className="text-[11.5px] text-ink-soft">
+                              {inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' }) : ''}
+                              {inv.amount_huf ? ` · ${inv.amount_huf.toLocaleString('hu-HU')} Ft` : ''}
+                            </div>
+                          </div>
+                        </div>
+                        <a
+                          href={`/api/billing/invoice-pdf?id=${inv.id}`}
+                          download={`${inv.invoice_number}.pdf`}
+                          className="inline-flex items-center gap-1.5 rounded-[12px] border border-line-strong bg-white px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-paper"
+                        >
+                          <Download className="h-3.5 w-3.5" strokeWidth={1.8} />
+                          Letöltés
+                        </a>
                       </div>
-                      <div>
-                        <div className="text-[13.5px] font-semibold text-ink">{billing.lastInvoiceNumber}</div>
-                        <div className="text-[11.5px] text-ink-soft">Legutóbbi számla</div>
-                      </div>
-                    </div>
-                    {billing.lastInvoiceUrl ? (
-                      <a
-                        href={billing.lastInvoiceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-[12px] border border-line-strong bg-white px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-paper"
-                      >
-                        <Download className="h-3.5 w-3.5" strokeWidth={1.8} />
-                        Letöltés
-                      </a>
-                    ) : (
-                      <span className="text-[12px] text-ink-soft2">Letöltési link hamarosan</span>
-                    )}
+                    ))}
                   </div>
                 ) : (
                   <div className="mt-4 rounded-[16px] bg-[#FBF9F2] px-4 py-8 text-center">
@@ -1400,6 +1487,13 @@ export function SettingsHub({
             </div>
           )}
 
+          {/* ── Adatok importálása ── CSV import más foglalórendszerekből. */}
+          {active === 'import' && (
+            <div>
+              {importPanel ?? <p className="text-sm text-ink-soft">Az import panel nem érhető el.</p>}
+            </div>
+          )}
+
           {/* ── API & webhookok ── ŐSZINTE „Hamarosan" üres állapot (nincs hamis kulcs/webhook). */}
           {active === 'api' && (
             <ComingSoon
@@ -1453,9 +1547,13 @@ export function SettingsHub({
                       <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">{s.meta}</div>
                     </div>
                     <span className="text-[12.5px] font-medium text-ink-soft">{s.role}</span>
-                    <span className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[12px] font-semibold text-ink">
-                      Kezelés
-                    </span>
+                    {s.current ? (
+                      <span className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[12px] font-semibold text-ink opacity-40 cursor-default">
+                        Jelenlegi
+                      </span>
+                    ) : (
+                      <SiteManageButton id={s.id} type={s.type} />
+                    )}
                   </div>
                 ))}
               </div>
@@ -1738,4 +1836,41 @@ function RoleBadge({ role, tone, pending }: { role: string; tone: 'owner' | 'man
       ? 'bg-ink-dark text-white'
       : 'bg-[#F2ECDA] text-ink-soft'
   return <span className={`shrink-0 rounded-[13px] px-3.5 py-1.5 text-[12px] font-semibold ${cls}`}>{role}</span>
+}
+
+/* ── Telephelyek: üzlet-kezelés gomb ────────────────────────────────────── */
+function SiteManageButton({ id, type }: { id: string; type: 'salon' | 'restaurant' }) {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+
+  const handle = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch('/api/business/switch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ id, type }),
+      })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(data?.error ?? 'Váltás sikertelen')
+      const dest = (data?.redirectTo ?? (type === 'restaurant' ? '/restaurant' : '/dashboard')) + '/settings'
+      router.push(dest)
+      router.refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Váltás sikertelen')
+      setLoading(false)
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handle}
+      disabled={loading}
+      className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[12px] font-semibold text-ink transition-colors hover:border-ink-soft2 hover:bg-paper disabled:opacity-40"
+    >
+      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Kezelés'}
+    </button>
+  )
 }
