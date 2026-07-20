@@ -44,6 +44,13 @@ export const Users: CollectionConfig = {
           req,
         })
         for (const sub of subs.docs) {
+          // Invoices have subscription_id NOT NULL — delete them before the subscription
+          await req.payload.delete({
+            collection: 'invoices',
+            where: { subscription: { equals: sub.id } },
+            overrideAccess: true,
+            req,
+          })
           await req.payload.delete({ collection: 'subscriptions', id: sub.id, overrideAccess: true, req })
         }
       },

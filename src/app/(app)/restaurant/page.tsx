@@ -124,8 +124,8 @@ export default async function RestaurantDashboardPage() {
   const tlDay = todayActive.length ? today : (futureActive.length ? futureActive[0].date : today)
   const tlSrc = tlDay === today ? todayActive : futureActive.filter((r) => r.date === tlDay)
 
-  // Sorok = ASZTALOK: minden foglalás az asztalá(i) sorába kerül (asztal nélkül → „Nincs asztal").
-  const rowMap = new Map<string, TimelineBlock[]>()
+  // Sorok = ASZTALOK: minden foglalás az asztalá(i) sorába kerül (asztal nélkül → egyedi sor).
+  const rowMap = new Map<string, { label: string; blocks: TimelineBlock[] }>()
   for (const r of tlSrc) {
     const block: TimelineBlock = {
       id: String(r.id),
@@ -138,13 +138,18 @@ export default async function RestaurantDashboardPage() {
       occasion: r.occasion ?? null,
       occasionIcon: r.occasion_icon ?? null,
     }
-    const names = (r.tables ?? []).map((t) => (typeof t === 'object' ? (t.name ?? `#${t.id}`) : `#${t}`))
-    const keys = names.length ? names : ['Nincs asztal']
-    for (const k of keys) rowMap.set(k, [...(rowMap.get(k) ?? []), block])
+    const tableNames = (r.tables ?? []).map((t) => (typeof t === 'object' ? (t.name ?? `#${t.id}`) : `#${t}`))
+    const entries = tableNames.length
+      ? tableNames.map((n) => ({ key: n, label: n }))
+      : [{ key: `_na_${r.id}`, label: 'Nincs asztalhoz rendelve' }]
+    for (const { key, label } of entries) {
+      const ex = rowMap.get(key)
+      rowMap.set(key, { label: ex?.label ?? label, blocks: [...(ex?.blocks ?? []), block] })
+    }
   }
   const timelineRows: TimelineRow[] = [...rowMap.entries()]
-    .sort((a, b) => (a[0] === 'Nincs asztal' ? 1 : b[0] === 'Nincs asztal' ? -1 : a[0].localeCompare(b[0], 'hu', { numeric: true })))
-    .map(([table, blocks]) => ({ table, blocks }))
+    .sort((a, b) => (a[0].startsWith('_na_') ? 1 : b[0].startsWith('_na_') ? -1 : a[0].localeCompare(b[0], 'hu', { numeric: true })))
+    .map(([table, { label, blocks }]) => ({ table, label, blocks }))
 
   const tlStartMins = tlSrc.map((r) => minOfDay(r.start_time))
   const tlEndMins = tlSrc.map((r) => (r.end_time ? minOfDay(r.end_time) : minOfDay(r.start_time) + 90))
@@ -176,19 +181,20 @@ export default async function RestaurantDashboardPage() {
   const cancelledPct = Math.round((pillRes.filter((r) => r.status === 'cancelled' || r.status === 'no_show').length / pillTotal) * 100)
   const avgParty = stats.reservationsToday > 0 ? Math.round((stats.paxToday / stats.reservationsToday) * 10) / 10 : 0
 
-  // ── Heti oszlopdiagram: „Vendégek a héten" — az AKTUÁLIS hét (hétfő–vasárnap) napi pax-a.
-  //    (Korábban gördülő 7 napot vett weekday-re rendezve, ami KEVERTE az e heti és múlt heti
-  //    napokat — pl. a „Vas" a MÚLT vasárnap lehetett.) A trend `revenue` mezője a napi PAX-ot
-  //    tárolja; a jövőbeli napok (nincs adat a trendben) 0-val jelennek meg.
+  // ── Heti oszlopdiagram: „Következő 7 nap" — mai naptól számított 7 nap várható pax-a.
+  //    Az upcomingRes már tartalmazza a jövőbeli (pending/confirmed) foglalásokat is.
   const DOW_SHORT = ['Vas', 'Hét', 'Ked', 'Sze', 'Csü', 'Pén', 'Szo']
-  const paxByDate = new Map(stats.trend.map((d) => [d.date, d.revenue]))
-  const weekStart = new Date(now)
-  weekStart.setHours(0, 0, 0, 0)
-  weekStart.setDate(now.getDate() - ((now.getDay() + 6) % 7)) // e hét hétfője
+  const upcomingActive = (upcomingRes.docs as Reservation[]).filter(
+    (r) => r.status !== 'cancelled' && r.status !== 'no_show',
+  )
   const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const dt = new Date(weekStart)
-    dt.setDate(weekStart.getDate() + i)
-    return { label: DOW_SHORT[dt.getDay()], value: paxByDate.get(ymd(dt)) ?? 0 }
+    const dt = new Date(now)
+    dt.setDate(now.getDate() + i)
+    const dtStr = ymd(dt)
+    const dayPax = upcomingActive
+      .filter((r) => r.date === dtStr)
+      .reduce((s, r) => s + (r.pax ?? 0), 0)
+    return { label: DOW_SHORT[dt.getDay()], value: dayPax }
   })
   const weekTotal = weekDays.reduce((s, d) => s + d.value, 0)
   const weekMax = Math.max(1, ...weekDays.map((d) => d.value))
@@ -390,11 +396,11 @@ export default async function RestaurantDashboardPage() {
         {/* ── COL2: 2 grafikon-kártya + naptár idővonal ── */}
         <div className="flex min-h-0 flex-col gap-[5px]">
           <div className="grid grid-cols-1 gap-[5px] sm:grid-cols-2">
-            {/* Foglalások a héten — oszlopdiagram (Crextio „Progress"-stílus) */}
+            {/* Foglalások (köv. 7 nap) — oszlopdiagram (Crextio „Progress"-stílus) */}
             <div className={`${CARD} flex flex-col p-[22px]`}>
               <div className="flex items-start justify-between">
-                <div className="text-[17px] font-medium text-ink">Vendégek a héten</div>
-                <DetailSheet title="Vendégek a héten" subtitle="Napi létszám az elmúlt 7 napban">
+                <div className="text-[17px] font-medium text-ink">Köv. 7 nap</div>
+                <DetailSheet title="Köv. 7 nap vendégei" subtitle="Napi várható vendéglétszám">
                   <div className="mb-4 flex items-baseline gap-2">
                     <span className="text-[38px] font-light tracking-[-0.02em] text-ink">{weekTotal}</span>
                     <span className="text-[13px] text-ink-soft">vendég összesen</span>
@@ -421,14 +427,21 @@ export default async function RestaurantDashboardPage() {
               </div>
               <div className="mt-2 flex items-baseline gap-2">
                 <span className="text-[32px] font-light tracking-[-0.02em] text-ink">{weekTotal}</span>
-                <span className="text-[11.5px] leading-[1.2] text-ink-soft">vendég<br />a héten</span>
+                <span className="text-[11.5px] leading-[1.2] text-ink-soft">vendég<br />köv. 7 nap</span>
               </div>
               <div className="mt-4 flex flex-1 flex-col justify-end">
-                {/* Oszlopok — függőleges vonal + kis pont az alján; háttérben vízszintes szaggatott vonal */}
+                {/* Oszlopok — függőleges vonal + kis pont az alján; hover tooltip adattal */}
                 <div className="relative flex items-end justify-between gap-1.5" style={{ minHeight: '118px' }}>
                   <div className="pointer-events-none absolute inset-x-0 bottom-[3px] border-t border-dashed border-[#d9d4c5]" />
                   {weekBars.map((b, i) => (
-                    <div key={i} className="relative z-10 flex flex-1 flex-col items-center justify-end">
+                    <div key={i} className="group relative z-10 flex flex-1 cursor-default flex-col items-center justify-end">
+                      {/* Tooltip */}
+                      <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+                        <div className="rounded-[8px] bg-ink px-2.5 py-1.5 text-center shadow-md">
+                          <div className="text-[11px] font-semibold leading-none text-white whitespace-nowrap">{b.value} fő</div>
+                        </div>
+                        <div className="mx-auto h-0 w-0 border-x-[5px] border-x-transparent border-t-[5px] border-t-ink" />
+                      </div>
                       {b.peak ? <span className="mb-1.5 rounded-[8px] bg-gold px-2 py-0.5 text-[10px] font-bold text-ink-dark">{b.value}</span> : null}
                       <div className="w-[6px] rounded-full" style={{ height: `${Math.max(8, (b.value / weekMax) * 92)}px`, background: b.peak ? '#F1CE45' : '#1D1C19' }} />
                       <span className="mt-1.5 h-[6px] w-[6px] rounded-full" style={{ background: b.peak ? '#F1CE45' : '#c9c3b4' }} />

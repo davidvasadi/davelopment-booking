@@ -12,7 +12,7 @@ export const authInputBase =
 
 /** Input a SÖTÉT panelen / mobil splash-en (ink-dark háttéren). */
 export const authInputDark =
-  'w-full h-[50px] rounded-[14px] bg-white/[0.06] border border-white/10 text-white placeholder:text-white/35 px-4 text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:border-gold/50'
+  'w-full h-[50px] rounded-[14px] bg-white/[0.06] border border-white/10 text-white placeholder:text-white/35 px-4 text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/40 focus-visible:border-gold/50 backdrop-blur-[10px]'
 
 /** Mező-címke. */
 export const authLabelBase = 'text-[12.5px] font-medium text-ink-soft'
@@ -26,7 +26,7 @@ export const authPillBtn =
 
 /** Elsődleges CTA a sötét panelen / splash-en (fehér gomb sötét felületen). */
 export const authPillBtnLight =
-  'w-full h-14 rounded-dav-pill bg-white hover:bg-white/90 text-ink font-semibold text-base transition-colors disabled:opacity-40 flex items-center justify-center gap-2'
+  'w-full h-14 rounded-dav-pill bg-white hover:bg-white/95 text-ink font-semibold text-base transition-colors disabled:opacity-40 flex items-center justify-center gap-2 backdrop-blur-[10px]'
 
 /** Másodlagos / ghost gomb (keretes, transzparens). */
 export const authGhostBtn =
@@ -34,7 +34,7 @@ export const authGhostBtn =
 
 /** Ghost gomb a sötét panelen. */
 export const authGhostBtnDark =
-  'w-full h-14 rounded-dav-pill border border-white/15 text-white/80 font-medium text-base transition-colors hover:bg-white/5 flex items-center justify-center gap-2'
+  'w-full h-14 rounded-dav-pill border border-white/15 text-white/80 font-medium text-base transition-colors hover:bg-white/5 backdrop-blur-[10px] flex items-center justify-center gap-2'
 
 /** „vagy" elválasztó a Google-gomb fölött (világos). */
 export const authDivider = 'flex items-center gap-3 text-[11px] uppercase tracking-widest text-ink-soft2'

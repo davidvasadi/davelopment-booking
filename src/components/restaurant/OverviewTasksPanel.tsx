@@ -106,7 +106,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
   const SEGS: { key: Tab; label: string; count: number; pill: string; card: string; light?: boolean; striped?: boolean }[] = [
     { key: 'today', label: 'Mai', count: todayList.length, pill: '#F1CE45', card: '#26220f' },
     { key: 'tomorrow', label: 'Holnapi', count: tomorrowList.length, pill: '#1D1C19', card: '#E4E3E0', light: true },
-    { key: 'yesterday', label: 'Tegnapi', count: yesterdayList.length, pill: HERO_STRIPE, card: DARK_STRIPE, striped: true },
+    { key: 'yesterday', label: 'Korábbi', count: yesterdayList.length, pill: HERO_STRIPE, card: DARK_STRIPE, striped: true },
   ]
 
   return (
@@ -160,7 +160,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
           const pos = stack.indexOf(s.key) // 0 = elöl, 1/2 = mögötte
           const front = pos === 0
           const list = listOf(s.key)
-          const label = s.key === 'today' ? 'Mai teendők' : s.key === 'tomorrow' ? 'Holnapi teendők' : 'Tegnapi teendők'
+          const label = s.key === 'today' ? 'Mai teendők' : s.key === 'tomorrow' ? 'Holnapi teendők' : 'Korábbi teendők'
           const light = !!s.light
           const th = {
             title: light ? 'text-ink' : 'text-white',
@@ -200,7 +200,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
                 <div className="no-scrollbar mt-1 min-h-0 flex-1 overflow-y-auto" data-lenis-prevent>
                   {list.length === 0 ? (
                     <p className={`py-6 text-center text-sm ${th.empty}`}>
-                      {s.key === 'yesterday' ? 'Nincs tegnapi teendő.' : s.key === 'tomorrow' ? 'Nincs holnapi vagy későbbi teendő.' : 'Nincs mai teendő. Vegyél fel egyet a +-szal.'}
+                      {s.key === 'yesterday' ? 'Nincs korábbi teendő.' : s.key === 'tomorrow' ? 'Nincs holnapi vagy későbbi teendő.' : 'Nincs mai teendő. Vegyél fel egyet a +-szal.'}
                     </p>
                   ) : (
                     list.map((task, idx) => {

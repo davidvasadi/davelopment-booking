@@ -171,7 +171,7 @@ export function DashboardNav({
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={brandLogoUrl} alt={salonName} className="h-9 w-9 rounded-full object-cover bg-zinc-100 dark:bg-white/[0.06]" />
                 ) : (
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white dark:bg-white dark:text-black text-sm font-bold">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white text-sm font-bold">
                     {salonName?.trim()?.[0]?.toUpperCase() ?? '?'}
                   </span>
                 )}
@@ -180,7 +180,7 @@ export function DashboardNav({
               // Backstage fejléc: márka-logó + „Backstage" badge + admin email.
               <div className="flex flex-col gap-2">
                 <Link href="/backstage" aria-label="davelopment booking Backstage" className="block w-fit hover:opacity-80 transition-opacity">
-                  <BrandLogo className="h-6" />
+                  <BrandLogo variant="dark" className="h-6" />
                 </Link>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-white dark:text-black">
@@ -332,7 +332,7 @@ export function DashboardNav({
               <p className="text-[10px] text-zinc-300 dark:text-white/20">powered by</p>
               <div className="mt-1.5 flex items-center justify-between gap-2">
                 <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
-                  <BrandLogo className="h-5" />
+                  <BrandLogo variant="dark" className="h-5" />
                 </a>
                 <span className="text-zinc-200 dark:text-white/10">·</span>
                 <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">

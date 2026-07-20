@@ -97,7 +97,7 @@ export function AppNavbar({
         aria-label="davelopment booking"
         className="flex items-center shrink-0 px-1"
       >
-        <BrandLogo className="h-10" />
+        <BrandLogo variant="light" className="h-10" />
       </Link>
 
       {/* Közép: pill-nav — üveges háttér (a konténer-gradient átdereng), 40px sugár, soft shadow */}

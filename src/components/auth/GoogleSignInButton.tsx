@@ -55,7 +55,7 @@ export function GoogleSignInButton({
   const styles =
     variant === 'dark'
       // Sötét (ink-dark) panelen: világos szegély, fehér szöveg
-      ? 'border border-white/15 bg-transparent text-white hover:bg-white/5'
+      ? 'border border-white/15 bg-transparent text-white hover:bg-white/5 backdrop-blur-[10px]'
       // Világos hátteren: fehér háttér, meleg szegély, ink szöveg (Crextio social-pill)
       : 'border border-line-strong bg-white text-ink hover:bg-paper shadow-dav-card'
   return (

@@ -23,7 +23,7 @@ export type TimelineBlock = {
   occasion?: string | null
   occasionIcon?: string | null
 }
-export type TimelineRow = { table: string; blocks: TimelineBlock[] }
+export type TimelineRow = { table: string; label?: string; blocks: TimelineBlock[] }
 
 const WIN = 4 // egyszerre látható órák
 const TABLE_COL = 88 // bal asztal-oszlop szélessége (px)
@@ -140,11 +140,12 @@ export function OverviewTimeline({
             const vis = row.blocks.filter((b) => b.endMin > winStartMin && b.startMin < winStartMin + winMin)
             return (
               <div key={row.table} className="flex" style={{ minHeight: ROW_H }}>
+
                 <div
                   className="flex shrink-0 items-center border-t border-dotted border-[#e4dfd0] pr-2 text-[12px] font-semibold text-ink"
                   style={{ width: TABLE_COL }}
                 >
-                  <span className="truncate">{row.table}</span>
+                  <span className="line-clamp-2 break-words leading-tight">{row.label ?? row.table}</span>
                 </div>
                 <div className="relative flex-1 border-t border-dotted border-[#e4dfd0]" style={{ minHeight: ROW_H }}>
                   {/* Függőleges óra-vonalak (a sor teljes magasságában) */}

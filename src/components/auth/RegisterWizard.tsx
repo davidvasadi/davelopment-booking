@@ -19,6 +19,7 @@ import { MAIN_CATEGORIES, getSubTypesForCategory, type BusinessType, type MainCa
 import { BrandLogo } from '@/components/BrandLogo'
 import { signIn } from 'next-auth/react'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
+import { WizardImportStep } from '@/components/auth/WizardImportStep'
 import {
   authInputBase, authInputDark, authLabelBase, authLabelDark,
   authPillBtn, authPillBtnLight, authGhostBtnDark,
@@ -26,6 +27,7 @@ import {
   BRAND_COPYRIGHT,
 } from '@/components/auth/authStyles'
 import { PasswordInput } from '@/components/auth/PasswordInput'
+import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
 
 const MAIN_CAT_ICONS: Record<MainCategory, React.ElementType> = {
   szepseg: Sparkles,
@@ -46,7 +48,7 @@ type Step2Data = z.infer<typeof step2Schema>
 
 export function RegisterWizard() {
   const router = useRouter()
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1)
   const [subStep, setSubStep] = useState<'category' | 'types'>('category')
   const [loading, setLoading] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<MainCategory | null>(null)
@@ -257,7 +259,7 @@ export function RegisterWizard() {
     router.push('/dashboard')
   }
 
-  const TOTAL_STEPS = 4
+  const TOTAL_STEPS = 5
   const progressWidth = (step / TOTAL_STEPS) * 100
 
   // ─── STEP 1: Two-phase business type selection ───────────────────────────
@@ -281,6 +283,7 @@ export function RegisterWizard() {
               }}
               className={cn(
                 'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
+                isDark && 'backdrop-blur-[10px]',
                 isDark
                   ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
                   : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
@@ -302,6 +305,7 @@ export function RegisterWizard() {
         {/* Étterem — külön regisztrációs flow */}
         <Link href="/register-restaurant" className={cn(
           'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
+          isDark && 'backdrop-blur-[10px]',
           isDark
             ? 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
             : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
@@ -330,6 +334,7 @@ export function RegisterWizard() {
               }}
               className={cn(
                 'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
+                isDark && 'backdrop-blur-[10px]',
                 isDark
                   ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
                   : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
@@ -355,8 +360,9 @@ export function RegisterWizard() {
     return (
       <>
         {/* ── MOBILE ── */}
-        <div className="lg:hidden min-h-dvh bg-ink-dark font-onest flex flex-col">
-          <div className="flex flex-col flex-1 px-7 pb-10 overflow-y-auto" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
+        <div className="lg:hidden relative min-h-dvh bg-ink-dark font-onest flex flex-col">
+          <AuthVideoBg />
+          <div className="relative z-10 flex flex-col flex-1 px-7 pb-10 overflow-y-auto" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
             <div className="flex items-center justify-between mb-auto">
               {subStep === 'types' ? (
                 <button
@@ -371,7 +377,7 @@ export function RegisterWizard() {
                 </Link>
               )}
               <div className="flex gap-1.5">
-                {([1, 2, 3, 4] as const).map(s => (
+                {([1, 2, 3, 4, 5] as const).map(s => (
                   <div key={s} className={cn('h-1.5 rounded-full transition-all duration-300', s === step ? 'bg-gold w-4' : s < step ? 'w-1.5 bg-white/40' : 'w-1.5 bg-white/10')} />
                 ))}
               </div>
@@ -419,17 +425,20 @@ export function RegisterWizard() {
 
         {/* ── DESKTOP ── */}
         <div className="hidden lg:flex min-h-dvh font-onest">
-          <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
-            <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-              <BrandLogo variant="dark" className="h-8" />
-            </Link>
-            <div>
-              <h1 className="text-white font-light text-[2.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
-                {desktopLeftHeadline.h}
-              </h1>
-              <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{desktopLeftHeadline.sub}</p>
+          <div className="relative w-[45%] bg-ink-dark flex flex-col p-14 select-none">
+            <AuthVideoBg />
+            <div className="relative z-10 flex flex-col justify-between flex-1">
+              <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
+                <BrandLogo variant="dark" className="h-8" />
+              </Link>
+              <div>
+                <h1 className="text-white font-light text-[2.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
+                  {desktopLeftHeadline.h}
+                </h1>
+                <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{desktopLeftHeadline.sub}</p>
+              </div>
+              <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
             </div>
-            <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
           </div>
 
           <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light] overflow-y-auto">
@@ -490,15 +499,17 @@ export function RegisterWizard() {
   const leftHeadlines: Record<number, { headline: string; sub: string }> = {
     2: { headline: 'CSATLAKOZZ\nHOZZÁNK.', sub: 'Hozd létre a fiókodat és szalonod pár perc alatt.' },
     3: { headline: 'ADD HOZZÁ\nA CSAPA\nTODAT.', sub: 'Munkatársaid nevével testreszabhatod az időpontfoglalást.' },
-    4: { headline: 'KÉSZEN\nVAGYOK.', sub: 'A szalonod elérhető az ügyfelek számára.' },
+    4: { headline: 'IMPORTÁLD\nAZ ADATAID.', sub: 'Más rendszerből? Töltsd fel az exportált fájlt — asztalok, munkatársak, vendégek egyszerre.' },
+    5: { headline: 'KÉSZEN\nVAGYOK.', sub: 'A szalonod elérhető az ügyfelek számára.' },
   }
   const leftText = leftHeadlines[step]
 
   return (
     <>
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
-      <div className="lg:hidden min-h-dvh bg-ink-dark font-onest flex flex-col">
-        <div className="flex flex-col flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
+      <div className="lg:hidden relative min-h-dvh bg-ink-dark font-onest flex flex-col">
+        <AuthVideoBg />
+        <div className="relative z-10 flex flex-col flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
           <div className="flex items-center justify-between mb-auto">
             {step === 2 ? (
               <button
@@ -674,8 +685,19 @@ export function RegisterWizard() {
             </div>
           )}
 
-          {/* Step 4 — success */}
+          {/* Step 4 — import (optional) */}
           {step === 4 && (
+            <div className="mt-12 flex-1 flex flex-col">
+              <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-3">
+                IMPORTÁLD<br />AZ ADATAID.
+              </h2>
+              <p className="text-white/45 text-sm mb-8">Ha más rendszerből váltasz, töltsd fel az exportált fájlt.</p>
+              <WizardImportStep isDark onContinue={() => setStep(5)} />
+            </div>
+          )}
+
+          {/* Step 5 — success */}
+          {step === 5 && (
             <div className="mt-12 flex-1 flex flex-col justify-between">
               <div>
                 <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
@@ -697,10 +719,7 @@ export function RegisterWizard() {
                   ))}
                 </div>
               </div>
-              <button
-                onClick={finish}
-                className={authPillBtnLight}
-              >
+              <button onClick={finish} className={authPillBtnLight}>
                 Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -711,17 +730,20 @@ export function RegisterWizard() {
       {/* ── DESKTOP ────────────────────────────────────────────────── */}
       <div className="hidden lg:flex min-h-dvh font-onest">
         {/* Left panel */}
-        <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
-          <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-            <BrandLogo variant="dark" className="h-8" />
-          </Link>
-          <div>
-            <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
-              {leftText.headline}
-            </h1>
-            <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
+        <div className="relative w-[45%] bg-ink-dark flex flex-col p-14 select-none">
+          <AuthVideoBg />
+          <div className="relative z-10 flex flex-col justify-between flex-1">
+            <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
+              <BrandLogo variant="dark" className="h-8" />
+            </Link>
+            <div>
+              <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
+                {leftText.headline}
+              </h1>
+              <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
+            </div>
+            <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
           </div>
-          <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
         </div>
 
         {/* Right panel */}
@@ -850,7 +872,7 @@ export function RegisterWizard() {
             {step === 3 && (
               <>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">3 / 4</p>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">3 / 5</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Add hozzá az első munkatársat</h2>
                   <p className="text-ink-soft text-sm mt-1">Kihagyható — később is hozzáadhatsz.</p>
                 </div>
@@ -879,11 +901,23 @@ export function RegisterWizard() {
               </>
             )}
 
-            {/* Step 4 */}
+            {/* Step 4 — import (optional) */}
             {step === 4 && (
               <>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">4 / 4</p>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">4 / 5</p>
+                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Importáld az adataid</h2>
+                  <p className="text-ink-soft text-sm mt-1">Ha más rendszerből váltasz — kihagyható, bármikor elvégezhető.</p>
+                </div>
+                <WizardImportStep isDark={false} onContinue={() => setStep(5)} />
+              </>
+            )}
+
+            {/* Step 5 — success */}
+            {step === 5 && (
+              <>
+                <div className="mb-8">
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">5 / 5</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Készen vagy!</h2>
                   <p className="text-ink-soft text-sm mt-1">A szalonod sikeresen létrejött.</p>
                 </div>

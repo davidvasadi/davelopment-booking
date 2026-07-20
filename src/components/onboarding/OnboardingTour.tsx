@@ -3,68 +3,86 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion, type Variants } from 'framer-motion'
+import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, ArrowRight, X, Sparkles, Check,
-  LayoutDashboard, CalendarDays, Armchair, Briefcase, Users, Clock, BarChart2, Lightbulb, Settings,
+  LayoutDashboard, CalendarDays, CalendarRange, Armchair, Briefcase, Users, Clock, BarChart2, Lightbulb, Settings,
   type LucideIcon,
 } from 'lucide-react'
+import { TourPreview, type PreviewKey } from './TourPreview'
 
 /**
- * REGISZTRÁCIÓ UTÁNI BEVEZETŐ — teljes képernyős, immerzív végigvezetés (Crextio × Apple).
- * Nem coach-mark: az app elmosódik egy erős blur mögött, és képernyőnként EGY fogalmat mutat
- * be nagy tipográfiával, pötty-progresszel, slide + spring átmenetekkel. Bármikor kihagyható.
+ * REGISZTRÁCIÓ UTÁNI BEVEZETŐ — teljes képernyős, immerzív végigvezetés.
+ * Minden lépésnél Apple-stílusú CSS-animációs előnézet mutatja be a funkciót.
+ * Progressz mentve localStorage-ba (folytatja ahol abbahagyta); Súgóból újraindul 0-ról.
+ * Bármikor kihagyható.
  *
- * Újrahívás: `window.dispatchEvent(new Event('davelopment:open-onboarding'))` (Súgó oldal gombja).
+ * Újrahívás: `window.dispatchEvent(new Event('davelopment:open-onboarding'))`
  */
 
 type Variant = 'restaurant' | 'salon'
 
-type Step = { icon: LucideIcon; title: string; body: string }
+type Step = {
+  icon: LucideIcon
+  title: string
+  body: string
+  previewKey: PreviewKey
+  href?: string
+}
 
 const WELCOME: Step = {
   icon: Sparkles,
   title: 'Üdv a rendszeredben',
   body: 'Pár képernyőn átvezetünk a legfontosabb részeken, hogy percek alatt otthon érezd magad. Bármikor kihagyhatod, és a Súgóból újraindíthatod.',
+  previewKey: 'welcome',
 }
 
 const DONE = (where: string): Step => ({
   icon: Check,
   title: 'Készen állsz',
   body: `Ennyi az egész! A részletekért bármikor nézd meg a Súgót, vagy indítsd újra ezt a bevezetőt. ${where}`,
+  previewKey: 'done',
 })
 
 const STEPS: Record<Variant, Step[]> = {
   restaurant: [
     WELCOME,
-    { icon: LayoutDashboard, title: 'Áttekintés', body: 'A kezdőképernyőd: a mai foglalások, a kihasználtság és a legfontosabb számok egy pillantásra.' },
-    { icon: CalendarDays, title: 'Foglalások', body: 'A nap vendégei lista- és idővonal-nézetben. Beeső és telefonos foglalást is rögzíthetsz, a napi listát ki is nyomtathatod.' },
-    { icon: Armchair, title: 'Asztalok', body: 'Vedd fel az asztalaidat vagy egy egyszerű férőhely-számot — a rendszer ez alapján kezeli a kapacitást és az online foglalásokat.' },
-    { icon: Clock, title: 'Nyitvatartás', body: 'Állítsd be, mikor fogadsz vendégeket. Az online foglalás csak a nyitvatartáson belül lehetséges.' },
-    { icon: BarChart2, title: 'Statisztikák', body: 'Kövesd a kihasználtságot, a lemondásokat és a beesők arányát — és exportálj CSV-be bármikor.' },
-    { icon: Lightbulb, title: 'Tippek', body: 'A foglalási adataidból személyre szabott javaslatokat kapsz több foglaláshoz és jobb vendégélményhez.' },
+    { icon: LayoutDashboard, title: 'Áttekintés', body: 'A kezdőképernyőd: a mai foglalások, a kihasználtság és a legfontosabb számok egy pillantásra.', previewKey: 'overview', href: '/restaurant' },
+    { icon: CalendarDays, title: 'Foglalások', body: 'A nap vendégei lista- és idővonal-nézetben. Beeső és telefonos foglalást is rögzíthetsz, a napi listát ki is nyomtathatod.', previewKey: 'bookings', href: '/restaurant/bookings' },
+    { icon: CalendarRange, title: 'Naptár', body: 'Heti nézetben is átfuthatsz a közelgő foglalásokat — jól jön, ha előre tervezel, vagy egyszerre több napot szeretnél átnézni.', previewKey: 'schedule', href: '/restaurant/schedule' },
+    { icon: Armchair, title: 'Asztalok', body: 'Vedd fel az asztalaidat vagy egy egyszerű férőhely-számot — a rendszer ez alapján kezeli a kapacitást és az online foglalásokat.', previewKey: 'tables', href: '/restaurant/tables' },
+    { icon: Users, title: 'Munkatársak', body: 'Add hozzá az alkalmazottaidat, rendeld hozzájuk a munkaidőt, és kövesd a borravaló-elosztást.', previewKey: 'staff', href: '/restaurant/staff' },
+    { icon: Clock, title: 'Nyitvatartás', body: 'Állítsd be, mikor fogadsz vendégeket. Az online foglalás csak a nyitvatartáson belül lehetséges.', previewKey: 'hours', href: '/restaurant/availability' },
+    { icon: BarChart2, title: 'Statisztikák', body: 'Kövesd a kihasználtságot, a lemondásokat és a beesők arányát — és exportálj CSV-be bármikor.', previewKey: 'analytics', href: '/restaurant/analytics' },
+    { icon: Lightbulb, title: 'Tippek', body: 'A foglalási adataidból személyre szabott javaslatokat kapsz több foglaláshoz és jobb vendégélményhez.', previewKey: 'tips', href: '/restaurant/tips' },
+    { icon: Settings, title: 'Beállítások', body: 'A profilod, az e-mailsablonok, a számlázás és a csapat jogosultságai — mindent egy helyen kezelhetsz.', previewKey: 'settings', href: '/restaurant/settings' },
     DONE('Jó munkát! ✨'),
   ],
   salon: [
     WELCOME,
-    { icon: LayoutDashboard, title: 'Áttekintés', body: 'A kezdőképernyőd: a mai időpontok, a bevétel és a legfontosabb számok egy pillantásra.' },
-    { icon: CalendarDays, title: 'Időpontok', body: 'A foglalásaidat naptár- és listanézetben látod. Új időpontot kézzel is rögzíthetsz, az online foglalások automatikusan megjelennek.' },
-    { icon: Briefcase, title: 'Szolgáltatások', body: 'Vedd fel a szolgáltatásaidat árral és időtartammal — a vendégeid ezek alapján foglalnak online.' },
-    { icon: Users, title: 'Munkatársak', body: 'Add hozzá a munkatársaidat, és rendeld hozzájuk a szolgáltatásokat, hogy foglaláskor választhatók legyenek.' },
-    { icon: Clock, title: 'Nyitvatartás', body: 'A nyitvatartás és a munkatársak elérhetősége együtt határozza meg a foglalható időpontokat.' },
-    { icon: BarChart2, title: 'Statisztikák', body: 'Kövesd a bevételt és a kihasználtságot, és exportálj CSV-be bármikor.' },
-    { icon: Lightbulb, title: 'Tippek', body: 'A foglalási adataidból személyre szabott javaslatokat kapsz több foglaláshoz és jobb vendégélményhez.' },
+    { icon: LayoutDashboard, title: 'Áttekintés', body: 'A kezdőképernyőd: a mai időpontok, a bevétel és a legfontosabb számok egy pillantásra.', previewKey: 'overview', href: '/dashboard' },
+    { icon: CalendarDays, title: 'Időpontok', body: 'A foglalásaidat naptár- és listanézetben látod. Új időpontot kézzel is rögzíthetsz, az online foglalások automatikusan megjelennek.', previewKey: 'bookings', href: '/dashboard/bookings' },
+    { icon: CalendarRange, title: 'Naptár', body: 'Heti nézeten is átfuthatsz a közelgő időpontokon — gyorsan áttekintheted, mikor és kinél mi van.', previewKey: 'schedule', href: '/dashboard/schedule' },
+    { icon: Briefcase, title: 'Szolgáltatások', body: 'Vedd fel a szolgáltatásaidat árral és időtartammal — a vendégeid ezek alapján foglalnak online.', previewKey: 'services', href: '/dashboard/services' },
+    { icon: Users, title: 'Munkatársak', body: 'Add hozzá a munkatársaidat, és rendeld hozzájuk a szolgáltatásokat, hogy foglaláskor választhatók legyenek.', previewKey: 'staff', href: '/dashboard/staff' },
+    { icon: Clock, title: 'Nyitvatartás', body: 'A nyitvatartás és a munkatársak elérhetősége együtt határozza meg a foglalható időpontokat.', previewKey: 'hours', href: '/dashboard/availability' },
+    { icon: BarChart2, title: 'Statisztikák', body: 'Kövesd a bevételt és a kihasználtságot, és exportálj CSV-be bármikor.', previewKey: 'analytics', href: '/dashboard/analytics' },
+    { icon: Lightbulb, title: 'Tippek', body: 'A foglalási adataidból személyre szabott javaslatokat kapsz több foglaláshoz és jobb vendégélményhez.', previewKey: 'tips', href: '/dashboard/tips' },
+    { icon: Settings, title: 'Beállítások', body: 'A profilod, az e-mailsablonok, a számlázás és a csapat jogosultságai — mindent egy helyen kezelhetsz.', previewKey: 'settings', href: '/dashboard/settings' },
     DONE('Sok sikert! ✨'),
   ],
 }
 
-// A kulcs user-specifikus, hogy ugyanabban a böngészőben egy ÚJ fiók is friss túrát kapjon.
-function storageKey(variant: Variant, userId?: string) {
+// Progressz mentése: látott + aktuális lépés.
+function seenKey(variant: Variant, userId?: string) {
   return `davelopment_onboarding_seen_${variant}_${userId ?? 'anon'}`
+}
+function progressKey(variant: Variant, userId?: string) {
+  return `davelopment_onboarding_progress_${variant}_${userId ?? 'anon'}`
 }
 
 const REOPEN_EVENT = 'davelopment:open-onboarding'
 
-/** Slide + fade a képernyők közt (irány-érzékeny: +1 előre, -1 vissza). */
 const SLIDE: Variants = {
   enter: (dir: number) => ({ opacity: 0, x: dir >= 0 ? 48 : -48 }),
   center: { opacity: 1, x: 0 },
@@ -73,26 +91,38 @@ const SLIDE: Variants = {
 
 export function OnboardingTour({ variant, userId }: { variant: Variant; userId?: string }) {
   const steps = STEPS[variant]
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [index, setIndex] = useState(0)
   const [dir, setDir] = useState(0)
   const [mounted, setMounted] = useState(false)
 
+  // Auto-open on first visit; restore progress index.
   useEffect(() => {
     setMounted(true)
     try {
-      if (!localStorage.getItem(storageKey(variant, userId))) setOpen(true)
-    } catch {
-      /* localStorage tiltva — nem indítjuk automatikusan */
-    }
-  }, [variant, userId])
+      if (!localStorage.getItem(seenKey(variant, userId))) {
+        const saved = localStorage.getItem(progressKey(variant, userId))
+        if (saved) {
+          const restored = Math.min(parseInt(saved, 10), steps.length - 1)
+          setIndex(restored)
+        }
+        setOpen(true)
+      }
+    } catch { /* localStorage blocked */ }
+  }, [variant, userId, steps.length])
 
+  // Save progress whenever index changes while open.
   useEffect(() => {
-    const handler = () => {
-      setDir(0)
-      setIndex(0)
-      setOpen(true)
-    }
+    if (!open) return
+    try {
+      localStorage.setItem(progressKey(variant, userId), String(index))
+    } catch { /* no-op */ }
+  }, [open, index, variant, userId])
+
+  // Reopen from Help page — always restarts at 0.
+  useEffect(() => {
+    const handler = () => { setDir(0); setIndex(0); setOpen(true) }
     window.addEventListener(REOPEN_EVENT, handler)
     return () => window.removeEventListener(REOPEN_EVENT, handler)
   }, [])
@@ -100,10 +130,9 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
   const close = useCallback(() => {
     setOpen(false)
     try {
-      localStorage.setItem(storageKey(variant, userId), '1')
-    } catch {
-      /* no-op */
-    }
+      localStorage.setItem(seenKey(variant, userId), '1')
+      localStorage.removeItem(progressKey(variant, userId))
+    } catch { /* no-op */ }
   }, [variant, userId])
 
   const go = useCallback(
@@ -112,6 +141,14 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
       setIndex((i) => Math.max(0, Math.min(i + d, steps.length - 1)))
     },
     [steps.length],
+  )
+
+  const navigateTo = useCallback(
+    (href: string) => {
+      close()
+      router.push(href)
+    },
+    [close, router],
   )
 
   useEffect(() => {
@@ -130,7 +167,6 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
   const isFirst = index === 0
   const isLast = index === steps.length - 1
   const step = steps[index]
-  const Icon = step.icon
 
   return createPortal(
     <motion.div
@@ -142,13 +178,13 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
       animate={{ opacity: 1 }}
       transition={{ duration: 0.3, ease: 'easeOut' }}
     >
-      {/* ── Blur-réteg: az app elmosódik mögötte, halvány krém-fátyollal. (Ez a lényeg.) ── */}
+      {/* Blur-réteg */}
       <div
         className="absolute inset-0 bg-[rgba(244,241,233,0.45)] backdrop-blur-2xl backdrop-saturate-150"
         onClick={close}
       />
 
-      {/* ── Bezárás ── */}
+      {/* Bezárás */}
       <button
         onClick={close}
         aria-label="Bezárás"
@@ -157,9 +193,9 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
         <X className="h-4 w-4" />
       </button>
 
-      {/* ── Tartalom (középre, immerzív) ── */}
+      {/* Tartalom */}
       <div className="relative flex h-full flex-col items-center justify-center px-6">
-        <div className="w-full max-w-[440px] text-center">
+        <div className="w-full max-w-[400px] text-center">
           <AnimatePresence mode="wait" custom={dir}>
             <motion.div
               key={index}
@@ -170,28 +206,41 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
               exit="exit"
               transition={{ type: 'spring', stiffness: 300, damping: 30, mass: 0.9 }}
             >
-              {/* Ikon — rugalmas pop */}
-              <motion.span
-                className="mx-auto flex h-20 w-20 items-center justify-center rounded-[26px] bg-ink-dark text-gold shadow-[0_18px_40px_-18px_rgba(40,35,15,.5)]"
-                initial={{ scale: 0.72, rotate: -8, opacity: 0 }}
-                animate={{ scale: 1, rotate: 0, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 380, damping: 18, delay: 0.05 }}
+              {/* Animált előnézet */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 28, delay: 0.05 }}
               >
-                <Icon className="h-9 w-9" strokeWidth={1.6} />
-              </motion.span>
+                <TourPreview stepKey={step.previewKey} />
+              </motion.div>
 
-              <div className="mt-7 text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft2">
+              <div className="mt-6 text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft2">
                 {index + 1} / {steps.length}
               </div>
-              <h1 className="mt-3 text-[30px] font-light leading-[1.1] tracking-[-0.02em] text-ink lg:text-[38px]">
+              <h1 className="mt-2.5 text-[28px] font-light leading-[1.1] tracking-[-0.02em] text-ink lg:text-[34px]">
                 {step.title}
               </h1>
-              <p className="mx-auto mt-4 max-w-[380px] text-[15px] leading-relaxed text-ink-soft">{step.body}</p>
+              <p className="mx-auto mt-3.5 max-w-[360px] text-[15px] leading-relaxed text-ink-soft">
+                {step.body}
+              </p>
+
+              {/* Navigáló CTA */}
+              {step.href && (
+                <button
+                  type="button"
+                  onClick={() => navigateTo(step.href!)}
+                  className="mt-4 inline-flex items-center gap-2 rounded-[16px] border border-[rgba(120,110,70,.22)] bg-white/70 px-5 py-2.5 text-[13px] font-semibold text-ink shadow-[0_2px_10px_rgba(80,70,30,0.08)] backdrop-blur-sm transition-all hover:bg-white hover:shadow-[0_4px_18px_rgba(80,70,30,0.13)] active:scale-[0.97]"
+                >
+                  Megnézem
+                  <ArrowRight className="h-3.5 w-3.5 text-[#86826F]" />
+                </button>
+              )}
             </motion.div>
           </AnimatePresence>
 
-          {/* Pötty-progress — az aktív gold pirulává nyúlik (spring). */}
-          <div className="mt-9 flex items-center justify-center gap-2">
+          {/* Pötty-progress */}
+          <div className="mt-8 flex items-center justify-center gap-2">
             {steps.map((_, i) => (
               <motion.span
                 key={i}
@@ -206,7 +255,7 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
           </div>
 
           {/* Vezérlők */}
-          <div className="mt-8 flex items-center justify-center gap-3">
+          <div className="mt-7 flex items-center justify-center gap-3">
             {!isFirst && (
               <button
                 onClick={() => go(-1)}

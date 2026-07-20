@@ -22,6 +22,8 @@ import {
   BRAND_COPYRIGHT,
 } from '@/components/auth/authStyles'
 import { PasswordInput } from '@/components/auth/PasswordInput'
+import { WizardImportStep } from '@/components/auth/WizardImportStep'
+import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
 
 const step2Schema = z.object({
   restaurantName: z.string().min(2, 'Minimum 2 karakter'),
@@ -35,7 +37,7 @@ type Step2Data = z.infer<typeof step2Schema>
 
 export function RegisterRestaurantWizard() {
   const router = useRouter()
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [loading, setLoading] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [restaurantId, setRestaurantId] = useState<string | number | null>(null)
@@ -218,6 +220,7 @@ export function RegisterRestaurantWizard() {
             onClick={() => setSelectedTemplate(tpl.id)}
             className={cn(
               'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
+              isDark && 'backdrop-blur-[10px]',
               isDark
                 ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
                 : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
@@ -236,19 +239,20 @@ export function RegisterRestaurantWizard() {
     </div>
   )
 
-  const TOTAL_STEPS = 3
+  const TOTAL_STEPS = 4
   const progressWidth = (step / TOTAL_STEPS) * 100
 
   const leftHeadlines: Record<number, { headline: string; sub: string }> = {
     1: { headline: 'MILYEN\nÉTTERMET\nVEZETSZ?', sub: 'Válassz egy sablont — asztalokat és turnusokat állítunk be, te csak testreszabod.' },
     2: { headline: 'CSATLAKOZZ\nHOZZÁNK.', sub: 'Hozd létre a fiókodat és az éttermed pár perc alatt.' },
-    3: { headline: 'KÉSZEN\nVAGYOK.', sub: 'Az étterme elérhető az online foglaláshoz.' },
+    3: { headline: 'IMPORTÁLD\nAZ ADATAID.', sub: 'Ha más rendszerből váltasz, töltsd fel az exportált fájlt — asztalok, vendégek, foglalások egyszerre.' },
+    4: { headline: 'KÉSZEN\nVAGYOK.', sub: 'Az éttermed elérhető az online foglaláshoz.' },
   }
   const leftText = leftHeadlines[step]
 
   const StepIndicator = () => (
     <div className="flex gap-1.5">
-      {([1, 2, 3] as const).map(s => (
+      {([1, 2, 3, 4] as const).map(s => (
         <div key={s} className={cn('h-1.5 rounded-full transition-all duration-300', s === step ? 'bg-white w-4' : s < step ? 'w-1.5 bg-white/40' : 'w-1.5 bg-white/10')} />
       ))}
     </div>
@@ -257,8 +261,9 @@ export function RegisterRestaurantWizard() {
   return (
     <>
       {/* ── MOBILE ── */}
-      <div className="lg:hidden min-h-dvh bg-ink-dark font-onest flex flex-col">
-        <div className="flex flex-col flex-1 px-7 pb-10 overflow-y-auto" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
+      <div className="lg:hidden relative min-h-dvh bg-ink-dark font-onest flex flex-col">
+        <AuthVideoBg />
+        <div className="relative z-10 flex flex-col flex-1 px-7 pb-10 overflow-y-auto" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
           <div className="flex items-center justify-between mb-auto">
             {step === 2 ? (
               <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-white/45 text-sm hover:text-white/80 transition-colors">
@@ -404,6 +409,16 @@ export function RegisterRestaurantWizard() {
           )}
 
           {step === 3 && (
+            <div className="mt-12 flex-1 flex flex-col">
+              <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-3">
+                IMPORTÁLD<br />AZ ADATAID.
+              </h2>
+              <p className="text-white/45 text-sm mb-8">Ha más rendszerből váltasz, töltsd fel az exportált fájlt.</p>
+              <WizardImportStep isDark onContinue={() => setStep(4)} />
+            </div>
+          )}
+
+          {step === 4 && (
             <div className="mt-12 flex-1 flex flex-col justify-between">
               <div>
                 <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
@@ -430,17 +445,20 @@ export function RegisterRestaurantWizard() {
 
       {/* ── DESKTOP ── */}
       <div className="hidden lg:flex min-h-dvh font-onest">
-        <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
-          <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-            <BrandLogo variant="dark" className="h-8" />
-          </Link>
-          <div>
-            <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
-              {leftText.headline}
-            </h1>
-            <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
+        <div className="relative w-[45%] bg-ink-dark flex flex-col p-14 select-none">
+          <AuthVideoBg />
+          <div className="relative z-10 flex flex-col justify-between flex-1">
+            <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
+              <BrandLogo variant="dark" className="h-8" />
+            </Link>
+            <div>
+              <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em] whitespace-pre-line">
+                {leftText.headline}
+              </h1>
+              <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">{leftText.sub}</p>
+            </div>
+            <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
           </div>
-          <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
         </div>
 
         <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light] overflow-y-auto">
@@ -455,7 +473,7 @@ export function RegisterRestaurantWizard() {
                   <div className="h-9 w-9 rounded-xl bg-paper flex items-center justify-center mb-3">
                     <UtensilsCrossed className="text-ink-soft" style={{ width: 18, height: 18 }} />
                   </div>
-                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">1 / 3</p>
+                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">1 / 4</p>
                   <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Milyen éttermet vezetsz?</h2>
                   <p className="text-ink-soft text-sm mt-1">Válassz sablont, te csak testreszabod.</p>
                 </div>
@@ -482,7 +500,7 @@ export function RegisterRestaurantWizard() {
                   <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
                     <ChevronLeft className="h-3 w-3" /> Vissza
                   </button>
-                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">2 / 3</p>
+                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">2 / 4</p>
                   <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Hozd létre a fiókodat</h2>
                 </div>
                 <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={desktopForm.handleSubmit(onStep2)} className="space-y-4" noValidate>
@@ -588,7 +606,18 @@ export function RegisterRestaurantWizard() {
             {step === 3 && (
               <>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">3 / 3</p>
+                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">3 / 4</p>
+                  <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Importáld az adataid</h2>
+                  <p className="text-ink-soft text-sm mt-1">Ha más rendszerből váltasz — kihagyható, bármikor elvégezhető.</p>
+                </div>
+                <WizardImportStep isDark={false} onContinue={() => setStep(4)} />
+              </>
+            )}
+
+            {step === 4 && (
+              <>
+                <div className="mb-8">
+                  <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">4 / 4</p>
                   <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Készen vagy!</h2>
                   <p className="text-ink-soft text-sm mt-1">Az éttermed sikeresen létrejött.</p>
                 </div>
