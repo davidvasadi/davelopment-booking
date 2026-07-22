@@ -68,14 +68,14 @@ export default function NextAvailableSlots({
   }, [restaurantId, pax])
 
   function goToBook(date: Date, time?: string) {
-    if (onSlotClick && time) {
-      onSlotClick(format(date, 'yyyy-MM-dd'), time, pax)
+    if (onSlotClick) {
+      onSlotClick(format(date, 'yyyy-MM-dd'), time ?? '', pax)
       return
     }
     const ds = format(date, 'yyyy-MM-dd')
-    const q = new URLSearchParams({ date: ds, pax: String(pax) })
+    const q = new URLSearchParams({ date: ds, pax: String(pax), book: '1' })
     if (time) q.set('time', time)
-    router.push(`/${slug}/book?${q}`)
+    router.push(`/${slug}?${q}`)
   }
 
   const containerCls = dk

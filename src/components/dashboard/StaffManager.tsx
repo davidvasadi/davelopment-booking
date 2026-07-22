@@ -20,6 +20,7 @@ import { StatusPills } from '@/components/dashboard/StatusPills'
 import { HiringOverlay } from '@/components/dashboard/HiringOverlay'
 import type { Employee } from '@/components/dashboard/HiringView'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { compressImage } from '@/lib/compressImage'
 
 /** Avatar-monogram háttér-gradiensek — determinisztikusan a névből (referencia hangulata). */
 const AVATAR_GRADIENTS = [
@@ -184,11 +185,12 @@ export default function StaffManager({
     setUploadingAvatar(true)
     setAvatarPreview(URL.createObjectURL(file))
     try {
+      const compressed = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       fd.set('_payload', JSON.stringify({ alt: 'Staff avatar' }))
       const res = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.errors?.[0]?.message ?? `HTTP ${res.status}`)
       const json = await res.json()
       setAvatarId(json.doc.id)
       setAvatarPreview(json.doc.url)

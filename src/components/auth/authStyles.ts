@@ -22,19 +22,19 @@ export const authLabelDark = 'text-[12.5px] font-medium text-white/60'
 
 /** Elsődleges CTA pill (sötét gomb világos felületen). */
 export const authPillBtn =
-  'w-full h-12 rounded-dav-pill bg-ink-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity disabled:opacity-40 flex items-center justify-center gap-2'
+  'w-full h-12 rounded-dav-pill bg-ink-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity disabled:opacity-40 flex items-center justify-center gap-2 touch-manipulation'
 
 /** Elsődleges CTA a sötét panelen / splash-en (fehér gomb sötét felületen). */
 export const authPillBtnLight =
-  'w-full h-14 rounded-dav-pill bg-white hover:bg-white/95 text-ink font-semibold text-base transition-colors disabled:opacity-40 flex items-center justify-center gap-2 backdrop-blur-[10px]'
+  'w-full h-14 rounded-dav-pill bg-white hover:bg-white/95 text-ink font-semibold text-base transition-colors disabled:opacity-40 flex items-center justify-center gap-2 backdrop-blur-[10px] touch-manipulation'
 
 /** Másodlagos / ghost gomb (keretes, transzparens). */
 export const authGhostBtn =
-  'w-full h-12 rounded-dav-pill border border-line-strong text-ink font-medium text-sm transition-colors hover:bg-paper flex items-center justify-center gap-2'
+  'w-full h-12 rounded-dav-pill border border-line-strong text-ink font-medium text-sm transition-colors hover:bg-paper flex items-center justify-center gap-2 touch-manipulation'
 
 /** Ghost gomb a sötét panelen. */
 export const authGhostBtnDark =
-  'w-full h-14 rounded-dav-pill border border-white/15 text-white/80 font-medium text-base transition-colors hover:bg-white/5 backdrop-blur-[10px] flex items-center justify-center gap-2'
+  'w-full h-14 rounded-dav-pill border border-white/15 text-white/80 font-medium text-base transition-colors hover:bg-white/5 backdrop-blur-[10px] flex items-center justify-center gap-2 touch-manipulation'
 
 /** „vagy" elválasztó a Google-gomb fölött (világos). */
 export const authDivider = 'flex items-center gap-3 text-[11px] uppercase tracking-widest text-ink-soft2'

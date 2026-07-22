@@ -24,6 +24,7 @@ import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
 import { useSettingsFormContext } from '@/components/settings/settingsFormContext'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import { compressImage } from '@/lib/compressImage'
 
 /** davelopment input/label osztályok (közös). Touch-barát 50px magasság, gold focus.
  *  Crextio/Apple: tiszta fehér + meleg hajszálvékony keret (NINCS krém fill). */
@@ -358,17 +359,21 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     setUploading(true)
     setPreview(URL.createObjectURL(file))
     try {
+      const compressed = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       fd.set('_payload', JSON.stringify({ alt: file.name }))
       const res = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.errors?.[0]?.message ?? `HTTP ${res.status}`)
+      }
       const json = await res.json()
       setId(json.doc.id)
       setPreview(json.doc.url)
       setModified(true)
-    } catch {
-      toast.error('Kép feltöltése sikertelen')
+    } catch (e) {
+      toast.error(`Kép feltöltése sikertelen: ${e instanceof Error ? e.message : 'ismeretlen hiba'}`)
       setPreview(null)
       setId(null)
     } finally {

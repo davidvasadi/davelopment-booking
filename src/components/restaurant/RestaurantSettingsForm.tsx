@@ -22,6 +22,7 @@ import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
 import { useSettingsFormContext } from '@/components/settings/settingsFormContext'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { Media } from '@/payload/payload-types'
+import { compressImage } from '@/lib/compressImage'
 
 /** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás.
  *  Opcionális `onPreview` esetén a Mentés mellett egy „Előnézet" gomb is megjelenik. */
@@ -304,17 +305,21 @@ export function RestaurantSettingsForm({
     setUploading(true)
     setPreview(URL.createObjectURL(file))
     try {
+      const compressed = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       fd.set('_payload', JSON.stringify({ alt: file.name }))
       const res = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.errors?.[0]?.message ?? `HTTP ${res.status}`)
+      }
       const json = await res.json()
       setId(json.doc.id)
       setPreview(json.doc.url)
       setModified(true)
-    } catch {
-      toast.error('Kép feltöltése sikertelen')
+    } catch (e) {
+      toast.error(`Kép feltöltése sikertelen: ${e instanceof Error ? e.message : 'ismeretlen hiba'}`)
       setPreview(null)
       setId(null)
     } finally {

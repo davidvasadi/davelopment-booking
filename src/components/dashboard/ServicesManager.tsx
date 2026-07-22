@@ -21,6 +21,7 @@ import { DashboardCard } from '@/components/ui/dashboard-card'
 import { EmptyState } from '@/components/ui/empty-state'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
+import { compressImage } from '@/lib/compressImage'
 
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
@@ -264,11 +265,12 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
     setUploadingImage(true)
     setImagePreview(URL.createObjectURL(file))
     try {
+      const compressed = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       fd.set('_payload', JSON.stringify({ alt: file.name }))
       const res = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.errors?.[0]?.message ?? `HTTP ${res.status}`)
       const json = await res.json()
       setImageId(json.doc.id)
       setImagePreview(json.doc.url)
@@ -296,11 +298,12 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
     setUploadingCatImage(true)
     setCatImagePreview(URL.createObjectURL(file))
     try {
+      const compressed = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       fd.set('_payload', JSON.stringify({ alt: file.name }))
       const res = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
-      if (!res.ok) throw new Error()
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.errors?.[0]?.message ?? `HTTP ${res.status}`)
       const json = await res.json()
       setCatImageId(json.doc.id)
       setCatImagePreview(json.doc.url)

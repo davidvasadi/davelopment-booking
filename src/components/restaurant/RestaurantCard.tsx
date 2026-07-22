@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, MapPin, Phone, Mail, Globe, CheckCircle } from 'lucide-react'
 import { t, type Locale } from '@/lib/i18n'
@@ -63,6 +64,8 @@ export function RestaurantCard({
   const [view, setView] = useState<View>('main')
   const [bookInitial, setBookInitial] = useState<{ date: string; time: string; pax: number } | null>(null)
   const [successDetails, setSuccessDetails] = useState<{ date: string; time: string; pax: number } | null>(null)
+  const searchParams = useSearchParams()
+  const autoOpenedRef = useRef(false)
 
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)')
@@ -72,10 +75,28 @@ export function RestaurantCard({
     return () => mq.removeEventListener('change', update)
   }, [])
 
+  useEffect(() => {
+    if (!autoOpenedRef.current && searchParams.get('book') === '1') {
+      autoOpenedRef.current = true
+      const date = searchParams.get('date')
+      const time = searchParams.get('time')
+      const pax = searchParams.get('pax')
+      if (date || time) {
+        setBookInitial({
+          date: date ?? '',
+          time: time ?? '',
+          pax: pax ? Number(pax) : 2,
+        })
+      }
+      setView('book')
+      setSheetOpen(true)
+    }
+  }, [searchParams])
+
   const addressLine = [restaurantAddress, restaurantCity].filter(Boolean).join(', ')
 
   const handleSlotClick = (date: string, time: string, pax: number) => {
-    setBookInitial({ date, time, pax })
+    setBookInitial(date || time ? { date, time, pax } : null)
     setView('book')
     setSheetOpen(true)
   }

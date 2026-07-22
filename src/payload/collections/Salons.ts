@@ -49,14 +49,17 @@ export const Salons: CollectionConfig = {
     ],
     beforeDelete: [
       async ({ req, id }) => {
-        // A kapcsolódó rekordok kaszkád-törlése. A fiók-előfizetést NEM töröljük (az a userhez
-        // tartozik, nem a szalonhoz); a díj újraszámolását az afterDelete intézi.
+        // Sorrend fontos: először a staff-ra mutató FK-kat töröljük (shifts/bookings/availability),
+        // csak utána töröljük a staff-ot — különben a salon DELETE SET NULL cascade NOT NULL hibát dob.
         await Promise.all([
+          req.payload.delete({ collection: 'shifts', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'bookings', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'availability', where: { salon: { equals: id } }, overrideAccess: true }),
+        ])
+        await Promise.all([
+          req.payload.delete({ collection: 'staff', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'services', where: { salon: { equals: id } }, overrideAccess: true }),
           req.payload.delete({ collection: 'service-categories', where: { salon: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'staff', where: { salon: { equals: id } }, overrideAccess: true }),
         ])
       },
     ],

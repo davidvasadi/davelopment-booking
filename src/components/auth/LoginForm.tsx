@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
-import { motion } from 'framer-motion'
+import { motion, MotionConfig } from 'framer-motion'
 import { listStagger } from '@/lib/motion'
 import { BrandLogo } from '@/components/BrandLogo'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
@@ -82,7 +82,7 @@ export function LoginForm() {
   }
 
   return (
-    <>
+    <MotionConfig reducedMotion="user">
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
       {!isDesktop && (
       <div className="relative min-h-dvh bg-ink-dark font-onest flex flex-col">
@@ -103,10 +103,8 @@ export function LoginForm() {
               >
                 Bejelentkezés
               </button>
-              <Link href="/register" className="block">
-                <button className={authGhostBtnDark}>
-                  Regisztráció
-                </button>
+              <Link href="/register" className={authGhostBtnDark}>
+                Regisztráció
               </Link>
               {/* VAGY elválasztó + Google ikon a splash-en is, hogy egy érintéssel beléphessen. */}
               <div className={`${authDividerDark} pt-1`}>
@@ -115,7 +113,7 @@ export function LoginForm() {
               <GoogleSignInButton variant="dark" callbackUrl="/" label="Bejelentkezés Google-lel" />
               <p className="text-white/40 text-xs text-center pt-1">
                 A folytatással elfogadod az{' '}
-                <span className="text-white/55 underline">ÁSZF</span>-et
+                <Link href="/terms" className="text-white/55 underline hover:text-white/80 transition-colors">ÁSZF</Link>-et
               </p>
             </div>
           </div>
@@ -124,6 +122,7 @@ export function LoginForm() {
           <div className="relative z-10 flex flex-col justify-between flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
             <button
               onClick={() => setShowForm(false)}
+              aria-label="Vissza"
               className="text-white/50 text-sm text-left w-fit hover:text-white/80 transition-colors"
             >
               ← Vissza
@@ -134,8 +133,9 @@ export function LoginForm() {
               </motion.h2>
               <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
                 <div className="space-y-1.5">
-                  <Label className={authLabelDark}>Email</Label>
+                  <Label htmlFor="login-m-email" className={authLabelDark}>Email</Label>
                   <input
+                    id="login-m-email"
                     type="email"
                     autoComplete="email"
                     inputMode="email"
@@ -149,13 +149,14 @@ export function LoginForm() {
                 </div>
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <Label className={authLabelDark}>Jelszó</Label>
+                    <Label htmlFor="login-m-pw" className={authLabelDark}>Jelszó</Label>
                     <Link href="/forgot-password" className="text-xs text-white/50 no-underline hover:text-white/80 transition-colors">
                       Elfelejtetted?
                     </Link>
                   </div>
                   <div className="relative">
                     <input
+                      id="login-m-pw"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
                       aria-invalid={!!errors.password}
@@ -184,7 +185,6 @@ export function LoginForm() {
                   </button>
                 </div>
               </motion.form>
-              {/* Google-bejelentkezés a form ALATT — VAGY elválasztó + széles social-pill. */}
               <motion.div variants={listStagger.item} className={`${authDividerDark} mt-6`}>
                 <span className="h-px flex-1 bg-white/10" />vagy<span className="h-px flex-1 bg-white/10" />
               </motion.div>
@@ -192,7 +192,6 @@ export function LoginForm() {
                 <GoogleSignInButton variant="dark" callbackUrl="/" label="Bejelentkezés Google-lel" />
               </motion.div>
             </motion.div>
-            <p className="text-white/40 text-xs text-center" />
           </div>
         )}
       </div>
@@ -229,8 +228,9 @@ export function LoginForm() {
             </motion.div>
             <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="space-y-1.5">
-                <Label className={authLabelBase}>Email</Label>
+                <Label htmlFor="login-d-email" className={authLabelBase}>Email</Label>
                 <input
+                  id="login-d-email"
                   type="email"
                   autoComplete="email"
                   inputMode="email"
@@ -244,13 +244,14 @@ export function LoginForm() {
               </div>
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className={authLabelBase}>Jelszó</Label>
+                  <Label htmlFor="login-d-pw" className={authLabelBase}>Jelszó</Label>
                   <Link href="/forgot-password" className="text-xs text-ink-soft hover:text-ink no-underline transition-colors">
                     Elfelejtetted?
                   </Link>
                 </div>
                 <div className="relative">
                   <input
+                    id="login-d-pw"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
                     aria-invalid={!!errors.password}
@@ -297,6 +298,6 @@ export function LoginForm() {
         </div>
       </div>
       )}
-    </>
+    </MotionConfig>
   )
 }

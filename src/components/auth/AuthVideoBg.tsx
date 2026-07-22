@@ -7,7 +7,10 @@ export function AuthVideoBg({ fullScreen = false }: { fullScreen?: boolean }) {
         muted
         loop
         playsInline
+        preload="metadata"
+        disablePictureInPicture
         className={`${pos} inset-0 w-full h-full object-cover`}
+        style={{ transform: 'translateZ(0)', willChange: 'transform' }}
         aria-hidden="true"
       >
         <source src="/videos/szalon-foglalas-hatter.webm" type="video/webm" />

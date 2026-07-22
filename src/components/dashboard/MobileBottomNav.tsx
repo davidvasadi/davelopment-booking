@@ -10,6 +10,7 @@ import { LogOut, MoreHorizontal, Lock, Plus, Loader2, CreditCard } from 'lucide-
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserAvatar } from './UserAvatar'
+import { compressImage } from '@/lib/compressImage'
 
 type SubInfo = {
   plan: 'trial' | 'paid'
@@ -59,8 +60,9 @@ const [moreOpen, setMoreOpen] = useState(false)
   async function uploadAvatar(file: File) {
     setUploadingAvatar(true)
     try {
+      const compressed = await compressImage(file)
       const fd = new FormData()
-      fd.append('file', file)
+      fd.append('file', compressed)
       fd.set('_payload', JSON.stringify({ alt: file.name }))
       const mediaRes = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
       if (!mediaRes.ok) throw new Error('media')

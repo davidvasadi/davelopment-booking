@@ -127,7 +127,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
           </p>
         )}
         {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-4" />}
-        <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookTable')} />
+        <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
       </div>
 
       {/* Interaktív étterem-kártya */}

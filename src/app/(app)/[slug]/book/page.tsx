@@ -3,7 +3,6 @@ import { notFound } from 'next/navigation'
 import { getPayloadClient } from '@/lib/payload'
 import type { Salon, Service, StaffMember } from '@/payload/payload-types'
 import BookingWizard from '@/components/booking/BookingWizard'
-import { RestaurantBookView } from '@/components/restaurant/RestaurantBookView'
 import { getLocale } from '@/lib/i18n/server'
 import { resolveAvailableLocales } from '@/lib/i18n'
 
@@ -31,12 +30,7 @@ export default async function BookPage({
     locale: 'hu',
     fallbackLocale: 'hu',
   })
-  // No active salon for this slug — fall through to a restaurant, then 404.
-  if (!salonResult.docs.length) {
-    const restaurantView = await RestaurantBookView({ slug, requested })
-    if (restaurantView) return restaurantView
-    notFound()
-  }
+  if (!salonResult.docs.length) notFound()
   const available = resolveAvailableLocales((salonResult.docs[0] as Salon).supported_locales)
   const locale = available.includes(requested) ? requested : 'hu'
 
