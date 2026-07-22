@@ -87,6 +87,7 @@ ALTER TABLE salons ADD COLUMN IF NOT EXISTS registered_seat              varchar
 ALTER TABLE salons ADD COLUMN IF NOT EXISTS supported_locales            varchar;
 ALTER TABLE salons ADD COLUMN IF NOT EXISTS is_active                    boolean;
 ALTER TABLE salons ADD COLUMN IF NOT EXISTS admin_notes                  text;
+ALTER TABLE salons ADD COLUMN IF NOT EXISTS webhook_url                  text;
 
 -- salons_locales (localized: description richText, booking_email_subject, booking_email_intro,
 --   cancel_email_subject, cancel_email_intro, reminder_email_subject, reminder_email_intro,
@@ -235,6 +236,7 @@ ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS registered_seat              va
 ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS supported_locales            varchar;
 ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS is_active                    boolean;
 ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS admin_notes                  text;
+ALTER TABLE restaurants ADD COLUMN IF NOT EXISTS webhook_url                  text;
 
 -- restaurants_locales (description, booking_email_*, cancel_email_*, reminder_email_*, feedback_email_*)
 CREATE TABLE IF NOT EXISTS restaurants_locales (
