@@ -86,7 +86,7 @@ export function LoginForm() {
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
       {!isDesktop && (
       <div className="relative min-h-dvh bg-ink-dark font-onest flex flex-col">
-        <AuthVideoBg />
+        <AuthVideoBg fullScreen />
         {!showForm ? (
           /* Splash screen */
           <div className="relative z-10 flex flex-col justify-between flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>

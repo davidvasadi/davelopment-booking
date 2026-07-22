@@ -361,7 +361,7 @@ export function RegisterWizard() {
       <>
         {/* ── MOBILE ── */}
         <div className="lg:hidden relative min-h-dvh bg-ink-dark font-onest flex flex-col">
-          <AuthVideoBg />
+          <AuthVideoBg fullScreen />
           <div className="relative z-10 flex flex-col flex-1 px-7 pb-10 overflow-y-auto" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
             <div className="flex items-center justify-between mb-auto">
               {subStep === 'types' ? (
@@ -508,7 +508,7 @@ export function RegisterWizard() {
     <>
       {/* ── MOBILE ─────────────────────────────────────────────────── */}
       <div className="lg:hidden relative min-h-dvh bg-ink-dark font-onest flex flex-col">
-        <AuthVideoBg />
+        <AuthVideoBg fullScreen />
         <div className="relative z-10 flex flex-col flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
           <div className="flex items-center justify-between mb-auto">
             {step === 2 ? (
