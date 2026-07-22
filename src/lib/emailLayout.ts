@@ -259,14 +259,20 @@ export function calendarBlock(opts: {
   location?: string | null
   description?: string | null
   locale?: Locale
+  /** Ha meg van adva, a gomb erre a közvetlen .ics letöltési linkre mutat (Google-fiók nélkül). */
+  icsUrl?: string | null
+  /** Ha meg van adva, megjelenik egy Útvonaltervezés gomb a naptár-gomb mellett. */
+  directionsAddress?: string | null
 }): string {
-  const { title, date, startTime, endTime, location, description, locale = 'hu' } = opts
+  const { title, date, startTime, endTime, location, description, locale = 'hu', icsUrl, directionsAddress } = opts
   const [y, m, d] = date.split('-')
   const [sh, sm] = startTime.split(':')
   const [eh, em] = endTime.split(':')
   const dtStart = `${y}${m}${d}T${sh}${sm}00`
   const dtEnd   = `${y}${m}${d}T${eh}${em}00`
-  const gcUrl =
+
+  // Előnyben a közvetlen .ics letöltés (Google-bejelentkezés nélkül); ha nincs token, fallback Google Calendar.
+  const calUrl = icsUrl ?? (
     'https://calendar.google.com/calendar/render' +
     '?action=TEMPLATE' +
     `&text=${encodeURIComponent(title)}` +
@@ -274,13 +280,32 @@ export function calendarBlock(opts: {
     '&ctz=Europe/Budapest' +
     (location    ? `&location=${encodeURIComponent(location)}`    : '') +
     (description ? `&details=${encodeURIComponent(description)}`  : '')
+  )
 
   const calSvg = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#3B3B3B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:7px"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>`
 
+  // Hint: ha közvetlen .ics-t kap, tájékoztatás hogy Google nélkül megy.
+  const hintText = icsUrl
+    ? 'Megnyitás után a naptárad automatikusan felveszi az időpontot — Google-fiók nélkül.'
+    : escapeHtml(t(locale, 'email.ics.hint'))
+
+  // Útvonaltervezés gomb — footer-sötét háttér (COLORS.ink), világos szöveg (COLORS.footerText).
+  let dirBtn = ''
+  if (directionsAddress?.trim()) {
+    const dirClean = directionsAddress.trim()
+    const mapsUrl = /^https?:\/\//i.test(dirClean)
+      ? dirClean
+      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dirClean)}`
+    const pinSvg = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="${COLORS.footerText}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px;margin-right:6px"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg>`
+    dirBtn = `<!--[if mso]></td><td style="width:10px;font-size:0">&nbsp;</td><td style="vertical-align:middle"><![endif]--><a href="${mapsUrl}" style="display:inline-block;margin-left:8px;background:${COLORS.ink};color:${COLORS.footerText};font-size:12px;font-weight:600;text-decoration:none;padding:12px 18px;border-radius:999px;letter-spacing:-0.1px;vertical-align:middle">${pinSvg}${escapeHtml(t(locale, 'email.footer.directions'))}</a>`
+  }
+
   return `<tr>
     <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
-      <a href="${gcUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:999px;letter-spacing:-0.1px">${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}</a>
-      <p style="margin:10px 0 0;color:${COLORS.textFaint};font-size:11px">${escapeHtml(t(locale, 'email.ics.hint'))}</p>
+      <!--[if mso]><table style="display:inline-table;border-collapse:collapse"><tr><td style="vertical-align:middle"><![endif]-->
+      <a href="${calUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:999px;letter-spacing:-0.1px;vertical-align:middle">${calSvg}${escapeHtml(t(locale, 'email.addToCalendar'))}</a>${dirBtn}
+      <!--[if mso]></td></tr></table><![endif]-->
+      <p style="margin:10px 0 0;color:${COLORS.textFaint};font-size:11px">${hintText}</p>
     </td>
   </tr>`
 }

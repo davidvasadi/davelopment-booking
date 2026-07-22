@@ -419,6 +419,10 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
         location: salonAddress(salon),
         description: `${t(locale, 'email.label.staff')}: ${data.staff.name}`,
         locale,
+        icsUrl: (booking as { cancellation_token?: string }).cancellation_token
+          ? `${APP_URL}/api/ics/booking/${(booking as { cancellation_token?: string }).cancellation_token}`
+          : null,
+        directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
       })}
       ${footerInfoBlock({
         hasTerms: hasTerms(salon),
@@ -426,7 +430,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
         phone: salon.email_show_phone ? (salon.email_contact_phone?.trim() || salon.phone) : null,
         email: salon.email_show_email ? salon.email : null,
         address: salon.email_show_address ? salonAddress(salon) : null,
-        directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
+        directionsAddress: null,
         locale,
       })}
       ${cancelBlock(cancelUrl, locale)}

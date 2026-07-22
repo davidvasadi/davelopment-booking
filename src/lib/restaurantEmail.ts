@@ -351,6 +351,10 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
         location: contactAddress(restaurant),
         description: `${reservation.pax} ${t(locale, 'email.label.guests').toLowerCase()}`,
         locale,
+        icsUrl: reservation.cancel_token
+          ? `${APP_URL}/api/ics/reservation/${reservation.cancel_token}`
+          : null,
+        directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
       })}
       ${footerInfoBlock({
         hasTerms: hasTerms(restaurant),
@@ -358,7 +362,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
         phone: restaurant.email_show_phone ? (restaurant.email_contact_phone?.trim() || restaurant.phone) : null,
         email: restaurant.email_show_email ? restaurant.email : null,
         address: restaurant.email_show_address ? contactAddress(restaurant) : null,
-        directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
+        directionsAddress: null,
         locale,
       })}
       ${cancelBlock(cancelUrl, locale)}
@@ -409,6 +413,9 @@ function reminderHtml(data: ReservationEmailData): string {
       location: contactAddress(restaurant),
       description: `${reservation.pax} ${t(locale, 'email.label.guests').toLowerCase()}`,
       locale,
+      icsUrl: reservation.cancel_token
+        ? `${APP_URL}/api/ics/reservation/${reservation.cancel_token}`
+        : null,
     })}
     ${bottomSpacer()}
   `)
