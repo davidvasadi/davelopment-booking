@@ -15,6 +15,7 @@
  */
 
 import Link from 'next/link'
+import { createPortal } from 'react-dom'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -26,6 +27,7 @@ import {
   Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
+import { IntegrationsPanel } from './IntegrationsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { BillingPortalButton } from '@/components/dashboard/BillingPortalButton'
 import { PricingCards } from '@/components/dashboard/PricingCards'
@@ -105,7 +107,7 @@ function StatBox({ label, value, unit }: { label: string; value: string; unit?: 
 
 type RailId =
   | 'profile' | 'booking' | 'features' | 'languages' | 'email'
-  | 'rules' | 'notifications' | 'team' | 'audit' | 'import'
+  | 'rules' | 'notifications' | 'team' | 'audit'
   | 'self' | 'documents' | 'billing' | 'sites'
   | 'integrations' | 'api' | 'danger'
 
@@ -113,12 +115,13 @@ type RailId =
 const FORM_TABS: Record<string, string> = {
   profile: 'general', booking: 'booking', languages: 'languages',
   email: 'email', documents: 'documents', danger: 'danger',
+  // 'import' removed — import moved to Integrations panel
 }
 
 // A kiválasztott szekció neve = a tartalom címe (mivel nincs felső fül-sor, ez jelzi „hol vagy").
 const RAIL_LABELS: Record<RailId, string> = {
   profile: 'Üzlet profil', booking: 'Foglalás', features: 'Foglalási funkciók', languages: 'Nyelvek', email: 'Email-sablonok',
-  rules: 'Foglalási szabályok', notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló', import: 'Adatok importálása',
+  rules: 'Foglalási szabályok', notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
   self: 'Saját profil', documents: 'Dokumentumok', billing: 'Számlázás', sites: 'Telephelyek',
   integrations: 'Integrációk', api: 'API & webhookok', danger: 'Fiók törlése',
 }
@@ -223,8 +226,12 @@ export interface SettingsHubProps {
   planLabel: string                // Telephelyek fejléc / összesített csomag-felirat
   /** Audit-napló — VALÓS legutóbbi bejegyzések (üzletre szűrve, ~30). */
   auditLog: AuditEntry[]
-  /** Adatok importálása panel (CSV import más foglalórendszerekből). */
-  importPanel?: ReactNode
+  /** iCal feed URL (előre generált, token-nel). */
+  icalUrl: string
+  /** Nyilvános foglalási URL. */
+  bookingUrl: string
+  /** Zapier/Make webhook URL (tárolt érték). */
+  webhookUrl?: string | null
   /** Egyedi szerepek panel (2. fázis) — a Csapat tab alján renderelődik. */
   rolesSection?: ReactNode
   /** Egyedi szerepek (id + név) — a meghívó/tag-szerep legördülőhöz. */
@@ -265,8 +272,9 @@ function maskCompanyReg(raw: string): string {
 export function SettingsHub({
   variant, subtitle, availabilityHref, profilePanel, selfProfile, rules, senderLabel, billing,
   team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
-  featureModules, auditLog, importPanel, rolesSection, customRoles = [],
+  featureModules, auditLog, rolesSection, customRoles = [],
   sub, billingAccount, pricing, activeBusinessId, startedAt,
+  icalUrl, bookingUrl, webhookUrl,
 }: SettingsHubProps) {
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
@@ -278,6 +286,22 @@ export function SettingsHub({
   const [active, setActive] = useState<RailId>(initialTab)
   const [saving, setSaving] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => { setIsMounted(true) }, [])
+  // A top nav SlidersHorizontal ikonja ezt az eventet dispatch-eli.
+  useEffect(() => {
+    const handler = () => setMobileNavOpen(true)
+    window.addEventListener('davelopment:open-settings-nav', handler)
+    return () => window.removeEventListener('davelopment:open-settings-nav', handler)
+  }, [])
+  // Bottom sheet megnyílásakor az aktív elem látható legyen (az animáció után görgeti oda).
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const t = setTimeout(() => {
+      document.getElementById('settings-nav-active-item')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    }, 180)
+    return () => clearTimeout(t)
+  }, [mobileNavOpen])
 
   useEffect(() => {
     if (searchParams.get('checkout') === 'success') {
@@ -572,7 +596,6 @@ export function SettingsHub({
       { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
       { kind: 'btn', id: 'team', icon: Users, label: 'Csapat & jogok' },
       { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
-      { kind: 'btn', id: 'import', icon: Upload, label: 'Adatok importálása' },
     ] },
     { group: 'Fiók', items: [
       { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
@@ -580,8 +603,8 @@ export function SettingsHub({
       { kind: 'btn', id: 'billing', icon: CreditCard, label: 'Számlázás' },
       { kind: 'btn', id: 'sites', icon: Building2, label: 'Telephelyek' },
     ] },
-    { group: 'Hamarosan', items: [
-      { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'Integrációk', soon: true },
+    { group: 'Integrációk', items: [
+      { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'Integrációk' },
       { kind: 'btn', id: 'api', icon: KeyRound, label: 'API & webhookok', soon: true },
     ] },
   ]
@@ -596,87 +619,110 @@ export function SettingsHub({
         <h1 className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[42px]">
           Beállítások
         </h1>
-        <p className="mt-1.5 text-sm font-medium text-ink-soft">{subtitle}</p>
+        <p className="mt-1.5 text-sm font-medium text-ink-soft">
+          {subtitle}
+          <span className="lg:hidden"> · {RAIL_LABELS[active]}</span>
+        </p>
       </div>
 
       {/* Bal-sáv + panel */}
       <div className="lg:grid lg:grid-cols-[262px_1fr] lg:items-start lg:gap-[18px]">
-        {/* RAIL — MOBIL: legördülő szekció-választó (a régi csúsztatható chip-sor helyett) */}
-        <div className="relative mb-4 lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileNavOpen((o) => !o)}
-            className="flex w-full items-center justify-between rounded-[18px] border border-line bg-white px-4 py-3.5 shadow-dav-card"
-          >
-            <span className="flex items-center gap-3 text-[15px] font-semibold text-ink">
-              <ActiveIcon className="h-[18px] w-[18px] text-ink-soft2" strokeWidth={1.6} />
-              {RAIL_LABELS[active]}
-            </span>
-            <ChevronDown className={`h-5 w-5 text-ink-soft2 transition-transform ${mobileNavOpen ? 'rotate-180' : ''}`} strokeWidth={1.8} />
-          </button>
+        {/* RAIL — MOBIL: bottom sheet (portálon keresztül, a top nav SlidersHorizontal ikonja nyitja). */}
+        {isMounted && createPortal(
           <AnimatePresence>
             {mobileNavOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setMobileNavOpen(false)} />
+              <div className="fixed inset-0 z-[160] lg:hidden">
                 <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                  transition={{ type: 'spring', stiffness: 520, damping: 34 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm"
+                  onClick={() => setMobileNavOpen(false)}
+                />
+                <motion.div
+                  initial={{ y: '100%' }}
+                  animate={{ y: 0 }}
+                  exit={{ y: '100%' }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }}
                   data-lenis-prevent
-                  className="absolute inset-x-0 top-full z-40 mt-2 max-h-[62vh] overflow-y-auto rounded-[20px] border border-line bg-white p-2 shadow-[0_20px_50px_-20px_rgba(40,35,15,.4)]"
+                  className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
                 >
-                  {navGroups.map((grp) => (
-                    <div key={grp.group}>
-                      <div className="px-3 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{grp.group}</div>
-                      {grp.items.map((it) => {
-                        const Icon = it.icon
-                        return it.kind === 'btn' ? (
-                          <button
-                            key={it.id}
-                            type="button"
-                            onClick={() => { setActive(it.id); setMobileNavOpen(false) }}
-                            className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[14px] ${active === it.id ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-ink-soft'}`}
-                          >
-                            <Icon className={`h-[17px] w-[17px] ${active === it.id ? 'text-gold' : 'text-ink-soft2'}`} strokeWidth={1.5} />
-                            {it.label}
-                            {it.soon && (
-                              <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${active === it.id ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>Hamarosan</span>
-                            )}
-                          </button>
-                        ) : (
-                          <Link
-                            key={it.href}
-                            href={it.href}
-                            onClick={() => setMobileNavOpen(false)}
-                            className="flex items-center gap-3 rounded-[14px] px-3 py-2.5 text-[14px] font-medium text-ink-soft"
-                          >
-                            <Icon className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.5} />
-                            {it.label}
-                          </Link>
-                        )
-                      })}
+                  {/* Handle + fejléc */}
+                  <div className="sticky top-0 z-10 bg-white px-4 pb-3 pt-3">
+                    <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Beállítások</span>
+                      <button
+                        type="button"
+                        onClick={() => setMobileNavOpen(false)}
+                        aria-label="Bezárás"
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
+                      >
+                        <X className="h-4 w-4" strokeWidth={2} />
+                      </button>
                     </div>
-                  ))}
-                  <div className="my-1.5 h-px bg-line" />
-                  <button
-                    type="button"
-                    onClick={() => { setActive('danger'); setMobileNavOpen(false) }}
-                    className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left text-[14px] font-medium ${active === 'danger' ? 'bg-ink-dark text-white' : 'text-[#C0453F]'}`}
-                  >
-                    <Trash2 className={`h-[17px] w-[17px] ${active === 'danger' ? 'text-gold' : 'text-[#C0453F]'}`} strokeWidth={1.5} />
-                    Fiók törlése
-                  </button>
+                  </div>
+                  <div className="px-2 pb-4">
+                    {navGroups.map((grp) => (
+                      <div key={grp.group}>
+                        <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{grp.group}</div>
+                        {grp.items.map((it) => {
+                          const Icon = it.icon
+                          return it.kind === 'btn' ? (
+                            <button
+                              key={it.id}
+                              id={active === it.id ? 'settings-nav-active-item' : undefined}
+                              type="button"
+                              onClick={() => { setActive(it.id); setMobileNavOpen(false) }}
+                              className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-[14.5px] ${active === it.id ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-ink-soft'}`}
+                            >
+                              <Icon className={`h-[18px] w-[18px] ${active === it.id ? 'text-gold' : 'text-ink-soft2'}`} strokeWidth={1.5} />
+                              {it.label}
+                              {it.soon && (
+                                <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${active === it.id ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>Hamarosan</span>
+                              )}
+                              {active === it.id && !it.soon && (
+                                <Check className="ml-auto h-4 w-4 text-gold" strokeWidth={2.5} />
+                              )}
+                            </button>
+                          ) : (
+                            <Link
+                              key={it.href}
+                              href={it.href}
+                              onClick={() => setMobileNavOpen(false)}
+                              className="flex items-center gap-3 rounded-[14px] px-3 py-3 text-[14.5px] font-medium text-ink-soft"
+                            >
+                              <Icon className="h-[18px] w-[18px] text-ink-soft2" strokeWidth={1.5} />
+                              {it.label}
+                            </Link>
+                          )
+                        })}
+                      </div>
+                    ))}
+                    <div className="my-2 h-px bg-line" />
+                    <button
+                      id={active === 'danger' ? 'settings-nav-active-item' : undefined}
+                      type="button"
+                      onClick={() => { setActive('danger'); setMobileNavOpen(false) }}
+                      className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-[14.5px] font-medium ${active === 'danger' ? 'bg-ink-dark text-white' : 'text-[#C0453F]'}`}
+                    >
+                      <Trash2 className={`h-[18px] w-[18px] ${active === 'danger' ? 'text-gold' : 'text-[#C0453F]'}`} strokeWidth={1.5} />
+                      Fiók törlése
+                      {active === 'danger' && <Check className="ml-auto h-4 w-4 text-gold" strokeWidth={2.5} />}
+                    </button>
+                  </div>
                 </motion.div>
-              </>
+              </div>
             )}
-          </AnimatePresence>
-        </div>
+          </AnimatePresence>,
+          document.body
+        )}
 
-        {/* RAIL — DESKTOP: függőleges üveges sáv (a user kedvence) */}
+        {/* RAIL — DESKTOP: függőleges üveges sáv — sticky, követi a scroll-t */}
         <nav
           data-lenis-prevent
-          className="hidden lg:flex lg:flex-col lg:gap-[3px] lg:rounded-[24px] lg:bg-[var(--dav-glass)] lg:p-[11px] lg:shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_36px_-30px_rgba(80,70,30,0.18)]"
+          className="hidden lg:sticky lg:top-6 lg:self-start lg:flex lg:flex-col lg:gap-[3px] lg:rounded-[24px] lg:bg-[var(--dav-glass)] lg:p-[11px] lg:shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_36px_-30px_rgba(80,70,30,0.18)]"
         >
           {navGroups.map((grp) => (
             <div key={grp.group} className="contents">
@@ -704,7 +750,7 @@ export function SettingsHub({
 
         {/* PANEL */}
         <div className="min-w-0">
-          {/* Szekció-cím (desktop) — mobilon a legördülő gomb jelzi az aktív szekciót, itt elrejtjük. */}
+          {/* Szekció-cím (desktop) — mobilon a legördülő gomb jelzi az aktív szekciót. */}
           <h2 className="hidden text-[22px] font-medium tracking-[-0.01em] text-ink lg:mb-5 lg:block">{RAIL_LABELS[active]}</h2>
 
           {/* Profil-form (Üzlet profil / Foglalás / Nyelvek / Email / Dokumentumok / Fiók törlése):
@@ -714,6 +760,15 @@ export function SettingsHub({
           <SettingsFormContext.Provider value={{ controlledTab: FORM_TABS[active] ?? 'general', reportDirty, registerApi }}>
             <div className={active in FORM_TABS ? '' : 'hidden'}>{profilePanel}</div>
           </SettingsFormContext.Provider>
+
+          {/* ── Nem-form panelek — key változásakor fade-in animáció (a profilePanel mindig mountolva marad). ── */}
+          {!(active in FORM_TABS) && (
+          <motion.div
+            key={active}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+          >
 
           {/* ── Foglalási funkciók — a beágyazott BookingFeatures (önmentő, saját PATCH). ── */}
           {active === 'features' && (
@@ -1005,12 +1060,14 @@ export function SettingsHub({
             </div>
           )}
 
-          {/* ── Integrációk ── ŐSZINTE „Hamarosan" üres állapot (nincs hamis connect-sor). */}
+          {/* ── Integrációk ── */}
           {active === 'integrations' && (
-            <ComingSoon
-              icon={LayoutGrid}
-              title="Integrációk hamarosan"
-              body="Naptár-szinkron, marketing- és POS-integrációk fejlesztés alatt. Amint elérhetők, itt köthetők be egyetlen kattintással — addig nem mutatunk hamis csatlakozásokat."
+            <IntegrationsPanel
+              variant={variant}
+              bookingUrl={bookingUrl}
+              icalUrl={icalUrl}
+              apiBase={apiBase}
+              webhookUrl={webhookUrl}
             />
           )}
 
@@ -1487,13 +1544,6 @@ export function SettingsHub({
             </div>
           )}
 
-          {/* ── Adatok importálása ── CSV import más foglalórendszerekből. */}
-          {active === 'import' && (
-            <div>
-              {importPanel ?? <p className="text-sm text-ink-soft">Az import panel nem érhető el.</p>}
-            </div>
-          )}
-
           {/* ── API & webhookok ── ŐSZINTE „Hamarosan" üres állapot (nincs hamis kulcs/webhook). */}
           {active === 'api' && (
             <ComingSoon
@@ -1578,6 +1628,9 @@ export function SettingsHub({
                 </Link>
               </div>
             </div>
+          )}
+
+          </motion.div>
           )}
 
           {/* ── KÖZÖS lebegő „Mentetlen változások" sáv (Linear/Vercel-minta) ──
@@ -1766,8 +1819,8 @@ function RailBtn({
         isActive
           ? 'bg-ink-dark font-semibold text-white'
           : danger
-            ? 'font-medium text-[#C0453F] hover:bg-[#FBE3E3]'
-            : 'font-medium text-ink-soft hover:text-ink'
+            ? 'font-medium text-[#C0453F] hover:bg-[#FBE3E3] hover:text-[#C0453F]'
+            : 'font-medium text-ink-soft hover:bg-[#F0EDE6] hover:text-ink'
       }`}
     >
       <Icon className={`h-[17px] w-[17px] ${isActive ? 'text-gold' : danger ? 'text-[#C0453F]' : 'text-ink-soft2'}`} strokeWidth={1.5} />

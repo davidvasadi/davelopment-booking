@@ -12,10 +12,17 @@ import {
   SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
 } from '@/components/settings/SettingsHub'
 import { RolesManager } from '@/components/settings/RolesManager'
-import { ImportPanel } from '@/components/settings/ImportPanel'
 import { getAccountBilling } from '@/lib/accountBilling'
 import { getPricing } from '@/lib/pricing'
+import { createHmac } from 'crypto'
 import type { Restaurant, Invoice } from '@/payload/payload-types'
+
+function icalUrl(type: string, id: string | number) {
+  const secret = process.env.PAYLOAD_SECRET ?? 'dev-secret'
+  const token = createHmac('sha256', secret).update(`ical-${type}-${id}`).digest('hex').slice(0, 24)
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  return `${base}/api/ical?id=${id}&type=${type}&token=${token}`
+}
 
 const initialsOf = (name: string) =>
   name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
@@ -190,7 +197,9 @@ export default async function RestaurantSettingsPage() {
         planLabel={plan}
         auditLog={auditLog}
         customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
-        importPanel={<ImportPanel />}
+        icalUrl={icalUrl('restaurant', r.id)}
+        bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${(r as Restaurant & { slug?: string }).slug ?? r.id}/book`}
+        webhookUrl={(r as Restaurant & { webhook_url?: string | null }).webhook_url ?? null}
         rolesSection={
           <RolesManager
             key="roles-panel"

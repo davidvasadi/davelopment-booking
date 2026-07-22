@@ -253,6 +253,7 @@ export const Salons: CollectionConfig = {
             { name: 'billing_postal_code', type: 'text', label: 'Számlázási cím — irányítószám' },
             { name: 'billing_city', type: 'text', label: 'Számlázási cím — város' },
             { name: 'billing_street', type: 'text', label: 'Számlázási cím — utca, házszám' },
+            { name: 'webhook_url', type: 'text', label: 'Zapier / Make webhook URL', admin: { description: 'Erre a végpontra küldünk POST-ot minden új foglalásnál.' } },
             {
               name: 'terms_sections',
               type: 'array',

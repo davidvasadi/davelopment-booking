@@ -66,11 +66,23 @@ export default async function BookPage({
     }),
   ])
 
+  const coverImageUrl = salon.cover_image && typeof salon.cover_image === 'object'
+    ? (salon.cover_image as import('@/payload/payload-types').Media).url ?? undefined
+    : undefined
+
+  const salonLogoUrl = salon.logo && typeof salon.logo === 'object'
+    ? (salon.logo as import('@/payload/payload-types').Media).url ?? undefined
+    : undefined
+
   return (
     <BookingWizard
       salonId={salon.id}
       salonSlug={slug}
       salonName={salon.name}
+      salonCity={salon.city ?? undefined}
+      salonLogoUrl={salonLogoUrl}
+      coverImageUrl={coverImageUrl}
+      availableLocales={available}
       requirePhone={salon.require_phone ?? true}
       bookingWindowDays={salon.booking_window_days ?? 60}
       services={servicesResult.docs as Service[]}
@@ -79,6 +91,7 @@ export default async function BookPage({
       preselectedStaffId={staffId ?? null}
       locale={locale}
       termsSections={salon.terms_sections}
+      goodToKnow={salon.good_to_know}
       company={{
         name: salon.name,
         legal_name: salon.legal_name,

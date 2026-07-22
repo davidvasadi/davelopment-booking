@@ -66,13 +66,13 @@ export function HeroNextSlot({ slug, source, locale = 'hu' }: { slug: string; so
   return (
     <Link
       href={`/${slug}/book?${q}`}
-      className="group inline-flex items-center gap-2.5 rounded-full border border-white/60 bg-white/45 py-2 pl-2 pr-4 backdrop-blur-[10px] transition-colors hover:bg-white/70"
+      className="group inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/90 py-2 pl-2 pr-4 backdrop-blur-[10px] transition-colors hover:bg-white"
     >
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/25 text-ink transition-transform group-hover:scale-105">
+      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/30 text-ink transition-transform group-hover:scale-105">
         <CalendarClock className="h-[16px] w-[16px]" strokeWidth={2} />
       </span>
       <span className="leading-tight">
-        <span className="block text-[10.5px] font-medium uppercase tracking-[0.08em] text-ink-soft">{t(locale, 'nextSlots.heading')}</span>
+        <span className="block text-[10.5px] font-medium uppercase tracking-[0.08em] text-ink/50">{t(locale, 'nextSlots.heading')}</span>
         <span className="block text-[13px] font-semibold text-ink">{dayLabel(date, locale)} · {time}</span>
       </span>
     </Link>

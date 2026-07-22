@@ -30,11 +30,13 @@ export function DateStrip({
   onChange,
   dayCount = 60,
   locale = 'hu',
+  dark = false,
 }: {
   selected: string
   onChange: (d: string) => void
   dayCount?: number
   locale?: Locale
+  dark?: boolean
 }) {
   const days = Array.from({ length: dayCount }, (_, i) => addDays(new Date(), i))
   const selectedDate = new Date(selected + 'T00:00:00')
@@ -61,11 +63,11 @@ export function DateStrip({
   return (
     <div>
       <div className="mb-3 flex items-center justify-between px-1">
-        <button onClick={() => shiftMonth(-1)} className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink">
+        <button onClick={() => shiftMonth(-1)} className={cn('flex h-7 w-7 items-center justify-center rounded-full transition-colors', dark ? 'text-white/50 hover:bg-white/[0.08] hover:text-white' : 'text-ink-soft hover:bg-paper hover:text-ink')}>
           <ChevronLeft className="h-4 w-4" />
         </button>
-        <p className="text-[14px] font-semibold capitalize text-ink">{month}</p>
-        <button onClick={() => shiftMonth(1)} className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink">
+        <p className={cn('text-[14px] font-semibold capitalize', dark ? 'text-white' : 'text-ink')}>{month}</p>
+        <button onClick={() => shiftMonth(1)} className={cn('flex h-7 w-7 items-center justify-center rounded-full transition-colors', dark ? 'text-white/50 hover:bg-white/[0.08] hover:text-white' : 'text-ink-soft hover:bg-paper hover:text-ink')}>
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
@@ -87,14 +89,20 @@ export function DateStrip({
               onClick={() => onChange(str)}
               className={cn(
                 'flex min-w-[52px] shrink-0 snap-center flex-col items-center gap-1 rounded-[14px] px-3 py-3 transition-colors',
-                isSelected
-                  ? 'bg-ink-dark text-white'
-                  : today
-                    ? 'bg-gold/25 text-ink'
-                    : 'bg-paper/50 text-ink-soft hover:bg-paper/80',
+                dark
+                  ? isSelected
+                    ? 'bg-white text-ink-dark'
+                    : today
+                      ? 'bg-white/[0.12] text-white'
+                      : 'bg-white/[0.06] text-white/65 hover:bg-white/[0.10]'
+                  : isSelected
+                    ? 'bg-ink-dark text-white'
+                    : today
+                      ? 'bg-gold/25 text-ink'
+                      : 'bg-paper/50 text-ink-soft hover:bg-paper/80',
               )}
             >
-              <span className={cn('text-[10px] font-semibold uppercase', isSelected ? 'text-white/50' : 'text-ink-soft2')}>{dayNames[d.getDay()]}</span>
+              <span className={cn('text-[10px] font-semibold uppercase', dark ? (isSelected ? 'text-ink-dark/50' : 'text-white/40') : (isSelected ? 'text-white/50' : 'text-ink-soft2'))}>{dayNames[d.getDay()]}</span>
               <span className="text-[16px] font-semibold leading-none">{format(d, 'd')}</span>
             </motion.button>
           )

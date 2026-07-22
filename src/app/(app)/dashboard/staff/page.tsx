@@ -1,7 +1,7 @@
 import { getOwnedSalon } from '@/lib/salonContext'
 import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
-import type { StaffMember, Shift } from '@/payload/payload-types'
+import type { StaffMember, Shift, Service } from '@/payload/payload-types'
 import StaffManager from '@/components/dashboard/StaffManager'
 import { getStaffStats } from '@/lib/staffStats'
 import { getTeamRoster } from '@/lib/teamRoster'
@@ -13,7 +13,7 @@ export default async function StaffPage() {
 
   const todayYmd = new Date().toISOString().slice(0, 10)
 
-  const [staffResult, stats, shiftsRes, roster] = await Promise.all([
+  const [staffResult, stats, shiftsRes, roster, servicesRes] = await Promise.all([
     payload.find({
       collection: 'staff',
       where: { salon: { equals: salon.id } },
@@ -31,6 +31,14 @@ export default async function StaffPage() {
       overrideAccess: true,
     }),
     getTeamRoster('salon', salon.id),
+    payload.find({
+      collection: 'services',
+      where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }] },
+      sort: 'name',
+      depth: 0,
+      limit: 200,
+      overrideAccess: true,
+    }),
   ])
 
   // staffId → közelgő (legkorábbi jövőbeli) műszak címkéje. VALÓS a Shifts-ből.
@@ -49,6 +57,7 @@ export default async function StaffPage() {
       <StaffManager
         salonId={salon.id}
         initialStaff={staffResult.docs as StaffMember[]}
+        salonServices={servicesRes.docs as Service[]}
         supportedLocales={salon.supported_locales ?? null}
         bookingsById={stats.bookingsById}
         servicesById={stats.servicesById}

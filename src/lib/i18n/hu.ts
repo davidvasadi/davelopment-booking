@@ -9,6 +9,8 @@ export const hu: Record<string, string> = {
   'booking.step.staff': 'Munkatárs',
   'booking.step.datetime': 'Dátum & Időpont',
   'booking.step.details': 'Adatok',
+  'booking.step.summary': 'Összesítő',
+  'booking.summary.title': 'Minden stimmel?',
   'booking.service.title': 'Melyik\nszolgáltatást?',
   'booking.service.subtitle': 'Válassz az elérhető szolgáltatások közül',
   'booking.minutes': 'perc',

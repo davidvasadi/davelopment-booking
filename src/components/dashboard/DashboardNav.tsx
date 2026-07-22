@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -364,8 +364,19 @@ export function DashboardNav({
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-2.5 shrink-0">
           <OfflineIndicator compact />
+          {/* Beállítások nav ikon — csak a settings oldalakon jelenik meg. */}
+          {pathname.startsWith(settingsHref) && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('davelopment:open-settings-nav'))}
+              aria-label="Beállítások menü"
+              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+            >
+              <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
+            </button>
+          )}
           {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
               (csengő = értesítések, avatar = fiók-menü → Saját profil). */}
           {!isBackstage && (

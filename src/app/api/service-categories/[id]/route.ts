@@ -72,6 +72,21 @@ export async function DELETE(request: NextRequest, { params }: Ctx) {
   const owns = await ownsThisSalon(payload, user, existing.salon)
   if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
 
+  // Ellenőrzés: van-e a kategóriához rendelt szolgáltatás? (NOT NULL FK miatt nem törölhető ha igen)
+  const servicesInCat = await payload.find({
+    collection: 'services',
+    where: { category: { equals: id } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  if (servicesInCat.totalDocs > 0) {
+    return NextResponse.json(
+      { error: `A kategóriában ${servicesInCat.totalDocs} szolgáltatás van. Töröld vagy rendeld át őket, mielőtt a kategóriát törlöd.` },
+      { status: 409 },
+    )
+  }
+
   try {
     await payload.delete({ collection: 'service-categories', id, overrideAccess: true })
     return NextResponse.json({ success: true })

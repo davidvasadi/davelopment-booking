@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Users, Clock, CalendarOff, CalendarDays, CalendarCheck, Gauge, Wallet, DoorOpen, CheckCircle2, XCircle, Globe, Home, type LucideIcon } from 'lucide-react'
+import { Users, Clock, CalendarOff, CalendarDays, CalendarCheck, Gauge, Wallet, DoorOpen, CheckCircle2, XCircle, Globe, Home, Scissors, Layers, Tag, type LucideIcon } from 'lucide-react'
 
 /**
  * Animált KPI-pillér: ikon + FELSZÁMOLÓ szám (0 → érték, ease-out, láthatóváváláskor indul) +
@@ -17,6 +17,7 @@ const ICONS: Record<string, LucideIcon> = {
   users: Users, clock: Clock, off: CalendarOff, calendar: CalendarDays,
   check: CalendarCheck, gauge: Gauge, wallet: Wallet, walkin: DoorOpen,
   done: CheckCircle2, cancelled: XCircle, globe: Globe, home: Home,
+  scissors: Scissors, layers: Layers, tag: Tag,
 }
 export type KpiIcon = keyof typeof ICONS
 

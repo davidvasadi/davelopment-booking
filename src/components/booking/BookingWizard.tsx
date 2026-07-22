@@ -11,11 +11,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
-import { ArrowLeft, Check, Clock, Loader2, ChevronRight, User } from 'lucide-react'
+import { ArrowLeft, Check, ChevronRight, Clock, Loader2, MapPin, Scissors, Users, User, Info } from 'lucide-react'
+import { BrandLogo } from '@/components/BrandLogo'
+import { iconByKey } from '@/components/settings/goodToKnowIcons'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
-import { BookCtaButton } from '@/components/booking/BookCtaButton'
 import { DateStrip } from '@/components/booking/DateStrip'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
+import { LangSwitcher } from '@/components/booking/LangSwitcher'
+import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
 import { makeT, dfLocale, type Locale } from '@/lib/i18n'
 
 import { format } from 'date-fns'
@@ -41,6 +44,10 @@ interface Props {
   salonId: string
   salonSlug: string
   salonName: string
+  salonCity?: string
+  salonLogoUrl?: string
+  coverImageUrl?: string
+  availableLocales?: Locale[]
   requirePhone?: boolean
   bookingWindowDays?: number
   services: Service[]
@@ -48,16 +55,25 @@ interface Props {
   preselectedServiceId?: string | null
   preselectedStaffId?: string | null
   termsSections?: { title?: string | null; body?: string | null }[] | null
+  goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
   company?: CompanyInfo | null
   locale?: Locale
 }
 
 export default function BookingWizard({
-  salonId, salonSlug, salonName, requirePhone = true, bookingWindowDays = 60, services, staff, preselectedServiceId, preselectedStaffId, termsSections, company, locale = 'hu',
+  salonId, salonSlug, salonName, salonCity, salonLogoUrl, coverImageUrl, availableLocales = ['hu'], requirePhone = true, bookingWindowDays = 60, services, staff, preselectedServiceId, preselectedStaffId, termsSections, goodToKnow, company, locale = 'hu',
 }: Props) {
+  const hasCover = !!coverImageUrl
   const router = useRouter()
   const tt = makeT(locale)
-  const [step, setStep] = useState(preselectedServiceId ? 1 : 0)
+  // Ha mindkét érték preset: serviceId+staffId → rögtön dátum-lépés (2)
+  // Ha csak serviceId preset: staff-választás (1)
+  // Ha semmi: szolgáltatás-lista (0)
+  const [step, setStep] = useState(
+    preselectedServiceId && preselectedStaffId ? 2 : preselectedServiceId ? 1 : 0
+  )
+  // Service detail sub-view a step 0-ban (ha be van állítva, a service részletei látszanak)
+  const [detailSvcId, setDetailSvcId] = useState<string | null>(null)
   // A lépés-átmenet iránya (+1 előre, -1 vissza) a slide-animációhoz.
   const [dir, setDir] = useState(1)
   const goStep = (next: number) => {
@@ -109,6 +125,19 @@ export default function BookingWizard({
 
   const selectedService = services.find(s => String(s.id) === String(state.serviceId))
   const selectedStaff = staff.find(m => String(m.id) === String(state.staffId))
+
+  // Step 0 detail sub-view
+  const detailSvc = detailSvcId ? (services.find(s => String(s.id) === detailSvcId) ?? null) : null
+  const detailSvcImgUrl = detailSvc?.image && typeof detailSvc.image === 'object'
+    ? (detailSvc.image as Media).url ?? null : null
+  const detailServiceStaff = detailSvc
+    ? (() => {
+        const ids = (detailSvc.staff ?? []).map(sm =>
+          String(typeof sm === 'string' || typeof sm === 'number' ? sm : (sm as StaffMember).id)
+        )
+        return ids.length > 0 ? staff.filter(m => ids.includes(String(m.id))) : []
+      })()
+    : []
   const selectedDate = new Date(state.date + 'T00:00:00')
 
   const loadSlots = () => {
@@ -187,414 +216,591 @@ export default function BookingWizard({
     }
   }
 
-  const STEPS = [tt('booking.step.service'), tt('booking.step.staff'), tt('booking.step.datetime'), tt('booking.step.details')]
+  // Ha a szakember előre ki van választva, a staff lépést kihagyjuk a haladásból
+  const skipStaff = !!preselectedStaffId
+  const displaySteps = skipStaff
+    ? [tt('booking.step.service'), tt('booking.step.datetime'), tt('booking.step.details'), tt('booking.step.summary')]
+    : [tt('booking.step.service'), tt('booking.step.staff'), tt('booking.step.datetime'), tt('booking.step.details'), tt('booking.step.summary')]
+  // Belső step (0-4) → megjelenítési index (kihagyva a staff lépés ha skipStaff)
+  const displayStep = skipStaff && step >= 2 ? step - 1 : step
+
+  // Ha szakember előre van választva, csak az ő szolgáltatásait mutatjuk a 0. lépésben
+  const visibleServices = skipStaff
+    ? services.filter(s => s.staff?.some(sm => String(typeof sm === 'string' ? sm : (sm as StaffMember).id) === String(preselectedStaffId)))
+    : services
+
+  // Step 1-ben csak a kiválasztott service-hez rendelt szakemberek jelennek meg — nincs fallback,
+  // mert akkor hibásan foglalhatnának olyan szakemberhez aki nem végzi a szolgáltatást.
+  const staffIdsForService = (selectedService?.staff ?? []).map(sm =>
+    String(typeof sm === 'string' || typeof sm === 'number' ? sm : (sm as StaffMember).id)
+  )
+  const visibleStaff = staffIdsForService.length > 0
+    ? staff.filter(m => staffIdsForService.includes(String(m.id)))
+    : staff
+
+  const ctaEnabled = step === 0 ? !!state.serviceId : step === 1 ? true : step === 2 ? !!state.slot : step === 3 ? !!(state.name && state.email && (!requirePhone || state.phone)) : true
+
+  const handleCTA = () => {
+    if (step === 4) { submit(); return }
+    if (step === 3) {
+      const order: FieldKey[] = ['name', 'email', 'phone']
+      const nextErrors: Partial<Record<FieldKey, string>> = {}
+      for (const key of order) {
+        const msg = validateField(key)
+        if (msg) nextErrors[key] = msg
+      }
+      if (Object.keys(nextErrors).length > 0) {
+        setErrors(nextErrors)
+        const firstBad = order.find(k => nextErrors[k])
+        if (firstBad) fieldRefs[firstBad].current?.focus()
+        return
+      }
+      goStep(4)
+      return
+    }
+    if (step === 0 && state.serviceId) goStep(skipStaff ? 2 : 1)
+    else if (step === 1) goStep(2)
+    else if (step === 2 && state.slot) goStep(3)
+  }
 
   return (
-    <div className="font-onest min-h-screen bg-paper px-4 py-4 text-ink sm:px-6 sm:py-6">
-     <div
-       className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-2xl flex-col rounded-[34px] p-1 shadow-[0_34px_70px_-34px_rgba(80,70,30,.20),0_0_0_1px_rgba(120,110,70,.06)] sm:min-h-[calc(100vh-3rem)]"
-       style={{ background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)' }}
-     >
+    <div
+      className="font-onest min-h-[100dvh] relative overflow-hidden"
+      style={hasCover ? { background: '#111' } : { background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)' }}
+    >
+      {/* Cover image + overlay */}
+      {coverImageUrl && (
+        <>
+          <img src={coverImageUrl} alt="" aria-hidden className="absolute inset-0 z-0 h-full w-full object-cover" />
+          <div className="absolute inset-0 z-[1] pointer-events-none" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.22) 45%, rgba(0,0,0,0.42) 100%)' }} />
+        </>
+      )}
 
-      {/* Header */}
-      <header className="px-5 pb-4 pt-8">
-        <div className="mx-auto flex max-w-lg items-center justify-between">
-          <button
-            onClick={() => {
-              if (step === 0) {
-                // Kilépés-védelem (checklist §8: sheet-dismiss-confirm) — ha már választott
-                // szolgáltatást vagy elkezdte kitölteni az adatokat, rákérdezünk.
-                const dirty = state.serviceId || state.name || state.email || state.phone
-                if (dirty && !window.confirm(tt('booking.leaveConfirm'))) return
-                router.push(`/${salonSlug}`)
-              }
-              else if (step === 2 && state.staffId !== null && preselectedStaffId) goStep(0)
-              else goStep(step - 1)
-            }}
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_4px_rgba(70,60,20,.08)] transition-colors hover:bg-paper"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </button>
-          <div className="text-center">
-            <p className="text-[12px] font-medium text-ink-soft">{salonName}</p>
-            <p className="text-[14px] font-semibold text-ink">{STEPS[step]}</p>
+      {/* Navbar */}
+      <nav className="relative z-50 flex items-center justify-between px-5 py-4 lg:px-8 lg:py-5">
+        <div className="flex items-center gap-3">
+          <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6 lg:h-7" />
+          {salonLogoUrl && (
+            <>
+              <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-ink/10'}`} />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={salonLogoUrl} alt={salonName} className="h-7 w-7 rounded-[8px] object-cover ring-1 ring-black/10" />
+            </>
+          )}
+        </div>
+        <div className="hidden items-center gap-5 lg:flex">
+          <div className="flex items-center gap-2">
+            <Scissors className={`h-[15px] w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+            <span className={`text-base font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{services.length}</span>
+            <span className={`text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{tt('booking.step.service')}</span>
           </div>
-          <div className="h-10 w-10" />
+          <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
+          <div className="flex items-center gap-2">
+            <Users className={`h-[15px] w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+            <span className={`text-base font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{staff.length}</span>
+            <span className={`text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{tt('booking.step.staff')}</span>
+          </div>
         </div>
+        <LangSwitcher current={locale} available={availableLocales} />
+      </nav>
 
-        {/* Step dots */}
-        <div className="mx-auto mt-4 flex max-w-lg items-center justify-center gap-1.5">
-          {STEPS.map((_, i) => (
-            <div
-              key={i}
-              className={cn(
-                'rounded-full transition-all',
-                i < step ? 'h-1.5 w-1.5 bg-ink-dark' :
-                i === step ? 'h-1.5 w-5 bg-ink-dark' :
-                'h-1.5 w-1.5 bg-black/15'
-              )}
-            />
-          ))}
-        </div>
-      </header>
+      {/* Szalon neve + next slot pill — desktop, bal alul */}
+      <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
+        <h1 className={`text-[3rem] font-light tracking-[-0.02em] leading-none mb-2 ${hasCover ? 'text-white' : 'text-ink'}`}>{salonName}</h1>
+        {salonCity && (
+          <p className={`flex items-center gap-1.5 text-sm mb-4 ${hasCover ? 'text-white/55' : 'text-ink/45'}`}>
+            <MapPin className="h-3.5 w-3.5" />{salonCity}
+          </p>
+        )}
+        {services.length > 0 && (
+          <HeroNextSlot
+            slug={salonSlug}
+            locale={locale}
+            source={{ kind: 'salon', id: salonId, serviceId: services[0].id }}
+          />
+        )}
+      </div>
 
-      <div className="flex-1 max-w-lg mx-auto w-full px-5 pt-2 pb-4">
-       <AnimatePresence mode="wait" custom={dir} initial={false}>
-        <motion.div
-          key={step}
-          custom={dir}
-          variants={stepSlide}
-          initial="enter"
-          animate="center"
-          exit="exit"
-          transition={stepSlideTransition}
-          className="space-y-4"
+      {/* Booking kártya — mobile: bottom sheet, desktop: jobb oldali lebegő */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:right-8 lg:top-1/2 lg:bottom-auto lg:left-auto lg:w-[460px] lg:-translate-y-1/2">
+        <div
+          className="flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]"
+          style={{
+            height: 'min(82dvh, calc(100dvh - 48px))',
+            background: 'rgba(22,22,26,0.52)',
+            border: '1px solid rgba(255,255,255,0.10)',
+            boxShadow: '0 -2px 40px rgba(0,0,0,0.35), 0 24px 56px -12px rgba(0,0,0,0.4)',
+            backdropFilter: 'blur(24px) saturate(1.4)',
+            WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+          }}
         >
+          {/* Drag handle — csak mobilon */}
+          <div className="flex justify-center pb-2 pt-3.5 lg:hidden">
+            <div className="h-1 w-10 rounded-full bg-white/20" />
+          </div>
 
-        {/* Step 0: Service */}
-        {step === 0 && (
-          <div>
-            <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink mb-1 whitespace-pre-line">{tt('booking.service.title')}</h2>
-            <p className="text-[13.5px] text-ink-soft mb-6">{tt('booking.service.subtitle')}</p>
-            <div className="space-y-3">
-              {services.map(s => (
-                <button
-                  key={s.id}
-                  onClick={() => { set({ serviceId: s.id, slot: null }); goStep(1) }}
-                  className={cn(
-                    'w-full rounded-[20px] bg-white p-5 text-left shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_38px_-30px_rgba(80,70,30,0.22)] transition-all hover:shadow-[0_1px_2px_rgba(80,70,30,0.06),0_20px_44px_-28px_rgba(80,70,30,0.28)]',
-                    state.serviceId === s.id ? 'ring-2 ring-gold' : ''
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[14px] font-semibold text-ink">{s.name}</p>
-                      {s.description && <p className="mt-1 line-clamp-2 text-[12px] text-ink-soft">{s.description}</p>}
-                      <p className="mt-2 flex items-center gap-1 text-[12px] text-ink-soft">
-                        <Clock className="h-3 w-3" />{s.duration_minutes} {tt('booking.minutes')}
-                      </p>
+          {/* Progress header */}
+          <div className="shrink-0 px-5 pt-4 lg:px-6 lg:pt-5">
+            <div className="mb-4 flex items-center justify-between">
+              <button
+                onClick={() => {
+                  if (step === 0) {
+                    const dirty = state.serviceId || state.name || state.email || state.phone
+                    if (dirty && !window.confirm(tt('booking.leaveConfirm'))) return
+                    router.push(`/${salonSlug}`)
+                  } else goStep(skipStaff && step === 2 ? 0 : step - 1)
+                }}
+                className="flex h-11 w-11 items-center justify-center rounded-full transition-all hover:bg-white/[0.08]"
+                style={{
+                  border: '1px solid rgba(255,255,255,0.15)',
+                  color: 'rgba(255,255,255,0.50)',
+                  opacity: step > 0 ? 1 : 0,
+                  pointerEvents: step > 0 ? 'auto' : 'none',
+                }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-1.5">
+                {displaySteps.map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-1.5 rounded-full transition-all duration-300"
+                    style={{
+                      width: i === displayStep ? '20px' : '7px',
+                      background: i === displayStep ? 'rgba(255,255,255,0.9)' : i < displayStep ? 'rgba(255,255,255,0.40)' : 'rgba(255,255,255,0.15)',
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="text-xs font-medium text-white/35 tabular-nums">
+                {displayStep + 1}/{displaySteps.length}
+              </span>
+            </div>
+          </div>
+
+          {/* Scrollable lépés-tartalom — data-lenis-prevent nélkül a Lenis elnyeli a scrollt */}
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-2 lg:px-6" data-lenis-prevent>
+            <AnimatePresence mode="wait" custom={dir} initial={false}>
+              <motion.div
+                key={`${step}-${detailSvcId ?? ''}`}
+                custom={dir}
+                variants={stepSlide}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={stepSlideTransition}
+              >
+
+              {/* Step 0: Szolgáltatás lista */}
+              {step === 0 && !detailSvcId && (
+                <div>
+                  <h2 className="mb-4 text-2xl font-light tracking-[-0.02em] text-white">{tt('booking.service.title').replace('\n', ' ')}</h2>
+                  <div className="space-y-2.5 pb-4">
+                    {visibleServices.map(s => {
+                      const imgUrl = s.image && typeof s.image === 'object' ? (s.image as Media).url ?? null : null
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            set({ serviceId: String(s.id), slot: null })
+                            if (skipStaff) {
+                              setDir(1); setTimeout(() => goStep(2), 260)
+                            } else {
+                              setDir(1); setDetailSvcId(String(s.id))
+                            }
+                          }}
+                          className="w-full rounded-2xl text-left transition-all active:scale-[0.99] overflow-hidden"
+                          style={{
+                            background: 'rgba(255,255,255,0.06)',
+                            border: '1.5px solid rgba(255,255,255,0.10)',
+                          }}
+                        >
+                          <div className="flex items-center gap-3">
+                            {imgUrl && (
+                              <div className="relative h-[72px] w-[72px] shrink-0 overflow-hidden" style={{ borderRadius: '10px 0 0 10px' }}>
+                                <img src={imgUrl} alt={s.name} className="h-full w-full object-cover" />
+                              </div>
+                            )}
+                            <div className={cn('flex flex-1 items-center justify-between gap-3', imgUrl ? 'py-3 pr-4' : 'px-4 py-3.5')}>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-sm font-semibold text-white">{s.name}</p>
+                                {s.description && <p className="mt-0.5 line-clamp-1 text-xs text-white/50">{s.description}</p>}
+                                <p className="mt-1 flex items-center gap-1 text-xs text-white/45">
+                                  <Clock className="h-2.5 w-2.5" />{s.duration_minutes} {tt('booking.minutes')}
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 flex-col items-end gap-1">
+                                <p className="text-sm font-bold text-white">{formatPrice(s.price, s.currency)}</p>
+                                <ChevronRight className="h-4 w-4 text-white/35" />
+                              </div>
+                            </div>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 0: Szolgáltatás detail sub-view */}
+              {step === 0 && detailSvcId && detailSvc && (
+                <div className="pb-4">
+                  <button
+                    onClick={() => { setDir(-1); setDetailSvcId(null) }}
+                    className="-ml-1.5 mb-3 inline-flex min-h-[44px] items-center gap-1.5 rounded-xl px-1.5 text-[13px] font-medium text-white/50 transition-colors hover:text-white"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" /> Vissza
+                  </button>
+                  {detailSvcImgUrl && (
+                    <div className="mb-4 h-[140px] w-full overflow-hidden rounded-2xl">
+                      <img src={detailSvcImgUrl} alt={detailSvc.name} className="h-full w-full object-cover" />
                     </div>
-                    <div className="shrink-0 text-right">
-                      <p className="text-[16px] font-semibold text-ink">{formatPrice(s.price, s.currency)}</p>
+                  )}
+                  <h3 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{detailSvc.name}</h3>
+                  <p className="flex items-center gap-1 text-[12px] text-white/45">
+                    <Clock className="h-3 w-3" />{detailSvc.duration_minutes} {tt('booking.minutes')} · {formatPrice(detailSvc.price, detailSvc.currency)}
+                  </p>
+                  {detailSvc.description && (
+                    <p className="mt-3 text-[13px] leading-relaxed text-white/60">{detailSvc.description}</p>
+                  )}
+                  {detailServiceStaff.length > 0 && (
+                    <div className="mt-5 grid grid-cols-2 gap-2">
+                      {/* Bárki kártya — csak ha van hozzárendelt szakember */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => { set({ staffId: null, slot: null }); setDetailSvcId(null); setDir(1); setTimeout(() => goStep(2), 260) }}
+                        onKeyDown={e => e.key === 'Enter' && (set({ staffId: null, slot: null }), setDetailSvcId(null), setDir(1), setTimeout(() => goStep(2), 260))}
+                        className="relative cursor-pointer transition-all active:scale-[0.97]"
+                        style={{ aspectRatio: '3/4', background: 'rgba(255,255,255,0.08)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.14)', clipPath: 'inset(0 round 16px)' }}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Users className="h-10 w-10 text-white/25" />
+                        </div>
+                        <div className="absolute inset-x-0 bottom-0 px-2.5 py-2.5 text-left" style={{ background: 'rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+                          <p className="truncate text-[12px] font-semibold leading-tight text-white">{tt('booking.staff.any')}</p>
+                          <p className="mt-0.5 truncate text-[10px] text-white/60">{tt('booking.staff.anyHint')}</p>
+                        </div>
+                      </div>
+                      {/* Szakember kártyák */}
+                      {detailServiceStaff.map(m => {
+                        const avatarUrl = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
+                        return (
+                          <div
+                            key={m.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => { set({ staffId: m.id, slot: null }); setDetailSvcId(null); setDir(1); setTimeout(() => goStep(2), 260) }}
+                            onKeyDown={e => e.key === 'Enter' && (set({ staffId: m.id, slot: null }), setDetailSvcId(null), setDir(1), setTimeout(() => goStep(2), 260))}
+                            className="relative cursor-pointer transition-all active:scale-[0.97]"
+                            style={{ aspectRatio: '3/4', background: 'rgba(255,255,255,0.08)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.14)', clipPath: 'inset(0 round 16px)' }}
+                          >
+                            {avatarUrl
+                              ? <img src={avatarUrl} alt={m.name} className="absolute inset-0 h-full w-full object-cover object-top" />
+                              : <div className="absolute inset-0 flex items-center justify-center"><User className="h-10 w-10 text-white/25" /></div>
+                            }
+                            <div className="absolute inset-x-0 bottom-0 px-2.5 py-2.5 text-left" style={{ background: 'rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}>
+                              <p className="truncate text-[12px] font-semibold leading-tight text-white">{m.name}</p>
+                              {m.bio && <p className="mt-0.5 truncate text-[10px] text-white/60">{m.bio}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Step 1: Munkatárs */}
+              {step === 1 && (
+                <div>
+                  <h2 className="mb-4 text-2xl font-light tracking-[-0.02em] text-white">{tt('booking.staff.title').replace('\n', ' ')}</h2>
+                  <div className="grid grid-cols-2 gap-2 pb-4">
+                    {/* Bárki */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => { set({ staffId: null, slot: null }); setTimeout(() => goStep(2), 260) }}
+                      onKeyDown={e => e.key === 'Enter' && (set({ staffId: null, slot: null }), setTimeout(() => goStep(2), 260))}
+                      className="relative cursor-pointer transition-all active:scale-[0.97]"
+                      style={{
+                        aspectRatio: '3/4',
+                        background: 'rgba(255,255,255,0.08)',
+                        boxShadow: state.staffId === null ? 'inset 0 0 0 2px white' : 'inset 0 0 0 1px rgba(255,255,255,0.14)',
+                        clipPath: 'inset(0 round 16px)',
+                      }}
+                    >
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Users className="h-10 w-10 text-white/25" />
+                      </div>
+                      <div
+                        className="absolute inset-x-0 bottom-0 px-2.5 py-2.5 text-left"
+                        style={{ background: 'rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                      >
+                        <p className="truncate text-[12px] font-semibold leading-tight text-white">{tt('booking.staff.any')}</p>
+                        <p className="mt-0.5 truncate text-[10px] text-white/60">{tt('booking.staff.anyHint')}</p>
+                      </div>
+                    </div>
+                    {/* Munkatársak — csak a kiválasztott service-hez rendeltek */}
+                    {visibleStaff.map(m => {
+                      const avatarUrl = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
+                      const sel = state.staffId === m.id
+                      return (
+                        <div
+                          key={m.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => { set({ staffId: m.id, slot: null }); setTimeout(() => goStep(2), 260) }}
+                          onKeyDown={e => e.key === 'Enter' && (set({ staffId: m.id, slot: null }), setTimeout(() => goStep(2), 260))}
+                          className="relative cursor-pointer transition-all active:scale-[0.97]"
+                          style={{
+                            aspectRatio: '3/4',
+                            background: 'rgba(255,255,255,0.08)',
+                            boxShadow: sel ? 'inset 0 0 0 2px white' : 'inset 0 0 0 1px rgba(255,255,255,0.14)',
+                            clipPath: 'inset(0 round 16px)',
+                          }}
+                        >
+                          {avatarUrl
+                            ? <img src={avatarUrl} alt={m.name} className="absolute inset-0 h-full w-full object-cover object-top" />
+                            : <div className="absolute inset-0 flex items-center justify-center"><User className="h-10 w-10 text-white/25" /></div>
+                          }
+                          <div
+                            className="absolute inset-x-0 bottom-0 px-2.5 py-2.5 text-left"
+                            style={{ background: 'rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                          >
+                            <p className="truncate text-[12px] font-semibold leading-tight text-white">{m.name}</p>
+                            {m.bio && <p className="mt-0.5 truncate text-[10px] text-white/60">{m.bio}</p>}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2: Időpont */}
+              {step === 2 && (
+                <div>
+                  <h2 className="mb-1 text-2xl font-light tracking-[-0.02em] text-white">{tt('booking.when.title').replace('\n', ' ')}</h2>
+                  <p className="mb-4 text-xs text-white/45">
+                    {(state.staffId ? selectedStaff?.name : tt('booking.staff.any'))} · {selectedService?.name} · {selectedService?.duration_minutes} {tt('booking.minutes')}
+                  </p>
+                  {/* Date strip */}
+                  <div className="mb-3 overflow-hidden rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                    <DateStrip
+                      selected={state.date}
+                      onChange={(d) => set({ date: d, slot: null })}
+                      dayCount={bookingWindowDays}
+                      locale={locale}
+                      dark
+                    />
+                  </div>
+                  {/* Time slots */}
+                  <div className="rounded-2xl p-4 pb-6" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
+                      {format(selectedDate, 'EEEE, MMMM d.', { locale: dfLocale(locale) })}
+                    </p>
+                    {loadingSlots ? (
+                      <div className="flex items-center justify-center gap-2 py-6 text-white/45">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span className="text-sm">{tt('booking.loading')}</span>
+                      </div>
+                    ) : slotsError ? (
+                      <div className="py-6 text-center" role="alert">
+                        <p className="text-[13px] text-white/55">{tt('booking.err.slots')}</p>
+                        <button onClick={loadSlots} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-ink-dark">
+                          {tt('booking.retry')}
+                        </button>
+                      </div>
+                    ) : slots.length === 0 ? (
+                      <div className="py-6 text-center">
+                        <p className="text-[13px] text-white/55">{tt('booking.noSlots')}</p>
+                        <p className="mt-1 text-xs text-white/35">{tt('booking.noSlotsHint')}</p>
+                      </div>
+                    ) : (
+                      <motion.div key={`${state.date}-${slots.length}`} variants={staggerContainer} initial="hidden" animate="show" className="grid grid-cols-3 gap-2">
+                        {slots.map(slot => {
+                          const sel = state.slot?.start === slot.start
+                          return (
+                            <motion.button
+                              key={slot.start}
+                              variants={fadeUp}
+                              onClick={() => { set({ slot }); setTimeout(() => goStep(3), 260) }}
+                              className="rounded-xl py-3 text-sm font-semibold transition-all active:scale-[0.96]"
+                              style={{
+                                background: sel ? 'white' : 'rgba(255,255,255,0.08)',
+                                border: `1.5px solid ${sel ? 'white' : 'rgba(255,255,255,0.12)'}`,
+                                color: sel ? 'var(--ink-dark)' : 'white',
+                                boxShadow: sel ? '0 0 0 3px rgba(255,255,255,0.12)' : undefined,
+                              }}
+                            >
+                              {slot.start}
+                            </motion.button>
+                          )
+                        })}
+                      </motion.div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Adatok */}
+              {step === 3 && (
+                <div>
+                  <h2 className="mb-4 text-2xl font-light tracking-[-0.02em] text-white">{tt('booking.details.title')}</h2>
+                  <div className="space-y-2 pb-4">
+                    <div className="space-y-1">
+                      <Label htmlFor="bk-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.name')}</Label>
+                      <Input
+                        id="bk-name" ref={fieldRefs.name} value={state.name}
+                        onChange={e => { set({ name: e.target.value }); clearError('name') }}
+                        onBlur={() => onFieldBlur('name')}
+                        autoComplete="name" aria-invalid={!!errors.name}
+                        placeholder={tt('booking.field.namePlaceholder')}
+                        className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.name && 'ring-1 ring-red-400')}
+                      />
+                      {errors.name && <p role="alert" className="text-[12px] text-red-400">{errors.name}</p>}
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="bk-email" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.email')}</Label>
+                      <Input
+                        id="bk-email" ref={fieldRefs.email} type="email" inputMode="email" autoComplete="email" value={state.email}
+                        onChange={e => { set({ email: e.target.value }); clearError('email') }}
+                        onBlur={() => onFieldBlur('email')}
+                        aria-invalid={!!errors.email}
+                        placeholder={tt('booking.field.emailPlaceholder')}
+                        className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.email && 'ring-1 ring-red-400')}
+                      />
+                      {errors.email && <p role="alert" className="text-[12px] text-red-400">{errors.email}</p>}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.phone')}{requirePhone ? ' *' : ''}</Label>
+                      <PhoneCountryInput
+                        inputRef={fieldRefs.phone} country={state.country} phone={state.phone}
+                        onCountryChange={(code) => set({ country: code })}
+                        onPhoneChange={(p) => { set({ phone: p }); clearError('phone') }}
+                        onBlur={() => onFieldBlur('phone')} required={requirePhone}
+                        dark
+                        inputClass={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] px-3 text-[14px] font-medium text-white placeholder:text-white/30 focus:outline-none focus-visible:ring-1 focus-visible:ring-gold/50 backdrop-blur-[10px]', errors.phone && 'ring-1 ring-red-400')}
+                      />
+                      {errors.phone && <p role="alert" className="text-[12px] text-red-400">{errors.phone}</p>}
+                    </div>
+                    <div className="space-y-1">
+                      <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.city')}</Label>
+                      <Input
+                        id="bk-city" value={state.city} onChange={e => set({ city: e.target.value })}
+                        autoComplete="address-level2" placeholder={tt('booking.field.cityPlaceholder')}
+                        className="h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.note')}</Label>
+                      <Textarea
+                        value={state.notes} onChange={e => set({ notes: e.target.value })}
+                        placeholder={tt('booking.field.notePlaceholder')} rows={3}
+                        className="rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 resize-none focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                      />
                     </div>
                   </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Step 1: Staff */}
-        {step === 1 && (
-          <div>
-            <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink mb-1 whitespace-pre-line">{tt('booking.staff.title')}</h2>
-            <p className="text-[13.5px] text-ink-soft mb-6">{tt('booking.staff.subtitle')}</p>
-
-            {/* Any staff card */}
-            <button
-              onClick={() => { set({ staffId: null, slot: null }); goStep(2) }}
-              className={cn(
-                'mb-3 flex w-full items-center gap-4 rounded-[20px] bg-white p-5 text-left shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_38px_-30px_rgba(80,70,30,0.22)] transition-all hover:shadow-[0_20px_44px_-28px_rgba(80,70,30,0.28)]',
-                state.staffId === null ? 'ring-2 ring-gold' : ''
+                </div>
               )}
-            >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-paper">
-                <User className="h-5 w-5 text-ink-soft" />
-              </div>
-              <div>
-                <p className="text-[14px] font-semibold text-ink">{tt("booking.staff.any")}</p>
-                <p className="mt-0.5 text-[12px] text-ink-soft">{tt("booking.staff.anyHint")}</p>
-              </div>
-              {state.staffId === null && <Check className="ml-auto h-4 w-4 shrink-0 text-ink" />}
-            </button>
 
-            {/* Staff grid cards */}
-            <div className="grid grid-cols-2 gap-3">
-              {staff.map(m => {
-                const avatarUrl = m.avatar && typeof m.avatar === 'object'
-                  ? (m.avatar as Media).url ?? null : null
-                const isSelected = state.staffId === m.id
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => { set({ staffId: m.id, slot: null }); goStep(2) }}
-                    className={cn(
-                      'relative aspect-[4/5] overflow-hidden rounded-[20px] bg-white shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_38px_-30px_rgba(80,70,30,0.22)] transition-all hover:shadow-[0_20px_44px_-28px_rgba(80,70,30,0.28)]',
-                      isSelected ? 'ring-2 ring-gold' : ''
-                    )}
-                  >
-                    {/* Photo or placeholder */}
-                    <div className="absolute inset-0">
-                      {avatarUrl ? (
-                        <img src={avatarUrl} alt={m.name} className="h-full w-full object-cover object-top" />
-                      ) : (
-                        <div className="h-full w-full bg-zinc-500 flex items-center justify-center">
-                          <span className="h-16 w-16 rounded-full bg-zinc-600/40 flex items-center justify-center">
-                            <User className="h-8 w-8 text-white/80" />
-                          </span>
+              {/* Step 4: Összesítő */}
+              {step === 4 && (
+                <div>
+                  <h2 className="mb-4 text-2xl font-light tracking-[-0.02em] text-white">{tt('booking.summary.title')}</h2>
+                  {/* Foglalás részletei */}
+                  <div className="mb-3 rounded-2xl p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+                    {[
+                      { label: tt('booking.step.service'), value: selectedService?.name },
+                      { label: selectedService ? undefined : undefined, value: selectedService ? formatPrice(selectedService.price, selectedService.currency) : undefined, sub: true },
+                      { label: tt('booking.step.staff'), value: state.staffId ? selectedStaff?.name : tt('booking.staff.any') },
+                      { label: tt('booking.step.datetime'), value: `${format(selectedDate, 'MMM d.', { locale: dfLocale(locale) })} · ${state.slot?.start}` },
+                      { label: 'Ár', value: selectedService ? formatPrice(selectedService.price, selectedService.currency) : undefined },
+                    ].filter(r => r.label && r.value).map(({ label, value }, i, arr) => (
+                      <div key={label}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-white/45">{label}</span>
+                          <span className="text-sm font-semibold text-white">{value}</span>
                         </div>
-                      )}
+                        {i < arr.length - 1 && <div className="mt-2.5 h-px bg-white/[0.08]" />}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Személyes adatok */}
+                  <div className="mb-3 rounded-2xl p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+                    {[
+                      { label: tt('booking.field.name'), value: state.name },
+                      { label: tt('booking.field.email'), value: state.email },
+                      { label: tt('booking.field.phone'), value: state.phone ? `${DIAL_BY_CODE[state.country] ?? ''} ${state.phone}`.trim() : null },
+                      { label: tt('booking.field.city'), value: state.city || null },
+                      { label: tt('booking.field.note'), value: state.notes || null },
+                    ].filter(r => r.value).map(({ label, value }, i, arr) => (
+                      <div key={label}>
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="text-xs text-white/45 shrink-0 pt-0.5">{label}</span>
+                          <span className="text-sm font-semibold text-white text-right break-all">{value}</span>
+                        </div>
+                        {i < arr.length - 1 && <div className="mt-2.5 h-px bg-white/[0.08]" />}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Jó ha tudod */}
+                  {(goodToKnow ?? []).filter(p => p?.title || p?.body).length > 0 && (
+                    <div className="mb-3 rounded-2xl p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Info className="h-3.5 w-3.5 text-white/40" />
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tt('goodToKnow.title')}</p>
+                      </div>
+                      {(goodToKnow ?? []).filter(p => p?.title || p?.body).map((p, i) => {
+                        const Icon = iconByKey(p?.icon)
+                        return (
+                          <div key={p?.id ?? i} className="flex gap-2.5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.12] mt-0.5">
+                              <Icon className="h-3 w-3 text-white" />
+                            </div>
+                            <div className="min-w-0">
+                              {p?.title && <p className="text-[12px] font-semibold text-white">{p.title}</p>}
+                              {p?.body && <p className="text-[11px] text-white/55">{p.body}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
                     </div>
-                    {/* Arrow badge */}
-                    <div className="absolute top-3 right-3 h-7 w-7 rounded-full bg-white/90 flex items-center justify-center shadow-sm">
-                      {isSelected
-                        ? <Check className="h-3.5 w-3.5 text-zinc-950" />
-                        : <ChevronRight className="h-3.5 w-3.5 text-zinc-600" />
-                      }
-                    </div>
-                    {/* Name overlay */}
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-3">
-                      <p className="text-white font-bold text-sm leading-tight">{m.name}</p>
-                      {m.bio && <p className="text-white/60 text-xs mt-0.5 line-clamp-1">{m.bio}</p>}
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Date + Time */}
-        {step === 2 && (
-          <div>
-            <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink mb-1 whitespace-pre-line">{tt('booking.when.title')}</h2>
-            <p className="text-[13.5px] text-ink-soft mb-6">{tt('booking.when.subtitle')}</p>
-
-            {/* Date strip */}
-            <div className="mb-4 rounded-[20px] border border-white/50 bg-white/30 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_18px_40px_-28px_rgba(80,70,30,0.22)] backdrop-blur-[22px] backdrop-saturate-[0.4]">
-              <DateStrip
-                selected={state.date}
-                onChange={(d) => set({ date: d, slot: null })}
-                dayCount={bookingWindowDays}
-                locale={locale}
-              />
-            </div>
-
-            {/* Time slots */}
-            <div className="rounded-[20px] border border-white/50 bg-white/30 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_18px_40px_-28px_rgba(80,70,30,0.22)] backdrop-blur-[22px] backdrop-saturate-[0.4]">
-              <p className="mb-4 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft">
-                {format(selectedDate, 'EEEE, MMMM d.', { locale: dfLocale(locale) })}
-              </p>
-              {loadingSlots ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-ink-soft">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">{tt("booking.loading")}</span>
-                </div>
-              ) : slotsError ? (
-                <div className="py-8 text-center" role="alert">
-                  <p className="text-[13.5px] text-ink-soft">{tt('booking.err.slots')}</p>
-                  <button
-                    onClick={loadSlots}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
-                  >
-                    {tt('booking.retry')}
-                  </button>
-                </div>
-              ) : slots.length === 0 ? (
-                <div className="py-8 text-center">
-                  <p className="text-[13.5px] text-ink-soft">{tt("booking.noSlots")}</p>
-                  <p className="mt-1 text-[12px] text-ink-soft2">{tt("booking.noSlotsHint")}</p>
-                </div>
-              ) : (
-                <motion.div
-                  key={`${state.date}-${slots.length}`}
-                  variants={staggerContainer}
-                  initial="hidden"
-                  animate="show"
-                  className="grid grid-cols-4 gap-2"
-                >
-                  {slots.map((slot) => (
-                    <motion.button
-                      key={slot.start}
-                      variants={fadeUp}
-                      onClick={() => { set({ slot }); goStep(3) }}
-                      className={cn(
-                        'rounded-[12px] py-3 text-[14px] font-semibold transition-colors',
-                        state.slot?.start === slot.start
-                          ? 'bg-ink-dark text-white'
-                          : 'bg-paper/50 text-ink hover:bg-paper/80'
-                      )}
-                    >
-                      {slot.start}
-                    </motion.button>
-                  ))}
-                </motion.div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Customer info */}
-        {step === 3 && (
-          <div>
-            <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink mb-1">{tt("booking.details.title")}</h2>
-            <p className="text-[13.5px] text-ink-soft mb-6">{tt("booking.details.subtitle")}</p>
-
-            {/* Booking summary card */}
-            <div className="mb-5 flex items-start justify-between gap-3 rounded-[20px] bg-ink-dark p-5">
-              <div>
-                <p className="mb-1 text-[11px] font-medium text-white/50">{tt("booking.summary")}</p>
-                <p className="text-[16px] font-semibold text-white">{selectedService?.name}</p>
-                <p className="mt-1 text-[12px] text-white/55">
-                  {selectedStaff ? selectedStaff.name : tt('booking.staff.any')} · {format(selectedDate, 'MMM d.', { locale: dfLocale(locale) })} · {state.slot?.start}
-                </p>
-              </div>
-              {selectedService && (
-                <div className="shrink-0 text-right">
-                  <p className="text-[18px] font-semibold text-gold">{formatPrice(selectedService.price, selectedService.currency)}</p>
-                  <p className="text-[12px] text-white/45">{selectedService.duration_minutes} perc</p>
+                  )}
+                  {((termsSections && termsSections.length > 0) || company) && (
+                    <p className="text-center text-[12px] text-white/40 pb-4">
+                      {tt('booking.termsPrefix')}{' '}
+                      <TermsModal sections={termsSections} company={company} locale={locale} triggerClassName="underline underline-offset-2 hover:text-white/70" />
+                    </p>
+                  )}
                 </div>
               )}
-            </div>
 
-            <div className="space-y-4 rounded-[20px] border border-white/50 bg-white/30 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.35),0_18px_40px_-28px_rgba(80,70,30,0.22)] backdrop-blur-[22px] backdrop-saturate-[0.4]">
-              <div className="space-y-1.5">
-                <Label htmlFor="bk-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt("booking.field.name")}</Label>
-                <Input
-                  id="bk-name"
-                  ref={fieldRefs.name}
-                  value={state.name}
-                  onChange={e => { set({ name: e.target.value }); clearError('name') }}
-                  onBlur={() => onFieldBlur('name')}
-                  autoComplete="name"
-                  aria-invalid={!!errors.name}
-                  aria-describedby={errors.name ? 'bk-name-err' : undefined}
-                  placeholder={tt("booking.field.namePlaceholder")}
-                  className={cn(
-                    'h-12 rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus-visible:ring-1 focus-visible:ring-gold',
-                    errors.name && 'ring-1 ring-red-400 focus-visible:ring-red-400'
-                  )}
-                />
-                {errors.name && <p id="bk-name-err" role="alert" className="text-[12px] text-red-500">{errors.name}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="bk-email" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt("booking.field.email")}</Label>
-                <Input
-                  id="bk-email"
-                  ref={fieldRefs.email}
-                  type="email"
-                  inputMode="email"
-                  autoComplete="email"
-                  value={state.email}
-                  onChange={e => { set({ email: e.target.value }); clearError('email') }}
-                  onBlur={() => onFieldBlur('email')}
-                  aria-invalid={!!errors.email}
-                  aria-describedby={errors.email ? 'bk-email-err' : undefined}
-                  placeholder={tt("booking.field.emailPlaceholder")}
-                  className={cn(
-                    'h-12 rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus-visible:ring-1 focus-visible:ring-gold',
-                    errors.email && 'ring-1 ring-red-400 focus-visible:ring-red-400'
-                  )}
-                />
-                {errors.email && <p id="bk-email-err" role="alert" className="text-[12px] text-red-500">{errors.email}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt('booking.field.phone')}{requirePhone ? ' *' : ''}</Label>
-                <PhoneCountryInput
-                  inputRef={fieldRefs.phone}
-                  country={state.country}
-                  phone={state.phone}
-                  onCountryChange={(code) => set({ country: code })}
-                  onPhoneChange={(p) => { set({ phone: p }); clearError('phone') }}
-                  onBlur={() => onFieldBlur('phone')}
-                  required={requirePhone}
-                  inputClass={cn(
-                    'h-12 rounded-[12px] bg-paper/50 border-0 px-3 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none focus-visible:ring-1 focus-visible:ring-gold',
-                    errors.phone && 'ring-1 ring-red-400 focus-visible:ring-red-400'
-                  )}
-                />
-                {errors.phone && <p role="alert" className="text-[12px] text-red-500">{errors.phone}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt('booking.field.city')}</Label>
-                <Input
-                  id="bk-city"
-                  value={state.city}
-                  onChange={e => set({ city: e.target.value })}
-                  autoComplete="address-level2"
-                  placeholder={tt('booking.field.cityPlaceholder')}
-                  className="h-12 rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 focus-visible:ring-1 focus-visible:ring-gold"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-soft">{tt("booking.field.note")}</Label>
-                <Textarea
-                  value={state.notes}
-                  onChange={e => set({ notes: e.target.value })}
-                  placeholder={tt("booking.field.notePlaceholder")}
-                  rows={3}
-                  className="rounded-[12px] bg-paper/50 border-0 text-[14px] font-medium text-ink placeholder:text-ink-soft2 resize-none focus-visible:ring-1 focus-visible:ring-gold"
-                />
-              </div>
-            </div>
-
-            {/* Véglegesítő gomb — a tartalom végén (NEM sticky). Közös BookCtaButton. */}
-            <BookCtaButton
-              label={tt("booking.confirm")}
-              onClick={submit}
-              disabled={submitting || !state.name || !state.email || (requirePhone && !state.phone)}
-              loading={submitting}
-              className="mt-5"
-            />
-            {((termsSections && termsSections.length > 0) || company) && (
-              <div className="mt-3 text-center text-[12px] text-ink-soft">
-                {tt('booking.termsPrefix')}{' '}
-                <TermsModal sections={termsSections} company={company} locale={locale} triggerClassName="underline underline-offset-2 hover:text-zinc-700" />
-              </div>
-            )}
+              </motion.div>
+            </AnimatePresence>
           </div>
-        )}
-        </motion.div>
-       </AnimatePresence>
-      </div>
 
-      {/* CTA — normál folyásban a tartalom végén (a step 3 gombja a tartalom belsejében van) */}
-      {step !== 3 && (
-      <div className="max-w-lg mx-auto w-full px-5 pb-10">
-          {step === 0 && (
-            state.serviceId ? (
-              <button
-                onClick={() => goStep(state.staffId !== null ? 2 : 1)}
-                className="flex h-14 w-full items-center justify-between rounded-[16px] bg-ink-dark px-6 text-[14px] font-semibold text-white shadow-[0_16px_38px_-22px_rgba(30,28,25,.7)] transition-opacity hover:opacity-90"
-              >
-                <span>{selectedService?.name}</span>
-                <span className="flex items-center gap-2 text-white/50">
-                  {selectedService && formatPrice(selectedService.price, selectedService.currency)} <ChevronRight className="h-4 w-4" />
-                </span>
-              </button>
-            ) : (
-              <div className="flex h-14 w-full items-center justify-center rounded-[16px] bg-black/[0.06]">
-                <p className="text-[13.5px] font-medium text-ink-soft2">{tt("booking.cta.pickService")}</p>
-              </div>
-            )
-          )}
-          {step === 1 && (
+          {/* CTA gomb */}
+          <div
+            className="shrink-0 px-5 pt-2 lg:px-6"
+            style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+          >
             <button
-              onClick={() => goStep(2)}
-              className="flex h-14 w-full items-center justify-between rounded-[16px] bg-ink-dark px-6 text-[14px] font-semibold text-white shadow-[0_16px_38px_-22px_rgba(30,28,25,.7)] transition-opacity hover:opacity-90"
+              onClick={handleCTA}
+              disabled={!ctaEnabled || submitting}
+              className="flex h-14 w-full items-center justify-center gap-2 rounded-full text-[15px] font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100"
+              style={{
+                background: step === 4 ? '#FFD85F' : ctaEnabled ? 'white' : 'rgba(255,255,255,0.10)',
+                color: step === 4 ? 'var(--ink-dark)' : ctaEnabled ? 'var(--ink-dark)' : 'rgba(255,255,255,0.30)',
+              }}
             >
-              <span>{state.staffId === null ? tt('booking.staff.any') : selectedStaff?.name}</span>
-              <ChevronRight className="h-4 w-4 text-white/50" />
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : step === 4 ? tt('booking.confirm') : 'Tovább'}
+              {!submitting && step !== 4 && ctaEnabled && <Check className="h-4 w-4 opacity-70" />}
             </button>
-          )}
-          {step === 2 && (
-            state.slot ? (
-              <button
-                onClick={() => goStep(3)}
-                className="flex h-14 w-full items-center justify-between rounded-[16px] bg-ink-dark px-6 text-[14px] font-semibold text-white shadow-[0_16px_38px_-22px_rgba(30,28,25,.7)] transition-opacity hover:opacity-90"
-              >
-                <span>{format(selectedDate, 'MMM d.', { locale: dfLocale(locale) })} · {state.slot.start}</span>
-                <ChevronRight className="h-4 w-4 text-white/50" />
-              </button>
-            ) : (
-              <div className="flex h-14 w-full items-center justify-center rounded-[16px] bg-black/[0.06]">
-                <p className="text-[13.5px] font-medium text-ink-soft2">{tt("booking.cta.pickSlot")}</p>
-              </div>
-            )
-          )}
+          </div>
+        </div>
       </div>
-      )}
-     </div>
     </div>
   )
 }

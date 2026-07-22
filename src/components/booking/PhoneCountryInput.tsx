@@ -142,6 +142,7 @@ export function PhoneCountryInput({
   inputClass = '',
   inputRef,
   onBlur,
+  dark = false,
 }: {
   country: string
   phone: string
@@ -153,6 +154,7 @@ export function PhoneCountryInput({
   inputRef?: React.Ref<HTMLInputElement>
   /** A szám-input elhagyásakor hívódik (blur-validáláshoz). */
   onBlur?: () => void
+  dark?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -180,9 +182,9 @@ export function PhoneCountryInput({
         onClick={() => { setOpen((o) => !o); setQuery('') }}
         aria-label={`Országhívó: ${selected.dial}`}
         aria-expanded={open}
-        className={`flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm ${inputClass}`}
+        className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm ${dark ? 'border border-white/10 bg-white/[0.06]' : 'border border-zinc-200 bg-zinc-50'} ${inputClass}`}
       >
-        <span className="tabular-nums font-semibold text-zinc-900">{selected.dial}</span>
+        <span className={`tabular-nums font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>{selected.dial}</span>
         <ChevronDown className={`h-3.5 w-3.5 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       <input

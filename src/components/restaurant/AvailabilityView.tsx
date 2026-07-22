@@ -262,7 +262,7 @@ export function AvailabilityView({
             <div className="flex items-center justify-between gap-3">
               <div className="text-[15px] font-semibold text-ink">Foglalási szabályok</div>
               <Link
-                href="/restaurant/settings"
+                href="/restaurant/settings?tab=booking"
                 aria-label="Foglalási szabályok szerkesztése a Beállításokban"
                 title="Szerkesztés a Beállításokban"
                 className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-white shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-all hover:-translate-y-0.5 hover:shadow-[0_4px_10px_rgba(80,70,30,.12)]"

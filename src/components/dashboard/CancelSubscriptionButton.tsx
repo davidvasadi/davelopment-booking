@@ -1,7 +1,8 @@
 'use client'
 import { useState, useTransition } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
-import { X, Undo2, AlertTriangle } from 'lucide-react'
+import { X, Undo2, AlertTriangle, Loader2 } from 'lucide-react'
 
 type Props = {
   cancelScheduled: boolean
@@ -31,45 +32,49 @@ export function CancelSubscriptionButton({ cancelScheduled, periodEndLabel }: Pr
         type="button"
         disabled={pending}
         onClick={() => submit(true)}
-        className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-full bg-zinc-100 dark:bg-white/[0.08] text-zinc-700 dark:text-white/80 text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-50"
+        className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-line-strong px-5 py-2.5 text-[13px] font-semibold text-ink-soft transition-opacity hover:opacity-70 disabled:opacity-50"
       >
-        <Undo2 className="h-3.5 w-3.5" />
+        {pending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
         Lemondás visszavonása
       </button>
     )
   }
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="inline-flex items-center justify-center gap-2 h-10 px-5 rounded-full border border-zinc-200 dark:border-white/[0.1] text-zinc-600 dark:text-white/60 text-sm font-semibold hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors"
-      >
-        <X className="h-3.5 w-3.5" />
-        Előfizetés lemondása
-      </button>
-      {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/[0.08] p-6 shadow-2xl">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+  const modal = open
+    ? createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cancel-sub-title"
+          className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+        >
+          {/* Backdrop — teljes képernyős blur, body-n renderelve */}
+          <div
+            className="absolute inset-0 bg-ink-dark/40 backdrop-blur-md"
+            onClick={() => !pending && setOpen(false)}
+          />
+          <div className="relative w-full max-w-md rounded-[26px] bg-white p-6 shadow-[0_32px_64px_-20px_rgba(40,35,15,0.45)]">
+            <div className="mb-5 flex items-start gap-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-[#FEF3E9]">
+                <AlertTriangle className="h-5 w-5 text-[#D97706]" strokeWidth={1.8} />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-zinc-900 dark:text-white mb-1">Biztosan lemondod az előfizetést?</h3>
-                <p className="text-sm text-zinc-500 dark:text-white/50">
-                  <span className="text-zinc-900 dark:text-white font-semibold">{periodEndLabel}</span>-ig hozzáférsz minden Pro funkcióhoz.
-                  Utána a dashboard letiltásra kerül, de a nyilvános foglalási oldalad érintetlen marad.
+                <h3 id="cancel-sub-title" className="text-[17px] font-semibold text-ink">
+                  Biztosan lemondod az előfizetést?
+                </h3>
+                <p className="mt-1.5 text-[13.5px] leading-relaxed text-ink-soft">
+                  <span className="font-semibold text-ink">{periodEndLabel}</span>-ig hozzáférsz minden
+                  Pro funkcióhoz. Utána a dashboard letiltásra kerül, de a nyilvános foglalási oldalad
+                  érintetlen marad.
                 </p>
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2.5">
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 disabled={pending}
-                className="flex-1 h-11 rounded-full bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-white/80 text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-50"
+                className="flex-1 rounded-[14px] bg-[#F4F2EC] py-3 text-[14px] font-semibold text-ink transition-opacity hover:opacity-70 disabled:opacity-50"
               >
                 Mégse
               </button>
@@ -77,14 +82,29 @@ export function CancelSubscriptionButton({ cancelScheduled, periodEndLabel }: Pr
                 type="button"
                 onClick={() => submit(false)}
                 disabled={pending}
-                className="flex-1 h-11 rounded-full bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-[14px] bg-[#C0392B] py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {pending ? 'Lemondás...' : 'Igen, lemondom'}
+                {pending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {pending ? 'Lemondás…' : 'Igen, lemondom'}
               </button>
             </div>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body,
+      )
+    : null
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center justify-center gap-2 rounded-[14px] border border-line-strong px-5 py-2.5 text-[13px] font-semibold text-ink-soft transition-colors hover:border-[rgba(192,57,43,.4)] hover:text-[#C0392B]"
+      >
+        <X className="h-3.5 w-3.5" strokeWidth={2} />
+        Előfizetés lemondása
+      </button>
+      {modal}
     </>
   )
 }

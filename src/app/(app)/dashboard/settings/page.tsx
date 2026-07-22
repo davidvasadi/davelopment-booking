@@ -12,10 +12,17 @@ import {
   SettingsHub, type BillingData, type RulesData, type SiteData, type TeamMember,
 } from '@/components/settings/SettingsHub'
 import { RolesManager } from '@/components/settings/RolesManager'
-import { ImportPanel } from '@/components/settings/ImportPanel'
 import { getAccountBilling } from '@/lib/accountBilling'
 import { getPricing } from '@/lib/pricing'
+import { createHmac } from 'crypto'
 import type { Invoice } from '@/payload/payload-types'
+
+function icalUrl(type: string, id: string | number) {
+  const secret = process.env.PAYLOAD_SECRET ?? 'dev-secret'
+  const token = createHmac('sha256', secret).update(`ical-${type}-${id}`).digest('hex').slice(0, 24)
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  return `${base}/api/ical?id=${id}&type=${type}&token=${token}`
+}
 
 const initialsOf = (name: string) =>
   name.split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
@@ -194,7 +201,9 @@ export default async function SettingsPage() {
         planLabel={plan}
         auditLog={auditLog}
         customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
-        importPanel={<ImportPanel />}
+        icalUrl={icalUrl('salon', salon.id)}
+        bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${salon.slug}/book`}
+        webhookUrl={(salon as unknown as { webhook_url?: string | null }).webhook_url ?? null}
         rolesSection={
           <RolesManager
             key="roles-panel"

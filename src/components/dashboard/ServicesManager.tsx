@@ -13,33 +13,19 @@ import { Textarea } from '@/components/ui/textarea'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Scissors, Layers, Tag, type LucideIcon } from 'lucide-react'
+import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Scissors, Layers, Tag } from 'lucide-react'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
 import { EmptyState } from '@/components/ui/empty-state'
-
-/** Hero KPI a katalógus/csapat fejlécben (davelopment: kis ikon + nagy light szám + címke). */
-function HeroStat({ icon: Icon, value, label }: { icon: LucideIcon; value: string; label: string }) {
-  return (
-    <div className="flex items-start gap-2 sm:gap-2.5">
-      <Icon className="mt-2.5 h-4 w-4 shrink-0 text-ink-soft sm:mt-3 sm:h-5 sm:w-5" strokeWidth={1.6} />
-      <div className="min-w-0">
-        <div className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink sm:text-[42px]">{value}</div>
-        <div className="mt-1 truncate text-[12px] font-medium text-ink-soft sm:text-[13px]">{label}</div>
-      </div>
-    </div>
-  )
-}
+import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
+import { StatusPills } from '@/components/dashboard/StatusPills'
 
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
   description: z.string().optional(),
-  // A kategória/alkategória mostantól service-categories ID (relationship). A „+ Új kategória"
-  // választáskor az onSubmit előbb létrehozza a kategória-rekordot, majd annak ID-ját menti.
   category: z.string().min(1, 'Kötelező'),
-  subcategory: z.string().optional(),
   duration_minutes: z.number().min(5),
   price: z.number().min(0),
   currency: z.enum(['HUF', 'EUR']),
@@ -100,7 +86,7 @@ function compactFt(n: number): string {
 }
 
 
-export default function ServicesManager({ salonId, initialServices, initialCategories, supportedLocales, revenueByCategory }: Props) {
+export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory }: Props) {
   const [services, setServices] = useState(initialServices)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
@@ -123,9 +109,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
   const [categories, setCategories] = useState<ServiceCategory[]>(initialCategories)
   const catById = new Map(categories.map(c => [String(c.id), c]))
 
-  // Új-kategória szabadszöveges mező a service-űrlapon (csak ha „+ Új kategória" van választva).
   const [newCatName, setNewCatName] = useState('')
-  const [newSubName, setNewSubName] = useState('')
 
   // Category metadata editing — most ID alapján (a szerkesztett kategória rekordja).
   const [catSheetOpen, setCatSheetOpen] = useState(false)
@@ -149,15 +133,17 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
     defaultValues: { currency: 'HUF', is_active: true, duration_minutes: 60, price: 0 },
   })
 
+  const [selectedStaffIds, setSelectedStaffIds] = useState<string[]>([])
+
   const openAdd = () => {
-    reset({ name: '', description: '', category: '', subcategory: '', duration_minutes: 60, price: 0, currency: 'HUF', is_active: true })
+    reset({ name: '', description: '', category: '', duration_minutes: 60, price: 0, currency: 'HUF', is_active: true })
     setNewCatName('')
-    setNewSubName('')
     setEditing(null)
     setEditLocale('hu')
     setImageId(null)
     setImagePreview(null)
     setImageModified(false)
+    setSelectedStaffIds([])
     setOpen(true)
   }
 
@@ -166,14 +152,12 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
       name: s.name,
       description: s.description ?? '',
       category: relId(s.category) ?? '',
-      subcategory: relId(s.subcategory) ?? '',
       duration_minutes: s.duration_minutes,
       price: s.price,
       currency: s.currency ?? 'HUF',
       is_active: s.is_active ?? true,
     })
     setNewCatName('')
-    setNewSubName('')
     setEditing(s)
     setEditLocale('hu')
     const url = serviceImageUrl(s)
@@ -181,6 +165,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
     const media = s.image && typeof s.image === 'object' ? (s.image as Media) : null
     setImageId(media ? Number(media.id) : null)
     setImageModified(false)
+    setSelectedStaffIds((s.staff ?? []).map(sm => String(typeof sm === 'string' || typeof sm === 'number' ? sm : (sm as StaffMember).id)))
     setOpen(true)
   }
 
@@ -360,19 +345,12 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
         if (!newCatName.trim()) { toast.error('Add meg az új kategória nevét'); setSubmitting(false); return }
         categoryId = await createCategory(newCatName.trim())
       }
-      let subcategoryId = data.subcategory || ''
-      if (subcategoryId === NEW_CAT) {
-        subcategoryId = newSubName.trim() ? await createCategory(newSubName.trim()) : ''
-      }
-
-      // A relationship FK numerikus ID-t vár (Postgres). A nyers `data.category`/`subcategory`
-      // (select-value string vagy szentinel) NE spreadelődjön — explicit, számra konvertált ID megy.
-      const { category: _c, subcategory: _sc, ...rest } = data
+      const { category: _c, ...rest } = data
       const body: Record<string, unknown> = {
         ...rest,
         category: Number(categoryId),
-        subcategory: subcategoryId ? Number(subcategoryId) : null,
         salon: salonId,
+        staff: selectedStaffIds.map(Number),
       }
       if (imageModified) body.image = imageId ?? null
       const url = editing ? `/api/services/${editing.id}` : '/api/services'
@@ -446,10 +424,29 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
     try {
       const res = await fetch(`/api/services/${id}`, { method: 'DELETE', credentials: 'include' })
       if (!res.ok) throw new Error()
-      setServices(prev => prev.filter(s => s.id !== id))
-      toast.success('Törölve')
+      setServices(prev => prev.filter(s => String(s.id) !== id))
+      setOpen(false)
+      toast.success('Szolgáltatás törölve')
     } catch {
-      toast.error('Hiba történt')
+      toast.error('Hiba történt a törlés során')
+    }
+  }
+
+  const deleteCategory = async (id: string) => {
+    if (!confirm('Biztosan törlöd ezt a kategóriát?')) return
+    try {
+      const res = await fetch(`/api/service-categories/${id}`, { method: 'DELETE', credentials: 'include' })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        toast.error(json.error ?? 'Törlés sikertelen')
+        return
+      }
+      setCategories(prev => prev.filter(c => String(c.id) !== id))
+      if (watch('category') === id) setValue('category', '')
+      setCatSheetOpen(false)
+      toast.success('Kategória törölve')
+    } catch {
+      toast.error('Hiba történt a törlés során')
     }
   }
 
@@ -476,31 +473,25 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
   // adja (catById); ismeretlen/üres → 'Egyéb'. Az alkategória is ID-kulcs.
   const categoryMap = services.reduce((acc, s) => {
     const cat = relId(s.category) ?? '__none__'
-    const sub = relId(s.subcategory) ?? ''
-    if (!acc[cat]) acc[cat] = {}
-    if (!acc[cat][sub]) acc[cat][sub] = []
-    acc[cat][sub].push(s)
+    if (!acc[cat]) acc[cat] = []
+    acc[cat].push(s)
     return acc
-  }, {} as Record<string, Record<string, Service[]>>)
+  }, {} as Record<string, Service[]>)
 
   const catName = (id: string): string => (id === '__none__' ? 'Egyéb' : catById.get(id)?.name ?? 'Egyéb')
 
-  // ── Hero KPI-k és bevétel-megoszlás (valós adatból) ──
   const catCount = new Set(services.map(s => relId(s.category) ?? '__none__')).size
   const avgPrice = services.length ? Math.round(services.reduce((sum, s) => sum + (s.price || 0), 0) / services.length) : 0
   const heroCurrency = services[0]?.currency ?? 'HUF'
 
-  // ── Bevétel kategóriánként (idei foglalásokból). Ha van bevétel, azt mutatjuk (referencia:
-  //    „Bevétel kategóriánként · idén"); ha még nincs (új szalon), a szolgáltatás-darabszám
-  //    megoszlására esünk vissza, hogy a csík ne legyen üres. ──
   const revByCat = revenueByCategory ?? {}
   const totalRevenue = Object.values(revByCat).reduce((a, b) => a + b, 0)
   const useRevenue = totalRevenue > 0
   const barEntries = Object.entries(categoryMap)
-    .map(([id, subMap]) => ({
+    .map(([id, items]) => ({
       id,
-      count: Object.values(subMap).reduce((n, arr) => n + arr.length, 0),
-      val: useRevenue ? (revByCat[id] ?? 0) : Object.values(subMap).reduce((n, arr) => n + arr.length, 0),
+      count: items.length,
+      val: useRevenue ? (revByCat[id] ?? 0) : items.length,
     }))
     .filter(d => d.count > 0 && d.val > 0)
     .sort((a, b) => b.val - a.val)
@@ -524,39 +515,28 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
         className="mb-6"
       />
 
-      {/* KPI-csík (Crextio: Szolgáltatás · Kategória · Átlagár) */}
-      <div className="mb-6 grid grid-cols-3 gap-5 sm:flex sm:flex-wrap sm:items-start sm:gap-10 lg:gap-12">
-        <HeroStat icon={Scissors} value={String(services.length)} label="Szolgáltatás" />
-        <HeroStat icon={Layers} value={String(catCount)} label="Kategória" />
-        <HeroStat icon={Tag} value={formatPrice(avgPrice, heroCurrency)} label="Átlagár" />
-      </div>
-
-      {/* Bevétel-csík kategóriánként (idei) — új szalonnál a darabszám-megoszlásra esik vissza */}
-      {barEntries.length > 0 && (
-        <div className="mb-6">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-[13px] font-medium text-ink">{useRevenue ? 'Bevétel kategóriánként · idén' : 'Megoszlás kategóriánként'}</span>
-            <span className="text-xs text-ink-soft">{useRevenue ? `${compactFt(totalRevenue)} összesen` : `${services.length} szolgáltatás összesen`}</span>
-          </div>
-          <div className="flex h-11 gap-1 sm:gap-1.5">
-            {barEntries.map((d, i) => {
-              const pct = Math.round((d.val / barTotal) * 100)
-              const tone =
-                i === 0 ? 'bg-ink-dark text-white' : i === 1 ? 'bg-gold text-ink-dark' : 'border border-line-strong text-ink-soft2'
-              return (
-                <div
-                  key={d.id}
-                  className={`flex min-w-0 items-center rounded-[12px] px-2.5 text-[12px] font-semibold sm:rounded-[14px] sm:px-4 sm:text-[13px] ${tone}`}
-                  style={{ flexGrow: d.val, flexBasis: 0 }}
-                >
-                  <span className="truncate">{catName(d.id)}</span>
-                  <span className="ml-auto hidden pl-1.5 opacity-70 sm:inline sm:pl-2">{pct}%</span>
-                </div>
-              )
-            })}
-          </div>
+      <div className="mb-6 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        {barEntries.length > 0 && (
+          <StatusPills
+            eager
+            className="flex-1 lg:max-w-[760px]"
+            segments={barEntries.map((d, i) => ({
+              label: catName(d.id),
+              pct: Math.round((d.val / barTotal) * 100),
+              value: useRevenue ? undefined : d.count,
+              suffix: useRevenue ? undefined : ' db',
+              background: i === 0 ? '#1D1C19' : i === 1 ? '#F1CE45' : 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)',
+              color: i === 0 ? '#fff' : i === 1 ? '#1D1C19' : '#57564f',
+              border: i >= 2 ? '1px solid var(--dav-line-strong)' : undefined,
+            }))}
+          />
+        )}
+        <div className="flex flex-wrap items-start gap-8 lg:gap-10">
+          <CountUpKpi icon="scissors" value={services.length} label="Szolgáltatás" />
+          <CountUpKpi icon="layers" value={catCount} label="Kategória" />
+          <CountUpKpi icon="tag" value={avgPrice} label="Átlagár" suffix={heroCurrency === 'EUR' ? ' €' : ' Ft'} group />
         </div>
-      )}
+      </div>
 
       {services.length === 0 ? (
         <DashboardCard noPadding>
@@ -564,17 +544,14 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
         </DashboardCard>
       ) : (
         <div className="space-y-4">
-          {Object.entries(categoryMap).map(([categoryId, subMap], catIdx) => {
-            const subEntries = Object.entries(subMap)
+          {Object.entries(categoryMap).map(([categoryId, items], catIdx) => {
             const catRecord = categoryId === '__none__' ? undefined : catById.get(categoryId)
             const catImgUrl = categoryImageUrl(catRecord)
             const catLabel = catName(categoryId)
-            const catTotal = subEntries.reduce((n, [, arr]) => n + arr.length, 0)
             const tint = tintFor(catIdx)
 
             return (
               <div key={categoryId} className="dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5">
-                {/* Kategória fejléc — tintelt ikon-csempe + név + darabszám */}
                 <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
                   <div className="flex min-w-0 items-center gap-3">
                     {catImgUrl ? (
@@ -589,7 +566,7 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
                     <div className="min-w-0">
                       <p className="truncate text-[17px] font-semibold text-ink">{catLabel}</p>
                       <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-ink-soft2">
-                        {catTotal} szolgáltatás
+                        {items.length} szolgáltatás
                         {catRecord?.duration_label && (
                           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{catRecord.duration_label}</span>
                         )}
@@ -607,73 +584,57 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
                   )}
                 </div>
 
-                {/* Szolgáltatás-sorok (Crextio: csempe · név+szakemberek · időtartam · ár · toggle · szerkesztés) */}
                 <div className="mt-1 divide-y divide-line/70">
-                  {subEntries.map(([subcategoryId, items]) => (
-                    <div key={subcategoryId || '__none'}>
-                      {subcategoryId && (
-                        <div className="px-1 pt-3.5">
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-ink-soft2">{catName(subcategoryId)}</span>
-                        </div>
-                      )}
-                      {items.map((s) => {
-                        const imgUrl = serviceImageUrl(s)
-                        const active = s.is_active !== false
-                        const staffMembers = (s.staff ?? []).filter((x): x is StaffMember => typeof x === 'object' && x !== null)
-                        return (
-                          <div
-                            key={s.id}
-                            className="group flex items-center gap-3 rounded-[16px] px-1 py-3 transition-colors hover:bg-[var(--dav-glass)] sm:gap-4 sm:px-2"
+                  {items.map((s) => {
+                    const imgUrl = serviceImageUrl(s)
+                    const active = s.is_active !== false
+                    const staffMembers = (s.staff ?? []).filter((x): x is StaffMember => typeof x === 'object' && x !== null)
+                    return (
+                      <div
+                        key={s.id}
+                        className="group flex items-center gap-3 rounded-[16px] px-1 py-3 transition-colors hover:bg-[var(--dav-glass)] sm:gap-4 sm:px-2"
+                      >
+                        <button onClick={() => openEdit(s)} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4">
+                          <span
+                            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px]"
+                            style={imgUrl ? undefined : { background: tint.grad }}
                           >
-                            {/* Csempe + név + szakemberek/INAKTÍV — kattintva szerkesztés */}
-                            <button onClick={() => openEdit(s)} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4">
-                              <span
-                                className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px]"
-                                style={imgUrl ? undefined : { background: tint.grad }}
-                              >
-                                {imgUrl
-                                  ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
-                                  : <Scissors className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="truncate text-[15px] font-semibold text-ink">{s.name}</p>
-                                <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                                  {!active ? (
-                                    <span className="rounded-[7px] bg-[#E7E1D0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">Inaktív</span>
-                                  ) : staffMembers.length > 0 ? (
-                                    <>
-                                      <div className="flex shrink-0">
-                                        {staffMembers.slice(0, 4).map((m, mi) => (
-                                          <span key={m.id} className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
-                                            {m.name.slice(0, 1).toUpperCase()}
-                                          </span>
-                                        ))}
-                                      </div>
-                                      <span className="truncate text-[12px] text-ink-soft">{staffMembers.map(m => m.name).join(', ')}</span>
-                                    </>
-                                  ) : (
-                                    <span className="text-[12px] text-ink-soft2">Nincs hozzárendelt szakember</span>
-                                  )}
-                                </div>
-                              </div>
-                            </button>
-
-                            {/* Időtartam-chip */}
-                            <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] bg-[#EFEEE9] px-3 py-1.5 text-[13px] font-medium text-ink sm:inline-flex">
-                              <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
-                            </span>
-                            {/* Ár */}
-                            <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{formatPrice(s.price, s.currency)}</span>
-                            {/* Aktív/inaktív toggle (közös Switch — ink-dark sín + fehér gomb, gold nélkül) */}
-                            <Switch checked={active} onChange={() => toggleActive(s)} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
-                            {/* Szerkesztés + törlés */}
-                            <button onClick={() => openEdit(s)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
-                            <button onClick={() => deleteService(s.id)} className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500 sm:flex" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
+                            {imgUrl
+                              ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
+                              : <Scissors className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-[15px] font-semibold text-ink">{s.name}</p>
+                            <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+                              {!active ? (
+                                <span className="rounded-[7px] bg-[#E7E1D0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">Inaktív</span>
+                              ) : staffMembers.length > 0 ? (
+                                <>
+                                  <div className="flex shrink-0">
+                                    {staffMembers.slice(0, 4).map((m, mi) => (
+                                      <span key={m.id} className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
+                                        {m.name.slice(0, 1).toUpperCase()}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <span className="truncate text-[12px] text-ink-soft">{staffMembers.map(m => m.name).join(', ')}</span>
+                                </>
+                              ) : (
+                                <span className="text-[12px] text-ink-soft2">Nincs hozzárendelt szakember</span>
+                              )}
+                            </div>
                           </div>
-                        )
-                      })}
-                    </div>
-                  ))}
+                        </button>
+                        <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] bg-[#EFEEE9] px-3 py-1.5 text-[13px] font-medium text-ink sm:inline-flex">
+                          <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
+                        </span>
+                        <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{formatPrice(s.price, s.currency)}</span>
+                        <Switch checked={active} onChange={() => toggleActive(s)} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
+                        <button onClick={() => openEdit(s)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
+                        <button onClick={() => deleteService(String(s.id))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )
@@ -751,18 +712,29 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
 
             {editLocale === 'hu' && (
             <>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Fő kategória *</Label>
-                <Select value={watch('category') || ''} onValueChange={v => setValue('category', v)}>
-                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Válassz kategóriát" /></SelectTrigger>
-                  <SelectContent>
-                    {categories.map(c => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                    ))}
-                    <SelectItem value={NEW_CAT}>+ Új kategória</SelectItem>
-                  </SelectContent>
-                </Select>
+            <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Kategória *</Label>
+                <div className="flex gap-2">
+                  <Select value={watch('category') || ''} onValueChange={v => setValue('category', v)}>
+                    <SelectTrigger className="h-11 flex-1 rounded-xl"><SelectValue placeholder="Válassz kategóriát" /></SelectTrigger>
+                    <SelectContent>
+                      {categories.map(c => (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ))}
+                      <SelectItem value={NEW_CAT}>+ Új kategória</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {watch('category') && watch('category') !== NEW_CAT && (
+                    <button
+                      type="button"
+                      onClick={() => openCatEdit(watch('category'))}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line text-ink-soft hover:bg-paper transition-colors"
+                      title="Kategória szerkesztése / törlése"
+                    >
+                      <Pencil className="h-[14px] w-[14px]" />
+                    </button>
+                  )}
+                </div>
                 {watch('category') === NEW_CAT && (
                   <Input
                     className="h-11 rounded-xl mt-2"
@@ -772,28 +744,6 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
                   />
                 )}
                 {errors.category && <p className="text-xs text-destructive">{errors.category.message}</p>}
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Alkategória</Label>
-                <Select value={watch('subcategory') || '__empty__'} onValueChange={v => setValue('subcategory', v === '__empty__' ? '' : v)}>
-                  <SelectTrigger className="h-11 rounded-xl"><SelectValue placeholder="Nincs" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__empty__">Nincs</SelectItem>
-                    {categories.map(c => (
-                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
-                    ))}
-                    <SelectItem value={NEW_CAT}>+ Új alkategória</SelectItem>
-                  </SelectContent>
-                </Select>
-                {watch('subcategory') === NEW_CAT && (
-                  <Input
-                    className="h-11 rounded-xl mt-2"
-                    value={newSubName}
-                    onChange={e => setNewSubName(e.target.value)}
-                    placeholder="Pl. Hajvágás, Balayage, Porcelán köröm"
-                  />
-                )}
-              </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
@@ -815,6 +765,36 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
                 </SelectContent>
               </Select>
             </div>
+            {staffList.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Szakemberek <span className="font-normal text-ink-soft2">(kik végzik)</span>
+                </Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {staffList.map(m => {
+                    const sel = selectedStaffIds.includes(String(m.id))
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setSelectedStaffIds(prev =>
+                          sel ? prev.filter(id => id !== String(m.id)) : [...prev, String(m.id)]
+                        )}
+                        className="inline-flex h-8 items-center rounded-full px-3 text-[12px] font-medium transition-all"
+                        style={{
+                          background: sel ? '#1D1C19' : 'transparent',
+                          color: sel ? '#fff' : '#57564f',
+                          border: `1px solid ${sel ? '#1D1C19' : '#d9d4c5'}`,
+                        }}
+                      >
+                        {m.name}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[11px] text-ink-soft2">Ha nincs kiválasztva, az összes aktív szakember foglalható</p>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input type="checkbox" id="active" className="h-4 w-4 rounded" {...register('is_active')} />
               <Label htmlFor="active" className="text-sm">Aktív (foglalható)</Label>
@@ -828,6 +808,15 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
             >
               {submitting ? 'Mentés...' : editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
+            {editing && editLocale === 'hu' && (
+              <button
+                type="button"
+                onClick={() => deleteService(String(editing.id))}
+                className="w-full h-11 rounded-dav-pill border border-red-200 dark:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 font-semibold text-sm transition-colors"
+              >
+                Szolgáltatás törlése
+              </button>
+            )}
           </form>
       </PopupModal>
 
@@ -917,6 +906,15 @@ export default function ServicesManager({ salonId, initialServices, initialCateg
             >
               {catSubmitting ? 'Mentés...' : catEditLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
             </button>
+            {catEditLocale === 'hu' && editingCatId && (
+              <button
+                type="button"
+                onClick={() => deleteCategory(editingCatId)}
+                className="w-full h-11 rounded-dav-pill border border-red-200 dark:border-red-900/50 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 font-semibold text-sm transition-colors"
+              >
+                Kategória törlése
+              </button>
+            )}
           </div>
       </PopupModal>
     </>

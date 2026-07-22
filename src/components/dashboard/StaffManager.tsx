@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import type { StaffMember, Media } from '@/payload/payload-types'
+import type { StaffMember, Media, Service } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -52,6 +52,8 @@ interface Props {
   bookingsById?: Record<string, number>
   /** staffId → szolgáltatás-nevek (tag-ek, VALÓS) */
   servicesById?: Record<string, string[]>
+  /** A szalon összes aktív szolgáltatása (service ↔ staff kiosztáshoz) */
+  salonServices?: Service[]
   /** staffId → átlagértékelés (VALÓS, ha van staffhoz köthető review) */
   ratingById?: Record<string, number>
   /** összes idei, nem-lemondott foglalás */
@@ -82,6 +84,7 @@ function roleLine(bio?: string | null): string | null {
 export default function StaffManager({
   salonId,
   initialStaff,
+  salonServices = [],
   supportedLocales,
   upcomingShiftById = {},
   employees,
@@ -118,6 +121,7 @@ export default function StaffManager({
     defaultValues: { is_active: true },
   })
   const activeWatch = watch('is_active')
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([])
 
   const openAdd = () => {
     reset({ name: '', bio: '', email: '', is_active: true })
@@ -126,6 +130,7 @@ export default function StaffManager({
     setAvatarId(null)
     setAvatarPreview(null)
     setAvatarModified(false)
+    setSelectedServiceIds([])
     setOpen(true)
   }
 
@@ -138,6 +143,12 @@ export default function StaffManager({
     const media = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media) : null
     setAvatarId(media ? Number(media.id) : null)
     setAvatarModified(false)
+    // Előre-töltjük: mely szolgáltatásokban szerepel ez a munkatárs
+    setSelectedServiceIds(
+      salonServices
+        .filter(s => (s.staff ?? []).some(sm => String(sm) === String(m.id)))
+        .map(s => String(s.id))
+    )
     setOpen(true)
   }
 
@@ -236,6 +247,29 @@ export default function StaffManager({
       const saved: StaffMember = (json?.doc ?? json) as StaffMember
       if (!saved?.id) throw new Error('Érvénytelen szerver-válasz')
       setStaff(prev => editing ? prev.map(m => m.id === saved.id ? saved : m) : [...prev, saved])
+
+      // Szolgáltatás-hozzárendelés frissítése: minden érintett service staff tömbjét PATCH-eljük.
+      if (salonServices.length > 0) {
+        const staffId = String(saved.id)
+        await Promise.allSettled(
+          salonServices.map(async (s) => {
+            const currentIds = (s.staff ?? []).map(sm => String(sm))
+            const shouldBeIn = selectedServiceIds.includes(String(s.id))
+            const isIn = currentIds.includes(staffId)
+            if (shouldBeIn === isIn) return
+            const nextStaff = shouldBeIn
+              ? [...currentIds, staffId].map(Number)
+              : currentIds.filter(id => id !== staffId).map(Number)
+            await fetch(`/api/services/${s.id}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ staff: nextStaff }),
+            })
+          })
+        )
+      }
+
       setOpen(false)
       toast.success(editing ? 'Frissítve' : 'Munkatárs hozzáadva')
     } catch {
@@ -657,6 +691,36 @@ export default function StaffManager({
                 <span className={`absolute top-[3px] h-5 w-5 rounded-full bg-white transition-all ${activeWatch ? 'left-[23px]' : 'left-[3px]'}`} />
               </span>
             </label>
+            )}
+            {editLocale === 'hu' && salonServices.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">
+                  Szolgáltatások <span className="font-normal text-ink-soft2">(melyeket elvégez)</span>
+                </Label>
+                <div className="flex flex-wrap gap-1.5">
+                  {salonServices.map(s => {
+                    const sel = selectedServiceIds.includes(String(s.id))
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        onClick={() => setSelectedServiceIds(prev =>
+                          sel ? prev.filter(id => id !== String(s.id)) : [...prev, String(s.id)]
+                        )}
+                        className="inline-flex h-8 items-center rounded-full px-3 text-[12px] font-medium transition-all"
+                        style={{
+                          background: sel ? '#1D1C19' : 'transparent',
+                          color: sel ? '#fff' : '#57564f',
+                          border: `1px solid ${sel ? '#1D1C19' : '#d9d4c5'}`,
+                        }}
+                      >
+                        {s.name}
+                      </button>
+                    )
+                  })}
+                </div>
+                <p className="text-[11px] text-ink-soft2">Ha nincs kiválasztva, az összes aktív szolgáltatásnál megjelenik</p>
+              </div>
             )}
             {editing && editLocale === 'hu' && (
               <button

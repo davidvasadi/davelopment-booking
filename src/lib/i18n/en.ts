@@ -5,6 +5,8 @@ export const en: Record<string, string> = {
   'booking.step.staff': 'Staff',
   'booking.step.datetime': 'Date & Time',
   'booking.step.details': 'Details',
+  'booking.step.summary': 'Summary',
+  'booking.summary.title': 'Everything correct?',
   'booking.service.title': 'Which\nservice?',
   'booking.service.subtitle': 'Choose from the available services',
   'booking.minutes': 'min',
