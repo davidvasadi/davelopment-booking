@@ -44,10 +44,14 @@ export const en: Record<string, string> = {
   'booking.err.generic': 'Something went wrong',
   'booking.retry': 'Try again',
   'booking.leaveConfirm': 'You will lose your booking progress. Leave anyway?',
+  'booking.next': 'Next',
+  'booking.price': 'Price',
+  'booking.staff.bestSlot': 'Best time',
 
   // ── Restaurant booking wizard ──
   'rbooking.step.datetime': 'Time',
   'rbooking.step.details': 'Details',
+  'rbooking.step.review': 'Review',
   'rbooking.header': 'Table reservation',
   'rbooking.viewSubtitle': 'Choose the party size, date and time.',
   'rbooking.partySize': 'How many of you?',

@@ -42,10 +42,14 @@ export const fr: Record<string, string> = {
   'booking.err.generic': 'Une erreur est survenue',
   'booking.retry': 'Réessayer',
   'booking.leaveConfirm': 'Vous perdrez la réservation en cours. Quitter quand même ?',
+  'booking.next': 'Suivant',
+  'booking.price': 'Prix',
+  'booking.staff.bestSlot': 'Meilleur créneau',
 
   // ── Assistant de réservation (restaurant) ──
   'rbooking.step.datetime': 'Heure',
   'rbooking.step.details': 'Coordonnées',
+  'rbooking.step.review': 'Récapitulatif',
   'rbooking.header': 'Réservation de table',
   'rbooking.viewSubtitle': 'Choisissez le nombre de personnes, la date et l\'heure.',
   'rbooking.partySize': 'Vous êtes combien ?',

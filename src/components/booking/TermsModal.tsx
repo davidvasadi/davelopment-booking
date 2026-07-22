@@ -35,18 +35,13 @@ export function TermsModal({
 
   useEffect(() => setMounted(true), [])
 
-  // Amíg a modal nyitva van, a háttér (body) ne görögjön — különben a
-  // görgetés a lapon landol, nem a modal tartalmán.
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
-    return () => {
-      document.body.style.overflow = prev
-    }
+    return () => { document.body.style.overflow = prev }
   }, [open])
 
-  // Az emailből érkező link (?terms=1) betöltéskor azonnal felnyitja a modált.
   useEffect(() => {
     if (searchParams.get('terms') === '1') setOpen(true)
   }, [searchParams])
@@ -59,7 +54,7 @@ export function TermsModal({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={triggerClassName ?? 'text-sm font-medium text-zinc-500 hover:text-zinc-800 underline underline-offset-2 transition-colors'}
+        className={triggerClassName ?? 'text-[12px] text-white/40 hover:text-white/70 underline underline-offset-2 transition-colors'}
       >
         {tt('public.terms.title')}
       </button>
@@ -68,7 +63,7 @@ export function TermsModal({
         <AnimatePresence>
           {open && (
             <motion.div
-              className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-md"
+              className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-md"
               onClick={() => setOpen(false)}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -76,7 +71,13 @@ export function TermsModal({
               transition={{ duration: DUR.fast, ease: EASE }}
             >
               <motion.div
-                className="w-full max-w-lg h-[88dvh] sm:h-[80dvh] flex flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl bg-white/90 backdrop-blur-2xl backdrop-saturate-150 ring-1 ring-inset ring-white/30 shadow-2xl"
+                className="w-full max-w-lg h-[88dvh] sm:h-[80dvh] flex flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl shadow-2xl"
+                style={{
+                  background: 'rgba(22,22,26,0.92)',
+                  backdropFilter: 'blur(28px) saturate(1.4)',
+                  WebkitBackdropFilter: 'blur(28px) saturate(1.4)',
+                  border: '1px solid rgba(255,255,255,0.10)',
+                }}
                 onClick={(e) => e.stopPropagation()}
                 role="dialog"
                 aria-modal="true"
@@ -85,20 +86,19 @@ export function TermsModal({
                 exit={{ y: 40, opacity: 0, scale: 0.98 }}
                 transition={{ duration: DUR.base, ease: EASE }}
               >
-                {/* Fogantyú (mobil, lefelé-húzás vizuális jelzés) */}
                 <div className="sm:hidden flex justify-center pt-3 pb-1">
-                  <div className="h-1 w-10 rounded-full bg-zinc-300" />
+                  <div className="h-1 w-10 rounded-full bg-white/20" />
                 </div>
                 <div className="flex items-center justify-between gap-3 px-6 pt-4 pb-4">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">{tt('goodToKnow.title')}</p>
-                    <h3 className="text-xl font-black tracking-tight text-zinc-900">{tt('public.terms.title')}</h3>
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-white/40">{tt('goodToKnow.title')}</p>
+                    <h3 className="text-xl font-black tracking-tight text-white">{tt('public.terms.title')}</h3>
                   </div>
                   <button
                     type="button"
                     onClick={() => setOpen(false)}
                     aria-label={tt('openingHours.close')}
-                    className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center bg-zinc-100/70 text-zinc-500 hover:bg-zinc-200 transition-colors"
+                    className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center transition-colors bg-white/10 text-white/60 hover:bg-white/15"
                   >
                     <X className="h-4 w-4" />
                   </button>

@@ -48,10 +48,14 @@ export const hu: Record<string, string> = {
   'booking.err.generic': 'Hiba történt',
   'booking.retry': 'Újrapróbálom',
   'booking.leaveConfirm': 'Elveszíted a megkezdett foglalást. Biztosan kilépsz?',
+  'booking.next': 'Tovább',
+  'booking.price': 'Ár',
+  'booking.staff.bestSlot': 'Legjobb időpont',
 
   // ── Étterem foglaló wizard ──
   'rbooking.step.datetime': 'Időpont',
   'rbooking.step.details': 'Adatok',
+  'rbooking.step.review': 'Összefoglalás',
   'rbooking.header': 'Asztalfoglalás',
   'rbooking.viewSubtitle': 'Válaszd ki a létszámot, dátumot és időpontot.',
   'rbooking.partySize': 'Hányan jöttök?',

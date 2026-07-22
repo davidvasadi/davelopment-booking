@@ -12,7 +12,6 @@ interface DayHour {
   close_time?: string | null
 }
 
-// JS getDay(): 0 = Sunday … 6 = Saturday  →  DayOfWeek
 const JS_DAY_TO_KEY: DayOfWeek[] = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
 function toMinutes(t?: string | null): number | null {
@@ -22,10 +21,18 @@ function toMinutes(t?: string | null): number | null {
   return h * 60 + (m || 0)
 }
 
-export default function OpeningHoursLive({ hours, locale = 'hu' }: { hours: DayHour[]; locale?: Locale }) {
+export default function OpeningHoursLive({
+  hours,
+  locale = 'hu',
+  variant = 'light',
+}: {
+  hours: DayHour[]
+  locale?: Locale
+  variant?: 'light' | 'dark'
+}) {
+  const dk = variant === 'dark'
   const dayLbl = dayLabels(locale)
   const [open, setOpen] = useState(false)
-  // null amíg a kliens be nem tölt — így nincs SSR/CSR eltérés a státusznál
   const [now, setNow] = useState<Date | null>(null)
 
   useEffect(() => {
@@ -53,7 +60,6 @@ export default function OpeningHoursLive({ hours, locale = 'hu' }: { hours: DayH
     return { open: isOpen, today, openSoon: !isOpen && cur < o }
   }, [now, byDay])
 
-  // Lock body scroll amíg a modal nyitva
   useEffect(() => {
     if (!open) return
     const prev = document.body.style.overflow
@@ -78,24 +84,34 @@ export default function OpeningHoursLive({ hours, locale = 'hu' }: { hours: DayH
     }
   }
 
+  const triggerBg = dk ? { background: 'rgba(255,255,255,0.07)' } : undefined
+  const triggerCls = dk
+    ? 'flex w-full items-center justify-between gap-3 rounded-[16px] border border-white/10 px-5 py-4 text-left transition-colors hover:bg-white/[0.04]'
+    : 'flex w-full items-center justify-between gap-3 rounded-[16px] bg-white/40 px-5 py-4 text-left transition-colors hover:bg-white/60'
+  const clockBgCls = dk ? 'bg-white/15' : 'bg-ink-dark'
+  const clockIconCls = dk ? 'text-white/80' : 'text-white'
+  const dotRingCls = dk ? '' : 'ring-2 ring-white'
+  const labelCls = dk ? 'text-white' : 'text-ink'
+  const subLabelCls = dk ? 'text-white/50' : 'text-ink-soft'
+  const chevronCls = dk ? 'text-white/30' : 'text-ink-soft'
+
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex w-full items-center justify-between gap-3 rounded-[16px] bg-white/40 px-5 py-4 text-left transition-colors hover:bg-white/60"
-      >
+      <button type="button" onClick={() => setOpen(true)} className={triggerCls} style={triggerBg}>
         <span className="flex items-center gap-3 min-w-0">
-          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-dark">
-            <Clock className="h-4 w-4 text-white" />
-            <span className={`absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white ${dotClass}`} />
+          <span className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${clockBgCls}`}>
+            <Clock className={`h-4 w-4 ${clockIconCls}`} />
+            {status?.open && (
+              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 opacity-70 animate-ping" />
+            )}
+            <span className={`absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full ${dotRingCls} ${dotClass}`} />
           </span>
           <span className="min-w-0">
-            <span className="block font-semibold text-ink text-sm leading-tight truncate">{label}</span>
-            <span className="block text-xs text-ink-soft mt-0.5">{t(locale, "openingHours.viewHours")}</span>
+            <span className={`block font-semibold text-sm leading-tight truncate ${labelCls}`}>{label}</span>
+            <span className={`block text-xs mt-0.5 ${subLabelCls}`}>{t(locale, 'openingHours.viewHours')}</span>
           </span>
         </span>
-        <ChevronRight className="h-4 w-4 text-ink-soft shrink-0" />
+        <ChevronRight className={`h-4 w-4 shrink-0 ${chevronCls}`} />
       </button>
 
       {open && (
@@ -103,43 +119,56 @@ export default function OpeningHoursLive({ hours, locale = 'hu' }: { hours: DayH
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center"
           role="dialog"
           aria-modal="true"
-          aria-label={t(locale, "openingHours.title")}
+          aria-label={t(locale, 'openingHours.title')}
         >
           <div
-            className="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm"
+            className="absolute inset-0 backdrop-blur-sm"
+            style={{ background: 'rgba(0,0,0,0.55)' }}
             onClick={() => setOpen(false)}
           />
-          <div className="relative w-full sm:max-w-md mx-auto sm:mx-5 rounded-t-3xl sm:rounded-3xl bg-white/80 backdrop-blur-2xl ring-1 ring-white/60 shadow-2xl overflow-hidden animate-[slideup_.25s_ease-out]">
+          <div
+            className="relative w-full sm:max-w-md mx-auto sm:mx-5 rounded-t-3xl sm:rounded-3xl overflow-hidden animate-[slideup_.25s_ease-out]"
+            style={{
+              background: 'rgba(22,22,26,0.90)',
+              backdropFilter: 'blur(24px) saturate(1.4)',
+              WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+              border: '1px solid rgba(255,255,255,0.10)',
+            }}
+          >
             <div className="flex items-center justify-between px-5 pt-5 pb-3">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{t(locale, "openingHours.when")}</p>
-                <h3 className="text-xl font-semibold tracking-[-0.01em] text-ink">{t(locale, "openingHours.title")}</h3>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/50">{t(locale, 'openingHours.when')}</p>
+                <h3 className="text-xl font-semibold tracking-[-0.01em] text-white">{t(locale, 'openingHours.title')}</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="h-9 w-9 rounded-full bg-paper/50 hover:bg-paper/80 flex items-center justify-center transition-colors"
-                aria-label={t(locale, "openingHours.close")}
+                className="h-9 w-9 rounded-full bg-white/10 hover:bg-white/15 flex items-center justify-center transition-colors"
+                aria-label={t(locale, 'openingHours.close')}
               >
-                <X className="h-4 w-4 text-ink-soft" />
+                <X className="h-4 w-4 text-white/60" />
               </button>
             </div>
             <div className="px-3 pb-5">
-              <div className="rounded-[18px] bg-white/60 divide-y divide-line overflow-hidden">
+              <div className="rounded-[18px] divide-y divide-white/[0.07] overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                 {DAYS_OF_WEEK.map((d) => {
                   const h = byDay.get(d)
                   const isToday = d === todayKey
                   return (
                     <div
                       key={d}
-                      className={`flex items-center justify-between px-4 py-3 text-sm ${isToday ? 'bg-ink-dark text-white' : ''}`}
+                      className={`flex items-center justify-between px-4 py-3 text-sm ${isToday ? 'bg-white/10' : ''}`}
                     >
                       <span className="flex items-center gap-2">
-                        {isToday && <span className="text-[10px] font-bold uppercase tracking-wide bg-white/15 px-1.5 py-0.5 rounded-full">{t(locale, "openingHours.today")}</span>}
-                        <span className={isToday ? 'font-semibold' : 'text-ink-soft'}>{dayLbl[d]}</span>
+                        {isToday && (
+                          <span className="text-[10px] font-bold uppercase tracking-wide bg-white/15 text-white/70 px-1.5 py-0.5 rounded-full">
+                            {t(locale, 'openingHours.today')}
+                          </span>
+                        )}
+                        <span className={isToday ? 'font-semibold text-white' : 'text-white/50'}>{dayLbl[d]}</span>
                       </span>
-                      <span className={h?.is_open ? (isToday ? 'font-semibold' : 'text-ink font-medium') : (isToday ? 'text-white/50' : 'text-ink-soft')}>
-                        {h?.is_open ? `${h.open_time} – ${h.close_time}` : t(locale, "openingHours.closed")}
+                      <span className={h?.is_open ? (isToday ? 'font-semibold text-white' : 'text-white/70') : 'text-white/30'}>
+                        {h?.is_open ? `${h.open_time} – ${h.close_time}` : t(locale, 'openingHours.closed')}
                       </span>
                     </div>
                   )

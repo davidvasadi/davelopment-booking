@@ -17,6 +17,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { DateStrip } from '@/components/booking/DateStrip'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
 import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
+import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
+import type { Section } from '@/components/booking/TermsContent'
 
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map(c => [c.code, c.dial]))
 
@@ -41,6 +43,8 @@ interface Props {
   nextSlotNode?: ReactNode
   requirePhone?: boolean
   bookingWindowDays?: number
+  termsSections?: Section[] | null
+  company?: CompanyInfo | null
 }
 
 function getCategoryId(cat: Service['category']): string | null {
@@ -54,6 +58,7 @@ export function ProfileCard({
   services, staff, serviceCategories,
   phone, email, website, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
+  termsSections, company,
 }: Props) {
   const router = useRouter()
   const tt = makeT(locale)
@@ -79,6 +84,17 @@ export function ProfileCard({
   const [slotsError, setSlotsError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
+
+  // Mobile sheet open state
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [isMobile, setIsMobile] = useState(true)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
   const fieldRefs = {
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
@@ -245,8 +261,54 @@ export function ProfileCard({
   const staffCols = staff.length === 1 ? 'grid-cols-1' : staff.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:w-[500px] lg:-translate-y-1/2">
-      <div
+    <>
+    {/* Backdrop — kártya mögé, kattintásra zár */}
+    <AnimatePresence>
+      {isMobile && sheetOpen && (
+        <motion.div
+          key="sheet-backdrop"
+          className="fixed inset-0 z-[29] lg:hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          onClick={() => setSheetOpen(false)}
+        />
+      )}
+    </AnimatePresence>
+
+    {/* Lebegő CTA — mobilon, kártya nyitása előtt */}
+    <AnimatePresence>
+      {isMobile && !sheetOpen && (
+        <motion.div
+          key="mobile-hero-cta"
+          className="fixed bottom-0 left-0 right-0 z-20 px-5 lg:hidden"
+          style={{ paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 16 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.3 }}
+        >
+          <button
+            onClick={() => setSheetOpen(true)}
+            className="flex w-full h-14 items-center justify-center gap-2 rounded-full text-[15px] font-semibold text-ink-dark"
+            style={{ background: '#FFD85F', boxShadow: '0 4px 32px rgba(0,0,0,0.45)' }}
+          >
+            {tl(locale, 'public.bookCta')}
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+
+    <div
+      className="fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:w-[500px] lg:-translate-y-1/2"
+      style={{ pointerEvents: isMobile && !sheetOpen ? 'none' : undefined }}
+    >
+      <motion.div
+        initial={{ y: '100%' }}
+        animate={{ y: isMobile ? (sheetOpen ? 0 : '100%') : 0 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 32 }}
         className="flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]"
         style={{
           height: 'min(82dvh, calc(100dvh - 48px))',
@@ -262,61 +324,62 @@ export function ProfileCard({
           <div className="h-1 w-9 rounded-full bg-white/20" />
         </div>
 
-        {/* Fixed header */}
-        <div className="shrink-0 px-6 pb-4 pt-2">
-          {view !== 'main' ? (
-            <button
-              onClick={handleBack}
-              className="-ml-1 mb-1 inline-flex min-h-[36px] items-center gap-1.5 rounded-xl px-1.5 text-[13px] font-medium text-white/50 transition-colors hover:text-white"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" /> Vissza
-            </button>
-          ) : (
-            <>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/35">Online foglalás</p>
-              <h2 className="mt-0.5 text-[20px] font-light leading-tight tracking-[-0.02em] text-white">{salonName}</h2>
-              {(salonDescription || salonAddress || salonCity) && (
-                <div className="mt-2.5 space-y-1.5">
-                  {salonDescription && (
-                    <p className="line-clamp-2 text-[12px] leading-relaxed text-white/50">{salonDescription}</p>
-                  )}
-                  {(salonAddress || salonCity) && (
-                    <p className="flex items-center gap-1 text-[11px] text-white/30">
-                      <MapPin className="h-3 w-3 shrink-0" />
-                      {[salonAddress, salonCity].filter(Boolean).join(', ')}
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-          <div className="mt-4 h-px bg-white/[0.08]" />
-        </div>
+        {/* Step indicator row — minden nem-main nézeten */}
+        {view !== 'main' && (() => {
+          const stepIndex = view === 'services' || view === 'serviceDetail' ? 0 : view === 'datetime' ? 1 : view === 'details' ? 2 : 3
+          const stepCount = 4
+          return (
+            <div className="shrink-0 flex items-center justify-between px-5 pb-2 pt-1 lg:px-6">
+              <button
+                onClick={handleBack}
+                className="flex h-9 w-9 items-center justify-center rounded-full transition-all hover:bg-white/10"
+                style={{ border: '1px solid rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.55)' }}
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </button>
+              <div className="flex items-center gap-1.5">
+                {Array.from({ length: stepCount }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="h-1.5 rounded-full transition-all duration-300"
+                    style={{
+                      width: i === stepIndex ? '20px' : '7px',
+                      background: i === stepIndex ? 'rgba(255,255,255,0.9)' : i < stepIndex ? 'rgba(255,255,255,0.40)' : 'rgba(255,255,255,0.15)',
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="text-xs font-medium text-white/35 tabular-nums">{stepIndex + 1}/{stepCount}</span>
+            </div>
+          )
+        })()}
 
-        {/* Scrollable content */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 pt-3" data-lenis-prevent style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-
-          {/* Mobile CTA — browse views only */}
-          {!isBookingView && (
-            <div className="mb-4 lg:hidden">
-              <div className="flex flex-wrap items-center gap-2.5">
-                <button
-                  onClick={() => goTo('services', null)}
-                  className="inline-flex h-11 items-center gap-1.5 rounded-full px-5 text-[13px] font-semibold text-ink-dark"
-                  style={{ background: '#FFD85F' }}
-                >
-                  {tl(locale, 'public.bookCta')}
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-                {services.length > 0 && (
-                  <div onClickCapture={e => { e.preventDefault(); e.stopPropagation(); goTo('services', null) }}>
-                    <HeroNextSlot slug={slug} locale={locale} source={{ kind: 'salon', id: salonId, serviceId: services[0].id }} />
+        {/* Scrollable content — header + tartalom együtt scrollozik */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-6" data-lenis-prevent style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+          <div className="pb-4 pt-2">
+            {view === 'main' ? (
+              <>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/35">{tl(locale, 'public.eyebrow')}</p>
+                <h2 className="mt-0.5 text-[20px] font-light leading-tight tracking-[-0.02em] text-white">{salonName}</h2>
+                {(salonDescription || salonAddress || salonCity) && (
+                  <div className="mt-2.5 space-y-1.5">
+                    {salonDescription && (
+                      <p className="line-clamp-2 text-[12px] leading-relaxed text-white/50">{salonDescription}</p>
+                    )}
+                    {(salonAddress || salonCity) && (
+                      <p className="flex items-center gap-1 text-[11px] text-white/30">
+                        <MapPin className="h-3 w-3 shrink-0" />
+                        {[salonAddress, salonCity].filter(Boolean).join(', ')}
+                      </p>
+                    )}
                   </div>
                 )}
-              </div>
-              <div className="mt-4 h-px bg-white/[0.08]" />
-            </div>
-          )}
+              </>
+            ) : null}
+            <div className="mt-4 h-px bg-white/[0.08]" />
+          </div>
+          <div className="pt-0">
+
 
           <AnimatePresence mode="wait" custom={dir} initial={false}>
             <motion.div
@@ -417,7 +480,7 @@ export function ProfileCard({
               {/* SERVICES — category list */}
               {view === 'services' && categoryGroups.length > 0 && selectedCategoryId === null && (
                 <div className="pb-2">
-                  <h3 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">Szolgáltatások</h3>
+                  <h3 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tl(locale, 'public.services')}</h3>
                   <div className="space-y-1.5">
                     {categoryGroups.map(group => {
                       const catImgUrl = group.image && typeof group.image === 'object'
@@ -449,7 +512,7 @@ export function ProfileCard({
               {/* SERVICES — service list */}
               {view === 'services' && (categoryGroups.length === 0 || selectedCategoryId !== null) && (
                 <div className="pb-2">
-                  <h3 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{selectedCategory?.name ?? 'Szolgáltatások'}</h3>
+                  <h3 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{selectedCategory?.name ?? tl(locale, 'public.services')}</h3>
                   <div className="space-y-1.5">
                     {servicesInView.map(s => (
                       <button
@@ -508,8 +571,8 @@ export function ProfileCard({
                           className="absolute inset-x-0 bottom-0 px-2.5 py-2.5 text-left"
                           style={{ background: 'rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
                         >
-                          <p className="truncate text-[12px] font-semibold leading-tight text-white">Bármelyik szabad</p>
-                          <p className="mt-0.5 truncate text-[10px] text-white/60">Legjobb időpont</p>
+                          <p className="truncate text-[12px] font-semibold leading-tight text-white">{tt('booking.staff.any')}</p>
+                          <p className="mt-0.5 truncate text-[10px] text-white/60">{tt('booking.staff.bestSlot')}</p>
                         </div>
                       </button>
                       {serviceStaff.map(m => {
@@ -548,9 +611,9 @@ export function ProfileCard({
               {/* DATETIME */}
               {view === 'datetime' && bookingService && (
                 <div>
-                  <h2 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">Mikor jönnél?</h2>
+                  <h2 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.when.title')}</h2>
                   <p className="mb-4 text-xs text-white/45">
-                    {bookingStaffId ? bookingStaff?.name : 'Bármelyik szabad'} · {bookingService.name} · {bookingService.duration_minutes} perc
+                    {bookingStaffId ? bookingStaff?.name : tt('booking.staff.any')} · {bookingService.name} · {bookingService.duration_minutes} {tt('booking.minutes')}
                   </p>
                   <div className="mb-3 overflow-hidden rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
                     <DateStrip
@@ -568,34 +631,33 @@ export function ProfileCard({
                     {loadingSlots ? (
                       <div className="flex items-center justify-center gap-2 py-6 text-white/45">
                         <Loader2 className="h-4 w-4 animate-spin" />
-                        <span className="text-sm">Töltés...</span>
+                        <span className="text-sm">{tt('booking.loading')}</span>
                       </div>
                     ) : slotsError ? (
                       <div className="py-6 text-center" role="alert">
-                        <p className="text-[13px] text-white/55">Nem sikerült betölteni az időpontokat</p>
+                        <p className="text-[13px] text-white/55">{tt('booking.err.slots')}</p>
                         <button onClick={loadSlots} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-white px-4 py-2 text-xs font-semibold text-ink-dark">
-                          Újra
+                          {tt('booking.retry')}
                         </button>
                       </div>
                     ) : slots.length === 0 ? (
                       <div className="py-6 text-center">
-                        <p className="text-[13px] text-white/55">Erre a napra nincs szabad időpont</p>
-                        <p className="mt-1 text-xs text-white/35">Válassz másik napot</p>
+                        <p className="text-[13px] text-white/55">{tt('booking.noSlots')}</p>
+                        <p className="mt-1 text-xs text-white/35">{tt('booking.noSlotsHint')}</p>
                       </div>
                     ) : (
-                      <motion.div
+                      <div
                         key={`${bookingDate}-${slots.length}`}
-                        variants={staggerContainer}
-                        initial="hidden"
-                        animate="show"
                         className="grid grid-cols-3 gap-2"
                       >
-                        {slots.map(slot => {
+                        {slots.map((slot, i) => {
                           const sel = bookingSlot?.start === slot.start
                           return (
                             <motion.button
                               key={slot.start}
-                              variants={fadeUp}
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.22, ease: 'easeOut', delay: i * 0.035 }}
                               onClick={() => {
                                 setBookingSlot(slot)
                                 setTimeout(() => { setDir(1); setView('details') }, 260)
@@ -612,7 +674,7 @@ export function ProfileCard({
                             </motion.button>
                           )
                         })}
-                      </motion.div>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -621,7 +683,7 @@ export function ProfileCard({
               {/* DETAILS */}
               {view === 'details' && (
                 <div>
-                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">Adataid</h2>
+                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.details.title')}</h2>
                   <div className="space-y-2 pb-4">
                     <div className="space-y-1">
                       <Label htmlFor="bk-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.name')}</Label>
@@ -686,9 +748,9 @@ export function ProfileCard({
                   <div className="mb-3 space-y-2.5 rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
                     {[
                       { label: tt('booking.step.service'), value: bookingService.name },
-                      { label: tt('booking.step.staff'), value: bookingStaffId ? (bookingStaff?.name ?? '–') : 'Bármelyik szabad' },
+                      { label: tt('booking.step.staff'), value: bookingStaffId ? (bookingStaff?.name ?? '–') : tt('booking.staff.any') },
                       { label: tt('booking.step.datetime'), value: `${format(bookingDateParsed, 'MMM d.', { locale: dfLocale(locale) })} · ${bookingSlot.start}` },
-                      { label: 'Ár', value: formatPrice(bookingService.price, bookingService.currency) },
+                      { label: tt('booking.price'), value: formatPrice(bookingService.price, bookingService.currency) },
                     ].map(({ label, value }, i, arr) => (
                       <div key={label}>
                         <div className="flex items-center justify-between">
@@ -721,12 +783,13 @@ export function ProfileCard({
 
             </motion.div>
           </AnimatePresence>
-        </div>
+          </div>{/* /pt-0 */}
+        </div>{/* /scroll */}
 
         {/* Footer */}
         {isBookingView ? (
           <div
-            className="shrink-0 px-6 pt-2"
+            className="shrink-0 px-6 pt-2 space-y-2"
             style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
           >
             <button
@@ -759,21 +822,19 @@ export function ProfileCard({
             >
               {submitting
                 ? <Loader2 className="h-4 w-4 animate-spin" />
-                : view === 'summary' ? tt('booking.confirm') : 'Tovább'
+                : view === 'summary' ? tt('booking.confirm') : tt('booking.next')
               }
               {!submitting && view === 'details' && <Check className="h-4 w-4 opacity-70" />}
             </button>
+            {view === 'summary' && (
+              <div className="text-center text-xs text-white/40">
+                {tt('rbooking.termsPrefix')}{' '}
+                <TermsModal sections={termsSections} company={company} locale={locale} />
+              </div>
+            )}
           </div>
         ) : (
           <div className="hidden shrink-0 px-6 pb-6 pt-3 lg:block">
-            {services.length > 0 && (
-              <div
-                className="mb-3"
-                onClickCapture={e => { e.preventDefault(); e.stopPropagation(); goTo('services', null) }}
-              >
-                <HeroNextSlot slug={slug} locale={locale} source={{ kind: 'salon', id: salonId, serviceId: services[0].id }} />
-              </div>
-            )}
             <button
               onClick={() => goTo('services', null)}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-full text-[14px] font-semibold text-ink-dark transition-all active:scale-[0.98] hover:opacity-90"
@@ -784,7 +845,8 @@ export function ProfileCard({
             </button>
           </div>
         )}
-      </div>
+      </motion.div>
     </div>
+    </>
   )
 }

@@ -83,7 +83,12 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
           <img src={coverUrl} alt="" aria-hidden className="absolute inset-0 z-0 h-full w-full object-cover" />
           <div
             className="pointer-events-none absolute inset-0 z-[1]"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.22) 45%, rgba(0,0,0,0.42) 100%)' }}
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
+          />
+          {/* Erős alul-gradient — fehér/világos borítóképnél is olvasható marad a cím */}
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2]"
+            style={{ height: '55%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.72) 100%)' }}
           />
         </>
       ) : (
@@ -97,11 +102,32 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
           {logoUrl && <div className="h-4 w-px bg-white/20" />}
           {logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={salon.name} className="h-7 w-7 rounded-[8px] object-cover ring-1 ring-white/20" />
+            <img src={logoUrl} alt={salon.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
           )}
         </div>
         {available.length > 1 && <LangSwitcher current={locale} available={available} />}
       </nav>
+
+      {/* Szalon neve + cím — mobil hero (kártya megnyitása előtt) */}
+      <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
+        <h1
+          className="text-[2.75rem] font-light leading-tight tracking-[-0.02em] text-white"
+          style={{ textShadow: '0 2px 16px rgba(0,0,0,0.55)' }}
+        >
+          {salon.name}
+        </h1>
+        {(salon.address || salon.city) && (
+          <p className="mt-1 flex items-center gap-1.5 text-sm text-white/60">
+            <MapPin className="h-3.5 w-3.5 shrink-0" />
+            {[salon.address, salon.city].filter(Boolean).join(', ')}
+          </p>
+        )}
+        {reviews.count > 0 && (
+          <div className="mt-2">
+            <RatingStars rating={reviews.average} count={reviews.count} />
+          </div>
+        )}
+      </div>
 
       {/* Szalon neve + CTA — desktop, bal alul */}
       <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
@@ -146,6 +172,16 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         email={salon.email}
         website={salon.website}
         nextSlotNode={nextSlotNode}
+        termsSections={salon.terms_sections}
+        company={{
+          name: salon.name,
+          legal_name: salon.legal_name,
+          tax_number: salon.tax_number,
+          company_reg_number: salon.company_reg_number,
+          registered_seat: salon.registered_seat,
+          email: salon.email,
+          phone: salon.phone,
+        }}
       />
     </div>
   )
