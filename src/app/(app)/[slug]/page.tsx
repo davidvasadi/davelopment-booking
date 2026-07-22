@@ -69,15 +69,24 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
     ? <HeroNextSlot slug={slug} locale={locale} source={{ kind: 'salon', id: salon.id, serviceId: services[0].id }} />
     : null
 
+  const hasCover = !!coverUrl
+  const heroText = hasCover ? 'text-white' : 'text-[#1D1C19]'
+  const heroSub  = hasCover ? 'text-white/60' : 'text-[#86826F]'
+
   return (
-    <div className="font-onest min-h-[100dvh] relative overflow-hidden" style={{ background: '#111' }}>
+    <div
+      className="font-onest min-h-[100dvh] relative overflow-hidden"
+      style={hasCover ? { background: '#111' } : {
+        background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)',
+      }}
+    >
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(salon, 'salon')) }}
       />
 
       {/* Cover image + overlay */}
-      {coverUrl ? (
+      {hasCover && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={coverUrl} alt="" aria-hidden className="absolute inset-0 z-0 h-full w-full object-cover" />
@@ -91,33 +100,28 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
             style={{ height: '55%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.72) 100%)' }}
           />
         </>
-      ) : (
-        <div className="absolute inset-0 z-0 bg-gradient-to-br from-[#3a2f12] via-[#9A7B1E] to-[#F1CE45]" />
       )}
 
       {/* Navbar */}
       <nav className="relative z-50 flex items-center justify-between px-5 py-5 lg:px-8 lg:py-6">
         <div className="flex items-center gap-3">
-          <BrandLogo variant="dark" className="h-6 lg:h-7" />
-          {logoUrl && <div className="h-4 w-px bg-white/20" />}
+          <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6 lg:h-7" />
+          {logoUrl && <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
           {logoUrl && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt={salon.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
           )}
         </div>
-        {available.length > 1 && <LangSwitcher current={locale} available={available} />}
+        {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
       </nav>
 
       {/* Szalon neve + cím — mobil hero (kártya megnyitása előtt) */}
       <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
-        <h1
-          className="text-[2.75rem] font-light leading-tight tracking-[-0.02em] text-white"
-          style={{ textShadow: '0 2px 16px rgba(0,0,0,0.55)' }}
-        >
+        <h1 className={`text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
           {salon.name}
         </h1>
         {(salon.address || salon.city) && (
-          <p className="mt-1 flex items-center gap-1.5 text-sm text-white/60">
+          <p className={`mt-1 flex items-center gap-1.5 text-sm ${heroSub}`}>
             <MapPin className="h-3.5 w-3.5 shrink-0" />
             {[salon.address, salon.city].filter(Boolean).join(', ')}
           </p>
@@ -131,14 +135,11 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
 
       {/* Szalon neve + CTA — desktop, bal alul */}
       <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
-        <h1
-          className="text-[3rem] font-light leading-none tracking-[-0.02em] text-white mb-2"
-          style={{ textShadow: '0 2px 12px rgba(0,0,0,0.4)' }}
-        >
+        <h1 className={`text-[3rem] font-light leading-none tracking-[-0.02em] mb-2 ${heroText}`}>
           {salon.name}
         </h1>
         {(salon.address || salon.city) && (
-          <p className="flex items-center gap-1.5 text-sm text-white/55 mb-4">
+          <p className={`flex items-center gap-1.5 text-sm mb-4 ${heroSub}`}>
             <MapPin className="h-3.5 w-3.5" />
             {[salon.address, salon.city].filter(Boolean).join(', ')}
           </p>

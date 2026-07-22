@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useState, useEffect, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import {
   Upload, Link2, Webhook, MapPin, Share2, Calendar,
@@ -17,6 +17,58 @@ interface Props {
   icalUrl: string
   apiBase: string
   webhookUrl?: string | null
+}
+
+// ── iCal CTA — platform-érzékeny ──────────────────────────────────────────
+
+function ICalCta({ icalUrl }: { icalUrl: string }) {
+  const [platform, setPlatform] = useState<'apple' | 'google' | 'other' | null>(null)
+
+  useEffect(() => {
+    const ua = navigator.userAgent
+    if (/iP(hone|ad|od)|Macintosh/.test(ua)) setPlatform('apple')
+    else if (/Android/.test(ua)) setPlatform('google')
+    else setPlatform('other')
+  }, [])
+
+  const webcalUrl = icalUrl.replace(/^https?:\/\//, 'webcal://')
+  const googleUrl = `https://calendar.google.com/calendar/r?cid=${encodeURIComponent(icalUrl)}`
+
+  if (!platform) return null
+
+  if (platform === 'apple') {
+    return (
+      <a
+        href={webcalUrl}
+        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
+      >
+        <Calendar className="h-4 w-4" />
+        Hozzáadás a naptáramhoz
+      </a>
+    )
+  }
+
+  if (platform === 'google') {
+    return (
+      <a
+        href={googleUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
+      >
+        <Calendar className="h-4 w-4" />
+        Megnyitás Google Naptárban
+      </a>
+    )
+  }
+
+  // Windows / egyéb — csak a linket kínáljuk másolásra
+  return (
+    <div className="rounded-[12px] border border-line bg-[#FBF9F2] px-4 py-3 space-y-1.5">
+      <p className="text-[12px] font-medium text-ink">Naptár feliratkozási link</p>
+      <p className="text-[11.5px] text-ink-soft">Másold be Outlookba vagy más naptár alkalmazásba</p>
+    </div>
+  )
 }
 
 // ── Copy button ────────────────────────────────────────────────────────────
@@ -204,66 +256,65 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, apiBase, webho
       {/* ── iCal / webcal ── */}
       <IntegCard
         icon={Link2}
-        title="iCal / webcal naptár-feed"
-        description="Foglalásaid megjelennek az Apple Calendar, Google Naptár vagy Outlook alkalmazásban"
-        status="setup"
+        title="Foglalások a saját naptáradban"
+        description="Az összes beérkező foglalás automatikusan megjelenik az iPhone, Google Naptár vagy Outlook appodban"
+        status="active"
       >
         <div className="space-y-4">
+          {/* Elsődleges CTA — platform szerint más viselkedés */}
+          <ICalCta icalUrl={icalUrl} />
+
+          {/* Link kézi másoláshoz */}
           <div>
-            <p className="text-[13px] font-medium text-ink mb-1.5">Egyedi naptár-link</p>
+            <p className="text-[12px] font-medium text-ink-soft mb-1.5">Vagy másold be kézzel</p>
             <UrlRow url={icalUrl} />
           </div>
 
-          <div className="space-y-3">
-            <p className="text-[13px] font-semibold text-ink">Beállítás lépései</p>
-            <div className="space-y-3">
-              <details className="group">
-                <summary className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink list-none">
-                  <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-                  iPhone / iPad (Apple Calendar)
-                </summary>
-                <div className="ml-6 mt-2">
-                  <Steps steps={[
-                    'Nyisd meg a Naptár appot',
-                    <>Menj ide: <strong>Naptárak</strong> → <strong>+</strong> (bal alul) → <strong>Feliratkozás naptárra</strong></>,
-                    'Illeszd be a fenti linket',
-                    <>Adj meg egy nevet (pl. <em>Foglalások</em>), majd nyomj <strong>Feliratkozás</strong>-t</>,
-                    'A foglalások automatikusan megjelennek és szinkronizálódnak',
-                  ]} />
-                </div>
-              </details>
+          {/* Platformonkénti lépések */}
+          <div className="space-y-2">
+            <p className="text-[12px] font-semibold text-ink-soft uppercase tracking-[0.10em]">Kézi beállítás lépései</p>
+            <details className="group">
+              <summary className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink list-none">
+                <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                iPhone / iPad (Apple Calendar)
+              </summary>
+              <div className="ml-6 mt-2">
+                <Steps steps={[
+                  <>Menj ide: <strong>Beállítások</strong> → <strong>Naptár</strong> → <strong>Fiókok</strong> → <strong>Fiók hozzáadása</strong> → <strong>Más</strong></>,
+                  <>Válaszd: <strong>CalDAV-fiók hozzáadása</strong> helyett <strong>Feliratkozott naptárak</strong></>,
+                  'Illeszd be a fenti linket, majd nyomj Tovább-t',
+                  'A foglalások automatikusan szinkronizálódnak',
+                ]} />
+              </div>
+            </details>
 
-              <details className="group">
-                <summary className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink list-none">
-                  <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-                  Google Naptár (böngésző)
-                </summary>
-                <div className="ml-6 mt-2">
-                  <Steps steps={[
-                    <>Nyisd meg a <strong>calendar.google.com</strong> oldalt</>,
-                    <>Kattints a bal oldali <strong>Más naptárak</strong> melletti <strong>+</strong> gombra</>,
-                    <>Válaszd: <strong>URL-ről</strong></>,
-                    'Illeszd be a fenti linket, majd kattints a Naptár hozzáadása gombra',
-                    'A foglalások megjelennek — a szinkron kb. 24 óránként frissül',
-                  ]} />
-                </div>
-              </details>
+            <details className="group">
+              <summary className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink list-none">
+                <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                Google Naptár (böngésző)
+              </summary>
+              <div className="ml-6 mt-2">
+                <Steps steps={[
+                  <>Nyisd meg a <strong>calendar.google.com</strong> oldalt</>,
+                  <>Kattints a <strong>Más naptárak +</strong> gombra (bal oldal, lent)</>,
+                  <>Válaszd: <strong>URL-ről</strong> → illeszd be a linket → <strong>Naptár hozzáadása</strong></>,
+                  'Szinkron kb. 12–24 óránként frissül automatikusan',
+                ]} />
+              </div>
+            </details>
 
-              <details className="group">
-                <summary className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink list-none">
-                  <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
-                  Outlook (asztali / web)
-                </summary>
-                <div className="ml-6 mt-2">
-                  <Steps steps={[
-                    <>Outlook Webes: <strong>Naptár hozzáadása</strong> → <strong>Feliratkozás az internetről</strong></>,
-                    'Illeszd be a fenti linket',
-                    <>Adj meg egy nevet, majd kattints <strong>Importálás</strong>-ra</>,
-                    'Asztali Outlook: Fájl → Fiókbeállítások → Internet-naptárak → Új → link beillesztése',
-                  ]} />
-                </div>
-              </details>
-            </div>
+            <details className="group">
+              <summary className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-ink-soft hover:text-ink list-none">
+                <ChevronRight className="h-4 w-4 transition-transform group-open:rotate-90" />
+                Outlook (asztali / web)
+              </summary>
+              <div className="ml-6 mt-2">
+                <Steps steps={[
+                  <>Web: <strong>Naptár hozzáadása</strong> → <strong>Feliratkozás az internetről</strong> → link beillesztése</>,
+                  <>Asztali: <strong>Fájl</strong> → <strong>Fiókbeállítások</strong> → <strong>Internet-naptárak</strong> → <strong>Új</strong> → link</>,
+                ]} />
+              </div>
+            </details>
           </div>
         </div>
       </IntegCard>
