@@ -104,6 +104,12 @@ export function DashboardNav({
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  // Mobilon a body háttere is krém legyen, hogy a notch + bottom safe area ne fehér legyen.
+  useEffect(() => {
+    document.body.style.backgroundColor = '#ECECE8'
+    return () => { document.body.style.backgroundColor = '' }
+  }, [])
+
   // CSV export a header „…" menüjébe — a szűrésnek (URL period) megfelelő exporttal.
   const csvDays = searchParams.get('period') ?? '30'
   const csvHref = `/api/export-csv?days=${csvDays}&module=${variant}`

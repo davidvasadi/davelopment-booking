@@ -86,9 +86,8 @@ export function StoreSwitcher({
       })
       const data = (await res.json().catch(() => null)) as { redirectTo?: string } | null
       if (res.ok && data?.redirectTo) {
-        router.push(data.redirectTo)
-        router.refresh()
         setOpen(false)
+        window.location.href = data.redirectTo
       }
     } finally {
       setSwitching(null)
