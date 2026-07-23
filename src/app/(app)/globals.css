@@ -94,6 +94,7 @@
 
 html {
   scroll-behavior: smooth;
+  background-color: #ECECE8;
 }
 
 /* Mobilon az arany radial-glow a viewport teteje fölé (−8%) esett → státuszsáv alatt látszott.
