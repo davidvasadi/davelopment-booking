@@ -42,7 +42,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="hu" suppressHydrationWarning>
-      <body className={`${inter.className} ${geist.variable} ${martianMono.variable} ${onest.variable}`}>
+      <body suppressHydrationWarning className={`${inter.className} ${geist.variable} ${martianMono.variable} ${onest.variable}`}>
         <ThemeProvider>
           <MotionProvider>
             <SmoothScroll>{children}</SmoothScroll>

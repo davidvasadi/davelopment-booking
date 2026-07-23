@@ -228,7 +228,7 @@ const [moreOpen, setMoreOpen] = useState(false)
               </button>
             </div>
 
-            <div className="mx-4 h-px bg-[#efefef]" />
+            <div className="mx-4 h-px bg-black/[0.05]" />
 
             <div className="px-3 py-2">
               {secondaryNav.map(({ href, label, icon: Icon, exact }) => {
@@ -273,7 +273,7 @@ const [moreOpen, setMoreOpen] = useState(false)
               </div>
             )}
 
-            <div className="mx-4 h-px bg-[#efefef]" />
+            <div className="mx-4 h-px bg-black/[0.05]" />
             <div className="px-3 py-2 pb-8">
               <button
                 onClick={() => { setMoreOpen(false); handleLogout() }}
