@@ -1,4 +1,7 @@
+import type { Viewport } from 'next'
 import { redirect } from 'next/navigation'
+
+export const viewport: Viewport = { themeColor: '#ECECE8' }
 import { requireAuth } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { autoCompleteBookings } from '@/lib/autoComplete'

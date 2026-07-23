@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight, Bell, Star, Users, Phone, Image as ImageIcon, FileText, MapPin, Clock,
-  Info, Globe, LayoutGrid, Check, Zap, Loader2, type LucideIcon,
+  Info, Globe, LayoutGrid, Check, Zap, Loader2, X, type LucideIcon,
 } from 'lucide-react'
 import type { AdvisorResult, TipCard, TipCategory, TipAction } from '@/lib/tipsAdvisor'
 
@@ -61,8 +62,17 @@ export function TipsAdvisorView({
 }) {
   const router = useRouter()
   const [filter, setFilter] = useState<'all' | TipCategory>('all')
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
   const [dismissedWeekly, setDismissedWeekly] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
+
+  useEffect(() => { setIsMounted(true) }, [])
+  useEffect(() => {
+    const handler = () => setFilterOpen(true)
+    window.addEventListener('davelopment:open-tips-filter', handler)
+    return () => window.removeEventListener('davelopment:open-tips-filter', handler)
+  }, [])
 
   const healthWord = variant === 'salon' ? 'Szalon-egészség' : 'Étterem-egészség'
 
@@ -110,7 +120,8 @@ export function TipsAdvisorView({
             Javaslatok több foglaláshoz és jobb vendégélményhez
           </p>
         </div>
-        <div className="-mx-5 overflow-x-auto px-5 lg:mx-0 lg:overflow-visible lg:px-0">
+        {/* Desktop: pill-szűrők */}
+        <div className="hidden lg:block">
           <div className="inline-flex gap-1 rounded-[22px] bg-white p-1.5 shadow-dav-card">
             {FILTERS.map((f) => (
               <button
@@ -128,8 +139,74 @@ export function TipsAdvisorView({
         </div>
       </div>
 
-      {/* ── E heti tipp + egészség-score ── */}
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
+      {/* ── Mobilos kategória-választó bottom sheet ── */}
+      {isMounted && createPortal(
+        <AnimatePresence>
+          {filterOpen && (
+            <div className="fixed inset-0 z-[160] lg:hidden">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm"
+                onClick={() => setFilterOpen(false)}
+              />
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }}
+                data-lenis-prevent
+                className="absolute inset-x-0 bottom-0 rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
+              >
+                <div className="px-4 pb-3 pt-3">
+                  <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Kategória</span>
+                    <button
+                      type="button"
+                      onClick={() => setFilterOpen(false)}
+                      aria-label="Bezárás"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
+                    >
+                      <X className="h-4 w-4" strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+                <div className="px-2 pb-4">
+                  {FILTERS.map((f) => (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => { setFilter(f.id); setFilterOpen(false) }}
+                      className={`flex w-full items-center justify-between rounded-[14px] px-3 py-3 text-left text-[14.5px] ${
+                        filter === f.id ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-ink-soft'
+                      }`}
+                    >
+                      {f.label}
+                      {filter === f.id && <Check className="h-4 w-4 text-gold" strokeWidth={2.5} />}
+                    </button>
+                  ))}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+
+      {/* ── E heti tipp + egészség-score — csak „Összes" nézetben ── */}
+      <AnimatePresence initial={false} mode="wait">
+        {filter === 'all' && (
+          <motion.div
+            key="top-cards"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.28, ease: EASE }}
+            className="grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]"
+          >
         {/* E heti tipp — sötét kártya */}
         <AnimatePresence mode="wait">
           {data.weeklyTip && !dismissedWeekly ? (
@@ -241,7 +318,9 @@ export function TipsAdvisorView({
             ))}
           </div>
         </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* ── Javaslat-kártyák ── */}
       <AnimatePresence mode="popLayout">
@@ -264,7 +343,7 @@ export function TipsAdvisorView({
             className="rounded-[26px] border border-dashed border-line-strong bg-white/50 py-12 text-center"
           >
             <p className="text-[14px] font-medium text-ink">Ebben a kategóriában minden rendben 🎉</p>
-            <p className="mt-1 text-[12.5px] text-ink-soft">Válts kategóriát a további javaslatokért.</p>
+            <p className="mt-1 text-[12.5px] text-ink-soft hidden lg:block">Válts kategóriát a további javaslatokért.</p>
           </motion.div>
         )}
       </AnimatePresence>

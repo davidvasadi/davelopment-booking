@@ -215,7 +215,7 @@ export function LoginForm() {
                 Modern időpontfoglaló kis vállalkozásoknak. Egyszerű beállítás, azonnali eredmény.
               </p>
             </div>
-            <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
+            <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="text-white/30 text-xs hover:text-white/50 transition-colors">{BRAND_COPYRIGHT}</a>
           </div>
         </div>
 

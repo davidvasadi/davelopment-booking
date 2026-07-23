@@ -377,6 +377,17 @@ export function DashboardNav({
               <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
             </button>
           )}
+          {/* Tippek szűrő ikon — csak a tips oldalon jelenik meg. */}
+          {pathname.endsWith('/tips') && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('davelopment:open-tips-filter'))}
+              aria-label="Kategória szűrő"
+              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+            >
+              <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
+            </button>
+          )}
           {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
               (csengő = értesítések, avatar = fiók-menü → Saját profil). */}
           {!isBackstage && (

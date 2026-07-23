@@ -102,7 +102,7 @@ html {
   :root {
     --dav-container-gradient:
       radial-gradient(125% 80% at 100% 30%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%),
-      linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
+      linear-gradient(180deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
   }
 }
 
