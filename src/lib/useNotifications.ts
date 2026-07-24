@@ -39,6 +39,20 @@ export function timeAgo(dateStr: string): string {
   return `${d} napja`
 }
 
+const MONTHS_HU = ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.']
+
+export function notifDate(dateStr: string): string {
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return ''
+  const now = new Date()
+  const month = MONTHS_HU[d.getMonth()]
+  const day = d.getDate()
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  const yearPrefix = d.getFullYear() !== now.getFullYear() ? `${d.getFullYear()}. ` : ''
+  return `${yearPrefix}${month} ${day}. · ${hh}:${mm}`
+}
+
 /**
  * Az értesítés-állapot és -műveletek közös forrása (a fiók-popover és a mobil sheet
  * is ezt használja). Percenként frissít. A `onNavigate` callback (ha kapott) lefut,

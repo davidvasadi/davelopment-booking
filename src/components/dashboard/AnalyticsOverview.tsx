@@ -584,7 +584,7 @@ export function AnalyticsOverview({
         {csvHref && (
           <a
             href={csvHref}
-            className="hidden lg:flex items-center gap-1.5 h-9 px-3.5 rounded-[12px] border border-line bg-[var(--dav-glass-strong)] text-sm font-semibold text-ink-soft2 hover:text-ink transition-colors"
+            className="flex items-center gap-1.5 h-9 px-3.5 rounded-[12px] border border-line bg-[var(--dav-glass-strong)] text-sm font-semibold text-ink-soft2 hover:text-ink transition-colors"
           >
             <Download className="h-4 w-4" /> CSV
           </a>

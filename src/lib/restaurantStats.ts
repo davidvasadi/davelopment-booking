@@ -1,4 +1,4 @@
-import { format, subDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
+import { format, subDays, addDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { getPayloadClient } from './payload'
 import { hhmmToMinutes, getDayName } from './utils'
@@ -124,6 +124,7 @@ function dailyCapacity(
 export async function getRestaurantStats(
   restaurantId: string | number,
   days = 30,
+  range?: { dateFrom?: string; dateTo?: string },
 ): Promise<RestaurantStats> {
   const payload = await getPayloadClient()
 
@@ -139,10 +140,15 @@ export async function getRestaurantStats(
   const monthStartStr = format(startOfMonth(today), 'yyyy-MM-dd')
   const lastMonthStartStr = format(startOfMonth(subMonths(today, 1)), 'yyyy-MM-dd')
   const lastMonthEndStr = format(endOfMonth(subMonths(today, 1)), 'yyyy-MM-dd')
-  const periodStartStr = format(subDays(today, days - 1), 'yyyy-MM-dd')
-  const prevPeriodStartStr = format(subDays(today, days * 2 - 1), 'yyyy-MM-dd')
+  const periodStartStr = range?.dateFrom ?? format(subDays(today, days - 1), 'yyyy-MM-dd')
+  const periodEndStr   = range?.dateTo   ?? todayStr
+  const rangeDays = Math.max(1, Math.round(
+    (new Date(periodEndStr + 'T00:00:00').getTime() - new Date(periodStartStr + 'T00:00:00').getTime()) / 86400000,
+  ) + 1)
+  const prevPeriodStartStr = format(subDays(new Date(periodStartStr + 'T00:00:00'), rangeDays), 'yyyy-MM-dd')
+  const prevPeriodEndStr   = format(subDays(new Date(periodStartStr + 'T00:00:00'), 1), 'yyyy-MM-dd')
 
-  const queryFrom = prevPeriodStartStr < lastMonthStartStr ? prevPeriodStartStr : lastMonthStartStr
+  const queryFrom = [prevPeriodStartStr, lastMonthStartStr].sort()[0]
 
   const [reservationsRes, tablesRes, openingHoursRes] = await Promise.all([
     payload.find({
@@ -189,8 +195,8 @@ export async function getRestaurantStats(
   const yesterdayDocs = active.filter(r => r.date === yesterdayStr)
   const monthDocs = active.filter(r => r.date >= monthStartStr)
   const lastMonthDocs = active.filter(r => r.date >= lastMonthStartStr && r.date <= lastMonthEndStr)
-  const periodDocs = active.filter(r => r.date >= periodStartStr)
-  const prevPeriodDocs = active.filter(r => r.date >= prevPeriodStartStr && r.date < periodStartStr)
+  const periodDocs = active.filter(r => r.date >= periodStartStr && r.date <= periodEndStr)
+  const prevPeriodDocs = active.filter(r => r.date >= prevPeriodStartStr && r.date <= prevPeriodEndStr)
 
   const paxToday = todayDocs.reduce((s, r) => s + paxOf(r), 0)
   const paxYesterday = yesterdayDocs.reduce((s, r) => s + paxOf(r), 0)
@@ -288,7 +294,7 @@ export async function getRestaurantStats(
     { group: '3–4 fő', min: (p) => p >= 3 && p <= 4 },
     { group: '5+ fő', min: (p) => p >= 5 },
   ]
-  const completedPeriod = all.filter((r) => r.date >= periodStartStr && r.status === 'completed' && r.start_time && r.end_time)
+  const completedPeriod = all.filter((r) => r.date >= periodStartStr && r.date <= periodEndStr && r.status === 'completed' && r.start_time && r.end_time)
   const dwellMinutes = (r: Reservation) => {
     const d = hhmmToMinutes(r.end_time) - hhmmToMinutes(r.start_time)
     return d > 0 ? d : 0
@@ -352,7 +358,7 @@ export async function getRestaurantStats(
   const completionRate = finalized.length > 0 ? Math.round((completed.length / finalized.length) * 100) : 0
 
   // ── Státusz-bontás (cancelled/no_show nincs az active-ban, ezért all-ból) ──
-  const allPeriod = all.filter(r => r.date >= periodStartStr)
+  const allPeriod = all.filter(r => r.date >= periodStartStr && r.date <= periodEndStr)
   // A státusz-/forrás-bontás kártyák LÉTSZÁM (pax) szerint mérnek, nem foglalás-darab
   // szerint — a vendéglátásban a fő-szám a releváns. A % arány az időszak összes
   // pax-ához viszonyít (nem a foglalás-darabhoz).
@@ -373,7 +379,7 @@ export async function getRestaurantStats(
   const phoneRate = periodPax > 0 ? Math.round((phoneCount / periodPax) * 100) : 0
 
   // ── Változás % a metrika-kártyákhoz (előző azonos időszakhoz mérve) ──
-  const allPrev = all.filter(r => r.date >= prevPeriodStartStr && r.date < periodStartStr)
+  const allPrev = all.filter(r => r.date >= prevPeriodStartStr && r.date <= prevPeriodEndStr)
   const prevFinalized = prevPeriodDocs.filter(r => r.status !== 'pending')
   const prevCompleted = prevFinalized.filter(r => r.status === 'completed')
   const prevCompletionRate = prevFinalized.length > 0 ? Math.round((prevCompleted.length / prevFinalized.length) * 100) : 0
@@ -384,7 +390,7 @@ export async function getRestaurantStats(
   const cancelledTotalDiff = pctDiff(cancelledCount + noShowCount, prevCancelledTotal)
 
   return {
-    period: days,
+    period: rangeDays,
     reservationsToday: todayDocs.length,
     reservationsTodayDiff: pctDiff(todayDocs.length, yesterdayDocs.length),
     paxToday,

@@ -54,9 +54,14 @@ export async function GET(req: NextRequest) {
 
   const payload = await getPayloadClient()
 
+  const dateFromParam = req.nextUrl.searchParams.get('dateFrom')
+  const dateToParam   = req.nextUrl.searchParams.get('dateTo')
   const daysParam = Number(req.nextUrl.searchParams.get('days'))
   const days = VALID_DAYS.includes(daysParam) ? daysParam : 30
-  const since = format(subDays(new Date(), days - 1), 'yyyy-MM-dd')
+
+  const dateRe = /^\d{4}-\d{2}-\d{2}$/
+  const since  = dateFromParam && dateRe.test(dateFromParam) ? dateFromParam : format(subDays(new Date(), days - 1), 'yyyy-MM-dd')
+  const until  = dateToParam   && dateRe.test(dateToParam)   ? dateToParam   : format(new Date(), 'yyyy-MM-dd')
 
   // Az AKTÍV üzlet a forrás (több-üzletnél a cookie-ból), nem az első owner-találat.
   const { active } = await getActiveBusiness(user)
@@ -78,6 +83,7 @@ export async function GET(req: NextRequest) {
         and: [
           { restaurant: { equals: restaurant.id } },
           { date: { greater_than_equal: since } },
+          { date: { less_than_equal: until } },
         ],
       },
       sort: 'date',
@@ -122,6 +128,7 @@ export async function GET(req: NextRequest) {
         and: [
           { salon: { equals: salon.id } },
           { date: { greater_than_equal: since } },
+          { date: { less_than_equal: until } },
         ],
       },
       sort: 'date',
@@ -153,7 +160,7 @@ export async function GET(req: NextRequest) {
   }
 
   const csv = rows.join('\n')
-  const filename = `davelopment-foglalasok-${since}_${format(new Date(), 'yyyy-MM-dd')}.csv`
+  const filename = `davelopment-foglalasok-${since}_${until}.csv`
 
   return new NextResponse(csv, {
     headers: {

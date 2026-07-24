@@ -6,7 +6,7 @@ import { ReservationTrendChart, DowChart, HourChart, DaypartChart } from '@/comp
 import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
 import { DwellCard } from '@/components/restaurant/DwellCard'
 import { NationalityCard } from '@/components/restaurant/NationalityCard'
-import PeriodFilter from '@/components/dashboard/PeriodFilter'
+import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -27,14 +27,20 @@ function periodLabel(days: number) {
 export default async function RestaurantAnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>
 }) {
-  const { period: periodParam } = await searchParams
+  const { period: periodParam, from: fromParam, to: toParam } = await searchParams
   const { restaurant, capabilities } = await getOwnedRestaurant()
   requireCapability(capabilities, 'analytics.view', '/restaurant')
 
-  const days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
-  const stats = await getRestaurantStats(restaurant.id, days)
+  let days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
+  let range: { dateFrom: string; dateTo: string } | undefined
+  if (fromParam && toParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) && /^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
+    const today = new Date().toISOString().slice(0, 10)
+    range = { dateFrom: fromParam, dateTo: toParam > today ? today : toParam }
+  }
+
+  const stats = await getRestaurantStats(restaurant.id, days, range)
   const label = periodLabel(days)
 
   // ── Crextio „stat bars" — teljesítés / lemondás+no-show / hátralévő arány ──
@@ -169,8 +175,12 @@ export default async function RestaurantAnalyticsPage({
       {/* Analitika bento — Reveal nélkül, pontosan úgy mint az Áttekintés grafikonjai. */}
       <AnalyticsOverview
         metrics={metrics}
-        filter={<PeriodFilter key="period-filter" current={days} basePath="/restaurant/analytics" module="restaurant" csvExport={false} />}
-        csvHref={`/api/export-csv?days=${days}&module=restaurant`}
+        filter={<DateRangeFilter basePath="/restaurant/analytics" />}
+        csvHref={
+          range
+            ? `/api/export-csv?dateFrom=${range.dateFrom}&dateTo=${range.dateTo}&module=restaurant`
+            : `/api/export-csv?days=${days}&module=restaurant`
+        }
         detailCharts={detailCharts}
         heatmap={heatmap}
         sources={sources}

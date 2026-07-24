@@ -5,7 +5,7 @@ import { getDashboardStats } from '@/lib/dashboardStats'
 import { formatPrice } from '@/lib/utils'
 import { TrendChart, DowChart, ServiceChart, StaffChart, HourChart, DaypartChart } from '@/components/dashboard/DashboardCharts'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
-import PeriodFilter from '@/components/dashboard/PeriodFilter'
+import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -27,15 +27,22 @@ function periodLabel(days: number) {
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string }>
+  searchParams: Promise<{ period?: string; from?: string; to?: string }>
 }) {
-  const { period: periodParam } = await searchParams
+  const { period: periodParam, from: fromParam, to: toParam } = await searchParams
   const { salon, capabilities } = await getOwnedSalon()
   requireCapability(capabilities, 'analytics.view', '/dashboard')
   const payload = await getPayloadClient()
 
-  const days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
-  const stats = await getDashboardStats(salon.id, days)
+  let days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
+  let range: { dateFrom: string; dateTo: string } | undefined
+  if (fromParam && toParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) && /^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
+    // Cap end date at today
+    const today = new Date().toISOString().slice(0, 10)
+    range = { dateFrom: fromParam, dateTo: toParam > today ? today : toParam }
+  }
+
+  const stats = await getDashboardStats(salon.id, days, range)
 
   // ── Statisztika-specifikus, ELEMZŐ jobb-oldali KPI-k — szándékosan MÁST mérnek,
   //    mint az áttekintő (az napi Foglalás/Bevétel/Teljesítés): havi átlagos bevétel
@@ -171,8 +178,12 @@ export default async function AnalyticsPage({
           Reveal nélkül, pontosan úgy mint az Áttekintés grafikonjai (azonnal renderel). */}
       <AnalyticsOverview
         metrics={metrics}
-        filter={<PeriodFilter current={days} csvExport={false} />}
-        csvHref={`/api/export-csv?days=${days}`}
+        filter={<DateRangeFilter basePath="/dashboard/analytics" />}
+        csvHref={
+          range
+            ? `/api/export-csv?dateFrom=${range.dateFrom}&dateTo=${range.dateTo}`
+            : `/api/export-csv?days=${days}`
+        }
         detailCharts={detailCharts}
         heatmap={heatmap}
         sources={sources}

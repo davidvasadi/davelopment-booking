@@ -9,7 +9,7 @@ import { toast } from 'sonner'
 import { MoreHorizontal, Bell, LogOut, CreditCard, Settings, X, ExternalLink, Check, Loader2, Plus, Building2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { UserAvatar } from './UserAvatar'
-import { useNotifications, timeAgo, notificationVisual, type Notification } from '@/lib/useNotifications'
+import { useNotifications, timeAgo, notifDate, notificationVisual, type Notification } from '@/lib/useNotifications'
 import type { SwitcherBusiness } from './StoreSwitcher'
 
 /** A panel gyerek-elemeinek „folyami" belépője (a genie-spring stagger alá). */
@@ -366,7 +366,7 @@ export function UserMenu({
             )}
           </motion.div>
           <div className="border-t border-[#efefef]" />
-          <motion.div variants={PANEL_ITEM} className="max-h-72 overflow-y-auto overscroll-contain px-2 py-1" data-lenis-prevent>
+          <motion.div variants={PANEL_ITEM} className="min-h-[220px] max-h-[55vh] lg:min-h-0 lg:max-h-72 overflow-y-auto overscroll-contain px-2 py-1" data-lenis-prevent>
             {items.length === 0 ? (
               <div className="flex flex-col items-center gap-2.5 px-3 py-10 text-center">
                 <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#8a8779] shadow-[0_1px_5px_rgba(0,0,0,.07)]">
@@ -401,15 +401,19 @@ export function UserMenu({
 function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () => void; onRemove: () => void }) {
   const { Icon, color } = notificationVisual(n.type)
   return (
-    <div className="group flex items-center gap-3 rounded-[16px] px-2.5 py-2.5 transition-colors hover:bg-[#f4f4f5]">
+    <div className="group flex items-start gap-3 rounded-[16px] px-2.5 py-2.5 transition-colors hover:bg-[#f4f4f5]">
       {/* Semleges kör-ikon (Crextio lista-nyelv), típus szerinti akcentus-színnel. */}
-      <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-[#f5f5f4] shadow-[0_1px_4px_rgba(0,0,0,.05)]">
+      <span className="mt-0.5 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-[#f5f5f4] shadow-[0_1px_4px_rgba(0,0,0,.05)]">
         <Icon className={cn('h-[17px] w-[17px]', color)} strokeWidth={2.2} />
       </span>
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
-        <p className="truncate text-sm font-semibold text-[#2a2620]">{n.title}</p>
-        {n.body && <p className="truncate text-xs text-[#9b9788]">{n.body}</p>}
-        <p className="mt-0.5 text-[11px] text-[#b0ac9e]">{timeAgo(n.createdAt)}</p>
+        <p className="text-sm font-semibold leading-snug text-[#2a2620]">{n.title}</p>
+        {n.body && <p className="mt-0.5 text-xs leading-snug text-[#9b9788] whitespace-pre-wrap break-words line-clamp-3">{n.body}</p>}
+        <p className="mt-1 text-[11px] text-[#b0ac9e]">
+          {notifDate(n.createdAt)}
+          <span className="mx-1 opacity-50">·</span>
+          {timeAgo(n.createdAt)}
+        </p>
       </button>
       {/* Jobb-oldali sáv: olvasatlan gold pötty; hoverre törlés-X váltja. */}
       <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
