@@ -1,195 +1,123 @@
-# 📅 Schedulio — Online Időpontfoglaló SaaS
+# davelopment booking
 
-> Kis vállalkozóknak szánt, önálló időpontfoglaló rendszer.  
-> Nem kell hozzá weboldal — egy link és kész.
+> SaaS foglalási platform szalonoknak és éttermeknek — egyedi publikus oldal, online foglalás, dashboard, csapatkezelés.
 
-## 🚀 Gyors Start
-
-### Előfeltételek
-- Node.js >= 18.0.0
-- PostgreSQL >= 14
-- npm vagy yarn
-
-### 1. Repository klónozása
-```bash
-git clone https://github.com/davidvasadi/schedulio.git
-cd schedulio
-```
-
-### 2. Függőségek telepítése
-```bash
-npm install
-```
-
-### 3. Environment setup
-```bash
-cp .env.example .env.local
-```
-
-**Szerkeszd a `.env.local`-t, ne feledkezz el:**
-- `DATABASE_URI` — PostgreSQL connection string
-- `PAYLOAD_SECRET` — Biztonságos titkos kulcs
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — OAuth (Google)
-- `RESEND_API_KEY` — Email szolgáltatás
-
-### 4. Adatbázis setup
-```bash
-npm run migrate  # Payload migrations futtatása
-```
-
-### 5. Development server indítása
-```bash
-npm run dev
-```
-
-Server elérhető: http://localhost:3000
+| | |
+|---|---|
+| ![Login](public/readme-login.png) | ![Áttekintés](public/readme-overview.png) |
 
 ---
 
-## 📁 Mappastruktúra
-
-```
-schedulio/
-├── src/
-│   ├── app/                  # Next.js App Router
-│   │   ├── api/             # API routes
-│   │   ├── (app)/           # Frontend (publikus + admin) — minden path itt
-│   │   ├── layout.tsx       # Root layout
-│   │   ├── page.tsx         # Home page
-│   │   └── globals.css      # Globális stílok
-│   ├── components/          # React komponensek
-│   │   └── ui/              # Shadcn/ui komponensek
-│   ├── lib/                 # Utility fúnkciók
-│   ├── payload/             # Payload CMS config
-│   │   └── collections/     # Collections (salons, staff, stb)
-├── public/
-│   └── uploads/             # Feltöltött képek
-├── payload.config.ts        # Payload CMS konfig
-├── next.config.ts           # Next.js konfig
-├── tailwind.config.ts       # Tailwind CSS konfig
-├── tsconfig.json            # TypeScript konfig
-└── package.json
-```
-
----
-
-## 🏗️ Technikai Stack
+## Stack
 
 | Réteg | Technológia |
 |---|---|
-| **Frontend** | Next.js 16 (App Router) |
-| **Backend/CMS** | Payload CMS v3 |
-| **Database** | PostgreSQL |
-| **Styling** | Tailwind CSS + Shadcn/ui |
-| **Email** | Resend |
-| **Auth** | JWT + OAuth (Google, Facebook) |
-| **Image Processing** | Sharp (WebP, resize) |
+| Framework | Next.js 15 (App Router) |
+| CMS / Backend | Payload CMS v3 |
+| Adatbázis | PostgreSQL |
+| Styling | Tailwind CSS + shadcn/ui |
+| Animáció | Framer Motion + Lenis |
+| Email | Resend |
+| Auth | JWT + Google OAuth |
+| Előfizetés | Stripe |
+| Tesztek | Playwright (E2E) |
 
 ---
 
-## 📖 Fontosabb funkciók
+## Funkciók
 
-### Szalonok számára
-- ✅ Egyedi szalon profil (logo, cover, leírás)
-- ✅ Munkatársak kezelése
-- ✅ Szolgáltatások beállítása
-- ✅ Nyitvatartás + egyedi elérhetőség
-- ✅ Foglalások nézete (naptár + lista)
-- ✅ Email értesítések
+**Publikus oldal**
+- Egyedi slug-alapú foglalási oldal (`/[slug]`)
+- Szalon: szolgáltatás → munkatárs → időpont wizard
+- Étterem: asztalfoglalás vendégszámmal, megjegyzéssel
+- SEO: Open Graph, JSON-LD, sitemap, robots
+- PWA-kész (manifest, service worker)
 
-### Ügyfelek számára
-- ✅ Szalon keresése (URL által)
-- ✅ Foglalási flow (szolgáltatás → munkatárs → időpont)
-- ✅ Email megerősítés
-- ✅ Emlékeztetők (1 nap előtte)
+**Dashboard (szalon / étterem)**
+- Analytics: foglalások, bevétel, vendégek, trendek (Recharts)
+- Naptár: napi/heti nézet, drag & drop, szakember-sávok
+- Foglalások kezelése: elfogad, elutasít, módosít, mozgat
+- Vendégek: lista, térkép (OSM geocoding), CSV export, iCal
+- Csapat: meghívó emailes flow, szerepkörök, státuszkezelés
+- Beosztás: műszak-tervező naptár
+- Nyitvatartás: alapértelmezett + egyedi kivételek
+- Értesítések: email-sablonok szerkesztése, digest beállítások
+- Audit napló: ki mit változtatott, 90 napos ablak
+- Előfizetés: Stripe-alapú SaaS csomag kezelés
+- Borravaló: napi összeg elosztása a csapat között
+- Tippek oldal: valós adatból generált javaslatok
 
-### Admin (te)
-- ✅ Szalon overview
-- ✅ Felhasználó kezelés
-- ✅ Analytics (foglalások, bevételek)
-- ✅ Szuperadmin dashboard
+**Platform (Backstage)**
+- Fiók- és üzletkezelés
+- Email forgalom mérése
+- Metrikák, rendszer-áttekintés
 
 ---
 
-## 🔧 Parancsok
+## Lokális fejlesztés
+
+### Előfeltételek
+- Node.js >= 22
+- PostgreSQL >= 14
+
+### Setup
 
 ```bash
-# Development
+git clone https://github.com/davidvasadi/davelopment-booking.git
+cd davelopment-booking
+npm install
+cp .env.example .env.local
+```
+
+`.env.local` kötelező mezők:
+```env
+DATABASE_URI=postgresql://user:pass@localhost:5432/davelopment_booking
+PAYLOAD_SECRET=...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+RESEND_API_KEY=...
+```
+
+```bash
 npm run dev
+```
 
-# Build production
-npm run build
+### Migráció
 
-# Indítás prodban
-npm start
+```bash
+# Új collection/mező hozzáadása után:
+npm run migrate:create -- <leiro_nev>
 
-# TypeScript types generálása (Payload)
-npm run generate:types
+# Migráció futtatása:
+npx tsx scripts/migrate.ts
+```
 
-# Linting
-npm run lint
+### Tesztek
+
+```bash
+npx playwright test --reporter=list
 ```
 
 ---
 
-## 🔐 Security
+## Deploy
 
-- JWT autentikáció
-- CORS beállítások
-- Rate limiting (API)
-- GDPR data export/delete support
-- HTTPS (production)
+A részletes VPS deploy folyamat: [docs/deploy-howto.md](docs/deploy-howto.md)
 
 ---
 
-## 📧 Email Setup (Resend)
+## Hasznos parancsok
 
-1. **Resend account**: https://resend.com
-2. **API Key**: Másolj be a `.env.local`-ba
-3. **From email**: Állítsd be a `RESEND_FROM_EMAIL`-t
-
----
-
-## 🚢 Deployment (VPS)
-
-### Prereqs
-- VPS: Ubuntu 22.04+
-- PM2: `npm install -g pm2`
-- Nginx: `sudo apt install nginx`
-- PostgreSQL: `sudo apt install postgresql`
-
-### Steps
-1. Clone repo a szerverre
-2. `npm install`
-3. `.env` setup (database, secrets)
-4. Migrations: `npm run migrate`
-5. PM2: `pm2 start ecosystem.config.js`
-6. Nginx proxy (lásd: `nginx-template.conf`)
+```bash
+npm run dev          # fejlesztői szerver
+npm run build        # production build
+npm start            # production szerver
+npm run lint         # ESLint
+```
 
 ---
 
-## 💡 Next Steps
+## Licenc
 
-1. **Dashboard skeleton** — Szalon admin felület
-2. **Körben booking flow** — Frontend booking UI
-3. **Email templates** — Resend template-ek
-4. **OAuth integration** — Google/Facebook login
-5. **Image upload handler** — Sharp processing
-
----
-
-## 📝 License
-
-MIT
-
----
-
-## 👤 Author
-
-David Vasadi — https://github.com/davidvasadi
-
----
-
-## 🤝 Contributing
-
-Ez egy private projekt. Kérdések/issues: david@davelopment.hu
+MIT — David Vasadi · [davelopment.hu](https://davelopment.hu)

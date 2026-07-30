@@ -215,7 +215,7 @@ function HiringChart({
   const xInterval = Math.max(0, Math.round(n / 8) - 1)
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" debounce={50}>
       <LineChart data={data} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="#efebdf" />
         <XAxis
@@ -300,7 +300,7 @@ function CompositionDonut({ metric, onOpen }: { metric: OverviewMetric; onOpen?:
       </div>
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="relative my-3 h-[150px] w-[170px]">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" debounce={50}>
             <PieChart>
               <Pie
                 data={pieData} dataKey="pct" nameKey="name"
@@ -619,7 +619,7 @@ export function AnalyticsOverview({
               </div>
               {/* Több-szegmenses donut (recharts: animál + hover, ívelt szegmens-végek) */}
               <div className="h-[104px] w-[104px] shrink-0">
-                <ResponsiveContainer width="100%" height="100%">
+                <ResponsiveContainer width="100%" height="100%" debounce={50}>
                   <PieChart>
                     <Pie
                       data={donutSegs} dataKey="pct" nameKey="label"
