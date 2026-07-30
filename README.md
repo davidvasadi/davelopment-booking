@@ -2,9 +2,7 @@
 
 > SaaS foglalási platform szalonoknak és éttermeknek — egyedi publikus oldal, online foglalás, dashboard, csapatkezelés.
 
-| | |
-|---|---|
-| ![Login](public/readme-login.png) | ![Áttekintés](public/readme-overview.png) |
+![Áttekintés](public/readme-overview.png)
 
 ---
 
@@ -54,6 +52,10 @@
 
 ---
 
+![Bejelentkezés](public/readme-login.png)
+
+---
+
 ## Lokális fejlesztés
 
 ### Előfeltételek
@@ -73,7 +75,7 @@ cp .env.example .env.local
 ```env
 DATABASE_URI=postgresql://user:pass@localhost:5432/davelopment_booking
 PAYLOAD_SECRET=...
-NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_APP_URL=http://localhost:3001
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
 RESEND_API_KEY=...
