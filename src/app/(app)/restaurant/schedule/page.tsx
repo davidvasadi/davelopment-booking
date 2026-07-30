@@ -1,5 +1,6 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { ScheduleView, type StaffVM, type ShiftVM, type ShiftType } from '@/components/dashboard/ScheduleView'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -29,9 +30,9 @@ function mediaUrl(m: unknown): string | null {
  */
 export default async function RestaurantSchedulePage() {
   const { restaurant, capabilities } = await getOwnedRestaurant()
-  // A Naptár kezelő-eszköz (műszak felvétel/módosítás/törlés) → `schedule.manage`. A saját műszakot
-  // a munkatárs a személyes főoldalán látja; ide csak a beosztás-kezelők léphetnek be.
-  requireCapability(capabilities, 'schedule.manage', '/restaurant')
+  // Naptár: `schedule.view.own` elegendő a megtekintéshez; `schedule.manage` kell a szerkesztéshez.
+  requireAnyCapability(capabilities, ['schedule.manage', 'schedule.manage.own', 'schedule.view.own'], '/restaurant')
+  const canManage = can(capabilities, 'schedule.manage')
   const payload = await getPayloadClient()
 
   const [membersRes, shiftsRes] = await Promise.all([
@@ -149,6 +150,7 @@ export default async function RestaurantSchedulePage() {
         year={now.getFullYear()}
         month={now.getMonth()}
         dailyTips={dailyTips}
+        canManage={canManage}
       />
     </div>
   )

@@ -432,8 +432,9 @@ export function ImportPanel() {
     setDragging(false)
     const file = e.dataTransfer.files[0]
     const ok = file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))
-    if (ok) loadFile(file)
-    else toast.error('Csak .csv vagy .xlsx fájl fogadható el')
+    if (!ok) { toast.error('Csak .csv vagy .xlsx fájl fogadható el'); return }
+    if (file.size > 5 * 1024 * 1024) { toast.error('A fájl mérete maximum 5 MB lehet'); return }
+    loadFile(file)
   }, [loadFile])
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

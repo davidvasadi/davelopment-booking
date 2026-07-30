@@ -8,9 +8,9 @@
  * /api/team/members/[id]-n. SMS sehol; valós adat + CRUD.
  */
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { Plus, Trash2, Loader2, X, Search, Download, ChevronDown, Check } from 'lucide-react'
+import { Plus, Trash2, Loader2, X, Search, Download, ChevronDown, Check, UserRound } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,11 +41,11 @@ function roleLabelOf(t: TeamCard): string {
 /** Felfüggesztett sávozott (hatch) minta — a pill ÉS az EGÉSZ SOR is ezt kapja (mint a kijelölés-sárga, csak szaggatva). */
 const SUSPEND_HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.6), rgba(255,255,255,.6) 7px, rgba(190,180,140,.16) 7px, rgba(190,180,140,.16) 14px)'
 
-/** Státusz-pill kinézete. A FELFÜGGESZTETT sávozott + halványabb. */
+/** Státusz-pill kinézete — egységes a szalon StaffManager-rel. */
 function statusPill(status: TeamCard['status']): { label: string; bg: string; color: string; border?: string; dot: string } {
   if (status === 'suspended')
-    return { label: 'Felfüggesztett', bg: SUSPEND_HATCH, color: '#8A8779', border: '1px solid var(--dav-line)', dot: '#B7B2A4' }
-  if (status === 'invited') return { label: 'Függő', bg: '#FBEFC4', color: '#9A7B1E', dot: '#C9A227' }
+    return { label: 'Inaktív', bg: SUSPEND_HATCH, color: '#8A8779', border: '1px solid var(--dav-line)', dot: '#B7B2A4' }
+  if (status === 'invited') return { label: 'Meghívott', bg: '#EFF3FB', color: '#3B5BB5', dot: '#5B7FD4' }
   return { label: 'Aktív', bg: '#E7F1E9', color: '#3B6B4B', dot: '#4F9E6A' }
 }
 
@@ -75,12 +75,14 @@ function initials(name: string): string {
 
 export default function RestaurantTeamManager({ initialTeam, employees, customRoles = [], canManage = false, canEditSalary = false }: { initialTeam: TeamCard[]; employees?: Employee[]; customRoles?: { id: string; name: string }[]; canManage?: boolean; canEditSalary?: boolean }) {
   const [team, setTeam] = useState<TeamCard[]>(initialTeam)
-  // A roster (adatlap-adatok) helyi state — profil-szerkesztés után újranyitáskor is friss.
   const [roster, setRoster] = useState<Employee[]>(employees ?? [])
+
+  // SSE / router.refresh() → szerver új prop-okat ad; szinkronizáljuk ha nincs nyitott overlay.
+  useEffect(() => { if (!open) setTeam(initialTeam) }, [initialTeam]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (hiringIndex === null) setRoster(employees ?? []) }, [employees]) // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = useState(false)
+  const [inviteName, setInviteName] = useState('')
   const [email, setEmail] = useState('')
-  // Egységes szerep-modell: a meghívás a Beállításokban megadott (egyedi) szerepek közül választ.
-  // A szerep NEVE a pozíció, a JOGAI a jogosultság — nincs külön kategória.
   const [roleId, setRoleId] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -128,6 +130,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
 
   const invite = async () => {
     const em = email.trim().toLowerCase()
+    const nm = inviteName.trim()
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(em)) {
       toast.error('Érvényes email cím szükséges')
       return
@@ -135,19 +138,19 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
     if (!roleId) { toast.error('Válassz szerepet (a Beállítások → Csapatban hozol létre)'); return }
     setSubmitting(true)
     try {
-      // Egységes modell: a megadott (egyedi) szerep dönt — a NEVE a pozíció, a JOGAI a jogosultság.
       const res = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email: em, custom_role: roleId }),
+        body: JSON.stringify({ email: em, name: nm || undefined, custom_role: roleId }),
       })
       if (!res.ok) {
         const j = await res.json().catch(() => ({}))
         throw new Error(j.error || 'Hiba')
       }
-      setTeam((prev) => [...prev, { id: `tmp-${em}`, name: em, email: em, roleTone: 'staff', pending: true, status: 'invited', joinDate: null }])
+      setTeam((prev) => [...prev, { id: `tmp-${em}`, name: nm || em, email: em, roleTone: 'staff', pending: true, status: 'invited', joinDate: null }])
       setOpen(false)
+      setInviteName('')
       setEmail('')
       setRoleId('')
       toast.success('Meghívó elküldve')
@@ -265,7 +268,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
 
       {/* ── MAPPA-FÜL kártya (davelopment App): NORMÁL folyású fül + szűrők + kereső + homorú notch-ív ── */}
       <div className="relative">
-        <div className="relative z-10 flex h-[48px] w-full items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:px-6 print:hidden">
+        <div className="relative z-10 flex h-[48px] w-fit max-w-[600px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:w-full sm:px-6 print:hidden">
           {/* Szűrő: állapot */}
           <div className="relative shrink-0">
             <select
@@ -293,8 +296,8 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
-          {/* Kereső */}
-          <div className="flex min-w-[110px] flex-1 items-center gap-2.5 rounded-[18px] bg-white px-4 py-2 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
+          {/* Kereső — kisebb szélesség mobilon */}
+          <div className="flex w-[140px] sm:min-w-[110px] sm:flex-1 items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
             <input
               value={query}
@@ -303,43 +306,52 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
               className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none"
             />
           </div>
+          {/* Homorú ív a fül jobb végén */}
+          <span
+            className="pointer-events-none absolute -right-[24px] bottom-0 h-[24px] w-[24px]"
+            style={{ background: 'radial-gradient(circle at top right, transparent 23px, rgba(255,255,255,.62) 23.5px)' }}
+          />
         </div>
 
-        <div className="rounded-b-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
-          <div className="flex flex-wrap items-center gap-2.5 print:hidden">
-            <button
-              onClick={() => setOpen(true)}
-              className="flex h-[38px] items-center gap-2 rounded-[18px] bg-ink-dark px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-ink"
-            >
-              <Plus className="h-[15px] w-[15px]" strokeWidth={2} /> Új munkatárs
-            </button>
-            <button
-              onClick={() => window.print()}
-              className="flex h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
-            >
-              <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
-            </button>
-            {removableSelected.length > 0 && (
+        <div className="rounded-b-[28px] rounded-tr-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
+          {canManage && (
+            <div className="flex flex-wrap items-center gap-2.5 print:hidden">
               <button
-                onClick={() => setBulkOpen(true)}
-                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-[#C0392B] px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-[#a93226]"
+                onClick={() => setOpen(true)}
+                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-ink-dark px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-ink"
               >
-                <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.9} /> Kijelöltek törlése ({removableSelected.length})
+                <Plus className="h-[15px] w-[15px]" strokeWidth={2} /> Új munkatárs
               </button>
-            )}
-          </div>
+              <button
+                onClick={() => window.print()}
+                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+              >
+                <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
+              </button>
+              {removableSelected.length > 0 && (
+                <button
+                  onClick={() => setBulkOpen(true)}
+                  className="flex h-[38px] items-center gap-2 rounded-[18px] bg-[#C0392B] px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-[#a93226]"
+                >
+                  <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.9} /> Kijelöltek törlése ({removableSelected.length})
+                </button>
+              )}
+            </div>
+          )}
 
           <div className={`mt-4 hidden ${GRID} items-center gap-3.5 border-b border-line pb-3.5 pt-2 text-[11px] font-semibold uppercase tracking-[0.04em] text-ink-soft2 lg:grid`}>
             <div>
-              <button
-                type="button"
-                onClick={toggleSelectAll}
-                aria-label="Mind kijelölése"
-                title="Mind kijelölése"
-                className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${allSelected ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
-              >
-                {allSelected && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
-              </button>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  aria-label="Mind kijelölése"
+                  title="Mind kijelölése"
+                  className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${allSelected ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
+                >
+                  {allSelected && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
+                </button>
+              )}
             </div>
             <div>Név</div>
             <div>Pozíció</div>
@@ -370,23 +382,27 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
               >
                 {/* DESKTOP */}
                 <div className={`hidden ${GRID} items-center gap-3.5 px-3.5 py-2.5 lg:grid`}>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); toggleSelect(selKey) }}
-                    aria-pressed={isSel}
-                    aria-label="Kijelölés"
-                    className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${
-                      isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'
-                    }`}
-                  >
-                    {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
-                  </button>
+                  {canManage && !isOwner ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleSelect(selKey) }}
+                      aria-pressed={isSel}
+                      aria-label="Kijelölés"
+                      className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${
+                        isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'
+                      }`}
+                    >
+                      {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
+                    </button>
+                  ) : (
+                    <div />
+                  )}
                   <div className="flex min-w-0 items-center gap-3">
                     {m.avatarUrl ? (
                       <img src={m.avatarUrl} alt="" className="h-[38px] w-[38px] shrink-0 rounded-full object-cover object-top" />
                     ) : (
-                      <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-[13px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
-                        {initials(m.name)}
+                      <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                        <UserRound className="h-5 w-5 text-white/30" strokeWidth={1.2} />
                       </span>
                     )}
                     <div className="min-w-0">
@@ -435,7 +451,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
                         </div>
                       </>
                     )}
-                    {!isOwner && (
+                    {!isOwner && canManage && (
                       <button
                         type="button"
                         disabled={busy}
@@ -451,7 +467,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
 
                 {/* MOBIL */}
                 <div className="flex items-center gap-3 px-3.5 py-3 lg:hidden">
-                  {!isOwner && (
+                  {!isOwner && canManage && (
                     <button
                       type="button"
                       onClick={(e) => { e.stopPropagation(); toggleSelect(selKey) }}
@@ -505,7 +521,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
                       </>
                     )}
                   </div>
-                  {!isOwner && (
+                  {!isOwner && canManage && (
                     <button
                       type="button"
                       disabled={busy}
@@ -524,8 +540,8 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
       </div>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent>
-          <SheetHeader>
+        <SheetContent side="right" className="w-full max-w-[440px] overflow-y-auto p-0">
+          <SheetHeader className="border-b border-line px-6 py-5">
             <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">Új munkatárs</SheetTitle>
           </SheetHeader>
           <form
@@ -533,8 +549,18 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
               e.preventDefault()
               invite()
             }}
-            className="mt-6 space-y-5"
+            className="space-y-5 px-6 py-5"
           >
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Név</Label>
+              <Input
+                type="text"
+                value={inviteName}
+                onChange={(e) => setInviteName(e.target.value)}
+                placeholder="Kovács Anna"
+                className="h-11 rounded-xl"
+              />
+            </div>
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Email *</Label>
               <Input
@@ -573,9 +599,6 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
               {submitting ? 'Küldés...' : 'Meghívó küldése'}
             </button>
           </form>
-          <button type="button" onClick={() => setOpen(false)} className="sr-only">
-            <X className="h-4 w-4" />
-          </button>
         </SheetContent>
       </Sheet>
 

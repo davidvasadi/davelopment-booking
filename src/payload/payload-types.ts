@@ -106,6 +106,9 @@ export interface Restaurant {
     reminder_email?: boolean | null
     cancel_email?: boolean | null
     feedback_email?: boolean | null
+    modification_email?: boolean | null
+    digest_morning_email?: boolean | null
+    digest_evening_email?: boolean | null
   } | null
   booking_rules?: {
     auto_confirm?: boolean | null
@@ -134,6 +137,8 @@ export interface Restaurant {
   reminder_email_intro?: string | null
   feedback_email_subject?: string | null
   feedback_email_intro?: string | null
+  notify_email_subject?: string | null
+  notify_email_intro?: string | null
   email_show_phone?: boolean | null
   email_contact_phone?: string | null
   email_show_email?: boolean | null
@@ -392,8 +397,11 @@ export interface EmailLogEntry {
     | 'booking_confirmation'
     | 'new_booking'
     | 'cancellation'
+    | 'modification'
     | 'reminder'
     | 'feedback'
+    | 'digest_morning'
+    | 'digest_evening'
     | 'waitlist_signup'
     | 'waitlist_opening'
     | 'team_invite'
@@ -417,11 +425,13 @@ export interface Notification {
   id: string
   restaurant?: string | Restaurant | null
   salon?: string | Salon | null
-  audience: 'owner' | 'admin'
-  type: 'new_booking' | 'cancellation' | 'new_signup' | 'new_subscriber'
+  user?: string | User | null
+  audience: 'owner' | 'member' | 'admin'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening'
   title: string
   body?: string | null
   read?: boolean | null
+  metadata?: Record<string, unknown> | null
   reservation?: string | Reservation | null
   booking?: string | Booking | null
   createdAt: string
@@ -499,6 +509,9 @@ export interface Salon {
     reminder_email?: boolean | null
     cancel_email?: boolean | null
     feedback_email?: boolean | null
+    modification_email?: boolean | null
+    digest_morning_email?: boolean | null
+    digest_evening_email?: boolean | null
   } | null
   booking_rules?: {
     auto_confirm?: boolean | null
@@ -527,6 +540,8 @@ export interface Salon {
   reminder_email_intro?: string | null
   feedback_email_subject?: string | null
   feedback_email_intro?: string | null
+  notify_email_subject?: string | null
+  notify_email_intro?: string | null
   email_show_phone?: boolean | null
   email_contact_phone?: string | null
   email_show_email?: boolean | null

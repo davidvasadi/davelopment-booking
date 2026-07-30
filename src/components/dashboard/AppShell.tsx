@@ -99,13 +99,6 @@ export function AppShell({
         </div>
       </div>
 
-      {/* Mobil lábléc — márka-logó */}
-      <footer className="lg:hidden flex justify-center py-8">
-        <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="opacity-50 hover:opacity-80 transition-opacity">
-          <BrandLogo variant="light" className="h-5" />
-        </a>
-      </footer>
-
       <MobileBottomNav
         subscription={subscription}
         variant={variant}

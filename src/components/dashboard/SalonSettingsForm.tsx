@@ -207,6 +207,12 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
   })
   // Utoljára elmentett baseline (az „Elvetés"-hez fülenként). Mentéskor frissül.
   const defaultsRef = useRef<FormData>(initialValues)
+  const [savedSlug, setSavedSlug] = useState(salon.slug) // utoljára sikeresen mentett slug
+  const [slugServerError, setSlugServerError] = useState<string | null>(null)
+  const currentSlug = watch('slug')
+  const [origin, setOrigin] = useState('')
+  useEffect(() => setOrigin(window.location.origin), [])
+  const publicUrl = `${origin}/${currentSlug || salon.slug}`
 
   // ── Nyelvek: a tulaj által a foglalón kínált nyelvkészlet (HU mindig fix alap) ──
   const [supportedExtras, setSupportedExtras] = useState<Locale[]>(
@@ -229,6 +235,8 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       reminder_email_intro: salon.reminder_email_intro ?? '',
       feedback_email_subject: salon.feedback_email_subject ?? '',
       feedback_email_intro: salon.feedback_email_intro ?? '',
+      notify_email_subject: salon.notify_email_subject ?? '',
+      notify_email_intro: salon.notify_email_intro ?? '',
       terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
       good_to_know: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
       event_types: [], // szalon-only: nincs esemény-típus (étterem-funkció)
@@ -299,16 +307,26 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         credentials: 'include',
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error()
-      // A baseline frissítése: a mentett értékekkel resetelünk (dirty nullázódik).
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        const errMsg: string = data?.errors?.[0]?.message ?? data?.message ?? ''
+        if (fields.includes('slug') && (errMsg.toLowerCase().includes('unique') || errMsg.toLowerCase().includes('slug'))) {
+          setSlugServerError('Ez az URL már foglalt — próbálj másik azonosítót')
+        } else {
+          toast.error('Hiba történt a mentés során')
+        }
+        return false
+      }
+      // Sikeres mentés — baseline frissítése, dirty nullázódik.
       reset(values, { keepValues: true })
       defaultsRef.current = values
+      if (fields.includes('slug')) { setSavedSlug(values.slug); setSlugServerError(null) }
       if (includeMedia) { setLogoModified(false); setCoverModified(false) }
       toast.success('Beállítások mentve')
       router.refresh()
       return true
     } catch {
-      toast.error('Hiba történt')
+      toast.error('Hiba történt a mentés során')
       return false
     } finally {
       setSubmitting(false)
@@ -442,7 +460,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       {!embedded && !hideTabsNav && <TabsNav tabs={tabs} active={activeTab} onSelect={requestTab} />}
 
       {activeTab === 'general' && (
-      <div className="grid grid-cols-1 gap-[5px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[5px]">
 
       {/* Cover image */}
       <Section id="cover" title="Borítókép" full>
@@ -502,7 +520,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
               <button
                 type="button"
                 onClick={() => logoRef.current?.click()}
-                className="group relative flex h-20 min-w-20 max-w-[220px] items-center justify-center rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong px-3 hover:border-ink/25 transition-colors"
+                className={`group relative flex h-20 min-w-20 max-w-[220px] items-center justify-center rounded-2xl overflow-hidden transition-colors ${logoPreview && !uploadingLogo ? 'p-0' : 'bg-white border border-dashed border-line-strong px-3 hover:border-ink/25'}`}
               >
                 {uploadingLogo ? (
                   <Loader2 className="h-5 w-5 text-ink-soft animate-spin" />
@@ -548,9 +566,21 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
               <Label className={labelBase}>URL azonosító</Label>
               <div className="flex items-center gap-1">
                 <span className="text-sm text-ink-soft">/</span>
-                <Input className={`${inputBase} flex-1`} {...register('slug')} />
+                <Input className={`${inputBase} flex-1`} {...register('slug', { onChange: () => setSlugServerError(null) })} />
               </div>
-              {errors.slug && <p className="text-xs text-destructive">{errors.slug.message}</p>}
+              {(errors.slug || slugServerError) && (
+                <p className="text-xs text-destructive">{slugServerError ?? errors.slug?.message}</p>
+              )}
+              {currentSlug !== savedSlug && !errors.slug && !slugServerError && (
+                <div className="flex items-start gap-2.5 rounded-[14px] border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 mt-2">
+                  <span className="shrink-0 mt-0.5">⚠️</span>
+                  <span>
+                    <span className="font-semibold">A foglalási link megváltozik!</span>{' '}
+                    A régi URL-en (<code className="text-xs bg-amber-100 px-1 rounded">/{savedSlug}</code>) érkező vendégek hibát kapnak.
+                    Mentés után értesítsd a vendégeidet az új linkről.
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -584,6 +614,23 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         <div className="space-y-1.5">
           <Label className={labelBase}>Weboldal</Label>
           <Input className={inputBase} {...register('website')} type="url" placeholder="https://" />
+        </div>
+      </Section>
+
+      <Section id="booking-url" title="Nyilvános foglaló oldal" full>
+        <p className="text-xs text-ink-soft">Ezen a linken tudnak a vendégek online időpontot foglalni.</p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <code className="min-w-0 flex-1 h-11 flex items-center px-4 rounded-[14px] bg-paper border border-line text-sm text-ink truncate">
+            {publicUrl}
+          </code>
+          <a
+            href={`/${currentSlug || salon.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="h-11 px-5 rounded-dav-pill border border-line-strong text-sm font-semibold text-ink hover:border-ink/40 transition-colors flex items-center justify-center shrink-0"
+          >
+            Megnyitás
+          </a>
         </div>
       </Section>
 

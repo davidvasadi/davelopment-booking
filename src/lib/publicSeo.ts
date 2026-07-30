@@ -10,7 +10,7 @@ import type { Salon, Restaurant, Media } from '@/payload/payload-types'
  * richText, Restaurant = plain string), ezt a `descriptionText` normalizálja.
  */
 
-export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '')
+export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001').replace(/\/$/, '')
 
 /** Egy Media (vagy id) URL-je abszolút formában, vagy null. */
 export function mediaUrl(m: string | Media | null | undefined): string | null {

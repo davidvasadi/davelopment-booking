@@ -4,7 +4,6 @@ import { TipsContent } from '@/components/onboarding/TipsContent'
 export const metadata = { title: 'Súgó' }
 
 export default async function RestaurantHelpPage() {
-  // Auth + modul-gate (átirányít, ha nem étterem / nincs bejelentkezve).
-  await getOwnedRestaurant()
-  return <TipsContent variant="restaurant" />
+  const { capabilities } = await getOwnedRestaurant()
+  return <TipsContent variant="restaurant" capabilities={capabilities} />
 }

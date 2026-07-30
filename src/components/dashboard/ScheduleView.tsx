@@ -9,6 +9,7 @@
 
 import { useMemo, useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal, BarChart3 } from 'lucide-react'
 
@@ -50,6 +51,8 @@ interface Props {
   year: number
   month: number // 0-based
   dailyTips?: Record<string, number> // dátum → napi központi borravaló (Ft); csak étterem
+  canManage?: boolean // false → csak megtekintés, szerkesztő/hozzáadás gombok rejtve
+  myStaffId?: string // bejelentkezett user staff-id-je → ez az alapértelmezett kiválasztott személy
 }
 
 const MONTHS = ['Január', 'Február', 'Március', 'Április', 'Május', 'Június', 'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December']
@@ -164,15 +167,18 @@ function SegFilter<T extends string>({ id, options, value, onChange }: { id: str
   )
 }
 
-export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, year, month, dailyTips = {} }: Props) {
+export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, year, month, dailyTips = {}, canManage = true, myStaffId }: Props) {
   const isRestaurant = variant === 'restaurant'
   const router = useRouter()
   const [shifts, setShifts] = useState<ShiftVM[]>(initialShifts)
   const [tips, setTips] = useState<Record<string, number>>(dailyTips)
   const [y, setY] = useState(year)
   const [m, setM] = useState(month)
-  const [selStaff, setSelStaff] = useState<string>(staff[0]?.id ?? '')
-  const [selectedDay, setSelectedDay] = useState<string | null>(null) // kijelölt nap → a bal panel „Aznap" módja
+  const [selStaff, setSelStaff] = useState<string>(myStaffId ?? staff[0]?.id ?? '')
+  const [selectedDay, setSelectedDay] = useState<string | null>(() => {
+    const d = new Date()
+    return ymd(d.getFullYear(), d.getMonth(), d.getDate())
+  }) // kijelölt nap → a bal panel „Aznap" módja; default = mai nap
   const [dayEditor, setDayEditor] = useState<string | null>(null) // nap-szerkesztő modal (hozzáadás/módosítás)
   const [busy, setBusy] = useState(false)
   const [focusPerson] = useState(false) // személy-fókusz (a Kiemelés gomb helyére a Statisztika került; a dimmelés dormant marad)
@@ -247,14 +253,11 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
   // ── Jobb-profil: a kiválasztott dolgozó KÖVETKEZŐ műszaka + e HETI beosztása (valós hét, H–V). ──
   const selAll = useMemo(() => shifts.filter((s) => sel && s.staffId === sel.id), [shifts, sel])
   const nextShift = selAll.filter((s) => s.type === 'shift' && s.date >= todayStr).sort((a, b) => a.date.localeCompare(b.date))[0] ?? null
-  const weekDates = (() => {
-    const dw = (today.getDay() + 6) % 7 // 0 = hétfő
-    const mon = new Date(today.getFullYear(), today.getMonth(), today.getDate() - dw)
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(mon.getFullYear(), mon.getMonth(), mon.getDate() + i)
-      return ymd(d.getFullYear(), d.getMonth(), d.getDate())
-    })
-  })()
+  // Gördülő 7 nap MA-tól: manager hétfői műszakja is látható, nem csak a hétfőtől-vasárnapig ablak.
+  const weekDates = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() + i)
+    return ymd(d.getFullYear(), d.getMonth(), d.getDate())
+  })
   const weekShift = (d: string) => selAll.find((s) => s.date === d) ?? null
   // Óra-mérő: a MEGJELENÍTETT hónap ledolgozott órája (mindig betölt, ha van műszak a hónapban).
   // Keret: a heti-óra szerződésből havi célt számolunk (~4.33 hét); ha nincs megadva, csak a szám.
@@ -453,7 +456,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                   {activeTool === 'stats' && (
                     <motion.div initial={{ opacity: 0, scale: 0.95, y: -6 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: -6 }} transition={{ duration: 0.18, ease: [0.4, 0, 0.2, 1] }} style={{ transformOrigin: 'top left' }} className="absolute left-0 top-full z-50 mt-2 w-[270px] rounded-[18px] border border-line bg-white p-3.5 shadow-dav-container">
                       <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">{sel.name.split(' ')[0]} · {MONTHS[m]} összegző</div>
-                      {([['Ledolgozott', daysWorked, '#F1CE45'], ['Hiányzás', sickDays, '#1D1C19'], ['Szabadság', vacationDays, '#E4DECC']] as const).map(([label, val, color]) => (
+                      {([['Ledolgozott', daysWorked, '#F1CE45'], ['Hiányzás', sickDays, '#1D1C19'], ['Szabadság', vacationDays, '#E4DECC'], ['Szabad nap', daysInMonth - daysWorked - sickDays - vacationDays, '#C9C3B4']] as [string, number, string][]).map(([label, val, color]) => (
                         <div key={label} className="flex items-center justify-between py-1.5 text-[13px]">
                           <span className="flex items-center gap-2 font-medium text-ink"><span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />{label}</span>
                           <span className="font-semibold text-ink">{val} nap</span>
@@ -525,10 +528,12 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                 )}
               </AnimatePresence>
             </div>
-            {/* + Új műszak — sötét kör */}
-            <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setDayEditor(selectedDay ?? todayStr)} title="Új műszak felvétele" className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white transition-colors hover:bg-ink">
-              <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} />
-            </motion.button>
+            {/* + Új műszak — sötét kör; csak beosztás-kezelőknek */}
+            {canManage && (
+              <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setDayEditor(selectedDay ?? todayStr)} title="Új műszak felvétele" className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white transition-colors hover:bg-ink">
+                <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} />
+              </motion.button>
+            )}
           </motion.div>
         </div>
 
@@ -575,9 +580,18 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                                 <div className="truncate text-[13px] font-semibold text-ink">{st?.name ?? 'Ismeretlen'}</div>
                                 <div className="flex items-center gap-1 text-[11px] font-medium text-ink-soft">
                                   {s.left_early_at && <LogOut className="h-3 w-3 flex-shrink-0 text-[#C0392B]" strokeWidth={2} />}
-                                  <span className="truncate">{statusLabel(s)}</span>
+                                  <span className="truncate">
+                                    {!isRestaurant && s.type === 'shift' && s.start_time
+                                      ? s.left_early_at ? statusLabel(s) : ''
+                                      : statusLabel(s)}
+                                  </span>
                                 </div>
                               </div>
+                              {!isRestaurant && s.type === 'shift' && s.start_time && (
+                                <span className="shrink-0 rounded-[10px] bg-[#F4F2EC] px-2.5 py-1 text-[11.5px] font-semibold tabular-nums text-ink">
+                                  {s.start_time}{s.end_time ? `–${s.end_time}` : ''}
+                                </span>
+                              )}
                             </button>
                           )
                         })}
@@ -585,9 +599,11 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                     ))}
                   </div>
                 )}
-                <button type="button" onClick={() => setDayEditor(selectedDay)} className="mt-3 flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark py-2.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-ink">
-                  <Plus className="h-4 w-4 text-gold" strokeWidth={2.2} /> Nap szerkesztése
-                </button>
+                {canManage && (
+                  <button type="button" onClick={() => setDayEditor(selectedDay)} className="mt-3 flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark py-2.5 text-[12.5px] font-semibold text-white transition-colors hover:bg-ink">
+                    <Plus className="h-4 w-4 text-gold" strokeWidth={2.2} /> Nap szerkesztése
+                  </button>
+                )}
               </motion.div>
             ) : (
               <motion.div key="team" initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} transition={{ duration: 0.2, ease: 'easeOut' }}>
@@ -687,7 +703,11 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                 <div key={i} className="group relative">
                   <button
                     type="button"
-                    onClick={() => c.date && setSelectedDay(c.date)}
+                    onClick={() => {
+                      if (!c.date) return
+                      setSelectedDay(c.date)
+                      if (window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: 'smooth' })
+                    }}
                     className="flex aspect-square w-full flex-col overflow-hidden rounded-[10px] border p-1.5 text-left transition-all sm:aspect-auto sm:min-h-[84px] sm:overflow-visible sm:rounded-[14px] sm:p-2"
                     style={{
                       background: isSelDay ? 'rgba(241,206,69,.24)' : isToday ? 'rgba(241,206,69,.1)' : 'rgba(255,255,255,.6)',
@@ -712,7 +732,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                     </div>
                     {/* Egy SORBA, tördelés nélkül (a cella magassága állandó marad, akárhányan dolgoznak).
                         Az avatarok enyhén egymásra csúsznak (avatar-stack), 3 fölött „+N". */}
-                    <div className="mt-1 hidden items-center overflow-hidden h-[19px] sm:flex sm:h-[22px]">
+                    <div className="mt-1 hidden items-center h-[19px] sm:flex sm:h-[22px]">
                       {(() => {
                         // Kiemeléskor a fókuszált dolgozó chipje ELŐRE kerül, hogy a 3 látható közt mindig ott legyen.
                         const ordered = focusPerson && sel ? [...dayShifts].sort((a, b) => Number(b.staffId === sel.id) - Number(a.staffId === sel.id)) : dayShifts
@@ -750,8 +770,8 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                       })()}
                     </div>
                   </button>
-                  {/* + : NAP SZERKESZTÉSE (nem ceruza) — hoveren, a kijelölt napon mindig látszik */}
-                  {c.date && (
+                  {/* + : NAP SZERKESZTÉSE — csak kezelőknek */}
+                  {c.date && canManage && (
                     <button
                       type="button"
                       onClick={() => { setSelectedDay(c.date); setDayEditor(c.date) }}
@@ -802,10 +822,19 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
           <div className="overflow-hidden rounded-[26px] dav-card-glass lg:-mt-16">
             <div className="flex items-center gap-3 px-6 pb-4 pt-6">
               <Ava url={sel.avatarUrl} ini={sel.ini} className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full text-[18px] font-bold" style={{ background: '#F1CE45', color: '#1D1C19' }} />
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="truncate text-[17px] font-semibold text-ink">{sel.name}</div>
                 <div className="truncate text-[13px] font-medium text-ink-soft">{sel.role || 'Munkatárs'}</div>
               </div>
+              {myStaffId && sel.id === myStaffId && (
+                <Link
+                  href={isRestaurant ? '/restaurant/settings?tab=self' : '/dashboard/settings?tab=self'}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F0EAD8] text-ink-soft transition-colors hover:bg-[#E8DFC8] hover:text-ink"
+                  title="Saját profil"
+                >
+                  <User className="h-4 w-4" strokeWidth={1.8} />
+                </Link>
+              )}
             </div>
 
             <div className="px-6 pb-2">
@@ -837,7 +866,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                   const isTd = d === todayStr
                   return (
                     <div key={d} className="flex flex-col items-center gap-1">
-                      <span className="text-[9.5px] font-semibold" style={{ color: isTd ? '#1D1C19' : '#A8A496' }}>{WEEK_MINI[i]}</span>
+                      <span className="text-[9.5px] font-semibold" style={{ color: isTd ? '#1D1C19' : '#A8A496' }}>{WEEK_MINI[(new Date(Number(d.slice(0,4)), Number(d.slice(5,7))-1, Number(d.slice(8,10))).getDay() + 6) % 7]}</span>
                       <span
                         className="flex h-7 w-full items-center justify-center rounded-[8px] text-[9px] font-bold"
                         title={sh ? statusLabel(sh) : 'Nincs beosztva'}
@@ -864,7 +893,8 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
               {([
                 ['Betegszabadság', `${Math.round(sick / 8)} nap`, Math.min(100, (sick / 40) * 100), '#1D1C19'],
                 ['Szabadság', `${vacationDays} nap`, Math.min(100, (vacationDays / 22) * 100), '#E4DECC'],
-              ] as const).map(([l, v, w, c]) => (
+                ['Szabad nap', `${daysInMonth - daysWorked - sickDays - vacationDays} nap`, Math.min(100, ((daysInMonth - daysWorked - sickDays - vacationDays) / daysInMonth) * 100), '#C9C3B4'],
+              ] as [string, string, number, string][]).map(([l, v, w, c]) => (
                 <div key={l} className="mb-3.5">
                   <div className="mb-1.5 flex items-center justify-between">
                     <span className="text-[12.5px] font-medium text-ink-soft">{l}</span>

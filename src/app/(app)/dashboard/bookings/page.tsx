@@ -1,5 +1,6 @@
 import { getOwnedSalon } from '@/lib/salonContext'
 import { requireCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { getDayName, hhmmToMinutes } from '@/lib/utils'
 import { parseISO } from 'date-fns'
@@ -108,6 +109,7 @@ export default async function BookingsPage({
         closeMin={closeMin}
         openBookingId={bookingParam}
         dateFilter={<DateFilter currentDate={selectedDate} />}
+        canManage={can(capabilities, 'bookings.manage')}
       />
       <WaitlistPanel salonId={salon.id} />
     </div>

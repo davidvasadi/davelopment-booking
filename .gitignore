@@ -162,3 +162,8 @@ public/videos/
 
 # Next.js auto-generated (never commit)
 next-env.d.ts
+
+# Playwright — teszteredmények, screenshotok, videók (lokális szemét)
+playwright-report/
+test-results/
+e2e/.auth/

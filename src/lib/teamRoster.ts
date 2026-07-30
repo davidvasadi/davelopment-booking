@@ -140,29 +140,101 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
   }
 
   if (variant === 'salon') {
-    const [staffRes, stats] = await Promise.all([
+    const [salonRes, staffRes, stats, invitedRes] = await Promise.all([
+      payload.findByID({ collection: 'salons', id: businessId, depth: 1, overrideAccess: true }).catch(() => null),
       payload.find({ collection: 'staff', where: { salon: { equals: businessId } }, sort: 'name', depth: 1, limit: 500, overrideAccess: true }),
       getStaffStats(businessId),
+      payload.find({ collection: 'memberships', where: { and: [{ salon: { equals: businessId } }, { status: { equals: 'invited' } }] }, depth: 0, limit: 500, overrideAccess: true }),
     ])
-    return (staffRes.docs as StaffMember[]).map((s): Employee => {
+    const salonStaff = staffRes.docs as StaffMember[]
+    const invitedEmails = new Set((invitedRes.docs as { email?: string }[]).map(m => (m.email ?? '').toLowerCase()).filter(Boolean))
+
+    // User account avatars by email — ha a staff-rekordhoz nincs feltöltött kép, de a linked
+    // felhasználónak van profilképe (avatar_url), azt mutatjuk a HiringView fejlécénél.
+    const emails = salonStaff.map(s => s.email).filter((e): e is string => typeof e === 'string' && e.length > 0)
+    const userAvatarByEmail: Record<string, string> = {}
+    if (emails.length > 0) {
+      const userRes = await payload.find({
+        collection: 'users',
+        where: { email: { in: emails } },
+        depth: 0,
+        limit: 500,
+        overrideAccess: true,
+      })
+      for (const u of userRes.docs as User[]) {
+        if (u.email && u.avatar_url) userAvatarByEmail[u.email] = u.avatar_url
+      }
+    }
+
+    const ownerRel = (salonRes as { owner?: unknown } | null)?.owner
+    const owner = ownerRel && typeof ownerRel === 'object' ? (ownerRel as User) : null
+    const ownerShifts = (shiftsRes.docs as Shift[]).filter((sh) => sh.owner_shift)
+    const ownerJoinDate = (owner as unknown as { join_date?: string | null; createdAt?: string | null } | null)?.join_date ?? (owner as unknown as { createdAt?: string | null } | null)?.createdAt ?? null
+    const ownerEmp: Employee = {
+      id: 'owner',
+      name: owner?.name || owner?.email || 'Tulajdonos',
+      avatarUrl: owner?.avatar_url ?? null,
+      position: 'Tulajdonos',
+      roleTone: 'owner',
+      email: owner?.email || '',
+      phone: owner?.phone || '',
+      since: fmtMonth(ownerJoinDate),
+      contract: contractLabel(owner?.weekly_hours),
+      tags: [],
+      note: owner?.bio || '',
+      status: 'active',
+      tipsThisMonth: 0,
+      hr: {
+        birthday: owner?.birthday ?? null,
+        address: owner?.address ?? null,
+        tax_id: owner?.tax_id ?? null,
+        emergency_contact: owner?.emergency_contact ?? null,
+        weekly_hours: owner?.weekly_hours ?? null,
+        join_date: ownerJoinDate,
+        salary: null,
+        pay_type: 'daily',
+        pay_rate: null,
+        tip_eligible: false,
+        suspended_at: null,
+        position_history: [],
+      },
+      ...computeShiftStats(ownerShifts, now),
+    }
+
+    const ownerEmail = (owner?.email ?? '').toLowerCase()
+    const staffEmps = salonStaff.filter(s => !ownerEmail || (s.email ?? '').toLowerCase() !== ownerEmail).map((s): Employee => {
       const id = String(s.id)
       const st = computeShiftStats(shiftsByPerson[id] ?? [], now)
       return {
         id,
         name: s.name,
-        avatarUrl: mediaUrl(s.avatar),
+        avatarUrl: mediaUrl(s.avatar) ?? (s.email ? (userAvatarByEmail[s.email] ?? null) : null),
         position: s.role_title || s.department || '',
         roleTone: 'staff',
         email: s.email || '',
         phone: s.phone || '',
-        since: fmtMonth(s.join_date),
+        since: fmtMonth(s.join_date ?? (s as unknown as { createdAt?: string }).createdAt),
         contract: contractLabel(s.weekly_hours),
         tags: stats.servicesById[id] ?? [],
         note: s.bio || '',
-        status: s.is_active === false ? 'suspended' : 'active',
+        status: invitedEmails.has((s.email ?? '').toLowerCase()) ? 'invited' : s.is_active === false ? 'suspended' : 'active',
+        hr: {
+          birthday: s.birthday ?? null,
+          join_date: s.join_date ?? (s as unknown as { createdAt?: string }).createdAt ?? null,
+          address: s.address ?? null,
+          tax_id: s.tax_id ?? null,
+          emergency_contact: s.emergency_contact ?? null,
+          weekly_hours: s.weekly_hours ?? null,
+          salary: s.salary ?? null,
+          pay_type: 'daily' as const,
+          pay_rate: s.salary ?? null,
+          tip_eligible: null,
+        },
         ...st,
       }
     })
+
+    return [ownerEmp, ...staffEmps]
   }
 
   // ── Étterem: [tulaj-sor] + memberships. A LISTÁVAL AZONOS sorrend (tulaj elöl, majd a
@@ -212,6 +284,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
   const owner = ownerRel && typeof ownerRel === 'object' ? (ownerRel as User) : null
   // A tulaj coverage-műszakjai (owner_shift; nincs member) — csak fedettség-statisztika, bér/borravaló nélkül.
   const ownerShifts = (shiftsRes.docs as Shift[]).filter((sh) => sh.owner_shift)
+  const ownerJoinDate = (owner as unknown as { join_date?: string | null; createdAt?: string | null } | null)?.join_date ?? (owner as unknown as { createdAt?: string | null } | null)?.createdAt ?? null
   const ownerEmp: Employee = {
     id: 'owner',
     name: owner?.name || owner?.email || 'Tulajdonos',
@@ -220,7 +293,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
     roleTone: 'owner',
     email: owner?.email || '',
     phone: owner?.phone || '',
-    since: fmtMonth(owner?.join_date),
+    since: fmtMonth(ownerJoinDate),
     contract: contractLabel(owner?.weekly_hours),
     tags: [],
     note: owner?.bio || '',
@@ -233,7 +306,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
       tax_id: owner?.tax_id ?? null,
       emergency_contact: owner?.emergency_contact ?? null,
       weekly_hours: owner?.weekly_hours ?? null,
-      join_date: owner?.join_date ?? null,
+      join_date: ownerJoinDate,
       salary: null,
       pay_type: 'daily',
       pay_rate: null,
@@ -270,7 +343,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
           tax_id: m.tax_id ?? null,
           emergency_contact: m.emergency_contact ?? null,
           weekly_hours: m.weekly_hours ?? null,
-          join_date: m.join_date ?? null,
+          join_date: m.join_date ?? m.createdAt ?? null,
           salary: m.salary ?? null,
           pay_type: (m.pay_type ?? 'daily') as 'daily' | 'hourly',
           pay_rate: m.pay_rate ?? null,

@@ -1,6 +1,8 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
+import { getCurrentUser } from '@/lib/auth'
 import { ScheduleView, type StaffVM, type ShiftVM, type ShiftType } from '@/components/dashboard/ScheduleView'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
@@ -27,10 +29,11 @@ function mediaUrl(m: unknown): string | null {
 }
 
 export default async function SalonSchedulePage() {
-  const { salon, capabilities } = await getOwnedSalon()
-  // A Naptár kezelő-eszköz (műszak felvétel/módosítás/törlés) → `schedule.manage`. A saját műszakot
-  // a munkatárs a személyes főoldalán látja; ide csak a beosztás-kezelők léphetnek be.
-  requireCapability(capabilities, 'schedule.manage', '/dashboard')
+  const [{ salon, capabilities }, user] = await Promise.all([getOwnedSalon(), getCurrentUser()])
+  requireAnyCapability(capabilities, ['schedule.manage', 'schedule.manage.own', 'schedule.view.own'], '/dashboard')
+  const canManage = can(capabilities, 'schedule.manage')
+  // schedule.manage.own: saját műszak szerkesztése (szalon-stylist önálló időbeosztás)
+  const canManageOwn = can(capabilities, 'schedule.manage.own')
   const payload = await getPayloadClient()
 
   const [staffRes, shiftsRes] = await Promise.all([
@@ -52,7 +55,7 @@ export default async function SalonSchedulePage() {
     }),
   ])
 
-  const staff: StaffVM[] = (staffRes.docs as StaffMember[]).map((s) => ({
+  const allStaff: StaffVM[] = (staffRes.docs as StaffMember[]).map((s) => ({
     id: String(s.id),
     name: s.name,
     ini: initials(s.name),
@@ -68,7 +71,7 @@ export default async function SalonSchedulePage() {
     })),
   }))
 
-  const shifts: ShiftVM[] = (shiftsRes.docs as Shift[])
+  const allShifts: ShiftVM[] = (shiftsRes.docs as Shift[])
     .filter((sh) => sh.staff != null)
     .map((sh) => ({
     id: String(sh.id),
@@ -83,20 +86,30 @@ export default async function SalonSchedulePage() {
     left_early_reason: (sh.left_early_reason ?? null) as 'sick' | 'personal' | null,
   }))
 
+  // A bejelentkezett user staff-rekordjának megkeresése email alapján.
+  const myStaffRaw = user?.email ? (staffRes.docs as StaffMember[]).find((s) => s.email === user.email) : null
+  const myStaffId = myStaffRaw ? String(myStaffRaw.id) : undefined
+
+  // Saját-nézet: view.own VAGY manage.own (mindkét esetben csak saját adat, nincs csapatlista).
+  // manage.own esetén a ScheduleView-ban canManage=true, mert csak saját embert lát → szerkeszthet.
+  const isOwnOnly = !canManage
+  const staff = canManage ? allStaff : (myStaffRaw ? [allStaff.find((s) => s.id === myStaffId)!].filter(Boolean) : allStaff)
+  const shifts = canManage ? allShifts : allShifts.filter((s) => s.staffId === myStaffId)
+
   const now = new Date()
-
-  // ── Havi KPI-k (valós adat a shift-ekből) — fejléc-pillérek animált számokkal ──
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const monthShifts = shifts.filter((s) => s.date.startsWith(ym))
-  const workedHours = Math.round(monthShifts.filter((s) => s.type === 'shift').reduce((a, s) => a + (s.hours ?? 0), 0))
-  const offDays = monthShifts.filter((s) => s.type === 'leave' || s.type === 'sick' || s.type === 'vacation').length
 
-  // StatusPills: a havi beosztás típus-megoszlása (mint az Áttekintés/Statisztikák fejléce).
-  const total = monthShifts.length || 1
+  // ── KPI-k ──
+  // Vezető: csapat-összesítő; saját-nézet: csak a saját hónap
+  const kpiShifts = canManage ? allShifts.filter((s) => s.date.startsWith(ym)) : shifts.filter((s) => s.date.startsWith(ym))
+  const workedHours = Math.round(kpiShifts.filter((s) => s.type === 'shift').reduce((a, s) => a + (s.hours ?? 0), 0))
+  const offDays = kpiShifts.filter((s) => s.type === 'leave' || s.type === 'sick' || s.type === 'vacation').length
+
+  const total = kpiShifts.length || 1
   const pct = (n: number) => Math.round((n / total) * 100)
-  const nShift = monthShifts.filter((s) => s.type === 'shift').length
-  const nVac = monthShifts.filter((s) => s.type === 'leave' || s.type === 'vacation').length
-  const nSick = monthShifts.filter((s) => s.type === 'sick').length
+  const nShift = kpiShifts.filter((s) => s.type === 'shift').length
+  const nVac = kpiShifts.filter((s) => s.type === 'leave' || s.type === 'vacation').length
+  const nSick = kpiShifts.filter((s) => s.type === 'sick').length
   const pills = [
     { label: 'Műszak', pct: pct(nShift), background: '#1D1C19', color: '#fff' },
     { label: 'Szabadság', pct: pct(nVac), background: '#F1CE45', color: '#1D1C19' },
@@ -113,13 +126,26 @@ export default async function SalonSchedulePage() {
   return (
     <div className="space-y-6">
       <div className="px-4 pt-4 lg:px-0 lg:pt-0">
-        <PageHeader eyebrow="Csapat" title="Naptár" />
+        {canManage ? (
+          <PageHeader eyebrow="Csapat" title="Naptár" />
+        ) : (
+          <PageHeader eyebrow="Naptár" title="Saját beosztás" />
+        )}
         <div className="mt-0 flex flex-col gap-6 lg:mt-6 lg:flex-row lg:items-end lg:justify-between">
           <StatusPills eager className="flex-1 lg:max-w-[620px]" segments={pills} />
           <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-            <CountUpKpi icon="users" value={staff.length} label="Csapattag" />
-            <CountUpKpi icon="clock" value={workedHours} label="Ledolgozott óra (hó)" />
-            <CountUpKpi icon="off" value={offDays} label="Szabadság / hiányzás" />
+            {canManage ? (
+              <>
+                <CountUpKpi icon="users" value={allStaff.length} label="Csapattag" />
+                <CountUpKpi icon="clock" value={workedHours} label="Ledolgozott óra (hó)" />
+                <CountUpKpi icon="off" value={offDays} label="Szabadság / hiányzás" />
+              </>
+            ) : (
+              <>
+                <CountUpKpi icon="clock" value={workedHours} label="Saját óra (hó)" />
+                <CountUpKpi icon="off" value={offDays} label="Hiányzás / szab." />
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -130,6 +156,8 @@ export default async function SalonSchedulePage() {
         shifts={shifts}
         year={now.getFullYear()}
         month={now.getMonth()}
+        canManage={canManage || (isOwnOnly && canManageOwn)}
+        myStaffId={myStaffId}
       />
     </div>
   )

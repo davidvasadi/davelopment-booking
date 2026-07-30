@@ -60,5 +60,5 @@ export async function getMyUpcomingShifts(
     depth: 0,
     overrideAccess: true,
   })
-  return (res.docs as Shift[]).map((sh) => ({ date: sh.date, start: sh.start_time ?? null, end: sh.end_time ?? null }))
+  return (res.docs as Shift[]).map((sh) => ({ date: sh.date.slice(0, 10), start: sh.start_time ?? null, end: sh.end_time ?? null }))
 }

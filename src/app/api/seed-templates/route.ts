@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     // catch 500-at adna vissza. A jogosultságot amúgy is a salon-ownership check
     // adja lentebb (a role-check felesleges volt, és frissen regisztrált usernél
     // — amikor a role PATCH még nem futott le — hibásan buktatta a seedet).
-    const user = await getCurrentUser()
+    const user = await getCurrentUser({ allowHeaderAuth: true })
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const { salonId, businessTypes } = await req.json()
 

@@ -18,15 +18,22 @@ export type Capability =
   | 'overview.view'
   | 'bookings.view'
   | 'bookings.manage'
-  | 'schedule.view.own'
-  | 'schedule.manage'
+  | 'schedule.view.own'    // saját naptár megtekintése (olvasás, pl. éttermi felszolgáló)
+  | 'schedule.manage.own'  // saját naptár szerkesztése (szalon-stylist: önálló időbeosztás)
+  | 'schedule.manage'      // teljes csapat naptár kezelése
   | 'guests.view'
   | 'guests.manage'
-  | 'catalog.view'
-  | 'catalog.manage'
+  | 'catalog.view'         // szalon: szolgáltatások megtekintése
+  | 'catalog.manage'       // szalon: szolgáltatások kezelése
+  | 'tables.view'          // étterem: asztalok megtekintése
+  | 'tables.manage'        // étterem: asztalok kezelése
   | 'staff.view'
   | 'staff.manage'
   | 'analytics.view'
+  | 'tips.view'
+  | 'notifications.view'
+  | 'notifications.manage'
+  | 'settings.own_profile'
   | 'settings.profile'
   | 'team.view'
   | 'team.manage'
@@ -34,26 +41,38 @@ export type Capability =
   | 'danger'
   | 'audit.view'
 
-/** Címkézett + csoportosított képességek — a Payload `roles.capabilities` opcióihoz ÉS az owner-UI-hoz. */
-export const CAPABILITY_META: { value: Capability; label: string; group: string }[] = [
-  { value: 'overview.view', label: 'Áttekintés', group: 'Alap' },
-  { value: 'bookings.view', label: 'Foglalások megtekintése', group: 'Foglalás' },
-  { value: 'bookings.manage', label: 'Foglalások kezelése', group: 'Foglalás' },
-  { value: 'schedule.view.own', label: 'Saját műszak', group: 'Beosztás' },
-  { value: 'schedule.manage', label: 'Beosztás kezelése', group: 'Beosztás' },
-  { value: 'guests.view', label: 'Vendégek megtekintése', group: 'Vendégek' },
-  { value: 'guests.manage', label: 'Vendégek kezelése', group: 'Vendégek' },
-  { value: 'catalog.view', label: 'Kínálat megtekintése', group: 'Kínálat' },
-  { value: 'catalog.manage', label: 'Kínálat kezelése', group: 'Kínálat' },
-  { value: 'staff.view', label: 'Munkatársak megtekintése', group: 'Munkatársak' },
-  { value: 'staff.manage', label: 'Munkatársak kezelése', group: 'Munkatársak' },
-  { value: 'analytics.view', label: 'Statisztikák / Tippek', group: 'Statisztika' },
-  { value: 'settings.profile', label: 'Beállítások (profil/szabály/funkció)', group: 'Beállítások' },
-  { value: 'team.view', label: 'Csapat megtekintése', group: 'Csapat' },
-  { value: 'team.manage', label: 'Csapat kezelése (meghívás/szerep)', group: 'Csapat' },
-  { value: 'billing.manage', label: 'Számlázás / előfizetés', group: 'Számlázás' },
-  { value: 'danger', label: 'Veszélyzóna (üzlet törlése)', group: 'Veszélyzóna' },
-  { value: 'audit.view', label: 'Audit-napló', group: 'Audit' },
+/** variant: melyik üzlettípusnál releváns a capability. undefined = mindkettőnél. */
+export const CAPABILITY_META: {
+  value: Capability
+  label: string
+  group: string
+  variant?: 'salon' | 'restaurant'
+}[] = [
+  { value: 'overview.view',        label: 'Áttekintés (alap belépő)',           group: 'Alap' },
+  { value: 'bookings.view',        label: 'Foglalások megtekintése',             group: 'Foglalás' },
+  { value: 'bookings.manage',      label: 'Foglalások kezelése',                 group: 'Foglalás' },
+  { value: 'schedule.view.own',    label: 'Saját naptár — csak megtekintés',     group: 'Naptár' },
+  { value: 'schedule.manage.own',  label: 'Saját naptár — szerkesztés',          group: 'Naptár' },
+  { value: 'schedule.manage',      label: 'Teljes csapatnaptár kezelése',        group: 'Naptár' },
+  { value: 'guests.view',          label: 'Vendégek megtekintése',               group: 'Vendégek' },
+  { value: 'guests.manage',        label: 'Vendégek kezelése',                   group: 'Vendégek' },
+  { value: 'catalog.view',         label: 'Szolgáltatások megtekintése',         group: 'Szolgáltatások', variant: 'salon' },
+  { value: 'catalog.manage',       label: 'Szolgáltatások kezelése',             group: 'Szolgáltatások', variant: 'salon' },
+  { value: 'tables.view',          label: 'Asztalok megtekintése',               group: 'Asztalok',       variant: 'restaurant' },
+  { value: 'tables.manage',        label: 'Asztalok kezelése',                   group: 'Asztalok',       variant: 'restaurant' },
+  { value: 'staff.view',           label: 'Munkatársak megtekintése',            group: 'Munkatársak' },
+  { value: 'staff.manage',         label: 'Munkatársak kezelése',                group: 'Munkatársak' },
+  { value: 'analytics.view',        label: 'Statisztikák megtekintése',          group: 'Statisztika' },
+  { value: 'tips.view',             label: 'Tippek és javaslatok',               group: 'Statisztika' },
+  { value: 'notifications.view',    label: 'Értesítések fogadása',               group: 'Értesítések' },
+  { value: 'notifications.manage',  label: 'Értesítési beállítások kezelése',    group: 'Értesítések' },
+  { value: 'settings.own_profile', label: 'Saját profil szerkesztése',           group: 'Beállítások' },
+  { value: 'settings.profile',     label: 'Üzleti beállítások (szabály / funkció)', group: 'Beállítások' },
+  { value: 'team.view',            label: 'Csapat megtekintése',                 group: 'Csapat' },
+  { value: 'team.manage',          label: 'Csapat kezelése (meghívás / szerep)', group: 'Csapat' },
+  { value: 'billing.manage',       label: 'Számlázás / előfizetés',              group: 'Számlázás' },
+  { value: 'danger',               label: 'Veszélyzóna (üzlet törlése)',         group: 'Veszélyzóna' },
+  { value: 'audit.view',           label: 'Audit-napló',                         group: 'Audit' },
 ]
 
 export const ALL_CAPABILITIES: Capability[] = CAPABILITY_META.map((c) => c.value)
@@ -62,11 +81,6 @@ export const ALL_CAPABILITIES: Capability[] = CAPABILITY_META.map((c) => c.value
 // aki nem tulaj, annak a jogai az egyedi szerepéből jönnek — beépített szerepként csak az
 // `overview.view` alap-küszöböt kapja (belép, de üres a felülete, amíg a tulaj szerepet nem ad neki).
 const OWNERLESS_FLOOR: Capability[] = ['overview.view']
-const MATRIX: Record<TeamRole, Capability[]> = {
-  owner: ALL_CAPABILITIES,
-  manager: OWNERLESS_FLOOR,
-  staff: OWNERLESS_FLOOR,
-}
 
 /** Egy BEÉPÍTETT szerep hatékony képesség-halmaza. Csak az owner kap jogot; más → alap-küszöb. */
 export function capabilitiesForRole(role: TeamRole | null | undefined): Capability[] {
@@ -83,7 +97,6 @@ export function effectiveCapabilities(
 ): Capability[] {
   if (role === 'owner') return ALL_CAPABILITIES
   if (customCaps && customCaps.length) {
-    // Az „overview.view" mindig benne van (a dashboard alap-belépője).
     return customCaps.includes('overview.view') ? customCaps : ['overview.view', ...customCaps]
   }
   return OWNERLESS_FLOOR

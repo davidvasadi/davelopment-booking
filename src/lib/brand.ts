@@ -14,7 +14,7 @@ export const BRAND_NAME = 'davelopment booking'
 
 /** A publikus app-URL. Prod: https://booking.davelopment.hu */
 export const APP_URL = (
-  process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'
 ).replace(/\/$/, '')
 
 /** A publikus domain (protokoll nélkül), pl. booking.davelopment.hu. */

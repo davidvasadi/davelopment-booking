@@ -9,6 +9,7 @@ import { getActiveBusiness } from '@/lib/activeBusiness'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import { AppShell } from '@/components/dashboard/AppShell'
 import { PageTransition } from '@/components/ui/page-transition'
+import { LiveRefreshProvider } from '@/components/LiveRefreshProvider'
 import { RestaurantUIProvider } from '@/components/restaurant/RestaurantUIContext'
 import type { Restaurant, Subscription } from '@/payload/payload-types'
 
@@ -64,6 +65,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
         activeBusinessKey={`${active.type}:${active.id}`}
         capabilities={active.capabilities}
       >
+        <LiveRefreshProvider businessKey={`${active.type}:${active.id}`} />
         <PageTransition>{children}</PageTransition>
       </AppShell>
     </RestaurantUIProvider>

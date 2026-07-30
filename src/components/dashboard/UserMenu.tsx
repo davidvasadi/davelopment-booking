@@ -6,11 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { MoreHorizontal, Bell, LogOut, CreditCard, Settings, X, ExternalLink, Check, Loader2, Plus, Building2 } from 'lucide-react'
+import { MoreHorizontal, Bell, LogOut, CreditCard, Settings, X, ExternalLink, Check, Loader2, ArrowRight, Users, CalendarDays, ChevronDown, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { UserAvatar } from './UserAvatar'
-import { useNotifications, timeAgo, notifDate, notificationVisual, type Notification } from '@/lib/useNotifications'
+import { useNotifications, timeAgo, notifDate, notificationVisual, type Notification, type DigestMetadata } from '@/lib/useNotifications'
+import { DigestSheet } from './DigestSheet'
 import type { SwitcherBusiness } from './StoreSwitcher'
+import type { Capability } from '@/lib/permissions'
 
 /** A panel gyerek-elemeinek „folyami" belépője (a genie-spring stagger alá). */
 const PANEL_ITEM = {
@@ -36,6 +38,8 @@ export function UserMenu({
   csvHref,
   businesses = [],
   activeBusinessKey = null,
+  capabilities,
+  notificationsHref,
 }: {
   name?: string | null
   email?: string | null
@@ -51,6 +55,10 @@ export function UserMenu({
   /** Összes fiók-üzlet (üzletváltóhoz) — csak ha 2+ üzlet van. */
   businesses?: SwitcherBusiness[]
   activeBusinessKey?: string | null
+  /** Effektív képesség-halmaz — eldönti, hogy a settings/billing gyorslinkek látszanak-e. */
+  capabilities?: Capability[]
+  /** Teljes értesítési oldal linkje — a panel fejlécének nyíl gombja ide navigál. */
+  notificationsHref?: string
 }) {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
@@ -62,7 +70,10 @@ export function UserMenu({
   // A csengő ÉRTESÍTÉSEKET, az avatar FIÓK-menüt nyit — külön tartalom, nem ugyanaz.
   const [mode, setMode] = useState<'account' | 'notifications'>('account')
 
-  const { items, unread, groups, remove, clearAll, openItem } = useNotifications(() => setOpen(false))
+  const { items, unread, groups, remove, markRead, clearAll, openItem } = useNotifications(() => setOpen(false))
+
+  const canSettings = !capabilities || capabilities.includes('settings.profile')
+  const canBilling = !capabilities || capabilities.includes('billing.manage')
 
   useEffect(() => setMounted(true), [])
 
@@ -90,6 +101,7 @@ export function UserMenu({
   // account-módjában renderelve), így nincs itt duplikált feltöltő-logika.
 
   const [switching, setSwitching] = useState<string | null>(null)
+  const [bizOpen, setBizOpen] = useState(false)
 
   async function switchBusiness(b: SwitcherBusiness) {
     const key = `${b.type}:${b.id}`
@@ -218,8 +230,9 @@ export function UserMenu({
           {/* ── FIÓK mód (avatar) — profil + gyorslinkek + téma + kijelentkezés ── */}
           {mode === 'account' && (
           <>
-          {/* Profil-sor — NEM inline szerkesztő; kattintásra a Saját profil oldalra navigál
-              (a Beállítások „self" fülére). Ott van minden szerkesztés (név, avatar, jelszó, adatok). */}
+          {/* Profil-sor — mindig kattintható; a Beállítások „self" fülére navigál (saját
+              név / avatar / jelszó). A settingsHref üzleti beállítást mutat, de a ?tab=self
+              mindenki számára elérhető profil-tab, nem üzleti jog kérdése. */}
           {settingsHref && (
             <motion.div variants={PANEL_ITEM}>
               <Link
@@ -241,7 +254,7 @@ export function UserMenu({
 
           {/* Gyorslinkek: nyilvános oldal + előfizetés + beállítások. (CSV export a Vendégek/
               Statisztikák oldalon van, nem a fiók-menüben.) */}
-          {(subscriptionHref || settingsHref || publicUrl) && (
+          {(publicUrl || (subscriptionHref && canBilling) || (settingsHref && canSettings)) && (
             <motion.div variants={PANEL_ITEM} className="py-1.5">
               {publicUrl && (
                 <a
@@ -255,7 +268,7 @@ export function UserMenu({
                   Nyilvános oldal
                 </a>
               )}
-              {subscriptionHref && (
+              {subscriptionHref && canBilling && (
                 <Link
                   href={subscriptionHref}
                   onClick={() => setOpen(false)}
@@ -265,7 +278,7 @@ export function UserMenu({
                   Előfizetés
                 </Link>
               )}
-              {settingsHref && (
+              {settingsHref && canSettings && (
                 <Link
                   href={settingsHref}
                   onClick={() => setOpen(false)}
@@ -278,57 +291,103 @@ export function UserMenu({
             </motion.div>
           )}
 
-          {/* Üzletváltó — csak ha 2+ üzlet van a fiókban. */}
-          {businesses.length > 1 && (
-            <>
-              <div className="border-t border-[#efefef]" />
-              <motion.div variants={PANEL_ITEM} className="py-1.5">
-                <p className="px-4 pb-1 pt-1 text-[10px] font-bold uppercase tracking-wider text-[#b0ac9e]">Üzletek</p>
-                {businesses.map((b) => {
-                  const key = `${b.type}:${b.id}`
-                  const isActive = key === activeBusinessKey
-                  const isBusy = switching === key
-                  const mono = b.name?.trim()?.[0]?.toUpperCase() ?? '?'
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => switchBusiness(b)}
-                      disabled={isBusy || isActive}
-                      className={cn(
-                        'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors',
-                        isActive ? 'cursor-default bg-[#f4f4f5]' : 'hover:bg-[#f4f4f5]',
-                      )}
-                    >
-                      {b.logoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={b.logoUrl} alt={b.name} className="h-[30px] w-[30px] shrink-0 rounded-[8px] object-cover" />
-                      ) : (
-                        <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#1d1c19] text-[12px] font-bold text-[#f1ce45]">{mono}</span>
-                      )}
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-medium text-[#3a352a]">{b.name}</span>
-                        <span className="block text-[11px] text-[#9b9788]">{b.type === 'restaurant' ? 'Étterem' : 'Szalon'}</span>
-                      </span>
-                      {isBusy
-                        ? <Loader2 className="h-[15px] w-[15px] shrink-0 animate-spin text-[#8a8779]" />
-                        : isActive
-                          ? <Check className="h-[15px] w-[15px] shrink-0 text-[#3a352a]" />
-                          : null}
-                    </button>
-                  )
-                })}
-                <button
-                  type="button"
-                  onClick={() => { setOpen(false); router.push('/business/new') }}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm font-medium text-[#8a8779] transition-colors hover:bg-[#f4f4f5] hover:text-[#3a352a]"
-                >
-                  <Building2 className="h-[17px] w-[17px] shrink-0" />
-                  Üzlet hozzáadása
-                </button>
-              </motion.div>
-            </>
-          )}
+          {/* Üzletváltó — csak ha 2+ üzlet van a fiókban; accordion trigger az aktív üzlet. */}
+          {businesses.length > 1 && (() => {
+            const active = businesses.find((b) => `${b.type}:${b.id}` === activeBusinessKey) ?? businesses[0]
+            const activeMono = active.name?.trim()?.[0]?.toUpperCase() ?? '?'
+            return (
+              <>
+                <div className="border-t border-[#efefef]" />
+                <motion.div variants={PANEL_ITEM} className="py-1.5">
+                  {/* Trigger — az aktív üzlet sora; kattintásra kinyílik a lista. */}
+                  <button
+                    type="button"
+                    onClick={() => setBizOpen((v) => !v)}
+                    className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[#f4f4f5]"
+                  >
+                    {active.logoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={active.logoUrl} alt={active.name} className="h-[30px] w-[30px] shrink-0 rounded-[8px] object-cover" />
+                    ) : (
+                      <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#1d1c19] text-[12px] font-bold text-[#f1ce45]">{activeMono}</span>
+                    )}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-[#3a352a]">{active.name}</span>
+                      <span className="block text-[11px] text-[#9b9788]">{active.type === 'restaurant' ? 'Étterem' : 'Szalon'}</span>
+                    </span>
+                    <motion.span animate={{ rotate: bizOpen ? 180 : 0 }} transition={{ type: 'spring', stiffness: 400, damping: 28 }}>
+                      <ChevronDown className="h-[15px] w-[15px] shrink-0 text-[#b0ac9e]" />
+                    </motion.span>
+                  </button>
+
+                  {/* Legördülő lista az összes üzlettel + üzlet hozzáadása. */}
+                  <AnimatePresence initial={false}>
+                    {bizOpen && (
+                      <motion.div
+                        key="biz-list"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1, transition: { height: { type: 'spring', stiffness: 400, damping: 30 }, opacity: { duration: 0.15 } } }}
+                        exit={{ height: 0, opacity: 0, transition: { height: { duration: 0.18, ease: 'easeInOut' }, opacity: { duration: 0.1 } } }}
+                        className="overflow-hidden"
+                      >
+                        <div className="mx-3 mb-1 rounded-[14px] border border-[#efefef] bg-[#fafafa] overflow-hidden">
+                          {businesses.map((b) => {
+                            const key = `${b.type}:${b.id}`
+                            const isActive = key === activeBusinessKey
+                            const isBusy = switching === key
+                            const mono = b.name?.trim()?.[0]?.toUpperCase() ?? '?'
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                onClick={() => switchBusiness(b)}
+                                disabled={isBusy || isActive}
+                                className={cn(
+                                  'flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors',
+                                  isActive ? 'cursor-default' : 'hover:bg-[#f0efec]',
+                                )}
+                              >
+                                {b.logoUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img src={b.logoUrl} alt={b.name} className="h-[26px] w-[26px] shrink-0 rounded-[7px] object-cover" />
+                                ) : (
+                                  <span className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] text-[11px] font-bold', isActive ? 'bg-[#1d1c19] text-[#f1ce45]' : 'bg-[#e8e7e2] text-[#5a5549]')}>{mono}</span>
+                                )}
+                                <span className="min-w-0 flex-1">
+                                  <span className={cn('block truncate text-[13px] font-medium', isActive ? 'text-[#1d1c19]' : 'text-[#5a5549]')}>{b.name}</span>
+                                  <span className="block text-[10px] text-[#b0ac9e]">{b.type === 'restaurant' ? 'Étterem' : 'Szalon'}</span>
+                                </span>
+                                {isBusy
+                                  ? <Loader2 className="h-[13px] w-[13px] shrink-0 animate-spin text-[#8a8779]" />
+                                  : isActive
+                                    ? <Check className="h-[13px] w-[13px] shrink-0 text-[#1d1c19]" />
+                                    : null}
+                              </button>
+                            )
+                          })}
+                          {canBilling && (
+                            <>
+                              <div className="mx-2 border-t border-[#efefef]" />
+                              <button
+                                type="button"
+                                onClick={() => { setOpen(false); router.push('/business/new') }}
+                                className="flex w-full items-center gap-2.5 px-3 py-2 text-[13px] font-medium text-[#9b9788] transition-colors hover:bg-[#f0efec] hover:text-[#3a352a]"
+                              >
+                                <span className="flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] border border-dashed border-[#c8c4bb]">
+                                  <Plus className="h-[13px] w-[13px]" />
+                                </span>
+                                Üzlet hozzáadása
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </>
+            )
+          })()}
 
           <div className="border-t border-[#efefef]" />
 
@@ -345,11 +404,11 @@ export function UserMenu({
           </>
           )}
 
-          {/* ── ÉRTESÍTÉSEK mód (csengő) — csak az értesítés-lista ── */}
+          {/* ── ÉRTESÍTÉSEK mód (csengő) ── */}
           {mode === 'notifications' && (
           <>
-          <motion.div variants={PANEL_ITEM} className="flex items-center justify-between px-4 py-3.5">
-            <p className="flex items-center gap-2 text-[15px] font-semibold text-[#2a2620]">
+          <motion.div variants={PANEL_ITEM} className="flex items-center gap-2 px-4 py-3.5">
+            <p className="flex flex-1 items-center gap-2 text-[15px] font-semibold text-[#2a2620]">
               Értesítések
               {items.length > 0 && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f1ce45] px-1.5 text-[11px] font-bold text-[#23230f]">{items.length}</span>
@@ -359,17 +418,27 @@ export function UserMenu({
               <button
                 type="button"
                 onClick={clearAll}
-                className="text-xs font-medium text-[#8a8779] transition-colors hover:text-[#3a352a]"
+                className="text-xs font-medium text-[#b0ac9e] transition-colors hover:text-[#3a352a]"
               >
                 Összes törlése
               </button>
             )}
+            {notificationsHref && (
+              <Link
+                href={notificationsHref}
+                onClick={() => setOpen(false)}
+                aria-label="Összes értesítés"
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f4f4f5] text-[#8a8779] transition-colors hover:bg-[#ebebeb] hover:text-[#3a352a]"
+              >
+                <ArrowRight className="h-[14px] w-[14px]" strokeWidth={2} />
+              </Link>
+            )}
           </motion.div>
           <div className="border-t border-[#efefef]" />
-          <motion.div variants={PANEL_ITEM} className="min-h-[220px] max-h-[55vh] lg:min-h-0 lg:max-h-72 overflow-y-auto overscroll-contain px-2 py-1" data-lenis-prevent>
+          <motion.div variants={PANEL_ITEM} className="min-h-[220px] max-h-[55vh] lg:min-h-0 lg:max-h-72 overflow-y-auto overscroll-contain px-2 py-1.5" data-lenis-prevent>
             {items.length === 0 ? (
               <div className="flex flex-col items-center gap-2.5 px-3 py-10 text-center">
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-[#8a8779] shadow-[0_1px_5px_rgba(0,0,0,.07)]">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#f5f5f4] text-[#8a8779]">
                   <Bell className="h-5 w-5" strokeWidth={1.75} />
                 </span>
                 <p className="text-sm text-[#9b9788]">Nincs új értesítés</p>
@@ -377,10 +446,12 @@ export function UserMenu({
             ) : (
               groups.map(({ label, rows }) => (
                 <div key={label}>
-                  <p className="px-3 pb-1 pt-2.5 text-[10px] font-semibold uppercase tracking-wider text-[#b0ac9e]">{label}</p>
-                  {rows.map((n) => (
-                    <NotificationRow key={n.id} n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} />
-                  ))}
+                  <p className="px-2.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[#b0ac9e]">{label}</p>
+                  {rows.map((n) =>
+                    n.type === 'digest_morning' || n.type === 'digest_evening'
+                      ? <DigestCard key={n.id} n={n} onMarkRead={() => markRead(n.id)} onRemove={() => remove(n.id)} />
+                      : <NotificationRow key={n.id} n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} />
+                  )}
                 </div>
               ))
             )}
@@ -399,11 +470,10 @@ export function UserMenu({
 
 /** Egyetlen értesítés sor a fiók-popoverben: kör ikon-badge + cím/idő + törlés (hoverre). */
 function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () => void; onRemove: () => void }) {
-  const { Icon, color } = notificationVisual(n.type)
+  const { Icon, color, bg } = notificationVisual(n.type)
   return (
     <div className="group flex items-start gap-3 rounded-[16px] px-2.5 py-2.5 transition-colors hover:bg-[#f4f4f5]">
-      {/* Semleges kör-ikon (Crextio lista-nyelv), típus szerinti akcentus-színnel. */}
-      <span className="mt-0.5 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-[#f5f5f4] shadow-[0_1px_4px_rgba(0,0,0,.05)]">
+      <span className={cn('mt-0.5 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full', bg)}>
         <Icon className={cn('h-[17px] w-[17px]', color)} strokeWidth={2.2} />
       </span>
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
@@ -415,20 +485,68 @@ function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () 
           {timeAgo(n.createdAt)}
         </p>
       </button>
-      {/* Jobb-oldali sáv: olvasatlan gold pötty; hoverre törlés-X váltja. */}
       <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
         {!n.read && (
-          <span className="h-[7px] w-[7px] rounded-full bg-[#f1ce45] transition-opacity group-hover:opacity-0" />
+          <span className="absolute h-[7px] w-[7px] rounded-full bg-[#f1ce45] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
         )}
         <button
           type="button"
           aria-label="Értesítés törlése"
           onClick={onRemove}
-          className="absolute inset-0 flex items-center justify-center rounded-full text-[#b0ac9e] opacity-0 transition-opacity hover:bg-[#e8e8e8] hover:text-[#3a352a] group-hover:opacity-100"
+          className="absolute inset-0 flex items-center justify-center rounded-full text-[#b0ac9e] opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-[#e8e8e8] hover:text-[#3a352a] group-hover:opacity-100 group-hover:scale-100"
         >
           <X className="h-3.5 w-3.5" />
         </button>
       </span>
     </div>
+  )
+}
+
+/** Digest értesítés kártya — kattintásra DigestSheet nyílik, nem navigál. */
+function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: () => void; onRemove: () => void }) {
+  const { Icon, color, bg } = notificationVisual(n.type)
+  const meta = n.metadata as DigestMetadata | null
+  const [sheetOpen, setSheetOpen] = useState(false)
+
+  function openSheet() {
+    if (!n.read) onMarkRead()
+    setSheetOpen(true)
+  }
+
+  return (
+    <>
+      <div className={cn('group relative mb-1.5 rounded-[18px] border border-black/[0.04] cursor-pointer', bg)} onClick={openSheet}>
+        <div className="flex items-start gap-2.5 p-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/70">
+            <Icon className={cn('h-[16px] w-[16px]', color)} strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold leading-tight text-[#2a2620]">{n.title}</p>
+            <p className="text-[11px] text-[#b0ac9e] mt-0.5">{notifDate(n.createdAt)}</p>
+            {meta && (
+              <p className="mt-1.5 text-[11px] text-[#5a5549]">
+                {meta.bookings} foglalás · {meta.guests} fő
+                {meta.team_count ? ` · ${meta.team_count} munkatárs` : ''}
+              </p>
+            )}
+          </div>
+          <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
+            {!n.read && (
+              <span className="absolute h-[7px] w-[7px] rounded-full bg-[#f1ce45] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
+            )}
+            <span
+              role="button"
+              aria-label="Értesítés törlése"
+              onClick={(e) => { e.stopPropagation(); onRemove() }}
+              className="absolute inset-0 flex items-center justify-center rounded-full text-[#b0ac9e] opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-black/[0.08] hover:text-[#3a352a] group-hover:opacity-100 group-hover:scale-100 cursor-pointer"
+            >
+              <X className="h-3.5 w-3.5" />
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <DigestSheet n={n} open={sheetOpen} onClose={() => setSheetOpen(false)} />
+    </>
   )
 }

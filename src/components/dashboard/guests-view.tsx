@@ -125,6 +125,8 @@ interface Props {
   returningNum: number
   newNum: number
   buckets: CountryBucket[]
+  /** Ha false, a vendégadatok szerkesztése, tiltás és törlés rejtve. */
+  canManage?: boolean
   mapLabel: string
   mapEmpty?: ReactNode // placeholder ha nincs bucket
 }
@@ -162,6 +164,7 @@ export function GuestsView({
   buckets,
   mapLabel,
   mapEmpty,
+  canManage = false,
 }: Props) {
   const [query, setQuery] = useState('')
   // Hónap-léptető: az aktuális hónapról indul, nyilakkal előre/hátra.
@@ -593,32 +596,38 @@ export function GuestsView({
                     <Mail className="h-4 w-4" strokeWidth={1.6} />
                   </span>
                 )}
-                <button type="button" onClick={() => startEdit(sel)} title="Szerkesztés" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
-                  <Pencil className="h-4 w-4" strokeWidth={1.7} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleBlock(sel)}
-                  disabled={busy}
-                  title={sel.blocked ? 'Tiltás feloldása' : 'Tiltólistára'}
-                  className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors disabled:opacity-50 ${sel.blocked ? 'bg-[#E7F2EA] text-[#1D9D63] hover:bg-[#d7ebde]' : 'bg-[#FBE3E3] text-[#C0453F] hover:bg-[#f6d4d4]'}`}
-                >
-                  {sel.blocked ? <ShieldCheck className="h-4 w-4" strokeWidth={1.8} /> : <Ban className="h-4 w-4" strokeWidth={1.8} />}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(sel)}
-                  disabled={busy}
-                  title="Vendég törlése"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 text-ink-soft backdrop-blur transition-colors hover:bg-[#FBE3E3] hover:text-[#C0453F] disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4" strokeWidth={1.7} />
-                </button>
+                {canManage && (
+                  <button type="button" onClick={() => startEdit(sel)} title="Szerkesztés" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
+                    <Pencil className="h-4 w-4" strokeWidth={1.7} />
+                  </button>
+                )}
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => toggleBlock(sel)}
+                    disabled={busy}
+                    title={sel.blocked ? 'Tiltás feloldása' : 'Tiltólistára'}
+                    className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors disabled:opacity-50 ${sel.blocked ? 'bg-[#E7F2EA] text-[#1D9D63] hover:bg-[#d7ebde]' : 'bg-[#FBE3E3] text-[#C0453F] hover:bg-[#f6d4d4]'}`}
+                  >
+                    {sel.blocked ? <ShieldCheck className="h-4 w-4" strokeWidth={1.8} /> : <Ban className="h-4 w-4" strokeWidth={1.8} />}
+                  </button>
+                )}
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(sel)}
+                    disabled={busy}
+                    title="Vendég törlése"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 text-ink-soft backdrop-blur transition-colors hover:bg-[#FBE3E3] hover:text-[#C0453F] disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" strokeWidth={1.7} />
+                  </button>
+                )}
               </div>
             </div>
 
             {/* Szerkesztő űrlap (kézi felülírás) */}
-            {editing && (
+            {editing && canManage && (
               <div className="mt-4 rounded-[18px] border border-white/60 bg-white/55 p-4 backdrop-blur-[10px]">
                 <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2">
                   <label className="flex flex-col gap-1">

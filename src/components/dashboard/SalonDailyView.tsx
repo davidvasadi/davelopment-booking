@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
-import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays } from 'lucide-react'
+import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, UserRound } from 'lucide-react'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import BookingActions from '@/components/dashboard/BookingActions'
@@ -77,10 +77,14 @@ const avatarUrlOf = (s: StaffMember | null): string | null => {
 const initialsOf = (name: string): string =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '·'
 
-/** Kis avatar-kör (profilkép vagy monogram) — a szakember-sáv címkéjéhez. */
-function Ava({ url, ini, className }: { url?: string | null; ini: string; className: string }) {
+/** Kis avatar-kör (profilkép vagy UserRound fallback) — a szakember-sáv címkéjéhez. */
+function Ava({ url, className }: { url?: string | null; ini?: string; className: string }) {
   if (url) return <img src={url} alt="" className={`${className} object-cover object-top`} />
-  return <span className={className}>{ini}</span>
+  return (
+    <span className={`${className} flex items-center justify-center`} style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+      <UserRound className="h-[55%] w-[55%] text-white/30" strokeWidth={1.2} />
+    </span>
+  )
 }
 
 /** Lokális vázlatból „ál-foglalás" készül, ami beleilleszkedik a nézetekbe, de __draft-tal jelölt. */
@@ -119,10 +123,12 @@ export interface SalonDailyViewProps {
   openBookingId?: string
   /** A toolbar-ba ágyazott dátum-navigátor (server komponensből). */
   dateFilter: React.ReactNode
+  /** Ha false, csak olvasható nézet — az Új foglalás gomb, szerkesztés és drag rejtve. */
+  canManage?: boolean
 }
 
 export function SalonDailyView(props: SalonDailyViewProps) {
-  const { date, salonId, staff, services, openMin, closeMin, openBookingId, dateFilter } = props
+  const { date, salonId, staff, services, openMin, closeMin, openBookingId, dateFilter, canManage = false } = props
   const [view, setView] = useState<ViewMode>('timeline')
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<SalonBookingDraft[]>([])
@@ -162,9 +168,10 @@ export function SalonDailyView(props: SalonDailyViewProps) {
     if (b) { lastOpenedRef.current = openBookingId; setTarget({ booking: b }) }
   }, [openBookingId, props.bookings])
 
-  const openEdit = (b: Booking) => setTarget({ booking: b })
-  const openCreate = (presetStart?: string, presetStaffId?: string | number | null) =>
-    setTarget({ booking: null, presetStart, presetStaffId })
+  const openEdit = (b: Booking) => { if (canManage) setTarget({ booking: b }) }
+  const openCreate = (presetStart?: string, presetStaffId?: string | number | null) => {
+    if (canManage) setTarget({ booking: null, presetStart, presetStaffId })
+  }
 
   // Áthelyezés drag&drop-ból: új időpont és/vagy szakember. A szerver validál (átfedés).
   // Hibánál a router.refresh visszaállítja az eredeti pozíciót, és toast jelzi az okot.
@@ -251,13 +258,15 @@ export function SalonDailyView(props: SalonDailyViewProps) {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => openCreate()}
-            className="inline-flex items-center gap-2 h-[42px] px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
-          >
-            <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
-            <span className="hidden sm:inline">Új foglalás</span>
-          </button>
+          {canManage && (
+            <button
+              onClick={() => openCreate()}
+              className="inline-flex items-center gap-2 h-[42px] px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
+            >
+              <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
+              <span className="hidden sm:inline">Új foglalás</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -293,6 +302,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
           onEdit={openEdit}
           onCreate={openCreate}
           onMove={moveBooking}
+          canManage={canManage}
         />
       )}
 
@@ -405,9 +415,10 @@ type TLProps = {
   onEdit: (b: Booking) => void
   onCreate: (start?: string, staffId?: string | number | null) => void
   onMove: (b: Booking, newStart: string, newStaffId: string | number) => void
+  canManage?: boolean
 }
 
-function TimelineView({ date, bookings, staff, openMin, closeMin, onEdit, onCreate, onMove }: TLProps) {
+function TimelineView({ date, bookings, staff, openMin, closeMin, onEdit, onCreate, onMove, canManage = false }: TLProps) {
   const totalMin = Math.max(closeMin - openMin, 60)
   const nowMin = useNowMinutes(date)
   const nowVisible = nowMin != null && nowMin >= openMin && nowMin <= closeMin
@@ -424,7 +435,7 @@ function TimelineView({ date, bookings, staff, openMin, closeMin, onEdit, onCrea
         <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
       </div>
       <div className="hidden lg:block">
-        <StaffGrid {...{ staff, active, hourMarks, openMin, closeMin, totalMin, nowMin, nowVisible, card, onEdit, onCreate, onMove }} />
+        <StaffGrid {...{ staff, active, hourMarks, openMin, closeMin, totalMin, nowMin, nowVisible, card, onEdit, onCreate, onMove, canManage }} />
       </div>
     </>
   )
@@ -560,13 +571,14 @@ function MobileTimeline({
 
 /** Szakember × idő rács (desktop, fit mód: a teljes nap egy nézetbe fér százalékos pozícióval). */
 function StaffGrid({
-  staff, active, hourMarks, openMin, closeMin, totalMin, nowMin, nowVisible, card, onEdit, onCreate, onMove,
+  staff, active, hourMarks, openMin, closeMin, totalMin, nowMin, nowVisible, card, onEdit, onCreate, onMove, canManage = false,
 }: {
   staff: StaffMember[]; active: Booking[]; hourMarks: number[]; openMin: number; closeMin: number; totalMin: number
   nowMin: number | null; nowVisible: boolean; card: string
   onEdit: (b: Booking) => void
   onCreate: (start?: string, staffId?: string | number | null) => void
   onMove: (b: Booking, newStart: string, newStaffId: string | number) => void
+  canManage?: boolean
 }) {
   const labelW = 'w-[150px] sm:w-[180px]'
   const left = (min: number) => `${((min - openMin) / totalMin) * 100}%`
@@ -722,7 +734,7 @@ function StaffGrid({
                   }`}
                 >
                   <div className={`${labelW} shrink-0 flex items-center gap-2.5 py-2 pr-2`}>
-                    <Ava url={url} ini={initialsOf(t.name)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-dark text-[12px] font-bold text-gold" />
+                    <Ava url={url} className="h-9 w-9 shrink-0 rounded-full overflow-hidden" />
                     <div className="min-w-0">
                       <span className="block text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
                       {t.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{t.role_title}</span>}
@@ -761,9 +773,9 @@ function StaffGrid({
                       return (
                         <button
                           key={String(b.id)}
-                          onPointerDown={(ev) => { if (!draft) { ev.stopPropagation(); beginPointer(b, ev) } }}
-                          title={`${draft ? 'VÁZLAT — ' : 'Kattints a szerkesztéshez, vagy húzd át · '}${b.customer_name} · ${svc?.name ?? ''} · ${b.start_time}–${b.end_time} · ${urgency ? urgency.label : statusLabel[b.status]}`}
-                          className={`absolute top-[7px] bottom-[7px] rounded-[11px] border px-[11px] text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 transition-all ${draft ? 'border-2 border-dashed border-gold bg-gold/[0.18] text-ink-dark cursor-default' : `${statusBlock[b.status]} cursor-grab active:cursor-grabbing hover:brightness-[1.06]`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
+                          onPointerDown={(ev) => { if (!draft && canManage) { ev.stopPropagation(); beginPointer(b, ev) } }}
+                          title={`${draft ? 'VÁZLAT — ' : canManage ? 'Kattints a szerkesztéshez, vagy húzd át · ' : ''}${b.customer_name} · ${svc?.name ?? ''} · ${b.start_time}–${b.end_time} · ${urgency ? urgency.label : statusLabel[b.status]}`}
+                          className={`absolute top-[7px] bottom-[7px] rounded-[11px] border px-[11px] text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 transition-all ${draft ? 'border-2 border-dashed border-gold bg-gold/[0.18] text-ink-dark cursor-default' : `${statusBlock[b.status]} ${canManage ? 'cursor-grab active:cursor-grabbing hover:brightness-[1.06]' : 'cursor-default'}`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
                           style={{ left: `calc(${left(s)} + 2px)`, width: `calc(${span(dur)} - 4px)`, touchAction: 'none' }}
                         >
                           {tiny ? (

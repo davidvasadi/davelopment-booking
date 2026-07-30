@@ -13,7 +13,7 @@
 
 import { t, type Locale } from './i18n'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 const DAVELOPMENT_URL = 'https://davelopment.hu'
 
 const BOOKING_LOCKUP = `${APP_URL}/email/davelopment-booking-wordmark.png`

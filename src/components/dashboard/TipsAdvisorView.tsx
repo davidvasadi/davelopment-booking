@@ -7,7 +7,8 @@ import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight, Bell, Star, Users, Phone, Image as ImageIcon, FileText, MapPin, Clock,
-  Info, Globe, LayoutGrid, Check, Zap, Loader2, X, type LucideIcon,
+  Info, Globe, LayoutGrid, Check, Zap, Loader2, X, Calendar, AlertCircle, Heart,
+  MessageSquare, UserPlus, type LucideIcon,
 } from 'lucide-react'
 import type { AdvisorResult, TipCard, TipCategory, TipAction } from '@/lib/tipsAdvisor'
 
@@ -37,6 +38,7 @@ const FILTERS: { id: 'all' | TipCategory; label: string }[] = [
 ]
 
 const CARD_ICON: Record<string, LucideIcon> = {
+  // Profil & config
   'cfg-cover': ImageIcon,
   'cfg-logo': ImageIcon,
   'cfg-description': FileText,
@@ -45,10 +47,20 @@ const CARD_ICON: Record<string, LucideIcon> = {
   'cfg-catalog': LayoutGrid,
   'cfg-good_to_know': Info,
   'cfg-languages': Globe,
+  // Feature kapcsolók
   'feat-reminders': Bell,
   'feat-reviews': Star,
   'feat-waitlist': Users,
   'flag-require_phone': Phone,
+  // Beosztás
+  'sched-ahead': Calendar,
+  // Foglalások
+  'booking-pending': AlertCircle,
+  'booking-notes': FileText,
+  // Vendégek
+  'guest-loyalty': Heart,
+  'guest-notes': MessageSquare,
+  'guest-reengagement': UserPlus,
 }
 
 export function TipsAdvisorView({

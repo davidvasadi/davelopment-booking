@@ -12,27 +12,22 @@ export const Notifications: CollectionConfig = {
     hidden: true,
   },
   access: {
-    // Admin csak az admin-közönségű (audience: 'admin') értesítéseket látja a harangban;
-    // a tulajok a saját helyük owner-értesítéseit. (Admin a /admin-ban mindent lát overrideAccess-szel.)
+    // Admin → admin-közönségű értesítések; user → saját üzlet owner-értesítései + user-célzott.
     read: (async ({ req }) => {
       if (req.user?.role === 'admin') return { audience: { equals: 'admin' } }
       if (!req.user) return false
-      // Több-üzlet: a user az ÖSSZES SAJÁT helye (szalon + étterem) owner-értesítéseit látja.
+      const or: Record<string, unknown>[] = [{ user: { equals: req.user.id } }]
       const [salons, restaurants] = await Promise.all([
         req.payload.find({ collection: 'salons', where: { owner: { equals: req.user.id } }, limit: 100, depth: 0, overrideAccess: true, req }),
         req.payload.find({ collection: 'restaurants', where: { owner: { equals: req.user.id } }, limit: 100, depth: 0, overrideAccess: true, req }),
       ])
       const salonIds = salons.docs.map((s) => s.id)
       const restaurantIds = restaurants.docs.map((r) => r.id)
-      const or: Record<string, unknown>[] = []
-      if (salonIds.length) or.push({ salon: { in: salonIds } })
-      if (restaurantIds.length) or.push({ restaurant: { in: restaurantIds } })
-      if (or.length === 0) return false
+      if (salonIds.length) or.push({ and: [{ salon: { in: salonIds } }, { audience: { equals: 'owner' } }] })
+      if (restaurantIds.length) or.push({ and: [{ restaurant: { in: restaurantIds } }, { audience: { equals: 'owner' } }] })
       return { or }
     }) as Access,
-    // Hook hozza létre, overrideAccess-szel.
     create: ({ req }) => req.user?.role === 'admin',
-    // A tulaj csak olvasottnak jelölheti (read mező); a hozzáférést a read where szűri.
     update: ({ req }) => Boolean(req.user),
     delete: ({ req }) => Boolean(req.user),
   },
@@ -52,8 +47,14 @@ export const Notifications: CollectionConfig = {
       label: 'Szalon',
     },
     {
-      // Kinek szól: owner (a tulaj harangja) vagy admin (a backstage harangja). Az új admin-
-      // értesítések (regisztráció, előfizető) 'admin', a foglalás-értesítések 'owner'.
+      name: 'user',
+      type: 'relationship',
+      relationTo: 'users',
+      index: true,
+      label: 'Felhasználó (alkalmazotti értesítéshez)',
+    },
+    {
+      // Kinek szól: owner (a tulaj harangja), member (alkalmazott saját nézete), admin (backstage).
       name: 'audience',
       type: 'select',
       required: true,
@@ -62,6 +63,7 @@ export const Notifications: CollectionConfig = {
       label: 'Közönség',
       options: [
         { label: 'Tulajdonos', value: 'owner' },
+        { label: 'Alkalmazott', value: 'member' },
         { label: 'Admin (backstage)', value: 'admin' },
       ],
     },
@@ -73,12 +75,16 @@ export const Notifications: CollectionConfig = {
       options: [
         { label: 'Új foglalás', value: 'new_booking' },
         { label: 'Lemondás', value: 'cancellation' },
+        { label: 'Módosítás', value: 'modification' },
         { label: 'Új regisztráció', value: 'new_signup' },
         { label: 'Új előfizető', value: 'new_subscriber' },
+        { label: 'Reggeli összefoglaló', value: 'digest_morning' },
+        { label: 'Esti összefoglaló', value: 'digest_evening' },
       ],
     },
     { name: 'title', type: 'text', required: true, label: 'Cím' },
     { name: 'body', type: 'text', label: 'Szöveg' },
+    { name: 'metadata', type: 'json', label: 'Digest adatok (foglalások, fő, műszak vezető stb.)' },
     {
       name: 'read',
       type: 'checkbox',

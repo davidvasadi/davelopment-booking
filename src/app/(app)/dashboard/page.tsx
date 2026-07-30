@@ -5,6 +5,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { formatPrice } from '@/lib/utils'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { StoreSwitcher } from '@/components/dashboard/StoreSwitcher'
+import { PageHeader } from '@/components/ui/page-header'
 import { getSetupFlags } from '@/lib/setupFlags'
 import { SetupNudge } from '@/components/dashboard/SetupNudge'
 import { StatusPills } from '@/components/dashboard/StatusPills'
@@ -39,7 +40,7 @@ function initials(name: string): string {
 const minOfDay = (t: string | null | undefined) => { const [h, m] = (t ?? '00:00').split(':').map(Number); return (h || 0) * 60 + (m || 0) }
 
 export default async function DashboardPage() {
-  const [{ salon, capabilities, roleName }, user] = await Promise.all([getOwnedSalon(), getCurrentUser()])
+  const [{ salon, capabilities, roleName }, user] = await Promise.all([getOwnedSalon(1), getCurrentUser()])
   const payload = await getPayloadClient()
 
   const now = new Date()
@@ -63,6 +64,27 @@ export default async function DashboardPage() {
   // Supervisor) a teljes KPI-dashboardot kapják; a felszolgáló a személyes nézetet.
   if (user && !can(capabilities, 'analytics.view')) {
     const myShifts = await getMyUpcomingShifts({ type: 'salon', id: salon.id }, { id: user.id, email: user.email })
+    // Payload a feltöltés pillanatában érvényes szerver-URL-t menti az adatbázisba (pl. localhost:3000).
+    // Ha azóta portot váltottunk, a tárolt URL nem egyezik a futó szerverrel → normalizálni kell.
+    const fixMediaUrl = (url: string | null | undefined): string | null => {
+      if (!url) return null
+      if (process.env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+/.test(url)) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+        return url.replace(/^http:\/\/localhost:\d+/, appUrl)
+      }
+      return url
+    }
+    // Avatar: user.avatar_url az első, ha az null → staff.avatar (amit a StaffManager tölt fel)
+    let staffProfileImg = fixMediaUrl(profileImg)
+    if (!staffProfileImg && user.email) {
+      const staffRes = await payload.find({
+        collection: 'staff',
+        where: { and: [{ salon: { equals: salon.id } }, { email: { equals: user.email } }] },
+        depth: 1, limit: 1, overrideAccess: true,
+      })
+      const staffMember = staffRes.docs[0] as { avatar?: { url?: string } } | undefined
+      if (staffMember?.avatar?.url) staffProfileImg = fixMediaUrl(staffMember.avatar.url)
+    }
     const todayLabel = now.toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' })
     return (
       <StaffOverview
@@ -72,6 +94,8 @@ export default async function DashboardPage() {
         businessName={salon.name}
         todayLabel={todayLabel}
         shifts={myShifts}
+        profileImg={staffProfileImg}
+        variant="salon"
       />
     )
   }
@@ -241,25 +265,24 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6 p-5 lg:p-0">
-      {/* ── HERO: köszönés + jobbra fiókváltó + Új foglalás ── */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-[15px] text-ink-soft">{greeting},</p>
-          <h1 className="mt-0.5 text-4xl font-light leading-[1.05] tracking-[-0.02em] text-ink lg:text-[46px]">{salon.name}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+      <PageHeader eyebrow={salon.name} title="Áttekintés" />
+
+      {/* Onboarding-nudge */}
+      <SetupNudge variant="salon" base="/dashboard" flags={setup} />
+
+      {/* CTA-sor: StoreSwitcher + Új foglalás */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[14px] text-ink-soft">{greeting}, <span className="font-medium text-ink">{user?.name ?? ''}</span></p>
+        <div className="flex items-center gap-2.5">
           <StoreSwitcher name={salon.name} logoUrl={logoUrl} businesses={businesses} activeKey={active ? `${active.type}:${active.id}` : null} />
           <Link
             href="/dashboard/bookings"
-            className="inline-flex h-[52px] items-center gap-2 rounded-dav-pill bg-ink-dark px-6 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className="inline-flex h-[44px] items-center gap-2 rounded-dav-pill bg-ink-dark px-5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Plus className="h-4 w-4" strokeWidth={2.4} /> Új foglalás
           </Link>
         </div>
       </div>
-
-      {/* ── Onboarding-nudge (csak ha a nyitvatartás/szolgáltatások még hiányoznak) ── */}
-      <SetupNudge variant="salon" base="/dashboard" flags={setup} />
 
       {/* ── STÁTUSZ-CSÍK (bal) + 3 KPI (jobb) ── */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

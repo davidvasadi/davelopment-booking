@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
+import { emitBookingChange } from '@/lib/sseEmitter'
 import type { StaffMember } from '@/payload/payload-types'
 
 /**
@@ -118,6 +119,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
+    emitBookingChange({ kind: 'salon', businessId: String(loaded.salonId), op: 'update' })
     return NextResponse.json(doc)
   } catch (e) {
     console.error('[api/staff PATCH] update failed', e)
@@ -133,27 +135,28 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const loaded = await loadManageableStaff(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
+  const email = (loaded.staff?.email ?? '').trim().toLowerCase()
+  // Salon ID-t mindig számra coerce-öljük a membership query előtt (Payload Postgres int-ként tárolja)
+  const salonNum = /^\d+$/.test(String(loaded.salonId)) ? Number(loaded.salonId) : loaded.salonId
+
   await loaded.payload.delete({ collection: 'staff', id, overrideAccess: true, user })
 
-  // SZINKRON: a párosított membership (Csapat és jogok) is törlődik, hogy ne maradjon árva
-  // jogosultság-rekord (salon + email párosítás). Best-effort — nem blokkolja a választ.
-  if (loaded.staff?.email) {
-    try {
-      const mail = loaded.staff.email.trim().toLowerCase()
-      const res = await loaded.payload.find({
-        collection: 'memberships',
-        where: { and: [{ salon: { equals: loaded.salonId } }, { email: { equals: mail } }] },
-        limit: 10,
-        depth: 0,
-        overrideAccess: true,
-      })
-      for (const m of res.docs) {
-        await loaded.payload.delete({ collection: 'memberships', id: m.id, overrideAccess: true, user })
-      }
-    } catch (e) {
-      console.error('[api/staff DELETE] membership-szinkron törlés sikertelen', e)
-    }
+  // SZINKRON: a párosított membership (Csapat és jogok) is törlődik.
+  if (email) {
+    const res = await loaded.payload.find({
+      collection: 'memberships',
+      where: { and: [{ salon: { equals: salonNum } }, { email: { equals: email } }] },
+      limit: 20,
+      depth: 0,
+      overrideAccess: true,
+    })
+    await Promise.all(
+      res.docs.map((m) =>
+        loaded.payload.delete({ collection: 'memberships', id: m.id, overrideAccess: true, user }),
+      ),
+    )
   }
 
+  emitBookingChange({ kind: 'salon', businessId: String(loaded.salonId), op: 'delete' })
   return NextResponse.json({ ok: true })
 }

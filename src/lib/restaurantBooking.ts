@@ -47,8 +47,9 @@ function unavailableRoomIds(rooms: SeasonRoom[], date: string): Set<string> {
 }
 
 /** Egy adott nap nyitvatartási ablaka (perc), a heti rend + kivétel figyelembevételével.
- *  null = zárva (vagy nincs beállítva nyitvatartás). A kivétel (opening-hours-exceptions)
- *  felülírja a heti rendet: is_closed → zárva, módosított idő → új ablak. */
+ *  null = zárva. Ha az étteremhez nincs egyetlen opening-hours rekord sem (soha nem konfigurálták),
+ *  alapértelmezésként nyitva kezeljük 10:00–22:00 között — a foglalható slot így megjelenik
+ *  a wizardban, és az étterem-tulajdonos be tudja állítani a valódi nyitvatartást. */
 export async function getOpeningWindow(
   restaurantId: string | number,
   date: string,
@@ -62,7 +63,23 @@ export async function getOpeningWindow(
     overrideAccess: true,
   })
   const oh = ohRes.docs[0] as OpeningHour | undefined
-  if (!oh || !oh.is_open || !oh.open_time || !oh.close_time) return null
+
+  // Ha nincs egyetlen rekord sem ehhez az étteremhez → ellenőrizzük: ha valamelyik napra van
+  // rekord, a hiány azt jelenti hogy ez a nap tényleg zárva van. Ha EGYÁLTALÁN nincs rekord,
+  // az étterem nyitvatartása nincs konfigurálva → alapértelmezett 10:00–22:00 ablak.
+  if (!oh) {
+    const anyRes = await payload.find({
+      collection: 'opening-hours',
+      where: { restaurant: { equals: restaurantId } },
+      limit: 1,
+      overrideAccess: true,
+    })
+    if (anyRes.totalDocs === 0) {
+      return { openMin: hhmmToMinutes('10:00'), closeMin: hhmmToMinutes('22:00') }
+    }
+    return null
+  }
+  if (!oh.is_open || !oh.open_time || !oh.close_time) return null
   let openMin = hhmmToMinutes(oh.open_time)
   let closeMin = hhmmToMinutes(oh.close_time)
 

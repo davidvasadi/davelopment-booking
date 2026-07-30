@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, animate, type Variants } from 'framer-motion'
-import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock, CalendarDays, Loader2 } from 'lucide-react'
+import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock, CalendarDays, Loader2, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { popItem } from '@/lib/motion'
 import { Switch } from '@/components/ui/toggle-switch'
@@ -37,8 +37,8 @@ type EditForm = {
 type HistEntry = { position: string; changed_at: string }
 
 /** Adatlap SZERKESZTŐ-ŰRLAP (étterem-tag; tulaj/vezető). A bér csak akkor jelenik meg, ha `canEditSalary`. */
-function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEditSalary, isOwner = false, saving, onSave, onCancel }: {
-  initial: EditForm; initialHistory: HistEntry[]; positionOptions?: string[]; canEditSalary: boolean; isOwner?: boolean; saving: boolean
+function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEditSalary, isOwner = false, saving, variant, onSave, onCancel }: {
+  initial: EditForm; initialHistory: HistEntry[]; positionOptions?: string[]; canEditSalary: boolean; isOwner?: boolean; saving: boolean; variant: Variant
   onSave: (form: EditForm, history: HistEntry[]) => void; onCancel: () => void
 }) {
   const [f, setF] = useState<EditForm>(initial)
@@ -71,10 +71,27 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
           </div>
         )}
         <div><label className={lc}>Telefon</label><input value={f.phone} onChange={set('phone')} className={ic} /></div>
-        <div><label className={lc}>Születésnap</label><input type="date" value={f.birthday} onChange={set('birthday')} className={ic} /></div>
-        <div><label className={lc}>Belépés</label><input type="date" value={f.join_date} onChange={set('join_date')} className={ic} /></div>
+        <div><label className={lc}>Születésnap</label><input type="date" value={f.birthday} onChange={set('birthday')} min="1900-01-01" max="2099-12-31" className={ic} /></div>
+        <div><label className={lc}>Belépés</label><input type="date" value={f.join_date} onChange={set('join_date')} min="1900-01-01" max="2099-12-31" className={ic} /></div>
         <div><label className={lc}>Cím</label><input value={f.address} onChange={set('address')} className={ic} /></div>
-        <div><label className={lc}>TAJ / adóazonosító</label><input value={f.tax_id} onChange={set('tax_id')} className={ic} /></div>
+        <div>
+          <label className={lc}>TAJ / adóazonosító</label>
+          <input
+            value={f.tax_id}
+            onChange={(e) => {
+              const digits = e.target.value.replace(/\D/g, '').slice(0, 9)
+              const fmt = digits.length > 6
+                ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+                : digits.length > 3
+                ? `${digits.slice(0, 3)}-${digits.slice(3)}`
+                : digits
+              setF((p) => ({ ...p, tax_id: fmt }))
+            }}
+            maxLength={11}
+            placeholder="000-000-000"
+            className={ic}
+          />
+        </div>
         <div><label className={lc}>Vészhelyzeti kontakt</label><input value={f.emergency_contact} onChange={set('emergency_contact')} className={ic} /></div>
         {canEditSalary && !isOwner && (
           <div className="sm:col-span-2">
@@ -97,7 +114,7 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
             </div>
           </div>
         )}
-        {canEditSalary && !isOwner && (
+        {canEditSalary && !isOwner && variant === 'restaurant' && (
           <div className="sm:col-span-2">
             <button type="button" onClick={() => setF((p) => ({ ...p, tip_eligible: !p.tip_eligible }))} className="flex items-center gap-2.5">
               <span className={`flex h-[22px] w-[38px] items-center rounded-full px-0.5 transition-colors ${f.tip_eligible ? 'justify-end bg-ink-dark' : 'justify-start bg-line-strong'}`}>
@@ -219,6 +236,11 @@ const ROLE_TONE: Record<RoleTone, { bg: string; fg: string }> = {
   owner: { bg: '#1D1C19', fg: '#ffffff' },
   manager: { bg: 'var(--dav-accent)', fg: '#1D1C19' },
   staff: { bg: '#EDE7DC', fg: '#57564f' },
+}
+const STATUS_PILL: Record<'active' | 'invited' | 'suspended', { label: string; bg: string; color: string }> = {
+  active:    { label: 'Aktív',    bg: '#E7F1E9', color: '#3B6B4B' },
+  invited:   { label: 'Meghívott', bg: '#EFF3FB', color: '#3B5BB5' },
+  suspended: { label: 'Inaktív',  bg: '#F1EEE6', color: '#86826F' },
 }
 
 const TAG_TONE: Record<string, { bg: string; fg: string }> = {
@@ -708,11 +730,14 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   const payVacHours = eff.vacationDays * 8
   const payTotal = payType === 'daily' ? (eff.daysWorked + eff.vacationDays) * payRate : (eff.hoursThisMonth + payVacHours) * payRate
   // A TULAJ saját adatlapját csak a tulaj (canEditSalary) szerkesztheti; a többi tagét tulaj/vezető.
-  const canEditProfile = variant === 'restaurant' && (isOwnerRow ? canEditSalary : canEditStatus)
+  // Szalonnál: canManage (tulaj/vezető) szerkeszthet bármely nem-tulaj staff adatlapot.
+  const canEditProfile = variant === 'restaurant'
+    ? (isOwnerRow ? canEditSalary : canEditStatus)
+    : isOwnerRow ? true : canManage
   const saveProfile = async (form: EditForm, history: HistEntry[]) => {
     setSavingProfile(true)
     try {
-      // ── A TULAJ saját adatlapja: FIÓK-szintre mentünk (nincs membership) — bér/pozíció/előzmény nélkül. ──
+      // ── Szalon/étterem TULAJ szerkesztése: fiók-szintű mentés (Users collection, nincs membership) ──
       if (isOwnerRow) {
         const res = await fetch('/api/user/profile', {
           method: 'PATCH',
@@ -743,6 +768,49 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             tax_id: form.tax_id,
             emergency_contact: form.emergency_contact,
             weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
+          },
+        }
+        setSavedOverride((prev) => ({ ...prev, [sel.id]: patch }))
+        onProfileChange?.(sel.id, patch)
+        setEditing(false)
+        toast.success('Mentve')
+        return
+      }
+      // ── Szalon staff mentése: /api/staff/[id] (nem membership) ──
+      if (variant === 'salon') {
+        const res = await fetch(`/api/staff/${sel.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: form.name.trim(),
+            phone: form.phone || null,
+            birthday: form.birthday || null,
+            join_date: form.join_date || null,
+            address: form.address || null,
+            tax_id: form.tax_id || null,
+            emergency_contact: form.emergency_contact || null,
+            weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
+            bio: form.bio || null,
+            role_title: form.position.trim() || null,
+            ...(canEditSalary ? { salary: form.pay_rate === '' ? null : Number(form.pay_rate) } : {}),
+          }),
+        })
+        if (!res.ok) throw new Error()
+        const patch: Partial<Employee> = {
+          name: form.name.trim(),
+          position: form.position.trim() || eff.position,
+          phone: form.phone,
+          note: form.bio,
+          hr: {
+            ...eff.hr,
+            birthday: form.birthday || null,
+            join_date: form.join_date || null,
+            address: form.address || null,
+            tax_id: form.tax_id || null,
+            emergency_contact: form.emergency_contact || null,
+            weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
+            ...(canEditSalary ? { salary: form.pay_rate === '' ? null : Number(form.pay_rate), pay_rate: form.pay_rate === '' ? null : Number(form.pay_rate) } : {}),
           },
         }
         setSavedOverride((prev) => ({ ...prev, [sel.id]: patch }))
@@ -812,7 +880,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   // ── Availability exceptions betöltése amikor szalon-variánsban változik a kiválasztott tag ──
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (variant !== 'salon' || !salonId || !sel?.id) return
+    if (variant !== 'salon' || !salonId || !sel?.id || sel.id === 'owner') return
     setCalSelDay(null)
     setCalEditState(null)
     setCalExceptions({})
@@ -1005,7 +1073,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                   variants={listItem}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.99 }}
-                  onClick={() => setSelId(c.id)}
+                  onClick={() => { setSelId(c.id); setEditing(false) }}
                   className={`w-full rounded-[22px] p-4 text-left transition-colors ${active ? 'bg-white shadow-dav-card ring-1 ring-line' : 'bg-[var(--dav-glass)] hover:bg-white'}`}
                 >
                   <div className="flex items-center gap-3">
@@ -1013,11 +1081,16 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={c.avatarUrl} alt={c.name} className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
                     ) : (
-                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[14px] font-semibold text-white" style={{ background: GRADS[[...c.id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % GRADS.length] }}>{monogram(c.name)}</span>
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                        <UserRound className="h-6 w-6 text-white/30" strokeWidth={1.2} />
+                      </span>
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[14px] font-semibold text-ink">{c.name}</p>
-                      <p className="truncate text-[12px] text-ink-soft">{c.position} · {ROLE_LABEL[c.roleTone]}</p>
+                      <div className="mt-0.5 flex items-center gap-1.5">
+                        {c.position && <p className="truncate text-[12px] text-ink-soft">{c.position}</p>}
+                        {(() => { const sp = STATUS_PILL[c.status ?? 'active']; return <span className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ background: sp.bg, color: sp.color }}>{sp.label}</span> })()}
+                      </div>
                     </div>
                     <ArrowUpRight className={`h-4 w-4 shrink-0 transition-colors ${active ? 'text-ink' : 'text-ink-soft'}`} />
                   </div>
@@ -1069,12 +1142,14 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
               data-wide={calSelDay && calEditState && variant === 'salon' && salonId ? 'true' : 'false'}
               transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
             >
-              <motion.div variants={detailItem} className="relative h-[240px] overflow-hidden rounded-[22px]" style={{ background: GRADS[0] }}>
+              <motion.div variants={detailItem} className="relative h-[240px] overflow-hidden rounded-[22px]" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                 {headAvatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={headAvatar} alt={headName ?? ''} className="h-full w-full object-cover object-top" />
                 ) : (
-                  <div className="flex h-full w-full items-center justify-center text-[64px] font-light text-white/90">{monogram(headName ?? sel.name)}</div>
+                  <div className="flex h-full w-full items-center justify-center">
+                    <UserRound className="h-20 w-20 text-white/30" strokeWidth={1.2} />
+                  </div>
                 )}
               </motion.div>
 
@@ -1176,6 +1251,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                   canEditSalary={canEditSalary}
                   isOwner={isOwnerRow}
                   saving={savingProfile}
+                  variant={variant}
                   onSave={saveProfile}
                   onCancel={() => setEditing(false)}
                 />
@@ -1187,7 +1263,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
                         <h2 className="text-[28px] font-semibold leading-tight text-ink">{headName}</h2>
-                        <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ background: role.bg, color: role.fg }}>{ROLE_LABEL[sel.roleTone]}</span>
+                        {(() => { const sp = STATUS_PILL[effStatus]; return <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ background: sp.bg, color: sp.color }}>{sp.label}</span> })()}
                         {eff.onVacation && (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D9EAD3] px-3 py-1 text-[12px] font-semibold text-[#3B6B4B]"><span className="h-2 w-2 rounded-full bg-[#4F9E6A]" />Szabadságon</span>
                         )}
@@ -1229,11 +1305,8 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       <p className="mt-1.5 text-[16px] text-ink-soft">{eff.position}</p>
                     </div>
                     <div className="flex shrink-0 gap-2 print:hidden">
-                      {canEditProfile && (
+                      {canEditProfile && !editing && (
                         <button type="button" onClick={() => setEditing(true)} title="Szerkesztés" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><Pencil className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
-                      )}
-                      {variant === 'salon' && onOpenEdit && (
-                        <button type="button" onClick={() => { onOpenEdit(sel.id); onClose?.() }} title="Profil szerkesztése" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><Pencil className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
                       )}
                       {variant === 'salon' && salonId && (
                         <button type="button" onClick={() => { const today = new Date().toISOString().split('T')[0]; handleCalDayClick(today); setTimeout(() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }} title="Ugrás a mai naphoz" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><CalendarDays className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
@@ -1295,8 +1368,8 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       <p className="mt-2 text-[19px] font-semibold text-ink">Összesen: {payTotal.toLocaleString('hu-HU')} Ft</p>
                     </div>
                   )}
-                  {/* Havi borravaló — MINDENKI látja (nem owner-only, nincs lakat); a napi összeg a Naptárból. */}
-                  {eff.hr?.tip_eligible && (
+                  {/* Havi borravaló — csak étteremnél (szalonnál nincs napi tip-bevitel). */}
+                  {variant === 'restaurant' && eff.hr?.tip_eligible && (
                     <div data-print-card className="mt-4 rounded-[16px] border border-line bg-[#EFEFEC] p-4">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">Havi borravaló</p>
                       <p className="mt-1 text-[19px] font-semibold text-ink">{(eff.tipsThisMonth ?? 0).toLocaleString('hu-HU')} Ft</p>

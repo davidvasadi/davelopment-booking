@@ -1,5 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
@@ -20,7 +20,7 @@ import type { Restaurant, Invoice } from '@/payload/payload-types'
 function icalUrl(type: string, id: string | number) {
   const secret = process.env.PAYLOAD_SECRET ?? 'dev-secret'
   const token = createHmac('sha256', secret).update(`ical-${type}-${id}`).digest('hex').slice(0, 24)
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
   return `${base}/api/ical?id=${id}&type=${type}&token=${token}`
 }
 
@@ -37,7 +37,7 @@ function planName(sub: { plan?: string | null; status?: string | null } | null):
 
 export default async function RestaurantSettingsPage() {
   const { restaurant, businessCount, userId, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'settings.profile', '/restaurant')
+  requireAnyCapability(capabilities, ['settings.profile', 'settings.own_profile'], '/restaurant')
   const payload = await getPayloadClient()
   const r = restaurant as Restaurant
 
@@ -164,10 +164,13 @@ export default async function RestaurantSettingsPage() {
             roles={businesses.map((b) => ({ type: b.type, name: b.name, roleName: b.roleName, isOwner: b.role === 'owner' }))}
           />
         }
-        apiBase={`/api/restaurants/${r.id}`}
+        apiBase="/api/restaurant/settings"
         notificationPrefs={{
           confirm_email: np.confirm_email ?? true,
           cancel_email: np.cancel_email ?? true,
+          modification_email: np.modification_email ?? false,
+          digest_morning_email: np.digest_morning_email ?? false,
+          digest_evening_email: np.digest_evening_email ?? false,
         }}
         bookingRules={{ auto_confirm: br.auto_confirm ?? true }}
         featureModules={{
@@ -196,9 +199,10 @@ export default async function RestaurantSettingsPage() {
         businessCount={businessCount}
         planLabel={plan}
         auditLog={auditLog}
+        myCapabilities={capabilities}
         customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
         icalUrl={icalUrl('restaurant', r.id)}
-        bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${(r as Restaurant & { slug?: string }).slug ?? r.id}/book`}
+        bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/${(r as Restaurant & { slug?: string }).slug ?? r.id}/book`}
         webhookUrl={(r as Restaurant & { webhook_url?: string | null }).webhook_url ?? null}
         rolesSection={
           <RolesManager
@@ -220,6 +224,7 @@ export default async function RestaurantSettingsPage() {
             coverImage={r.cover_image}
             initial={{
               name: r.name,
+              slug: (r as Restaurant & { slug?: string }).slug ?? '',
               city: r.city ?? '',
               address: r.address ?? '',
               phone: r.phone ?? '',
@@ -240,6 +245,8 @@ export default async function RestaurantSettingsPage() {
               reminder_email_intro: r.reminder_email_intro ?? '',
               feedback_email_subject: r.feedback_email_subject ?? '',
               feedback_email_intro: r.feedback_email_intro ?? '',
+              notify_email_subject: r.notify_email_subject ?? '',
+              notify_email_intro: r.notify_email_intro ?? '',
               email_show_phone: r.email_show_phone ?? true,
               email_contact_phone: r.email_contact_phone ?? '',
               email_show_email: r.email_show_email ?? false,

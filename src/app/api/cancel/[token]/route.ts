@@ -9,7 +9,7 @@ export async function GET(
   { params }: { params: Promise<{ token: string }> },
 ) {
   const { token } = await params
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
   // Opcionális sorozat-lemondás: ?scope=series → a token foglalásán túl a sorozat
   // JÖVŐBELI, nem lemondott alkalmait is lemondja. Hiánya → csak az egy alkalom (változatlan).
   const cancelSeries = _req.nextUrl.searchParams.get('scope') === 'series'

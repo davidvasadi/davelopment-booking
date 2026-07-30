@@ -6,7 +6,7 @@ import { AnimatePresence, motion, type Variants } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, ArrowRight, X, Sparkles, Check,
-  LayoutDashboard, CalendarDays, CalendarRange, Armchair, Briefcase, Users, Clock, BarChart2, Lightbulb, Settings,
+  LayoutDashboard, CalendarDays, CalendarRange, Armchair, Briefcase, Users, Clock, BarChart2, Lightbulb, Settings, Smartphone,
   type LucideIcon,
 } from 'lucide-react'
 import { TourPreview, type PreviewKey } from './TourPreview'
@@ -49,26 +49,28 @@ const STEPS: Record<Variant, Step[]> = {
     WELCOME,
     { icon: LayoutDashboard, title: 'Áttekintés', body: 'A kezdőképernyőd: a mai foglalások, a kihasználtság és a legfontosabb számok egy pillantásra.', previewKey: 'overview', href: '/restaurant' },
     { icon: CalendarDays, title: 'Foglalások', body: 'A nap vendégei lista- és idővonal-nézetben. Beeső és telefonos foglalást is rögzíthetsz, a napi listát ki is nyomtathatod.', previewKey: 'bookings', href: '/restaurant/bookings' },
-    { icon: CalendarRange, title: 'Naptár', body: 'Heti nézetben is átfuthatsz a közelgő foglalásokat — jól jön, ha előre tervezel, vagy egyszerre több napot szeretnél átnézni.', previewKey: 'schedule', href: '/restaurant/schedule' },
+    { icon: CalendarRange, title: 'Naptár', body: 'Havi nézetben tartod kézben a csapat beosztását — ki mikor dolgozik, ki van szabadságon, és egy napra kattintva a napi borravalót is rögzítheted.', previewKey: 'schedule', href: '/restaurant/schedule' },
     { icon: Armchair, title: 'Asztalok', body: 'Vedd fel az asztalaidat vagy egy egyszerű férőhely-számot — a rendszer ez alapján kezeli a kapacitást és az online foglalásokat.', previewKey: 'tables', href: '/restaurant/tables' },
     { icon: Users, title: 'Munkatársak', body: 'Add hozzá az alkalmazottaidat, rendeld hozzájuk a munkaidőt, és kövesd a borravaló-elosztást.', previewKey: 'staff', href: '/restaurant/staff' },
     { icon: Clock, title: 'Nyitvatartás', body: 'Állítsd be, mikor fogadsz vendégeket. Az online foglalás csak a nyitvatartáson belül lehetséges.', previewKey: 'hours', href: '/restaurant/availability' },
     { icon: BarChart2, title: 'Statisztikák', body: 'Kövesd a kihasználtságot, a lemondásokat és a beesők arányát — és exportálj CSV-be bármikor.', previewKey: 'analytics', href: '/restaurant/analytics' },
     { icon: Lightbulb, title: 'Tippek', body: 'A foglalási adataidból személyre szabott javaslatokat kapsz több foglaláshoz és jobb vendégélményhez.', previewKey: 'tips', href: '/restaurant/tips' },
     { icon: Settings, title: 'Beállítások', body: 'A profilod, az e-mailsablonok, a számlázás és a csapat jogosultságai — mindent egy helyen kezelhetsz.', previewKey: 'settings', href: '/restaurant/settings' },
+    { icon: Smartphone, title: 'Telepíthető alkalmazás', body: 'Telefonra és asztali gépre is felrakható appként — App Store nélkül, közvetlenül a böngészőből. Ikon kerül a főképernyőre, push értesítések is működnek.', previewKey: 'pwa', href: '/restaurant/settings?tab=notifications' },
     DONE('Jó munkát! ✨'),
   ],
   salon: [
     WELCOME,
     { icon: LayoutDashboard, title: 'Áttekintés', body: 'A kezdőképernyőd: a mai időpontok, a bevétel és a legfontosabb számok egy pillantásra.', previewKey: 'overview', href: '/dashboard' },
     { icon: CalendarDays, title: 'Időpontok', body: 'A foglalásaidat naptár- és listanézetben látod. Új időpontot kézzel is rögzíthetsz, az online foglalások automatikusan megjelennek.', previewKey: 'bookings', href: '/dashboard/bookings' },
-    { icon: CalendarRange, title: 'Naptár', body: 'Heti nézeten is átfuthatsz a közelgő időpontokon — gyorsan áttekintheted, mikor és kinél mi van.', previewKey: 'schedule', href: '/dashboard/schedule' },
+    { icon: CalendarRange, title: 'Naptár', body: 'Havi nézetben tartod kézben a csapat beosztását — ki mikor dolgozik, ki van szabadságon. Egy napra kattintva szerkeszted a műszakokat.', previewKey: 'schedule', href: '/dashboard/schedule' },
     { icon: Briefcase, title: 'Szolgáltatások', body: 'Vedd fel a szolgáltatásaidat árral és időtartammal — a vendégeid ezek alapján foglalnak online.', previewKey: 'services', href: '/dashboard/services' },
     { icon: Users, title: 'Munkatársak', body: 'Add hozzá a munkatársaidat, és rendeld hozzájuk a szolgáltatásokat, hogy foglaláskor választhatók legyenek.', previewKey: 'staff', href: '/dashboard/staff' },
     { icon: Clock, title: 'Nyitvatartás', body: 'A nyitvatartás és a munkatársak elérhetősége együtt határozza meg a foglalható időpontokat.', previewKey: 'hours', href: '/dashboard/availability' },
     { icon: BarChart2, title: 'Statisztikák', body: 'Kövesd a bevételt és a kihasználtságot, és exportálj CSV-be bármikor.', previewKey: 'analytics', href: '/dashboard/analytics' },
     { icon: Lightbulb, title: 'Tippek', body: 'A foglalási adataidból személyre szabott javaslatokat kapsz több foglaláshoz és jobb vendégélményhez.', previewKey: 'tips', href: '/dashboard/tips' },
     { icon: Settings, title: 'Beállítások', body: 'A profilod, az e-mailsablonok, a számlázás és a csapat jogosultságai — mindent egy helyen kezelhetsz.', previewKey: 'settings', href: '/dashboard/settings' },
+    { icon: Smartphone, title: 'Telepíthető alkalmazás', body: 'Telefonra és asztali gépre is felrakható appként — App Store nélkül, közvetlenül a böngészőből. Ikon kerül a főképernyőre, push értesítések is működnek.', previewKey: 'pwa', href: '/dashboard/settings?tab=notifications' },
     DONE('Sok sikert! ✨'),
   ],
 }
@@ -194,8 +196,8 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
       </button>
 
       {/* Tartalom */}
-      <div className="relative flex h-full flex-col items-center justify-center px-6">
-        <div className="w-full max-w-[400px] text-center">
+      <div className="relative flex h-full flex-col items-center justify-center px-4 py-8">
+        <div className="w-full max-w-[420px] rounded-[32px] border border-[rgba(120,110,70,.08)] bg-white/82 px-6 py-7 text-center shadow-[0_20px_60px_-20px_rgba(80,70,30,.22)]">
           <AnimatePresence mode="wait" custom={dir}>
             <motion.div
               key={index}
@@ -212,7 +214,7 @@ export function OnboardingTour({ variant, userId }: { variant: Variant; userId?:
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ type: 'spring', stiffness: 340, damping: 28, delay: 0.05 }}
               >
-                <TourPreview stepKey={step.previewKey} />
+                <TourPreview stepKey={step.previewKey} variant={variant} />
               </motion.div>
 
               <div className="mt-6 text-[11px] font-bold uppercase tracking-[0.16em] text-ink-soft2">

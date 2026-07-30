@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { SignJWT } from 'jose'
 import { v4 as uuid } from 'uuid'
+import crypto from 'crypto'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
 import { getUserBusinesses, businessKey, ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
@@ -45,8 +46,10 @@ export async function POST(req: NextRequest) {
     returning: false,
   })
 
-  // Use payload.secret directly — guarantees same key as Payload's jwtVerify
-  const secretKey = new TextEncoder().encode(payload.secret)
+  // Payload 3 a nyers PAYLOAD_SECRET SHA-256 hash-éből vett első 32 hex-karakterrel ír alá
+  // (ugyanaz a deriváció mint a getCurrentUser jwtVerify-ban — egységes kulcs).
+  const derived = crypto.createHash('sha256').update(process.env.PAYLOAD_SECRET ?? '').digest('hex').slice(0, 32)
+  const secretKey = new TextEncoder().encode(derived)
   const issuedAt = Math.floor(Date.now() / 1000)
 
   const token = await new SignJWT({ id: user.id, collection: 'users', email: user.email, sid })
@@ -79,10 +82,12 @@ export async function POST(req: NextRequest) {
   }
 
   const res = NextResponse.redirect(new URL(dest, baseUrl), { status: 303 })
+  const isProduction = process.env.NODE_ENV === 'production'
   res.cookies.set('payload-token', token, {
     httpOnly: true,
     path: '/',
     sameSite: 'lax',
+    secure: isProduction,
     maxAge: TOKEN_EXPIRATION,
   })
   if (activeKey) {
@@ -90,6 +95,7 @@ export async function POST(req: NextRequest) {
       httpOnly: true,
       path: '/',
       sameSite: 'lax',
+      secure: isProduction,
       maxAge: TOKEN_EXPIRATION,
     })
   }

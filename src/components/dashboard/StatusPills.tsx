@@ -19,12 +19,14 @@ export type StatusSeg = {
   value?: number
   /** A szám mögé írt egység (pl. „ fő"), csak `value` esetén. */
   suffix?: string
+  /** Ha megadod, ezt mutatja a pill belsejében (value/pct% helyett). '' = üres pill (csak szín). */
+  innerLabel?: string
 }
 
 const DURATION = 850 // ~ a recharts animationDuration
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
 
-export function StatusPills({ segments, className = '', eager = false }: { segments: StatusSeg[]; className?: string; eager?: boolean }) {
+export function StatusPills({ segments, className = '', eager = false, size = 'md' }: { segments: StatusSeg[]; className?: string; eager?: boolean; size?: 'sm' | 'md' }) {
   const [p, setP] = useState(0) // 0 → 1 haladás
   const raf = useRef(0)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -82,12 +84,16 @@ export function StatusPills({ segments, className = '', eager = false }: { segme
             minWidth: 64 * p,
           }}
         >
-          <p className="mb-2 truncate text-xs font-medium text-ink-soft" style={{ opacity: p }}>{s.label}</p>
+          <p className={`truncate text-xs font-medium text-ink-soft ${size === 'sm' ? 'mb-1' : 'mb-2'}`} style={{ opacity: p }}>{s.label}</p>
           <div
-            className={`flex h-11 items-center overflow-hidden whitespace-nowrap rounded-[21px] px-5 text-sm font-semibold ${s.align === 'end' ? 'justify-end' : 'justify-start'}`}
+            className={`flex items-center overflow-hidden whitespace-nowrap font-semibold ${size === 'sm' ? 'h-7 rounded-[14px] px-3 text-xs' : 'h-11 rounded-[21px] px-5 text-sm'} ${s.align === 'end' ? 'justify-end' : 'justify-start'}`}
             style={{ background: s.background, color: s.color, border: s.border }}
           >
-            {s.value != null ? `${Math.round(s.value * p)}${s.suffix ?? ''}` : `${Math.round(s.pct * p)}%`}
+            {s.innerLabel != null
+              ? s.innerLabel
+              : s.value != null
+                ? `${Math.round(s.value * p)}${s.suffix ?? ''}`
+                : `${Math.round(s.pct * p)}%`}
           </div>
         </div>
       ))}

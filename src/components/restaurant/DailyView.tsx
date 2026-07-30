@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback, Fragment } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -109,6 +109,8 @@ export interface DailyViewProps {
   /** A toolbar-ba ágyazott, csak ezen az oldalon használt vezérlők. */
   dateFilter: React.ReactNode
   printButton: React.ReactNode
+  /** Ha false, csak olvasható nézet — az Új foglalás gomb, szerkesztés és drag rejtve. */
+  canManage?: boolean
 }
 
 /** A belső nézetek (Timeline/Floor) propjai — csak az adat/geometria. */
@@ -179,7 +181,7 @@ export function DailyView(props: DailyViewProps) {
   const {
     date, restaurantId, eventTypes, rooms, tables, openMin, closeMin, turnMinutes, openReservationId,
     roomCount, tableCount, activeCount, completedCount, cancelledCount, walkInCount,
-    dateFilter, printButton,
+    dateFilter, printButton, canManage = false,
   } = props
   const [view, setView] = useState<ViewMode>('timeline')
   const [target, setTarget] = useState<EditTarget | null>(null)
@@ -230,9 +232,10 @@ export function DailyView(props: DailyViewProps) {
   }, [openReservationId, props.reservations])
 
   const router = useRouter()
-  const openEdit = (reservation: Reservation) => setTarget({ reservation })
-  const openCreate = (presetStart?: string, presetTableId?: string | number | null) =>
-    setTarget({ reservation: null, presetStart, presetTableId })
+  const openEdit = useCallback((reservation: Reservation) => { if (canManage) setTarget({ reservation }) }, [canManage])
+  const openCreate = (presetStart?: string, presetTableId?: string | number | null) => {
+    if (canManage) setTarget({ reservation: null, presetStart, presetTableId })
+  }
 
   // Foglalás áthelyezése drag&drop-ból: új időpont és/vagy asztal. A szerver validál
   // (ütközés, nyitvatartás, kapacitás) — hibánál a router.refresh visszaállítja az
@@ -324,13 +327,15 @@ export function DailyView(props: DailyViewProps) {
             ))}
           </div>
           {printButton}
-          <button
-            onClick={() => openCreate()}
-            className="inline-flex items-center gap-2 h-[42px] px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
-          >
-            <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
-            <span className="hidden sm:inline">Új foglalás</span>
-          </button>
+          {canManage && (
+            <button
+              onClick={() => openCreate()}
+              className="inline-flex items-center gap-2 h-[42px] px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
+            >
+              <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
+              <span className="hidden sm:inline">Új foglalás</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -372,6 +377,7 @@ export function DailyView(props: DailyViewProps) {
           onEdit={openEdit}
           onCreate={openCreate}
           onMove={moveReservation}
+          canManage={canManage}
         />
       )}
       {view === 'floor' && (
@@ -504,11 +510,12 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
 
 /* ---------- Timeline (asztal × idő rács) ---------- */
 function TimelineView({
-  date, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate, onMove,
+  date, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate, onMove, canManage = false,
 }: ViewProps & {
   onEdit: (r: Reservation) => void
   onCreate: (start?: string, tableId?: string | number | null) => void
   onMove: (r: Reservation, newStart: string, newTableId: string | number) => void
+  canManage?: boolean
 }) {
   const totalMin = Math.max(closeMin - openMin, 60)
   const nowMin = useNowMinutes(date)
@@ -548,7 +555,7 @@ function TimelineView({
       {/* Desktop: a teljes nap egy nézetben (százalékos) */}
       <div className="hidden lg:block">
         <TableGrid
-          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate, onMove }}
+          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate, onMove, canManage }}
           mode="fit"
         />
       </div>
@@ -729,7 +736,7 @@ function MobileTimeline({
  *  (desktop). A foglalás-blokkok tartalma közös. */
 const PX_PER_MIN = 2.4 // scroll módban 1 perc = 2.4px → 30 perc = 72px
 function TableGrid({
-  groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, mode, onEdit, onCreate, onMove,
+  groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, mode, onEdit, onCreate, onMove, canManage = false,
 }: {
   groups: TimelineGroup[]
   active: Reservation[]
@@ -745,6 +752,7 @@ function TableGrid({
   onEdit: (r: Reservation) => void
   onCreate: (start?: string, tableId?: string | number | null) => void
   onMove: (r: Reservation, newStart: string, newTableId: string | number) => void
+  canManage?: boolean
 }) {
   const fit = mode === 'fit'
   const labelW = 'w-[110px] sm:w-[150px]'
@@ -774,7 +782,7 @@ function TableGrid({
   const pendingRef = useRef<{ r: Reservation; init: DragState; startX: number; startY: number } | null>(null)
   // A blokk-kattintás utáni buborékoló `click`-et elnyomja a háttér-soron (ne hozzon létre újat).
   const blockNextRowClickRef = useRef(false)
-  const DRAG_THRESHOLD = 5
+  const DRAG_THRESHOLD = 8
 
   const xToMin = (clientX: number, rowEl: HTMLElement): number => {
     const rect = rowEl.getBoundingClientRect()
@@ -797,12 +805,20 @@ function TableGrid({
     const onPendingUp = () => {
       const p = pendingRef.current
       pendingRef.current = null
-      // Ha volt pending de sosem lett drag (küszöb alatt engedte fel) → kattintás = szerkesztés.
+      // Race condition: az onPendingMove elindította a dragot (dragRef.current = init, setDrag(init)),
+      // de a useEffect([drag]) aszinkron fut — az onUp handler még nem regisztrált a windowra,
+      // mire a pointerup megérkezik. Így dragRef bennragad nem-null állapotban, ami minden
+      // jövőbeli kattintást blokkol. Megoldjuk: ha itt dragRef be van állítva, mi takarítunk.
+      if (dragRef.current) {
+        dragRef.current = null
+        setDrag(null)
+        return
+      }
+      // Ha volt pending és nem lett drag → kattintás = szerkesztés.
       // A blokkra-kattintás után a böngésző egy `click`-et is kilő, ami a háttér-sor
       // onClick-jére (új foglalás) buborékolna — ezt a flaggel elnyomjuk.
-      if (p && !dragRef.current) {
+      if (p) {
         blockNextRowClickRef.current = true
-        // Ha valamiért nem jön buborékoló click, a flag ne ragadjon be.
         setTimeout(() => { blockNextRowClickRef.current = false }, 300)
         onEdit(p.r)
       }
@@ -847,10 +863,12 @@ function TableGrid({
       if (changed) onMove(cur.r, newStart, cur.tableId)
     }
     window.addEventListener('pointermove', onMoveEvt)
-    window.addEventListener('pointerup', onUp)
+    // Capture phase: onUp fut le ELSŐ, mielőtt a bubble-phase onPendingUp is tüzelne.
+    // Így drag végén onPendingUp már null dragRef-et lát, és nem zavarja a drag-logikát.
+    window.addEventListener('pointerup', onUp, { capture: true })
     return () => {
       window.removeEventListener('pointermove', onMoveEvt)
-      window.removeEventListener('pointerup', onUp)
+      window.removeEventListener('pointerup', onUp, { capture: true })
     }
   }, [drag, openMin, closeMin, totalMin, onMove])
 
@@ -1059,9 +1077,10 @@ function TableGrid({
                       return (
                         <button
                           key={r.id}
-                          onPointerDown={(ev) => { if (!draft) { ev.stopPropagation(); beginPointer(r, ev) } }}
-                          title={`${draft ? 'VÁZLAT — ' : 'Kattints a szerkesztéshez, vagy húzd át másik időpontra/asztalra · '}${r.customer_name} · ${r.pax} fő · ${r.start_time}–${r.end_time} · ${urgency ? urgency.label : statusLabel[r.status]}`}
-                          className={`absolute top-[7px] bottom-[7px] rounded-[11px] border px-[11px] text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 transition-all ${draft ? 'border-2 border-dashed border-gold bg-gold/[0.18] text-ink-dark cursor-default' : `${statusBlock[r.status]} cursor-grab active:cursor-grabbing hover:brightness-[1.06]`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
+                          type="button"
+                          onPointerDown={(ev) => { if (!draft && canManage) { ev.stopPropagation(); beginPointer(r, ev) } }}
+                          title={`${draft ? 'VÁZLAT — ' : canManage ? 'Kattints a szerkesztéshez, vagy húzd át másik időpontra/asztalra · ' : ''}${r.customer_name} · ${r.pax} fő · ${r.start_time}–${r.end_time} · ${urgency ? urgency.label : statusLabel[r.status]}`}
+                          className={`absolute top-[7px] bottom-[7px] rounded-[11px] border px-[11px] text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 transition-all ${draft ? 'border-2 border-dashed border-gold bg-gold/[0.18] text-ink-dark cursor-default' : `${statusBlock[r.status]} ${canManage ? 'cursor-grab active:cursor-grabbing hover:brightness-[1.06]' : 'cursor-default'}`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
                           style={{ left: `calc(${left(s)} + 2px)`, width: `calc(${span(dur)} - 4px)`, touchAction: 'none' }}
                         >
                           {tiny ? (

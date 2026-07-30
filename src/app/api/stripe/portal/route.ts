@@ -6,7 +6,7 @@ import { findAccountSubscription } from '@/lib/accountSubscription'
 
 export const dynamic = 'force-dynamic'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 /**
  * Stripe Billing Portal session indítása. A portál a Stripe-hoszt oldala, ahol a fizető ügyfél

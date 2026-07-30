@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
+import { emitBookingChange } from '@/lib/sseEmitter'
 import type { Membership, Salon, Restaurant, Role } from '@/payload/payload-types'
 import type { User } from '@/payload/payload-types'
 import type { TeamRole } from '@/lib/permissions'
@@ -100,6 +101,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       }
     }
 
+    emitBookingChange({ kind: loaded.bizType as 'salon' | 'restaurant', businessId: String(loaded.bizId), op: 'update' })
     return NextResponse.json({ ok: true })
   }
 
@@ -166,6 +168,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     return NextResponse.json({ error: 'Nincs menthető mező' }, { status: 400 })
   }
   await loaded.payload.update({ collection: 'memberships', id, overrideAccess: true, user, data: data as never })
+  emitBookingChange({ kind: loaded.bizType as 'salon' | 'restaurant', businessId: String(loaded.bizId), op: 'update' })
   return NextResponse.json({ ok: true })
 }
 
@@ -182,24 +185,23 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 
   await loaded.payload.delete({ collection: 'memberships', id, overrideAccess: true, user })
 
-  // SZINKRON: szalon-tagnál a párosított `staff` rekord (Munkatársak) is törlődik, hogy ne
-  // maradjon árva. Best-effort — nem blokkolja a választ. (Étteremnél nincs külön staff-rekord.)
+  // SZINKRON: szalon-tagnál a párosított `staff` rekord (Munkatársak) is törlődik.
   if (loaded.bizType === 'salon' && mail) {
-    try {
-      const res = await loaded.payload.find({
-        collection: 'staff',
-        where: { and: [{ salon: { equals: loaded.bizId } }, { email: { equals: mail } }] },
-        limit: 10,
-        depth: 0,
-        overrideAccess: true,
-      })
-      for (const s of res.docs) {
-        await loaded.payload.delete({ collection: 'staff', id: s.id, overrideAccess: true, user })
-      }
-    } catch (e) {
-      console.error('[team/members DELETE] staff-szinkron törlés sikertelen', e)
-    }
+    const salonNum = /^\d+$/.test(String(loaded.bizId)) ? Number(loaded.bizId) : loaded.bizId
+    const res = await loaded.payload.find({
+      collection: 'staff',
+      where: { and: [{ salon: { equals: salonNum } }, { email: { equals: mail } }] },
+      limit: 20,
+      depth: 0,
+      overrideAccess: true,
+    })
+    await Promise.all(
+      res.docs.map((s) =>
+        loaded.payload.delete({ collection: 'staff', id: s.id, overrideAccess: true, user }),
+      ),
+    )
   }
 
+  emitBookingChange({ kind: loaded.bizType as 'salon' | 'restaurant', businessId: String(loaded.bizId), op: 'delete' })
   return NextResponse.json({ ok: true })
 }

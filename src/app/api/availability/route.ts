@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 
-async function ownsThisSalon(
+async function canPostToSalon(
   payload: Awaited<ReturnType<typeof getPayloadClient>>,
   user: { id: string | number; role?: string },
   salonId: unknown,
@@ -13,10 +13,19 @@ async function ownsThisSalon(
   try {
     const salon = await payload.findByID({ collection: 'salons', id: sid as string | number, depth: 0, overrideAccess: true })
     const ownerId = salon?.owner && typeof salon.owner === 'object' ? (salon.owner as { id: unknown }).id : salon?.owner
-    return String(ownerId) === String(user.id)
+    if (String(ownerId) === String(user.id)) return true
   } catch {
     return false
   }
+  // Tagok (manager/staff) is módosíthatják az elérhetőséget — a tagság alapján engedélyezzük.
+  const memRes = await payload.find({
+    collection: 'memberships',
+    where: { and: [{ salon: { equals: sid } }, { user: { equals: user.id } }] },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  return memRes.totalDocs > 0
 }
 
 /**
@@ -42,6 +51,8 @@ export async function GET(request: NextRequest) {
         if (value === 'true') parsed = true
         else if (value === 'false') parsed = false
         else if (value !== '' && !isNaN(Number(value))) parsed = Number(value)
+        // Non-numeric staff/member id (pl. 'owner') → skip, különben NaN kerül a DB-be
+        if (field === 'staff' && typeof parsed === 'string') return
         ;(where[field] as Record<string, unknown>)[op] = parsed
       }
     }
@@ -74,8 +85,8 @@ export async function POST(request: NextRequest) {
   if (!salonId) return NextResponse.json({ error: 'salon kötelező' }, { status: 400 })
 
   const payload = await getPayloadClient()
-  const owns = await ownsThisSalon(payload, user, salonId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const canPost = await canPostToSalon(payload, user, salonId)
+  if (!canPost) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
 
   try {
     const doc = await payload.create({

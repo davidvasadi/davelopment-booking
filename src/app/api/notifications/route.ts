@@ -15,10 +15,14 @@ async function placeFilter(user: User): Promise<Where | null> {
   if (user.role === 'admin') return { audience: { equals: 'admin' } }
 
   const { active } = await getActiveBusiness(user)
-  if (!active) return null
-  const id: string | number = /^\d+$/.test(active.id) ? Number(active.id) : active.id
-  const place: Where = active.type === 'salon' ? { salon: { equals: id } } : { restaurant: { equals: id } }
-  return { and: [place, { audience: { equals: 'owner' } }] }
+  // user-célzott értesítések (alkalmazotti digest) mindig látszanak, üzlettől függetlenül.
+  const or: Where['or'] = [{ user: { equals: user.id } }]
+  if (active) {
+    const id: string | number = /^\d+$/.test(active.id) ? Number(active.id) : active.id
+    const place: Where = active.type === 'salon' ? { salon: { equals: id } } : { restaurant: { equals: id } }
+    or.push({ and: [place, { audience: { equals: 'owner' } }] })
+  }
+  return { or }
 }
 
 // GET — legutóbbi értesítések + olvasatlan számláló

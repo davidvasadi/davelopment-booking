@@ -18,7 +18,7 @@ import {
   COLORS,
 } from '@/lib/emailLayout'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 function mediaUrl(field: string | Media | null | undefined): string | null {
   const url = field && typeof field === 'object' ? (field as Media).url : null

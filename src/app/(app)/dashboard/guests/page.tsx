@@ -1,5 +1,6 @@
 import { getOwnedSalon } from '@/lib/salonContext'
 import { requireCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
 import { aggregateGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
@@ -172,6 +173,7 @@ export default async function SalonGuestsPage() {
       buckets={buckets}
       mapLabel="Honnan érkeznek"
       mapEmpty={mapEmpty}
+      canManage={can(capabilities, 'guests.manage')}
     />
   )
 }

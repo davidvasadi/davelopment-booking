@@ -1,5 +1,6 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { requireCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { ReservationDateFilter } from '@/components/restaurant/ReservationDateFilter'
 import { DailyView } from '@/components/restaurant/DailyView'
@@ -119,14 +120,16 @@ export default async function RestaurantBookingsPage({
         completedCount={completedCount}
         cancelledCount={cancelledCount}
         walkInCount={walkInCount}
-        dateFilter={<ReservationDateFilter currentDate={selectedDate} />}
+        dateFilter={<ReservationDateFilter key="date-filter" currentDate={selectedDate} />}
         printButton={
           <PrintDayButton
+            key="print-btn"
             date={selectedDate}
             restaurantName={restaurant.name}
             reservations={reservations}
           />
         }
+        canManage={can(capabilities, 'bookings.manage')}
       />
       <WaitlistPanel restaurantId={restaurant.id} />
     </div>

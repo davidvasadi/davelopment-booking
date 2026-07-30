@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bell, Users, Star, Repeat, Check, ChevronDown, ExternalLink, type LucideIcon } from 'lucide-react'
+import { Bell, Star, Check, ChevronDown, ExternalLink, type LucideIcon } from 'lucide-react'
 
 /**
  * FOGLALÁSI FUNKCIÓK — kapcsolható modulok (Crextio design, 1:1 a
@@ -127,33 +127,10 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
   return <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#A29B82]">{children}</div>
 }
 
-/* ── al-sor: „automatikus előléptetés" stílusú beágyazott toggle-sor ── */
-function InlineToggleRow({
-  title,
-  desc,
-  on,
-  onToggle,
-}: {
-  title: string
-  desc: string
-  on: boolean
-  onToggle: () => void
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4 rounded-[16px] border border-line bg-[#FBF9F2] px-4 py-3.5">
-      <div>
-        <div className="text-[13.5px] font-medium text-ink">{title}</div>
-        <div className="mt-0.5 text-[11.5px] text-ink-soft">{desc}</div>
-      </div>
-      <Toggle on={on} onClick={onToggle} label={`${title} be/ki`} />
-    </div>
-  )
-}
 
 type Feats = {
   reminders: { on: boolean; times: { h24: boolean; h3: boolean; h1: boolean }; channels: { email: boolean; push: boolean } }
-  waitlist: { on: boolean; autoPromote: boolean }
-  recurring: { on: boolean; freq: 'weekly' | 'biweekly' | 'monthly' }
+  // delay: csak lokális UI-állapot, nincs séma-mezője → nem menti az API
   reviews: { on: boolean; delay: 'h1' | 'h2' | 'next'; googleUrl: string }
 }
 
@@ -164,9 +141,6 @@ function featsFrom(fm: FeatureModules): Feats {
       times: { h24: fm.reminder_t_24h, h3: fm.reminder_t_3h, h1: fm.reminder_t_1h },
       channels: { email: fm.reminder_ch_email, push: fm.reminder_ch_push },
     },
-    waitlist: { on: fm.waitlist_on, autoPromote: fm.waitlist_auto_promote },
-    // freq/delay-nek nincs séma-mezője → lokális UI-state alapérték.
-    recurring: { on: fm.recurring_on, freq: 'weekly' },
     reviews: { on: fm.reviews_on, delay: 'h2', googleUrl: fm.google_review_url ?? '' },
   }
 }
@@ -179,9 +153,9 @@ function featsToModules(f: Feats): FeatureModules {
     reminder_t_24h: f.reminders.times.h24,
     reminder_t_3h: f.reminders.times.h3,
     reminder_t_1h: f.reminders.times.h1,
-    waitlist_on: f.waitlist.on,
-    waitlist_auto_promote: f.waitlist.autoPromote,
-    recurring_on: f.recurring.on,
+    waitlist_on: false,
+    waitlist_auto_promote: false,
+    recurring_on: false,
     reviews_on: f.reviews.on,
     google_review_url: f.reviews.googleUrl.trim() || null,
   }
@@ -206,8 +180,6 @@ export function BookingFeatures({
   const [feats, setFeats] = useState<Feats>(
     initial ? featsFrom(initial) : {
       reminders: { on: true, times: { h24: true, h3: true, h1: false }, channels: { email: true, push: false } },
-      waitlist: { on: true, autoPromote: true },
-      recurring: { on: true, freq: 'weekly' },
       reviews: { on: true, delay: 'h2', googleUrl: '' },
     },
   )
@@ -352,50 +324,6 @@ export function BookingFeatures({
           </div>
         </ModuleCard>
 
-        {/* ── Várólista ── */}
-        <ModuleCard
-          icon={Users}
-          title="Várólista"
-          desc="Telt házkor automatikus sorba állítás"
-          on={feats.waitlist.on}
-          onToggle={() => update((f) => ({ ...f, waitlist: { ...f.waitlist, on: !f.waitlist.on } }))}
-        >
-          <InlineToggleRow
-            title="Automatikus előléptetés"
-            desc="Lemondáskor értesíti a következőt a listáról"
-            on={feats.waitlist.autoPromote}
-            onToggle={() =>
-              update((f) => ({ ...f, waitlist: { ...f.waitlist, autoPromote: !f.waitlist.autoPromote } }))
-            }
-          />
-        </ModuleCard>
-
-        {/* ── Ismétlődő foglalás ── */}
-        <ModuleCard
-          icon={Repeat}
-          title="Ismétlődő foglalás"
-          desc={isSalon ? 'Rendszeres időpontok visszatérő vendégeknek' : 'Rendszeres asztalfoglalás törzsvendégeknek'}
-          on={feats.recurring.on}
-          onToggle={() => update((f) => ({ ...f, recurring: { ...f.recurring, on: !f.recurring.on } }))}
-        >
-          <GroupLabel>Alapértelmezett gyakoriság</GroupLabel>
-          <div className="flex flex-wrap gap-2.5">
-            {([
-              ['weekly', 'Hetente'],
-              ['biweekly', 'Kéthetente'],
-              ['monthly', 'Havonta'],
-            ] as const).map(([k, l]) => (
-              <Chip
-                key={k}
-                on={feats.recurring.freq === k}
-                onClick={() => update((f) => ({ ...f, recurring: { ...f.recurring, freq: k } }))}
-              >
-                {l}
-              </Chip>
-            ))}
-          </div>
-        </ModuleCard>
-
         {/* ── Értékelések ── */}
         <ModuleCard
           icon={Star}
@@ -414,7 +342,7 @@ export function BookingFeatures({
               <Chip
                 key={k}
                 on={feats.reviews.delay === k}
-                onClick={() => update((f) => ({ ...f, reviews: { ...f.reviews, delay: k } }))}
+                onClick={() => setFeats((f) => ({ ...f, reviews: { ...f.reviews, delay: k } }))}
               >
                 {l}
               </Chip>

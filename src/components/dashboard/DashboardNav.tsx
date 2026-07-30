@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, X } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -98,7 +98,7 @@ export function DashboardNav({
   /** Az aktív üzlet "<type>:<id>" kulcsa. */
   activeBusinessKey?: string | null
 }) {
-  const { publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
+  const { publicUrlPrefix, settingsHref, subscriptionHref, notificationsHref } = getNavConfig(variant)
   const navItems = navItemsForCapabilities(variant, capabilities)
   const pathname = usePathname()
   const router = useRouter()
@@ -126,6 +126,18 @@ export function DashboardNav({
   const collapsible = variant === 'restaurant' || variant === 'backstage'
   const { navCollapsed, toggleNav } = useRestaurantUI()
   const collapsed = collapsible && navCollapsed
+
+  // Mobil súgó-kereső — csak /help oldalon jelenik meg; animált bővülő mező.
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpQuery, setHelpQuery] = useState('')
+  const helpInputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (!pathname.endsWith('/help')) { setHelpOpen(false); setHelpQuery(''); return }
+    window.dispatchEvent(new CustomEvent('davelopment:help-search', { detail: helpQuery }))
+  }, [helpQuery, pathname])
+  useEffect(() => {
+    if (helpOpen) { const t = setTimeout(() => helpInputRef.current?.focus(), 60); return () => clearTimeout(t) }
+  }, [helpOpen])
 
   const isActive = (href: string, exact?: boolean) =>
     exact ? pathname === href : pathname.startsWith(href)
@@ -328,6 +340,8 @@ export function DashboardNav({
             collapsed={collapsed}
             subscriptionHref={subscriptionHref}
             settingsHref={settingsHref}
+            capabilities={isBackstage ? undefined : capabilities}
+            notificationsHref={isBackstage ? undefined : notificationsHref}
           />
         </div>
 
@@ -358,6 +372,12 @@ export function DashboardNav({
       {/* Crextio-stílus: NINCS tömör sáv/határvonal — a fejléc a krém gradiensen ül, a
           gombok lebegő fehér KÖRÖK (üveg + lágy árnyék + blur), mint a referencia „←" ikon.
           A cím középen marad (kompakt sáv-elrendezés). */}
+      {helpOpen && (
+        <div
+          className="lg:hidden fixed inset-0 z-[39]"
+          onClick={() => { setHelpOpen(false); setHelpQuery('') }}
+        />
+      )}
       <header className="lg:hidden relative z-40 px-3 h-16 flex items-center justify-between gap-2 shrink-0">
         <button
           type="button"
@@ -394,8 +414,66 @@ export function DashboardNav({
               <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
             </button>
           )}
+          {/* Súgó kereső — csak /help oldalon; kattintásra animáltan kinyílik. */}
+          {pathname.endsWith('/help') && (
+            <motion.div
+              className="flex items-center overflow-hidden rounded-full bg-[var(--dav-glass-strong)] backdrop-blur-lg shadow-[0_2px_8px_rgba(0,0,0,.05)]"
+              animate={{ width: helpOpen ? 200 : 52 }}
+              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+              style={{ height: 52 }}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                {helpOpen ? (
+                  <motion.div
+                    key="help-open"
+                    className="flex items-center w-full px-3 gap-2"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.1 }}
+                  >
+                    <Search className="shrink-0 h-[18px] w-[18px] text-ink-soft" strokeWidth={2} />
+                    <input
+                      ref={helpInputRef}
+                      type="text"
+                      value={helpQuery}
+                      onChange={(e) => setHelpQuery(e.target.value)}
+                      onBlur={() => { setHelpOpen(false); setHelpQuery('') }}
+                      onKeyDown={(e) => { if (e.key === 'Escape') { setHelpOpen(false); setHelpQuery('') } }}
+                      placeholder="Keresés…"
+                      className="flex-1 min-w-0 bg-transparent text-sm text-ink placeholder:text-ink-soft outline-none"
+                    />
+                    {helpQuery && (
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); setHelpQuery('') }}
+                        className="shrink-0 flex items-center justify-center h-5 w-5 rounded-full text-ink-soft"
+                        aria-label="Keresés törlése"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </motion.div>
+                ) : (
+                  <motion.button
+                    key="help-closed"
+                    type="button"
+                    onClick={() => setHelpOpen(true)}
+                    aria-label="Keresés a súgóban"
+                    className="flex items-center justify-center h-[52px] w-[52px] text-ink outline-none active:scale-95"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.1 }}
+                  >
+                    <Search className="h-[19px] w-[19px]" strokeWidth={2} />
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
           {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
-              (csengő = értesítések, avatar = fiók-menü → Saját profil). */}
+              (csengő = értesítések, avatar = fiók-menü → üzletváltó + Saját profil). */}
           {!isBackstage && (
             <UserMenu
               name={userName}
@@ -405,6 +483,10 @@ export function DashboardNav({
               subscriptionHref={subscriptionHref}
               settingsHref={settingsHref}
               publicUrl={`/${salonSlug}`}
+              capabilities={capabilities}
+              notificationsHref={notificationsHref}
+              businesses={businesses}
+              activeBusinessKey={activeBusinessKey}
             />
           )}
         </div>

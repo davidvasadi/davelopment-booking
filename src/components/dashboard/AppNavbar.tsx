@@ -64,7 +64,7 @@ export function AppNavbar({
   businesses?: SwitcherBusiness[]
   activeBusinessKey?: string | null
 }) {
-  const { publicUrlPrefix, settingsHref, subscriptionHref } = getNavConfig(variant)
+  const { publicUrlPrefix, settingsHref, subscriptionHref, notificationsHref } = getNavConfig(variant)
   const items = navItemsForCapabilities(variant, capabilities)
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -74,6 +74,7 @@ export function AppNavbar({
 
   // A „Beállítások" a jobb oldali fogaskerékre kerül; a pill-navban a többi elem.
   // A pill-nav ~6 elemre van tervezve — a többi egy „Több" legördülőbe kerül, hogy ne lógjon ki.
+  const showSettings = variant === 'backstage' || items.some((it) => it.href === settingsHref)
   const allPill = items.filter((it) => it.href !== settingsHref)
   const PRIMARY_MAX = 4
   const pillItems = allPill.slice(0, PRIMARY_MAX)
@@ -87,9 +88,11 @@ export function AppNavbar({
   const settingsActive = isActive(settingsHref)
 
   return (
-    // relative z-50: a nav (és a legördülői/popoverei) a tartalom fölé kerüljön. Kell, mert a
-    // nav és a foglalás-kártyák is backdrop-filteres stacking contextek → a később jövő kártya
-    // különben rárajzolódna a „Több" legördülőre / UserMenu popoverre.
+    <>
+    {/* Backdrop — kattintásra bezárja a „Több" lenyílót; z-[49] a nav z-50 alatt van. */}
+    {moreOpen && (
+      <div className="fixed inset-0 z-[49]" aria-hidden onClick={() => setMoreOpen(false)} />
+    )}
     <div className="relative z-50 hidden lg:flex items-center justify-between gap-4">
       {/* Bal: brand */}
       <Link
@@ -180,19 +183,21 @@ export function AppNavbar({
 
       {/* Jobb: Beállítás (Crextio: fehér pill ikon+felirat) + csengő + avatar */}
       <div className="flex items-center gap-2.5 shrink-0">
-        <Link
-          href={settingsHref}
-          data-tour={settingsHref}
-          aria-label="Beállítások"
-          title="Beállítások"
-          className={cn(
-            'flex h-[52px] shrink-0 items-center gap-2 rounded-[30px] px-[22px] text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors backdrop-blur-lg',
-            settingsActive ? 'bg-ink-dark text-white' : 'bg-[var(--dav-glass-strong)] text-ink hover:bg-white/70',
-          )}
-        >
-          <Settings className="h-[16px] w-[16px]" strokeWidth={2} />
-          Beállítások
-        </Link>
+        {showSettings && (
+          <Link
+            href={settingsHref}
+            data-tour={settingsHref}
+            aria-label="Beállítások"
+            title="Beállítások"
+            className={cn(
+              'flex h-[52px] shrink-0 items-center gap-2 rounded-[30px] px-[22px] text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors backdrop-blur-lg',
+              settingsActive ? 'bg-ink-dark text-white' : 'bg-[var(--dav-glass-strong)] text-ink hover:bg-white/70',
+            )}
+          >
+            <Settings className="h-[16px] w-[16px]" strokeWidth={2} />
+            Beállítások
+          </Link>
+        )}
 
         <UserMenu
           name={userName}
@@ -205,8 +210,11 @@ export function AppNavbar({
           csvHref={variant === 'backstage' ? undefined : csvHref}
           businesses={businesses}
           activeBusinessKey={activeBusinessKey}
+          capabilities={variant === 'backstage' ? undefined : capabilities}
+          notificationsHref={variant === 'backstage' ? undefined : notificationsHref}
         />
       </div>
     </div>
+    </>
   )
 }

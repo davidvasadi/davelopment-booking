@@ -4,7 +4,8 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { validateManualReservation } from '@/lib/restaurantBooking'
-import { sendReservationConfirmation, sendReservationNotification } from '@/lib/restaurantEmail'
+import { sendReservationConfirmation, sendReservationModification } from '@/lib/restaurantEmail'
+import { sendPushToUsers } from '@/lib/webPush'
 import type { User, Restaurant, Reservation } from '@/payload/payload-types'
 
 /**
@@ -128,6 +129,11 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       user,
     })
+    // Módosítás email a vendégnek (ha be van kapcsolva és van megadott email).
+    const updatedRes = updated as unknown as Reservation
+    if (restaurant.notification_prefs?.modification_email !== false && updatedRes.customer_email) {
+      void sendReservationModification({ reservation: updatedRes, restaurant })
+    }
     return NextResponse.json({ ok: true, reservation: updated })
   }
 
@@ -153,8 +159,23 @@ export async function POST(req: NextRequest) {
   if (created.customer_email && restaurant.notification_prefs?.confirm_email !== false) {
     void sendReservationConfirmation({ reservation: created as Reservation, restaurant })
   }
-  // Értesítő a szolgáltatónak: az üzlet e-mail címére, vagy ha üres, a tulaj fiók-emailjére.
-  void sendReservationNotification({ reservation: created as Reservation, restaurant }, user.email)
+  // Nincs owner email új éttermi foglalásra — a digest összefoglalja a napot.
+  // Azonnali push a tulajdonosnak + aktív tagoknak.
+  const restOwnerId = restaurant.owner != null ? (typeof restaurant.owner === 'object' ? (restaurant.owner as { id: string | number }).id : restaurant.owner) : null
+  if (restOwnerId) {
+    const members = await payload.find({
+      collection: 'memberships',
+      where: { and: [{ restaurant: { equals: restaurant.id } }, { status: { equals: 'active' } }] },
+      limit: 100, depth: 0, overrideAccess: true,
+    })
+    const memberUserIds = members.docs.map((m) => m.user).filter(Boolean) as (string | number)[]
+    void sendPushToUsers(payload, [restOwnerId, ...memberUserIds], {
+      title: `Új foglalás – ${restaurant.name}`,
+      body: `${created.customer_name} · ${created.date} ${created.start_time} · ${created.pax} fő`,
+      url: '/restaurant/bookings',
+      tag: `new-booking-${String(created.id)}`,
+    })
+  }
 
   return NextResponse.json({ ok: true, reservation: created })
 }

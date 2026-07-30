@@ -69,16 +69,17 @@ export function PopupModal({
             className={`relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:rounded-[26px] ${maxWidth}`}
           >
             {/* Fejléc (fix) */}
-            <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 px-5 py-4 sm:px-6">
+            <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-light tracking-[-0.02em] text-ink">{title}</h2>
-                {subtitle && <p className="mt-0.5 text-xs text-zinc-500">{subtitle}</p>}
+                {subtitle && <p className="mt-0.5 text-xs text-ink-soft2">{subtitle}</p>}
               </div>
               <button
                 type="button"
                 onClick={onClose}
                 aria-label="Bezárás"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper"
+                style={{ background: '#EFEFEC' }}
               >
                 <X className="h-4 w-4" />
               </button>

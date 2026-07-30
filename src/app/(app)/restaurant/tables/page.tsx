@@ -7,7 +7,7 @@ import { PageHeader } from '@/components/ui/page-header'
 
 export default async function RestaurantTablesPage() {
   const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'catalog.view', '/restaurant')
+  requireCapability(capabilities, 'tables.view', '/restaurant')
   const payload = await getPayloadClient()
 
   const [roomsRes, tablesRes] = await Promise.all([

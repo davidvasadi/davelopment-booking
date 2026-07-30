@@ -1,6 +1,7 @@
 import type { CollectionConfig } from 'payload'
 import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
+import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
 import { revalidateOnReservationChange, revalidateOnReservationDelete } from '../hooks/revalidateRestaurant'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
@@ -154,8 +155,8 @@ export const Reservations: CollectionConfig = {
         return data
       },
     ],
-    afterChange: [notifyOnBooking('restaurant'), revalidateOnReservationChange, auditAfterChange('Asztalfoglalás', 'restaurant')],
-    afterDelete: [revalidateOnReservationDelete, auditAfterDelete('Asztalfoglalás', 'restaurant')],
+    afterChange: [notifyOnBooking('restaurant'), sseAfterChange('restaurant'), revalidateOnReservationChange, auditAfterChange('Asztalfoglalás', 'restaurant')],
+    afterDelete: [sseAfterDelete('restaurant'), revalidateOnReservationDelete, auditAfterDelete('Asztalfoglalás', 'restaurant')],
   },
   timestamps: true,
 }

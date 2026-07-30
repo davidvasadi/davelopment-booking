@@ -48,7 +48,7 @@ function Wheel({
   return (
     <div className="relative h-[180px] flex-1">
       {/* középső kiemelő sáv */}
-      <div className="pointer-events-none absolute inset-x-1 top-1/2 z-0 h-9 -translate-y-1/2 rounded-lg bg-zinc-100 dark:bg-white/[0.08]" />
+      <div className="pointer-events-none absolute inset-x-1 top-1/2 z-0 h-9 -translate-y-1/2 rounded-lg bg-paper" />
       <div
         ref={ref}
         onScroll={handleScroll}
@@ -65,9 +65,7 @@ function Wheel({
             style={{ height: ITEM_H }}
             className={cn(
               'flex w-full snap-center items-center justify-center text-base tabular-nums transition-colors',
-              it === value
-                ? 'font-bold text-zinc-900 dark:text-white'
-                : 'text-zinc-300 dark:text-white/25'
+              it === value ? 'font-bold text-ink' : 'text-ink-soft2/50'
             )}
           >
             {it}
@@ -196,7 +194,7 @@ export function TimeSelect({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-sm tabular-nums text-zinc-900 transition-colors hover:border-zinc-300 dark:border-white/[0.1] dark:bg-white/[0.06] dark:text-white dark:hover:border-white/[0.2]',
+          'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-line-strong bg-white px-3 text-sm tabular-nums text-ink transition-colors hover:border-ink-soft2',
           disabled && 'cursor-not-allowed opacity-50'
         )}
       >
@@ -208,11 +206,11 @@ export function TimeSelect({
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left }}
-          className="z-[100] w-[140px] overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-white/[0.1] dark:bg-zinc-900"
+          className="z-[100] w-[140px] overflow-hidden rounded-xl border border-line bg-white shadow-dav-container"
         >
           <div className="flex">
             <Wheel items={hours.length ? hours : HOURS} value={h} onChange={(nh) => onChange(`${nh}:${m}`)} />
-            <div className="flex items-center text-base font-bold text-zinc-300 dark:text-white/20">:</div>
+            <div className="flex items-center text-base font-bold text-ink-soft2/40">:</div>
             <Wheel items={minutesFor.length ? minutesFor : MINUTES} value={m} onChange={(nm) => onChange(`${h}:${nm}`)} />
           </div>
         </div>,

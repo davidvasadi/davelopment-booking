@@ -22,6 +22,7 @@ export type TimelineBlock = {
   source: string
   occasion?: string | null
   occasionIcon?: string | null
+  subline?: string | null // ha megadott, felülírja a "N fő · HH:MM" sort
 }
 export type TimelineRow = { table: string; label?: string; blocks: TimelineBlock[] }
 
@@ -38,6 +39,7 @@ export function OverviewTimeline({
   initialWin,
   dayLabel,
   allHref = '/restaurant/bookings',
+  title = 'Közelgő foglalások',
 }: {
   rows: TimelineRow[]
   hourMin: number
@@ -45,6 +47,7 @@ export function OverviewTimeline({
   initialWin: number
   dayLabel: string
   allHref?: string
+  title?: string
 }) {
   const maxStart = Math.max(hourMin, hourMax - WIN)
   const [winStart, setWinStart] = useState(() => Math.min(Math.max(initialWin, hourMin), maxStart))
@@ -83,7 +86,7 @@ export function OverviewTimeline({
           </button>
         </div>
         <div className="min-w-0 flex-1 text-center">
-          <div className="truncate text-[19px] font-medium text-ink">Közelgő foglalások</div>
+          <div className="truncate text-[19px] font-medium text-ink">{title}</div>
           <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">
             {dayLabel} <span className="text-ink-soft2">|</span> {pad(winStart)}:00 – {pad(winStart + WIN)}:00
           </div>
@@ -256,7 +259,7 @@ function ReservationBlock({
           {b.name}{b.occasion && (() => { const OccIcon = eventIconByKey(b.occasionIcon); return <OccIcon className="ml-1 h-3 w-3 shrink-0" /> })()}
         </div>
         <div className={`truncate text-[10px] ${freedEarly ? 'text-ink-soft2' : tone.sub}`}>
-          {freedEarly ? 'korán zárt · felszabadult' : `${b.pax} fő · ${fmt(b.startMin)}`}
+          {freedEarly ? 'korán zárt · felszabadult' : (b.subline ?? `${b.pax} fő · ${fmt(b.startMin)}`)}
         </div>
       </div>
       {/* Létszám-jelző. SZŰK blokk → egyetlen, fix méretű „+N" kör (nem deformál). */}

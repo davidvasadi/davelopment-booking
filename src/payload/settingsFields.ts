@@ -40,6 +40,9 @@ export const settingsExtensionFields: Field[] = [
     fields: [
       { name: 'confirm_email', type: 'checkbox', defaultValue: true },
       { name: 'cancel_email', type: 'checkbox', defaultValue: true },
+      { name: 'modification_email', type: 'checkbox', defaultValue: false, label: 'Módosítás email a vendégnek' },
+      { name: 'digest_morning_email', type: 'checkbox', defaultValue: false, label: 'Reggeli összefoglaló (szalon)' },
+      { name: 'digest_evening_email', type: 'checkbox', defaultValue: false, label: 'Esti összefoglaló (szalon)' },
       // DEPRECATED (2026-07-08): az emlékeztető/visszajelzés gazdája a Funkciók oldal
       // (`feature_modules`). A mezők megmaradnak (adatvesztés/migráció nélkül), de az app
       // már NEM olvassa/írja őket — nincs dupla-gate. Törölni majd külön migrációval lehet.
@@ -69,7 +72,7 @@ export const settingsExtensionFields: Field[] = [
       { name: 'reminders_on', type: 'checkbox', defaultValue: true },
       { name: 'reminder_ch_email', type: 'checkbox', defaultValue: true },
       { name: 'reminder_ch_push', type: 'checkbox', defaultValue: false },
-      { name: 'reminder_t_24h', type: 'checkbox', defaultValue: true },
+      { name: 'reminder_t_24h', type: 'checkbox', defaultValue: false },
       { name: 'reminder_t_3h', type: 'checkbox', defaultValue: true },
       { name: 'reminder_t_1h', type: 'checkbox', defaultValue: false },
       { name: 'waitlist_on', type: 'checkbox', defaultValue: false },
@@ -115,4 +118,5 @@ export const emailTemplateFields: Field[] = [
   ...emailContentPair('cancel', 'Lemondó'),
   ...emailContentPair('reminder', 'Emlékeztető'),
   ...emailContentPair('feedback', 'Visszajelzés-kérő'),
+  ...emailContentPair('notify', 'Értesítő (tulajdonosnak)'),
 ]

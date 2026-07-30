@@ -18,8 +18,8 @@ const labelClass = 'text-[12.5px] font-medium text-ink-soft'
 
 /** A szerkeszthető vendég-emailek — mindegyik tárgya + bevezetője nyelvenként. A `state`
  *  a /api/email-preview vázát választja; a `*_email_*` mezők a `LocalizedValues` kulcsai. */
-type SubjectField = 'booking_email_subject' | 'cancel_email_subject' | 'reminder_email_subject' | 'feedback_email_subject'
-type IntroField = 'booking_email_intro' | 'cancel_email_intro' | 'reminder_email_intro' | 'feedback_email_intro'
+type SubjectField = 'booking_email_subject' | 'cancel_email_subject' | 'reminder_email_subject' | 'feedback_email_subject' | 'notify_email_subject'
+type IntroField = 'booking_email_intro' | 'cancel_email_intro' | 'reminder_email_intro' | 'feedback_email_intro' | 'notify_email_intro'
 type EmailTypeDef = {
   key: string
   state: string
@@ -59,6 +59,13 @@ const EMAIL_TYPES: EmailTypeDef[] = [
     subjectPh: 'Milyen volt nálunk?',
     introPh: 'Kedves {{name}}!\n\nReméljük jól érezted magad. Mondd el a véleményed!',
     hint: 'A látogatás után megy ki — a „Foglalási funkciók" szekcióban kapcsolható be.',
+  },
+  {
+    key: 'notify', state: 'notify', label: 'Értesítő',
+    subjectField: 'notify_email_subject', introField: 'notify_email_intro',
+    subjectPh: 'Új foglalás: {{name}} — {{date}} {{time}}',
+    introPh: 'Új foglalás érkezett. Kérlek ellenőrizd és készülj fel!',
+    hint: 'A tulajdonosnak (+ szakembernek) megy ki minden új foglalásnál. Az alapértelmezett tárgy és szöveg akkor is küld, ha üresen hagyod.',
   },
 ]
 

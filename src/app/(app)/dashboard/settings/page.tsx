@@ -1,5 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
@@ -20,7 +20,7 @@ import type { Invoice } from '@/payload/payload-types'
 function icalUrl(type: string, id: string | number) {
   const secret = process.env.PAYLOAD_SECRET ?? 'dev-secret'
   const token = createHmac('sha256', secret).update(`ical-${type}-${id}`).digest('hex').slice(0, 24)
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
   return `${base}/api/ical?id=${id}&type=${type}&token=${token}`
 }
 
@@ -37,7 +37,7 @@ function planName(sub: { plan?: string | null; status?: string | null } | null):
 
 export default async function SettingsPage() {
   const { salon, businessCount, capabilities } = await getOwnedSalon(1)
-  requireCapability(capabilities, 'settings.profile', '/dashboard')
+  requireAnyCapability(capabilities, ['settings.profile', 'settings.own_profile'], '/dashboard')
   const payload = await getPayloadClient()
   const user = await requireAuth()
 
@@ -168,17 +168,20 @@ export default async function SettingsPage() {
             roles={businesses.map((b) => ({ type: b.type, name: b.name, roleName: b.roleName, isOwner: b.role === 'owner' }))}
           />
         }
-        apiBase={`/api/salons/${salon.id}`}
+        apiBase="/api/salon/settings"
         notificationPrefs={{
           confirm_email: np.confirm_email ?? true,
           cancel_email: np.cancel_email ?? true,
+          modification_email: np.modification_email ?? false,
+          digest_morning_email: np.digest_morning_email ?? false,
+          digest_evening_email: np.digest_evening_email ?? false,
         }}
         bookingRules={{ auto_confirm: br.auto_confirm ?? true }}
         featureModules={{
           reminders_on: fm.reminders_on ?? true,
           reminder_ch_email: fm.reminder_ch_email ?? true,
           reminder_ch_push: fm.reminder_ch_push ?? false,
-          reminder_t_24h: fm.reminder_t_24h ?? true,
+          reminder_t_24h: fm.reminder_t_24h ?? false,
           reminder_t_3h: fm.reminder_t_3h ?? true,
           reminder_t_1h: fm.reminder_t_1h ?? false,
           waitlist_on: fm.waitlist_on ?? false,
@@ -200,9 +203,10 @@ export default async function SettingsPage() {
         businessCount={businessCount}
         planLabel={plan}
         auditLog={auditLog}
+        myCapabilities={capabilities}
         customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
         icalUrl={icalUrl('salon', salon.id)}
-        bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${salon.slug}/book`}
+        bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/${salon.slug}/book`}
         webhookUrl={(salon as unknown as { webhook_url?: string | null }).webhook_url ?? null}
         rolesSection={
           <RolesManager

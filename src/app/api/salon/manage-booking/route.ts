@@ -4,7 +4,8 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
-import { sendBookingConfirmation, sendNewBookingNotification } from '@/lib/email'
+import { sendBookingConfirmation, sendNewBookingNotification, sendBookingModification } from '@/lib/email'
+import { sendPushToUsers } from '@/lib/webPush'
 import type { User, Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
 /**
@@ -146,6 +147,13 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       user,
     })
+    // Módosítás email a vendégnek (ha be van kapcsolva és van email).
+    if (salon.notification_prefs?.modification_email !== false) {
+      const updatedBooking = updated as unknown as Booking
+      if (updatedBooking.customer_email) {
+        void sendBookingModification({ booking: updatedBooking, salon, service, staff })
+      }
+    }
     return NextResponse.json({ ok: true, booking: updated })
   }
 
@@ -171,6 +179,16 @@ export async function POST(req: NextRequest) {
   }
   // Értesítő a szolgáltatónak: az üzlet e-mail címére, vagy ha üres, a tulaj fiók-emailjére.
   void sendNewBookingNotification(emailData, user.email)
+  // Azonnali push a tulajdonosnak.
+  const ownerId = salon.owner != null ? (typeof salon.owner === 'object' ? (salon.owner as { id: string | number }).id : salon.owner) : null
+  if (ownerId) {
+    void sendPushToUsers(payload, [ownerId], {
+      title: `Új foglalás – ${salon.name}`,
+      body: `${created.customer_name} · ${created.date} ${created.start_time}`,
+      url: '/dashboard/bookings',
+      tag: `new-booking-${String(created.id)}`,
+    })
+  }
 
   return NextResponse.json({ ok: true, booking: created })
 }

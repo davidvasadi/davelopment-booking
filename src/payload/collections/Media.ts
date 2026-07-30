@@ -1,5 +1,15 @@
 import path from 'path'
-import { CollectionConfig } from 'payload'
+import type { CollectionConfig } from 'payload'
+
+// Dev-ben a Payload a feltöltés pillanatában érvényes serverURL-t menti az adatbázisba.
+// Ha portot váltottunk (pl. 3000→3001), a tárolt URL-ek elavulnak. Ez a hook minden
+// Media-olvasáskor normalizálja az URL-eket az aktuális NEXT_PUBLIC_APP_URL-re.
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+const fixUrl = (url: string | null | undefined): string | null | undefined => {
+  if (!url || process.env.NODE_ENV !== 'development') return url
+  if (!/^http:\/\/localhost:\d+/.test(url)) return url
+  return url.replace(/^http:\/\/localhost:\d+/, APP_URL)
+}
 
 export const Media: CollectionConfig = {
   slug: 'media',
@@ -66,6 +76,21 @@ export const Media: CollectionConfig = {
         name: 'large',
         width: 1200,
         formatOptions: { format: 'webp', options: { quality: 82 } },
+      },
+    ],
+  },
+  hooks: {
+    afterRead: [
+      ({ doc }) => {
+        if (process.env.NODE_ENV !== 'development') return doc
+        if (doc.url) doc.url = fixUrl(doc.url)
+        if (doc.thumbnailURL) doc.thumbnailURL = fixUrl(doc.thumbnailURL)
+        if (doc.sizes && typeof doc.sizes === 'object') {
+          for (const size of Object.values(doc.sizes as Record<string, { url?: string | null }>)) {
+            if (size?.url) size.url = fixUrl(size.url) ?? size.url
+          }
+        }
+        return doc
       },
     ],
   },

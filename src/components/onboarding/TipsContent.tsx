@@ -4,14 +4,15 @@ import { useState, useEffect, useMemo, useCallback } from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  Lightbulb, ChevronDown, Search, ArrowRight, X, Sparkles, type LucideIcon,
+  Lightbulb, ChevronDown, Search, ArrowRight, Sparkles, type LucideIcon,
 } from 'lucide-react'
 import {
   CalendarDays, Briefcase, Users, Clock, Settings, BarChart2, Armchair, LayoutDashboard, Printer, Bell,
-  MapPin, CalendarRange, CreditCard, Coins,
+  MapPin, CalendarRange, CreditCard, Coins, Smartphone,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { popItem, expandHeight } from '@/lib/motion'
+import type { Capability } from '@/lib/permissions'
 
 /**
  * SÚGÓ / rendszer-tájékoztató — kereshető, akkordeonos tudásbázis a bejelentkezett
@@ -99,6 +100,20 @@ const TIPS: Record<Variant, Tip[]> = {
       linkLabel: 'Megnyitom az Asztalokat',
     },
     {
+      id: 'schedule-own',
+      icon: CalendarRange,
+      title: 'Saját műszakaim',
+      body: 'A Naptárban megtekintheted a saját beosztásodat — mikor van műszakod, szabadnapod, szabadságod.',
+      details: 'Munkatársként a Naptár a személyes nézetedet mutatja: az adott hónapban melyik napokon vagy beosztva. A saját celláidra kattintva látod a pontos kezdési és zárási időt.',
+      bullets: [
+        'Havi nézetben látod, melyik napokon van műszakod.',
+        'Zöld jelzés = beosztott műszak; szürke = szabad; piros = betegség/egyéb távollét.',
+        'Ha hiányos vagy hibás a beosztásod, a felelős menedzseredet keresd.',
+      ],
+      href: '/restaurant/schedule',
+      linkLabel: 'Megnyitom a Naptáramat',
+    },
+    {
       id: 'schedule',
       icon: CalendarRange,
       title: 'Naptár és beosztás',
@@ -129,13 +144,28 @@ const TIPS: Record<Variant, Tip[]> = {
     {
       id: 'staff',
       icon: Users,
-      title: 'Munkatársak',
-      body: 'A csapat tagjait itt kezeled: beosztás, szerepkör, jogosultságok és teljesítmény egy helyen.',
-      details: 'A munkatársakhoz szerepkört (tulajdonos / menedzser / munkatárs) és jogosultságokat rendelsz, és innen nyílik meg az egyéni profil a teljesítménnyel és a borravaló-jogosultsággal.',
+      title: 'Munkatársak megtekintése',
+      body: 'A csapat tagjait, beosztásukat és teljesítményüket látod egy helyen.',
+      details: 'A Munkatársak oldalon áttekinted, ki van a csapatban: neve, szerepköre, a következő műszakja és az elvégzett foglalások száma. Az egyéni profilra kattintva a részletes teljesítményt és a havi borravalót is látod.',
       bullets: [
-        'Tag meghívása e-mailben; a szerepkör dönti el, ki mit láthat és módosíthat.',
-        'A profil drill-down mutatja a teljesítményt, óraszámot és a havi borravalót.',
-        'A borravalóra jogosultságot csak a tulajdonos kapcsolhatja.',
+        'Csapat-lista a szerepkörrel és az aktuális státusszal (aktív / felfüggesztett).',
+        'A profilra kattintva látod az elvégzett foglalásokat, az értékeléseket és a borravalót.',
+        'A beosztás és az elérhetőség a Naptár oldalon szerkeszthető.',
+      ],
+      href: '/restaurant/staff',
+      linkLabel: 'Megnyitom a Munkatársakat',
+    },
+    {
+      id: 'staff-manage',
+      icon: Users,
+      title: 'Munkatársak kezelése',
+      body: 'Tagok meghívása, szerepkör és jogosultságok beállítása, profil szerkesztése.',
+      details: 'A csapatkezelés — meghívás, jogosultság, borravaló-jogosultság — kizárólag tulajdonos/menedzser jogosultsággal érhető el. Minden egyes tag jogosultságát külön-külön szabhatod testre.',
+      bullets: [
+        'Tag meghívása e-mailben; a meghívó elfogadásakor automatikusan létrejön a profil.',
+        'Szerepkör: a szerepkör alapértelmezett jogosultságot ad; ezenkívül egyéni képességeket is hozzárendelhetsz.',
+        'A borravalóra jogosultságot csak a tulajdonos kapcsolhatja be/ki.',
+        'Felfüggesztett tag nem tud belépni, de az adatai megmaradnak.',
       ],
       href: '/restaurant/staff',
       linkLabel: 'Megnyitom a Munkatársakat',
@@ -199,16 +229,45 @@ const TIPS: Record<Variant, Tip[]> = {
     {
       id: 'notifications',
       icon: Bell,
-      title: 'Értesítések',
-      body: 'Új foglalásról és lemondásról a harang ikonnál kapsz értesítést. A Beállításoknál kapcsolhatod ki/be.',
-      details: 'Az értesítések gondoskodnak róla, hogy ne maradj le egy új foglalásról vagy lemondásról sem, akkor sem, ha épp nem a foglalási oldalt nézed.',
+      title: 'Értesítések fogadása',
+      body: 'Új foglalásról és lemondásról a harang ikonnál kapsz értesítést.',
+      details: 'Az értesítések gondoskodnak róla, hogy ne maradj le egy új foglalásról vagy lemondásról sem, akkor sem, ha épp nem a foglalási oldalt nézed. A fejléc csengő ikonja mutatja az olvasatlanokat.',
       bullets: [
-        'A fejléc harang ikonján piros jelzés mutatja az olvasatlanokat.',
-        'E-mail értesítést is kérhetsz az új foglalásokról.',
-        'A Beállításokban szabályozhatod, miről és hogyan kérsz értesítést.',
+        'A fejléc csengő ikonján piros jelzés mutatja az olvasatlan értesítéseket.',
+        'Kattintásra az értesítési panel nyílik — olvasott/olvasatlan, törlés, részletek.',
+        'A rendszer azonnal küld értesítést, amint új foglalás vagy lemondás érkezik.',
       ],
       href: '/restaurant/settings',
       linkLabel: 'Megnyitom a Beállításokat',
+    },
+    {
+      id: 'notifications-manage',
+      icon: Bell,
+      title: 'Értesítési beállítások',
+      body: 'E-mail és push értesítések konfigurálása — ki kap értesítést és miről.',
+      details: 'Az értesítési beállításokban szabályozod, milyen csatornán (push / e-mail) és miről (új foglalás, lemondás, emlékeztető) kapsz értesítést. Ezek egyénenként konfigurálhatók.',
+      bullets: [
+        'Push értesítés: böngészőből vagy mobilon is megérkezik, ha engedélyezed.',
+        'E-mail értesítés: minden új foglalásról vagy lemondásról a beállított e-mail-re megy.',
+        'A beállítások a Beállítások → Értesítések fülön érhetők el.',
+      ],
+      href: '/restaurant/settings',
+      linkLabel: 'Megnyitom a Beállításokat',
+    },
+    {
+      id: 'pwa',
+      icon: Smartphone,
+      title: 'Alkalmazásként telepíthető',
+      body: 'A rendszer telefonra és asztali gépre is felrakható appként — App Store nélkül, közvetlenül a böngészőből.',
+      details: 'Nincs letöltés az App Store-ból vagy Google Play-ből. A böngészőből egyetlen lépéssel kerül ki az ikon a főképernyőre vagy az asztalra. Megnyitva úgy működik, mint egy natív app: nincs böngésző-sáv, teljes képernyős, gyorsabb. Asztali Chrome/Edge-en is ugyanígy telepíthető — saját ablakban nyílik meg.',
+      bullets: [
+        'iPhone / Safari: a képernyő alján a Megosztás (□↑) gombra koppints, majd válaszd a „Főképernyőhöz adás" lehetőséget.',
+        'Android / Chrome: a jobb felső három pontos menüre koppints, majd „Alkalmazás telepítése" vagy „Főképernyőhöz adás".',
+        'Asztali Chrome / Edge (Mac és Windows): a cím-sor jobb oldalán megjelenik egy telepítés-ikon — arra kattintva saját ablakban fut az app.',
+        'Telepítés után a push értesítések is bekapcsolhatók a Beállítások → Értesítések fülön.',
+      ],
+      href: '/restaurant/settings?tab=notifications',
+      linkLabel: 'Megnyitom az Értesítéseket',
     },
     {
       id: 'settings',
@@ -286,16 +345,45 @@ const TIPS: Record<Variant, Tip[]> = {
     {
       id: 'staff',
       icon: Users,
-      title: 'Munkatársak',
-      body: 'Add hozzá a munkatársaidat, és rendeld hozzájuk a szolgáltatásokat, hogy foglaláskor választhatók legyenek.',
-      details: 'Ha többen dolgoztok, a munkatársakhoz rendelt szolgáltatások alapján a vendég kiválaszthatja, kihez szeretne menni.',
+      title: 'Munkatársak megtekintése',
+      body: 'A csapat tagjait, beosztásukat és teljesítményüket látod egy helyen.',
+      details: 'A Munkatársak oldalon látod, ki van a csapatban: neve, szerepköre, a következő műszakja és az elvégzett foglalások száma. Az egyéni profilra kattintva a részletes teljesítményt is megtekintheted.',
       bullets: [
-        'Minden munkatárshoz hozzárendeled, mely szolgáltatásokat végzi.',
-        'A foglalási oldalon a vendég választhat munkatársat, vagy rábízhatja a szalonra.',
-        'A beosztás és az elérhetőség munkatársanként külön kezelhető.',
+        'Csapat-lista a szerepkörrel és az aktuális státusszal (aktív / felfüggesztett).',
+        'A profilra kattintva látod az elvégzett foglalásokat, értékeléseket.',
+        'A beosztás és az elérhetőség a Naptár oldalon szerkeszthető.',
       ],
       href: '/dashboard/staff',
       linkLabel: 'Megnyitom a Munkatársakat',
+    },
+    {
+      id: 'staff-manage',
+      icon: Users,
+      title: 'Munkatársak kezelése',
+      body: 'Tagok meghívása, szolgáltatás-hozzárendelés, szerepkör és jogosultságok beállítása.',
+      details: 'A csapatkezelés — meghívás, jogosultság, szolgáltatás-hozzárendelés — kizárólag tulajdonos/menedzser jogosultsággal érhető el.',
+      bullets: [
+        'Tag meghívása e-mailben; a meghívó elfogadásakor automatikusan létrejön a profil.',
+        'Szerepkör: a szerepkör alapértelmezett jogosultságot ad; egyéni képességek is hozzárendelhetők.',
+        'Minden munkatárshoz hozzárendeled, mely szolgáltatásokat végzi — ezek foglaláskor választhatók.',
+        'A foglalási oldalon a vendég kiválaszthatja a munkatársat, vagy rábízhatja a szalonra.',
+      ],
+      href: '/dashboard/staff',
+      linkLabel: 'Megnyitom a Munkatársakat',
+    },
+    {
+      id: 'schedule-own',
+      icon: CalendarRange,
+      title: 'Saját műszakaim',
+      body: 'A Naptárban megtekintheted a saját beosztásodat — mikor van műszakod, szabadnapod, szabadságod.',
+      details: 'Munkatársként a Naptár a személyes nézetedet mutatja: az adott hónapban melyik napokon vagy beosztva. A saját celláidra kattintva látod a pontos kezdési és zárási időt.',
+      bullets: [
+        'Havi nézetben látod, melyik napokon van műszakod.',
+        'Zöld jelzés = beosztott műszak; szürke = szabad; piros = betegség/egyéb távollét.',
+        'Ha hiányos vagy hibás a beosztásod, a felelős menedzseredet keresd.',
+      ],
+      href: '/dashboard/schedule',
+      linkLabel: 'Megnyitom a Naptáramat',
     },
     {
       id: 'schedule',
@@ -370,16 +458,45 @@ const TIPS: Record<Variant, Tip[]> = {
     {
       id: 'notifications',
       icon: Bell,
-      title: 'Értesítések',
-      body: 'Új foglalásról és lemondásról a harang ikonnál kapsz értesítést. A Beállításoknál kapcsolhatod ki/be.',
-      details: 'Az értesítések gondoskodnak róla, hogy ne maradj le egy új foglalásról vagy lemondásról sem.',
+      title: 'Értesítések fogadása',
+      body: 'Új foglalásról és lemondásról a harang ikonnál kapsz értesítést.',
+      details: 'Az értesítések gondoskodnak róla, hogy ne maradj le egy új foglalásról vagy lemondásról sem. A fejléc csengő ikonja mutatja az olvasatlanokat.',
       bullets: [
-        'A fejléc harang ikonján piros jelzés mutatja az olvasatlanokat.',
-        'E-mail értesítést is kérhetsz az új foglalásokról.',
-        'A Beállításokban szabályozhatod, miről és hogyan kérsz értesítést.',
+        'A fejléc csengő ikonján piros jelzés mutatja az olvasatlan értesítéseket.',
+        'Kattintásra az értesítési panel nyílik — olvasott/olvasatlan, törlés, részletek.',
+        'A rendszer azonnal küld értesítést, amint új foglalás vagy lemondás érkezik.',
       ],
       href: '/dashboard/settings',
       linkLabel: 'Megnyitom a Beállításokat',
+    },
+    {
+      id: 'notifications-manage',
+      icon: Bell,
+      title: 'Értesítési beállítások',
+      body: 'E-mail és push értesítések konfigurálása — ki kap értesítést és miről.',
+      details: 'Az értesítési beállításokban szabályozod, milyen csatornán (push / e-mail) és miről (új foglalás, lemondás, emlékeztető) kapsz értesítést. Ezek egyénenként konfigurálhatók.',
+      bullets: [
+        'Push értesítés: böngészőből vagy mobilon is megérkezik, ha engedélyezed.',
+        'E-mail értesítés: minden új foglalásról vagy lemondásról a beállított e-mail-re megy.',
+        'A beállítások a Beállítások → Értesítések fülön érhetők el.',
+      ],
+      href: '/dashboard/settings',
+      linkLabel: 'Megnyitom a Beállításokat',
+    },
+    {
+      id: 'pwa',
+      icon: Smartphone,
+      title: 'Appként a telefonodra',
+      body: 'A rendszer telepíthető a telefonod főképernyőjére — ikon kerül oda, és push értesítések is bekapcsolhatók.',
+      details: 'Nincs letöltés az App Store-ból vagy Google Play-ből — a böngészőből egyetlen lépéssel kerül ki az ikon a főképernyőre. Megnyitva úgy működik, mint egy natív app: nincs böngésző-sáv, teljes képernyős, gyorsabb.',
+      bullets: [
+        'iPhone / Safari: a képernyő alján a Megosztás (□↑) gombra koppints, majd válaszd a „Főképernyőhöz adás" lehetőséget.',
+        'Android / Chrome: a jobb felső három pontos menüre koppints, majd „Alkalmazás telepítése" vagy „Főképernyőhöz adás".',
+        'Asztali Chrome / Edge: a cím-sor jobb oldalán megjelenik egy telepítés-ikon — arra kattintva felrakható.',
+        'Telepítés után a push értesítések is bekapcsolhatók a Beállítások → Értesítések fülön.',
+      ],
+      href: '/dashboard/settings?tab=notifications',
+      linkLabel: 'Megnyitom az Értesítéseket',
     },
     {
       id: 'settings',
@@ -413,6 +530,37 @@ const TIPS: Record<Variant, Tip[]> = {
   ],
 }
 
+/**
+ * Capability-térkép tip-id → szükséges jogosultság.
+ * Ha egy id nincs itt, mindenki láthatja (pl. overview, notifications).
+ */
+const TIP_REQUIRED_CAP: Record<string, Capability | Capability[]> = {
+  bookings:       ['bookings.view', 'bookings.manage'],
+  print:          ['bookings.view', 'bookings.manage'],
+  tables:         ['tables.view', 'tables.manage'],
+  services:       ['catalog.view', 'catalog.manage'],
+  'schedule-own': ['schedule.view.own', 'schedule.manage.own'],
+  schedule:       'schedule.manage',
+  'tips-money':   'schedule.manage',
+  staff:                  ['staff.view', 'staff.manage'],
+  'staff-manage':         'staff.manage',
+  guests:                 ['guests.view', 'guests.manage'],
+  availability:           'settings.profile',
+  analytics:              'analytics.view',
+  tips:                   'tips.view',
+  notifications:          ['notifications.view', 'notifications.manage'],
+  'notifications-manage': 'notifications.manage',
+  settings:               'settings.profile',
+  subscription:           'billing.manage',
+}
+
+function tipVisible(id: string, caps: Capability[]): boolean {
+  const req = TIP_REQUIRED_CAP[id]
+  if (!req) return true
+  if (Array.isArray(req)) return req.some((c) => caps.includes(c))
+  return caps.includes(req)
+}
+
 /** Ékezet-érzéketlen, kisbetűs normalizálás a kereséshez. */
 function normalize(s: string) {
   return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -423,9 +571,9 @@ function normalize(s: string) {
 type GroupId = 'daily' | 'setup' | 'growth'
 
 const GROUP_OF: Record<string, GroupId> = {
-  overview: 'daily', bookings: 'daily', print: 'daily', guests: 'daily',
-  services: 'setup', tables: 'setup', schedule: 'setup', staff: 'setup',
-  availability: 'setup', notifications: 'setup', settings: 'setup',
+  overview: 'daily', bookings: 'daily', print: 'daily', guests: 'daily', 'schedule-own': 'daily',
+  services: 'setup', tables: 'setup', schedule: 'setup', staff: 'setup', 'staff-manage': 'setup',
+  availability: 'setup', notifications: 'setup', 'notifications-manage': 'setup', pwa: 'setup', settings: 'setup',
   tips: 'growth', analytics: 'growth', 'tips-money': 'growth', subscription: 'growth',
 }
 
@@ -435,10 +583,21 @@ const GROUPS: { id: GroupId; label: string; tile: string; iconColor: string }[] 
   { id: 'growth', label: 'Növekedés & elemzés', tile: 'bg-[#1D9D63]/10', iconColor: 'text-[#1D9D63]' },
 ]
 
-export function TipsContent({ variant }: { variant: Variant }) {
-  const tips = TIPS[variant]
+export function TipsContent({ variant, capabilities }: { variant: Variant; capabilities?: Capability[] }) {
+  const allTips = TIPS[variant]
+  // Capability-szűrés: csak azok a témák láthatók, amelyekhez van joga a usernek.
+  const tips = useMemo(
+    () => capabilities ? allTips.filter((t) => tipVisible(t.id, capabilities)) : allTips,
+    [allTips, capabilities],
+  )
   const [query, setQuery] = useState('')
   const [openIds, setOpenIds] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    const onSearch = (e: Event) => setQuery((e as CustomEvent<string>).detail ?? '')
+    window.addEventListener('davelopment:help-search', onSearch)
+    return () => window.removeEventListener('davelopment:help-search', onSearch)
+  }, [])
 
   const toggle = useCallback((id: string) => {
     setOpenIds((cur) => {
@@ -492,28 +651,6 @@ export function TipsContent({ variant }: { variant: Variant }) {
           </button>
         }
       />
-
-      {/* ── Kereső ── */}
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" strokeWidth={1.8} />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Keresés a súgóban…"
-          className="h-12 w-full rounded-[18px] border border-line bg-white pl-11 pr-11 text-sm text-ink placeholder:text-ink-soft focus:border-line-strong focus:outline-none focus:ring-2 focus:ring-gold/40 transition-all"
-        />
-        {query && (
-          <button
-            type="button"
-            onClick={() => setQuery('')}
-            aria-label="Keresés törlése"
-            className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper hover:text-ink"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
-      </div>
 
       {filtered.length === 0 ? (
         <div className="rounded-[26px] border border-dashed border-line-strong bg-white/50 py-14 text-center">

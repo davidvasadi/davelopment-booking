@@ -29,6 +29,7 @@ import {
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
+import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
 import { BillingPortalButton } from '@/components/dashboard/BillingPortalButton'
 import { PricingCards } from '@/components/dashboard/PricingCards'
 import { StripeCheckoutButton } from '@/components/dashboard/StripeCheckoutButton'
@@ -36,12 +37,16 @@ import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscript
 import type { AccountBilling } from '@/lib/accountBilling'
 import type { Pricing } from '@/lib/pricing'
 import type { Subscription } from '@/payload/payload-types'
+import { can, type Capability } from '@/lib/permissions'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
-// Értesítések = CSAK tranzakciós email (emlékeztető/visszajelzés a Funkciók gazdája).
+// Értesítések = tranzakciós emailek. Az emlékeztető/visszajelzés a Funkciók gazdája.
 export type NotificationPrefs = {
   confirm_email: boolean
   cancel_email: boolean
+  modification_email: boolean
+  digest_morning_email: boolean
+  digest_evening_email: boolean
 }
 // Foglalási szabályok = CSAK a valós, hatással bíró kapcsoló (auto_confirm). A deposit/no-show
 // „Hamarosan", a várólista a Funkciók gazdája — ezért nincsenek itt.
@@ -246,6 +251,8 @@ export interface SettingsHubProps {
   activeBusinessId: string
   /** A fiók indulásának dátuma (ISO) — megjelenítéshez. */
   startedAt?: string | null
+  /** Felhasználó effektív képességei — a `billing` + `danger` nav-elem elrejtéséhez. */
+  myCapabilities?: Capability[]
 }
 
 function fmtDate(dateStr?: string | null): string {
@@ -274,14 +281,22 @@ export function SettingsHub({
   team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
   featureModules, auditLog, rolesSection, customRoles = [],
   sub, billingAccount, pricing, activeBusinessId, startedAt,
-  icalUrl, bookingUrl, webhookUrl,
+  icalUrl, bookingUrl, webhookUrl, myCapabilities,
 }: SettingsHubProps) {
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
+  // Jogosulatlan tab (pl. ?tab=billing manager-nek) → visszaesik profile-ra.
   const searchParams = useSearchParams()
   const initialTab = ((): RailId => {
     const t = searchParams.get('tab')
-    return t && t in RAIL_LABELS ? (t as RailId) : 'profile'
+    const limitedOnly = !!myCapabilities && !can(myCapabilities, 'settings.profile')
+    // `settings.own_profile` users alapértelmezett tabja 'self', nem 'profile'.
+    if (!t || !(t in RAIL_LABELS)) return limitedOnly ? 'self' : 'profile'
+    if (t === 'billing' && myCapabilities && !can(myCapabilities, 'billing.manage')) return limitedOnly ? 'self' : 'profile'
+    if (t === 'danger' && myCapabilities && !can(myCapabilities, 'danger')) return limitedOnly ? 'self' : 'profile'
+    // Jogosulatlan tab URL-ből → visszaesik self-re.
+    if (limitedOnly && t !== 'self') return 'self'
+    return t as RailId
   })()
   const [active, setActive] = useState<RailId>(initialTab)
   const [saving, setSaving] = useState(false)
@@ -430,16 +445,21 @@ export function SettingsHub({
   }
   const resetRules = () => setRuleToggles(rulesBaseline)
 
-  // ── Értesítések — CSAK a tranzakciós emailek (visszaigazolás + lemondás). Az emlékeztető és a
-  //    visszajelzés-kérés a Funkciók oldal gazdája (`feature_modules`), ezért ide már NEM kerül
-  //    (megszűnt a dupla-gate). VALÓS `notification_prefs` group.
+  // ── Értesítések — tranzakciós emailek + digest. Az emlékeztető és a visszajelzés-kérés
+  //    a Funkciók oldal gazdája (`feature_modules`). VALÓS `notification_prefs` group.
   const [notif, setNotif] = useState({
     confirm: { email: notificationPrefs.confirm_email },
     cancel: { email: notificationPrefs.cancel_email },
+    modification: { email: notificationPrefs.modification_email },
+    digest_morning: { email: notificationPrefs.digest_morning_email },
+    digest_evening: { email: notificationPrefs.digest_evening_email },
   })
   const notifBaseline = useMemo(() => ({
     confirm: { email: notificationPrefs.confirm_email },
     cancel: { email: notificationPrefs.cancel_email },
+    modification: { email: notificationPrefs.modification_email },
+    digest_morning: { email: notificationPrefs.digest_morning_email },
+    digest_evening: { email: notificationPrefs.digest_evening_email },
   }), [notificationPrefs])
   const notifDirty = JSON.stringify(notif) !== JSON.stringify(notifBaseline)
   const [notifSaved, setNotifSaved] = useState(false)
@@ -448,14 +468,28 @@ export function SettingsHub({
       notification_prefs: {
         confirm_email: notif.confirm.email,
         cancel_email: notif.cancel.email,
+        modification_email: notif.modification.email,
+        digest_morning_email: notif.digest_morning.email,
+        digest_evening_email: notif.digest_evening.email,
       },
     })
     if (ok) { setNotifSaved(true); setTimeout(() => setNotifSaved(false), 1800) }
   }
   const resetNotif = () => setNotif(notifBaseline)
-  const notifRows: { key: keyof typeof notif; title: string; sub: string }[] = [
-    { key: 'confirm', title: 'Foglalás visszaigazolás', sub: 'Azonnal, .ics csatolmánnyal' },
-    { key: 'cancel', title: 'Lemondás megerősítés', sub: 'Vendég lemondásakor' },
+
+  // A reggeli + esti digest email egyszerre kapcsolódik (1 toggle vezérli mindkettőt).
+  const digestEmailOn = notif.digest_morning.email && notif.digest_evening.email
+  function toggleDigestEmail() {
+    const v = !digestEmailOn
+    setNotif((s) => ({ ...s, digest_morning: { email: v }, digest_evening: { email: v } }))
+  }
+
+  type NotifKey = keyof typeof notif
+  // Sorok a vendég-emailekhez (mind a kettő modulban ugyanaz).
+  const notifRows: { key: NotifKey; title: string; sub: string }[] = [
+    { key: 'confirm', title: 'Foglalás visszaigazolás', sub: 'A vendégnek · foglaláskor azonnal, .ics naptárfájllal' },
+    { key: 'cancel', title: 'Lemondás visszaigazolás', sub: 'A vendégnek · foglalás törlése után' },
+    { key: 'modification', title: 'Módosítás értesítő', sub: 'A vendégnek · ha dátum, idő vagy szakember változik' },
   ]
 
   // ── Audit-napló szűrő — kliens-oldali szűrés a VALÓS bejegyzéseken (akció-típus + dátum-ablak).
@@ -474,6 +508,18 @@ export function SettingsHub({
   const visibleAudit = filteredAudit.slice(0, auditShown)
 
   // ── Csapat & jogok — VALÓS bekötés a /api/team végpontokra.
+  // RolesManager custom event-tel jelzi ha változott a lista → azonnal frissül a meghívó dropdown.
+  const [liveRoles, setLiveRoles] = useState<{ id: string; name: string }[]>(customRoles)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const roles = (e as CustomEvent<{ id: string; name: string }[]>).detail
+      setLiveRoles(roles)
+      setInviteRole((prev) => (roles.length && !prev ? `c:${roles[0].id}` : prev))
+    }
+    window.addEventListener('davelopment:roles-changed', handler)
+    return () => window.removeEventListener('davelopment:roles-changed', handler)
+  }, [])
+
   const [inviteOpen, setInviteOpen] = useState(false)
   const [inviteEmail, setInviteEmail] = useState('')
   // Érték: `c:<roleId>` (a megadott egyedi szerepek közül). Nincs hardcoded szerep.
@@ -499,7 +545,7 @@ export function SettingsHub({
       toast.success('Meghívó elküldve')
       setInviteOpen(false)
       setInviteEmail('')
-      setInviteRole(customRoles[0] ? `c:${customRoles[0].id}` : '')
+      setInviteRole(liveRoles[0] ? `c:${liveRoles[0].id}` : '')
       router.refresh()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Hiba történt')
@@ -582,32 +628,42 @@ export function SettingsHub({
   type NavItem =
     | { kind: 'btn'; id: RailId; icon: LucideIcon; label: string; soon?: boolean }
     | { kind: 'link'; href: string; icon: LucideIcon; label: string }
-  const navGroups: { group: string; items: NavItem[] }[] = [
-    { group: 'Üzlet', items: [
-      { kind: 'btn', id: 'profile', icon: Home, label: 'Üzlet profil' },
-      { kind: 'btn', id: 'booking', icon: CalendarDays, label: 'Foglalás' },
-      { kind: 'btn', id: 'rules', icon: Check, label: 'Foglalási szabályok' },
-      { kind: 'btn', id: 'features', icon: SlidersHorizontal, label: 'Foglalási funkciók' },
-      { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
-      { kind: 'btn', id: 'languages', icon: Languages, label: 'Nyelvek' },
-      { kind: 'btn', id: 'email', icon: Mail, label: 'Email-sablonok' },
-    ] },
-    { group: 'Működés', items: [
-      { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
-      { kind: 'btn', id: 'team', icon: Users, label: 'Csapat & jogok' },
-      { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
-    ] },
-    { group: 'Fiók', items: [
-      { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
-      { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok' },
-      { kind: 'btn', id: 'billing', icon: CreditCard, label: 'Számlázás' },
-      { kind: 'btn', id: 'sites', icon: Building2, label: 'Telephelyek' },
-    ] },
-    { group: 'Integrációk', items: [
-      { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'Integrációk' },
-      { kind: 'btn', id: 'api', icon: KeyRound, label: 'API & webhookok', soon: true },
-    ] },
-  ]
+  const canBilling = !myCapabilities || can(myCapabilities, 'billing.manage')
+  const canDanger = !myCapabilities || can(myCapabilities, 'danger')
+  // `settings.own_profile` jogú tag: csak a Saját profil + Dokumentumok tab látszik.
+  const canFullSettings = !myCapabilities || can(myCapabilities, 'settings.profile')
+  const navGroups: { group: string; items: NavItem[] }[] = canFullSettings
+    ? [
+        { group: 'Üzlet', items: [
+          { kind: 'btn', id: 'profile', icon: Home, label: 'Üzlet profil' },
+          { kind: 'btn', id: 'booking', icon: CalendarDays, label: 'Foglalás' },
+          { kind: 'btn', id: 'rules', icon: Check, label: 'Foglalási szabályok' },
+          { kind: 'btn', id: 'features', icon: SlidersHorizontal, label: 'Foglalási funkciók' },
+          { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
+          { kind: 'btn', id: 'languages', icon: Languages, label: 'Nyelvek' },
+          { kind: 'btn', id: 'email', icon: Mail, label: 'Email-sablonok' },
+        ] },
+        { group: 'Működés', items: [
+          { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
+          { kind: 'btn', id: 'team', icon: Users, label: 'Csapat & jogok' },
+          { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
+        ] },
+        { group: 'Fiók', items: [
+          { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
+          { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok' },
+          ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Számlázás' }] : []),
+          { kind: 'btn', id: 'sites', icon: Building2, label: 'Telephelyek' },
+        ] },
+        { group: 'Integrációk', items: [
+          { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'Integrációk' },
+          { kind: 'btn', id: 'api', icon: KeyRound, label: 'API & webhookok', soon: true },
+        ] },
+      ]
+    : [
+        { group: 'Fiók', items: [
+          { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
+        ] },
+      ]
   const activeBtn = navGroups.flatMap((g) => g.items).find((it) => it.kind === 'btn' && it.id === active) as
     | Extract<NavItem, { kind: 'btn' }> | undefined
   const ActiveIcon = activeBtn?.icon ?? (active === 'danger' ? Trash2 : Home)
@@ -700,17 +756,19 @@ export function SettingsHub({
                         })}
                       </div>
                     ))}
-                    <div className="my-2 h-px bg-line" />
-                    <button
-                      id={active === 'danger' ? 'settings-nav-active-item' : undefined}
-                      type="button"
-                      onClick={() => { setActive('danger'); setMobileNavOpen(false) }}
-                      className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-[14.5px] font-medium ${active === 'danger' ? 'bg-ink-dark text-white' : 'text-[#C0453F]'}`}
-                    >
-                      <Trash2 className={`h-[18px] w-[18px] ${active === 'danger' ? 'text-gold' : 'text-[#C0453F]'}`} strokeWidth={1.5} />
-                      Fiók törlése
-                      {active === 'danger' && <Check className="ml-auto h-4 w-4 text-gold" strokeWidth={2.5} />}
-                    </button>
+                    {canDanger && <>
+                      <div className="my-2 h-px bg-line" />
+                      <button
+                        id={active === 'danger' ? 'settings-nav-active-item' : undefined}
+                        type="button"
+                        onClick={() => { setActive('danger'); setMobileNavOpen(false) }}
+                        className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-[14.5px] font-medium ${active === 'danger' ? 'bg-ink-dark text-white' : 'text-[#C0453F]'}`}
+                      >
+                        <Trash2 className={`h-[18px] w-[18px] ${active === 'danger' ? 'text-gold' : 'text-[#C0453F]'}`} strokeWidth={1.5} />
+                        Fiók törlése
+                        {active === 'danger' && <Check className="ml-auto h-4 w-4 text-gold" strokeWidth={2.5} />}
+                      </button>
+                    </>}
                   </div>
                 </motion.div>
               </div>
@@ -744,8 +802,10 @@ export function SettingsHub({
               })}
             </div>
           ))}
-          <div className="my-1.5 h-px bg-line" />
-          <RailBtn id="danger" active={active} onClick={setActive} icon={Trash2} label="Fiók törlése" danger />
+          {canDanger && <>
+            <div className="my-1.5 h-px bg-line" />
+            <RailBtn id="danger" active={active} onClick={setActive} icon={Trash2} label="Fiók törlése" danger />
+          </>}
         </nav>
 
         {/* PANEL */}
@@ -843,6 +903,8 @@ export function SettingsHub({
 
           {active === 'notifications' && (
             <div className="space-y-4">
+              {/* PWA telepítés — előfeltétele az iOS push-nak, ezért legfelül. */}
+              <PwaInstallCard />
               {/* Eszköz-szintű PUSH (böngésző/OS) — az e-mail-mátrix fölött, mert ez a leggyorsabb csatorna. */}
               <PushSubscribeToggle />
               <div className="rounded-[26px] dav-card-glass px-6 py-2">
@@ -854,9 +916,7 @@ export function SettingsHub({
                 {notifRows.map((row, i) => (
                   <div
                     key={row.key}
-                    className={`grid grid-cols-[1fr_84px] items-center gap-2 py-4 ${
-                      i < notifRows.length - 1 ? 'border-b border-line' : ''
-                    }`}
+                    className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4"
                   >
                     <div className="min-w-0">
                       <div className="text-[14px] font-semibold text-ink">{row.title}</div>
@@ -870,6 +930,20 @@ export function SettingsHub({
                     </div>
                   </div>
                 ))}
+                {/* Napi digest email — szalon: reggeli+esti egyszerre; étterem: napi összefoglaló */}
+                <div className="grid grid-cols-[1fr_84px] items-center gap-2 py-4">
+                  <div className="min-w-0">
+                    <div className="text-[14px] font-semibold text-ink">Napi digest email</div>
+                    <div className="mt-0.5 text-[12px] text-ink-soft">
+                      {variant === 'salon'
+                        ? 'Neked · reggeli + esti összefoglaló egyszerre'
+                        : 'Neked · napi forgalom összefoglalója zárás után'}
+                    </div>
+                  </div>
+                  <div className="flex justify-center">
+                    <Toggle checked={digestEmailOn} onChange={toggleDigestEmail} />
+                  </div>
+                </div>
               </div>
 
               {/* Sötét PRO kártya */}
@@ -887,7 +961,7 @@ export function SettingsHub({
                 </p>
               </div>
               <p className="px-1 text-xs text-ink-soft2">
-                Itt csak a tranzakciós emailek (visszaigazolás, lemondás) kapcsolhatók. Az{' '}
+                A vendégnek küldött emailek (visszaigazolás, lemondás, módosítás) itt kapcsolhatók. A napi összefoglalók a tulajdonosnak mennek. Az{' '}
                 <b className="font-semibold text-ink-soft">emlékeztető</b> és a{' '}
                 <b className="font-semibold text-ink-soft">visszajelzés-kérés</b> a{' '}
                 <button
@@ -934,11 +1008,11 @@ export function SettingsHub({
                     <select
                       value={inviteRole}
                       onChange={(e) => setInviteRole(e.target.value)}
-                      disabled={customRoles.length === 0}
+                      disabled={liveRoles.length === 0}
                       className="rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] font-medium text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25 disabled:opacity-50"
                     >
-                      {customRoles.length === 0 && <option value="">Előbb hozz létre szerepet ↓</option>}
-                      {customRoles.map((r) => (
+                      {liveRoles.length === 0 && <option value="">Előbb hozz létre szerepet ↓</option>}
+                      {liveRoles.map((r) => (
                         <option key={r.id} value={`c:${r.id}`}>{r.name}</option>
                       ))}
                     </select>
@@ -1021,12 +1095,12 @@ export function SettingsHub({
                       <div className="flex items-center gap-2">
                         <select
                           value={m.customRoleId ? `c:${m.customRoleId}` : ''}
-                          disabled={rowBusy === m.id || customRoles.length === 0}
+                          disabled={rowBusy === m.id || liveRoles.length === 0}
                           onChange={(e) => changeRole(m.id!, e.target.value)}
                           className="rounded-[12px] border border-line-strong bg-white px-3 py-1.5 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-gold/60 disabled:opacity-40"
                         >
                           {!m.customRoleId && <option value="" disabled>{m.role} (beépített)</option>}
-                          {customRoles.map((r) => (
+                          {liveRoles.map((r) => (
                             <option key={r.id} value={`c:${r.id}`}>{r.name}</option>
                           ))}
                         </select>

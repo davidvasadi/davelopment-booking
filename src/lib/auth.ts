@@ -3,14 +3,15 @@ import { redirect } from 'next/navigation'
 import { getPayloadClient } from './payload'
 import type { User } from '@/payload/payload-types'
 
-export async function getCurrentUser(): Promise<User | null> {
+export async function getCurrentUser(opts?: { allowHeaderAuth?: boolean }): Promise<User | null> {
   const cookieStore = await cookies()
   // Elsődlegesen a `payload-token` cookie-ból dolgozunk (a normál út). Fallback: a
-  // `Authorization: JWT <token>` fejléc — friss regisztrációnál a session-cookie néha még
-  // nincs beállítva, de a kliens a kezében tartja a friss tokent (pl. seed-templates hívás).
-  // A cookie-út teljesen változatlan; a fejléc CSAK akkor lép be, ha nincs cookie.
+  // `Authorization: JWT <token>` fejléc — csak ha az adott route engedélyezi (allowHeaderAuth),
+  // pl. friss regisztrációnál ahol a session-cookie még nincs beállítva (seed-templates).
+  // Alapértelmezésben a header fallback KI VAN KAPCSOLVA — így egy kiszivárgott JWT token
+  // nem használható header-ből más route-okon.
   let tokenValue = cookieStore.get('payload-token')?.value
-  if (!tokenValue) {
+  if (!tokenValue && opts?.allowHeaderAuth) {
     const authHeader = (await headers()).get('authorization')
     if (authHeader?.startsWith('JWT ')) tokenValue = authHeader.slice(4).trim()
   }

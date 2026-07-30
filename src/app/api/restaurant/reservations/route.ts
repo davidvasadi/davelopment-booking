@@ -3,7 +3,7 @@ import { randomBytes } from 'crypto'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { validateAndAllocate } from '@/lib/restaurantBooking'
-import { sendReservationConfirmation, sendReservationNotification } from '@/lib/restaurantEmail'
+import { sendReservationConfirmation } from '@/lib/restaurantEmail'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
 import { isGuestBlocked } from '@/lib/blocklist'
 import type { Restaurant, Reservation } from '@/payload/payload-types'
@@ -13,12 +13,12 @@ const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   start_time: z.string().regex(/^\d{2}:\d{2}$/),
   pax: z.coerce.number().int().min(1).max(50),
-  customer_name: z.string().min(2),
-  customer_email: z.string().email(),
-  customer_phone: z.string().optional(),
+  customer_name: z.string().min(2).max(120),
+  customer_email: z.string().email().max(254),
+  customer_phone: z.string().max(30).optional(),
   customer_city: z.string().max(120).optional(),
-  country: z.string().optional(),
-  notes: z.string().optional(),
+  country: z.string().max(60).optional(),
+  notes: z.string().max(1000).optional(),
   occasion: z.string().max(80).optional(),
   occasion_icon: z.string().max(40).optional(),
   locale: z.enum(['hu', 'en', 'de', 'es', 'it', 'fr']).default('hu'),
@@ -141,7 +141,7 @@ export async function POST(request: NextRequest) {
     if (restaurant.notification_prefs?.confirm_email !== false) {
       for (const r of created) void sendReservationConfirmation({ reservation: r, restaurant })
     }
-    void sendReservationNotification({ reservation, restaurant })
+    // Nincs owner email — a digest összefoglalja a napot.
 
     // Egyszeri esetben a válasz alakja változatlan. Sorozatnál kiegészítjük series-metaadatokkal.
     if (seriesActive) {

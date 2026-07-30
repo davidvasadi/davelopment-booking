@@ -100,6 +100,7 @@ function ToggleSwitch({ checked, onChange, label, description }: { checked: bool
 
 type Settings = {
   name: string
+  slug: string
   city: string
   address: string
   phone: string
@@ -120,6 +121,8 @@ type Settings = {
   reminder_email_intro: string
   feedback_email_subject: string
   feedback_email_intro: string
+  notify_email_subject: string
+  notify_email_intro: string
   email_show_phone: boolean
   email_contact_phone: string
   email_show_email: boolean
@@ -191,6 +194,8 @@ export function RestaurantSettingsForm({
   const [form, setForm] = useState<Settings>(initial)
   const [saved, setSaved] = useState<Settings>(initial) // utoljára elmentett állapot (dirty-hez)
   const [submitting, setSubmitting] = useState(false)
+  const [savedSlug, setSavedSlug] = useState(initial.slug) // utoljára sikeresen mentett slug
+  const [slugError, setSlugError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState('')
@@ -216,6 +221,8 @@ export function RestaurantSettingsForm({
       reminder_email_intro: initial.reminder_email_intro,
       feedback_email_subject: initial.feedback_email_subject,
       feedback_email_intro: initial.feedback_email_intro,
+      notify_email_subject: initial.notify_email_subject,
+      notify_email_intro: initial.notify_email_intro,
       terms_sections: initial.terms_sections.map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
       good_to_know: initial.good_to_know.map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
       event_types: initial.event_types.map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
@@ -248,7 +255,7 @@ export function RestaurantSettingsForm({
   // Melyik mező melyik fülhöz tartozik (dirty-követés + per-tab mentés).
   // A localizált mezőket (good_to_know, terms_sections, booking_email_*) a `loc` hook kezeli.
   const TAB_FIELDS: Record<string, (keyof Settings)[]> = {
-    general: ['name', 'city', 'address', 'phone', 'email', 'website'],
+    general: ['name', 'slug', 'city', 'address', 'phone', 'email', 'website'],
     booking: [
       'turn_duration_minutes', 'slot_step_minutes', 'last_seating_buffer_minutes',
       'lead_time_hours', 'booking_window_days', 'require_phone', 'notify_new_bookings',
@@ -290,7 +297,7 @@ export function RestaurantSettingsForm({
 
   const [origin, setOrigin] = useState('')
   useEffect(() => setOrigin(window.location.origin), [])
-  const publicUrl = `${origin}/${slug}`
+  const publicUrl = `${origin}/${form.slug || slug}`
 
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
@@ -367,6 +374,11 @@ export function RestaurantSettingsForm({
   // A megadott mezőket (+ opcionálisan a médiát) PATCH-eli, majd frissíti a
   // `saved` baseline-t és nullázza az érintett dirty-jelzőket.
   const persist = async (fields: (keyof Settings)[], includeMedia: boolean): Promise<boolean> => {
+    // Kliens-oldali slug validáció mentés előtt
+    if (fields.includes('slug')) {
+      if (!form.slug || form.slug.length < 3) { setSlugError('Minimum 3 karakter szükséges'); return false }
+      if (!/^[a-z0-9-]+$/.test(form.slug)) { setSlugError('Csak kisbetű, szám és kötőjel megengedett'); return false }
+    }
     setSubmitting(true)
     try {
       const body: Record<string, unknown> = {}
@@ -379,18 +391,28 @@ export function RestaurantSettingsForm({
         credentials: 'include',
         body: JSON.stringify(body),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const data = await res.json().catch(() => null)
+        const errMsg: string = data?.errors?.[0]?.message ?? data?.message ?? ''
+        if (fields.includes('slug') && (errMsg.toLowerCase().includes('unique') || errMsg.toLowerCase().includes('slug'))) {
+          setSlugError('Ez az URL már foglalt — próbálj másik azonosítót')
+        } else {
+          toast.error('Hiba történt a mentés során')
+        }
+        return false
+      }
       setSaved((s) => {
         const next = { ...s }
         for (const k of fields) (next[k] as Settings[keyof Settings]) = form[k]
         return next
       })
+      if (fields.includes('slug')) { setSavedSlug(form.slug); setSlugError(null) }
       if (includeMedia) { setLogoModified(false); setCoverModified(false) }
       toast.success('Beállítások mentve')
       router.refresh()
       return true
     } catch {
-      toast.error('Hiba történt')
+      toast.error('Hiba történt a mentés során')
       return false
     } finally {
       setSubmitting(false)
@@ -466,7 +488,7 @@ export function RestaurantSettingsForm({
       {!embedded && !hideTabsNav && <TabsNav tabs={tabs} active={activeTab} onSelect={requestTab} />}
 
       {activeTab === 'general' && (
-      <div className="flex flex-col gap-[5px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[5px]">
 
       {/* Cover image */}
       <Section id="cover" title="Borítókép" full>
@@ -524,7 +546,7 @@ export function RestaurantSettingsForm({
               <button
                 type="button"
                 onClick={() => logoRef.current?.click()}
-                className="group relative flex h-20 min-w-20 max-w-[220px] items-center justify-center rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong px-3 hover:border-ink/25 transition-colors"
+                className={`group relative flex h-20 min-w-20 max-w-[220px] items-center justify-center rounded-2xl overflow-hidden transition-colors ${logoPreview && !uploadingLogo ? 'p-0' : 'bg-white border border-dashed border-line-strong px-3 hover:border-ink/25'}`}
               >
                 {uploadingLogo ? (
                   <Loader2 className="h-5 w-5 text-ink-soft animate-spin" />
@@ -563,9 +585,41 @@ export function RestaurantSettingsForm({
               }}
             />
           </div>
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Étterem neve *</Label>
-            <Input className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} />
+          <div className="w-full space-y-3">
+            <div className="space-y-1.5">
+              <Label className={labelClass}>Étterem neve *</Label>
+              <Input className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label className={labelClass}>URL azonosító</Label>
+              <div className="flex items-center gap-1">
+                <span className="text-sm text-ink-soft">/</span>
+                <Input
+                  className={`${inputClass} flex-1 ${slugError ? 'border-destructive/70 focus-visible:ring-destructive/30 focus-visible:border-destructive' : ''}`}
+                  value={form.slug}
+                  onChange={(e) => {
+                    const v = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
+                    set('slug', v)
+                    setSlugError(
+                      !v ? 'Az URL azonosító nem lehet üres' :
+                      v.length < 3 ? 'Minimum 3 karakter szükséges' :
+                      null
+                    )
+                  }}
+                />
+              </div>
+              {slugError && <p className="text-xs text-destructive">{slugError}</p>}
+              {form.slug !== savedSlug && !slugError && (
+                <div className="flex items-start gap-2.5 rounded-[14px] border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 mt-2">
+                  <span className="shrink-0 mt-0.5">⚠️</span>
+                  <span>
+                    <span className="font-semibold">A foglalási link megváltozik!</span>{' '}
+                    A régi URL-en (<code className="text-xs bg-amber-100 px-1 rounded">/{savedSlug}</code>) érkező vendégek hibát kapnak.
+                    Mentés után értesítsd a vendégeidet az új linkről.
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </Section>
@@ -601,7 +655,7 @@ export function RestaurantSettingsForm({
             {publicUrl}
           </code>
           <a
-            href={`/${slug}`}
+            href={`/${form.slug || slug}`}
             target="_blank"
             rel="noopener noreferrer"
             className="h-11 px-5 rounded-dav-pill border border-line-strong text-sm font-semibold text-ink hover:border-ink/40 transition-colors flex items-center justify-center shrink-0"

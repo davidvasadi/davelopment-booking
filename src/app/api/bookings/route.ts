@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { getAvailableSlots } from '@/lib/availability'
 import { sendBookingConfirmation, sendNewBookingNotification } from '@/lib/email'
+import { sendPushToUsers } from '@/lib/webPush'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
 import { isGuestBlocked } from '@/lib/blocklist'
 import type { Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
@@ -15,11 +16,11 @@ const schema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   start_time: z.string().regex(/^\d{2}:\d{2}$/),
   end_time: z.string().regex(/^\d{2}:\d{2}$/),
-  customer_name: z.string().min(2),
-  customer_email: z.string().email(),
-  customer_phone: z.string().min(7),
+  customer_name: z.string().min(2).max(120).refine(v => !/<[^>]+>/.test(v), 'Érvénytelen karakter a névben'),
+  customer_email: z.string().email().max(254),
+  customer_phone: z.string().min(7).max(30),
   customer_city: z.string().max(120).optional(),
-  notes: z.string().optional(),
+  notes: z.string().max(1000).optional(),
   locale: z.enum(['hu', 'en', 'de', 'es', 'it', 'fr']).default('hu'),
   // Opcionális ismétlődés. Hiánya → PONTOSAN a jelenlegi egyszeri viselkedés.
   repeat: z
@@ -155,6 +156,16 @@ export async function POST(request: NextRequest) {
       for (const b of created) void sendBookingConfirmation({ booking: b, salon, service, staff })
     }
     void sendNewBookingNotification(emailData)
+    // Azonnali push a tulajdonosnak (publikus foglalásnál).
+    const pubOwnerId = salon.owner != null ? (typeof salon.owner === 'object' ? (salon.owner as { id: string | number }).id : salon.owner) : null
+    if (pubOwnerId) {
+      void sendPushToUsers(payload, [pubOwnerId], {
+        title: `Új foglalás – ${salon.name}`,
+        body: `${booking.customer_name} · ${booking.date} ${booking.start_time}`,
+        url: '/dashboard/bookings',
+        tag: `new-booking-${String(booking.id)}`,
+      })
+    }
 
     // Egyszeri esetben a válasz alakja változatlan ({ booking }). Sorozatnál kiegészítjük
     // a series-metaadatokkal, de a `booking` mező (első alkalom) marad a kompatibilitásért.

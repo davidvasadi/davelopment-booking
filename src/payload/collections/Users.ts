@@ -70,7 +70,7 @@ export const Users: CollectionConfig = {
       generateEmailSubject: () => `Jelszó visszaállítás — ${BRAND_NAME}`,
       generateEmailHTML: (args?: { token?: string }) => {
         const token = args?.token ?? ''
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
         const resetUrl = `${appUrl}/reset-password?token=${token}`
 
         // Lakat-ikonos hero (Crextio: 56px lekerekített arany-badge, vékony cím).

@@ -37,7 +37,7 @@ function getResend(): Resend | null {
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
 const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'davelopment booking'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 export interface BookingEmailData {
   booking: Booking
@@ -158,7 +158,10 @@ export async function sendNewBookingNotification(data: BookingEmailData, fallbac
   if (recipients.length === 0) return
   const resend = getResend()
   if (!resend) return
-  const subject = `Új foglalás: ${data.booking.customer_name} — ${data.booking.date} ${data.booking.start_time}`
+  const subjectTpl = (salon.notify_email_subject ?? '').trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, emailVars(data))
+    : `Új foglalás: ${data.booking.customer_name} — ${data.booking.date} ${data.booking.start_time}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
@@ -451,12 +454,14 @@ function notificationHtml(data: BookingEmailData): string {
     infoRow('clock', 'Időpont', `${booking.start_time} – ${booking.end_time}`),
     booking.notes ? infoRow('note', 'Megjegyzés', booking.notes) : '',
   ].filter(Boolean).join('')
+  const customIntro = (salon.notify_email_intro ?? '').trim()
   return wrap(salon, `
     ${heroBlock({
       icon: 'bell',
       title: 'Új foglalás érkezett',
       subtitle: `${booking.customer_name} foglalt időpontot.`,
     })}
+    ${customIntro ? introBlock(customIntro, emailVars(data)) : ''}
     ${detailsCard(rows)}
     ${bottomSpacer()}
   `)
@@ -538,4 +543,141 @@ function cancellationHtml(data: BookingEmailData): string {
     </td></tr>
     ${bottomSpacer()}
   `)
+}
+
+function modificationHtml(data: BookingEmailData): string {
+  const { booking, salon } = data
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
+  const logoUrl = mediaUrl(salon.logo)
+  const coverUrl = mediaUrl(salon.cover_image)
+  return emailLayout({
+    brandName: salon.name,
+    brandLogoUrl: logoUrl,
+    brandCoverUrl: coverUrl,
+    header: brandHeroBlock({
+      brandName: salon.name,
+      brandLogoUrl: logoUrl,
+      brandCoverUrl: coverUrl,
+      icon: 'bell',
+      title: 'Foglalásod módosítva',
+      subtitle: `Kedves ${escapeHtml(booking.customer_name)}, az alábbi foglalás adatai megváltoztak.`,
+      formattedDate: formatBookingDate(booking.date, locale),
+      time: `${booking.start_time} – ${booking.end_time}`,
+    }),
+    content: `
+      ${detailsCard(bookingRows(data))}
+      ${footerInfoBlock({
+        hasTerms: hasTerms(salon),
+        bookingUrl: `${APP_URL}/${salon.slug}/terms`,
+        phone: salon.email_show_phone ? (salon.email_contact_phone?.trim() || salon.phone) : null,
+        email: salon.email_show_email ? salon.email : null,
+        address: salon.email_show_address ? salonAddress(salon) : null,
+        directionsAddress: null,
+        locale,
+      })}
+      ${bottomSpacer()}
+    `,
+  })
+}
+
+export async function sendBookingModification(data: BookingEmailData) {
+  const { booking, salon } = data
+  const resend = getResend()
+  if (!resend) return
+  const subject = `Foglalásod módosítva – ${salon.name}`
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: booking.customer_email,
+      subject,
+      html: modificationHtml(data),
+    })
+    await logEmail('modification', booking.customer_email, subject, true)
+  } catch (err) {
+    console.error('[Email] Booking modification failed:', err)
+    await logEmail('modification', booking.customer_email, subject, false, String(err))
+  }
+}
+
+export interface SalonDigestEmailData {
+  salon: Salon
+  ownerEmail: string
+  digestType: 'morning' | 'evening'
+  date: string
+  bookingCount: number
+  guestCount: number
+  occasions?: Record<string, number>
+  shiftManager?: { name: string } | null
+  source?: { walk_in?: number; phone?: number; online?: number }
+  status?: { completed?: number; cancelled?: number; no_show?: number }
+}
+
+const OCCASION_LABELS: Record<string, string> = {
+  birthday: 'Születésnap',
+  anniversary: 'Évforduló',
+  date: 'Randi',
+  business: 'Üzleti',
+  other: 'Egyéb',
+}
+
+export async function sendSalonDigestEmail(data: SalonDigestEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  const { salon, ownerEmail, digestType, date, bookingCount, guestCount, occasions, shiftManager, source, status } = data
+  const isEvening = digestType === 'evening'
+  const typeLabel = isEvening ? 'Esti összefoglaló' : 'Reggeli összefoglaló'
+  const subject = `${typeLabel} – ${date} – ${salon.name}`
+
+  const occasionRows = occasions
+    ? Object.entries(occasions)
+        .filter(([, n]) => n > 0)
+        .map(([k, n]) => infoRow('user', OCCASION_LABELS[k] ?? k, `${n} fő`))
+        .join('')
+    : ''
+
+  const sourceRows = isEvening && source
+    ? [
+        source.walk_in != null ? infoRow('pin', 'Beeső', `${source.walk_in} fő`) : '',
+        source.phone != null ? infoRow('phone', 'Telefon', `${source.phone} fő`) : '',
+        source.online != null ? infoRow('calendar', 'Online', `${source.online} fő`) : '',
+      ].filter(Boolean).join('')
+    : ''
+
+  const statusRows = isEvening && status
+    ? [
+        status.completed != null ? infoRow('user', 'Teljesült', `${status.completed}`) : '',
+        status.cancelled != null ? infoRow('note', 'Lemondva', `${status.cancelled}`) : '',
+        status.no_show != null ? infoRow('clock', 'Nem jelent meg', `${status.no_show}`) : '',
+      ].filter(Boolean).join('')
+    : ''
+
+  const html = wrap(salon, `
+    ${heroBlock({
+      icon: isEvening ? 'bell' : 'success',
+      title: typeLabel,
+      subtitle: `${date} – ${salon.name}`,
+    })}
+    ${detailsCard([
+      infoRow('calendar', 'Foglalás', `${bookingCount} db`),
+      infoRow('user', 'Vendég', `${guestCount} fő`),
+      shiftManager ? infoRow('user', 'Műszak vezető', shiftManager.name) : '',
+    ].filter(Boolean).join(''))}
+    ${occasionRows ? detailsCard(occasionRows) : ''}
+    ${sourceRows ? detailsCard(sourceRows) : ''}
+    ${statusRows ? detailsCard(statusRows) : ''}
+    ${bottomSpacer()}
+  `)
+
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: ownerEmail,
+      subject,
+      html,
+    })
+    await logEmail(isEvening ? 'digest_evening' : 'digest_morning', ownerEmail, subject, true)
+  } catch (err) {
+    console.error('[Email] Digest email failed:', err)
+    await logEmail(isEvening ? 'digest_evening' : 'digest_morning', ownerEmail, subject, false, String(err))
+  }
 }

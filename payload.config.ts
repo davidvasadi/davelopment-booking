@@ -43,7 +43,7 @@ import { BRAND_NAME } from './src/lib/brand'
 // A publikus app-URL (prod: https://booking.davelopment.hu). A CSRF/CORS/serverURL ehhez igazodik,
 // különben az nginx-proxy mögött a böngésző-eredetű login CSRF-blokkolt → 401
 // (a curl átmegy, mert nincs Origin headere). Lokálban a localhost a fallback.
-const SERVER_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+const SERVER_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'
 
 export default buildConfig({
   serverURL: SERVER_URL,

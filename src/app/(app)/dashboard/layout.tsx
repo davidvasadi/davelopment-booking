@@ -10,6 +10,7 @@ import { getActiveBusiness } from '@/lib/activeBusiness'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import { AppShell } from '@/components/dashboard/AppShell'
 import { PageTransition } from '@/components/ui/page-transition'
+import { LiveRefreshProvider } from '@/components/LiveRefreshProvider'
 import type { Salon, Subscription } from '@/payload/payload-types'
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -62,6 +63,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       activeBusinessKey={`${active.type}:${active.id}`}
       capabilities={active.capabilities}
     >
+      <LiveRefreshProvider businessKey={`${active.type}:${active.id}`} />
       <PageTransition>{children}</PageTransition>
     </AppShell>
   )

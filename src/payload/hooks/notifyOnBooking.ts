@@ -1,10 +1,14 @@
 import type { CollectionAfterChangeHook } from 'payload'
 import { sendPushToUsers } from '../../lib/webPush'
 
-// Közös afterChange hook gyár: új foglaláskor (create) és lemondáskor (status → cancelled)
-// app-on belüli értesítést hoz létre — de csak ha a tulajnál `notify_new_bookings` be van kapcsolva.
-//
-// `kind` választja a relációs mezőt (étterem vs. szalon) és a megfelelő szövegezést.
+function relId(val: unknown): string {
+  if (!val) return ''
+  if (typeof val === 'object' && val !== null && 'id' in val) return String((val as { id: unknown }).id)
+  return String(val)
+}
+
+// Közös afterChange hook gyár: új foglaláskor (create), lemondáskor és módosításkor
+// app-on belüli értesítést hoz létre — csak ha a tulajnál `notify_new_bookings` be van kapcsolva.
 export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterChangeHook {
   return async ({ req, doc, previousDoc, operation }) => {
     const isNew = operation === 'create'
@@ -13,12 +17,21 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
       doc.status === 'cancelled' &&
       previousDoc?.status !== 'cancelled'
 
-    if (!isNew && !becameCancelled) return doc
+    // Módosítás: frissítés, nem lemondás, és dátum/idő/hely változott.
+    const staffField = kind === 'salon' ? 'staff' : 'table'
+    const isModification =
+      operation === 'update' &&
+      !becameCancelled &&
+      doc.status !== 'cancelled' &&
+      (doc.date !== previousDoc?.date ||
+        doc.start_time !== previousDoc?.start_time ||
+        doc.end_time !== previousDoc?.end_time ||
+        relId(doc[staffField]) !== relId(previousDoc?.[staffField]))
 
-    // A reláció lehet id vagy kifejtett objektum.
+    if (!isNew && !becameCancelled && !isModification) return doc
+
     const placeRef = doc[kind]
-    const placeId =
-      placeRef && typeof placeRef === 'object' ? (placeRef as { id: number | string }).id : placeRef
+    const placeId = relId(placeRef)
     if (!placeId) return doc
 
     try {
@@ -31,34 +44,85 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
       })
       if (!place?.notify_new_bookings) return doc
 
-      const type = becameCancelled ? 'cancellation' : 'new_booking'
+      const type = becameCancelled ? 'cancellation' : isModification ? 'modification' : 'new_booking'
       const name = doc.customer_name ?? 'Vendég'
       const when = [doc.date, doc.start_time].filter(Boolean).join(' ')
 
-      const title = becameCancelled ? 'Lemondott foglalás' : 'Új foglalás'
+      const title = becameCancelled
+        ? 'Lemondott foglalás'
+        : isModification
+          ? 'Foglalás módosítva'
+          : 'Új foglalás'
       const body = becameCancelled
         ? `${name} lemondta a foglalását${when ? ` – ${when}` : ''}`
-        : `${name} foglalt${when ? ` – ${when}` : ''}`
+        : isModification
+          ? `${name} foglalása módosítva${when ? ` – ${when}` : ''}`
+          : `${name} foglalt${when ? ` – ${when}` : ''}`
 
+      const notifData = {
+        [kind]: Number(placeId),
+        audience: 'owner' as const,
+        type,
+        title,
+        body,
+        read: false,
+        [kind === 'restaurant' ? 'reservation' : 'booking']: Number(doc.id),
+      }
+      console.log('[notifyOnBooking] create data:', notifData)
       await req.payload.create({
         collection: 'notifications',
         overrideAccess: true,
         req,
-        data: {
-          [kind]: placeId,
-          audience: 'owner',
-          type,
-          title,
-          body,
-          read: false,
-          [kind === 'restaurant' ? 'reservation' : 'booking']: doc.id,
-        },
+        data: notifData,
       })
 
-      // ── WEB PUSH: a tulaj + az aktív tagok opt-in eszközeire (csak akiknek van feliratkozása).
-      // Best-effort, külön try — az esetleges push-hiba ne érintse a foglalás/értesítés mentését.
+      // ── Módosítás email a vendégnek (ha be van kapcsolva a notification_prefs-ben).
+      if (isModification) {
+        const modEnabled = (place.notification_prefs as { modification_email?: boolean | null } | null)?.modification_email
+        if (modEnabled !== false) {
+          try {
+            if (kind === 'salon') {
+              const fullBooking = await req.payload.findByID({
+                collection: 'bookings',
+                id: doc.id,
+                depth: 2,
+                overrideAccess: true,
+                req,
+              })
+              if (fullBooking?.customer_email && fullBooking.service && fullBooking.staff) {
+                const { sendBookingModification } = await import('../../lib/email')
+                await sendBookingModification({
+                  booking: fullBooking as Parameters<typeof sendBookingModification>[0]['booking'],
+                  salon: place as Parameters<typeof sendBookingModification>[0]['salon'],
+                  service: fullBooking.service as Parameters<typeof sendBookingModification>[0]['service'],
+                  staff: fullBooking.staff as Parameters<typeof sendBookingModification>[0]['staff'],
+                })
+              }
+            } else {
+              const fullReservation = await req.payload.findByID({
+                collection: 'reservations',
+                id: doc.id,
+                depth: 1,
+                overrideAccess: true,
+                req,
+              })
+              if (fullReservation?.customer_email) {
+                const { sendReservationModification } = await import('../../lib/restaurantEmail')
+                await sendReservationModification({
+                  reservation: fullReservation as Parameters<typeof sendReservationModification>[0]['reservation'],
+                  restaurant: place as Parameters<typeof sendReservationModification>[0]['restaurant'],
+                })
+              }
+            }
+          } catch (emailErr) {
+            req.payload.logger.error(`notifyOnBooking modification email (${kind}) hiba: ${String(emailErr)}`)
+          }
+        }
+      }
+
+      // ── WEB PUSH: a tulaj + az aktív tagok opt-in eszközeire.
       try {
-        const ownerId = place.owner && typeof place.owner === 'object' ? (place.owner as { id: number | string }).id : (place as { owner?: number | string }).owner
+        const ownerId = relId((place as { owner?: unknown }).owner)
         const members = await req.payload.find({
           collection: 'memberships',
           where: { and: [{ [kind]: { equals: placeId } }, { status: { equals: 'active' } }] },
@@ -72,7 +136,7 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
           kind === 'restaurant'
             ? `/restaurant/bookings?reservation=${doc.id}`
             : `/dashboard/bookings?booking=${doc.id}`
-        await sendPushToUsers(req.payload, [ownerId, ...memberUserIds], {
+        await sendPushToUsers(req.payload, [ownerId, ...memberUserIds].filter(Boolean) as (string | number)[], {
           title: `${title} · ${place.name ?? ''}`.trim().replace(/ ·\s*$/, ''),
           body,
           url,
@@ -82,7 +146,6 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
         req.payload.logger.error(`notifyOnBooking push (${kind}) hiba: ${String(pushErr)}`)
       }
     } catch (err) {
-      // Az értesítés best-effort: ne bukjon el rajta a foglalás mentése.
       req.payload.logger.error(`notifyOnBooking (${kind}) hiba: ${String(err)}`)
     }
 

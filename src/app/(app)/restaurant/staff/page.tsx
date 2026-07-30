@@ -22,19 +22,24 @@ export default async function RestaurantStaffPage() {
   requireCapability(capabilities, 'staff.view', '/restaurant')
   const payload = await getPayloadClient()
 
-  const membersRes = await payload.find({
-    collection: 'memberships',
-    where: { restaurant: { equals: restaurant.id } },
-    sort: 'createdAt',
-    depth: 1,
-    limit: 500,
-    overrideAccess: true,
-  })
+  const ownerRelId = restaurant.owner && typeof restaurant.owner === 'object'
+    ? (restaurant.owner as User).id
+    : restaurant.owner as string | number
+  const isOwner = String(ownerRelId) === String(userId)
 
-  const owner = restaurant.owner && typeof restaurant.owner === 'object' ? (restaurant.owner as User) : null
-  // Bér/borravaló + a TULAJ adatlapjának szerkesztése CSAK a valódi tulajé (nem elég az aktív tagság).
-  const ownerId = owner?.id ?? restaurant.owner
-  const isOwner = String(ownerId) === String(userId)
+  const [membersRes, ownerUserRaw] = await Promise.all([
+    payload.find({
+      collection: 'memberships',
+      where: { restaurant: { equals: restaurant.id } },
+      sort: 'createdAt',
+      depth: 1,
+      limit: 500,
+      overrideAccess: true,
+    }),
+    ownerRelId ? payload.findByID({ collection: 'users', id: ownerRelId, depth: 0, overrideAccess: true }).catch(() => null) : null,
+  ])
+
+  const owner = ownerUserRaw as (User & { createdAt?: string }) | null
   const ownerCard: TeamCard = {
     id: null,
     name: owner?.name || owner?.email || 'Tulajdonos',
@@ -43,28 +48,34 @@ export default async function RestaurantStaffPage() {
     roleTone: 'owner',
     pending: false,
     status: 'active',
-    joinDate: null,
+    joinDate: (owner?.join_date ?? owner?.createdAt ?? '').slice(0, 10) || null,
   }
 
-  const memberCards: TeamCard[] = (membersRes.docs as Membership[])
-    // a tulaj-membershipet kiszűrjük — külön owner-sor jeleníti meg
-    .filter((m) => m.role !== 'owner')
-    .map((m) => {
-      const u = typeof m.user === 'object' ? (m.user as User) : null
-      const custom = m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role) : null
-      return {
-        id: String(m.id),
-        name: m.name || u?.name || m.email,
-        email: m.email,
-        avatarUrl: mediaUrl(m.avatar) ?? (u?.avatar_url ?? null),
-        roleTone: (m.role === 'manager' ? 'manager' : 'staff') as 'manager' | 'staff',
-        // Egységes: a megjelenített szerep a megadott (egyedi) szerep NEVE, ha van.
-        roleName: custom ? custom.name : null,
-        pending: m.status === 'invited',
-        status: (m.status ?? 'invited') as 'active' | 'invited' | 'suspended',
-        joinDate: m.createdAt ? m.createdAt.slice(0, 10) : null,
-      }
-    })
+  const memberDocs = (membersRes.docs as Membership[]).filter((m) => m.role !== 'owner')
+  const memberEmails = memberDocs.map((m) => m.email).filter((e): e is string => !!e)
+  const userAvatarByEmail: Record<string, string> = {}
+  if (memberEmails.length > 0) {
+    const userRes = await payload.find({ collection: 'users', where: { email: { in: memberEmails } }, depth: 0, limit: 500, overrideAccess: true })
+    for (const u of userRes.docs as User[]) {
+      if (u.email && u.avatar_url) userAvatarByEmail[u.email] = u.avatar_url
+    }
+  }
+
+  const memberCards: TeamCard[] = memberDocs.map((m) => {
+    const u = typeof m.user === 'object' ? (m.user as User) : null
+    const custom = m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role) : null
+    return {
+      id: String(m.id),
+      name: m.name || u?.name || m.email,
+      email: m.email,
+      avatarUrl: mediaUrl(m.avatar) ?? (u?.avatar_url ?? null) ?? (m.email ? (userAvatarByEmail[m.email] ?? null) : null),
+      roleTone: (m.role === 'manager' ? 'manager' : 'staff') as 'manager' | 'staff',
+      roleName: custom ? custom.name : null,
+      pending: m.status === 'invited',
+      status: (m.status ?? 'invited') as 'active' | 'invited' | 'suspended',
+      joinDate: (m.join_date ?? m.createdAt ?? '').slice(0, 10) || null,
+    }
+  })
 
   // ── Egyedi szerepek — a meghívó szerep-választójához és az adatlap pozíció-listájához.
   const rolesRes = await payload.find({ collection: 'roles', where: { restaurant: { equals: restaurant.id } }, sort: 'name', limit: 100, overrideAccess: true })

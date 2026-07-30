@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
+import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
 import { userOwnsSalon } from '../lib/salonOwnerAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
@@ -185,8 +186,8 @@ export const Bookings: CollectionConfig = {
     },
   ],
   hooks: {
-    afterChange: [notifyOnBooking('salon'), auditAfterChange('Foglalás', 'salon')],
-    afterDelete: [auditAfterDelete('Foglalás', 'salon')],
+    afterChange: [notifyOnBooking('salon'), sseAfterChange('salon'), auditAfterChange('Foglalás', 'salon')],
+    afterDelete: [sseAfterDelete('salon'), auditAfterDelete('Foglalás', 'salon')],
   },
   timestamps: true,
 }

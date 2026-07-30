@@ -4,7 +4,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { getTemplate } from '@/lib/restaurantTemplates'
 
 export async function POST(req: Request) {
-  const user = await getCurrentUser()
+  const user = await getCurrentUser({ allowHeaderAuth: true })
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = (await req.json().catch(() => ({}))) as { restaurantId?: number; templateId?: string }

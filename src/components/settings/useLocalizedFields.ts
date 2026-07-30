@@ -15,6 +15,8 @@ export interface LocalizedValues {
   reminder_email_intro: string
   feedback_email_subject: string
   feedback_email_intro: string
+  notify_email_subject: string
+  notify_email_intro: string
   terms_sections: { title: string; body: string }[]
   good_to_know: { icon: string; title: string; body: string }[]
   /** Étterem-only: esemény-típusok (alkalmak). A `label` localizált, az icon/enabled globális. */
@@ -30,6 +32,8 @@ const EMPTY: LocalizedValues = {
   reminder_email_intro: '',
   feedback_email_subject: '',
   feedback_email_intro: '',
+  notify_email_subject: '',
+  notify_email_intro: '',
   terms_sections: [],
   good_to_know: [],
   event_types: [],
@@ -49,6 +53,8 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
     reminder_email_intro: (doc.reminder_email_intro as string) ?? '',
     feedback_email_subject: (doc.feedback_email_subject as string) ?? '',
     feedback_email_intro: (doc.feedback_email_intro as string) ?? '',
+    notify_email_subject: (doc.notify_email_subject as string) ?? '',
+    notify_email_intro: (doc.notify_email_intro as string) ?? '',
     terms_sections: terms.map((s: Record<string, unknown>) => ({
       title: (s.title as string) ?? '',
       body: (s.body as string) ?? '',

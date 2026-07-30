@@ -103,6 +103,7 @@ export function WizardImportStep({ isDark, onContinue }: Props) {
   const [dragging, setDragging] = useState(false)
 
   const parseFile = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) { alert('A fájl mérete maximum 5 MB lehet'); return }
     setFileName(file.name)
     setSheets([])
     setDone(false)

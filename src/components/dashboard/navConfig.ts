@@ -1,12 +1,12 @@
 import {
-  LayoutDashboard, CalendarDays, CalendarRange, Briefcase, Users, Clock, Settings, BarChart2, Armchair, Lightbulb, HelpCircle, MapPin,
+  LayoutDashboard, CalendarDays, CalendarClock, Briefcase, Users, Clock, Settings, BarChart2, Armchair, Lightbulb, HelpCircle, MapPin,
   Store, CreditCard, TrendingUp, AlertTriangle, Activity, Building2,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type Capability } from '@/lib/permissions'
 
-/** `capability`: a menüpont megtekintéséhez szükséges jog. Ha nincs megadva → mindenki látja. */
-export type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean; capability?: Capability }
+/** `capability`: a menüpont megtekintéséhez szükséges jog. Ha nincs megadva → mindenki látja. Tömb esetén OR logika: bármelyik elég. */
+export type NavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean; capability?: Capability | Capability[] }
 
 export type DashboardVariant = 'salon' | 'restaurant' | 'backstage'
 
@@ -16,9 +16,11 @@ export type NavConfig = {
   publicUrlPrefix: string
   settingsHref: string
   subscriptionHref: string
+  notificationsHref: string
 }
 
 const salonNav: NavConfig = {
+  notificationsHref: '/dashboard/notifications',
   items: [
     { href: '/dashboard', label: 'Áttekintés', icon: LayoutDashboard, exact: true, capability: 'overview.view' },
     { href: '/dashboard/analytics', label: 'Statisztikák', icon: BarChart2, capability: 'analytics.view' },
@@ -26,11 +28,11 @@ const salonNav: NavConfig = {
     { href: '/dashboard/guests', label: 'Vendégek', icon: MapPin, capability: 'guests.view' },
     { href: '/dashboard/services', label: 'Szolgáltatások', icon: Briefcase, capability: 'catalog.view' },
     { href: '/dashboard/staff', label: 'Munkatársak', icon: Users, capability: 'staff.view' },
-    { href: '/dashboard/schedule', label: 'Naptár', icon: CalendarRange, capability: 'schedule.manage' },
+    { href: '/dashboard/schedule', label: 'Naptár', icon: CalendarClock, capability: ['schedule.view.own', 'schedule.manage.own', 'schedule.manage'] },
     { href: '/dashboard/availability', label: 'Nyitvatartás', icon: Clock, capability: 'settings.profile' },
-    { href: '/dashboard/tips', label: 'Tippek', icon: Lightbulb, capability: 'analytics.view' },
+    { href: '/dashboard/tips', label: 'Tippek', icon: Lightbulb, capability: 'tips.view' },
     { href: '/dashboard/help', label: 'Súgó', icon: HelpCircle },
-    { href: '/dashboard/settings', label: 'Beállítások', icon: Settings, capability: 'settings.profile' },
+    { href: '/dashboard/settings', label: 'Beállítások', icon: Settings, capability: ['settings.profile', 'settings.own_profile'] },
   ],
   publicUrlPrefix: '',
   settingsHref: '/dashboard/settings',
@@ -38,18 +40,19 @@ const salonNav: NavConfig = {
 }
 
 const restaurantNav: NavConfig = {
+  notificationsHref: '/restaurant/notifications',
   items: [
     { href: '/restaurant', label: 'Áttekintés', icon: LayoutDashboard, exact: true, capability: 'overview.view' },
     { href: '/restaurant/analytics', label: 'Statisztikák', icon: BarChart2, capability: 'analytics.view' },
     { href: '/restaurant/bookings', label: 'Foglalások', icon: CalendarDays, capability: 'bookings.view' },
     { href: '/restaurant/guests', label: 'Vendégek', icon: MapPin, capability: 'guests.view' },
-    { href: '/restaurant/tables', label: 'Asztalok', icon: Armchair, capability: 'catalog.view' },
+    { href: '/restaurant/tables', label: 'Asztalok', icon: Armchair, capability: ['tables.view', 'tables.manage'] },
     { href: '/restaurant/staff', label: 'Munkatársak', icon: Users, capability: 'staff.view' },
-    { href: '/restaurant/schedule', label: 'Naptár', icon: CalendarRange, capability: 'schedule.manage' },
+    { href: '/restaurant/schedule', label: 'Naptár', icon: CalendarClock, capability: ['schedule.view.own', 'schedule.manage.own', 'schedule.manage'] },
     { href: '/restaurant/availability', label: 'Nyitvatartás', icon: Clock, capability: 'settings.profile' },
-    { href: '/restaurant/tips', label: 'Tippek', icon: Lightbulb, capability: 'analytics.view' },
+    { href: '/restaurant/tips', label: 'Tippek', icon: Lightbulb, capability: 'tips.view' },
     { href: '/restaurant/help', label: 'Súgó', icon: HelpCircle },
-    { href: '/restaurant/settings', label: 'Beállítások', icon: Settings, capability: 'settings.profile' },
+    { href: '/restaurant/settings', label: 'Beállítások', icon: Settings, capability: ['settings.profile', 'settings.own_profile'] },
   ],
   publicUrlPrefix: '',
   settingsHref: '/restaurant/settings',
@@ -59,6 +62,7 @@ const restaurantNav: NavConfig = {
 // Backstage (admin) menüpontjai — a backstage UGYANAZT a DashboardNav layoutot
 // kapja mint a szalon/étterem (egységes kinézet), nincs külön sidebar-komponense.
 const backstageNav: NavConfig = {
+  notificationsHref: '/backstage/notifications',
   items: [
     // Az első 4 a felső pill-navba kerül (AppNavbar PRIMARY_MAX), a többi a „Több"
     // legördülőbe — ezért a legfontosabb üzemeltetői nézetek állnak elöl.
@@ -89,5 +93,9 @@ export function getNavConfig(variant: DashboardVariant): NavConfig {
 export function navItemsForCapabilities(variant: DashboardVariant, caps: Capability[] | null | undefined): NavItem[] {
   const { items } = getNavConfig(variant)
   if (variant === 'backstage') return items
-  return items.filter((it) => !it.capability || can(caps, it.capability))
+  return items.filter((it) => {
+    if (!it.capability) return true
+    if (Array.isArray(it.capability)) return it.capability.some((c) => can(caps, c))
+    return can(caps, it.capability)
+  })
 }

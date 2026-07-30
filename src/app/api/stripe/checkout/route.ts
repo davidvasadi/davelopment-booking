@@ -9,7 +9,7 @@ import { BRAND_NAME } from '@/lib/brand'
 
 export const dynamic = 'force-dynamic'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 /**
  * Stripe Checkout indítása a FIÓK-előfizetéshez. Az összeg DINAMIKUS (a fiók üzleteiből számolva,

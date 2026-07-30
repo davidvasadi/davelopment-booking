@@ -2,29 +2,45 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarPlus, CalendarX, UserPlus, Sparkles, type LucideIcon } from 'lucide-react'
+import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, type LucideIcon } from 'lucide-react'
 
 export type Notification = {
   id: number | string
-  type: 'new_booking' | 'cancellation' | 'new_signup' | 'new_subscriber'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening'
   title: string
   body?: string | null
   read?: boolean | null
+  metadata?: Record<string, unknown> | null
   createdAt: string
   reservation?: number | string | null
   booking?: number | string | null
+  salon?: number | string | null
+  restaurant?: number | string | null
 }
 
-/**
- * Egy értesítés-típushoz tartozó ikon + davelopment-paletta (ikon-szín + kör-badge
- * háttér). A csengő-soroknál kör ikon-badge-ként jelenik meg (Crextio fejléc-badge nyelv).
- */
+export type DigestMetadata = {
+  bookings: number
+  guests: number
+  date?: string
+  team_count?: number
+  occasions?: Record<string, number>
+  shift_manager?: { name: string; avatar_url?: string | null }
+  staff_breakdown?: { name: string; bookings: number }[]
+  /** Esti összefoglalónál: foglalás-forrás breakdown */
+  source?: { walk_in?: number; phone?: number; online?: number }
+  /** Esti összefoglalónál: státusz breakdown */
+  status?: { completed?: number; cancelled?: number; no_show?: number }
+}
+
 export function notificationVisual(type: Notification['type']): { Icon: LucideIcon; color: string; bg: string } {
   switch (type) {
-    case 'cancellation': return { Icon: CalendarX, color: 'text-[#C0392B]', bg: 'bg-[#F6E7E4]' }
-    case 'new_signup': return { Icon: UserPlus, color: 'text-ink', bg: 'bg-[#EDEBE3]' }
-    case 'new_subscriber': return { Icon: Sparkles, color: 'text-[#8A6D12]', bg: 'bg-[#FBF1C9]' }
-    default: return { Icon: CalendarPlus, color: 'text-[#1D9D63]', bg: 'bg-[#E4F2E9]' } // new_booking
+    case 'cancellation':    return { Icon: CalendarX,     color: 'text-[#C0392B]', bg: 'bg-[#F6E7E4]' }
+    case 'modification':    return { Icon: CalendarClock,  color: 'text-[#D4760A]', bg: 'bg-[#FEF3E2]' }
+    case 'new_signup':      return { Icon: UserPlus,       color: 'text-ink',       bg: 'bg-[#EDEBE3]' }
+    case 'new_subscriber':  return { Icon: Sparkles,       color: 'text-[#8A6D12]', bg: 'bg-[#FBF1C9]' }
+    case 'digest_morning':  return { Icon: Sunrise,        color: 'text-[#B45309]', bg: 'bg-[#FFFBEB]' }
+    case 'digest_evening':  return { Icon: Sunset,         color: 'text-[#4B6CB7]', bg: 'bg-[#EEF2FC]' }
+    default:                return { Icon: CalendarPlus,   color: 'text-[#1D9D63]', bg: 'bg-[#E4F2E9]' }
   }
 }
 
@@ -53,11 +69,6 @@ export function notifDate(dateStr: string): string {
   return `${yearPrefix}${month} ${day}. · ${hh}:${mm}`
 }
 
-/**
- * Az értesítés-állapot és -műveletek közös forrása (a fiók-popover és a mobil sheet
- * is ezt használja). Percenként frissít. A `onNavigate` callback (ha kapott) lefut,
- * amikor egy értesítésre kattintva navigálunk — pl. a popover bezárásához.
- */
 export function useNotifications(onNavigate?: () => void) {
   const router = useRouter()
   const [items, setItems] = useState<Notification[]>([])
@@ -78,7 +89,11 @@ export function useNotifications(onNavigate?: () => void) {
   useEffect(() => {
     load()
     const t = setInterval(load, 60_000)
-    return () => clearInterval(t)
+    window.addEventListener('booking-changed', load)
+    return () => {
+      clearInterval(t)
+      window.removeEventListener('booking-changed', load)
+    }
   }, [load])
 
   const remove = useCallback(async (id: number | string) => {
@@ -87,6 +102,17 @@ export function useNotifications(onNavigate?: () => void) {
     await fetch(`/api/notifications?id=${encodeURIComponent(String(id))}`, {
       method: 'DELETE',
       credentials: 'include',
+    }).catch(() => null)
+  }, [])
+
+  const markRead = useCallback(async (id: number | string) => {
+    setItems((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n))
+    setUnread((u) => Math.max(0, u - 1))
+    await fetch('/api/notifications', {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
     }).catch(() => null)
   }, [])
 
@@ -105,8 +131,6 @@ export function useNotifications(onNavigate?: () => void) {
     setUnread(0)
   }, [])
 
-  // Értesítésre kattintva a kapcsolódó foglaláshoz navigálunk, és az értesítést
-  // eltüntetjük (elintézettnek tekintjük). A `t` időbélyeg garantálja az új URL-t.
   const openItem = useCallback((n: Notification) => {
     onNavigate?.()
     remove(n.id)
@@ -115,6 +139,11 @@ export function useNotifications(onNavigate?: () => void) {
       router.push(`/restaurant/bookings?reservation=${encodeURIComponent(String(n.reservation))}&t=${t}`)
     } else if (n.booking != null) {
       router.push(`/dashboard/bookings?booking=${encodeURIComponent(String(n.booking))}&t=${t}`)
+    } else if (n.type === 'digest_morning' || n.type === 'digest_evening') {
+      const isRest = n.restaurant != null
+      const base = isRest ? '/restaurant/bookings' : '/dashboard/bookings'
+      const date = (n.metadata as { date?: string } | null)?.date
+      router.push(date ? `${base}?date=${date}&t=${t}` : `${base}?t=${t}`)
     } else if (n.type === 'new_signup') {
       router.push(`/backstage/salons?t=${t}`)
     } else if (n.type === 'new_subscriber') {
@@ -122,11 +151,10 @@ export function useNotifications(onNavigate?: () => void) {
     }
   }, [onNavigate, remove, router])
 
-  // Csoportosítás: olvasatlanok elöl („Új"), majd az olvasottak („Korábbi").
   const groups = [
     { label: 'Új', rows: items.filter((n) => !n.read) },
     { label: 'Korábbi', rows: items.filter((n) => n.read) },
   ].filter((g) => g.rows.length > 0)
 
-  return { items, unread, groups, remove, clearAll, openItem }
+  return { items, unread, groups, remove, markRead, clearAll, openItem, reload: load }
 }

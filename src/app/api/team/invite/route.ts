@@ -7,9 +7,10 @@ import { getActiveBusiness } from '@/lib/activeBusiness'
 import { sendTeamInviteEmail } from '@/lib/email'
 import { assertCapability } from '@/lib/apiCapability'
 import { roleLabel, type TeamRole } from '@/lib/permissions'
+import { emitBookingChange } from '@/lib/sseEmitter'
 import type { Salon, Restaurant } from '@/payload/payload-types'
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 /**
  * Tag meghívása az AKTÍV üzletbe. A tulaj (bejelentkezett user, aki az owner) megad egy
@@ -20,7 +21,7 @@ export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  let body: { email?: string; role?: string; position?: string; custom_role?: string }
+  let body: { email?: string; name?: string; role?: string; position?: string; custom_role?: string }
   try {
     body = await request.json()
   } catch {
@@ -31,6 +32,7 @@ export async function POST(request: NextRequest) {
   if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
     return NextResponse.json({ error: 'Érvényes email cím szükséges' }, { status: 400 })
   }
+  const invitedName = (body.name ?? '').trim()
   const role: TeamRole =
     body.role === 'owner' || body.role === 'manager' || body.role === 'staff' ? body.role : 'staff'
   const position = (body.position ?? '').trim()
@@ -98,6 +100,7 @@ export async function POST(request: NextRequest) {
     user,
     data: {
       email,
+      ...(invitedName ? { name: invitedName } : {}),
       role,
       ...(customRoleId ? { custom_role: customRoleId } : {}),
       status: 'invited',
@@ -106,6 +109,32 @@ export async function POST(request: NextRequest) {
       ...(active.type === 'salon' ? { salon: bizRel } : { restaurant: bizRel }),
     },
   })
+
+  // Szalon meghívónál: ha még nincs staff rekord erre az emailre, létrehozunk egyet
+  // (is_active: false, meghívás alatt) → megjelenik a Munkavállalók listában is.
+  if (active.type === 'salon') {
+    const existingStaff = await payload.find({
+      collection: 'staff',
+      where: { and: [{ salon: { equals: bizRel } }, { email: { equals: email } }] },
+      limit: 1,
+      depth: 0,
+      overrideAccess: true,
+    })
+    if (existingStaff.docs.length === 0) {
+      await payload.create({
+        collection: 'staff',
+        overrideAccess: true,
+        user,
+        data: {
+          salon: bizRel,
+          email,
+          name: invitedName || position || email.split('@')[0],
+          is_active: false,
+          ...(customRoleName ? { role_title: customRoleName } : {}),
+        },
+      })
+    }
+  }
 
   const acceptUrl = `${APP_URL}/team/accept/${token}`
   // Az invitáló üzlet logója (abszolút URL) a meghívó-email fejlécébe; ha nincs, a neve jelenik meg.
@@ -130,5 +159,6 @@ export async function POST(request: NextRequest) {
     console.error('[team/invite] meghívó email küldése sikertelen', e)
   }
 
+  emitBookingChange({ kind: active.type, businessId: String(active.id), op: 'create' })
   return NextResponse.json({ ok: true, acceptUrl })
 }

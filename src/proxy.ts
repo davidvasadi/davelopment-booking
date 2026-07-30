@@ -48,6 +48,11 @@ const RULES: Rule[] = [
 ]
 
 function applyRateLimit(req: NextRequest, pathname: string): NextResponse | null {
+  // Dev / test környezetben nincs x-forwarded-for → minden kérés 'unknown' IP alatt
+  // kerülne egy bucketbe, ami tesztfutásnál hamar kitelik. Production mögött az nginx
+  // saját flood-védelmet ad, a Payload admin szintén korlátoz — itt elég prod-only.
+  if (process.env.NODE_ENV !== 'production') return null
+
   const rule = RULES.find((r) => r.test(pathname))
   if (!rule) return null
 

@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { getPayloadClient } from '@/lib/payload'
 import { StoreSwitcher } from '@/components/dashboard/StoreSwitcher'
+import { PageHeader } from '@/components/ui/page-header'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { ReservationActions } from '@/components/restaurant/ReservationActions'
 import { OccupancyDonut, WeekBarChart } from '@/components/restaurant/OverviewCharts'
@@ -65,6 +66,27 @@ export default async function RestaurantDashboardPage() {
   // Supervisor) a teljes KPI-dashboardot kapják; a felszolgáló a személyes nézetet.
   if (user && !can(capabilities, 'analytics.view')) {
     const myShifts = await getMyUpcomingShifts({ type: 'restaurant', id: restaurant.id }, { id: user.id, email: user.email })
+    // Payload a feltöltés pillanatában érvényes szerver-URL-t menti az adatbázisba (pl. localhost:3000).
+    // Ha azóta portot váltottunk, a tárolt URL nem egyezik a futó szerverrel → normalizálni kell.
+    const fixMediaUrl = (url: string | null | undefined): string | null => {
+      if (!url) return null
+      if (process.env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+/.test(url)) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+        return url.replace(/^http:\/\/localhost:\d+/, appUrl)
+      }
+      return url
+    }
+    // Avatar: user.avatar_url az első, ha az null → membership.avatar (amit a StaffManager tölt fel)
+    let staffProfileImg = fixMediaUrl(profileImg)
+    if (!staffProfileImg && user.email) {
+      const memRes = await payload.find({
+        collection: 'memberships',
+        where: { and: [{ restaurant: { equals: restaurant.id } }, { email: { equals: user.email } }] },
+        depth: 1, limit: 1, overrideAccess: true,
+      })
+      const mem = memRes.docs[0] as { avatar?: { url?: string } } | undefined
+      if (mem?.avatar?.url) staffProfileImg = fixMediaUrl(mem.avatar.url)
+    }
     return (
       <StaffOverview
         greeting={greeting}
@@ -73,6 +95,8 @@ export default async function RestaurantDashboardPage() {
         businessName={restaurant.name}
         todayLabel={todayLabel}
         shifts={myShifts}
+        profileImg={staffProfileImg}
+        variant="restaurant"
       />
     )
   }
@@ -288,25 +312,24 @@ export default async function RestaurantDashboardPage() {
 
   return (
     <div className="space-y-6 p-5 lg:p-0">
-      {/* ── HERO: köszönés + jobbra fiókváltó + Új foglalás ── */}
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-[15px] text-ink-soft">{greeting},</p>
-          <h1 className="mt-0.5 text-4xl font-light leading-[1.05] tracking-[-0.02em] text-ink lg:text-[46px]">{restaurant.name}</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+      <PageHeader eyebrow={restaurant.name} title="Áttekintés" />
+
+      {/* Onboarding-nudge */}
+      <SetupNudge variant="restaurant" base="/restaurant" flags={setup} />
+
+      {/* CTA-sor: StoreSwitcher + Új foglalás */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[14px] text-ink-soft">{greeting}, <span className="font-medium text-ink">{user?.name ?? ''}</span></p>
+        <div className="flex items-center gap-2.5">
           <StoreSwitcher name={restaurant.name} logoUrl={logoUrl} businesses={businesses} activeKey={active ? `${active.type}:${active.id}` : null} />
           <Link
             href="/restaurant/bookings"
-            className="inline-flex h-[52px] items-center gap-2 rounded-dav-pill bg-ink-dark px-6 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className="inline-flex h-[44px] items-center gap-2 rounded-dav-pill bg-ink-dark px-5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
           >
             <Plus className="h-4 w-4" strokeWidth={2.4} /> Új foglalás
           </Link>
         </div>
       </div>
-
-      {/* ── Onboarding-nudge (csak ha a nyitvatartás/asztalok még hiányoznak) ── */}
-      <SetupNudge variant="restaurant" base="/restaurant" flags={setup} />
 
       {/* ── STÁTUSZ-CSÍK (bal) + 3 KPI (jobb) ── */}
       <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">

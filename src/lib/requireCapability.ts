@@ -16,3 +16,12 @@ export function requireCapability(
 ): void {
   if (!can(caps, capability)) redirect(fallback)
 }
+
+/** Átirányít, ha a listán szereplő képességek EGYIKE SEM megvan. (OR logika) */
+export function requireAnyCapability(
+  caps: Capability[] | null | undefined,
+  anyOf: Capability[],
+  fallback: string,
+): void {
+  if (!anyOf.some((c) => can(caps, c))) redirect(fallback)
+}

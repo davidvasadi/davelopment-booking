@@ -36,7 +36,7 @@ function getResend(): Resend | null {
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
 const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'davelopment booking'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 export interface ReservationEmailData {
   reservation: Reservation
@@ -139,7 +139,10 @@ export async function sendReservationNotification(data: ReservationEmailData, fa
   if (!to) return
   const resend = getResend()
   if (!resend) return
-  const subject = `Új asztalfoglalás: ${data.reservation.customer_name} — ${data.reservation.date} ${data.reservation.start_time}`
+  const subjectTpl = (restaurant.notify_email_subject ?? '').trim()
+  const subject = subjectTpl
+    ? renderSubject(subjectTpl, emailVars(data))
+    : `Új asztalfoglalás: ${data.reservation.customer_name} — ${data.reservation.date} ${data.reservation.start_time}`
   try {
     await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
@@ -382,12 +385,14 @@ function notificationHtml(data: ReservationEmailData): string {
     reservation.customer_phone ? infoRow('phone', 'Telefon', reservation.customer_phone) : '',
     reservation.notes ? infoRow('note', 'Megjegyzés', reservation.notes) : '',
   ].filter(Boolean).join('')
+  const customIntro = (restaurant.notify_email_intro ?? '').trim()
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'bell',
       title: 'Új asztalfoglalás',
       subtitle: `${reservation.customer_name} asztalt foglalt.`,
     })}
+    ${customIntro ? introBlock(customIntro, emailVars(data)) : ''}
     ${detailsCard(detailRows(data))}
     ${detailsCard(contactRows)}
     ${bottomSpacer()}
@@ -463,4 +468,58 @@ function cancellationHtml(data: ReservationEmailData): string {
     ${detailsCard(detailRows(data))}
     ${bottomSpacer()}
   `)
+}
+
+function modificationHtml(data: ReservationEmailData): string {
+  const { reservation, restaurant } = data
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
+  const logoUrl = mediaUrl(restaurant.logo)
+  const coverUrl = mediaUrl(restaurant.cover_image)
+  return emailLayout({
+    brandName: restaurant.name,
+    brandLogoUrl: logoUrl,
+    brandCoverUrl: coverUrl,
+    header: brandHeroBlock({
+      brandName: restaurant.name,
+      brandLogoUrl: logoUrl,
+      brandCoverUrl: coverUrl,
+      icon: 'bell',
+      title: 'Foglalásod módosítva',
+      subtitle: `Kedves ${reservation.customer_name}, az alábbi foglalás adatai megváltoztak.`,
+      formattedDate: formatBookingDate(reservation.date, locale),
+      time: `${reservation.start_time} – ${reservation.end_time}`,
+    }),
+    content: `
+      ${detailsCard(detailRows(data))}
+      ${footerInfoBlock({
+        hasTerms: hasTerms(restaurant),
+        bookingUrl: `${APP_URL}/${restaurant.slug}/terms`,
+        phone: restaurant.email_show_phone ? (restaurant.email_contact_phone?.trim() || restaurant.phone) : null,
+        email: restaurant.email_show_email ? restaurant.email : null,
+        address: restaurant.email_show_address ? contactAddress(restaurant) : null,
+        directionsAddress: null,
+        locale,
+      })}
+      ${bottomSpacer()}
+    `,
+  })
+}
+
+export async function sendReservationModification(data: ReservationEmailData) {
+  const { reservation, restaurant } = data
+  const resend = getResend()
+  if (!resend) return
+  const subject = `Foglalásod módosítva – ${restaurant.name}`
+  try {
+    await resend.emails.send({
+      from: `${FROM_NAME} <${FROM}>`,
+      to: reservation.customer_email,
+      subject,
+      html: modificationHtml(data),
+    })
+    await logEmail('modification', reservation.customer_email, subject, true)
+  } catch (err) {
+    console.error('[RestaurantEmail] Modification email failed:', err)
+    await logEmail('modification', reservation.customer_email, subject, false, String(err))
+  }
 }

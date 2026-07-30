@@ -36,6 +36,7 @@ export default function MobileBottomNav({
 }) {
   const { settingsHref, subscriptionHref } = getNavConfig(variant)
   const navItems = navItemsForCapabilities(variant, capabilities)
+  const canBilling = !capabilities || capabilities.includes('billing.manage')
   const pathname = usePathname()
   const router = useRouter()
 const [moreOpen, setMoreOpen] = useState(false)
@@ -226,6 +227,7 @@ const [moreOpen, setMoreOpen] = useState(false)
                   <span className="block truncate text-[13px] text-[#a8a496]">{uploadingAvatar ? 'Feltöltés…' : (userEmail ?? '')}</span>
                 </span>
               </button>
+
             </div>
 
             <div className="mx-4 h-px bg-black/[0.05]" />
@@ -255,7 +257,7 @@ const [moreOpen, setMoreOpen] = useState(false)
               })}
             </div>
 
-            {variant !== 'backstage' && (
+            {variant !== 'backstage' && canBilling && (
               <div className="px-3 pb-1">
                 <Link
                   href={subscriptionHref}
