@@ -52,7 +52,8 @@
 
 ---
 
-![Bejelentkezés](public/readme-login.png)
+| ![Bejelentkezés](public/readme-auth-login.png) | ![Regisztráció](public/readme-auth-register.png) |
+|---|---|
 
 ---
 
