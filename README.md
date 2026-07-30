@@ -120,6 +120,6 @@ npm run lint         # ESLint
 
 ---
 
-## Licenc
+## Szerző
 
-MIT — David Vasadi · [davelopment.hu](https://davelopment.hu)
+David Vasadi · [davelopment.hu](https://davelopment.hu)
