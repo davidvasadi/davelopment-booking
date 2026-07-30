@@ -69,18 +69,9 @@
 git clone https://github.com/davidvasadi/davelopment-booking.git
 cd davelopment-booking
 npm install
-cp .env.example .env.local
 ```
 
-`.env.local` kötelező mezők:
-```env
-DATABASE_URI=postgresql://user:pass@localhost:5432/davelopment_booking
-PAYLOAD_SECRET=...
-NEXT_PUBLIC_APP_URL=http://localhost:3001
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-RESEND_API_KEY=...
-```
+Hozz létre egy `.env.local` fájlt a szükséges környezeti változókkal (DATABASE_URI, PAYLOAD_SECRET, NEXT_PUBLIC_APP_URL, stb.).
 
 ```bash
 npm run dev
