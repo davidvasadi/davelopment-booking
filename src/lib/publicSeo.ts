@@ -67,8 +67,15 @@ export function placeMetadata(
   const desc = descriptionText(place.description)
   const description = metaDescription(place.name, place.city, desc, kind)
   const title = place.city ? `${place.name} — ${place.city}` : place.name
-  const image = mediaUrl(place.cover_image) ?? mediaUrl(place.logo)
+  const coverImage = mediaUrl(place.cover_image) ?? mediaUrl(place.logo)
   const url = `${SITE_URL}/${place.slug}`
+
+  // Dinamikus OG kép: cover fotó + "davelopment booking" branding rárenderelve.
+  const salonLogo = mediaUrl(place.logo)
+  const ogParams = new URLSearchParams({ name: place.name, city: place.city ?? '' })
+  if (coverImage) ogParams.set('image', coverImage)
+  if (salonLogo)  ogParams.set('logo', salonLogo)
+  const ogImage = `${SITE_URL}/api/og?${ogParams.toString()}`
 
   return {
     title,
@@ -80,13 +87,13 @@ export function placeMetadata(
       description,
       url,
       siteName: 'davelopment booking',
-      ...(image ? { images: [{ url: image }] } : {}),
+      images: [{ url: ogImage, width: 1200, height: 630, alt: title }],
     },
     twitter: {
-      card: image ? 'summary_large_image' : 'summary',
+      card: 'summary_large_image',
       title,
       description,
-      ...(image ? { images: [image] } : {}),
+      images: [ogImage],
     },
   }
 }
