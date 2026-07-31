@@ -21,6 +21,9 @@ export interface RestaurantDayBreakdown {
 
 export interface RestaurantStats {
   period: number
+  // asztalok (az oldal nem kéri le duplán)
+  tableCount: number
+  totalSeats: number
   // ma
   reservationsToday: number
   reservationsTodayDiff: number
@@ -391,6 +394,8 @@ export async function getRestaurantStats(
 
   return {
     period: rangeDays,
+    tableCount: tablesRes.totalDocs,
+    totalSeats: seats,
     reservationsToday: todayDocs.length,
     reservationsTodayDiff: pctDiff(todayDocs.length, yesterdayDocs.length),
     paxToday,

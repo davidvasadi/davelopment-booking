@@ -185,6 +185,7 @@ export default async function RestaurantSettingsPage() {
           recurring_on: fm.recurring_on ?? false,
           reviews_on: fm.reviews_on ?? false,
           google_review_url: fm.google_review_url ?? null,
+          review_delay_hours: fm.review_delay_hours ?? 2,
         }}
         rules={rules}
         senderLabel={senderLabel}

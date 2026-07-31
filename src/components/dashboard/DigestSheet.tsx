@@ -35,7 +35,7 @@ export function DigestSheet({
   onClose: () => void
 }) {
   const router = useRouter()
-  const { Icon, color, bg } = notificationVisual(n.type)
+  const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   const meta = n.metadata as DigestMetadata | null
   const isEvening = n.type === 'digest_evening'
   const isRest = n.restaurant != null

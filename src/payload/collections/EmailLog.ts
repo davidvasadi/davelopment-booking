@@ -41,6 +41,7 @@ export const EmailLog: CollectionConfig = {
         { label: 'Esti összefoglaló', value: 'digest_evening' },
         { label: 'Csapat-meghívó', value: 'team_invite' },
         { label: 'Jelszó-visszaállítás', value: 'password_reset' },
+        { label: 'Beosztás értesítő', value: 'schedule_change' },
         { label: 'Egyéb', value: 'other' },
       ],
     },

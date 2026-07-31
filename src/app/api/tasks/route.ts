@@ -13,11 +13,23 @@ async function ownsPlace(userId: string | number, type: 'restaurant' | 'salon', 
   const res = await payload.find({
     collection,
     where: { and: [{ id: { equals: id } }, { owner: { equals: userId } }] },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
+    limit: 1, depth: 0, overrideAccess: true,
   })
   return res.docs.length > 0
+}
+
+async function isMemberOfPlace(userId: string | number, type: 'restaurant' | 'salon', id: string | number): Promise<boolean> {
+  const payload = await getPayloadClient()
+  const res = await payload.find({
+    collection: 'memberships',
+    where: { and: [{ [type]: { equals: id } }, { user: { equals: userId } }, { status: { equals: 'active' } }] },
+    limit: 1, depth: 0, overrideAccess: true,
+  })
+  return res.docs.length > 0
+}
+
+async function canAccessPlace(userId: string | number, type: 'restaurant' | 'salon', id: string | number): Promise<boolean> {
+  return (await ownsPlace(userId, type, id)) || (await isMemberOfPlace(userId, type, id))
 }
 
 // GET ?restaurantId= | ?salonId= — a hely nyitott/kész feladatai
@@ -31,7 +43,7 @@ export async function GET(req: Request) {
   const type = restaurantId ? 'restaurant' : 'salon'
   const id = restaurantId ?? salonId
   if (!id) return NextResponse.json({ error: 'missing place id' }, { status: 400 })
-  if (!(await ownsPlace(user.id, type, id))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  if (!(await canAccessPlace(user.id, type, id))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const payload = await getPayloadClient()
   const list = await payload.find({
@@ -39,7 +51,7 @@ export async function GET(req: Request) {
     where: { [type]: { equals: id } },
     sort: ['done', 'createdAt'],
     limit: 100,
-    depth: 0,
+    depth: 1,
     overrideAccess: true,
   })
   return NextResponse.json({ tasks: list.docs })
@@ -55,7 +67,7 @@ export async function POST(req: Request) {
   const id = body.restaurantId ?? body.salonId
   const title = body.title?.trim()
   if (!id || !title) return NextResponse.json({ error: 'missing fields' }, { status: 400 })
-  if (!(await ownsPlace(user.id, type, id))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  if (!(await canAccessPlace(user.id, type, id))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   // Csalás-védelem: MÚLTBA (a mai nap kezdete elé) nem lehet visszadátumozott teendőt felvenni.
   if (body.due_date) {
@@ -69,11 +81,12 @@ export async function POST(req: Request) {
   const payload = await getPayloadClient()
   // A reláció-mező Postgresen szám id-t vár — ha az id numerikus string, alakítsuk számmá.
   const relId = /^\d+$/.test(String(id)) ? Number(id) : id
-  const task = await payload.create({
+  const created = await payload.create({
     collection: 'tasks',
-    data: { [type]: relId, title, done: false, due_date: body.due_date || null },
+    data: { [type]: relId, title, done: false, due_date: body.due_date || null, created_by: user.id },
     overrideAccess: true,
   })
+  const task = await payload.findByID({ collection: 'tasks', id: created.id, depth: 1, overrideAccess: true })
   return NextResponse.json({ task })
 }
 
@@ -90,7 +103,7 @@ export async function PATCH(req: Request) {
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 })
   const type = existing.restaurant ? 'restaurant' : 'salon'
   const placeId = (existing.restaurant ?? existing.salon) as string | number
-  if (!(await ownsPlace(user.id, type, placeId))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  if (!(await canAccessPlace(user.id, type, placeId))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const data: Record<string, unknown> = {}
   if (typeof body.done === 'boolean') data.done = body.done
@@ -113,7 +126,7 @@ export async function DELETE(req: Request) {
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 })
   const type = existing.restaurant ? 'restaurant' : 'salon'
   const placeId = (existing.restaurant ?? existing.salon) as string | number
-  if (!(await ownsPlace(user.id, type, placeId))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  if (!(await canAccessPlace(user.id, type, placeId))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   await payload.delete({ collection: 'tasks', id, overrideAccess: true })
   return NextResponse.json({ ok: true })

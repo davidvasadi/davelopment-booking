@@ -128,6 +128,7 @@ export interface Restaurant {
     recurring_on?: boolean | null
     reviews_on?: boolean | null
     google_review_url?: string | null
+    review_delay_hours?: number | null
   } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
@@ -300,14 +301,24 @@ export interface Role {
         | 'bookings.manage'
         | 'schedule.view.own'
         | 'schedule.manage'
+        | 'schedule.manage.own'
         | 'guests.view'
         | 'guests.manage'
         | 'catalog.view'
         | 'catalog.manage'
         | 'staff.view'
         | 'staff.manage'
+        | 'tables.view'
+        | 'tables.manage'
         | 'analytics.view'
+        | 'notifications.view'
+        | 'notifications.manage'
+        | 'notifications.bookings'
+        | 'notifications.system'
+        | 'notifications.staff'
+        | 'notifications.schedule'
         | 'settings.profile'
+        | 'settings.own_profile'
         | 'team.view'
         | 'team.manage'
         | 'billing.manage'
@@ -315,6 +326,12 @@ export interface Role {
         | 'audit.view'
       )[]
     | null
+  notification_prefs?: {
+    bookings?: boolean | null
+    system?: boolean | null
+    staff?: boolean | null
+    schedule?: boolean | null
+  } | null
   createdAt: string
   updatedAt: string
 }
@@ -406,6 +423,7 @@ export interface EmailLogEntry {
     | 'waitlist_opening'
     | 'team_invite'
     | 'password_reset'
+    | 'schedule_change'
     | 'other'
   to?: string | null
   subject?: string | null
@@ -445,6 +463,7 @@ export interface Task {
   title: string
   done?: boolean | null
   due_date?: string | null
+  created_by?: string | User | null
   createdAt: string
   updatedAt: string
 }
@@ -471,6 +490,12 @@ export interface User {
   /** Virtuális, csak olvasható admin-összegzés (nem tárolódik). */
   businesses_summary?: string | null
   status?: 'active' | 'inactive'
+  personal_notif_prefs?: {
+    bookings?: boolean | null
+    system?: boolean | null
+    staff?: boolean | null
+    schedule?: boolean | null
+  } | null
   createdAt: string
   updatedAt: string
 }
@@ -531,6 +556,7 @@ export interface Salon {
     recurring_on?: boolean | null
     reviews_on?: boolean | null
     google_review_url?: string | null
+    review_delay_hours?: number | null
   } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null

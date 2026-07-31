@@ -14,6 +14,34 @@ import type { Task } from '@/payload/payload-types'
  * Az első nézet (Mai) az alapértelmezett. Mentés a /api/tasks-on (restaurantId scope).
  */
 
+type Creator = { name?: string; avatar_url?: string | null }
+type ThemeColors = { date: string; iconBg: string; iconFg: string }
+
+function TaskMeta({ task, timeLabel, th }: { task: Task; timeLabel: string | null; th: ThemeColors }) {
+  const creator = typeof task.created_by === 'object' && task.created_by !== null
+    ? (task.created_by as Creator)
+    : null
+  if (!creator && !timeLabel) return null
+  const name = creator?.name ?? ''
+  const initials = name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
+  const avatarUrl = creator?.avatar_url
+  return (
+    <div className="mt-0.5 flex items-center gap-1.5">
+      {creator && (
+        <>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt={name} className="h-[14px] w-[14px] rounded-full object-cover shrink-0" />
+          ) : (
+            <span className="flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full text-[7px] font-bold" style={{ background: th.iconBg, color: th.iconFg }}>{initials}</span>
+          )}
+          <span className={`text-[11px] ${th.date}`}>{name.split(' ')[0]}</span>
+        </>
+      )}
+      {timeLabel && <span className={`text-[11px] font-medium ${th.date}`}>{creator ? '· ' : ''}{timeLabel}</span>}
+    </div>
+  )
+}
+
 type Tab = 'today' | 'tomorrow' | 'yesterday'
 const EASE = [0.22, 1, 0.36, 1] as const
 const ROW_ICONS: LucideIcon[] = [Monitor, Zap, MessageSquare, Ruler, Link2]
@@ -104,7 +132,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
   const DARK_STRIPE = 'repeating-linear-gradient(115deg, #2c2a25 0 8px, #201e1a 8px 16px)'
   // Sorrend: MAI (gold, elöl) → HOLNAPI (a maradék, világos) → TEGNAPI (szaggatott, UTOLSÓ).
   const SEGS: { key: Tab; label: string; count: number; pill: string; card: string; light?: boolean; striped?: boolean }[] = [
-    { key: 'today', label: 'Mai', count: todayList.length, pill: '#F1CE45', card: '#26220f' },
+    { key: 'today', label: 'Mai', count: todayList.length, pill: '#F1CE45', card: '#1D1C19' },
     { key: 'tomorrow', label: 'Holnapi', count: tomorrowList.length, pill: '#1D1C19', card: '#E4E3E0', light: true },
     { key: 'yesterday', label: 'Korábbi', count: yesterdayList.length, pill: HERO_STRIPE, card: DARK_STRIPE, striped: true },
   ]
@@ -214,7 +242,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
                           </span>
                           <div className="min-w-0 flex-1">
                             <div className={`truncate text-[14px] font-medium ${task.done ? th.rowDone : th.rowOpen}`}>{task.title}</div>
-                            {timeLabel ? <div className={`text-[11px] font-medium ${th.date}`}>{timeLabel}</div> : null}
+                            <TaskMeta task={task} timeLabel={timeLabel} th={th} />
                           </div>
                           <button type="button" onClick={() => remove(task)} aria-label="Törlés" className={`shrink-0 opacity-0 transition-opacity group-hover:opacity-100 ${th.x}`}>
                             <X className="h-4 w-4" />

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bell, X } from 'lucide-react'
+import { Bell, Settings2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DigestSheet } from './DigestSheet'
 import { listStagger, pageTransition, sheetSpring } from '@/lib/motion'
@@ -14,9 +14,11 @@ import {
   type Notification,
   type DigestMetadata,
 } from '@/lib/useNotifications'
+import { PersonalNotifPrefsCard } from '@/components/settings/PersonalNotifPrefsCard'
 
 export function NotificationsPage() {
   const { groups, items, remove, markRead, clearAll, openItem } = useNotifications()
+  const [tab, setTab] = useState<'inbox' | 'settings'>('inbox')
 
   return (
     <motion.div
@@ -24,11 +26,11 @@ export function NotificationsPage() {
       className="mx-auto max-w-xl px-4 py-8 min-h-[calc(100dvh-220px)] lg:min-h-[calc(100vh-180px)]"
     >
       {/* Fejléc */}
-      <div className="mb-7 flex items-center gap-3">
+      <div className="mb-5 flex items-center gap-3">
         <h1 className="flex flex-1 items-center gap-2.5 text-2xl font-bold text-ink">
           Értesítések
           <AnimatePresence>
-            {items.length > 0 && (
+            {tab === 'inbox' && items.length > 0 && (
               <motion.span
                 key="badge"
                 initial={{ scale: 0.6, opacity: 0 }}
@@ -43,7 +45,7 @@ export function NotificationsPage() {
           </AnimatePresence>
         </h1>
         <AnimatePresence>
-          {items.length > 0 && (
+          {tab === 'inbox' && items.length > 0 && (
             <motion.button
               key="clear"
               initial={{ opacity: 0, x: 8 }}
@@ -60,9 +62,54 @@ export function NotificationsPage() {
         </AnimatePresence>
       </div>
 
-      {/* Lista vagy üres állapot */}
+      {/* Tab-váltó */}
+      <div className="mb-6 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setTab('inbox')}
+          className={cn(
+            'flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors',
+            tab === 'inbox' ? 'bg-ink-dark text-white' : 'bg-white/70 text-ink-soft hover:bg-white',
+          )}
+        >
+          <Bell className="h-3.5 w-3.5" strokeWidth={2} />
+          Beérkező
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab('settings')}
+          className={cn(
+            'flex items-center gap-1.5 rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors',
+            tab === 'settings' ? 'bg-ink-dark text-white' : 'bg-white/70 text-ink-soft hover:bg-white',
+          )}
+        >
+          <Settings2 className="h-3.5 w-3.5" strokeWidth={2} />
+          Beállítások
+        </button>
+      </div>
+
       <AnimatePresence mode="wait">
-        {items.length === 0 ? (
+
+        {/* ── Beállítások tab ── */}
+        {tab === 'settings' && (
+          <motion.div
+            key="settings"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 380, damping: 32 } }}
+            exit={{ opacity: 0, y: 6, transition: { duration: 0.14 } }}
+          >
+            <div className="rounded-[22px] dav-card-glass p-5">
+              <div className="mb-1 text-[15px] font-semibold text-ink">Értesítési preferenciák</div>
+              <p className="mb-4 text-[12.5px] text-ink-soft2">
+                Válaszd ki, milyen típusú értesítéseket kívánsz kapni.
+              </p>
+              <PersonalNotifPrefsCard />
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Beérkező tab — üres állapot ── */}
+        {tab === 'inbox' && items.length === 0 && (
           <motion.div
             key="empty"
             {...sheetSpring}
@@ -76,7 +123,10 @@ export function NotificationsPage() {
               <p className="mt-1 text-sm text-ink-soft2">Foglalások és rendszer-események megjelennek itt</p>
             </div>
           </motion.div>
-        ) : (
+        )}
+
+        {/* ── Beérkező tab — lista ── */}
+        {tab === 'inbox' && items.length > 0 && (
           <motion.div
             key="list"
             variants={listStagger.container}
@@ -86,14 +136,11 @@ export function NotificationsPage() {
           >
             {groups.map(({ label, rows }) => (
               <motion.section key={label} variants={listStagger.item} aria-label={label}>
-                {/* Csoport-fejléc */}
                 <div className="mb-2 flex items-center gap-2 px-1">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-soft2">{label}</p>
                   <div className="h-px flex-1 bg-line" />
                   <span className="text-[11px] font-medium tabular-nums text-ink-soft2">{rows.length}</span>
                 </div>
-
-                {/* Kártya */}
                 <div className="dav-card-glass overflow-hidden rounded-[22px]" role="list">
                   <AnimatePresence mode="popLayout" initial={false}>
                     {rows.map((n, i) => (
@@ -118,6 +165,7 @@ export function NotificationsPage() {
             ))}
           </motion.div>
         )}
+
       </AnimatePresence>
     </motion.div>
   )
@@ -128,7 +176,7 @@ export function NotificationsPage() {
 function FullNotifRow({ n, onOpen, onRemove }: {
   n: Notification; onOpen: () => void; onRemove: () => void
 }) {
-  const { Icon, color, bg } = notificationVisual(n.type)
+  const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   const isUnread = !n.read
 
   return (
@@ -182,7 +230,7 @@ function FullNotifRow({ n, onOpen, onRemove }: {
 function FullDigestCard({ n, onMarkRead, onRemove }: {
   n: Notification; onMarkRead: () => void; onRemove: () => void
 }) {
-  const { Icon, color, bg } = notificationVisual(n.type)
+  const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   const meta = n.metadata as DigestMetadata | null
   const isEvening = n.type === 'digest_evening'
   const isUnread = !n.read

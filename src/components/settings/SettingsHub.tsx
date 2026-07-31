@@ -30,6 +30,7 @@ import { BookingFeatures, type FeatureModules } from '@/components/onboarding/Bo
 import { IntegrationsPanel } from './IntegrationsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
+import { PersonalNotifPrefsCard } from './PersonalNotifPrefsCard'
 import { BillingPortalButton } from '@/components/dashboard/BillingPortalButton'
 import { PricingCards } from '@/components/dashboard/PricingCards'
 import { StripeCheckoutButton } from '@/components/dashboard/StripeCheckoutButton'
@@ -68,7 +69,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
     >
       <span
         className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${
-          checked ? 'right-[3px] bg-gold' : 'left-[3px] bg-white'
+          checked ? 'right-[3px] bg-white' : 'left-[3px] bg-white'
         }`}
       />
     </button>
@@ -907,17 +908,23 @@ export function SettingsHub({
               <PwaInstallCard />
               {/* Eszköz-szintű PUSH (böngésző/OS) — az e-mail-mátrix fölött, mert ez a leggyorsabb csatorna. */}
               <PushSubscribeToggle />
+
+              {/* Egységes értesítési kártya — Push/App + Email szekciók */}
               <div className="rounded-[26px] dav-card-glass px-6 py-2">
-                {/* fejléc-sor */}
+                {/* Push/App szekció fejléc */}
+                <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
+                  <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Értesítési preferenciák</span>
+                  <span className="text-center text-[12px] font-semibold uppercase text-ink-soft2">App</span>
+                </div>
+                <PersonalNotifPrefsCard compact />
+
+                {/* Email szekció fejléc */}
                 <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                   <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Esemény</span>
                   <span className="text-center text-[12px] font-semibold uppercase text-ink-soft2">E-mail</span>
                 </div>
-                {notifRows.map((row, i) => (
-                  <div
-                    key={row.key}
-                    className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4"
-                  >
+                {notifRows.map((row) => (
+                  <div key={row.key} className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                     <div className="min-w-0">
                       <div className="text-[14px] font-semibold text-ink">{row.title}</div>
                       <div className="mt-0.5 text-[12px] text-ink-soft">{row.sub}</div>
@@ -930,7 +937,7 @@ export function SettingsHub({
                     </div>
                   </div>
                 ))}
-                {/* Napi digest email — szalon: reggeli+esti egyszerre; étterem: napi összefoglaló */}
+                {/* Napi digest email */}
                 <div className="grid grid-cols-[1fr_84px] items-center gap-2 py-4">
                   <div className="min-w-0">
                     <div className="text-[14px] font-semibold text-ink">Napi digest email</div>

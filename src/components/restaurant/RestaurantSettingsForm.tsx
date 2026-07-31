@@ -90,7 +90,7 @@ function ToggleSwitch({ checked, onChange, label, description }: { checked: bool
       <span className={`relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors ${checked ? 'bg-ink-dark' : 'bg-[#DAD6C8]'}`}>
         <span
           className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${
-            checked ? 'right-[3px] bg-gold' : 'left-[3px] bg-white'
+            checked ? 'right-[3px] bg-white' : 'left-[3px] bg-white'
           }`}
         />
       </span>

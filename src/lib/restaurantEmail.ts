@@ -206,6 +206,7 @@ export async function sendFeedbackRequestEmail(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend || !reservation.customer_email) return
+  if (!(restaurant.feature_modules?.google_review_url ?? '').trim()) return
   const subjectTpl = (restaurant.feedback_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, emailVars(data))
@@ -428,12 +429,10 @@ function reminderHtml(data: ReservationEmailData): string {
 
 function feedbackHtml(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
-  // Ha az étterem megadott Google értékelés-linket, oda visz (nyilvános review); különben a belső /review.
   const googleUrl = (restaurant.feature_modules?.google_review_url ?? '').trim()
-  const reviewUrl = googleUrl || (reservation.cancel_token
-    ? `${APP_URL}/review/${reservation.cancel_token}`
-    : `${APP_URL}/${restaurant.slug}`)
-  const reviewCta = googleUrl ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'
+  if (!googleUrl) return ''
+  const reviewUrl = googleUrl
+  const reviewCta = 'Értékelj minket a Google-on'
   const rows = [
     infoRow('calendar', 'Dátum', reservation.date),
     infoRow('people', 'Fő', `${reservation.pax} fő`),

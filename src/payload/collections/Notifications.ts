@@ -80,6 +80,7 @@ export const Notifications: CollectionConfig = {
         { label: 'Új előfizető', value: 'new_subscriber' },
         { label: 'Reggeli összefoglaló', value: 'digest_morning' },
         { label: 'Esti összefoglaló', value: 'digest_evening' },
+        { label: 'Beosztás változás', value: 'schedule_change' },
       ],
     },
     { name: 'title', type: 'text', required: true, label: 'Cím' },

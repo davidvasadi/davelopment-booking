@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, type LucideIcon } from 'lucide-react'
+import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, CalendarRange, type LucideIcon } from 'lucide-react'
 
 export type Notification = {
   id: number | string
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change'
   title: string
   body?: string | null
   read?: boolean | null
@@ -32,15 +32,22 @@ export type DigestMetadata = {
   status?: { completed?: number; cancelled?: number; no_show?: number }
 }
 
-export function notificationVisual(type: Notification['type']): { Icon: LucideIcon; color: string; bg: string } {
+export function notificationVisual(type: Notification['type'], metadata?: Record<string, unknown> | null): { Icon: LucideIcon; color: string; bg: string } {
+  if (type === 'schedule_change') {
+    const event = metadata?.event as string | undefined
+    if (event === 'deleted')  return { Icon: CalendarX,     color: 'text-[#C0392B]', bg: 'bg-[#F6E7E4]' }
+    if (event === 'modified') return { Icon: CalendarClock,  color: 'text-[#D4760A]', bg: 'bg-[#FEF3E2]' }
+    if (event === 'created')  return { Icon: CalendarPlus,  color: 'text-[#1D9D63]', bg: 'bg-[#E4F2E9]' }
+    return { Icon: CalendarRange, color: 'text-[#6B4FA8]', bg: 'bg-[#F0EBF9]' }
+  }
   switch (type) {
     case 'cancellation':    return { Icon: CalendarX,     color: 'text-[#C0392B]', bg: 'bg-[#F6E7E4]' }
     case 'modification':    return { Icon: CalendarClock,  color: 'text-[#D4760A]', bg: 'bg-[#FEF3E2]' }
     case 'new_signup':      return { Icon: UserPlus,       color: 'text-ink',       bg: 'bg-[#EDEBE3]' }
     case 'new_subscriber':  return { Icon: Sparkles,       color: 'text-[#8A6D12]', bg: 'bg-[#FBF1C9]' }
-    case 'digest_morning':  return { Icon: Sunrise,        color: 'text-[#B45309]', bg: 'bg-[#FFFBEB]' }
-    case 'digest_evening':  return { Icon: Sunset,         color: 'text-[#4B6CB7]', bg: 'bg-[#EEF2FC]' }
-    default:                return { Icon: CalendarPlus,   color: 'text-[#1D9D63]', bg: 'bg-[#E4F2E9]' }
+    case 'digest_morning':   return { Icon: Sunrise,       color: 'text-[#B45309]', bg: 'bg-[#FFFBEB]' }
+    case 'digest_evening':   return { Icon: Sunset,        color: 'text-[#4B6CB7]', bg: 'bg-[#EEF2FC]' }
+    default:                 return { Icon: CalendarPlus,  color: 'text-[#1D9D63]', bg: 'bg-[#E4F2E9]' }
   }
 }
 
@@ -142,6 +149,11 @@ export function useNotifications(onNavigate?: () => void) {
     } else if (n.type === 'digest_morning' || n.type === 'digest_evening') {
       const isRest = n.restaurant != null
       const base = isRest ? '/restaurant/bookings' : '/dashboard/bookings'
+      const date = (n.metadata as { date?: string } | null)?.date
+      router.push(date ? `${base}?date=${date}&t=${t}` : `${base}?t=${t}`)
+    } else if (n.type === 'schedule_change') {
+      const isRest = n.restaurant != null
+      const base = isRest ? '/restaurant/schedule' : '/dashboard/schedule'
       const date = (n.metadata as { date?: string } | null)?.date
       router.push(date ? `${base}?date=${date}&t=${t}` : `${base}?t=${t}`)
     } else if (n.type === 'new_signup') {

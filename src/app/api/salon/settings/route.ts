@@ -6,6 +6,18 @@ import { can } from '@/lib/permissions'
 
 const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt'])
 
+function stripPayloadInternals(obj: unknown): unknown {
+  if (Array.isArray(obj)) return obj.map(stripPayloadInternals)
+  if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>)
+        .filter(([k]) => !k.startsWith('_'))
+        .map(([k, v]) => [k, stripPayloadInternals(v)]),
+    )
+  }
+  return obj
+}
+
 export async function PATCH(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -24,18 +36,32 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Hibás kérés' }, { status: 400 })
   }
 
-  const safeBody = Object.fromEntries(
-    Object.entries(body as Record<string, unknown>).filter(([k]) => !FORBIDDEN_KEYS.has(k)),
-  )
+  const safeBody = stripPayloadInternals(
+    Object.fromEntries(
+      Object.entries(body as Record<string, unknown>).filter(([k]) => !FORBIDDEN_KEYS.has(k)),
+    ),
+  ) as Record<string, unknown>
 
   const payload = await getPayloadClient()
-  await payload.update({
+  const doUpdate = () => payload.update({
     collection: 'salons',
     id: active.id,
     data: safeBody,
     overrideAccess: true,
     user,
   })
+
+  try {
+    await doUpdate()
+  } catch (err: unknown) {
+    // Payload v3/Drizzle locales-join bug: _locale/_parent_id leak into validation on first
+    // call for localized collections. Second attempt always succeeds — retry transparently.
+    if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'ValidationError') {
+      await doUpdate()
+    } else {
+      throw err
+    }
+  }
 
   return NextResponse.json({ ok: true })
 }

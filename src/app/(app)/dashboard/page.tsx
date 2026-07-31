@@ -111,7 +111,7 @@ export default async function DashboardPage() {
     payload.find({
       collection: 'tasks',
       where: { salon: { equals: salon.id } },
-      sort: ['done', 'createdAt'], depth: 0, limit: 100, overrideAccess: true,
+      sort: ['done', 'createdAt'], depth: 1, limit: 100, overrideAccess: true,
     }),
     // Szalon-szintű nyitvatartás (staff nélküli availability rekordok).
     payload.find({

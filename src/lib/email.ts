@@ -231,6 +231,7 @@ export async function sendFeedbackRequestEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
+  if (!(salon.feature_modules?.google_review_url ?? '').trim()) return
   const subjectTpl = (salon.feedback_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, emailVars(data))
@@ -493,12 +494,10 @@ function reminderHtml(data: BookingEmailData): string {
 
 function feedbackHtml(data: BookingEmailData): string {
   const { booking, salon, service } = data
-  // Ha a szalon megadott Google értékelés-linket, oda visz (nyilvános review); különben a belső /review.
   const googleUrl = (salon.feature_modules?.google_review_url ?? '').trim()
-  const reviewUrl = googleUrl || ((booking as { cancellation_token?: string }).cancellation_token
-    ? `${APP_URL}/review/${(booking as { cancellation_token?: string }).cancellation_token}`
-    : `${APP_URL}/${salon.slug}`)
-  const reviewCta = googleUrl ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'
+  if (!googleUrl) return ''
+  const reviewUrl = googleUrl
+  const reviewCta = 'Értékelj minket a Google-on'
   const rows = [
     infoRow('scissors', 'Szolgáltatás', service.name),
     infoRow('calendar', 'Dátum', booking.date),
@@ -596,6 +595,56 @@ export async function sendBookingModification(data: BookingEmailData) {
   } catch (err) {
     console.error('[Email] Booking modification failed:', err)
     await logEmail('modification', booking.customer_email, subject, false, String(err))
+  }
+}
+
+// ── Beosztás-változás értesítő (shift created / modified / deleted) ───────────
+
+export interface ShiftChangeEmailData {
+  to: string
+  staffName: string
+  businessName: string
+  businessLogoUrl?: string | null
+  event: 'created' | 'modified' | 'deleted'
+  shiftDate: string
+  startTime?: string | null
+  endTime?: string | null
+  scheduleUrl: string
+}
+
+export async function sendShiftChangeEmail(data: ShiftChangeEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  const { to, staffName, businessName, event, shiftDate, startTime, endTime, scheduleUrl } = data
+  const eventLabel = event === 'created' ? 'Új műszak' : event === 'modified' ? 'Beosztás módosítva' : 'Beosztás törölve'
+  const icon: 'bell' | 'cancel' = event === 'deleted' ? 'cancel' : 'bell'
+  const subtitle = event === 'created'
+    ? `Kedves ${escapeHtml(staffName)}, új műszakot kaptál.`
+    : event === 'modified'
+      ? `Kedves ${escapeHtml(staffName)}, műszakod adatai megváltoztak.`
+      : `Kedves ${escapeHtml(staffName)}, műszakod törölve lett.`
+  const timeStr = startTime && endTime ? `${startTime} – ${endTime}` : startTime ?? null
+  const rows = [
+    infoRow('calendar', 'Dátum', shiftDate),
+    timeStr ? infoRow('clock', 'Időpont', timeStr) : '',
+  ].filter(Boolean).join('')
+  const subject = `${eventLabel} – ${shiftDate} – ${businessName}`
+  const html = emailLayout({
+    brandName: businessName,
+    brandLogoUrl: data.businessLogoUrl ?? null,
+    content: `
+      ${heroBlock({ icon, title: eventLabel, subtitle })}
+      ${rows ? detailsCard(rows) : ''}
+      ${event !== 'deleted' ? `<tr><td style="background:${COLORS.surface};padding:16px 28px 0;text-align:center"><a href="${scheduleUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">Beosztás megtekintése</a></td></tr>` : ''}
+      ${bottomSpacer()}
+    `,
+  })
+  try {
+    await resend.emails.send({ from: `${FROM_NAME} <${FROM}>`, to, subject, html })
+    await logEmail('schedule_change', to, subject, true)
+  } catch (err) {
+    console.error('[Email] Shift change email failed:', err)
+    await logEmail('schedule_change', to, subject, false, String(err))
   }
 }
 

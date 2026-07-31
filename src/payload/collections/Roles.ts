@@ -53,6 +53,18 @@ export const Roles: CollectionConfig = {
       options: CAPABILITY_META.map((c) => ({ label: c.label, value: c.value })),
       admin: { description: 'Amit ez a szerep tehet. Az „Áttekintés" mindig alap.' },
     },
+    {
+      name: 'notification_prefs',
+      type: 'group',
+      label: 'Értesítési kategória-jogosultságok',
+      admin: { description: 'Milyen értesítési típusokat állíthat be ez a szerep.' },
+      fields: [
+        { name: 'bookings',  type: 'checkbox', defaultValue: true,  label: 'Foglalás értesítések' },
+        { name: 'system',    type: 'checkbox', defaultValue: false, label: 'Rendszer értesítések' },
+        { name: 'staff',     type: 'checkbox', defaultValue: false, label: 'Munkatársak értesítések' },
+        { name: 'schedule',  type: 'checkbox', defaultValue: false, label: 'Beosztás értesítések' },
+      ],
+    },
   ],
   timestamps: true,
 }

@@ -120,23 +120,30 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
         }
       }
 
-      // ── WEB PUSH: a tulaj + az aktív tagok opt-in eszközeire.
+      // ── WEB PUSH: a tulaj + az aktív tagok opt-in eszközeire (role notification_prefs szerint).
       try {
         const ownerId = relId((place as { owner?: unknown }).owner)
         const members = await req.payload.find({
           collection: 'memberships',
           where: { and: [{ [kind]: { equals: placeId } }, { status: { equals: 'active' } }] },
           limit: 200,
-          depth: 0,
+          depth: 2,
           overrideAccess: true,
           req,
         })
-        const memberUserIds = members.docs.map((m) => m.user).filter(Boolean) as (string | number)[]
+        const eligibleMemberIds = members.docs
+          .filter((m) => {
+            // Értesítés megy KIVÉVE ha a personal_notif_prefs.bookings explicit false
+            const user = m.user as { personal_notif_prefs?: Record<string, boolean | null> } | null | undefined
+            if (typeof user === 'object' && user?.personal_notif_prefs?.bookings === false) return false
+            return true
+          })
+          .map((m) => m.user).filter(Boolean) as (string | number)[]
         const url =
           kind === 'restaurant'
             ? `/restaurant/bookings?reservation=${doc.id}`
             : `/dashboard/bookings?booking=${doc.id}`
-        await sendPushToUsers(req.payload, [ownerId, ...memberUserIds].filter(Boolean) as (string | number)[], {
+        await sendPushToUsers(req.payload, [ownerId, ...eligibleMemberIds].filter(Boolean) as (string | number)[], {
           title: `${title} · ${place.name ?? ''}`.trim().replace(/ ·\s*$/, ''),
           body,
           url,

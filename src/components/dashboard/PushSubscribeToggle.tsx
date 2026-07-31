@@ -139,7 +139,7 @@ export function PushSubscribeToggle() {
               <Loader2 className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 animate-spin text-white" />
             ) : (
               <span
-                className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${enabled ? 'right-[3px] bg-gold' : 'left-[3px] bg-white'}`}
+                className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${enabled ? 'right-[3px] bg-white' : 'left-[3px] bg-white'}`}
               />
             )}
           </button>

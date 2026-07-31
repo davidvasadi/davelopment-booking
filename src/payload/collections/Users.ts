@@ -152,6 +152,19 @@ export const Users: CollectionConfig = {
     { name: 'weekly_hours', type: 'number', label: 'Heti óraszám' },
     { name: 'bio', type: 'textarea', label: 'Megjegyzés / bemutatkozás' },
     {
+      name: 'personal_notif_prefs',
+      type: 'group',
+      label: 'Személyes értesítési preferenciák',
+      admin: { description: 'Milyen típusú értesítéseket kér a felhasználó.' },
+      fields: [
+        { name: 'bookings',  type: 'checkbox', defaultValue: true,  label: 'Foglalás értesítések' },
+        { name: 'system',    type: 'checkbox', defaultValue: true,  label: 'Rendszer értesítések' },
+        { name: 'staff',     type: 'checkbox', defaultValue: true,  label: 'Munkatársak értesítések' },
+        { name: 'schedule',  type: 'checkbox', defaultValue: true,  label: 'Beosztás értesítések' },
+        { name: 'digest',    type: 'checkbox', defaultValue: true,  label: 'Napi összefoglaló értesítés' },
+      ],
+    },
+    {
       name: 'role',
       type: 'select',
       options: [

@@ -28,7 +28,9 @@ function mediaUrl(m: unknown): string | null {
   return m && typeof m === 'object' && typeof (m as Media).url === 'string' ? ((m as Media).url as string) : null
 }
 
-export default async function SalonSchedulePage() {
+export default async function SalonSchedulePage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
+  const { date: dateParam } = await searchParams
+  const initialDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined
   const [{ salon, capabilities }, user] = await Promise.all([getOwnedSalon(), getCurrentUser()])
   requireAnyCapability(capabilities, ['schedule.manage', 'schedule.manage.own', 'schedule.view.own'], '/dashboard')
   const canManage = can(capabilities, 'schedule.manage')
@@ -158,6 +160,7 @@ export default async function SalonSchedulePage() {
         month={now.getMonth()}
         canManage={canManage || (isOwnOnly && canManageOwn)}
         myStaffId={myStaffId}
+        initialDate={initialDate}
       />
     </div>
   )

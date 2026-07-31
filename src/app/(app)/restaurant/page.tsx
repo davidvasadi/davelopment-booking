@@ -100,9 +100,9 @@ export default async function RestaurantDashboardPage() {
       />
     )
   }
-  const { active, businesses } = user ? await getActiveBusiness(user) : { active: null, businesses: [] }
-
-  const [stats, todayAll, upcomingRes, tasksRes, openingRes] = await Promise.all([
+  const [{ active, businesses }, [stats, todayAll, upcomingRes, tasksRes, openingRes], setup] = await Promise.all([
+    user ? getActiveBusiness(user) : Promise.resolve({ active: null, businesses: [] }),
+    Promise.all([
     getRestaurantStats(restaurant.id),
     payload.find({
       collection: 'reservations',
@@ -124,13 +124,15 @@ export default async function RestaurantDashboardPage() {
     payload.find({
       collection: 'tasks',
       where: { restaurant: { equals: restaurant.id } },
-      sort: ['done', 'createdAt'], depth: 0, limit: 100, overrideAccess: true,
+      sort: ['done', 'createdAt'], depth: 1, limit: 100, overrideAccess: true,
     }),
     payload.find({
       collection: 'opening-hours',
       where: { restaurant: { equals: restaurant.id } },
       depth: 0, limit: 14, overrideAccess: true,
     }),
+    ]),
+    getSetupFlags('restaurant', restaurant.id),
   ])
 
   const all = todayAll.docs as Reservation[]
@@ -241,14 +243,9 @@ export default async function RestaurantDashboardPage() {
   const srcPhone = activeRes.filter((r) => r.source === 'phone').length
   const srcWalkIn = activeRes.filter((r) => r.source === 'walk_in').length
 
-  // ── Asztalok (aktív) ──
-  const tablesRes = await payload.find({
-    collection: 'tables',
-    where: { and: [{ restaurant: { equals: restaurant.id } }, { is_active: { equals: true } }] },
-    depth: 0, limit: 200, overrideAccess: true,
-  })
-  const tableCount = tablesRes.totalDocs
-  const totalSeats = (tablesRes.docs as { capacity?: number | null }[]).reduce((s, t) => s + (t.capacity ?? 0), 0)
+  // Asztalok — a stats már lekérte, nem kell duplán DB-re menni.
+  const tableCount = stats.tableCount
+  const totalSeats = stats.totalSeats
 
   // ── Akkordeon-tartalmak (élő adat) ──
   const openingByDay = new Map(openingHours.map((o) => [o.day_of_week, o]))
@@ -306,9 +303,6 @@ export default async function RestaurantDashboardPage() {
       ),
     },
   ]
-
-  // Onboarding-állapot a főoldali nudge-hoz (nyitvatartás + asztalok kész-e).
-  const setup = await getSetupFlags('restaurant', restaurant.id)
 
   return (
     <div className="space-y-6 p-5 lg:p-0">

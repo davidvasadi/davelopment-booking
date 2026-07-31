@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
+import { notifyShiftMember, notifyShiftStaff } from '@/lib/notifyShift'
 
 /**
  * Beosztás — műszak LÉTREHOZÁSA. A ScheduleView ide POST-ol
@@ -50,6 +51,16 @@ export async function POST(request: NextRequest) {
 
   try {
     const doc = await payload.create({ collection: 'shifts', data: data as never, overrideAccess: true, user })
+    // Push + in-app + email értesítés az érintett dolgozónak.
+    if (!body.owner_shift) {
+      const shiftDate = String(body.date ?? '').slice(0, 10)
+      const startTime = (body.start_time as string | null | undefined) ?? null
+      if (bizType === 'restaurant' && body.member) {
+        void notifyShiftMember(payload, body.member as string | number, bizType, String(bizId), 'created', shiftDate, startTime)
+      } else if (bizType === 'salon' && body.staff) {
+        void notifyShiftStaff(payload, body.staff as string | number, String(bizId), 'created', shiftDate, startTime)
+      }
+    }
     return NextResponse.json(doc, { status: 201 })
   } catch (e) {
     console.error('[api/shifts POST] create failed', e)

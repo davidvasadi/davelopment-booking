@@ -42,7 +42,7 @@ function reminderEnabled(biz: Salon | Restaurant): boolean {
 }
 
 function feedbackEnabled(biz: Salon | Restaurant): boolean {
-  return !!biz.feature_modules?.reviews_on
+  return !!biz.feature_modules?.reviews_on && !!(biz.feature_modules?.google_review_url ?? '').trim()
 }
 
 /** Budapest jelenlegi órája + mai dátuma (YYYY-MM-DD) + hét napja angolul. */
@@ -144,11 +144,13 @@ async function handle(request: NextRequest) {
     for (const doc of salonFeedbackCandidates.docs as Booking[]) {
       try {
         const end = toMinutes(doc.date, doc.end_time)
-        if (end > now || now - end > 2 * 24 * 3600_000) continue
+        if (now - end > 2 * 24 * 3600_000) continue
         const salonId = relId(doc.salon)
         if (!salonId) continue
         const salon = (await payload.findByID({ collection: 'salons', id: salonId, overrideAccess: true, locale: (doc.locale ?? 'hu') as 'hu', fallbackLocale: 'hu' })) as Salon
         if (!feedbackEnabled(salon)) continue
+        const delayMs = (salon.feature_modules?.review_delay_hours ?? 2) * 3600_000
+        if (now - end < delayMs) continue
         const serviceId = relId(doc.service)
         const staffId = relId(doc.staff)
         if (!serviceId || !staffId) continue
@@ -204,11 +206,13 @@ async function handle(request: NextRequest) {
       try {
         if (!doc.customer_email) continue
         const end = toMinutes(doc.date, doc.end_time)
-        if (end > now || now - end > 2 * 24 * 3600_000) continue
+        if (now - end > 2 * 24 * 3600_000) continue
         const restId = relId(doc.restaurant)
         if (!restId) continue
         const restaurant = (await payload.findByID({ collection: 'restaurants', id: restId, overrideAccess: true, locale: (doc.locale ?? 'hu') as 'hu', fallbackLocale: 'hu' })) as Restaurant
         if (!feedbackEnabled(restaurant)) continue
+        const delayMs = (restaurant.feature_modules?.review_delay_hours ?? 2) * 3600_000
+        if (now - end < delayMs) continue
         await sendRestaurantFeedback({ reservation: doc, restaurant })
         await payload.update({ collection: 'reservations', id: doc.id, data: { feedback_sent: true }, overrideAccess: true })
         summary.feedback++
@@ -224,7 +228,7 @@ async function handle(request: NextRequest) {
     // ── SALON digest ──────────────────────────────────────────────────────────
     const allSalons = await payload.find({
       collection: 'salons',
-      where: { notify_new_bookings: { equals: true } },
+      where: { is_active: { not_equals: false } },
       depth: 0, limit: 200, overrideAccess: true,
     })
 
@@ -234,7 +238,6 @@ async function handle(request: NextRequest) {
 
         let isMorning: boolean
         let isEvening: boolean
-        const digestType: 'digest_morning' | 'digest_evening' = forceDigest === 'evening' ? 'digest_evening' : 'digest_morning'
 
         if (forceDigest) {
           // Dev-force: kihagyjuk a timing + idempotens ellenőrzést.
@@ -272,9 +275,13 @@ async function handle(request: NextRequest) {
           isMorning = hour === openHour
           isEvening = hour === closeHour
           if (!isMorning && !isEvening) continue
-
-          if (await digestAlreadySent(payload, digestType, 'salon', salonId, dateStr)) continue
         }
+
+        // digestType CSAK isMorning/isEvening meghatározása UTÁN állítható — különben az esti
+        // idempotens ellenőrzés a reggeli digest-et találja meg és blokkolja az estit.
+        const digestType: 'digest_morning' | 'digest_evening' = isEvening ? 'digest_evening' : 'digest_morning'
+
+        if (!forceDigest && await digestAlreadySent(payload, digestType, 'salon', salonId, dateStr)) continue
 
         const todayBookings = await payload.find({
           collection: 'bookings',
@@ -289,7 +296,6 @@ async function handle(request: NextRequest) {
         })
 
         const bookingCount = todayBookings.totalDocs
-        if (bookingCount === 0 && isMorning && !forceDigest) continue
 
         const todayShifts = await payload.find({
           collection: 'shifts',
@@ -336,27 +342,39 @@ async function handle(request: NextRequest) {
             )
           : undefined
 
-        await payload.create({
-          collection: 'notifications',
-          overrideAccess: true,
-          data: {
-            salon: Number(salonId),
-            audience: 'owner',
-            type: digestType,
-            title: isEvening ? `Esti összefoglaló – ${dateStr}` : `Reggeli összefoglaló – ${dateStr}`,
-            body: `${bookingCount} foglalás`,
-            read: false,
-            metadata: {
-              bookings: bookingCount,
-              guests: bookingCount,
-              date: dateStr,
-              team_count: teamCount,
-              shift_manager: shiftManager,
-              staff_breakdown: staffBreakdown,
-              status: statusCounts,
+        const ownerId = relId(salon.owner)
+
+        // Digest app-pref: ha az owner kikapcsolta az app-értesítőt, az in-app notification sem jön.
+        let ownerDigestAppOn = true
+        if (ownerId) {
+          const ownerDoc = await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true })
+          const ownerPrefs = (ownerDoc?.personal_notif_prefs as Record<string, boolean | null> | null) ?? {}
+          ownerDigestAppOn = ownerPrefs.digest !== false
+        }
+
+        if (ownerDigestAppOn) {
+          await payload.create({
+            collection: 'notifications',
+            overrideAccess: true,
+            data: {
+              salon: Number(salonId),
+              audience: 'owner',
+              type: digestType,
+              title: isEvening ? `Esti összefoglaló – ${dateStr}` : `Reggeli összefoglaló – ${dateStr}`,
+              body: `${bookingCount} foglalás`,
+              read: false,
+              metadata: {
+                bookings: bookingCount,
+                guests: bookingCount,
+                date: dateStr,
+                team_count: teamCount,
+                shift_manager: shiftManager,
+                staff_breakdown: staffBreakdown,
+                status: statusCounts,
+              },
             },
-          },
-        })
+          })
+        }
 
         // Per-staff alkalmazotti digest — minden munkatársnak saját összefoglalója
         for (const [staffId, staffData] of staffCountMap.entries()) {
@@ -390,9 +408,9 @@ async function handle(request: NextRequest) {
           }
         }
 
-        const ownerId = relId(salon.owner)
         const np = salon.notification_prefs as { digest_morning_email?: boolean | null; digest_evening_email?: boolean | null } | null
-        const emailEnabled = isEvening ? np?.digest_evening_email !== false : np?.digest_morning_email !== false
+        // Explicit true kell — null/undefined = nincs bekapcsolva (korábban !==false volt, ami null-ra is küldött)
+        const emailEnabled = isEvening ? np?.digest_evening_email === true : np?.digest_morning_email === true
         if (emailEnabled && ownerId) {
           const owner = (await payload.findByID({ collection: 'users', id: ownerId, overrideAccess: true })) as User
           if (owner?.email) {
@@ -436,7 +454,7 @@ async function handle(request: NextRequest) {
     // ── RESTAURANT digest ─────────────────────────────────────────────────────
     const allRestaurants = await payload.find({
       collection: 'restaurants',
-      where: { notify_new_bookings: { equals: true } },
+      where: { is_active: { not_equals: false } },
       depth: 0, limit: 200, overrideAccess: true,
     })
 
@@ -446,7 +464,6 @@ async function handle(request: NextRequest) {
 
         let isMorning: boolean
         let isEvening: boolean
-        const digestType: 'digest_morning' | 'digest_evening' = forceDigest === 'evening' ? 'digest_evening' : 'digest_morning'
 
         if (forceDigest) {
           isMorning = forceDigest === 'morning'
@@ -476,9 +493,12 @@ async function handle(request: NextRequest) {
           isMorning = hour === openHour
           isEvening = hour === closeHour
           if (!isMorning && !isEvening) continue
-
-          if (await digestAlreadySent(payload, digestType, 'restaurant', restId, dateStr)) continue
         }
+
+        // digestType CSAK isMorning/isEvening után — ld. szalon-rész magyarázata.
+        const digestType: 'digest_morning' | 'digest_evening' = isEvening ? 'digest_evening' : 'digest_morning'
+
+        if (!forceDigest && await digestAlreadySent(payload, digestType, 'restaurant', restId, dateStr)) continue
 
         const todayReservations = await payload.find({
           collection: 'reservations',
@@ -548,32 +568,42 @@ async function handle(request: NextRequest) {
           }
         }
 
-        await payload.create({
-          collection: 'notifications',
-          overrideAccess: true,
-          data: {
-            restaurant: Number(restId),
-            audience: 'owner',
-            type: digestType,
-            title: isEvening ? `Esti összefoglaló – ${dateStr}` : `Reggeli összefoglaló – ${dateStr}`,
-            body: `${bookingCount} foglalás, ${guestCount} fő`,
-            read: false,
-            metadata: {
-              bookings: bookingCount,
-              guests: guestCount,
-              date: dateStr,
-              team_count: todayShifts.totalDocs,
-              occasions: Object.keys(occasions).length > 0 ? occasions : undefined,
-              shift_manager: shiftManager,
-              source,
-              status,
+        const restOwnerId = relId(restaurant.owner)
+        let restOwnerDigestAppOn = true
+        if (restOwnerId) {
+          const restOwnerDoc = await payload.findByID({ collection: 'users', id: restOwnerId, depth: 0, overrideAccess: true })
+          const restOwnerPrefs = (restOwnerDoc?.personal_notif_prefs as Record<string, boolean | null> | null) ?? {}
+          restOwnerDigestAppOn = restOwnerPrefs.digest !== false
+        }
+
+        if (restOwnerDigestAppOn) {
+          await payload.create({
+            collection: 'notifications',
+            overrideAccess: true,
+            data: {
+              restaurant: Number(restId),
+              audience: 'owner',
+              type: digestType,
+              title: isEvening ? `Esti összefoglaló – ${dateStr}` : `Reggeli összefoglaló – ${dateStr}`,
+              body: `${bookingCount} foglalás, ${guestCount} fő`,
+              read: false,
+              metadata: {
+                bookings: bookingCount,
+                guests: guestCount,
+                date: dateStr,
+                team_count: todayShifts.totalDocs,
+                occasions: Object.keys(occasions).length > 0 ? occasions : undefined,
+                shift_manager: shiftManager,
+                source,
+                status,
+              },
             },
-          },
-        })
+          })
+        }
 
         // Push — étteremnél nincs email digest
         try {
-          const ownerId = relId(restaurant.owner)
+          const ownerId = restOwnerId
           const members = await payload.find({
             collection: 'memberships',
             where: { and: [{ restaurant: { equals: restId } }, { status: { equals: 'active' } }] },

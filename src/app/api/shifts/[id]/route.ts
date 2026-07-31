@@ -2,7 +2,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
+import { notifyShiftMember, notifyShiftStaff } from '@/lib/notifyShift'
 import type { Shift } from '@/payload/payload-types'
+
+function relNum(v: unknown): string | number | null {
+  if (v == null) return null
+  if (typeof v === 'object' && 'id' in (v as object)) return (v as { id: string | number }).id
+  return v as string | number
+}
 
 /**
  * Beosztás — egy műszak MÓDOSÍTÁSA / TÖRLÉSE. RBAC: `schedule.manage` (owner + manager)
@@ -29,7 +36,7 @@ async function loadManageableShift(id: string, userId: string | number) {
   if (!bizType || !bizId) return { error: 'Érvénytelen műszak', status: 400 as const }
   const denied = await assertCapability(userId, bizType, bizId, 'schedule.manage')
   if (denied) return { error: denied.error, status: denied.status }
-  return { payload }
+  return { payload, shift, bizType, bizId }
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -64,6 +71,19 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   try {
     const doc = await loaded.payload.update({ collection: 'shifts', id, data: data as never, overrideAccess: true, user })
+    // Push + in-app + email értesítés az érintett dolgozónak.
+    const { shift, bizType, bizId } = loaded
+    const memberId = relNum(shift.member)
+    const staffId = relNum(shift.staff)
+    const shiftDate = (doc.date as string | null | undefined)?.slice(0, 10) ?? shift.date?.slice(0, 10) ?? ''
+    const startTime = (doc.start_time ?? shift.start_time ?? null) as string | null
+    if (!shift.owner_shift) {
+      if (bizType === 'restaurant' && memberId) {
+        void notifyShiftMember(loaded.payload, memberId, bizType, bizId, 'modified', shiftDate, startTime)
+      } else if (bizType === 'salon' && staffId) {
+        void notifyShiftStaff(loaded.payload, staffId, bizId, 'modified', shiftDate, startTime)
+      }
+    }
     return NextResponse.json(doc)
   } catch (e) {
     console.error('[api/shifts PATCH] update failed', e)
@@ -79,6 +99,21 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   const loaded = await loadManageableShift(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
+  const { shift, bizType, bizId } = loaded
+  const memberId = relNum(shift.member)
+  const staffId = relNum(shift.staff)
+  const shiftDate = shift.date?.slice(0, 10) ?? ''
+  const startTime = (shift.start_time ?? null) as string | null
+
   await loaded.payload.delete({ collection: 'shifts', id, overrideAccess: true, user })
+
+  // Push + in-app + email értesítés az érintett dolgozónak.
+  if (!shift.owner_shift) {
+    if (bizType === 'restaurant' && memberId) {
+      void notifyShiftMember(loaded.payload, memberId, bizType, bizId, 'deleted', shiftDate, startTime)
+    } else if (bizType === 'salon' && staffId) {
+      void notifyShiftStaff(loaded.payload, staffId, bizId, 'deleted', shiftDate, startTime)
+    }
+  }
   return NextResponse.json({ ok: true })
 }

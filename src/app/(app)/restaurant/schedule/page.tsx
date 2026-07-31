@@ -28,7 +28,9 @@ function mediaUrl(m: unknown): string | null {
  * étterem-variánsban használjuk: a „staff" itt a memberships-lista, a shift-CRUD
  * `member`+`restaurant` párral megy az /api/shifts-en. SMS sehol.
  */
-export default async function RestaurantSchedulePage() {
+export default async function RestaurantSchedulePage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
+  const { date: dateParam } = await searchParams
+  const initialDate = dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam) ? dateParam : undefined
   const { restaurant, capabilities } = await getOwnedRestaurant()
   // Naptár: `schedule.view.own` elegendő a megtekintéshez; `schedule.manage` kell a szerkesztéshez.
   requireAnyCapability(capabilities, ['schedule.manage', 'schedule.manage.own', 'schedule.view.own'], '/restaurant')
@@ -151,6 +153,7 @@ export default async function RestaurantSchedulePage() {
         month={now.getMonth()}
         dailyTips={dailyTips}
         canManage={canManage}
+        initialDate={initialDate}
       />
     </div>
   )

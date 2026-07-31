@@ -5,7 +5,6 @@ import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { validateManualReservation } from '@/lib/restaurantBooking'
 import { sendReservationConfirmation, sendReservationModification } from '@/lib/restaurantEmail'
-import { sendPushToUsers } from '@/lib/webPush'
 import type { User, Restaurant, Reservation } from '@/payload/payload-types'
 
 /**
@@ -159,23 +158,7 @@ export async function POST(req: NextRequest) {
   if (created.customer_email && restaurant.notification_prefs?.confirm_email !== false) {
     void sendReservationConfirmation({ reservation: created as Reservation, restaurant })
   }
-  // Nincs owner email új éttermi foglalásra — a digest összefoglalja a napot.
-  // Azonnali push a tulajdonosnak + aktív tagoknak.
-  const restOwnerId = restaurant.owner != null ? (typeof restaurant.owner === 'object' ? (restaurant.owner as { id: string | number }).id : restaurant.owner) : null
-  if (restOwnerId) {
-    const members = await payload.find({
-      collection: 'memberships',
-      where: { and: [{ restaurant: { equals: restaurant.id } }, { status: { equals: 'active' } }] },
-      limit: 100, depth: 0, overrideAccess: true,
-    })
-    const memberUserIds = members.docs.map((m) => m.user).filter(Boolean) as (string | number)[]
-    void sendPushToUsers(payload, [restOwnerId, ...memberUserIds], {
-      title: `Új foglalás – ${restaurant.name}`,
-      body: `${created.customer_name} · ${created.date} ${created.start_time} · ${created.pax} fő`,
-      url: '/restaurant/bookings',
-      tag: `new-booking-${String(created.id)}`,
-    })
-  }
+  // Push + in-app értesítés a notifyOnBooking afterChange hook kezeli (Reservations.ts).
 
   return NextResponse.json({ ok: true, reservation: created })
 }

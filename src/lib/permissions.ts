@@ -33,6 +33,10 @@ export type Capability =
   | 'tips.view'
   | 'notifications.view'
   | 'notifications.manage'
+  | 'notifications.bookings'
+  | 'notifications.system'
+  | 'notifications.staff'
+  | 'notifications.schedule'
   | 'settings.own_profile'
   | 'settings.profile'
   | 'team.view'
@@ -64,8 +68,12 @@ export const CAPABILITY_META: {
   { value: 'staff.manage',         label: 'Munkatársak kezelése',                group: 'Munkatársak' },
   { value: 'analytics.view',        label: 'Statisztikák megtekintése',          group: 'Statisztika' },
   { value: 'tips.view',             label: 'Tippek és javaslatok',               group: 'Statisztika' },
-  { value: 'notifications.view',    label: 'Értesítések fogadása',               group: 'Értesítések' },
+  { value: 'notifications.view',     label: 'Értesítések fogadása',               group: 'Értesítések' },
   { value: 'notifications.manage',  label: 'Értesítési beállítások kezelése',    group: 'Értesítések' },
+  { value: 'notifications.bookings', label: 'Foglalás értesítések',              group: 'Értesítések' },
+  { value: 'notifications.system',   label: 'Rendszer értesítések',              group: 'Értesítések' },
+  { value: 'notifications.staff',    label: 'Munkatársak értesítések',           group: 'Értesítések' },
+  { value: 'notifications.schedule', label: 'Beosztás értesítések',              group: 'Értesítések' },
   { value: 'settings.own_profile', label: 'Saját profil szerkesztése',           group: 'Beállítások' },
   { value: 'settings.profile',     label: 'Üzleti beállítások (szabály / funkció)', group: 'Beállítások' },
   { value: 'team.view',            label: 'Csapat megtekintése',                 group: 'Csapat' },

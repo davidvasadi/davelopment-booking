@@ -43,6 +43,7 @@ export const Tasks: CollectionConfig = {
     { name: 'title', type: 'text', required: true, label: 'Feladat' },
     { name: 'done', type: 'checkbox', defaultValue: false, index: true, label: 'Kész' },
     { name: 'due_date', type: 'date', label: 'Határidő' },
+    { name: 'created_by', type: 'relationship', relationTo: 'users', label: 'Létrehozta', admin: { readOnly: true } },
   ],
   timestamps: true,
 }

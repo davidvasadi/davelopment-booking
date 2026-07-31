@@ -79,12 +79,18 @@ export const settingsExtensionFields: Field[] = [
       { name: 'waitlist_auto_promote', type: 'checkbox', defaultValue: false },
       { name: 'recurring_on', type: 'checkbox', defaultValue: false },
       { name: 'reviews_on', type: 'checkbox', defaultValue: false },
-      // Ha ki van töltve, a visszajelzés-email a Google értékelő-oldalra visz (különben a belső /review).
       {
         name: 'google_review_url',
         type: 'text',
         label: 'Google értékelés link',
-        admin: { description: 'A Google Cégprofil „Kérj értékeléseket" linkje (pl. https://g.page/r/…/review). Üresen a belső értékelés marad.' },
+        admin: { description: 'A Google Cégprofil „Kérj értékeléseket" linkje (pl. https://g.page/r/…/review).' },
+      },
+      {
+        name: 'review_delay_hours',
+        type: 'number',
+        label: 'Értékelés-kérés késleltetése (óra)',
+        defaultValue: 2,
+        admin: { description: '1 = 1 órával kezelés után, 2 = 2 órával, 24 = másnap.' },
       },
     ],
   },

@@ -470,7 +470,7 @@ export function UserMenu({
 
 /** Egyetlen értesítés sor a fiók-popoverben: kör ikon-badge + cím/idő + törlés (hoverre). */
 function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () => void; onRemove: () => void }) {
-  const { Icon, color, bg } = notificationVisual(n.type)
+  const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   return (
     <div className="group flex items-start gap-3 rounded-[16px] px-2.5 py-2.5 transition-colors hover:bg-[#f4f4f5]">
       <span className={cn('mt-0.5 flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full', bg)}>
@@ -504,7 +504,7 @@ function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () 
 
 /** Digest értesítés kártya — kattintásra DigestSheet nyílik, nem navigál. */
 function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: () => void; onRemove: () => void }) {
-  const { Icon, color, bg } = notificationVisual(n.type)
+  const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   const meta = n.metadata as DigestMetadata | null
   const [sheetOpen, setSheetOpen] = useState(false)
 

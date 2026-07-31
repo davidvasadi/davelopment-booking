@@ -12,10 +12,41 @@ import {
 } from 'lucide-react'
 import { CAPABILITY_META, type Capability } from '@/lib/permissions'
 
+export type NotificationPrefs = {
+  bookings: boolean
+  system: boolean
+  staff: boolean
+  schedule: boolean
+}
+
+const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
+  bookings: true,
+  system: false,
+  staff: false,
+  schedule: false,
+}
+
+const NOTIF_CATEGORIES: { key: keyof NotificationPrefs; label: string; sub: string }[] = [
+  { key: 'bookings',  label: 'Foglalás',    sub: 'Új foglalás, lemondás, módosítás' },
+  { key: 'system',   label: 'Rendszer',    sub: 'Rendszer-, fiók- és díjértesítők' },
+  { key: 'staff',    label: 'Munkatársak', sub: 'Csapattagokhoz kapcsolódó események' },
+  { key: 'schedule', label: 'Beosztás',    sub: 'Heti beosztás elkészülte és változása' },
+]
+
+function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={checked} onClick={onChange}
+      className={`relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors ${checked ? 'bg-ink-dark' : 'bg-[#DAD5C6]'}`}>
+      <span className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${checked ? 'right-[3px] bg-white' : 'left-[3px] bg-white'}`} />
+    </button>
+  )
+}
+
 export interface RoleRow {
   id: string
   name: string
   capabilities?: Capability[] | null
+  notification_prefs?: NotificationPrefs | null
 }
 
 // ── ELŐRE DEFINIÁLT SABLONOK ──────────────────────────────────────────────────
@@ -227,7 +258,9 @@ export function RolesManager({
         method: isNew ? 'POST' : 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(isNew ? { type: variant, id: businessId, name: nm, capabilities } : { name: nm, capabilities }),
+        body: JSON.stringify(isNew
+          ? { type: variant, id: businessId, name: nm, capabilities }
+          : { name: nm, capabilities }),
       })
       if (!res.ok) throw new Error()
       const json = await res.json()
