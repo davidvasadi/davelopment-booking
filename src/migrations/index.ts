@@ -10,6 +10,7 @@ import * as migration_20260730_150000_add_tasks_created_by from './20260730_1500
 import * as migration_20260730_160000_add_roles_notification_prefs from './20260730_160000_add_roles_notification_prefs';
 import * as migration_20260730_170000_add_users_personal_notif_prefs from './20260730_170000_add_users_personal_notif_prefs';
 import * as migration_20260731_000000_add_users_digest_notif_pref from './20260731_000000_add_users_digest_notif_pref';
+import * as migration_20260731_100000_add_review_feature_columns from './20260731_100000_add_review_feature_columns';
 
 export const migrations = [
   {
@@ -71,5 +72,10 @@ export const migrations = [
     up: migration_20260731_000000_add_users_digest_notif_pref.up,
     down: migration_20260731_000000_add_users_digest_notif_pref.down,
     name: '20260731_000000_add_users_digest_notif_pref',
+  },
+  {
+    up: migration_20260731_100000_add_review_feature_columns.up,
+    down: migration_20260731_100000_add_review_feature_columns.down,
+    name: '20260731_100000_add_review_feature_columns',
   },
 ];
