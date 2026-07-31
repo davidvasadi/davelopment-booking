@@ -313,13 +313,13 @@ export function Demo() {
 
         {/* Sor 2 — 3 kép, hero középen */}
         <div className={tile} style={{ gridColumn:'1/3', gridRow:'2/3', borderRadius:r }}>
-          <img src="/demo/schedulio-mobile.avif" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+          <img src="/demo/booking-mobile.avif" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
         </div>
         <div ref={desktopHeroRef} className={tile} style={{ gridColumn:'3/5', gridRow:'2/3', borderRadius:r, boxShadow:'0 32px 80px rgba(0,0,0,0.6)' }}>
-          <img src="/demo/schedulio-laptop.webp" alt="davelopment booking dashboard" className="w-full h-full object-cover" />
+          <img src="/demo/booking-laptop.webp" alt="davelopment booking dashboard" className="w-full h-full object-cover" />
         </div>
         <div className={tile} style={{ gridColumn:'5/7', gridRow:'2/3', borderRadius:r }}>
-          <img src="/demo/schedulio-tablet.webp" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
+          <img src="/demo/booking-tablet.webp" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" />
         </div>
 
         {/* Sor 3 — 2 kép, egyenlő szélesség */}
@@ -344,11 +344,11 @@ export function Demo() {
           <div className={tile} style={{ gridColumn:'4/7', borderRadius:r }}><img src="/demo-phone.png" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /></div>
 
           {/* Sor 2 — 3 kép, hero középen */}
-          <div className={tile} style={{ gridColumn:'1/3', borderRadius:r }}><img src="/demo/schedulio-mobile.avif" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /></div>
+          <div className={tile} style={{ gridColumn:'1/3', borderRadius:r }}><img src="/demo/booking-mobile.avif" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /></div>
           <div ref={mobileHeroRef} className={tile} style={{ gridColumn:'3/5', borderRadius:r, boxShadow:'0 12px 40px rgba(0,0,0,0.6)' }}>
-            <img src="/demo/schedulio-laptop.webp" alt="davelopment booking dashboard" className="w-full h-full object-cover" />
+            <img src="/demo/booking-laptop.webp" alt="davelopment booking dashboard" className="w-full h-full object-cover" />
           </div>
-          <div className={tile} style={{ gridColumn:'5/7', borderRadius:r }}><img src="/demo/schedulio-tablet.webp" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /></div>
+          <div className={tile} style={{ gridColumn:'5/7', borderRadius:r }}><img src="/demo/booking-tablet.webp" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /></div>
 
           {/* Sor 3 — 2 kép */}
           <div className={tile} style={{ gridColumn:'1/4', borderRadius:r }}><img src="/app_screen.png" alt="" className="w-full h-full object-cover" loading="lazy" decoding="async" /></div>

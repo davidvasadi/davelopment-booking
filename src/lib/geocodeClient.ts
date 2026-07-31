@@ -10,7 +10,7 @@
  * kérdezzünk újra). Csak a hiányzó (cache-eletlen) városokra megy hálózati hívás.
  */
 
-const CACHE_KEY = 'schedulio.geocode.v1'
+const CACHE_KEY = 'davelopment.geocode.v1'
 // [lat, lng] = megtalált; null = geokódolva, de nincs találat (negatív cache).
 type Cache = Record<string, [number, number] | null>
 

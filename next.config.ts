@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: 'schedulio.hu',
+        hostname: 'booking.davelopment.hu',
         pathname: '/uploads/**',
       },
       {

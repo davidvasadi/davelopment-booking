@@ -2,8 +2,8 @@
  * Központi márka- és domain-konfiguráció.
  *
  * Ez az EGYETLEN hely, ahol a termék neve, domainje és kapcsolati adatai
- * definiálva vannak. A domain-/névcsere (pl. schedulio.hu → booking.davelopment.hu)
- * kizárólag itt vagy a hozzá tartozó env-változókban történik.
+ * definiálva vannak. A domain (booking.davelopment.hu) és a márkanév (davelopment booking)
+ * kizárólag itt vagy a hozzá tartozó env-változókban módosítható.
  *
  * A publikus (kliensbe is kerülő) értékek NEXT_PUBLIC_ env-változóból olvashatók,
  * hogy környezetenként (dev/prod) felülírhatók legyenek build nélkül.

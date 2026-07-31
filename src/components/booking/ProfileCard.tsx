@@ -170,8 +170,8 @@ export function ProfileCard({
       setSelectedServiceId(null)
       setView('services')
     }
-    window.addEventListener('schedulio:openServices', handler)
-    return () => window.removeEventListener('schedulio:openServices', handler)
+    window.addEventListener('davelopment:openServices', handler)
+    return () => window.removeEventListener('davelopment:openServices', handler)
   }, [])
 
   const loadSlots = () => {
