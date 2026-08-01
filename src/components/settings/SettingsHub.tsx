@@ -627,9 +627,13 @@ export function SettingsHub({
 
   // ── Navigáció adatvezérelten (a desktop rail ÉS a mobil legördülő EGY forrásból) ──
   type NavItem =
-    | { kind: 'btn'; id: RailId; icon: LucideIcon; label: string; soon?: boolean }
+    | { kind: 'btn'; id: RailId; icon: LucideIcon; label: string; soon?: boolean; badge?: string }
     | { kind: 'link'; href: string; icon: LucideIcon; label: string }
   const canBilling = !myCapabilities || can(myCapabilities, 'billing.manage')
+  const trialDaysLeft = billing.subscriptionStatus === 'trialing' && billing.trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(billing.trialEndsAt).getTime() - Date.now()) / 86_400_000))
+    : null
+  const trialBadge = trialDaysLeft !== null ? (trialDaysLeft === 0 ? 'Ma jár le' : `${trialDaysLeft} nap`) : undefined
   const canDanger = !myCapabilities || can(myCapabilities, 'danger')
   // `settings.own_profile` jogú tag: csak a Saját profil + Dokumentumok tab látszik.
   const canFullSettings = !myCapabilities || can(myCapabilities, 'settings.profile')
@@ -652,7 +656,7 @@ export function SettingsHub({
         { group: 'Fiók', items: [
           { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
           { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok' },
-          ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Számlázás' }] : []),
+          ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Számlázás', badge: trialBadge }] : []),
           { kind: 'btn', id: 'sites', icon: Building2, label: 'Telephelyek' },
         ] },
         { group: 'Integrációk', items: [
@@ -736,10 +740,13 @@ export function SettingsHub({
                             >
                               <Icon className={`h-[18px] w-[18px] ${active === it.id ? 'text-gold' : 'text-ink-soft2'}`} strokeWidth={1.5} />
                               {it.label}
+                              {it.badge && !it.soon && (
+                                <span className="ml-auto rounded-full bg-[#FFD85F] px-2 py-0.5 text-[11px] font-semibold leading-none text-[#3a352a]">{it.badge}</span>
+                              )}
                               {it.soon && (
                                 <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${active === it.id ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>Hamarosan</span>
                               )}
-                              {active === it.id && !it.soon && (
+                              {active === it.id && !it.soon && !it.badge && (
                                 <Check className="ml-auto h-4 w-4 text-gold" strokeWidth={2.5} />
                               )}
                             </button>
@@ -789,7 +796,7 @@ export function SettingsHub({
               {grp.items.map((it) => {
                 const Icon = it.icon
                 return it.kind === 'btn' ? (
-                  <RailBtn key={it.id} id={it.id} active={active} onClick={setActive} icon={it.icon} label={it.label} soon={it.soon} />
+                  <RailBtn key={it.id} id={it.id} active={active} onClick={setActive} icon={it.icon} label={it.label} soon={it.soon} badge={it.badge} />
                 ) : (
                   <Link
                     key={it.href}
@@ -812,7 +819,14 @@ export function SettingsHub({
         {/* PANEL */}
         <div className="min-w-0">
           {/* Szekció-cím (desktop) — mobilon a legördülő gomb jelzi az aktív szekciót. */}
-          <h2 className="hidden text-[22px] font-medium tracking-[-0.01em] text-ink lg:mb-5 lg:block">{RAIL_LABELS[active]}</h2>
+          <div className="hidden lg:mb-5 lg:flex lg:items-center lg:justify-between">
+            <h2 className="text-[22px] font-medium tracking-[-0.01em] text-ink">{RAIL_LABELS[active]}</h2>
+            {active === 'billing' && trialBadge && (
+              <span className="rounded-full bg-[#FFD85F] px-3 py-1 text-[13px] font-semibold leading-none text-[#3a352a]">
+                {trialBadge}
+              </span>
+            )}
+          </div>
 
           {/* Profil-form (Üzlet profil / Foglalás / Nyelvek / Email / Dokumentumok / Fiók törlése):
               MINDIG mountolva marad (a mentetlen mezők ne vesszenek el lista-váltáskor), csak a
@@ -1670,7 +1684,7 @@ export function SettingsHub({
                       <div className="flex items-center gap-2">
                         <span className="truncate text-[14.5px] font-semibold text-ink">{s.name}</span>
                         {s.current && (
-                          <span className="rounded-[7px] bg-[rgba(241,206,69,.22)] px-2 py-0.5 text-[10px] font-semibold text-[#9A7B12]">
+                          <span className="rounded-[7px] bg-[rgba(255,216,95,.22)] px-2 py-0.5 text-[10px] font-semibold text-[#9A7B12]">
                             Jelenlegi
                           </span>
                         )}
@@ -1881,7 +1895,7 @@ function GroupLabel({ children }: { children: ReactNode }) {
 }
 
 function RailBtn({
-  id, active, onClick, icon: Icon, label, soon, danger,
+  id, active, onClick, icon: Icon, label, soon, danger, badge,
 }: {
   id: RailId
   active: RailId
@@ -1890,6 +1904,7 @@ function RailBtn({
   label: string
   soon?: boolean
   danger?: boolean
+  badge?: string
 }) {
   const isActive = active === id
   return (
@@ -1906,6 +1921,11 @@ function RailBtn({
     >
       <Icon className={`h-[17px] w-[17px] ${isActive ? 'text-gold' : danger ? 'text-[#C0453F]' : 'text-ink-soft2'}`} strokeWidth={1.5} />
       {label}
+      {badge && !soon && (
+        <span className="ml-auto shrink-0 rounded-full bg-[#FFD85F] px-2 py-0.5 text-[11px] font-semibold leading-none text-[#3a352a]">
+          {badge}
+        </span>
+      )}
       {soon && (
         <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>
           Hamarosan

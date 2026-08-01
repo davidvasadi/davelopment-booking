@@ -72,6 +72,10 @@ export function AppNavbar({
   const isActive = (href: string, exact?: boolean) => (exact ? pathname === href : pathname.startsWith(href))
   const isLocked = subscription?.status === 'past_due' || subscription?.status === 'canceled' || subscription?.status === 'paused'
 
+  const trialDaysLeft = subscription?.status === 'trialing' && subscription.trial_ends_at
+    ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / 86_400_000))
+    : undefined
+
   // A „Beállítások" a jobb oldali fogaskerékre kerül; a pill-navban a többi elem.
   // A pill-nav ~6 elemre van tervezve — a többi egy „Több" legördülőbe kerül, hogy ne lógjon ki.
   const showSettings = variant === 'backstage' || items.some((it) => it.href === settingsHref)
@@ -212,6 +216,7 @@ export function AppNavbar({
           activeBusinessKey={activeBusinessKey}
           capabilities={variant === 'backstage' ? undefined : capabilities}
           notificationsHref={variant === 'backstage' ? undefined : notificationsHref}
+          trialDaysLeft={trialDaysLeft}
         />
       </div>
     </div>

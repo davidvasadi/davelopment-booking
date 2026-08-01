@@ -40,6 +40,7 @@ export function UserMenu({
   activeBusinessKey = null,
   capabilities,
   notificationsHref,
+  trialDaysLeft,
 }: {
   name?: string | null
   email?: string | null
@@ -59,6 +60,8 @@ export function UserMenu({
   capabilities?: Capability[]
   /** Teljes értesítési oldal linkje — a panel fejlécének nyíl gombja ide navigál. */
   notificationsHref?: string
+  /** Próbaidőszakban hátralévő napok — ha meg van adva, badge jelenik meg az Előfizetés menüpont mellett. */
+  trialDaysLeft?: number
 }) {
   const router = useRouter()
   const [mounted, setMounted] = useState(false)
@@ -275,7 +278,12 @@ export function UserMenu({
                   className="group flex items-center gap-3 px-4 py-2.5 text-sm font-medium text-[#3a352a] transition-colors hover:bg-[#f4f4f5]"
                 >
                   <CreditCard className="h-[17px] w-[17px] shrink-0 text-[#8a8779]" />
-                  Előfizetés
+                  <span className="flex-1">Előfizetés</span>
+                  {trialDaysLeft !== undefined && (
+                    <span className="rounded-full bg-[#FFD85F] px-2 py-0.5 text-[11px] font-semibold leading-none text-[#3a352a]">
+                      {trialDaysLeft === 0 ? 'Ma jár le' : `${trialDaysLeft} nap`}
+                    </span>
+                  )}
                 </Link>
               )}
               {settingsHref && canSettings && (
@@ -309,7 +317,7 @@ export function UserMenu({
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={active.logoUrl} alt={active.name} className="h-[30px] w-[30px] shrink-0 rounded-[8px] object-cover" />
                     ) : (
-                      <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#1d1c19] text-[12px] font-bold text-[#f1ce45]">{activeMono}</span>
+                      <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#1d1c19] text-[12px] font-bold text-[#ffd85f]">{activeMono}</span>
                     )}
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium text-[#3a352a]">{active.name}</span>
@@ -351,7 +359,7 @@ export function UserMenu({
                                   // eslint-disable-next-line @next/next/no-img-element
                                   <img src={b.logoUrl} alt={b.name} className="h-[26px] w-[26px] shrink-0 rounded-[7px] object-cover" />
                                 ) : (
-                                  <span className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] text-[11px] font-bold', isActive ? 'bg-[#1d1c19] text-[#f1ce45]' : 'bg-[#e8e7e2] text-[#5a5549]')}>{mono}</span>
+                                  <span className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] text-[11px] font-bold', isActive ? 'bg-[#1d1c19] text-[#ffd85f]' : 'bg-[#e8e7e2] text-[#5a5549]')}>{mono}</span>
                                 )}
                                 <span className="min-w-0 flex-1">
                                   <span className={cn('block truncate text-[13px] font-medium', isActive ? 'text-[#1d1c19]' : 'text-[#5a5549]')}>{b.name}</span>
@@ -411,7 +419,7 @@ export function UserMenu({
             <p className="flex flex-1 items-center gap-2 text-[15px] font-semibold text-[#2a2620]">
               Értesítések
               {items.length > 0 && (
-                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f1ce45] px-1.5 text-[11px] font-bold text-[#23230f]">{items.length}</span>
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ffd85f] px-1.5 text-[11px] font-bold text-[#23230f]">{items.length}</span>
               )}
             </p>
             {items.length > 0 && (
@@ -487,7 +495,7 @@ function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () 
       </button>
       <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
         {!n.read && (
-          <span className="absolute h-[7px] w-[7px] rounded-full bg-[#f1ce45] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
+          <span className="absolute h-[7px] w-[7px] rounded-full bg-[#ffd85f] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
         )}
         <button
           type="button"
@@ -532,7 +540,7 @@ function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: 
           </div>
           <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
             {!n.read && (
-              <span className="absolute h-[7px] w-[7px] rounded-full bg-[#f1ce45] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
+              <span className="absolute h-[7px] w-[7px] rounded-full bg-[#ffd85f] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
             )}
             <span
               role="button"
