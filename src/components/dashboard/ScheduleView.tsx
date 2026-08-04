@@ -51,6 +51,7 @@ interface Props {
   year: number
   month: number // 0-based
   dailyTips?: Record<string, number> // dátum → napi központi borravaló (Ft); csak étterem
+  closedDates?: string[] // YYYY-MM-DD — nyitvatartás-kivételből zárva napok
   canManage?: boolean // false → csak megtekintés, szerkesztő/hozzáadás gombok rejtve
   myStaffId?: string // bejelentkezett user staff-id-je → ez az alapértelmezett kiválasztott személy
   initialDate?: string // YYYY-MM-DD — értesítés-linkből; nyitja a napot és navigál a hónapba
@@ -172,7 +173,7 @@ function SegFilter<T extends string>({ id, options, value, onChange }: { id: str
   )
 }
 
-export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, year, month, dailyTips = {}, canManage = true, myStaffId, initialDate }: Props) {
+export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, year, month, dailyTips = {}, closedDates = [], canManage = true, myStaffId, initialDate }: Props) {
   const isRestaurant = variant === 'restaurant'
   const router = useRouter()
   const [shifts, setShifts] = useState<ShiftVM[]>(initialShifts)
@@ -798,9 +799,10 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
               const isToday = c.date === todayStr
               const isSelDay = c.date === selectedDay
               const bdays = c.date ? birthdaysOn(c.date) : []
+              const isClosed = c.date != null && closedDates.includes(c.date)
               // Fedettség: fedetlen = mai/jövőbeli HÉTKÖZNAP (H–P) 0 beosztással (a TELJES napból) → halvány figyelmeztetés.
               const dow = new Date(y, m, c.day).getDay() // 0=vas … 6=szo
-              const isUncovered = !isSelDay && c.date != null && c.date >= todayStr && isWatchedDow(dow) && dayAll.length === 0
+              const isUncovered = !isSelDay && !isClosed && c.date != null && c.date >= todayStr && isWatchedDow(dow) && dayAll.length === 0
               return (
                 <div key={i} className="group relative">
                   <button
@@ -812,25 +814,31 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                     }}
                     className="flex min-h-[70px] w-full flex-col overflow-hidden rounded-[10px] border p-1.5 text-left transition-all sm:min-h-[84px] sm:rounded-[14px] sm:p-2"
                     style={{
-                      background: isSelDay ? 'rgba(241,206,69,.24)' : isToday ? 'rgba(241,206,69,.1)' : 'rgba(255,255,255,.6)',
-                      borderColor: isSelDay ? 'transparent' : isUncovered ? 'rgba(232,162,61,.65)' : isToday ? 'rgba(241,206,69,.5)' : 'rgba(120,110,70,.1)',
+                      background: isSelDay
+                        ? 'rgba(241,206,69,.24)'
+                        : isClosed
+                          ? 'repeating-linear-gradient(-45deg, rgba(160,150,120,.13) 0px, rgba(160,150,120,.13) 1px, transparent 1px, transparent 7px), rgba(255,255,255,.88)'
+                          : isToday ? 'rgba(241,206,69,.1)' : 'rgba(255,255,255,.6)',
+                      borderColor: isSelDay ? 'transparent' : isClosed ? 'rgba(180,60,50,.28)' : isUncovered ? 'rgba(232,162,61,.65)' : isToday ? 'rgba(241,206,69,.5)' : 'rgba(120,110,70,.1)',
                       borderStyle: isUncovered ? 'dashed' : 'solid',
-                      // „Csak fedetlen": a nem-fedetlen napok elhalványulnak, hogy a lyukak kiugorjanak.
                       opacity: onlyUncovered && !isUncovered && !isSelDay ? 0.35 : 1,
                     }}
                   >
                     <div className="flex items-center gap-1">
-                      <span className={`text-[12px] font-semibold sm:text-[13px] ${isToday || isSelDay ? 'text-ink' : 'text-ink-soft'}`}>{c.day}</span>
+                      <span className={`text-[12px] font-semibold sm:text-[13px] ${isToday || isSelDay ? 'text-ink' : isClosed ? 'text-ink-soft2' : 'text-ink-soft'}`}>{c.day}</span>
                       {bdays.length > 0 && <Cake className="h-3 w-3 text-[#C2557A] sm:h-3.5 sm:w-3.5" strokeWidth={1.9} />}
                       {c.date && (tips[c.date] ?? 0) > 0 && <Coins className="h-3 w-3 text-[#C9A227] sm:h-3.5 sm:w-3.5" strokeWidth={2} aria-label="Van napi borravaló" />}
                       <span className="ml-auto flex items-center">
-                        {dayShifts.length > 0 ? (
+                        {!isClosed && dayShifts.length > 0 ? (
                           <span className="rounded-full bg-[#F0EAD8] px-1.5 text-[8.5px] font-bold text-ink-soft sm:text-[9px]">{dayShifts.length}</span>
-                        ) : isUncovered ? (
+                        ) : !isClosed && isUncovered ? (
                           <span className="h-[7px] w-[7px] rounded-full" style={{ background: '#E8A23D' }} title="Fedetlen nap" />
                         ) : null}
                       </span>
                     </div>
+                    {isClosed && (
+                      <span className="mt-1 inline-block rounded-[5px] bg-[rgba(180,60,50,.12)] px-1 text-[7.5px] font-bold uppercase tracking-wide text-[#b43c32] sm:text-[8px]">Zárva</span>
+                    )}
                     {/* 2 SOROS egymásra csúszó avatar-stack: sor1=3 db, sor2=maradék+badge */}
                     {dayShifts.length > 0 && (() => {
                       const ordered = focusPerson && sel ? [...dayShifts].sort((a, b) => Number(b.staffId === sel.id) - Number(a.staffId === sel.id)) : dayShifts

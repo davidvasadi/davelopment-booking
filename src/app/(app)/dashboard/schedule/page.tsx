@@ -7,7 +7,7 @@ import { ScheduleView, type StaffVM, type ShiftVM, type ShiftType } from '@/comp
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { PageHeader } from '@/components/ui/page-header'
-import type { StaffMember, Shift, Media } from '@/payload/payload-types'
+import type { StaffMember, Shift, Media, Availability } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,7 +38,7 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
   const canManageOwn = can(capabilities, 'schedule.manage.own')
   const payload = await getPayloadClient()
 
-  const [staffRes, shiftsRes] = await Promise.all([
+  const [staffRes, shiftsRes, exceptionsRes] = await Promise.all([
     payload.find({
       collection: 'staff',
       where: { salon: { equals: salon.id }, is_active: { equals: true } },
@@ -55,7 +55,18 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
       limit: 5000,
       overrideAccess: true,
     }),
+    payload.find({
+      collection: 'availability',
+      where: { and: [{ salon: { equals: salon.id } }, { staff: { exists: false } }, { exception_date: { exists: true } }, { is_available: { equals: false } }] },
+      depth: 0,
+      limit: 500,
+      overrideAccess: true,
+    }),
   ])
+
+  const closedDates = (exceptionsRes.docs as Availability[])
+    .map((e) => e.exception_date)
+    .filter((d): d is string => !!d)
 
   const allStaff: StaffVM[] = (staffRes.docs as StaffMember[]).map((s) => ({
     id: String(s.id),
@@ -158,6 +169,7 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
         shifts={shifts}
         year={now.getFullYear()}
         month={now.getMonth()}
+        closedDates={closedDates}
         canManage={canManage || (isOwnOnly && canManageOwn)}
         myStaffId={myStaffId}
         initialDate={initialDate}

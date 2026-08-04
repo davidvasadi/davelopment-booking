@@ -7,7 +7,7 @@ import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { PageHeader } from '@/components/ui/page-header'
 import { roleLabel } from '@/lib/permissions'
-import type { Membership, Shift, User, Role } from '@/payload/payload-types'
+import type { Membership, Shift, User, Role, OpeningHoursException } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -37,7 +37,7 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
   const canManage = can(capabilities, 'schedule.manage')
   const payload = await getPayloadClient()
 
-  const [membersRes, shiftsRes] = await Promise.all([
+  const [membersRes, shiftsRes, exceptionsRes] = await Promise.all([
     payload.find({
       // AKTÍV + MEGHÍVOTT tagok is: a meghívottakat is be lehessen osztani (különben üres a lista,
       // amíg senki nem fogadta el a meghívót → a Beosztás használhatatlan).
@@ -56,7 +56,26 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
       limit: 5000,
       overrideAccess: true,
     }),
+    payload.find({
+      collection: 'opening-hours-exceptions',
+      where: { and: [{ restaurant: { equals: restaurant.id } }, { is_closed: { equals: true } }] },
+      depth: 0,
+      limit: 500,
+      overrideAccess: true,
+    }),
   ])
+
+  // Tartomány → egyedi napok listája
+  const closedDates: string[] = (exceptionsRes.docs as OpeningHoursException[]).flatMap((e) => {
+    const dates: string[] = []
+    const cur = new Date(e.start_date)
+    const end = new Date(e.end_date)
+    while (cur <= end) {
+      dates.push(cur.toISOString().slice(0, 10))
+      cur.setDate(cur.getDate() + 1)
+    }
+    return dates
+  })
 
   const members: StaffVM[] = (membersRes.docs as Membership[]).map((m) => {
     const u = typeof m.user === 'object' ? (m.user as User) : null
@@ -152,6 +171,7 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
         year={now.getFullYear()}
         month={now.getMonth()}
         dailyTips={dailyTips}
+        closedDates={closedDates}
         canManage={canManage}
         initialDate={initialDate}
       />
