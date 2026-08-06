@@ -58,18 +58,29 @@ export const stepSlideTransition: Transition = { duration: DUR.fast, ease: EASE 
 export const staggerDelay = (i: number, base = 0.08) => base + i * STAGGER
 
 
+// ── Landing spring presetek (forrás: nexbit-animation-spec.md) ─────────────────
+
+/** Belépők, slide-ok — lendületes spring. */
+export const SPRING_SNAPPY = { type: 'spring', stiffness: 300, damping: 60, mass: 1 } as const
+/** Hover, interaktív elemek — kicsit puhább. */
+export const SPRING_SOFT   = { type: 'spring', stiffness: 275, damping: 60, mass: 1 } as const
+/** Fejléc scale reveal — gyors, enyhe bounce. */
+export const SPRING_QUICK  = { type: 'spring', bounce: 0.2, duration: 0.4 } as const
+
 /**
  * Hover-nyelv a landing pill-gombokhoz: a felirat balra húz, az ikon elfordul+kicsúszik.
  * A szülő `initial="rest" whileHover="hover"`, a gyermekek ezt öröklik.
  */
+/** Gomb hover: enyhe scale-le (press érzet). */
 export const buttonHover: Variants = {
-  rest: { x: 0 },
-  hover: { x: -6, transition: { duration: 0.35, ease: EASE } },
+  rest:  { scale: 1,    transition: { duration: 0.18, ease: 'easeOut' } },
+  hover: { scale: 0.97, transition: { duration: 0.1,  ease: 'easeOut' } },
 }
 
+/** Nyíl-ikon hover: vízszintes roll (rotateY 360°). */
 export const iconHover: Variants = {
-  rest: { rotate: 0, x: 0 },
-  hover: { rotate: 45, x: 6, transition: { duration: 0.35, ease: EASE } },
+  rest:  { rotateY: 0 },
+  hover: { rotateY: 360, transition: { duration: 0.42, ease: EASE } },
 }
 
 // ── Dashboard / app presetek ────────────────────────────────────────────────

@@ -18,7 +18,7 @@ export function JoinWord({ children }: { children: string }) {
         fontSize="230"
         fontWeight="700"
         letterSpacing="-20"
-        fill="currentColor"
+        fill="#F7F7F7"
         fontFamily="var(--font-geist), system-ui, sans-serif"
       >
         {children}
