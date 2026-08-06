@@ -1,81 +1,101 @@
 'use client'
 
 import { useRef } from 'react'
-import { ScrollTrigger, useGSAP } from '@/lib/landing/gsap'
+import { motion, useScroll, useTransform } from 'framer-motion'
+import type { LucideIcon } from 'lucide-react'
+import {
+  UtensilsCrossed, Scissors, HeartPulse, Dumbbell,
+  Sparkles, Leaf, Wind, PawPrint, Brain, Camera,
+  Wrench, BookOpen, Users, Stethoscope, Activity,
+} from 'lucide-react'
 
-const MARQUEE_ROWS = [
-  ['FODRÁSZAT', 'KOZMETIKA', 'MASSZÁZS', 'TETOVÁLÓ', 'KÖRÖMSZALON', 'SMINKTETOVÁLÁS', 'SZOLÁRIUM', 'HAJDÍSZÍTÉS', 'ARCKEZELÉS', 'DEPILÁLÁS'],
-  ['JÓGA', 'SZEMÉLYI EDZŐ', 'FOGÁSZAT', 'ÉTTEREM', 'CSONTKOVÁCS', 'PSZICHOLÓGUS', 'BORBÉLY', 'KÁVÉZÓ', 'LOGOPÉDUS', 'DIETETIKUS'],
-  ['PILATES', 'CROSSFIT', 'ÚSZÁSOKTATÁS', 'KUTYAKOZMETIKA', 'AUTÓSZERELŐ', 'NYELVTANÁR', 'FOTÓS', 'KÖNYVELŐ', 'EDZŐTEREM', 'FIZIOTERÁPIA'],
+// ── Főkategóriák → konkrétumok (SEO) ─────────────────────────────────────────
+type Category = { name: string; Icon: LucideIcon }
+
+const CATEGORIES: Category[] = [
+  // Fő 5
+  { name: 'Étterem',            Icon: UtensilsCrossed },
+  { name: 'Szépségszalon',      Icon: Scissors },
+  { name: 'Egészségügy',        Icon: HeartPulse },
+  { name: 'Fitness',            Icon: Dumbbell },
+  { name: 'Wellness & Spa',     Icon: Sparkles },
+  // Konkrétumok
+  { name: 'Fodrászat',          Icon: Scissors },
+  { name: 'Borbély',            Icon: Scissors },
+  { name: 'Masszázs',           Icon: Leaf },
+  { name: 'Jóga & Pilates',     Icon: Wind },
+  { name: 'Edzőterem',          Icon: Activity },
+  { name: 'Kutyakozmetika',     Icon: PawPrint },
+  { name: 'Állatorvos',         Icon: PawPrint },
+  { name: 'Pszichológia',       Icon: Brain },
+  { name: 'Coaching',           Icon: Users },
+  { name: 'Fotózás',            Icon: Camera },
+  { name: 'Autószerelő',        Icon: Wrench },
+  { name: 'Oktatás',            Icon: BookOpen },
+  { name: 'Fogászat',           Icon: Stethoscope },
 ]
 
-const BASE_OFFSET = 800
-
-function MarqueeRow({
-  items,
-  reverse = false,
-  shift,
-  rowRef,
-}: {
-  items: string[]
-  reverse?: boolean
-  shift: number
-  rowRef: React.RefObject<HTMLDivElement | null>
-}) {
-  const row = [...items, ...items, ...items, ...items, ...items, ...items]
-  const dir = reverse ? 1 : -1
-  const baseX = (-BASE_OFFSET + dir * shift)
-
-  return (
-    <div className="overflow-hidden">
-      <div
-        ref={rowRef as React.RefObject<HTMLDivElement>}
-        className="flex whitespace-nowrap will-change-transform"
-        style={{
-          transform: `translateX(calc(${baseX}px + var(--sx, 0px)))`,
-        }}
-      >
-        {row.map((item, i) => (
-          <span key={i} className="flex items-baseline font-martian font-bold text-3xl lg:text-6xl tracking-tight uppercase px-8 py-2 lg:py-4 text-brand-ink">
-            {item}
-            <span className="ml-8 self-start text-3xl lg:text-5xl leading-none" aria-hidden>*</span>
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
+const PAGE_BG = '#F7F7F7'
 
 export function Marquee() {
-  const ref  = useRef<HTMLDivElement>(null)
-  const row0 = useRef<HTMLDivElement>(null)
-  const row1 = useRef<HTMLDivElement>(null)
-  const row2 = useRef<HTMLDivElement>(null)
+  const wrapperRef = useRef<HTMLDivElement>(null)
 
-  useGSAP(() => {
-    const el = ref.current
-    if (!el) return
-    const st = ScrollTrigger.create({
-      trigger: el,
-      start: 'top bottom',
-      end: 'bottom top',
-      scrub: true,
-      onUpdate: (self) => {
-        const p = self.progress
-        const offsets = [p * 300, -(p * 200), p * 250]
-        ;[row0.current, row1.current, row2.current].forEach((row, i) => {
-          if (row) row.style.setProperty('--sx', `${offsets[i]}px`)
-        })
-      },
-    })
-    return () => st.kill()
-  }, { scope: ref })
+  const { scrollYProgress } = useScroll({
+    target: wrapperRef,
+    offset: ['start end', 'start 0.35'],
+  })
+  const y       = useTransform(scrollYProgress, [0, 1], ['-100%', '0%'])
+  const opacity = useTransform(scrollYProgress, [0, 0.15], [0, 1])
+  const scale   = useTransform(scrollYProgress, [0, 1], [0.92, 1])
+
+  const track: Category[] = [...CATEGORIES, ...CATEGORIES]
 
   return (
-    <div ref={ref} className="bg-brand-accent border-y border-brand-ink/10 overflow-hidden py-5 space-y-1">
-      <MarqueeRow items={MARQUEE_ROWS[0]} reverse shift={300} rowRef={row0} />
-      <MarqueeRow items={MARQUEE_ROWS[1]} shift={200} rowRef={row1} />
-      <MarqueeRow items={MARQUEE_ROWS[2]} reverse shift={250} rowRef={row2} />
-    </div>
+    <motion.div ref={wrapperRef} style={{ y, opacity, scale }}>
+      <div className="mx-auto max-w-7xl px-4 lg:px-5 py-8 lg:py-12 flex flex-col lg:flex-row lg:items-center">
+
+        {/* ── Bal — fix cím (HowItWorks-stílus) ──────────────────────────── */}
+        <div className="shrink-0 flex flex-col items-start gap-4 pb-8 lg:pb-0 lg:w-[300px] lg:pr-10">
+          <span className="inline-flex items-center rounded-full bg-white px-4 py-2 font-onest text-[20px] tracking-[-0.06em] text-brand-ink">
+            Kompatibilis
+          </span>
+          <h2 className="font-onest font-medium text-[clamp(2rem,5.5vw,3rem)] leading-[1.15] tracking-[-0.05em] text-brand-ink">
+            Minden iparágban.
+          </h2>
+        </div>
+
+        {/* ── Végtelen szalag ──────────────────────────────────────────────── */}
+        <div className="flex-1 overflow-hidden relative">
+          {/* Bal fade */}
+          <div
+            className="absolute left-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
+            style={{ background: `linear-gradient(to right, ${PAGE_BG}, transparent)` }}
+          />
+          {/* Jobb fade */}
+          <div
+            className="absolute right-0 top-0 bottom-0 w-24 z-10 pointer-events-none"
+            style={{ background: `linear-gradient(to left, ${PAGE_BG}, transparent)` }}
+          />
+
+          <motion.div
+            className="flex items-center gap-10 whitespace-nowrap py-2"
+            style={{ width: 'max-content' }}
+            animate={{ x: ['0%', '-50%'] }}
+            transition={{ duration: 70, repeat: Infinity, ease: 'linear' }}
+          >
+            {track.map(({ name, Icon }, i) => (
+              <span
+                key={i}
+                className="inline-flex shrink-0 items-center gap-2.5 font-onest text-[26px] font-medium tracking-[-0.04em] text-brand-ink"
+              >
+                <Icon size={22} strokeWidth={1.5} />
+                {name}
+              </span>
+            ))}
+          </motion.div>
+        </div>
+
+      </div>
+    </motion.div>
   )
 }

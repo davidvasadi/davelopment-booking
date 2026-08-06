@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { EASE } from '@/lib/motion'
 import { FadeUp } from '@/components/landing/Motion'
-import { SectionLabel } from '@/components/landing/SectionLabel'
 import { ftFmt, type LandingPricing } from '@/components/landing/types'
 
 /** A GYIK kérdés-listája — az árazás-függő válaszok a propból épülnek. */
@@ -74,7 +73,7 @@ function FaqAccordion({ items }: { items: { q: string; a: string }[] }) {
             {/* Sor: nyitva világosszürke lekerekített kártya; zárva sima sor */}
             <motion.div
               className={cn('rounded-[30px] px-2 py-2.5')}
-              animate={{ backgroundColor: isOpen ? '#f4f4f4' : 'rgba(244,244,244,0)' }}
+              animate={{ backgroundColor: isOpen ? '#ffffff' : 'rgba(244,244,244,0)' }}
               transition={{ duration: 0.3, ease: EASE }}
             >
               <button
@@ -146,10 +145,12 @@ function FaqAccordion({ items }: { items: { q: string; a: string }[] }) {
 export function Faq({ pricing }: { pricing: LandingPricing }) {
   const items = buildFaqItems(pricing)
   return (
-    <section id="gyik" className="mx-auto px-4 lg:px-5 py-20 lg:py-28 flex flex-col gap-[54px]">
+    <section id="gyik" className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28 flex flex-col gap-[54px]">
       {/* Fejléc: eyebrow + nagy cím (bal) | leírás (jobb felső) */}
       <div className="flex flex-col gap-[54px]">
-        <SectionLabel>(FAQ)</SectionLabel>
+        <span className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[20px] tracking-[-0.06em] text-brand-ink">
+          FAQ
+        </span>
         <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
           <FadeUp>
             <h2 className="font-semibold text-[clamp(2.75rem,7vw,100px)] leading-[0.94] tracking-[-0.05em] text-brand-ink">

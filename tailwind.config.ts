@@ -15,10 +15,10 @@ const config: Config = {
         // Schedulio landing brand-paletta (a kapott design-referenciából).
         // Külön névtér, hogy ne ütközzön a shadcn `accent`/`primary` tokenekkel.
         brand: {
-          ink: '#191314',
-          accent: '#ecf95a',
-          surface: '#f4f4f4',
-          bg: '#F4F2EE',
+          ink: '#3B3B3B',
+          accent: '#FFD85F',
+          surface: '#ffffff',
+          bg: '#F5F5F5',
         },
         // ===== davelopment-design rendszer — az ÚJ admin paletta.
         // A CSS-változókra mutat (globals.css). Migráció közben a shadcn tokenek
@@ -90,6 +90,18 @@ const config: Config = {
         'dav-container': 'var(--dav-container-gradient)',
       },
       keyframes: {
+        grain: {
+          '0%, 100%': { transform: 'translate(0,0)' },
+          '10%':  { transform: 'translate(-2%,-3%)' },
+          '20%':  { transform: 'translate(3%,1%)' },
+          '30%':  { transform: 'translate(-1%,4%)' },
+          '40%':  { transform: 'translate(3%,-2%)' },
+          '50%':  { transform: 'translate(-3%,1%)' },
+          '60%':  { transform: 'translate(2%,3%)' },
+          '70%':  { transform: 'translate(-1%,-3%)' },
+          '80%':  { transform: 'translate(3%,2%)' },
+          '90%':  { transform: 'translate(-2%,4%)' },
+        },
         'accordion-down': {
           from: { height: '0' },
           to: { height: 'var(--radix-accordion-content-height)' },
@@ -116,6 +128,7 @@ const config: Config = {
         },
       },
       animation: {
+        grain: 'grain 0.5s steps(1) infinite',
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
         'soft-pulse': 'soft-pulse 1.6s ease-in-out infinite',

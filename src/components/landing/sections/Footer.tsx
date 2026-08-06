@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight, ArrowRight } from 'lucide-react'
 import { BrandLogo } from '@/components/BrandLogo'
 import { RollButton } from '@/components/landing/sections/TestimonialButtons'
 import { JoinWord } from '@/components/landing/JoinWord'
-import { EASE } from '@/lib/motion'
+import { EASE, buttonHover } from '@/lib/motion'
+import { Grain } from '@/components/landing/Grain'
 
 /** Footer-link text-roll felirattal + nyíl-elfordulással (a Pricing/RollButton nyelve). */
 function FooterLink({ href, label }: { href: string; label: string }) {
@@ -72,16 +73,7 @@ export function Footer({ trial_days }: { trial_days: number }) {
           'radial-gradient(120% 110% at 50% -10%, #333333 0%, #1c1c1c 40%, #0a0a0a 100%)',
       }}
     >
-      {/* grain textúra — static PNG data URI, nem SVG filter (nincs repaint) */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.06]"
-        style={{
-          backgroundImage: 'url(/noise.png)',
-          backgroundRepeat: 'repeat',
-          backgroundSize: '180px 180px',
-        }}
-      />
+      <Grain opacity={0.18} />
       <div className="relative mx-auto px-6 lg:px-10 pt-16 lg:pt-20 pb-12">
         <div className="grid grid-cols-1 gap-y-10 sm:grid-cols-2 sm:gap-x-6 lg:grid-cols-[1.8fr_1fr_1fr_1fr] lg:gap-10">
           {/* Márka-blokk + CTA (egy oszlop lg-n, teljes sor sm/mobile-on) */}
@@ -103,7 +95,23 @@ export function Footer({ trial_days }: { trial_days: number }) {
               </div>
             </div>
             {/* CTA */}
-            <RollButton href="/register" label="Ingyenes Regisztráció" variant="accent" size="md" icon className="w-full sm:w-auto" />
+            <motion.a
+              href="/register"
+              variants={buttonHover}
+              initial="rest"
+              whileHover="hover"
+              className="inline-flex self-start items-center gap-2.5 rounded-full bg-white py-2.5 pl-5 pr-2.5 font-onest font-medium text-base text-[#1d1c19]"
+            >
+              Ingyenes regisztráció
+              <span className="relative flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full overflow-hidden" style={{ background: '#f1ce45' }}>
+                <motion.div className="absolute flex" variants={{ rest: { x: 0 }, hover: { x: 36 } }} transition={{ duration: 0.28, ease: EASE }}>
+                  <ArrowRight className="h-[18px] w-[18px]" style={{ color: '#1d1c19' }} />
+                </motion.div>
+                <motion.div className="absolute flex" variants={{ rest: { x: -36 }, hover: { x: 0 } }} transition={{ duration: 0.28, ease: EASE }}>
+                  <ArrowRight className="h-[18px] w-[18px]" style={{ color: '#1d1c19' }} />
+                </motion.div>
+              </span>
+            </motion.a>
             {/* Biztonságos fizetés — Stripe */}
             <span className="inline-flex items-center gap-2 text-xs text-white/40">
               <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -154,7 +162,9 @@ export function Footer({ trial_days }: { trial_days: number }) {
           </div>
         </div>
       </div>
-      <JoinWord>Csatlakozz</JoinWord>
+      <div className="relative z-10">
+        <JoinWord>Csatlakozz</JoinWord>
+      </div>
     </footer>
   )
 }
