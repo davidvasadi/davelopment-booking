@@ -17,13 +17,12 @@ export function SmoothScroll({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (isAppPage) return
+    if (window.matchMedia('(pointer: coarse)').matches) return
 
     const lenis = new Lenis({
       duration: 1.2,
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
-      syncTouch: true,
-      syncTouchLerp: 0.05,
     })
 
     // A Lenis smooth-scrollt a GSAP ScrollTrigger-rel szinkronizáljuk: minden Lenis-scroll

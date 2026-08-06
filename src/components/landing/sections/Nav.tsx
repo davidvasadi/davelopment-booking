@@ -22,6 +22,14 @@ const LINKS = [
   { id: 'gyik', label: 'GYIK' },
 ]
 
+export const SERVICES = [
+  { label: 'Weboldal készítés',             href: 'https://davelopment.hu/hu/weboldal-keszites' },
+  { label: 'Időpontfoglaló rendszerek',     href: 'https://davelopment.hu/hu' },
+  { label: 'Vállalatirányítási rendszerek', href: 'https://davelopment.hu/hu' },
+  { label: 'Weboldal design',               href: 'https://davelopment.hu/hu' },
+  { label: 'Digitális marketing',           href: 'https://davelopment.hu/hu' },
+]
+
 const NAV_OFFSET = 72
 
 export function Nav() {
@@ -394,9 +402,34 @@ export function MobileMenu({
         })}
       </motion.div>
 
+      {/* davelopment szolgáltatások */}
+      <motion.div
+        className="px-5 pb-4 flex flex-col gap-2"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: EASE, delay: ctaDelay - 0.04 }}
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-brand-ink/35 px-1">
+          davelopment szolgáltatások
+        </p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {SERVICES.map((s) => (
+            <a
+              key={s.label}
+              href={s.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="rounded-[14px] border border-brand-ink/10 px-3.5 py-2.5 text-[15px] font-medium text-brand-ink/70 hover:text-brand-ink transition-colors"
+            >
+              {s.label}
+            </a>
+          ))}
+        </div>
+      </motion.div>
+
       {/* CTA + bejelentkezés */}
       <motion.div
-        className="px-5 pb-10 pt-4 flex flex-col gap-3"
+        className="px-5 pb-10 pt-0 flex flex-col gap-3"
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: EASE, delay: ctaDelay }}

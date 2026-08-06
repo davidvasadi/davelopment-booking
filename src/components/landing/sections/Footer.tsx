@@ -8,6 +8,7 @@ import { RollButton } from '@/components/landing/sections/TestimonialButtons'
 import { JoinWord } from '@/components/landing/JoinWord'
 import { EASE, buttonHover } from '@/lib/motion'
 import { Grain } from '@/components/landing/Grain'
+import { SERVICES } from '@/components/landing/sections/Nav'
 
 /** Footer-link text-roll felirattal + nyíl-elfordulással (a Pricing/RollButton nyelve). */
 function FooterLink({ href, label }: { href: string; label: string }) {
@@ -41,6 +42,7 @@ function FooterLink({ href, label }: { href: string; label: string }) {
 }
 
 const NAV_LINKS = [
+  { href: '/register', label: 'Időpontfoglaló rendszer' },
   { href: '#hogyan', label: 'Hogyan működik' },
   { href: '#velemenyek', label: 'Vélemények' },
   { href: '#arazas', label: 'Árazás' },
@@ -137,6 +139,14 @@ export function Footer({ trial_days }: { trial_days: number }) {
             <ul className="space-y-1.5">
               {NAV_LINKS.map((l) => (
                 <li key={l.href}><FooterLink href={l.href} label={l.label} /></li>
+              ))}
+            </ul>
+            <p className="mt-5 mb-2 text-[11px] font-semibold uppercase tracking-widest text-white/35">
+              davelopment
+            </p>
+            <ul className="space-y-1.5">
+              {SERVICES.map((s) => (
+                <li key={s.label}><FooterLink href={s.href} label={s.label} /></li>
               ))}
             </ul>
           </div>

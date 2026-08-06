@@ -4,11 +4,11 @@ import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { motion, AnimatePresence, animate, useInView } from 'framer-motion'
-import { ArrowRight } from 'lucide-react'
-import { EASE, SPRING_QUICK, SPRING_SNAPPY, buttonHover } from '@/lib/motion'
+import { ArrowRight, ChevronDown, ArrowUpRight } from 'lucide-react'
+import { EASE, SPRING_QUICK, SPRING_SNAPPY, buttonHover, popPanelCenter, popItem } from '@/lib/motion'
 import { type LandingPricing } from '@/components/landing/types'
 import { BrandLogo } from '@/components/BrandLogo'
-import { MenuToggle, MobileMenu } from '@/components/landing/sections/Nav'
+import { MenuToggle, MobileMenu, SERVICES } from '@/components/landing/sections/Nav'
 
 const HERO_LINKS = [
   { id: 'hogyan',     label: 'Hogyan működik' },
@@ -386,15 +386,44 @@ const PAIRS: [CardFn, CardFn][] = [
 
 // ─── HeroNav — hero-ba épített navigáció (nem sticky) ────────────────────────
 function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' | 'light'; pillId?: string }) {
-  const [active, setActive]     = useState(HERO_LINKS[0].id)
+  const [active, setActive]     = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [mounted, setMounted]   = useState(false)
   const [togglePos, setTogglePos] = useState<{ top: number; right: number } | null>(null)
   const [logoPos, setLogoPos]     = useState<{ top: number; left: number } | null>(null)
   const [animatedOpen, setAnimatedOpen] = useState(false)
-  const toggleRef  = useRef<HTMLDivElement>(null)
-  const logoRef    = useRef<HTMLDivElement>(null)
+  const [servicesOpen, setServicesOpen] = useState(false)
+  const [dropdownPos, setDropdownPos]   = useState<{ top: number; right: number } | null>(null)
+  const toggleRef     = useRef<HTMLDivElement>(null)
+  const logoRef       = useRef<HTMLDivElement>(null)
+  const servicesRef   = useRef<HTMLDivElement>(null)
+  const servicesBtnRef = useRef<HTMLButtonElement>(null)
   const pendingTarget = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!servicesOpen) return
+    const onMouse = (e: MouseEvent) => {
+      if (
+        servicesRef.current && !servicesRef.current.contains(e.target as Node) &&
+        servicesBtnRef.current && !servicesBtnRef.current.contains(e.target as Node)
+      ) setServicesOpen(false)
+    }
+    const onScroll = () => setServicesOpen(false)
+    document.addEventListener('mousedown', onMouse)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      document.removeEventListener('mousedown', onMouse)
+      window.removeEventListener('scroll', onScroll)
+    }
+  }, [servicesOpen])
+
+  const handleServicesToggle = () => {
+    if (!servicesOpen && servicesBtnRef.current) {
+      const r = servicesBtnRef.current.getBoundingClientRect()
+      setDropdownPos({ top: r.bottom + 8, right: window.innerWidth - r.right })
+    }
+    setServicesOpen(o => !o)
+  }
 
   useEffect(() => setMounted(true), [])
 
@@ -408,11 +437,22 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
   useEffect(() => {
     const sections = HERO_LINKS.map(l => document.getElementById(l.id)).filter((el): el is HTMLElement => el !== null)
     if (!sections.length) return
+    const visible = new Set<string>()
     const obs = new IntersectionObserver(
       (entries) => {
         if (pendingTarget.current) return
-        const visible = entries.filter(e => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)
-        if (visible.length > 0) setActive(visible[0].target.id)
+        entries.forEach(e => {
+          if (e.isIntersecting) visible.add(e.target.id)
+          else visible.delete(e.target.id)
+        })
+        if (visible.size === 0) {
+          setActive('')
+        } else {
+          const top = [...visible]
+            .map(id => ({ id, top: document.getElementById(id)?.getBoundingClientRect().top ?? Infinity }))
+            .sort((a, b) => a.top - b.top)[0]
+          setActive(top.id)
+        }
       },
       { rootMargin: `-${NAV_OFFSET + 8}px 0px -40% 0px`, threshold: 0 },
     )
@@ -469,7 +509,7 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
           </Link>
         </div>
 
-        {/* Desktop pill menü */}
+        {/* Desktop pill menü + Szolgáltatások gomb */}
         <div className="hidden md:flex items-center gap-0 rounded-full p-[3px]"
           style={theme === 'dark'
             ? { background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }
@@ -489,6 +529,24 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
               </motion.a>
             )
           })}
+
+          {/* Elválasztó vonal */}
+          <span className="mx-1 h-4 w-px bg-brand-ink/15 shrink-0" />
+
+          {/* Szolgáltatások gomb — ref a pozíció méréséhez */}
+          <motion.button
+            ref={servicesBtnRef}
+            onClick={handleServicesToggle}
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            className="relative flex items-center gap-1 rounded-full px-[14px] py-[10px] font-onest font-medium text-[15px] leading-6 text-brand-ink"
+          >
+            Szolgáltatások
+            <motion.span animate={{ rotate: servicesOpen ? 180 : 0 }} transition={{ duration: 0.2, ease: EASE }}>
+              <ChevronDown className="h-3.5 w-3.5" strokeWidth={2.2} />
+            </motion.span>
+          </motion.button>
         </div>
 
         {/* CTA + Bejelentkezés (desktop) + mobil toggle */}
@@ -546,6 +604,41 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
             <div className="fixed md:hidden" style={{ top: togglePos.top, right: togglePos.right, zIndex: 90 }}>
               <MenuToggle open={animatedOpen} onClick={handleToggle} ghost ink={theme === 'light'} />
             </div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+
+      {/* Portál Szolgáltatások dropdown — body-ra, hogy az overflow-hidden ne klippelje */}
+      {mounted && dropdownPos && createPortal(
+        <AnimatePresence>
+          {servicesOpen && (
+            <motion.div
+              ref={servicesRef}
+              initial="hidden"
+              animate="show"
+              exit="exit"
+              variants={popPanelCenter}
+              style={{ position: 'fixed', top: dropdownPos.top, right: dropdownPos.right, zIndex: 70 }}
+              className="w-64 rounded-2xl bg-white shadow-[0_8px_32px_-8px_rgba(0,0,0,0.22)] ring-1 ring-black/5 overflow-hidden p-1.5"
+            >
+              {SERVICES.map((s) => (
+                <motion.a
+                  key={s.label}
+                  href={s.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setServicesOpen(false)}
+                  variants={popItem}
+                  whileHover={{ scale: 0.97 }}
+                  transition={{ duration: 0.1, ease: 'easeOut' }}
+                  className="group flex items-center justify-between rounded-[10px] px-3.5 py-2.5 text-[14px] font-medium text-brand-ink/70 transition-colors duration-100 hover:bg-[#3b3b3b] hover:text-white"
+                >
+                  {s.label}
+                  <ArrowUpRight className="h-3.5 w-3.5 opacity-40 transition-opacity duration-100 group-hover:opacity-80" />
+                </motion.a>
+              ))}
+            </motion.div>
           )}
         </AnimatePresence>,
         document.body,
@@ -608,7 +701,7 @@ export function Hero({ pricing }: { pricing: LandingPricing }) {
           autoPlay muted loop playsInline aria-hidden
           poster="/videos/szalon-foglalas-hatter-poster.jpg"
         >
-          <source src="/videos/szalon-foglalas-hatter.webm" type="video/webm" />
+          <source src="/videos/szalon-foglalas-hatter.mp4" type="video/mp4" />
           <source src="/videos/szalon-foglalas-hatter.mp4" type="video/mp4" />
         </video>
 
