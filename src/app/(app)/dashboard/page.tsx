@@ -2,18 +2,21 @@ import { getOwnedSalon } from '@/lib/salonContext'
 import { getCurrentUser } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { getPayloadClient } from '@/lib/payload'
-import { formatPrice, fixMediaUrl } from '@/lib/utils'
+import { formatPrice, fixMediaUrl, formatDayBadge } from '@/lib/utils'
+import { deleteStaleTasks } from '@/lib/taskCleanup'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { StoreSwitcher } from '@/components/dashboard/StoreSwitcher'
 import { PageHeader } from '@/components/ui/page-header'
 import { getSetupFlags } from '@/lib/setupFlags'
 import { SetupNudge } from '@/components/dashboard/SetupNudge'
 import { StatusPills } from '@/components/dashboard/StatusPills'
-import { OccupancyDonut, WeekBarChart } from '@/components/shared/OverviewCharts'
+import { OccupancyDonut, WeekBarChart, WeekDayLabels, WeekMiniBars } from '@/components/shared/OverviewCharts'
 import { OverviewAccordion, type AccItem } from '@/components/shared/OverviewPanels'
 import { OverviewTasksPanel } from '@/components/shared/OverviewTasksPanel'
 import { DetailSheet } from '@/components/shared/DetailSheet'
 import { OverviewTimeline, type TimelineBlock, type TimelineRow } from '@/components/shared/OverviewTimeline'
+import { HoverButtonLink } from '@/components/shared/HoverButtonLink'
+import { HoverScaleCard } from '@/components/shared/HoverScaleCard'
 import { CARD, HeroKpi } from '@/components/dashboard/overview-ui'
 import { can } from '@/lib/permissions'
 import { getMyUpcomingShifts } from '@/lib/myShifts'
@@ -49,6 +52,7 @@ export default async function DashboardPage() {
   const hour = now.getHours()
   const greeting = hour < 10 ? 'Jó reggelt' : hour < 18 ? 'Jó napot' : 'Jó estét'
   const todayDow = JS_TO_DOW[now.getDay()]
+  const dayBadge = formatDayBadge(now)
 
   const logoUrl = salon.logo && typeof salon.logo === 'object' ? (salon.logo as Media).url ?? null : null
   // Profil-kép a nagy kártyára: a fiók avatarja (Google-nál nagyobb méret), fallback monogram.
@@ -91,12 +95,22 @@ export default async function DashboardPage() {
   }
   const { active, businesses } = user ? await getActiveBusiness(user) : { active: null, businesses: [] }
 
-  const [stats, todayAll, tasksRes, availRes, staffRes, servicesRes] = await Promise.all([
+  // Háttér-karbantartás: 7 napnál régebbi "korábbi" teendők törlése — nem blokkolja az oldalt.
+  void deleteStaleTasks(payload, 'salon', salon.id)
+
+  const [stats, todayAll, upcomingRes, tasksRes, availRes, staffRes, servicesRes] = await Promise.all([
     getDashboardStats(salon.id),
     payload.find({
       collection: 'bookings',
       where: { and: [{ salon: { equals: salon.id } }, { date: { equals: today } }] },
       sort: 'start_time', depth: 2, limit: 100, overrideAccess: true,
+    }),
+    // Közelgő foglalások: ma-mostantól előre, MINDEN státusz — ha ma már nincs több aktív
+    // foglalás (zárás után), a "Közelgő foglalások" idővonal a következő napra vált.
+    payload.find({
+      collection: 'bookings',
+      where: { and: [{ salon: { equals: salon.id } }, { date: { greater_than_equal: today } }] },
+      sort: ['date', 'start_time'], depth: 2, limit: 150, overrideAccess: true,
     }),
     payload.find({
       collection: 'tasks',
@@ -129,12 +143,6 @@ export default async function DashboardPage() {
   const staffCount = staff.length
   const serviceCount = servicesRes.totalDocs
 
-  // ── Státusz-csík (animelt StatusPills, mint az étteremen) ──
-  const total = all.length || 1
-  const confirmedPct = Math.round((all.filter((b) => b.status === 'confirmed' || b.status === 'completed').length / total) * 100)
-  const pendingPct = Math.round((all.filter((b) => b.status === 'pending').length / total) * 100)
-  const cancelledPct = Math.round((all.filter((b) => b.status === 'cancelled').length / total) * 100)
-
   // ── Heti oszlopdiagram: „Foglalások a héten" — az AKTUÁLIS hét (hétfő–vasárnap) napi foglalásszáma. ──
   const bookingsByDate = new Map(stats.trend.map((d) => [d.date, d.bookings]))
   const weekStart = new Date(now)
@@ -157,12 +165,33 @@ export default async function DashboardPage() {
     return s + Math.max(0, dur)
   }, 0)
   const capacityMins = openMinsToday * Math.max(1, staffCount)
-  const occupancy = capacityMins > 0 ? Math.min(100, Math.round((bookedMins / capacityMins) * 100)) : 0
+  // Kerekítésnél sok szakember (nagy kapacitás-nevező) mellett 1 rövid foglalás is 0%-ra
+  // kerekedne — az legalább 1%-ot mutasson, hogy ne tűnjön üresnek, ha van valós foglalás.
+  const occupancy = capacityMins > 0
+    ? Math.min(100, Math.max(bookedMins > 0 ? 1 : 0, Math.round((bookedMins / capacityMins) * 100)))
+    : 0
 
-  // ── Idővonal SZAKEMBERENKÉNT: a mai foglalások az adott szakember sorába. ──
+  // ── „Közelgő foglalások" idővonal-panel: MINDIG a JELENLEGI 4 órás ablak az alap (ma). A
+  //    megjelenített nap MA, ha van ma olyan aktív foglalás, ami MÉG NEM ÉRT VÉGET (nem csak
+  //    hogy volt ma bármi — egy rég lezárult mai foglalás önmagában NE tartsa "ma"-n, ha már
+  //    elmúlt a záró időpontja); különben a következő nap, amin van (zárás utáni szabály —
+  //    ugyanaz, mint az étteremnél). ──
+  const tomorrow = (() => { const d = new Date(now); d.setDate(now.getDate() + 1); return ymd(d) })()
+  const nowMin = hour * 60 + now.getMinutes()
+  const calSource = (upcomingRes.docs as Booking[])
+  const isActiveB = (b: Booking) => b.status !== 'cancelled'
+  const todayActiveB = calSource.filter((b) => b.date === today && isActiveB(b))
+  const todayHasUpcomingB = todayActiveB.some((b) => (b.end_time ? minOfDay(b.end_time) : minOfDay(b.start_time) + 60) > nowMin)
+  const futureActiveB = calSource
+    .filter((b) => isActiveB(b) && b.date > today)
+    .sort((a, b) => `${a.date}T${a.start_time ?? ''}`.localeCompare(`${b.date}T${b.start_time ?? ''}`))
+  const tlDay = todayHasUpcomingB ? today : (futureActiveB.length ? futureActiveB[0].date : today)
+  const tlSrc = tlDay === today ? todayActiveB : futureActiveB.filter((b) => b.date === tlDay)
+
+  // Idővonal SZAKEMBERENKÉNT: a megjelenített nap (tlDay) foglalásai az adott szakember sorába.
   const staffName = new Map(staff.map((s) => [String(s.id), s.name]))
   const rowMap = new Map<string, TimelineBlock[]>()
-  for (const b of activeBookings) {
+  for (const b of tlSrc) {
     const st = b.staff
     const stId = st == null ? null : typeof st === 'object' ? String(st.id) : String(st)
     const stName = stId ? (typeof b.staff === 'object' && b.staff ? (b.staff as StaffMember).name : staffName.get(stId)) : null
@@ -186,20 +215,42 @@ export default async function DashboardPage() {
     .sort((a, b) => (a[0] === 'Nincs szakember' ? 1 : b[0] === 'Nincs szakember' ? -1 : a[0].localeCompare(b[0], 'hu')))
     .map(([table, blocks]) => ({ table, blocks }))
 
-  // Idővonal-ablak: MA a jelenlegi 4 órás ablak; a foglalások köré tágítva.
-  const tlStart = activeBookings.map((b) => minOfDay(b.start_time))
-  const tlEnd = activeBookings.map((b) => (b.end_time ? minOfDay(b.end_time) : minOfDay(b.start_time) + 60))
-  let tlHourMin = activeBookings.length ? Math.floor(Math.min(...tlStart) / 60) : hour
-  let tlHourMax = activeBookings.length ? Math.ceil(Math.max(...tlEnd) / 60) : hour + 4
-  tlHourMin = Math.min(tlHourMin, hour)
-  tlHourMax = Math.max(tlHourMax, hour + 4, tlHourMin + 4)
-  const tlInitWin = Math.max(tlHourMin, Math.min(hour, tlHourMax - 4))
+  const tlStart = tlSrc.map((b) => minOfDay(b.start_time))
+  const tlEnd = tlSrc.map((b) => (b.end_time ? minOfDay(b.end_time) : minOfDay(b.start_time) + 60))
+  // A foglalás(ok) alapján számolt kezdő óra — ezt kell KEZDŐBŐL mutatni, NE a jelenlegi órát,
+  // különben pl. hajnalban egy 10 órás mai foglalás elé a halott 00:00–x:00 sáv kerülne.
+  const bookingHourMin = tlSrc.length ? Math.floor(Math.min(...tlStart) / 60) : null
+  let tlHourMin = bookingHourMin ?? (tlDay === today ? hour : 9)
+  let tlHourMax = tlSrc.length ? Math.ceil(Math.max(...tlEnd) / 60) : (tlDay === today ? hour + 4 : 13)
+  if (tlDay === today) {
+    // A NAVIGÁLHATÓ tartomány (nyilakkal elérhető) MINDIG foglalja magába a jelenlegi órát is,
+    // hogy vissza lehessen görgetni "mostig" — de a KEZDŐ nézetet ez nem befolyásolja (lásd lent).
+    tlHourMin = Math.min(tlHourMin, hour)
+    tlHourMax = Math.max(tlHourMax, hour + 4)
+  }
+  // A navigálható tartomány érje el legalább a foglalás KEZDETE utáni 4 órát is — különben a
+  // kliens-oldali ablak (ami max ennyit tud csúszni) visszahúzná a kezdő nézetet a foglalás elé.
+  tlHourMax = Math.max(tlHourMax, tlHourMin + 4, (bookingHourMin ?? tlHourMin) + 4)
+  tlHourMax += 1 // +1 óra levegő a végén, hogy ne érjen pont a foglalás szélére a nézet
+  // KEZDŐ nézet: ha van MA foglalás, egyenesen arra ugorjon (ne a jelenlegi órára) — zárás után/
+  // éjfél után is egyből a következő foglalást lássa, ne kelljen a halott sávon átgörgetni hozzá.
+  const tlInitWin = tlDay === today ? Math.max(tlHourMin, bookingHourMin ?? hour) : tlHourMin
+  const tlDayLabel = tlDay === today ? 'Ma' : tlDay === tomorrow ? 'Holnap'
+    : new Date(tlDay + 'T00:00:00').toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })
+
+  // ── Státusz-csík (header pillek): a MEGJELENÍTETT nap (tlDay) státusz-bontása — zárás után a
+  //    következő nyitás napjának bontása, mint az étteremnél. ──
+  const pillRes = calSource.filter((b) => b.date === tlDay)
+  const pillTotal = pillRes.length || 1
+  const confirmedPct = Math.round((pillRes.filter((b) => b.status === 'confirmed' || b.status === 'completed').length / pillTotal) * 100)
+  const pendingPct = Math.round((pillRes.filter((b) => b.status === 'pending').length / pillTotal) * 100)
+  const cancelledPct = Math.round((pillRes.filter((b) => b.status === 'cancelled').length / pillTotal) * 100)
 
   // ── Akkordeon-tartalmak (szalon: Mai bevétel [saját] + Nyitvatartás + Szolgáltatások + Munkatársak) ──
   const availByDay = new Map(availability.filter((a) => a.is_available !== false).map((a) => [a.day_of_week, a]))
   const accItems: AccItem[] = [
     {
-      label: 'Mai bevétel',
+      label: 'Bevétel',
       body: (
         <div className="flex items-end gap-2">
           <div className="text-[30px] font-light tracking-[-0.02em] text-ink">{formatPrice(stats.revenueToday, 'HUF')}</div>
@@ -263,14 +314,14 @@ export default async function DashboardPage() {
       {/* CTA-sor: StoreSwitcher + Új foglalás */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[14px] text-ink-soft">{greeting}, <span className="font-medium text-ink">{user?.name ?? ''}</span></p>
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-stretch gap-2.5">
           <StoreSwitcher name={salon.name} logoUrl={logoUrl} businesses={businesses} activeKey={active ? `${active.type}:${active.id}` : null} />
-          <Link
+          <HoverButtonLink
             href="/dashboard/bookings"
-            className="inline-flex h-[44px] items-center gap-2 rounded-dav-pill bg-ink-dark px-5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+            className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-dav-pill bg-ink-dark px-5 text-sm font-semibold text-white"
           >
             <Plus className="h-4 w-4" strokeWidth={2.4} /> Új foglalás
-          </Link>
+          </HoverButtonLink>
         </div>
       </div>
 
@@ -286,18 +337,45 @@ export default async function DashboardPage() {
           ]}
         />
         <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-          <HeroKpi icon={CalendarDays} value={String(stats.bookingsToday)} label="Foglalás ma" />
-          <HeroKpi icon={Banknote} value={formatPrice(stats.revenueToday, 'HUF')} label="Bevétel ma" />
+          <HeroKpi icon={CalendarDays} value={String(stats.bookingsToday)} label="Foglalás" />
+          <HeroKpi icon={Banknote} value={formatPrice(stats.revenueToday, 'HUF')} label="Bevétel" />
           <HeroKpi icon={CheckCircle2} value={`${stats.completionRate}%`} label="Teljesítés" />
         </div>
       </div>
 
-      {/* ── BENTO — 3 oszlop (mint az étterem): profil+accordion / grafikonok+idővonal / teendők ── */}
-      <div className="grid grid-cols-1 gap-[5px] lg:grid-cols-[300px_minmax(0,1.5fr)_minmax(0,1.05fr)] lg:items-stretch">
+      {/* ── BENTO — mobilon named grid-area sorrend: avatar → charts (grafikonok+idővonal) →
+           tasks (teendők) → accordion (Nyitvatartás/Mai bevétel stb.) legalul. lg-től a klasszikus
+           3-oszlopos elrendezés: avatar+accordion a bal 300px oszlopban egymás alatt, charts/tasks
+           teljes magasságban átfogja mindkét sort (grid-rows: auto a fix magasságú avatarnak,
+           1fr az accordionnak, ami kitölti a maradék helyet). ── */}
+      <div className="dav-overview-bento">
 
-        {/* ── COL1: Profil-kártya (avatar) + accordion ── */}
-        <div className="flex flex-col gap-[5px]">
-          <div className={`${CARD} group relative shrink-0 overflow-hidden p-0`} style={{ aspectRatio: '0.82', transform: 'translateZ(0)' }}>
+        {/* ── Profil-kártya (avatar) ──
+             lg alatt (1 oszlopos grid, teli szélesség) a portré-kép óriásira nőne felbontatlan
+             arcközelivé vágva → helyette kompakt sor (kör-avatar + név). lg-től a teljes,
+             kép-domináns kártya (fix 300px oszlop, portré-arány jól áll). */}
+        <div className="flex flex-col gap-[5px]" style={{ gridArea: 'avatar' }}>
+          <HoverScaleCard className={`${CARD} relative flex shrink-0 items-center gap-3 p-4 lg:hidden`}>
+            <Link href="/dashboard/settings?tab=self" aria-label="Saját profil" className="absolute inset-0 z-20" />
+            <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px]" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+              {profileImg ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={profileImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-white/30">
+                  <UserRound className="h-7 w-7" strokeWidth={1.4} />
+                </div>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-[15px] font-semibold leading-tight text-ink">{user?.name ?? salon.name}</div>
+              <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">{roleLabel}</div>
+            </div>
+            <span className="shrink-0 whitespace-nowrap rounded-[14px] bg-[#f1f0ed] px-3 py-1.5 text-[12px] font-semibold text-ink">
+              {dayBadge}
+            </span>
+          </HoverScaleCard>
+          <HoverScaleCard className={`${CARD} group relative hidden shrink-0 overflow-hidden p-0 lg:block lg:aspect-[0.82]`}>
             {/* A teljes profil-kártya a Saját profil oldalra visz (stretched link). */}
             <Link href="/dashboard/settings?tab=self" aria-label="Saját profil" className="absolute inset-0 z-20" />
             {profileImg ? (
@@ -314,7 +392,7 @@ export default async function DashboardPage() {
                 className="pointer-events-none absolute inset-x-0 bottom-0"
                 style={{
                   top: '-64px',
-                  background: 'rgba(255,255,255,0.16)',
+                  background: 'rgba(255,255,255,0.10)',
                   backdropFilter: 'blur(36px) saturate(125%)',
                   WebkitBackdropFilter: 'blur(36px) saturate(125%)',
                   maskImage: 'linear-gradient(to bottom, transparent 0, black 64px)',
@@ -329,7 +407,7 @@ export default async function DashboardPage() {
                   <div className="mt-0.5 truncate text-[12.5px] text-white/85">{roleLabel}</div>
                 </div>
                 <span
-                  className="shrink-0 rounded-[14px] px-3 py-1.5 text-[12px] font-semibold text-white"
+                  className="shrink-0 whitespace-nowrap rounded-[14px] px-3 py-1.5 text-[12px] font-semibold text-white"
                   style={{
                     background: 'transparent',
                     backdropFilter: 'blur(14px) saturate(0.35) brightness(1.05)',
@@ -339,18 +417,15 @@ export default async function DashboardPage() {
                     textShadow: '0 1px 3px rgba(0,0,0,.45)',
                   }}
                 >
-                  {stats.bookingsToday} ma
+                  {dayBadge}
                 </span>
               </div>
             </div>
-          </div>
-          <div className="min-h-0 flex-1">
-            <OverviewAccordion items={accItems} defaultOpen={0} />
-          </div>
+          </HoverScaleCard>
         </div>
 
-        {/* ── COL2: 2 grafikon-kártya + idővonal ── */}
-        <div className="flex min-h-0 flex-col gap-[5px]">
+        {/* ── Grafikon-kártyák + idővonal ── */}
+        <div className="flex min-h-0 flex-col gap-[5px]" style={{ gridArea: 'charts' }}>
           <div className="grid grid-cols-1 gap-[5px] sm:grid-cols-2">
             {/* Foglalások a héten — oszlopdiagram */}
             <div className={`${CARD} flex flex-col p-[22px]`}>
@@ -382,21 +457,8 @@ export default async function DashboardPage() {
                 <span className="text-[11.5px] leading-[1.2] text-ink-soft">foglalás<br />a héten</span>
               </div>
               <div className="mt-4 flex flex-1 flex-col justify-end">
-                <div className="relative flex items-end justify-between gap-1.5" style={{ minHeight: '118px' }}>
-                  <div className="pointer-events-none absolute inset-x-0 bottom-[3px] border-t border-dashed border-[#d9d4c5]" />
-                  {weekBars.map((b, i) => (
-                    <div key={i} className="relative z-10 flex flex-1 flex-col items-center justify-end">
-                      {b.peak ? <span className="mb-1.5 rounded-[8px] bg-gold px-2 py-0.5 text-[10px] font-bold text-ink-dark">{b.value}</span> : null}
-                      <div className="w-[6px] rounded-full" style={{ height: `${Math.max(8, (b.value / weekMax) * 92)}px`, background: b.peak ? '#F1CE45' : '#1D1C19' }} />
-                      <span className="mt-1.5 h-[6px] w-[6px] rounded-full" style={{ background: b.peak ? '#F1CE45' : '#c9c3b4' }} />
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-2 flex justify-between gap-1.5">
-                  {weekBars.map((b, i) => (
-                    <span key={i} className="flex-1 text-center text-[10px] font-medium text-ink-soft">{b.label}</span>
-                  ))}
-                </div>
+                <WeekMiniBars bars={weekBars} weekMax={weekMax} unit="foglalás" />
+                <WeekDayLabels bars={weekBars} />
               </div>
             </div>
             {/* Kihasználtság — donut (foglalt idő / nyitott kapacitás) */}
@@ -406,7 +468,7 @@ export default async function DashboardPage() {
                 <DetailSheet title="Kihasználtság" subtitle="Mai foglalt idő a nyitott kapacitáshoz">
                   <div className="mb-6 flex items-center justify-center rounded-[18px] bg-white py-5 shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]">
                     <div className="scale-[1.35]">
-                      <OccupancyDonut pct={occupancy} centerLabel="mai kihasználtság" />
+                      <OccupancyDonut pct={occupancy} centerLabel="kihasználtság" />
                     </div>
                   </div>
                   <div className="space-y-3">
@@ -428,7 +490,7 @@ export default async function DashboardPage() {
               </div>
               <div className="flex flex-1 items-center justify-center py-1">
                 <div className="scale-[1.08]">
-                  <OccupancyDonut pct={occupancy} centerLabel="mai kihasználtság" />
+                  <OccupancyDonut pct={occupancy} centerLabel="kihasználtság" />
                 </div>
               </div>
               <div className="flex items-center justify-center gap-6">
@@ -445,12 +507,21 @@ export default async function DashboardPage() {
             hourMin={tlHourMin}
             hourMax={tlHourMax}
             initialWin={tlInitWin}
-            dayLabel="Ma"
+            dayLabel={tlDayLabel}
+            allHref="/dashboard/bookings"
           />
         </div>
 
-        {/* ── COL3: Mai teendők (valós, salonId scope) ── */}
-        <OverviewTasksPanel salonId={String(salon.id)} initial={tasks} />
+        {/* ── Mai teendők (valós, salonId scope) ── */}
+        <div style={{ gridArea: 'tasks' }}>
+          <OverviewTasksPanel salonId={String(salon.id)} initial={tasks} />
+        </div>
+
+        {/* ── Accordion (Mai bevétel / Nyitvatartás / Szolgáltatások / Munkatársak) — mobilon
+             legalul, lg-től az avatar alatt, a bal oszlop alján. ── */}
+        <div className="min-h-0" style={{ gridArea: 'accordion' }}>
+          <OverviewAccordion items={accItems} defaultOpen={0} />
+        </div>
       </div>
     </div>
   )

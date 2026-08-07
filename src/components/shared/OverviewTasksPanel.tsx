@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
+import { useEffect, useRef, useState } from 'react'
+import { motion, animate } from 'framer-motion'
 import { Check, Plus, Loader2, X, Monitor, Zap, MessageSquare, Ruler, Link2, type LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
+import { buttonHover } from '@/lib/motion'
 import type { Task } from '@/payload/payload-types'
 
 /**
@@ -26,18 +27,20 @@ function TaskMeta({ task, timeLabel, th }: { task: Task; timeLabel: string | nul
   const initials = name.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase()
   const avatarUrl = creator?.avatar_url
   return (
-    <div className="mt-0.5 flex items-center gap-1.5">
+    // flex-wrap: ha mellé fér, a dátum a név mellett marad egy sorban; ha nem, EGYBEN (nem szó
+    // közepén törve, ld. whitespace-nowrap a dátumon) lecsúszik a név alá — csak akkor, ha kell.
+    <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
       {creator && (
-        <>
+        <span className="flex min-w-0 items-center gap-1.5">
           {avatarUrl ? (
             <img src={avatarUrl} alt={name} className="h-[14px] w-[14px] rounded-full object-cover shrink-0" />
           ) : (
             <span className="flex h-[14px] w-[14px] shrink-0 items-center justify-center rounded-full text-[7px] font-bold" style={{ background: th.iconBg, color: th.iconFg }}>{initials}</span>
           )}
           <span className={`text-[11px] ${th.date}`}>{name.split(' ')[0]}</span>
-        </>
+        </span>
       )}
-      {timeLabel && <span className={`text-[11px] font-medium ${th.date}`}>{creator ? '· ' : ''}{timeLabel}</span>}
+      {timeLabel && <span className={`whitespace-nowrap text-[11px] font-medium ${th.date}`}>{timeLabel}</span>}
     </div>
   )
 }
@@ -45,6 +48,24 @@ function TaskMeta({ task, timeLabel, th }: { task: Task; timeLabel: string | nul
 type Tab = 'today' | 'tomorrow' | 'yesterday'
 const EASE = [0.22, 1, 0.36, 1] as const
 const ROW_ICONS: LucideIcon[] = [Monitor, Zap, MessageSquare, Ruler, Link2]
+
+/** Számláló-animáció: pipáláskor/státuszváltáskor a % ne ugorjon, hanem egyesével számolva
+ *  fusson végig az előző és az új érték között. */
+function useCountUp(value: number, duration = 0.5): number {
+  const [display, setDisplay] = useState(value)
+  const prevRef = useRef(value)
+  useEffect(() => {
+    const from = prevRef.current
+    const controls = animate(from, value, {
+      duration, ease: 'easeOut',
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    })
+    prevRef.current = value
+    return () => controls.stop()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value])
+  return display
+}
 
 export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaurantId?: string; salonId?: string; initial: Task[] }) {
   // Az üzlet-scope: étterem VAGY szalon (a /api/tasks mindkettőt kezeli).
@@ -55,6 +76,16 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
   const [adding, setAdding] = useState(false)
   const [showAdd, setShowAdd] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
+  // Ha épp nyitva van az "Új feladat" mező, a fül-váltás blokkolva van (a beírt szöveg elveszne) —
+  // helyette a Mégse gomb megrezeg + fehér keretet kap, jelezve hogy előbb azt kell bezárni.
+  const [shakeCancel, setShakeCancel] = useState(false)
+  // Percenkénti "óraketyegés" — ha a lap nyitva marad éjfélen át (interakció, tehát re-render
+  // nélkül), enélkül a lenti todayStart csak a KÖVETKEZŐ kattintásig maradna a tegnapi napon.
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => tick((n) => n + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
 
   // A teendőket a lejárati dátum szerint 3 kosárba soroljuk: MAI / HOLNAPI (a maradék) / TEGNAPI.
   // due_date nélküli teendő = a LÉTREHOZÁS napja (createdAt) — így nem ragad örökre „mai"-ban,
@@ -77,6 +108,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
   const total = tasks.length
   const doneList = tasks.filter((t) => t.done)
   const donePct = total ? Math.round((doneList.length / total) * 100) : 0
+  const donePctDisplay = useCountUp(donePct)
 
   // Az aktív fül napja (dél, hogy az időzóna ne csússzon át) — erre bélyegezzük az új feladatot,
   // így a helyére kerül ÉS a naptárral együtt vándorol (Holnapi → Mai → Tegnapi).
@@ -85,6 +117,16 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
     if (t === 'tomorrow') d.setDate(d.getDate() + 1)
     else if (t === 'yesterday') d.setDate(d.getDate() - 1)
     return d.toISOString()
+  }
+
+  function closeAdd() {
+    setShowAdd(false)
+    setTitle('')
+  }
+
+  function tryChangeTab(key: Tab) {
+    if (showAdd && key !== tab) { setShakeCancel(true); return }
+    setTab(key)
   }
 
   async function addTask(e: React.FormEvent) {
@@ -142,7 +184,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
       {/* Fejléc: cím + nagy % (kész arány) */}
       <div className="flex items-center justify-between px-1">
         <div className="text-[19px] font-medium text-ink">Teendők</div>
-        <div className="text-[30px] font-light tracking-[-0.02em] text-ink">{donePct}%</div>
+        <div className="text-[30px] font-light tracking-[-0.02em] text-ink">{donePctDisplay}%</div>
       </div>
 
       {/* 3 SZEGMENS-PILL (kapcsolható tabok) — ARÁNYOS szélesség a darabszám szerint, felül felirat + osztóvonal */}
@@ -153,7 +195,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
             <button
               key={s.key}
               type="button"
-              onClick={() => setTab(s.key)}
+              onClick={() => tryChangeTab(s.key)}
               className="group relative flex min-w-[64px] flex-col text-left"
               style={{
                 flexGrow: Math.max(s.count, 1),
@@ -218,9 +260,19 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
                   <div className="flex items-center gap-3">
                     <span className={`text-[22px] font-light ${th.title}`}>{list.filter((t) => t.done).length}<span className={th.num}>/{list.length}</span></span>
                     {front && s.key !== 'yesterday' && (
-                      <button type="button" onClick={() => setShowAdd((v) => !v)} aria-label="Új feladat" className="flex h-7 w-7 items-center justify-center rounded-full text-ink-dark" style={{ background: '#F1CE45' }}>
+                      <motion.button
+                        type="button"
+                        onClick={() => setShowAdd((v) => !v)}
+                        aria-label="Új feladat"
+                        variants={buttonHover}
+                        initial="rest"
+                        whileHover="hover"
+                        whileTap="hover"
+                        className="flex h-7 w-7 items-center justify-center rounded-full text-ink-dark"
+                        style={{ background: '#F1CE45' }}
+                      >
                         <Plus className="h-4 w-4" strokeWidth={2.5} />
-                      </button>
+                      </motion.button>
                     )}
                   </div>
                 </div>
@@ -236,18 +288,20 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
                       const RowIcon = ROW_ICONS[idx % ROW_ICONS.length]
                       const timeLabel = task.due_date ? new Date(task.due_date).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }) : null
                       return (
-                        <div key={task.id} className={`group flex items-center gap-3 border-b py-[11px] last:border-0 ${th.border}`}>
+                        <div key={task.id} className={`group flex items-start gap-3 border-b py-[11px] last:border-0 ${th.border}`}>
                           <span className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full" style={{ background: th.iconBg }}>
                             <RowIcon className="h-[15px] w-[15px]" strokeWidth={2} style={{ color: task.done ? th.iconFgDone : th.iconFg }} />
                           </span>
                           <div className="min-w-0 flex-1">
-                            <div className={`truncate text-[14px] font-medium ${task.done ? th.rowDone : th.rowOpen}`}>{task.title}</div>
+                            {/* Nincs truncate — a cím TELJES egészében látszódjon, akár több sorban is
+                                (szűk kártyánál ne "…"-tal vágja le olvashatatlanra). */}
+                            <div className={`break-words text-[14px] font-medium leading-snug ${task.done ? th.rowDone : th.rowOpen}`}>{task.title}</div>
                             <TaskMeta task={task} timeLabel={timeLabel} th={th} />
                           </div>
-                          <button type="button" onClick={() => remove(task)} aria-label="Törlés" className={`shrink-0 opacity-0 transition-opacity group-hover:opacity-100 ${th.x}`}>
+                          <button type="button" onClick={() => remove(task)} aria-label="Törlés" className={`mt-[7px] shrink-0 opacity-0 transition-opacity group-hover:opacity-100 ${th.x}`}>
                             <X className="h-4 w-4" />
                           </button>
-                          <button type="button" onClick={() => toggle(task)} disabled={busyRow} aria-label={task.done ? 'Nem kész' : 'Kész'} className="shrink-0">
+                          <button type="button" onClick={() => toggle(task)} disabled={busyRow} aria-label={task.done ? 'Nem kész' : 'Kész'} className="mt-[6px] shrink-0">
                             {busyRow ? (
                               <Loader2 className={`h-[22px] w-[22px] animate-spin ${light ? 'text-ink-soft2' : 'text-white/50'}`} />
                             ) : task.done ? (
@@ -264,19 +318,77 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
                   )}
                 </div>
 
-                {front && showAdd && s.key !== 'yesterday' && (
-                  <form onSubmit={addTask} className={`mt-2 flex items-center gap-2 border-t pt-2.5 ${th.border}`}>
-                    <input autoFocus value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Új feladat…" className={`min-w-0 flex-1 bg-transparent text-[14px] focus:outline-none ${light ? 'text-ink placeholder:text-ink-soft2' : 'text-white placeholder:text-white/35'}`} />
-                    <button type="submit" disabled={adding || !title.trim()} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-dark disabled:opacity-40" style={{ background: '#F1CE45' }}>
-                      {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={3} />}
-                    </button>
-                  </form>
-                )}
               </div>
             </motion.div>
           )
         })}
+
+        {/* Új feladat űrlap (asztali) — SZÁNDÉKOSAN a transzformált stack-en KÍVÜL, saját (nem
+            animált) rétegben. Egy inputot folyamatosan transform-mal animált ősben tartani
+            iOS Safarin ismert hiba: blur után a mező nem fókuszálható vissza kattintással.
+            UGYANEZ az egy overlay fut mobilon és desktopon is — nincs külön mobil-ág, hogy a
+            viselkedés ne térjen el a kettő közt. Az X gomb mindig zárja, submit nélkül is. */}
+        {showAdd && tab !== 'yesterday' && (() => {
+          const activeSeg = SEGS.find((s) => s.key === tab)!
+          const light = !!activeSeg.light
+          return (
+            <div
+              className="absolute inset-x-0 bottom-0 z-40 rounded-b-[24px] px-[20px] pb-[20px]"
+              style={{ background: activeSeg.card }}
+            >
+              <AddTaskForm
+                light={light}
+                title={title}
+                setTitle={setTitle}
+                adding={adding}
+                onSubmit={addTask}
+                onCancel={closeAdd}
+                shake={shakeCancel}
+                onShakeEnd={() => setShakeCancel(false)}
+              />
+            </div>
+          )
+        })()}
       </div>
     </div>
+  )
+}
+
+function AddTaskForm({
+  light, title, setTitle, adding, onSubmit, onCancel, shake, onShakeEnd,
+}: {
+  light: boolean
+  title: string
+  setTitle: (v: string) => void
+  adding: boolean
+  onSubmit: (e: React.FormEvent) => void
+  onCancel: () => void
+  shake: boolean
+  onShakeEnd: () => void
+}) {
+  return (
+    <form onSubmit={onSubmit} className={`flex items-center gap-2 border-t pt-2.5 ${light ? 'border-[#e4dfd0]' : 'border-[#2c2b27]'}`}>
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="Új feladat…"
+        className={`min-w-0 flex-1 bg-transparent text-[16px] focus:outline-none lg:text-[14px] ${light ? 'text-ink placeholder:text-ink-soft2' : 'text-white placeholder:text-white/35'}`}
+      />
+      <motion.button
+        type="button"
+        onClick={onCancel}
+        aria-label="Mégse — előbb ezt zárd be a fülváltáshoz"
+        animate={shake ? { x: [0, -6, 6, -6, 6, -3, 3, 0] } : { x: 0 }}
+        transition={{ duration: 0.4 }}
+        onAnimationComplete={() => { if (shake) onShakeEnd() }}
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ring-white transition-shadow ${shake ? 'ring-2' : 'ring-0'} ${light ? 'text-ink-soft2 hover:text-ink' : 'text-white/40 hover:text-white/80'}`}
+      >
+        <X className="h-4 w-4" />
+      </motion.button>
+      <button type="submit" disabled={adding || !title.trim()} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ink-dark disabled:opacity-40" style={{ background: '#F1CE45' }}>
+        {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" strokeWidth={3} />}
+      </button>
+    </form>
   )
 }

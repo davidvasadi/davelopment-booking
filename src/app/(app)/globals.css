@@ -340,3 +340,26 @@ html {
   border: 1px solid var(--dav-line);
   color: #8A8779;
 }
+
+/* ===== Áttekintés bento (szalon + étterem) — mobilon avatar → charts → tasks → accordion
+   sorrendben egymás alatt, lg-től a klasszikus 3-oszlopos elrendezés (avatar+accordion a bal
+   300px oszlopban egymás alatt, charts/tasks teljes magasságban átfogja mindkét sort).
+   SZÁNDÉKOSAN sima CSS, nem Tailwind arbitrary-property osztály: a Tailwind escape-elt
+   `[grid-template-areas:'a'_'b']` szelektor Safariban (asztali + mobil) törve/egymásra
+   csúszva renderelt, Chrome-ban viszont jó volt — ez egy WebKit-specifikus parse-hiba a
+   backslash-escape-elt arbitrary-value szelektorral, sima class-szal nem jelentkezik. */
+.dav-overview-bento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  grid-template-areas: "avatar" "charts" "tasks" "accordion";
+}
+@media (min-width: 1024px) {
+  .dav-overview-bento {
+    grid-template-columns: 300px minmax(0, 1.5fr) minmax(0, 1.05fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "avatar charts tasks"
+      "accordion charts tasks";
+  }
+}

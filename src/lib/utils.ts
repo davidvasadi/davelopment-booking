@@ -31,6 +31,13 @@ export function formatDate(date: string | Date): string {
   return format(d, 'yyyy. MMMM d.', { locale: hu })
 }
 
+/** Rövid dátum-badge-hez: "Péntek, aug. 7." (nap + rövid hónap, év nélkül). */
+export function formatDayBadge(date: string | Date): string {
+  const d = typeof date === 'string' ? parseISO(date) : date
+  const s = format(d, 'EEEE, MMM d.', { locale: hu })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 /** Lokális idő szerinti YYYY-MM-DD (nem UTC — a `toISOString().slice(0,10)` időzóna-eltolna). */
 export function ymdLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`

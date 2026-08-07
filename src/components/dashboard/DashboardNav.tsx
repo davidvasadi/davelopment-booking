@@ -383,7 +383,7 @@ export function DashboardNav({
           type="button"
           onClick={goBack}
           aria-label="Vissza"
-          className="flex items-center justify-center h-11 w-11 shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.06)] backdrop-blur-lg outline-none transition-colors hover:bg-white/80 active:scale-95 dark:bg-white/[0.08] dark:text-white/80 dark:hover:bg-white/[0.14]"
+          className="flex items-center justify-center h-11 w-11 shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.06)] backdrop-blur-lg outline-none transition-colors hover:bg-white/80 active:scale-95"
         >
           <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
         </button>

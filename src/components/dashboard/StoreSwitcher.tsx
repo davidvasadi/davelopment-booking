@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { ChevronsUpDown, Check, Plus, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { buttonHover } from '@/lib/motion'
 
 // „Staggered spring" belépő (etalon: a UserMenu popover) — a dropdown a triggerből
 // rugósan pattan ki, az üzletek egymás után úsznak be.
@@ -121,10 +122,14 @@ export function StoreSwitcher({
           <p className="mt-1 text-sm text-white/55">{hero.subtitle}</p>
         </button>
       ) : (
-      <button
+      <motion.button
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-expanded={open}
+        variants={buttonHover}
+        initial="rest"
+        whileHover="hover"
+        whileTap="hover"
         className={cn(
           'flex items-center rounded-dav-pill border border-line bg-[var(--dav-glass)] hover:border-line-strong transition-colors',
           compact ? 'w-full gap-2 px-2 py-1.5' : 'gap-2.5 px-2.5 py-2',
@@ -151,7 +156,7 @@ export function StoreSwitcher({
         </span>
 
         <ChevronsUpDown className="h-4 w-4 shrink-0 text-ink-soft" />
-      </button>
+      </motion.button>
       )}
 
       <AnimatePresence>

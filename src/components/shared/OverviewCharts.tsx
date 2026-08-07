@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, BarChart, Bar,
@@ -196,5 +197,59 @@ export function WeekBarChart({ bars }: { bars: WeekBar[] }) {
         </Bar>
       </BarChart>
     </ResponsiveContainer>
+  )
+}
+
+/**
+ * A mini oszlopdiagram alatti nap-feliratok a bento-kártyán. ResizeObserverrel figyeli SAJÁT
+ * szélességét: ha a kártya annyira összeszűkül, hogy a 3-betűs rövidítés (Hét/Ked/Sze…) már
+ * nem férne el kényelmesen, a kezdőbetűre vált (H/K/Sz…); egyébként marad a teljes rövidítés.
+ */
+export function WeekDayLabels({ bars }: { bars: { label: string }[] }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [compact, setCompact] = useState(false)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => setCompact(e.contentRect.width < 180))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div ref={ref} className="mt-2 flex justify-between gap-1.5">
+      {bars.map((b, i) => (
+        <span key={i} className="flex-1 text-center text-[10px] font-medium text-ink-soft">
+          {compact ? b.label[0] : b.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/**
+ * A bento-kártya mini oszlop-sávja (pont a tetején hover-tooltippal + rúd + pont alul) — a
+ * "Foglalások a héten" (szalon) / "Köv. 7 nap" (étterem) kártya közös, EGYETLEN implementációja,
+ * hogy a két oldal ne csússzon szét (pl. csak az egyiken volt eddig hover-tooltip). `unit` a
+ * tooltip mértékegysége ("fő" / "foglalás").
+ */
+export function WeekMiniBars({ bars, weekMax, unit }: { bars: WeekBar[]; weekMax: number; unit: string }) {
+  return (
+    <div className="relative flex items-end justify-between gap-1.5" style={{ minHeight: '118px' }}>
+      <div className="pointer-events-none absolute inset-x-0 bottom-[3px] border-t border-dashed border-[#d9d4c5]" />
+      {bars.map((b, i) => (
+        <div key={i} className="group relative z-10 flex flex-1 cursor-default flex-col items-center justify-end">
+          {/* Tooltip */}
+          <div className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+            <div className="rounded-[8px] bg-ink px-2.5 py-1.5 text-center shadow-md">
+              <div className="text-[11px] font-semibold leading-none text-white whitespace-nowrap">{b.value} {unit}</div>
+            </div>
+            <div className="mx-auto h-0 w-0 border-x-[5px] border-x-transparent border-t-[5px] border-t-ink" />
+          </div>
+          {b.peak ? <span className="mb-1.5 rounded-[8px] bg-gold px-2 py-0.5 text-[10px] font-bold text-ink-dark">{b.value}</span> : null}
+          <div className="w-[6px] rounded-full" style={{ height: `${Math.max(8, (b.value / weekMax) * 92)}px`, background: b.peak ? '#F1CE45' : '#1D1C19' }} />
+          <span className="mt-1.5 h-[6px] w-[6px] rounded-full" style={{ background: b.peak ? '#F1CE45' : '#c9c3b4' }} />
+        </div>
+      ))}
+    </div>
   )
 }

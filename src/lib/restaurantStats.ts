@@ -206,8 +206,10 @@ export async function getRestaurantStats(
   const periodPax = periodDocs.reduce((s, r) => s + paxOf(r), 0)
   const prevPeriodPax = prevPeriodDocs.reduce((s, r) => s + paxOf(r), 0)
 
+  // Kerekítésnél nagy napi kapacitás mellett 1 rövid foglalás is 0%-ra kerekedne — legalább
+  // 1%-ot mutasson, hogy ne tűnjön üresnek, ha van valós foglalás (ld. dashboard/page.tsx párja).
   const occupancyToday = capacityToday > 0
-    ? Math.min(100, Math.round((paxToday / capacityToday) * 100))
+    ? Math.min(100, Math.max(paxToday > 0 ? 1 : 0, Math.round((paxToday / capacityToday) * 100)))
     : 0
 
   // ── Trend (period) ───────────────────────────────────────────────

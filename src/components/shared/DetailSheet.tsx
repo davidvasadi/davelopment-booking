@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowUpRight, X } from 'lucide-react'
+import { buttonHover } from '@/lib/motion'
 
 /**
  * Kártya-nyíl (↗) → jobb oldali SIDEBAR a bővebb infókért. A trigger a kártya fejlécében ülő
@@ -32,15 +33,19 @@ export function DetailSheet({
 
   return (
     <>
-      <button
+      <motion.button
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`${title} — bővebben`}
         title="Bővebben"
+        variants={buttonHover}
+        initial="rest"
+        whileHover="hover"
+        whileTap="hover"
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f1f0ed] text-ink shadow-[0_1px_3px_rgba(40,40,40,.08)] transition-colors hover:bg-[#e6e5e1]"
       >
         <ArrowUpRight className="h-[15px] w-[15px]" strokeWidth={2.2} />
-      </button>
+      </motion.button>
 
       {mounted &&
         createPortal(

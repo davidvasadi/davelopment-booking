@@ -2,14 +2,19 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight, ArrowUpRight, User } from 'lucide-react'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
+import { buttonHover } from '@/lib/motion'
+
+const MotionLink = motion.create(Link)
 
 /**
  * Áttekintés — „Naptár" erőforrás-idővonal (Crextio-stílus). BAL oszlop = ASZTALOK (soronként
  * egy asztal), VÍZSZINTES időtengely: az órák oszlopokban, függőleges pontozott vonalakkal.
  * A foglalások vízszintesen elnyúló, lekerekített blokkok az adott asztal sorában, idő szerint
- * pozicionálva. Egyszerre `WIN` óra látszik — a jobb-felső Apple-nyilak léptetik az idősávot.
+ * pozicionálva. Egyszerre néhány óra látszik (reszponzív — a kártya szélességétől függ, ld.
+ * `win` state), a jobb-felső Apple-nyilak léptetik az idősávot.
  * Sötét kártya = megerősített/VIP; halványsárga = függő/beeső. Ease-in-out beúszás.
  */
 export type TimelineBlock = {
@@ -26,11 +31,16 @@ export type TimelineBlock = {
 }
 export type TimelineRow = { table: string; label?: string; blocks: TimelineBlock[] }
 
-const WIN = 4 // egyszerre látható órák
 const TABLE_COL = 88 // bal asztal-oszlop szélessége (px)
 const ROW_H = 54
+// Ha egy blokk ennél szűkebb, a ReservationBlock "+N" kompakt módra vált (ld. lent). Ugyanezt
+// használjuk a látható óraszám (win) kiszámolásához is, hogy a két érték ne csússzon szét.
+const BLOCK_COMPACT_PX = 168
 const pad = (n: number) => String(n).padStart(2, '0')
 const fmt = (m: number) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`
+// Óra-CÍMKÉHEZ: az ablak túlnyúlhat éjfélen (pl. 21–25h a belső logikában), de egy nap
+// max 24 óráig tart — a KIJELZETT címke 24/25/26… helyett 00/01/02-t mutasson.
+const padH = (h: number) => pad(h % 24)
 
 export function OverviewTimeline({
   rows,
@@ -49,8 +59,31 @@ export function OverviewTimeline({
   allHref?: string
   title?: string
 }) {
-  const maxStart = Math.max(hourMin, hourMax - WIN)
+  // Hány órát mutatunk egyszerre — a rácsterület (TABLE_COL-on túli rész) szélességétől függ.
+  // Annyi órát mutatunk, hogy egy 1 órás foglalás blokkja ÁTLÉPJE a kompakt-küszöböt
+  // (rácsszélesség / win >= BLOCK_COMPACT_PX) — tehát a tartalma (név, "N fő · idő") tényleg
+  // olvasható legyen, ne essen rögtön "+N" kompakt módba.
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [win, setWin] = useState(4)
+  useEffect(() => {
+    const el = gridRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(([e]) => {
+      const fits = Math.floor(e.contentRect.width / BLOCK_COMPACT_PX)
+      setWin(Math.max(1, Math.min(4, fits)))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const maxStart = Math.max(hourMin, hourMax - win)
   const [winStart, setWinStart] = useState(() => Math.min(Math.max(initialWin, hourMin), maxStart))
+  // Ha a win (látható órák száma) menet közben változik (ResizeObserver), a winStart-ot is
+  // vissza kell fogni az új (esetleg szűkebb) [hourMin, maxStart] tartományba.
+  useEffect(() => {
+    setWinStart((s) => Math.min(Math.max(s, hourMin), maxStart))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [win, hourMin, maxStart])
 
   // „Most" perc a nap kezdetétől — a korán befejezett (completed) foglalás blokkját eddig zsugorítjuk,
   // hogy a felszabaduló idő láthatóvá váljon. Kliensen frissül (percenként), SSR-en null.
@@ -63,8 +96,8 @@ export function OverviewTimeline({
   }, [])
 
   const winStartMin = winStart * 60
-  const winMin = WIN * 60
-  const gridHours = Array.from({ length: WIN + 1 }, (_, i) => winStart + i)
+  const winMin = win * 60
+  const gridHours = Array.from({ length: win + 1 }, (_, i) => winStart + i)
 
   const canPrev = winStart > hourMin
   const canNext = winStart < maxStart
@@ -74,65 +107,79 @@ export function OverviewTimeline({
       {/* Fejléc: BAL óra-léptető, KÖZÉPEN a cím (referencia), JOBBRA óra-léptető + ↗ a foglalásokra */}
       <div className="flex items-center gap-2">
         <div className="flex w-[84px] shrink-0 items-center">
-          <button
+          <motion.button
             type="button"
             onClick={() => setWinStart((s) => Math.max(hourMin, s - 1))}
             disabled={!canPrev}
             aria-label="Korábbi óra"
             title="Korábbi óra"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink shadow-[0_1px_3px_rgba(40,40,40,.08)] transition-all hover:bg-[#e6e5e1] active:scale-95 disabled:opacity-35 disabled:hover:bg-[#f1f0ed]"
+            variants={buttonHover}
+            initial="rest"
+            whileHover={canPrev ? 'hover' : undefined}
+            whileTap={canPrev ? 'hover' : undefined}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink shadow-[0_1px_3px_rgba(40,40,40,.08)] transition-colors hover:bg-[#e6e5e1] disabled:opacity-35 disabled:hover:bg-[#f1f0ed]"
           >
             <ChevronLeft className="h-[18px] w-[18px]" strokeWidth={2.2} />
-          </button>
+          </motion.button>
         </div>
         <div className="min-w-0 flex-1 text-center">
           <div className="truncate text-[19px] font-medium text-ink">{title}</div>
           <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">
-            {dayLabel} <span className="text-ink-soft2">|</span> {pad(winStart)}:00 – {pad(winStart + WIN)}:00
+            {dayLabel} <span className="text-ink-soft2">|</span> {padH(winStart)}:00 – {padH(winStart + win)}:00
           </div>
         </div>
         <div className="flex w-[84px] shrink-0 items-center justify-end gap-1.5">
-          <button
+          <motion.button
             type="button"
             onClick={() => setWinStart((s) => Math.min(maxStart, s + 1))}
             disabled={!canNext}
             aria-label="Későbbi óra"
             title="Későbbi óra"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink shadow-[0_1px_3px_rgba(40,40,40,.08)] transition-all hover:bg-[#e6e5e1] active:scale-95 disabled:opacity-35 disabled:hover:bg-[#f1f0ed]"
+            variants={buttonHover}
+            initial="rest"
+            whileHover={canNext ? 'hover' : undefined}
+            whileTap={canNext ? 'hover' : undefined}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink shadow-[0_1px_3px_rgba(40,40,40,.08)] transition-colors hover:bg-[#e6e5e1] disabled:opacity-35 disabled:hover:bg-[#f1f0ed]"
           >
             <ChevronRight className="h-[18px] w-[18px]" strokeWidth={2.2} />
-          </button>
-          <Link
+          </motion.button>
+          <MotionLink
             href={allHref}
             aria-label="Összes foglalás"
             title="Összes foglalás"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink shadow-[0_1px_3px_rgba(40,40,40,.08)] transition-all hover:bg-[#e6e5e1] active:scale-95"
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink shadow-[0_1px_3px_rgba(40,40,40,.08)] transition-colors hover:bg-[#e6e5e1]"
           >
             <ArrowUpRight className="h-[15px] w-[15px]" strokeWidth={2.2} />
-          </Link>
+          </MotionLink>
         </div>
       </div>
 
       {/* Óra-fejléc (vízszintes időtengely) */}
       <div className="mt-4 flex">
         <div className="shrink-0" style={{ width: TABLE_COL }} />
-        <div className="relative h-4 flex-1">
-          {gridHours.slice(0, WIN).map((h, i) => (
+        <div ref={gridRef} className="relative h-4 flex-1">
+          {gridHours.slice(0, win).map((h, i) => (
             <span
               key={h}
               className="absolute top-0 pl-1 text-[10.5px] font-semibold text-ink-soft2"
-              style={{ left: `${(i / WIN) * 100}%` }}
+              style={{ left: `${(i / win) * 100}%` }}
             >
-              {pad(h)}:00
+              {padH(h)}:00
             </span>
           ))}
         </div>
       </div>
 
       {/* Sorok = asztalok; jobbra a vízszintes idővonal. A KÜLSŐ konténer flex-1 (a bentóval
-          együtt nyúlik), a BELSŐ abszolút görgő sáv → a sok asztal-sor NEM húzza fel a magasságot
-          (nem kell mindnek kiférnie), de a kártya egységesen mozog a többivel. */}
-      <div className="relative mt-1 min-h-0 flex-1">
+          együtt nyúlik, ha a szülőnek van magassága — pl. lg: 3-oszlopos grid), DE explicit
+          min-height is kell: lg alatt a grid 1 oszlopra esik, a sorok egymás alá kerülnek, és
+          a szülőnek NINCS meghatározott magassága → flex-1 önmagában 0-ra esne, az abszolút
+          görgő sáv (inset-0) is 0 magas lenne, és semmi (még az üres-állapot szöveg sem) látszana. */}
+      <div className="relative mt-1 min-h-[200px] flex-1">
         <div className="no-scrollbar absolute inset-0 overflow-y-auto" data-lenis-prevent>
         {rows.length === 0 ? (
           <div className="flex h-full min-h-[160px] items-center justify-center text-[13px] text-ink-soft">
@@ -156,7 +203,7 @@ export function OverviewTimeline({
                     <div
                       key={h}
                       className="pointer-events-none absolute top-0 bottom-0 border-l border-dotted border-[#e4dfd0]"
-                      style={{ left: `${(i / WIN) * 100}%` }}
+                      style={{ left: `${(i / win) * 100}%` }}
                     />
                   ))}
                   {/* Foglalás-blokkok az asztal sorában (idő szerint pozicionálva) */}
@@ -221,7 +268,7 @@ function ReservationBlock({
   }, [])
 
   // Szűk blokk → csak egy létszám-kör. (px===0 az első festésig: legyen compact, hogy sose deformáljon.)
-  const compact = px === 0 || px < 168
+  const compact = px === 0 || px < BLOCK_COMPACT_PX
   const showCount = b.pax > 3
   // A ring a BLOKK hátterével egyezik → tiszta kaszkád-elválasztás. Felszabadult blokknál semleges.
   const ringColor = freedEarly ? '#e6e3da' : tone.bg
