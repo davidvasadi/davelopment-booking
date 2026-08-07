@@ -155,7 +155,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 public/uploads/
-public/videos/
 
 .claude/
 .DS_Store
