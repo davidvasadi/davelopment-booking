@@ -57,3 +57,16 @@ export function getDayName(date: Date): string {
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   return days[date.getDay()]
 }
+
+/**
+ * Payload a feltöltés pillanatában érvényes szerver-URL-t menti az adatbázisba (pl. localhost:3000).
+ * Ha azóta portot váltottunk, a tárolt URL nem egyezik a futó szerverrel → normalizálni kell.
+ */
+export function fixMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  if (process.env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+/.test(url)) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+    return url.replace(/^http:\/\/localhost:\d+/, appUrl)
+  }
+  return url
+}

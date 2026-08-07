@@ -7,19 +7,20 @@ import { StoreSwitcher } from '@/components/dashboard/StoreSwitcher'
 import { PageHeader } from '@/components/ui/page-header'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { ReservationActions } from '@/components/restaurant/ReservationActions'
-import { OccupancyDonut, WeekBarChart } from '@/components/restaurant/OverviewCharts'
+import { OccupancyDonut, WeekBarChart } from '@/components/shared/OverviewCharts'
 import { StatusPills } from '@/components/dashboard/StatusPills'
-import { OccupancyReportCard, OverviewAccordion, type AccItem } from '@/components/restaurant/OverviewPanels'
-import { OverviewTasksPanel } from '@/components/restaurant/OverviewTasksPanel'
+import { OccupancyReportCard, OverviewAccordion, type AccItem } from '@/components/shared/OverviewPanels'
+import { OverviewTasksPanel } from '@/components/shared/OverviewTasksPanel'
 import { getSetupFlags } from '@/lib/setupFlags'
 import { SetupNudge } from '@/components/dashboard/SetupNudge'
-import { DetailSheet } from '@/components/restaurant/DetailSheet'
-import { OverviewTimeline, type TimelineBlock, type TimelineRow } from '@/components/restaurant/OverviewTimeline'
+import { DetailSheet } from '@/components/shared/DetailSheet'
+import { OverviewTimeline, type TimelineBlock, type TimelineRow } from '@/components/shared/OverviewTimeline'
 import { CalendarDays, Users, Gauge, Plus, UserRound } from 'lucide-react'
 import { CARD, HeroKpi } from '@/components/dashboard/overview-ui'
 import { can } from '@/lib/permissions'
 import { getMyUpcomingShifts } from '@/lib/myShifts'
 import { StaffOverview } from '@/components/dashboard/StaffOverview'
+import { fixMediaUrl } from '@/lib/utils'
 import type { Reservation, Media, Task, OpeningHour } from '@/payload/payload-types'
 
 // Idő-függő tartalom (naptár + header-pillek a szolgáltatás-nap szerint) → mindig frissüljön.
@@ -66,16 +67,6 @@ export default async function RestaurantDashboardPage() {
   // Supervisor) a teljes KPI-dashboardot kapják; a felszolgáló a személyes nézetet.
   if (user && !can(capabilities, 'analytics.view')) {
     const myShifts = await getMyUpcomingShifts({ type: 'restaurant', id: restaurant.id }, { id: user.id, email: user.email })
-    // Payload a feltöltés pillanatában érvényes szerver-URL-t menti az adatbázisba (pl. localhost:3000).
-    // Ha azóta portot váltottunk, a tárolt URL nem egyezik a futó szerverrel → normalizálni kell.
-    const fixMediaUrl = (url: string | null | undefined): string | null => {
-      if (!url) return null
-      if (process.env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+/.test(url)) {
-        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
-        return url.replace(/^http:\/\/localhost:\d+/, appUrl)
-      }
-      return url
-    }
     // Avatar: user.avatar_url az első, ha az null → membership.avatar (amit a StaffManager tölt fel)
     let staffProfileImg = fixMediaUrl(profileImg)
     if (!staffProfileImg && user.email) {

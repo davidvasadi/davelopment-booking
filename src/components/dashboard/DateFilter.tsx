@@ -3,6 +3,7 @@
 import { useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
+import { ymdLocal as ymd } from '@/lib/utils'
 
 const HU_MONTHS = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
 
@@ -16,12 +17,13 @@ export default function DateFilter({ currentDate }: { currentDate: string }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
   const go = (offset: number) => {
-    const d = new Date(currentDate)
-    d.setDate(d.getDate() + offset)
-    router.push(`/dashboard/bookings?date=${d.toISOString().split('T')[0]}`)
+    const [y, m, d] = currentDate.split('-').map(Number)
+    const date = new Date(y, m - 1, d)
+    date.setDate(date.getDate() + offset)
+    router.push(`/dashboard/bookings?date=${ymd(date)}`)
   }
 
-  const isToday = currentDate === new Date().toISOString().split('T')[0]
+  const isToday = currentDate === ymd(new Date())
 
   return (
     <div className="flex items-center gap-2">
@@ -58,7 +60,7 @@ export default function DateFilter({ currentDate }: { currentDate: string }) {
       </div>
       {!isToday && (
         <button
-          onClick={() => router.push(`/dashboard/bookings?date=${new Date().toISOString().split('T')[0]}`)}
+          onClick={() => router.push(`/dashboard/bookings?date=${ymd(new Date())}`)}
           className="h-[42px] rounded-2xl bg-ink-dark px-4 text-[13px] font-semibold text-white transition-colors hover:opacity-90"
         >
           Ma

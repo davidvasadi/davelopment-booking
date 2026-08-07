@@ -6,8 +6,8 @@ import { ArrowUpRight, CalendarClock, CalendarDays, Clock, UserRound } from 'luc
 import { cn } from '@/lib/utils'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { HeroKpi, CARD } from '@/components/dashboard/overview-ui'
-import { OccupancyDonut } from '@/components/restaurant/OverviewCharts'
-import { OverviewAccordion, type AccItem } from '@/components/restaurant/OverviewPanels'
+import { OccupancyDonut } from '@/components/shared/OverviewCharts'
+import { OverviewAccordion, type AccItem } from '@/components/shared/OverviewPanels'
 import { PageHeader } from '@/components/ui/page-header'
 import type { MyShift } from '@/lib/myShifts'
 

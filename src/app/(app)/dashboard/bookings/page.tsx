@@ -108,7 +108,7 @@ export default async function BookingsPage({
         openMin={openMin}
         closeMin={closeMin}
         openBookingId={bookingParam}
-        dateFilter={<DateFilter currentDate={selectedDate} />}
+        dateFilter={<DateFilter key="date-filter" currentDate={selectedDate} />}
         canManage={can(capabilities, 'bookings.manage')}
       />
       <WaitlistPanel salonId={salon.id} />
