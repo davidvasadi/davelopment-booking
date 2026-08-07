@@ -511,7 +511,7 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
         </div>
 
         {/* Desktop pill menü + Szolgáltatások gomb */}
-        <div className="hidden md:flex items-center gap-0 rounded-full p-[3px]"
+        <div className="hidden min-[1033px]:flex items-center gap-0 rounded-full p-[3px]"
           style={theme === 'dark'
             ? { background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)' }
             : { background: '#ffffff' }}>
@@ -555,7 +555,7 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
           {theme === 'light' && (
             <Link
               href="/login"
-              className="hidden md:inline-flex text-[13px] font-medium text-brand-ink/45 hover:text-brand-ink/80 transition-colors px-1"
+              className="hidden min-[1033px]:inline-flex text-[13px] font-medium text-brand-ink/45 hover:text-brand-ink/80 transition-colors px-1"
             >
               Bejelentkezés
             </Link>
@@ -565,7 +565,7 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
             variants={buttonHover}
             initial="rest"
             whileHover="hover"
-            className="hidden md:flex items-center rounded-full px-[14px] py-[13px] font-onest font-medium text-[15px] leading-6"
+            className="hidden min-[1033px]:flex items-center rounded-full px-[14px] py-[13px] font-onest font-medium text-[15px] leading-6"
             style={{ background: '#3b3b3b', color: '#ffffff' }}>
             Próbáld ki ingyen
           </motion.a>
@@ -587,7 +587,7 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
       {mounted && logoPos && createPortal(
         <AnimatePresence>
           {menuOpen && (
-            <div className="fixed md:hidden" style={{ top: logoPos.top, left: logoPos.left, zIndex: 90 }}>
+            <div className="fixed min-[1033px]:hidden" style={{ top: logoPos.top, left: logoPos.left, zIndex: 90 }}>
               <Link href="/" aria-label="davelopment booking" onClick={handleToggle}>
                 <BrandLogo variant="light" className="h-[26px]" />
               </Link>
@@ -602,7 +602,7 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
       {mounted && togglePos && createPortal(
         <AnimatePresence>
           {menuOpen && (
-            <div className="fixed md:hidden" style={{ top: togglePos.top, right: togglePos.right, zIndex: 90 }}>
+            <div className="fixed min-[1033px]:hidden" style={{ top: togglePos.top, right: togglePos.right, zIndex: 90 }}>
               <MenuToggle open={animatedOpen} onClick={handleToggle} ghost ink={theme === 'light'} />
             </div>
           )}

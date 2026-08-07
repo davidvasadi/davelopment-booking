@@ -177,7 +177,7 @@ export function Nav() {
         </div>
 
         {/* Desktop menü-pill */}
-        <div className="hidden md:flex items-center gap-1 rounded-[30px] bg-[#F0EFEC] p-[5px]">
+        <div className="hidden min-[1033px]:flex items-center gap-1 rounded-[30px] bg-[#F0EFEC] p-[5px]">
           {LINKS.map(({ id, label }) => {
             const isActive = active === id
             return (
@@ -207,7 +207,7 @@ export function Nav() {
         <div className="flex items-center gap-3 shrink-0">
           <Link
             href="/login"
-            className="hidden md:inline-flex text-[14px] font-medium tracking-[-0.3px] text-brand-ink/50 hover:text-brand-ink transition-colors"
+            className="hidden min-[1033px]:inline-flex text-[14px] font-medium tracking-[-0.3px] text-brand-ink/50 hover:text-brand-ink transition-colors"
           >
             Bejelentkezés
           </Link>
@@ -216,7 +216,7 @@ export function Nav() {
             label="Próbáld ki ingyen"
             variant="inkLight"
             icon
-            className="hidden md:inline-flex"
+            className="hidden min-[1033px]:inline-flex"
           />
           <div ref={toggleRef}>
             <MenuToggle open={menuOpen} onClick={handleToggle} ghost ink />
@@ -234,7 +234,7 @@ export function Nav() {
       {mounted && logoPos && createPortal(
         <AnimatePresence>
           {menuOpen && (
-            <div className="fixed md:hidden" style={{ top: logoPos.top, left: logoPos.left, zIndex: 90 }}>
+            <div className="fixed min-[1033px]:hidden" style={{ top: logoPos.top, left: logoPos.left, zIndex: 90 }}>
               <Link href="/" aria-label="davelopment booking" onClick={handleToggle}>
                 <BrandLogo variant="light" className="h-[33px]" />
               </Link>
@@ -247,7 +247,7 @@ export function Nav() {
       {mounted && togglePos && createPortal(
         <AnimatePresence>
           {menuOpen && (
-            <div className="fixed md:hidden" style={{ top: togglePos.top, right: togglePos.right, zIndex: 90 }}>
+            <div className="fixed min-[1033px]:hidden" style={{ top: togglePos.top, right: togglePos.right, zIndex: 90 }}>
               <MenuToggle open={animatedOpen} onClick={handleToggle} ghost ink />
             </div>
           )}
@@ -283,7 +283,7 @@ export function MenuToggle({
         aria-expanded={open}
         whileTap={{ scale: 0.88 }}
         transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-        className="md:hidden relative grid h-12 w-12 shrink-0 place-items-center"
+        className="min-[1033px]:hidden relative grid h-12 w-12 shrink-0 place-items-center"
       >
         <span className="relative grid h-[14px] w-[22px] place-items-center">
           <motion.span
@@ -322,7 +322,7 @@ export function MenuToggle({
       aria-expanded={open}
       whileTap={{ scale: 0.9 }}
       transition={{ type: 'spring', stiffness: 500, damping: 18 }}
-      className="md:hidden relative grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white"
+      className="min-[1033px]:hidden relative grid h-14 w-14 shrink-0 place-items-center rounded-full bg-white"
     >
       <span className="grid h-6 w-6 place-items-center">
         <motion.span
@@ -364,18 +364,18 @@ export function MobileMenu({
   return (
     // z-[80] — magasabb mint bármely stacking context a lapon, az X gomb garantáltan kattintható
     <motion.div
-      className="fixed inset-0 z-[80] flex flex-col bg-white md:hidden"
+      className="fixed inset-0 z-[80] flex flex-col overflow-y-auto bg-white min-[1033px]:hidden"
       initial={{ clipPath: 'inset(0 0 100% 0)' }}
       animate={{ clipPath: 'inset(0 0 0% 0)' }}
       exit={{ clipPath: 'inset(0 0 100% 0)' }}
       transition={{ duration: 0.4, ease: EASE }}
     >
-      {/* Fejléc-magasság megtartása — logo + toggle portálra kerül, itt csak spacer */}
-      <div className="h-12 shrink-0" />
+      {/* Fejléc-magasság megtartása — logo + toggle portálra kerül (fixed, felette). Sticky, hogy görgetéskor a tartalom ne csússzon alá. */}
+      <div className="sticky top-0 z-10 h-12 shrink-0 bg-white" />
 
       {/* Nav linkek */}
       <motion.div
-        className="flex flex-1 flex-col justify-center gap-1 px-5"
+        className="flex flex-col gap-0 px-5 my-auto"
         initial="hidden"
         animate="show"
         variants={{ show: { transition: { staggerChildren: 0.06, delayChildren: 0.06 } } }}
@@ -391,9 +391,8 @@ export function MobileMenu({
               transition={{ duration: 0.35, ease: EASE }}
               whileTap={{ scale: 0.98 }}
               className={[
-                'flex items-center justify-between rounded-[16px] px-4 py-4',
-                'text-[clamp(1.75rem,8vw,2.75rem)] font-semibold tracking-[-0.04em]',
-                isActive ? 'text-brand-ink' : 'text-brand-ink/50',
+                'flex items-center justify-between rounded-[16px] px-4 py-1.5',
+                'text-[clamp(1.625rem,7vw,2.375rem)] font-semibold tracking-[-0.04em] text-brand-ink',
               ].join(' ')}
             >
               <span>{label}</span>
@@ -410,11 +409,11 @@ export function MobileMenu({
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35, ease: EASE, delay: ctaDelay - 0.04 }}
       >
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-brand-ink/35 px-1">
-          davelopment szolgáltatások
+        <p className="text-[12px] font-semibold text-brand-ink/40 px-1">
+          <span className="text-brand-ink">[davelopment]®</span> Szolgáltatások
         </p>
         <div className="grid grid-cols-2 gap-1.5">
-          {SERVICES.map((s) => (
+          {SERVICES.filter((s) => s.label !== 'Időpontfoglaló rendszer').map((s) => (
             <a
               key={s.label}
               href={s.href}
