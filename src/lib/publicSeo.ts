@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import type { Salon, Restaurant, Media } from '@/payload/payload-types'
+import type { Pricing } from '@/lib/pricing'
 
 /**
  * SEO-segédek a publikus profil-oldalakhoz (/[slug]).
@@ -95,6 +96,39 @@ export function placeMetadata(
       description,
       images: [ogImage],
     },
+  }
+}
+
+/** schema.org JSON-LD a főoldalhoz — Organization + SoftwareApplication (a legalacsonyabb aktuális árral). */
+export function siteJsonLd(pricing: Pricing): Record<string, unknown> {
+  const lowestPrice = Math.min(pricing.salon_pro_huf, pricing.restaurant_pro_huf)
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': `${SITE_URL}/#organization`,
+        name: 'davelopment booking',
+        url: SITE_URL,
+        logo: `${SITE_URL}/icons/favico_dark.svg`,
+      },
+      {
+        '@type': 'SoftwareApplication',
+        name: 'davelopment booking',
+        url: SITE_URL,
+        applicationCategory: 'BusinessApplication',
+        operatingSystem: 'Web',
+        description:
+          'Online időpont- és asztalfoglaló rendszer éttermeknek, fodrászatoknak és szépségszalonoknak.',
+        offers: {
+          '@type': 'Offer',
+          price: lowestPrice,
+          priceCurrency: 'HUF',
+          priceValidUntil: `${new Date().getFullYear() + 1}-12-31`,
+        },
+        publisher: { '@id': `${SITE_URL}/#organization` },
+      },
+    ],
   }
 }
 

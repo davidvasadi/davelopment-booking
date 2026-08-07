@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { getPricing } from '@/lib/pricing'
+import { siteJsonLd } from '@/lib/publicSeo'
 import HomeClient from './HomeClient'
 
 export const metadata: Metadata = {
@@ -49,5 +50,13 @@ export const metadata: Metadata = {
 
 export default async function Home() {
   const pricing = await getPricing()
-  return <HomeClient pricing={pricing} />
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd(pricing)) }}
+      />
+      <HomeClient pricing={pricing} />
+    </>
+  )
 }

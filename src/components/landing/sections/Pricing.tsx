@@ -61,7 +61,7 @@ export function Pricing({ pricing }: { pricing: LandingPricing }) {
         className="flex flex-col gap-6"
       >
         <span className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[20px] tracking-[-0.06em] text-brand-ink">
-          Árazás
+          Árak
         </span>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
           <h2 className="font-semibold text-[clamp(2.25rem,5.5vw,72px)] leading-[0.94] tracking-[-0.05em] text-brand-ink">

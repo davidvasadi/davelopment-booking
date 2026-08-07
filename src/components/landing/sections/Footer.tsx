@@ -45,7 +45,7 @@ const NAV_LINKS = [
   { href: '/register', label: 'Időpontfoglaló rendszer' },
   { href: '#hogyan', label: 'Hogyan működik' },
   { href: '#velemenyek', label: 'Vélemények' },
-  { href: '#arazas', label: 'Árazás' },
+  { href: '#arazas', label: 'Árak' },
   { href: '#gyik', label: 'GYIK' },
   { href: '/login', label: 'Bejelentkezés' },
 ]

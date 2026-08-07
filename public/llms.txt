@@ -1,0 +1,16 @@
+# davelopment booking
+
+> Online időpont- és asztalfoglaló rendszer kis vállalkozásoknak (fodrászatok, szépségszalonok, éttermek). Ügyfelek maguk foglalhatnak időpontot/asztalt egy publikus, egyedi linken; a tulajdonos/csapat egy dashboardon kezeli a foglalásokat, a csapatbeosztást, a vendégeket és a bevételt.
+
+davelopment booking egy magyar SaaS termék. A vállalkozások saját aloldalt kapnak (`/[üzlet-slug]`), ahol a vendégeik önállóan foglalhatnak — automatikus email-visszaigazolással, egykattintásos lemondással, valós idejű csapat-értesítésekkel. Ingyenes próbaidőszakkal indítható, bankkártya nélkül.
+
+## Fő oldalak
+
+- [Főoldal](https://booking.davelopment.hu/): termékbemutató, funkciók, árak, GYIK.
+- [Tippek](https://booking.davelopment.hu/tips): gyakorlati cikkek kisvállalkozásoknak a foglalás-kezelésről, csapatszervezésről, vendégmegtartásról.
+- [Regisztráció](https://booking.davelopment.hu/register): ingyenes próbaidőszak indítása fodrászatoknak/szépségszalonoknak.
+- [Regisztráció éttermeknek](https://booking.davelopment.hu/register-restaurant): ingyenes próbaidőszak indítása éttermeknek.
+
+## Megjegyzés
+
+Az egyes vállalkozások publikus foglaló-oldalai (`/[üzlet-slug]`) dinamikusan, ügyfelenként jönnek létre — ezek nem a davelopment booking terméket magát mutatják be, hanem az adott vállalkozás saját foglalási felületét.

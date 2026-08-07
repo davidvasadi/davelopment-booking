@@ -9,6 +9,7 @@ import { Faq } from '@/components/landing/sections/Faq'
 import { SegmentToggle } from '@/components/landing/sections/SegmentToggle'
 import { TeamSection } from '@/components/landing/sections/TeamSection'
 import { CtaBanner } from '@/components/landing/sections/CtaBanner'
+import { TipsTeaser } from '@/components/landing/sections/TipsTeaser'
 import { DavelopmentBanner } from '@/components/landing/sections/DavelopmentBanner'
 import { Footer } from '@/components/landing/sections/Footer'
 import { CookieBanner } from '@/components/landing/CookieBanner'
@@ -35,6 +36,7 @@ export default function HomeClient({ pricing }: { pricing: LandingPricing }) {
       <Faq pricing={pricing} />
       <CtaBanner trial_days={pricing.trial_days} />
       <Pricing pricing={pricing} />
+      <TipsTeaser />
       <DavelopmentBanner />
       <Footer trial_days={pricing.trial_days} />
       <CookieBanner />

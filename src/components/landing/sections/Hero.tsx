@@ -12,9 +12,10 @@ import { MenuToggle, MobileMenu, SERVICES } from '@/components/landing/sections/
 
 const HERO_LINKS = [
   { id: 'hogyan',     label: 'Hogyan működik' },
-  { id: 'arazas',     label: 'Árazás' },
+  { id: 'arazas',     label: 'Árak' },
   { id: 'velemenyek', label: 'Vélemények' },
   { id: 'gyik',       label: 'GYIK' },
+  { id: 'tippek',     label: 'Tippek' },
 ]
 const NAV_OFFSET = 60
 
