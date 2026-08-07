@@ -126,7 +126,7 @@ function SalonLayout() {
           ref={c3.ref} variants={cardV} initial="hidden" animate={c3.animate}
           className="bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6"
         >
-          <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[360px]">
+          <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[275px] sm:h-[360px]">
             <img
               src={`${SW}/eretesitesek-szakemberek-davelopment-booking.jpg`}
               alt="Értesítések"
@@ -338,7 +338,7 @@ function RestaurantLayout() {
           ref={c1a.ref} variants={cardV} initial="hidden" animate={c1a.animate}
           className="bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6 h-full"
         >
-          <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[360px]">
+          <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[275px] sm:h-[360px]">
             <img
               src={`${HW}/ertesitesek-davelopment-booking.jpg`}
               alt="Értesítések"
@@ -356,7 +356,7 @@ function RestaurantLayout() {
           ref={c1b.ref} variants={cardV} initial="hidden" animate={c1b.animate}
           className="bg-white rounded-[13px] p-5 flex flex-col-reverse lg:flex-col gap-6 h-full"
         >
-          <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[360px]">
+          <motion.div variants={imgV} className="relative bg-[#f7f7f7] rounded-[20px] overflow-hidden h-[275px] sm:h-[360px]">
             <img
               src={`${HW}/foglalasok-davelopment-booking.jpg`}
               alt="Napi idővonal"

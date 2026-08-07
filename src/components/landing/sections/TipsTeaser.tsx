@@ -41,7 +41,7 @@ function TipCard({ tip }: { tip: Tip }) {
         href={`/tips/${tip.slug}`}
         className="group flex flex-col rounded-[20px] bg-white p-4 gap-4"
       >
-        <motion.div variants={cardInner} className="relative h-[360px] rounded-[16px] p-4 overflow-hidden" style={{ background: '#f7f7f7' }}>
+        <motion.div variants={cardInner} className="relative h-[275px] sm:h-[360px] rounded-[16px] p-4 overflow-hidden" style={{ background: '#f7f7f7' }}>
           <img
             src={tip.image}
             alt={tip.title}
