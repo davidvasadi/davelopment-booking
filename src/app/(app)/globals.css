@@ -356,7 +356,7 @@ html {
 }
 @media (min-width: 1024px) {
   .dav-overview-bento {
-    grid-template-columns: 300px minmax(0, 1.5fr) minmax(0, 1.05fr);
+    grid-template-columns: 300px minmax(0, 1.6fr) minmax(300px, 0.95fr);
     grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "avatar charts tasks"

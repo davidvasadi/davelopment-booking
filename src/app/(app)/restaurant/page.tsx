@@ -545,6 +545,7 @@ export default async function RestaurantDashboardPage() {
             hourMax={tlHourMax}
             initialWin={tlInitWin}
             dayLabel={tlDayLabel}
+            compactPx={120}
           />
         </div>
 
