@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { MoreHorizontal, Bell, LogOut, CreditCard, Settings, X, ExternalLink, Check, Loader2, ArrowRight, Users, CalendarDays, ChevronDown, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { buttonHover } from '@/lib/motion'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notifDate, notificationVisual, type Notification, type DigestMetadata } from '@/lib/useNotifications'
 import { DigestSheet } from './DigestSheet'
@@ -139,38 +140,50 @@ export function UserMenu({
       {collapsed ? (
         <>
           {/* Csengő — kör gomb, gold pötty az olvasatlan értesítéshez (Crextio: bell + user). */}
-          <button
+          <motion.button
             type="button"
             onClick={() => openMenu('notifications')}
             aria-label="Értesítések"
             aria-expanded={open}
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
             className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none backdrop-blur-lg transition-colors hover:bg-white/70"
           >
             <Bell className="h-[19px] w-[19px]" strokeWidth={2} />
             {unread > 0 && (
               <span className="absolute right-[13px] top-[13px] h-[8px] w-[8px] rounded-full bg-gold ring-2 ring-white" />
             )}
-          </button>
+          </motion.button>
 
           {/* Avatar — kör, kattintásra nyílik a fiók-popover. */}
-          <button
+          <motion.button
             type="button"
             onClick={() => openMenu('account')}
             aria-label="Fiók"
             aria-expanded={open}
-            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-transform hover:scale-[1.03]"
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
+            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none"
           >
             <UserAvatar name={name} src={avatarUrl} size={52} />
-          </button>
+          </motion.button>
         </>
       ) : (
         <>
           {/* Avatar + név — kattintásra nyílik a fiók-popover. */}
-          <button
+          <motion.button
             type="button"
             onClick={() => openMenu('account')}
             aria-label="Fiók"
             aria-expanded={open}
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
             className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-white/[0.06]"
           >
             <UserAvatar name={name} src={avatarUrl} size={34} />
@@ -178,21 +191,25 @@ export function UserMenu({
               <span className="block truncate text-[13px] font-semibold leading-tight text-zinc-900 dark:text-white">{name ?? 'Fiók'}</span>
               {email && <span className="block truncate text-[11px] leading-tight text-zinc-400 dark:text-white/30">{email}</span>}
             </span>
-          </button>
+          </motion.button>
 
           {/* „⋯" gomb — a fiók-popovert nyitja; piros pötty jelzi az olvasatlan értesítést. */}
-          <button
+          <motion.button
             type="button"
             onClick={() => openMenu('notifications')}
             aria-label="Fiók és értesítések"
             aria-expanded={open}
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
             className="relative shrink-0 flex items-center justify-center h-9 w-9 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
           >
             <MoreHorizontal className="h-[18px] w-[18px]" />
             {unread > 0 && (
               <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-black" />
             )}
-          </button>
+          </motion.button>
         </>
       )}
 

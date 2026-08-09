@@ -54,6 +54,22 @@ export function minutesToHHMM(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+/** Záróraként tárolt "00:00" a NAP VÉGÉT jelenti (éjfélig nyitva) — kijelzéskor "24:00"-ként
+ *  olvashatóbb, mint a nap-eleji "00:00" (a tárolt érték nem változik, csak a megjelenítés). */
+export function displayCloseTime(t: string): string {
+  return t === '00:00' ? '24:00' : t
+}
+
+/**
+ * Óra-tengely (idővonal) jelölő-felirathoz: a `closeMin` éjfél utáni normalizálása miatt egy
+ * hourMark perc-érték elérheti/meghaladhatja az 1440-et (pl. 1440 = "24:00", 1470 = "24:30") —
+ * a TENGELY POZÍCIÓJÁHOZ ez kell (a geometria innen számol), de FELIRATKÉNT a megszokott
+ * 00–23 órás formátum olvashatóbb, ezért itt 24 órával "visszacsavarjuk" a kijelzéshez.
+ */
+export function minutesToHHMMWrapped(minutes: number): string {
+  return minutesToHHMM(((minutes % 1440) + 1440) % 1440)
+}
+
 /** Éjfél-átfordulásra biztos időtartam percben (a nevező sose 0 vagy negatív). */
 export function durationMinutes(startMin: number, endMin: number): number {
   const d = endMin >= startMin ? endMin - startMin : 1440 - startMin + endMin

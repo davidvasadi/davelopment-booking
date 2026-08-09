@@ -8,38 +8,36 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { MoreHorizontal } from 'lucide-react'
+import { markLocalMutation } from '@/lib/localMutationTracker'
 
-const nextActions: Record<string, { label: string; status: string }[]> = {
-  pending: [
-    { label: 'Megerősítés', status: 'confirmed' },
-    { label: 'Lemondás', status: 'cancelled' },
-  ],
-  confirmed: [
-    { label: 'Befejezés', status: 'completed' },
-    { label: 'Lemondás', status: 'cancelled' },
-  ],
-  completed: [],
-  cancelled: [],
-}
+// Ugyanaz a 4 státusz, mint a teljes szerkesztő <select>-jében (BookingEditSheet) — a gyors
+// menü ne legyen szűkebb annál, amit a sheetben amúgy is szabadon be lehet állítani.
+// Szalonoknál nincs "függő" munkafolyamat — csak megerősítve/befejezett/lemondva.
+const statusOptions: { label: string; status: string }[] = [
+  { label: 'Megerősítés', status: 'confirmed' },
+  { label: 'Befejezés', status: 'completed' },
+  { label: 'Lemondás', status: 'cancelled' },
+]
 
 export default function BookingActions({ bookingId, status }: { bookingId: string; status: string }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const available = nextActions[status] ?? []
+  const available = statusOptions.filter((o) => o.status !== status)
 
   if (available.length === 0) return null
 
   const updateStatus = async (newStatus: string) => {
     setLoading(true)
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
-        method: 'PATCH',
+      const res = await fetch('/api/salon/booking-status', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ status: newStatus }),
+        body: JSON.stringify({ bookingId, status: newStatus }),
       })
       if (!res.ok) throw new Error()
       toast.success('Státusz frissítve')
+      markLocalMutation()
       router.refresh()
     } catch {
       toast.error('Hiba történt')

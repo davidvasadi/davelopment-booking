@@ -1,11 +1,13 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { requireCapability } from '@/lib/requireCapability'
 import { getRestaurantStats } from '@/lib/restaurantStats'
+import { daypartBuckets } from '@/lib/daypartBuckets'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
 import { ReservationTrendChart, DowChart, HourChart, DaypartChart } from '@/components/dashboard/DashboardCharts'
 import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
 import { DwellCard } from '@/components/restaurant/DwellCard'
 import { NationalityCard } from '@/components/restaurant/NationalityCard'
+import { WeekMiniBars, WeekDayLabels, type WeekBar } from '@/components/shared/OverviewCharts'
 import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
@@ -125,6 +127,21 @@ export default async function RestaurantAnalyticsPage({
         { id: 'noshow', label: `No-show · ${stats.noShowCount} fő`, icon: 'noshow', series: noShowSeries, value: `${stats.noShowCount} fő` },
       ],
     },
+    {
+      id: 'returning', label: 'Visszatérő vendégek', value: `${stats.returningGuestPct}%`, unit: '%',
+      color: '#1D9D63', icon: 'returning', series: stats.returningGuestTrend, deltaPct: stats.returningGuestPctDiff,
+      views: [
+        { id: 'new', label: `Új vendégek · ${stats.newGuestCount} fő`, icon: 'newguest', series: stats.newGuestTrend, value: `${stats.newGuestCount} fő` },
+        { id: 'returning', label: `Visszatérő · ${stats.returningGuestCount} fő`, icon: 'returning', series: stats.returningGuestTrend, value: `${stats.returningGuestCount} fő` },
+      ],
+    },
+    {
+      id: 'leadtime', label: 'Átlagos előrefoglalás', value: `${stats.avgLeadDays} nap előre`, unit: 'nap',
+      color: '#B89530', icon: 'leadtime', series: stats.leadTrend, deltaPct: stats.avgLeadDaysDiff,
+      views: [
+        { id: 'buckets', label: 'Mikor foglalnak', icon: 'dow', series: stats.leadBuckets, value: `${stats.periodReservations} foglalás` },
+      ],
+    },
   ]
 
   // A részlet-nézetek kész grafikonjai (a kinézetük változatlan) — az áttekintő
@@ -141,10 +158,40 @@ export default async function RestaurantAnalyticsPage({
     dow: days > 1 ? <DowChart key="dow" data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} moneyless embedded /> : null,
   }
 
-  // A col2 tetejére 2 grafikon-kártya: óránkénti + heti ÁLLÓ OSZLOP (napi bontás kihagyva).
+  // A col2 tetejére 2 grafikon-kártya: óránkénti + heti ÁLLÓ OSZLOP (napi bontás kihagyva). A
+  // kompakt kártya-nézet ugyanazt a pont+szaggatott-vonal stílust kapja, mint az Áttekintésen
+  // (a teljes recharts-verzió a `dow`/`hour` detailCharts alatt marad, a sidebar-részletnézethez).
+  const DOW_SHORT3: Record<string, string> = {
+    'Hétfő': 'Hét', 'Kedd': 'Ked', 'Szerda': 'Sze', 'Csütörtök': 'Csü', 'Péntek': 'Pén', 'Szombat': 'Szo', 'Vasárnap': 'Vas',
+  }
+  const dowBarsRaw: WeekBar[] = stats.byDayOfWeek.map((d) => ({ label: DOW_SHORT3[d.day] ?? d.day, value: d.bookings }))
+  const dowMax = Math.max(1, ...dowBarsRaw.map((b) => b.value))
+  const dowBars = dowBarsRaw.map((b) => ({ ...b, peak: b.value === dowMax && b.value > 0 }))
+
+  const daypartRows = daypartBuckets(stats.byHour)
+  const daypartBarsRaw: WeekBar[] = daypartRows.map((p) => ({ label: p.label, value: p.bookings }))
+  const daypartMax = Math.max(1, ...daypartBarsRaw.map((b) => b.value))
+  const daypartBars = daypartBarsRaw.map((b) => ({ ...b, peak: b.value === daypartMax && b.value > 0 }))
+
   const chartCards = [
-    { title: 'Heti eloszlás', node: <DowChart key="cc-dow" data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} moneyless embedded /> },
-    { title: 'Napszakok', node: <DaypartChart key="cc-daypart" data={stats.byHour} embedded /> },
+    {
+      title: 'Heti eloszlás',
+      node: (
+        <div className="flex h-full flex-1 flex-col justify-end">
+          <WeekMiniBars bars={dowBars} weekMax={dowMax} unit="foglalás" />
+          <WeekDayLabels bars={dowBars} />
+        </div>
+      ),
+    },
+    {
+      title: 'Napszakok',
+      node: (
+        <div className="flex h-full flex-1 flex-col justify-end">
+          <WeekMiniBars bars={daypartBars} weekMax={daypartMax} unit="foglalás" />
+          <WeekDayLabels bars={daypartBars} />
+        </div>
+      ),
+    },
   ]
 
   return (

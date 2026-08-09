@@ -65,7 +65,7 @@ function Wheel({
             style={{ height: ITEM_H }}
             className={cn(
               'flex w-full snap-center items-center justify-center text-base tabular-nums transition-colors',
-              it === value ? 'font-bold text-ink' : 'text-ink-soft2/50'
+              it === value ? 'font-bold text-ink' : 'text-ink-soft2'
             )}
           >
             {it}

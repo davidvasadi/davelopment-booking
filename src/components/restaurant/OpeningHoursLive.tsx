@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Clock, ChevronRight, X } from 'lucide-react'
 import { DAYS_OF_WEEK, dayLabels, type DayOfWeek } from '@/lib/restaurantTemplates'
 import { t, type Locale } from '@/lib/i18n'
+import { displayCloseTime } from '@/lib/utils'
 
 interface DayHour {
   day_of_week: DayOfWeek
@@ -54,8 +55,11 @@ export default function OpeningHoursLive({
     const cur = now.getHours() * 60 + now.getMinutes()
     if (!today?.is_open) return { open: false as const, today }
     const o = toMinutes(today.open_time)
-    const c = toMinutes(today.close_time)
+    let c = toMinutes(today.close_time)
     if (o == null || c == null) return { open: false as const, today }
+    // "00:00" záróra a nap VÉGÉT jelenti (éjfélig nyitva), nem a nap elejét — enélkül a záróra
+    // 0 percnek számítana, ami minden aktuális időnél korábbi, tehát mindig "zárva"-t adna.
+    if (c <= o) c += 24 * 60
     const isOpen = cur >= o && cur < c
     return { open: isOpen, today, openSoon: !isOpen && cur < o }
   }, [now, byDay])
@@ -73,7 +77,7 @@ export default function OpeningHoursLive({
   let dotClass = 'bg-ink-soft2'
   if (status) {
     if (status.open) {
-      label = t(locale, 'openingHours.closeAt', { time: status.today?.close_time ?? '' })
+      label = t(locale, 'openingHours.closeAt', { time: status.today?.close_time ? displayCloseTime(status.today.close_time) : '' })
       dotClass = 'bg-emerald-400'
     } else if (status.openSoon && status.today?.open_time) {
       label = t(locale, 'openingHours.openAt', { time: status.today.open_time })
@@ -168,7 +172,7 @@ export default function OpeningHoursLive({
                         <span className={isToday ? 'font-semibold text-white' : 'text-white/50'}>{dayLbl[d]}</span>
                       </span>
                       <span className={h?.is_open ? (isToday ? 'font-semibold text-white' : 'text-white/70') : 'text-white/30'}>
-                        {h?.is_open ? `${h.open_time} – ${h.close_time}` : t(locale, 'openingHours.closed')}
+                        {h?.is_open ? `${h.open_time} – ${h.close_time ? displayCloseTime(h.close_time) : ''}` : t(locale, 'openingHours.closed')}
                       </span>
                     </div>
                   )

@@ -1,9 +1,10 @@
 'use client'
 
-import { useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
 import { ymdLocal as ymd } from '@/lib/utils'
+import { HoverButton } from '@/components/shared/HoverButton'
+import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 
 const HU_MONTHS = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
 
@@ -14,7 +15,6 @@ function formatHu(dateStr: string) {
 
 export default function DateFilter({ currentDate }: { currentDate: string }) {
   const router = useRouter()
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const go = (offset: number) => {
     const [y, m, d] = currentDate.split('-').map(Number)
@@ -23,48 +23,42 @@ export default function DateFilter({ currentDate }: { currentDate: string }) {
     router.push(`/dashboard/bookings?date=${ymd(date)}`)
   }
 
-  const isToday = currentDate === ymd(new Date())
+  const today = ymd(new Date())
+  const isToday = currentDate === today
 
   return (
-    <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1 rounded-2xl border border-line bg-[var(--dav-glass)] p-[5px]">
-        <button
-          onClick={() => go(-1)}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-ink transition-colors hover:bg-white"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
+    <div className="flex h-[42px] items-center gap-1 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1">
+      <HoverButton
+        onClick={() => go(-1)}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-ink transition-colors hover:bg-white"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </HoverButton>
 
-        <button
-          onClick={() => inputRef.current?.showPicker?.()}
-          className="relative flex items-center gap-2 px-2 text-[13px] font-semibold text-ink"
-        >
-          <CalendarDays className="h-3.5 w-3.5 text-ink-soft" />
-          {formatHu(currentDate)}
-          <input
-            ref={inputRef}
-            type="date"
-            value={currentDate}
-            onChange={e => e.target.value && router.push(`/dashboard/bookings?date=${e.target.value}`)}
-            className="absolute inset-0 w-full cursor-pointer opacity-0"
-            tabIndex={-1}
-          />
-        </button>
+      <DatePickerPopover
+        value={currentDate}
+        onChange={(d) => router.push(`/dashboard/bookings?date=${d}`)}
+        loadEndpoint="/api/salon/day-load"
+        triggerClassName="flex items-center gap-2 rounded-full px-2 py-1.5 text-[13px] font-semibold text-ink transition-colors hover:bg-white"
+      >
+        <CalendarDays className="h-3.5 w-3.5 text-ink-soft" />
+        {formatHu(currentDate)}
+      </DatePickerPopover>
 
-        <button
-          onClick={() => go(1)}
-          className="flex h-8 w-8 items-center justify-center rounded-full text-ink transition-colors hover:bg-white"
-        >
-          <ChevronRight className="h-4 w-4" />
-        </button>
-      </div>
+      <HoverButton
+        onClick={() => go(1)}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-ink transition-colors hover:bg-white"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </HoverButton>
+
       {!isToday && (
-        <button
-          onClick={() => router.push(`/dashboard/bookings?date=${ymd(new Date())}`)}
-          className="h-[42px] rounded-2xl bg-ink-dark px-4 text-[13px] font-semibold text-white transition-colors hover:opacity-90"
+        <HoverButton
+          onClick={() => router.push(`/dashboard/bookings?date=${today}`)}
+          className="h-8 rounded-full bg-ink-dark px-3 text-xs font-semibold text-white transition-opacity hover:opacity-90"
         >
           Ma
-        </button>
+        </HoverButton>
       )}
     </div>
   )

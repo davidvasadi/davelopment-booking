@@ -6,8 +6,11 @@ import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
 
+// Explicit szín kell (nem csak öröklés) — a Label önmagában semmilyen text-színt nem adott,
+// ezért ott, ahol a környező elem nem állított be sajátot, az ambiens (öröklött) szín
+// gyakorlatilag láthatatlanná tette a felirat-szöveget (fehér-közeli a fehér ürlap-panelen).
 const labelVariants = cva(
-  "text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+  "text-sm font-medium leading-none text-zinc-700 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
 )
 
 const Label = React.forwardRef<

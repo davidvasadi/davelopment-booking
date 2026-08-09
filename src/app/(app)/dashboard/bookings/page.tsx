@@ -6,12 +6,17 @@ import { getDayName, hhmmToMinutes } from '@/lib/utils'
 import { parseISO } from 'date-fns'
 import DateFilter from '@/components/dashboard/DateFilter'
 import { SalonDailyView } from '@/components/dashboard/SalonDailyView'
+import { PrintDayButton } from '@/components/dashboard/PrintDayButton'
 import WaitlistPanel from '@/components/dashboard/WaitlistPanel'
 import type { Booking, Service, StaffMember, Availability } from '@/payload/payload-types'
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
+
+// Nélküle Next.js gyorsítótárazhatja ezt az oldalt — a "ma" alapértelmezett dátum a
+// legutóbbi renderelés napján ragadhat, akkor is ha időközben elmúlt éjfél.
+export const dynamic = 'force-dynamic'
 
 export default async function BookingsPage({
   searchParams,
@@ -88,6 +93,9 @@ export default async function BookingsPage({
   if (rule?.is_available && rule.start_time && rule.end_time) {
     openMin = hhmmToMinutes(rule.start_time)
     closeMin = hhmmToMinutes(rule.end_time)
+    // "00:00" záróra a NAP VÉGÉT jelenti (éjfélig nyitva), nem a nap elejét — enélkül
+    // closeMin=0 lenne, ami <= openMin, és az egész idő-tengely (hourMarks, totalMin) összeomlana.
+    if (closeMin <= openMin) closeMin += 24 * 60
   }
   for (const b of bookings) {
     if (b.status === 'cancelled') continue
@@ -109,6 +117,9 @@ export default async function BookingsPage({
         closeMin={closeMin}
         openBookingId={bookingParam}
         dateFilter={<DateFilter key="date-filter" currentDate={selectedDate} />}
+        printButton={
+          <PrintDayButton key="print-btn" date={selectedDate} salonName={salon.name} bookings={bookings} />
+        }
         canManage={can(capabilities, 'bookings.manage')}
       />
       <WaitlistPanel salonId={salon.id} />

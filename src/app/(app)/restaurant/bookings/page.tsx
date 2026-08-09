@@ -15,6 +15,10 @@ function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// Nélküle Next.js gyorsítótárazhatja ezt az oldalt — a "ma" alapértelmezett dátum a
+// legutóbbi renderelés napján ragadhat, akkor is ha időközben elmúlt éjfél.
+export const dynamic = 'force-dynamic'
+
 export default async function RestaurantBookingsPage({
   searchParams,
 }: {
@@ -80,7 +84,10 @@ export default async function RestaurantBookingsPage({
 
   // Nyitvatartás a timeline tengelyhez; ha zárva/nincs, ésszerű alapérték
   const openMin = oh?.is_open && oh.open_time ? hhmmToMinutes(oh.open_time) : 11 * 60
-  const closeMin = oh?.is_open && oh.close_time ? hhmmToMinutes(oh.close_time) : 23 * 60
+  let closeMin = oh?.is_open && oh.close_time ? hhmmToMinutes(oh.close_time) : 23 * 60
+  // "00:00" záróra a NAP VÉGÉT jelenti (éjfélig nyitva), nem a nap elejét — enélkül
+  // closeMin=0 lenne, ami <= openMin, és az egész idő-tengely összeomlana.
+  if (closeMin <= openMin) closeMin += 24 * 60
 
   // ── Napi gyorskártyák ──────────────────────────────────────────
   const activeCount = reservations.filter(

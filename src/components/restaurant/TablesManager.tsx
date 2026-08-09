@@ -73,6 +73,7 @@ export function TablesManager({
   const [editing, setEditing] = useState<TableItem | null>(null)
   const [editingRoom, setEditingRoom] = useState<RoomItem | null>(null)
   const [creatingRoom, setCreatingRoom] = useState(false)
+  const [assigningOrphans, setAssigningOrphans] = useState(false)
   const [confirmState, setConfirmState] = useState<{
     title: string
     description?: string
@@ -251,6 +252,46 @@ export function TablesManager({
       toast.success('Asztal törölve')
       setConfirmState(null)
       setEditing(null)
+      refresh()
+    } catch {
+      toast.error('Nem sikerült a törlés')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Terem nélküli ("Egyéb") asztalok EGYBEN átsorolása egy valódi terembe — ez az "Egyéb"
+  // csoport "szerkesztése" (nincs mögötte terem-rekord, aminek nevét/típusát írni lehetne,
+  // úgyhogy itt a szerkesztés = kiválasztod, melyik terembe kerüljenek).
+  const runAssignOrphansToRoom = async (ids: (number | string)[], roomId: number | string) => {
+    setBusy(true)
+    try {
+      // A room relationship-mező numerikus ID-t vár — a <select> mindig stringet ad,
+      // ami "The following field is invalid: Terem" 400-at dobott.
+      const roomIdNum = Number.isNaN(Number(roomId)) ? roomId : Number(roomId)
+      for (const id of ids) {
+        await api(`/api/tables/${id}`, 'PATCH', { room: roomIdNum })
+      }
+      toast.success('Asztalok átsorolva')
+      setAssigningOrphans(false)
+      refresh()
+    } catch {
+      toast.error('Nem sikerült az átsorolás')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Terem nélküli ("Egyéb") asztalok EGYBEN törlése — a terem-törléshez hasonlóan, csak itt
+  // nincs mögötte valódi terem-rekord, amit is törölni kellene.
+  const runDeleteOrphanTables = async (ids: (number | string)[]) => {
+    setBusy(true)
+    try {
+      for (const id of ids) {
+        await api(`/api/tables/${id}`, 'DELETE')
+      }
+      toast.success('Asztalok törölve')
+      setConfirmState(null)
       refresh()
     } catch {
       toast.error('Nem sikerült a törlés')
@@ -558,6 +599,107 @@ export function TablesManager({
         )
       })}
 
+      {/* ── Terem nélküli ("Egyéb") asztalok ──
+          Ha egy asztal room-ja valamiért null (pl. régi import, vagy egy korábban törölt
+          terem maradványa), a fenti terem-listából LÁTHATATLAN és TÖRÖLHETETLEN volt — a
+          foglaló nézet viszont "Egyéb" névvel megjelenítette és foglalhatóvá is tette
+          (súlyos inkonzisztencia). Ez a szakasz ugyanazt az "Egyéb" bucket-et mutatja itt is,
+          hogy szerkeszthető/törölhető legyen. */}
+      {(() => {
+        const orphanTables = initialTables
+          .filter((t) => t.room == null)
+          .sort((a, b) => a.sort_order - b.sort_order)
+        if (orphanTables.length === 0) return null
+        const seats = orphanTables.reduce((s, t) => s + t.capacity, 0)
+        return (
+          <div className="rounded-[26px] dav-card-glass p-4 sm:p-[22px]">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#EDE7D6]">
+                  <Home className="h-5 w-5 text-[#9A8B52]" strokeWidth={1.6} />
+                </div>
+                <div className="min-w-0">
+                  <h2 className="truncate text-[18px] font-semibold text-ink">Egyéb</h2>
+                  <p className="mt-0.5 text-xs text-ink-soft">Terem nélküli asztalok — rendezd be egy terembe, vagy töröld.</p>
+                </div>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="text-[13px] font-medium text-ink-soft">
+                  {orphanTables.length} asztal · {seats} fő
+                </span>
+                <button
+                  onClick={() => setAssigningOrphans(true)}
+                  disabled={busy || localRooms.length === 0}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper disabled:opacity-40"
+                  title="Mind átsorolása egy terembe"
+                >
+                  <Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} />
+                </button>
+                <button
+                  onClick={() =>
+                    setConfirmState({
+                      title: 'Egyéb asztalok törlése',
+                      description: `Biztosan törlöd mind a(z) ${orphanTables.length} terem nélküli asztalt? Ez nem vonható vissza.`,
+                      onConfirm: () => runDeleteOrphanTables(orphanTables.map((t) => t.id)),
+                    })
+                  }
+                  disabled={busy}
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink-soft shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:text-bad disabled:opacity-40"
+                  title="Összes egyéb asztal törlése"
+                >
+                  <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.6} />
+                </button>
+              </div>
+            </div>
+            <div
+              className="mt-[18px] grid gap-3"
+              style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))' }}
+            >
+              {orphanTables.map((t) => {
+                const combinedNames = t.combinable_with
+                  .map((id) => nameById.get(String(id)))
+                  .filter((n): n is string => !!n)
+                const isCombinable = combinedNames.length > 0
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => setEditing(t)}
+                    className={`group relative rounded-[18px] border bg-white p-4 text-left transition-all ${
+                      isCombinable ? 'border-gold/50 hover:border-gold' : 'border-line hover:border-line-strong'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between">
+                      <TableGlyph capacity={t.capacity} />
+                      {isCombinable && (
+                        <span className="rounded-lg bg-gold/[0.22] px-2 py-0.5 text-[9px] font-semibold tracking-wide text-[#9A8B52]">
+                          ÖSSZEVONHATÓ
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3.5 truncate text-[22px] font-semibold tracking-[-0.01em] text-ink">{t.name}</div>
+                    <div className="mt-0.5 flex items-center gap-1 text-[13px] text-ink-soft">
+                      <Users className="h-3 w-3" />
+                      <span className="tabular-nums">{t.capacity} fő</span>
+                      {combinedNames.length > 0 && (
+                        <span className="truncate"> · {combinedNames.join(', ')}-tel</span>
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <OrphanAssignSheet
+              open={assigningOrphans}
+              tables={orphanTables}
+              rooms={localRooms}
+              busy={busy}
+              onClose={() => setAssigningOrphans(false)}
+              onAssign={(ids, roomId) => runAssignOrphansToRoom(ids, roomId)}
+            />
+          </div>
+        )
+      })()}
+
       <TableEditSheet
         table={editing}
         allTables={initialTables}
@@ -590,6 +732,104 @@ export function TablesManager({
         onCancel={() => setConfirmState(null)}
       />
     </div>
+  )
+}
+
+/** Az "Egyéb" (terem nélküli) asztalok átsorolása egy kiválasztott terembe — kijelölhető,
+ *  melyik asztalok menjenek (nem kötelező mind egyszerre), ez a virtuális csoport
+ *  "szerkesztése", mivel nincs mögötte saját terem-rekord. */
+function OrphanAssignSheet({
+  open,
+  tables,
+  rooms,
+  busy,
+  onClose,
+  onAssign,
+}: {
+  open: boolean
+  tables: TableItem[]
+  rooms: RoomItem[]
+  busy: boolean
+  onClose: () => void
+  onAssign: (ids: (number | string)[], roomId: number | string) => void
+}) {
+  const [roomId, setRoomId] = useState<string>('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (open) {
+      setRoomId(rooms[0] ? String(rooms[0].id) : '')
+      setSelected(new Set(tables.map((t) => String(t.id))))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const toggle = (id: string) =>
+    setSelected((prev) => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+
+  const allChecked = selected.size === tables.length && tables.length > 0
+
+  return (
+    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+      <SheetContent className="w-full sm:max-w-md bg-white">
+        <SheetHeader>
+          <SheetTitle>Egyéb asztalok átsorolása</SheetTitle>
+        </SheetHeader>
+        <div className="mt-6 space-y-5">
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium text-ink-soft">Melyik asztalok?</Label>
+              <button
+                type="button"
+                onClick={() => setSelected(allChecked ? new Set() : new Set(tables.map((t) => String(t.id))))}
+                className="text-xs font-semibold text-ink-soft hover:text-ink"
+              >
+                {allChecked ? 'Egyik sem' : 'Mind'}
+              </button>
+            </div>
+            <div className="max-h-56 space-y-1.5 overflow-y-auto rounded-xl border border-line bg-paper p-2">
+              {tables.map((t) => {
+                const checked = selected.has(String(t.id))
+                return (
+                  <label
+                    key={t.id}
+                    className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggle(String(t.id))}
+                      className="h-4 w-4 shrink-0 accent-ink-dark"
+                    />
+                    <span className="text-sm font-medium text-ink">{t.name}</span>
+                    <span className="text-xs text-ink-soft">{t.capacity} fő</span>
+                  </label>
+                )
+              })}
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium text-ink-soft">Melyik terembe kerüljenek?</Label>
+            <select
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+              className="h-11 w-full rounded-xl border border-line bg-paper px-3 text-sm text-ink"
+            >
+              {rooms.map((r) => (
+                <option key={r.id} value={String(r.id)}>{r.name}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={() => roomId && selected.size > 0 && onAssign([...selected], roomId)}
+            disabled={busy || !roomId || selected.size === 0}
+            className="w-full h-12 rounded-dav-pill bg-ink-dark text-white font-semibold text-sm hover:opacity-90 transition-opacity disabled:opacity-40"
+          >
+            {busy ? 'Mentés…' : `Átsorolás (${selected.size})`}
+          </button>
+        </div>
+      </SheetContent>
+    </Sheet>
   )
 }
 

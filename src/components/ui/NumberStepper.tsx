@@ -61,13 +61,13 @@ export function NumberStepper({
 
   return (
     <div ref={ref} className={cn('relative', className)}>
-      <div className="flex items-center gap-2 rounded-xl border border-zinc-200 dark:border-white/[0.1] bg-zinc-50 dark:bg-white/[0.04] p-1.5">
+      <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 p-1.5">
         <button
           type="button"
           onClick={() => set(value - step)}
           disabled={value <= min}
           aria-label="Csökkentés"
-          className="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center text-zinc-700 dark:text-white/70 hover:bg-white dark:hover:bg-white/[0.08] disabled:opacity-30 transition-colors"
+          className="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center text-zinc-700 hover:bg-white disabled:opacity-30 transition-colors"
         >
           <Minus className="h-4 w-4" />
         </button>
@@ -76,10 +76,10 @@ export function NumberStepper({
           type="button"
           onClick={() => setOpen((o) => !o)}
           aria-label="Érték beállítása"
-          className="flex-1 h-10 rounded-lg flex items-center justify-center gap-1.5 hover:bg-white dark:hover:bg-white/[0.08] transition-colors"
+          className="flex-1 h-10 rounded-lg flex items-center justify-center gap-1.5 hover:bg-white transition-colors"
         >
-          <span className="text-lg font-black tabular-nums text-zinc-900 dark:text-white">{value}</span>
-          {suffix && <span className="text-xs font-medium text-zinc-400 dark:text-white/30">{suffix}</span>}
+          <span className="text-lg font-black tabular-nums text-zinc-900">{value}</span>
+          {suffix && <span className="text-xs font-medium text-zinc-400">{suffix}</span>}
         </button>
 
         <button
@@ -87,7 +87,7 @@ export function NumberStepper({
           onClick={() => set(value + step)}
           disabled={value >= max}
           aria-label="Növelés"
-          className="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center text-zinc-700 dark:text-white/70 hover:bg-white dark:hover:bg-white/[0.08] disabled:opacity-30 transition-colors"
+          className="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center text-zinc-700 hover:bg-white disabled:opacity-30 transition-colors"
         >
           <Plus className="h-4 w-4" />
         </button>
@@ -95,7 +95,7 @@ export function NumberStepper({
 
       {/* Számpanel: kézi beírás + gyors-értékek. */}
       {open && (
-        <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-xl border border-zinc-100 dark:border-white/[0.08] bg-white dark:bg-zinc-950 shadow-lg p-3">
+        <div className="absolute top-full left-0 right-0 mt-2 z-50 rounded-xl border border-zinc-100 bg-white shadow-lg p-3">
           <div className="flex items-center gap-2">
             <input
               type="number"
@@ -107,12 +107,12 @@ export function NumberStepper({
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { commitDraft(); setOpen(false) } }}
               autoFocus
-              className="w-full h-10 rounded-lg bg-zinc-50 dark:bg-white/[0.06] border border-zinc-200 dark:border-white/[0.1] px-3 text-sm font-semibold text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400"
+              className="w-full h-10 rounded-lg bg-zinc-50 border border-zinc-200 px-3 text-sm font-semibold text-zinc-900 focus:outline-none focus:border-zinc-400"
             />
             <button
               type="button"
               onClick={() => { commitDraft(); setOpen(false) }}
-              className="h-10 px-4 shrink-0 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black text-sm font-bold hover:opacity-90 transition-opacity"
+              className="h-10 px-4 shrink-0 rounded-lg bg-zinc-900 text-white text-sm font-bold hover:opacity-90 transition-opacity"
             >
               OK
             </button>
@@ -127,8 +127,8 @@ export function NumberStepper({
                   className={cn(
                     'h-8 px-3 rounded-lg text-sm font-semibold tabular-nums transition-colors',
                     value === p
-                      ? 'bg-zinc-900 dark:bg-white text-white dark:text-black'
-                      : 'bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-white/70 hover:bg-zinc-200 dark:hover:bg-white/[0.1]',
+                      ? 'bg-zinc-900 text-white'
+                      : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200',
                   )}
                 >
                   {p}

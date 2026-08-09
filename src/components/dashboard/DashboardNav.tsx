@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, X } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, X } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -472,6 +472,18 @@ export function DashboardNav({
               </AnimatePresence>
             </motion.div>
           )}
+          {/* Foglalások nézet-váltó ikon — csak a bookings oldalakon (szalon + étterem) jelenik meg. */}
+          {pathname.endsWith('/bookings') && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('davelopment:open-bookings-view'))}
+              aria-label="Nézet váltása"
+              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+            >
+              <LayoutGrid className="h-[19px] w-[19px]" strokeWidth={2} />
+            </button>
+          )}
+
           {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
               (csengő = értesítések, avatar = fiók-menü → üzletváltó + Saját profil). */}
           {!isBackstage && (

@@ -7,6 +7,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { DayData, ServiceStat, StaffStat, DowStat, HourStat } from '@/lib/dashboardStats'
+import { daypartBuckets } from '@/lib/daypartBuckets'
 import { formatPrice } from '@/lib/utils'
 import { ArrowUpRight } from 'lucide-react'
 import { KpiDetailsSheet } from './KpiDetailsSheet'
@@ -84,8 +85,8 @@ function xAxisInterval(days: number) {
   return 60
 }
 
-export function TrendChart({ data, period = 30, embedded = false }: { data: DayData[]; period?: number; embedded?: boolean }) {
-  const [tab, setTab] = useState<'revenue' | 'bookings'>('revenue')
+export function TrendChart({ data, period = 30, embedded = false, defaultTab = 'revenue' }: { data: DayData[]; period?: number; embedded?: boolean; defaultTab?: 'revenue' | 'bookings' }) {
+  const [tab, setTab] = useState<'revenue' | 'bookings'>(defaultTab)
   const [sheetOpen, setSheetOpen] = useState(false)
 
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) => {
@@ -298,22 +299,11 @@ export function HourChart({ data, period = 30, rawDays = [], hourlyByDate, money
  * NAPSZAK-bontás: az óránkénti forgalmat 5 napszakba vonja össze (Reggel/Délelőtt/
  * Délután/Este/Éjszaka). Tisztább, kevés-oszlopos alternatíva a sűrű óra-charthoz —
  * a csúcs-napszak GOLD, a többi sötét ink. Vékony, lekerekített oszlopok.
+ * (A bontás-logika a lib/dashboardStats.ts-ben él — onnan szerver-komponensek is hívhatják.)
  */
-const DAYPARTS: { label: string; from: number; to: number }[] = [
-  { label: 'Reggel', from: 5, to: 9 },
-  { label: 'Délelőtt', from: 9, to: 12 },
-  { label: 'Délután', from: 12, to: 17 },
-  { label: 'Este', from: 17, to: 22 },
-  { label: 'Éjszaka', from: 22, to: 29 }, // 22–24 + 0–5 (mod 24)
-]
 
 export function DaypartChart({ data, embedded = false }: { data: HourStat[]; embedded?: boolean }) {
-  const hourVal = (h: number) => data.find((d) => parseInt(d.hour, 10) === (h % 24))?.bookings ?? 0
-  const parts = DAYPARTS.map((p) => {
-    let sum = 0
-    for (let h = p.from; h < p.to; h++) sum += hourVal(h)
-    return { label: p.label, bookings: sum }
-  })
+  const parts = daypartBuckets(data)
   const hasData = parts.some((p) => p.bookings > 0)
   const peakIdx = parts.reduce((mi, d, i, a) => (d.bookings > (a[mi]?.bookings ?? -1) ? i : mi), 0)
 
@@ -380,6 +370,42 @@ export function ServiceChart({ data, period = 30, embedded = false }: { data: Se
         ))}
       </div>
       <KpiDetailsSheet kind="service" open={sheetOpen} onClose={() => setSheetOpen(false)} period={period} data={data} />
+    </div>
+  )
+}
+
+/**
+ * TOP 5 legnépszerűbb szolgáltatás FOGLALÁS-SZÁM szerint rangsorolva (nem bevétel szerint,
+ * mint a `ServiceChart` — ugyanabból az adatból, más metrika a hangsúlyos: a darabszám, sorszám-
+ * jelvénnyel, hogy egyértelműen "népszerűségi lista" legyen, ne bevétel-ranglista).
+ */
+export function PopularServicesChart({ data, embedded = false }: { data: ServiceStat[]; embedded?: boolean }) {
+  if (!data.length) return null
+  const top = [...data].sort((a, b) => b.bookings - a.bookings).slice(0, 5)
+  const max = Math.max(...top.map((d) => d.bookings))
+  return (
+    <div className={embedded ? 'h-full overflow-y-auto' : CARD}>
+      <div className="space-y-3">
+        {top.map((s, i) => (
+          <div key={i} className="flex items-center gap-3">
+            <span
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-bold"
+              style={{ background: i === 0 ? C.accent : 'var(--dav-glass-strong)', color: i === 0 ? '#1D1C19' : '#8a8779' }}
+            >
+              {i + 1}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <span className="truncate text-sm font-medium text-ink">{s.name}</span>
+                <span className="shrink-0 text-xs font-bold tabular-nums text-ink">{s.bookings} db</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full border border-line bg-[var(--dav-glass-strong)]">
+                <div className="h-full rounded-full transition-all" style={{ width: max > 0 ? `${(s.bookings / max) * 100}%` : '0%', background: i === 0 ? C.accent : C.ink }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

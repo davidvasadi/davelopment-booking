@@ -374,6 +374,25 @@ export function ProfileCard({
                     )}
                   </div>
                 )}
+                {(phone || email || website) && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {phone && (
+                      <a href={`tel:${phone}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
+                        <Phone className="h-3.5 w-3.5 shrink-0" />{phone}
+                      </a>
+                    )}
+                    {email && (
+                      <a href={`mailto:${email}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
+                        <Mail className="h-3.5 w-3.5 shrink-0" />{email}
+                      </a>
+                    )}
+                    {website && (
+                      <a href={website} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
+                        <Globe className="h-3.5 w-3.5 shrink-0" />{tl(locale, 'public.website')}
+                      </a>
+                    )}
+                  </div>
+                )}
               </>
             ) : null}
             <div className="mt-4 h-px bg-white/[0.08]" />
@@ -449,28 +468,6 @@ export function ProfileCard({
                             </button>
                           )
                         })}
-                      </div>
-                    </div>
-                  )}
-                  {(phone || email || website) && (
-                    <div>
-                      <div className="h-px bg-white/[0.08]" />
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {phone && (
-                          <a href={`tel:${phone}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
-                            <Phone className="h-3.5 w-3.5 shrink-0" />{phone}
-                          </a>
-                        )}
-                        {email && (
-                          <a href={`mailto:${email}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
-                            <Mail className="h-3.5 w-3.5 shrink-0" />{email}
-                          </a>
-                        )}
-                        {website && (
-                          <a href={website} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
-                            <Globe className="h-3.5 w-3.5 shrink-0" />{tl(locale, 'public.website')}
-                          </a>
-                        )}
                       </div>
                     </div>
                   )}

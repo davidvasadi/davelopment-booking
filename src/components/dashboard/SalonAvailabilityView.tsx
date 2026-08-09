@@ -10,7 +10,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { WheelTimePicker } from '@/components/ui/wheel-time-picker'
 import { TimeSelect } from '@/components/ui/time-select'
 import { SalonAvailabilityExceptions, type SalonException } from '@/components/dashboard/SalonAvailabilityExceptions'
-import { cn } from '@/lib/utils'
+import { cn, displayCloseTime } from '@/lib/utils'
 
 const DAY_ABBR: Record<DayOfWeek, string> = {
   monday: 'Hé', tuesday: 'Ke', wednesday: 'Sze', thursday: 'Csü', friday: 'Pé', saturday: 'Szo', sunday: 'Va',
@@ -220,7 +220,7 @@ export function SalonAvailabilityView({
                         className="absolute bottom-1 top-1 flex items-center justify-center rounded-[7px] text-[10px] font-semibold text-white/90"
                         style={{ left: `${geo.left.toFixed(2)}%`, width: `${geo.width.toFixed(2)}%`, background: '#26231F', boxShadow: '0 2px 6px rgba(40,35,15,.14)' }}
                       >
-                        {showLabel ? `${d.start_time} – ${d.end_time}` : ''}
+                        {showLabel ? `${d.start_time} – ${displayCloseTime(d.end_time)}` : ''}
                       </div>
                     ) : (
                       <div className="absolute inset-0 flex items-center pl-3 text-xs font-medium italic text-[#C2BDAD]">
@@ -294,7 +294,7 @@ export function SalonAvailabilityView({
                   <div className="mb-6 flex items-center gap-3 lg:hidden">
                     <button type="button" onClick={() => setPicker('open')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{days[editIdx].start_time}</button>
                     <span className="text-sm text-ink-soft2">–</span>
-                    <button type="button" onClick={() => setPicker('close')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{days[editIdx].end_time}</button>
+                    <button type="button" onClick={() => setPicker('close')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{displayCloseTime(days[editIdx].end_time)}</button>
                   </div>
                 </>
               ) : (

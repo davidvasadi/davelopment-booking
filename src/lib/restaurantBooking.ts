@@ -105,6 +105,11 @@ export async function getOpeningWindow(
       closeMin = hhmmToMinutes(exc.close_time)
     }
   }
+  // Éjfél utáni záróra (pl. "01:00" vagy "00:00") a nyitáshoz képest számként KISEBB/EGYENLŐ —
+  // ez a KÖVETKEZŐ nap ugyanazon időpontját jelenti, nem egy ford fordított/érvénytelen ablakot.
+  // Enélkül minden idő "nyitvatartáson kívülinek" tűnne (validateManualReservation), és az
+  // idő-tengely (getRestaurantSlots, timeline) is összeomlana.
+  if (closeMin <= openMin) closeMin += 24 * 60
   return { openMin, closeMin }
 }
 
@@ -113,8 +118,11 @@ export async function getRestaurantSlots(params: {
   restaurantId: string | number
   date: string // YYYY-MM-DD
   pax: number
+  /** Ha igaz, a múltbeli (mai elmúlt, vagy akár korábbi napi) időpontok is szerepelnek —
+   *  csak a bejelentkezett tulaj saját felületén, utólagos/telefonos rögzítéshez. */
+  includePast?: boolean
 }): Promise<RestaurantTimeSlot[]> {
-  const { restaurantId, date, pax } = params
+  const { restaurantId, date, pax, includePast = false } = params
   const payload = await getPayloadClient()
 
   const restaurant = (await payload.findByID({
@@ -147,8 +155,9 @@ export async function getRestaurantSlots(params: {
   // 3. Lead-time + múlt szűrés
   const now = new Date()
   const todayStr = now.toISOString().split('T')[0]
-  const earliestMin =
-    date === todayStr ? now.getHours() * 60 + now.getMinutes() + leadHours * 60 : date < todayStr ? Infinity : 0
+  const earliestMin = includePast
+    ? 0
+    : date === todayStr ? now.getHours() * 60 + now.getMinutes() + leadHours * 60 : date < todayStr ? Infinity : 0
 
   // 4. Aktív foglalások a napra
   const resRes = await payload.find({

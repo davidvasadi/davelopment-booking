@@ -10,7 +10,7 @@ import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { WheelTimePicker } from '@/components/ui/wheel-time-picker'
 import { TimeSelect } from '@/components/ui/time-select'
 import { OpeningHoursExceptions, type Exception } from '@/components/restaurant/OpeningHoursExceptions'
-import { cn } from '@/lib/utils'
+import { cn, displayCloseTime } from '@/lib/utils'
 
 const DAY_ABBR: Record<DayOfWeek, string> = {
   monday: 'Hé', tuesday: 'Ke', wednesday: 'Sze', thursday: 'Csü', friday: 'Pé', saturday: 'Szo', sunday: 'Va',
@@ -243,7 +243,7 @@ export function AvailabilityView({
                           boxShadow: '0 2px 6px rgba(40,35,15,.14)',
                         }}
                       >
-                        {showLabel ? `${d.open_time} – ${d.close_time}` : ''}
+                        {showLabel ? `${d.open_time} – ${displayCloseTime(d.close_time)}` : ''}
                       </div>
                     ) : (
                       <div className="absolute inset-0 flex items-center pl-3 text-xs font-medium italic text-[#C2BDAD]">
@@ -323,7 +323,7 @@ export function AvailabilityView({
                   <div className="mb-6 flex items-center gap-3 lg:hidden">
                     <button type="button" onClick={() => setPicker('open')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{days[editIdx].open_time}</button>
                     <span className="text-sm text-ink-soft2">–</span>
-                    <button type="button" onClick={() => setPicker('close')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{days[editIdx].close_time}</button>
+                    <button type="button" onClick={() => setPicker('close')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{displayCloseTime(days[editIdx].close_time)}</button>
                   </div>
                 </>
               ) : (

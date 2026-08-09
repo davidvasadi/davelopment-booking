@@ -8,6 +8,10 @@ interface SlotParams {
   staffId?: string
   serviceId: string
   date: string // YYYY-MM-DD
+  /** Ha igaz, a már elmúlt mai időpontok is szerepelnek a listában — csak a tulaj saját,
+   *  bejelentkezett foglalás-felületén használjuk (utólagos/telefonos rögzítéshez), a
+   *  publikus foglaló widgetben SOSE (ott a vendég nem foglalhat múltbeli időpontra). */
+  includePast?: boolean
 }
 
 export interface TimeSlot {
@@ -16,7 +20,7 @@ export interface TimeSlot {
 }
 
 export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]> {
-  const { salonId, staffId, serviceId, date } = params
+  const { salonId, staffId, serviceId, date, includePast = false } = params
   const payload = await getPayloadClient()
 
   // 1. Fetch service to get duration
@@ -120,12 +124,17 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   const openMin = hhmmToMinutes(workStart)
   const closeMin = hhmmToMinutes(workEnd)
 
-  // 5. Generate candidate slots stepping by service duration
+  // 5. Generate candidate slots — 15 PERCES rácson (NEM a szolgáltatás-hosszal léptetve).
+  // Duration-lépéssel a rács igazodása miatt egy a nyitástól "elcsúszó" foglalás
+  // (pl. 09:30–10:30, 60 perces szolgáltatásnál) az ÖSSZES ráeső jelölt slotot (09:00, 10:00)
+  // kitakarja, miközben ténylegesen szabad idő marad köztük (pl. 10:30-tól) — ezt a fix
+  // 15 perces rács elkerüli, mert minden lehetséges kezdő-időpontot jelöltnek tekint.
+  const STEP_MIN = 15
   const candidates: number[] = []
   let cursor = openMin
   while (cursor + durationMinutes <= closeMin) {
     candidates.push(cursor)
-    cursor += durationMinutes
+    cursor += STEP_MIN
   }
 
   // 6. Fetch existing bookings for this staff on this date
@@ -148,7 +157,7 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
     : 0
 
   const free = candidates.filter((slotStart) => {
-    if (slotStart <= nowMinutes && date === todayStr) return false
+    if (!includePast && slotStart <= nowMinutes && date === todayStr) return false
     const slotEnd = slotStart + durationMinutes
     return !occupied.some((o) => slotStart < o.end && slotEnd > o.start)
   })

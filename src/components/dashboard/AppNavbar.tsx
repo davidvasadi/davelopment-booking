@@ -11,6 +11,9 @@ import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
 import type { SwitcherBusiness } from './StoreSwitcher'
+import { buttonHover } from '@/lib/motion'
+
+const MotionLink = motion.create(Link)
 
 // A „staggered spring" belépő (etalon: a UserMenu popover) — a „Több" legördülő is ezt kapja:
 // a panel a triggerből kinőve rugósan pattan ki, az elemek egymás után úsznak be.
@@ -113,10 +116,14 @@ export function AppNavbar({
           const active = isActive(href, exact)
           const dim = isLocked
           return (
-            <Link
+            <MotionLink
               key={href}
               href={href}
               data-tour={href}
+              variants={buttonHover}
+              initial="rest"
+              whileHover="hover"
+              whileTap="hover"
               className={cn(
                 'relative rounded-[30px] py-[11px] text-sm transition-colors whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ink/10',
                 active ? 'px-[22px] text-white font-semibold' : dim ? 'px-[18px] text-[#55524a]/50' : 'px-[18px] font-medium text-[#55524a] hover:text-ink',
@@ -130,17 +137,21 @@ export function AppNavbar({
                 />
               )}
               <span className="relative z-10">{label}</span>
-            </Link>
+            </MotionLink>
           )
         })}
 
         {/* „Több" legördülő a másodlagos elemekre — így a nav nem lóg ki */}
         {overflowItems.length > 0 && (
           <div className="relative">
-            <button
+            <motion.button
               type="button"
               onClick={() => setMoreOpen((o) => !o)}
               onBlur={() => setTimeout(() => setMoreOpen(false), 150)}
+              variants={buttonHover}
+              initial="rest"
+              whileHover="hover"
+              whileTap="hover"
               className={cn(
                 'relative flex items-center gap-1 rounded-[30px] py-[11px] text-sm transition-colors whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ink/10',
                 overflowActive ? 'px-[22px] text-white font-semibold' : 'px-[18px] font-medium text-[#55524a] hover:text-ink',
@@ -149,7 +160,7 @@ export function AppNavbar({
               {overflowActive && <span className="absolute inset-0 -z-0 rounded-[30px] bg-ink-dark" />}
               <span className="relative z-10">Több</span>
               <ChevronDown className={cn('relative z-10 h-4 w-4 transition-transform', moreOpen && 'rotate-180')} />
-            </button>
+            </motion.button>
             <AnimatePresence>
               {moreOpen && (
                 <motion.div
@@ -164,9 +175,13 @@ export function AppNavbar({
                     const active = isActive(href, exact)
                     return (
                       <motion.div key={href} variants={POP_ITEM}>
-                        <Link
+                        <MotionLink
                           href={href}
                           onClick={() => setMoreOpen(false)}
+                          variants={buttonHover}
+                          initial="rest"
+                          whileHover="hover"
+                          whileTap="hover"
                           className={cn(
                             'flex items-center gap-2.5 rounded-[13px] px-3 py-2.5 text-sm transition-colors',
                             active ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-[#3a352a] hover:bg-[#f4f4f5] hover:text-ink',
@@ -174,7 +189,7 @@ export function AppNavbar({
                         >
                           <Icon className={cn('h-[17px] w-[17px]', !active && 'text-[#8a8779]')} />
                           {label}
-                        </Link>
+                        </MotionLink>
                       </motion.div>
                     )
                   })}
@@ -188,11 +203,15 @@ export function AppNavbar({
       {/* Jobb: Beállítás (Crextio: fehér pill ikon+felirat) + csengő + avatar */}
       <div className="flex items-center gap-2.5 shrink-0">
         {showSettings && (
-          <Link
+          <MotionLink
             href={settingsHref}
             data-tour={settingsHref}
             aria-label="Beállítások"
             title="Beállítások"
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
             className={cn(
               'flex h-[52px] shrink-0 items-center gap-2 rounded-[30px] px-[22px] text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors backdrop-blur-lg',
               settingsActive ? 'bg-ink-dark text-white' : 'bg-[var(--dav-glass-strong)] text-ink hover:bg-white/70',
@@ -200,7 +219,7 @@ export function AppNavbar({
           >
             <Settings className="h-[16px] w-[16px]" strokeWidth={2} />
             Beállítások
-          </Link>
+          </MotionLink>
         )}
 
         <UserMenu

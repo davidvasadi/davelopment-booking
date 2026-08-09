@@ -11,6 +11,7 @@ import {
 } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { cn } from '@/lib/utils'
+import { buttonHover } from '@/lib/motion'
 
 const PRESETS = [
   { label: 'Ma', days: 1 },
@@ -262,15 +263,19 @@ export function DateRangeFilter({ basePath }: { basePath: string }) {
 
   return (
     <div className="relative">
-      <button
+      <motion.button
         ref={triggerRef}
         type="button"
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 h-11 lg:h-9 px-4 lg:px-3 bg-[var(--dav-glass-strong)] border border-line rounded-[12px] text-sm font-semibold text-ink hover:border-line-strong transition-colors active:scale-95"
+        variants={buttonHover}
+        initial="rest"
+        whileHover="hover"
+        whileTap="hover"
+        className="flex items-center gap-2 h-11 lg:h-9 px-4 lg:px-3 bg-[var(--dav-glass-strong)] border border-line rounded-[12px] text-sm font-semibold text-ink hover:border-line-strong transition-colors"
       >
         <CalendarDays className="h-[15px] w-[15px] text-ink-soft shrink-0" />
         <span>{currentLabel(period, fromParam, toParam)}</span>
-      </button>
+      </motion.button>
 
       {mounted && (
         <>

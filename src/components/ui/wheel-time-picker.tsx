@@ -42,7 +42,7 @@ function WheelColumn({ values, value, onChange }: { values: string[]; value: str
           key={v}
           className={cn(
             'flex h-10 snap-center items-center justify-center text-xl tabular-nums transition-colors',
-            v === value ? 'font-semibold text-ink' : 'text-ink-soft2/50'
+            v === value ? 'font-semibold text-ink' : 'text-ink-soft2'
           )}
         >
           {v}

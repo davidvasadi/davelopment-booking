@@ -85,6 +85,19 @@ export interface RestaurantStats {
   /** Nyers nemzetiség-adat a részletek sidebarhoz: aktív foglalások dátuma + ország (ISO)
    *  + létszám (pax). A sheet ebből szűr időszakra és számol LÉTSZÁM-alapú arányt. */
   nationalityRaw: { date: string; country: string; pax: number }[]
+  /** Visszatérő vs új vendég (customer_email alapján, a TELJES előzményből) — pax-súlyozva,
+   *  csak az email-lel rendelkező foglalások közt értelmezett. */
+  newGuestCount: number
+  returningGuestCount: number
+  returningGuestPct: number
+  returningGuestPctDiff: number
+  newGuestTrend: { label: string; value: number }[]
+  returningGuestTrend: { label: string; value: number }[]
+  /** Foglalási előreidő (nap) — a foglalás létrehozása (createdAt) és az időpont (date) közti táv. */
+  avgLeadDays: number
+  avgLeadDaysDiff: number
+  leadTrend: { label: string; value: number }[]
+  leadBuckets: { label: string; value: number }[]
 }
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated', 'completed']
@@ -165,7 +178,7 @@ export async function getRestaurantStats(
       depth: 0,
       limit: 5000,
       // Csak a számításhoz használt mezők – kevesebb adat a DB-ből és a hidratálásból.
-      select: { date: true, status: true, source: true, pax: true, start_time: true, end_time: true, country: true },
+      select: { date: true, status: true, source: true, pax: true, start_time: true, end_time: true, country: true, customer_email: true, createdAt: true },
       overrideAccess: true,
     }),
     payload.find({
@@ -394,6 +407,92 @@ export async function getRestaurantStats(
   const prevCancelledTotal = sumPax(allPrev.filter(r => r.status === 'cancelled' || r.status === 'no_show'))
   const cancelledTotalDiff = pctDiff(cancelledCount + noShowCount, prevCancelledTotal)
 
+  // ── Visszatérő vs új vendég — customer_email alapján, a TELJES előzményből (nem csak a
+  //    lekérdezett tartományból), pax-súlyozva (mint a többi vendég-szám kártya). ──
+  const periodEmails = [...new Set(periodDocs.map((r) => r.customer_email).filter(Boolean))]
+  const prevPeriodEmailsArr = [...new Set(prevPeriodDocs.map((r) => r.customer_email).filter(Boolean))]
+  const allGuestEmails = [...new Set([...periodEmails, ...prevPeriodEmailsArr])]
+  const priorDatesByEmail: Record<string, string[]> = {}
+  if (allGuestEmails.length > 0) {
+    const priorRes = await payload.find({
+      collection: 'reservations',
+      where: {
+        and: [
+          { restaurant: { equals: restaurantId } },
+          { customer_email: { in: allGuestEmails } },
+          { date: { less_than: periodStartStr } },
+        ],
+      },
+      depth: 0,
+      limit: 5000,
+      select: { customer_email: true, date: true },
+      overrideAccess: true,
+    })
+    for (const d of priorRes.docs as { customer_email?: string; date?: string }[]) {
+      if (!d.customer_email || !d.date) continue
+      ;(priorDatesByEmail[d.customer_email] ??= []).push(d.date)
+    }
+  }
+  const hadPriorBefore = (email: string | undefined | null, cutoff: string) =>
+    !!email && (priorDatesByEmail[email]?.some((d) => d < cutoff) ?? false)
+
+  const returningGuestCount = sumPax(periodDocs.filter((r) => hadPriorBefore(r.customer_email, periodStartStr)))
+  const newGuestCount = sumPax(periodDocs.filter((r) => r.customer_email && !hadPriorBefore(r.customer_email, periodStartStr)))
+  const knownGuestCount = returningGuestCount + newGuestCount
+  const returningGuestPct = knownGuestCount > 0 ? Math.round((returningGuestCount / knownGuestCount) * 100) : 0
+
+  const prevReturningCount = sumPax(prevPeriodDocs.filter((r) => hadPriorBefore(r.customer_email, prevPeriodStartStr)))
+  const prevNewCount = sumPax(prevPeriodDocs.filter((r) => r.customer_email && !hadPriorBefore(r.customer_email, prevPeriodStartStr)))
+  const prevKnownCount = prevReturningCount + prevNewCount
+  const prevReturningGuestPct = prevKnownCount > 0 ? Math.round((prevReturningCount / prevKnownCount) * 100) : 0
+  const returningGuestPctDiff = pctDiff(returningGuestPct, prevReturningGuestPct)
+
+  const newGuestTrend = Array.from({ length: rangeDays }, (_, i) => {
+    const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
+    const dayDocs = activeByDate.get(d) ?? []
+    return { label: dayLabel(d, days), value: sumPax(dayDocs.filter((r) => r.customer_email && !hadPriorBefore(r.customer_email, periodStartStr))) }
+  })
+  const returningGuestTrend = Array.from({ length: rangeDays }, (_, i) => {
+    const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
+    const dayDocs = activeByDate.get(d) ?? []
+    return { label: dayLabel(d, days), value: sumPax(dayDocs.filter((r) => hadPriorBefore(r.customer_email, periodStartStr))) }
+  })
+
+  // ── Foglalási előreidő — a foglalás létrehozása (createdAt) és a kiszolgálás napja (date) közti táv. ──
+  const leadDaysOf = (r: Reservation): number | null => {
+    if (!r.createdAt) return null
+    const created = new Date(r.createdAt)
+    const createdMidnight = new Date(created.getFullYear(), created.getMonth(), created.getDate())
+    const appt = new Date(r.date + 'T00:00:00')
+    return Math.max(0, Math.round((appt.getTime() - createdMidnight.getTime()) / 86400000))
+  }
+  const periodLeadDays = periodDocs.map(leadDaysOf).filter((n): n is number => n !== null)
+  // Egész napra kerekítve — tizedes nap (pl. "3,2 nap") csak összezavarna, nincs
+  // gyakorlati jelentése ennél a metrikánál.
+  const avgLeadDays = periodLeadDays.length > 0
+    ? Math.round(periodLeadDays.reduce((s, n) => s + n, 0) / periodLeadDays.length)
+    : 0
+  const prevLeadDaysArr = prevPeriodDocs.map(leadDaysOf).filter((n): n is number => n !== null)
+  const prevAvgLeadDays = prevLeadDaysArr.length > 0
+    ? Math.round(prevLeadDaysArr.reduce((s, n) => s + n, 0) / prevLeadDaysArr.length)
+    : 0
+  const avgLeadDaysDiff = pctDiff(avgLeadDays, prevAvgLeadDays)
+
+  const leadTrend = Array.from({ length: rangeDays }, (_, i) => {
+    const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
+    const dayLeads = (activeByDate.get(d) ?? []).map(leadDaysOf).filter((n): n is number => n !== null)
+    const avg = dayLeads.length > 0 ? Math.round(dayLeads.reduce((s, n) => s + n, 0) / dayLeads.length) : 0
+    return { label: dayLabel(d, days), value: avg }
+  })
+  const LEAD_BUCKETS: { label: string; test: (n: number) => boolean }[] = [
+    { label: 'Aznap', test: (n) => n === 0 },
+    { label: '1-3 nap', test: (n) => n >= 1 && n <= 3 },
+    { label: '4-7 nap', test: (n) => n >= 4 && n <= 7 },
+    { label: '1-2 hét', test: (n) => n >= 8 && n <= 14 },
+    { label: '2+ hét', test: (n) => n > 14 },
+  ]
+  const leadBuckets = LEAD_BUCKETS.map((b) => ({ label: b.label, value: periodLeadDays.filter(b.test).length }))
+
   return {
     period: rangeDays,
     tableCount: tablesRes.totalDocs,
@@ -438,5 +537,15 @@ export async function getRestaurantStats(
     foreignCount,
     topCountries,
     nationalityRaw,
+    newGuestCount,
+    returningGuestCount,
+    returningGuestPct,
+    returningGuestPctDiff,
+    newGuestTrend,
+    returningGuestTrend,
+    avgLeadDays,
+    avgLeadDaysDiff,
+    leadTrend,
+    leadBuckets,
   }
 }

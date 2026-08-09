@@ -98,10 +98,9 @@ export async function POST(request: NextRequest) {
       payload.findByID({ collection: 'staff', id: staffId, overrideAccess: true, locale, fallbackLocale: 'hu' }) as Promise<StaffMember>,
     ])
 
-    // Defenzív auto_confirm: alap (null/true) → 'confirmed' (változatlan). Csak ha a tulaj
-    // EXPLICIT kikapcsolta (auto_confirm === false), akkor 'pending' → kézi jóváhagyás.
-    const bookingStatus: 'confirmed' | 'pending' =
-      salon.booking_rules?.auto_confirm === false ? 'pending' : 'confirmed'
+    // Szalonoknál nincs külön "függőben" munkafolyamat — minden online foglalás rögtön
+    // megerősítve jön be (a lemondás/befejezés a kezelés útja, nem egy köztes jóváhagyás).
+    const bookingStatus: 'confirmed' = 'confirmed'
 
     // Ismétlődés csak akkor él, ha jött `repeat` ÉS a modul be van kapcsolva. Máskülönben
     // (nincs repeat, vagy recurring_on ki) → egyszeri foglalás, közös series_id nélkül.
