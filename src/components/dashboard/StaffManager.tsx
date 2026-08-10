@@ -85,7 +85,7 @@ interface Props {
   /** VALÓS munkatárs-adatlap adat (HiringView overlay); ha nincs, a HiringView mock-ot mutat */
   employees?: Employee[]
   /** A szalon tulajdonosa (Users collection) — külön sor a tábla tetején. */
-  ownerUser?: { name?: string | null; email?: string | null; avatar_url?: string | null; join_date?: string | null; createdAt?: string | null } | null
+  ownerUser?: { name?: string | null; email?: string | null; avatar_url?: string | null; join_date?: string | null; createdAt?: string | null; role_title?: string | null } | null
   /** Ha false, az Új munkatárs / Export / Törlés gombok és a checkbox rejtve. */
   canManage?: boolean
 }
@@ -562,31 +562,40 @@ export default function StaffManager({
                     {ownerUser.email && <p className="truncate text-[12px] font-medium text-ink-soft">{ownerUser.email}</p>}
                   </div>
                 </div>
-                <div>
-                  <span className="inline-flex rounded-[9px] bg-ink-dark px-2.5 py-[5px] text-[12px] font-semibold text-gold">Tulajdonos</span>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="inline-flex shrink-0 rounded-[9px] bg-ink-dark px-2.5 py-[5px] text-[12px] font-semibold text-gold">Tulajdonos</span>
+                  {ownerUser.role_title && <span className="truncate text-[13.5px] font-medium text-ink">{ownerUser.role_title}</span>}
                 </div>
                 <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(ownerUser.join_date ?? ownerUser.createdAt)}</div>
                 <div className="text-[13.5px] font-medium text-ink-soft">—</div>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold" style={{ background: '#E7F1E9', color: '#3B6B4B' }}>
-                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: '#4F9E6A' }} />
-                    Aktív
-                  </span>
+                <div className="relative flex items-center gap-1.5">
+                  {(() => { const sp = statusPill('active'); return (
+                    <span className="inline-flex cursor-default items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold" style={{ background: sp.bg, color: sp.color, border: sp.border }}>
+                      <span className="h-[7px] w-[7px] rounded-full" style={{ background: sp.dot }} />
+                      {sp.label}
+                    </span>
+                  ) })()}
+                  <button onClick={(e) => { e.stopPropagation(); const oi = empList.findIndex(e2 => e2.id === 'owner'); setHiringIndex(oi >= 0 ? oi : 0); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
                 </div>
               </div>
               {/* MOBIL */}
               <div className="flex items-center gap-3 px-3.5 py-3 lg:hidden">
+                {canManage && <div className="h-[18px] w-[18px] shrink-0" />}
                 {ownerUser.avatar_url ? (
-                  <img src={ownerUser.avatar_url} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover object-top" />
+                  <img src={ownerUser.avatar_url} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
                 ) : (
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                     <UserRound className="h-6 w-6 text-white/30" strokeWidth={1.2} />
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[15px] font-semibold text-ink">{ownerUser.name ?? 'Tulajdonos'}</p>
-                  <span className="inline-flex rounded-[7px] bg-ink-dark px-2 py-[3px] text-[11px] font-semibold text-gold">Tulajdonos</span>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <span className="inline-flex rounded-[7px] bg-ink-dark px-2 py-[3px] text-[11px] font-semibold text-gold">Tulajdonos</span>
+                    {ownerUser.role_title && <span className="truncate text-[12.5px] font-medium text-ink-soft">{ownerUser.role_title}</span>}
+                  </div>
                 </div>
+                <button onClick={(e) => { e.stopPropagation(); const oi = empList.findIndex(e2 => e2.id === 'owner'); setHiringIndex(oi >= 0 ? oi : 0); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
               </div>
             </div>
           )}

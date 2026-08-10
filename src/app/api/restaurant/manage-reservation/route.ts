@@ -128,9 +128,10 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       user,
     })
-    // Módosítás email a vendégnek (ha be van kapcsolva és van megadott email).
+    // Módosítás email a vendégnek — alapból KIKAPCSOLVA (a mezők defaultValue-ja is false),
+    // csak ha a tulaj kifejezetten bekapcsolta a Beállításokban.
     const updatedRes = updated as unknown as Reservation
-    if (restaurant.notification_prefs?.modification_email !== false && updatedRes.customer_email) {
+    if (restaurant.notification_prefs?.modification_email === true && updatedRes.customer_email) {
       void sendReservationModification({ reservation: updatedRes, restaurant })
     }
     return NextResponse.json({ ok: true, reservation: updated })

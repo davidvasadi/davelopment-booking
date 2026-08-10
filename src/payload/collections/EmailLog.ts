@@ -11,7 +11,7 @@ export const EmailLog: CollectionConfig = {
   labels: { singular: 'Email-napló', plural: 'Email-napló' },
   admin: {
     useAsTitle: 'subject',
-    defaultColumns: ['type', 'to', 'subject', 'ok', 'createdAt'],
+    defaultColumns: ['type', 'to', 'subject', 'status', 'ok', 'createdAt'],
     group: 'Rendszer',
     hidden: true,
   },
@@ -49,6 +49,31 @@ export const EmailLog: CollectionConfig = {
     { name: 'subject', type: 'text', label: 'Tárgy' },
     { name: 'ok', type: 'checkbox', defaultValue: true, index: true, label: 'Sikeres' },
     { name: 'error', type: 'text', label: 'Hiba (ha volt)' },
+    // A Resend `emails.send()` válaszának id-je — ezzel párosítjuk a később beérkező webhook-
+    // eseményeket (kézbesítve/megnyitva/kattintva/visszapattant) ehhez a rekordhoz.
+    { name: 'resend_id', type: 'text', index: true, label: 'Resend ID' },
+    {
+      name: 'status',
+      type: 'select',
+      defaultValue: 'sent',
+      index: true,
+      label: 'Kézbesítési állapot',
+      options: [
+        { label: 'Elküldve', value: 'sent' },
+        { label: 'Kézbesítve', value: 'delivered' },
+        { label: 'Megnyitva', value: 'opened' },
+        { label: 'Rákattintva', value: 'clicked' },
+        { label: 'Visszapattant', value: 'bounced' },
+        { label: 'Panasz (spam)', value: 'complained' },
+        { label: 'Sikertelen küldés', value: 'failed' },
+      ],
+    },
+    { name: 'delivered_at', type: 'date', label: 'Kézbesítve ekkor' },
+    { name: 'opened_at', type: 'date', label: 'Megnyitva ekkor' },
+    // Csak a foglaláshoz köthető vendég-emaileknél (visszaigazolás/módosítás/lemondás/
+    // emlékeztető) van kitöltve — ez alapján jeleníti meg a szerkesztő ablak az állapotot.
+    { name: 'booking', type: 'relationship', relationTo: 'bookings', label: 'Foglalás' },
+    { name: 'reservation', type: 'relationship', relationTo: 'reservations', label: 'Asztalfoglalás' },
   ],
   timestamps: true,
 }

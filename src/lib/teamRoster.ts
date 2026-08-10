@@ -170,11 +170,13 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
     const owner = ownerRel && typeof ownerRel === 'object' ? (ownerRel as User) : null
     const ownerShifts = (shiftsRes.docs as Shift[]).filter((sh) => sh.owner_shift)
     const ownerJoinDate = (owner as unknown as { join_date?: string | null; createdAt?: string | null } | null)?.join_date ?? (owner as unknown as { createdAt?: string | null } | null)?.createdAt ?? null
+    const ownerExtraPosition = ((owner as unknown as { role_title?: string | null } | null)?.role_title || '').trim()
     const ownerEmp: Employee = {
       id: 'owner',
       name: owner?.name || owner?.email || 'Tulajdonos',
       avatarUrl: owner?.avatar_url ?? null,
-      position: 'Tulajdonos',
+      position: ownerExtraPosition ? `Tulajdonos · ${ownerExtraPosition}` : 'Tulajdonos',
+      extraPosition: ownerExtraPosition,
       roleTone: 'owner',
       email: owner?.email || '',
       phone: owner?.phone || '',

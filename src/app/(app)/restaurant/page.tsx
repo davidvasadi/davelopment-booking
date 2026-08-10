@@ -226,8 +226,10 @@ export default async function RestaurantDashboardPage() {
   //    (zárva / nincs mit mutatni) → 0%-ra frissül (nem a lezárt nap régi adata). ──
   const pillRes = calSource.filter((r) => r.date === tlDay)
   const pillTotal = pillRes.length || 1
-  const confirmedPct = Math.round((pillRes.filter((r) => r.status === 'confirmed' || r.status === 'seated' || r.status === 'completed').length / pillTotal) * 100)
-  const pendingPct = Math.round((pillRes.filter((r) => r.status === 'pending').length / pillTotal) * 100)
+  // A sötét sáv a MÁR LEZÁRULT (Befejezett), az arany a MÉG AKTÍV, megerősített/leültetett
+  // foglalásokat méri — ugyanaz a felosztás, mint a Foglalások oldal fejléc-csíkján.
+  const completedPct = Math.round((pillRes.filter((r) => r.status === 'completed').length / pillTotal) * 100)
+  const confirmedPct = Math.round((pillRes.filter((r) => r.status === 'confirmed' || r.status === 'seated').length / pillTotal) * 100)
   const cancelledPct = Math.round((pillRes.filter((r) => r.status === 'cancelled' || r.status === 'no_show').length / pillTotal) * 100)
   const avgParty = stats.reservationsToday > 0 ? Math.round((stats.paxToday / stats.reservationsToday) * 10) / 10 : 0
 
@@ -355,8 +357,8 @@ export default async function RestaurantDashboardPage() {
           eager
           className="flex-1 lg:max-w-[760px]"
           segments={[
-            { label: 'Megerősített', pct: confirmedPct, background: '#1D1C19', color: '#fff' },
-            { label: 'Függő', pct: pendingPct, background: '#F1CE45', color: '#1D1C19' },
+            { label: 'Befejezett', pct: completedPct, background: '#1D1C19', color: '#fff' },
+            { label: 'Megerősített', pct: confirmedPct, background: '#F1CE45', color: '#1D1C19' },
             { label: 'Lemondva', pct: cancelledPct, background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
           ]}
         />

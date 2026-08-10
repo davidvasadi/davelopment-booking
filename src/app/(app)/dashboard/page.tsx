@@ -126,7 +126,9 @@ export default async function DashboardPage() {
     payload.find({
       collection: 'staff',
       where: { and: [{ salon: { equals: salon.id } }, { is_active: { not_equals: false } }] },
-      depth: 0, limit: 100, overrideAccess: true,
+      // depth:1 kell, hogy az `avatar` a kép-objektummal (url) jöjjön, ne csak nyers ID-ként —
+      // enélkül az Áttekintés idővonal sor-avatarjai sosem tudták kiolvasni a feltöltött fotót.
+      depth: 1, limit: 100, overrideAccess: true,
     }),
     payload.find({
       collection: 'services',
@@ -190,6 +192,7 @@ export default async function DashboardPage() {
 
   // Idővonal SZAKEMBERENKÉNT: a megjelenített nap (tlDay) foglalásai az adott szakember sorába.
   const staffName = new Map(staff.map((s) => [String(s.id), s.name]))
+  const staffAvatar = new Map(staff.map((s) => [s.name, s.avatar && typeof s.avatar === 'object' ? fixMediaUrl((s.avatar as Media).url ?? null) : null]))
   const rowMap = new Map<string, TimelineBlock[]>()
   for (const b of tlSrc) {
     const st = b.staff
@@ -200,7 +203,10 @@ export default async function DashboardPage() {
     const svcName = typeof svc === 'object' && svc ? (svc as Service).name : ''
     const block: TimelineBlock = {
       id: String(b.id),
-      name: `${b.customer_name}${svcName ? ` · ${svcName}` : ''}`,
+      // Szalonnál a "N fő" értelmetlen (mindig 1) — a subline helyette az időpontot és a
+      // szolgáltatást mutatja, a név pedig önmagában áll a felső sorban.
+      name: b.customer_name,
+      subline: `${b.start_time}${svcName ? ` · ${svcName}` : ''}`,
       startMin: minOfDay(b.start_time),
       endMin: b.end_time ? minOfDay(b.end_time) : minOfDay(b.start_time) + 60,
       pax: 1,
@@ -213,7 +219,7 @@ export default async function DashboardPage() {
   }
   const timelineRows: TimelineRow[] = [...rowMap.entries()]
     .sort((a, b) => (a[0] === 'Nincs szakember' ? 1 : b[0] === 'Nincs szakember' ? -1 : a[0].localeCompare(b[0], 'hu')))
-    .map(([table, blocks]) => ({ table, blocks }))
+    .map(([table, blocks]) => ({ table, avatarUrl: table === 'Nincs szakember' ? undefined : staffAvatar.get(table), blocks }))
 
   const tlStart = tlSrc.map((b) => minOfDay(b.start_time))
   const tlEnd = tlSrc.map((b) => (b.end_time ? minOfDay(b.end_time) : minOfDay(b.start_time) + 60))
@@ -242,8 +248,10 @@ export default async function DashboardPage() {
   //    következő nyitás napjának bontása, mint az étteremnél. ──
   const pillRes = calSource.filter((b) => b.date === tlDay)
   const pillTotal = pillRes.length || 1
-  const confirmedPct = Math.round((pillRes.filter((b) => b.status === 'confirmed' || b.status === 'completed').length / pillTotal) * 100)
-  const pendingPct = Math.round((pillRes.filter((b) => b.status === 'pending').length / pillTotal) * 100)
+  // A sötét sáv a MÁR LEZÁRULT (Befejezett), az arany a MÉG AKTÍV, megerősített foglalásokat
+  // méri — ugyanaz a felosztás, mint a Foglalások oldal fejléc-csíkján.
+  const completedPct = Math.round((pillRes.filter((b) => b.status === 'completed').length / pillTotal) * 100)
+  const confirmedPct = Math.round((pillRes.filter((b) => b.status === 'confirmed').length / pillTotal) * 100)
   const cancelledPct = Math.round((pillRes.filter((b) => b.status === 'cancelled').length / pillTotal) * 100)
 
   // ── Akkordeon-tartalmak (szalon: Mai bevétel [saját] + Nyitvatartás + Szolgáltatások + Munkatársak) ──
@@ -331,8 +339,8 @@ export default async function DashboardPage() {
           eager
           className="flex-1 lg:max-w-[760px]"
           segments={[
-            { label: 'Megerősített', pct: confirmedPct, background: '#1D1C19', color: '#fff' },
-            { label: 'Függő', pct: pendingPct, background: '#F1CE45', color: '#1D1C19' },
+            { label: 'Befejezett', pct: completedPct, background: '#1D1C19', color: '#fff' },
+            { label: 'Megerősített', pct: confirmedPct, background: '#F1CE45', color: '#1D1C19' },
             { label: 'Lemondva', pct: cancelledPct, background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
           ]}
         />

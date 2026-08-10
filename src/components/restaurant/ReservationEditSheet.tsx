@@ -20,6 +20,7 @@ import { markLocalMutation } from '@/lib/localMutationTracker'
 import { urgencyOf } from './DailyView'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
+import { EmailStatusBadge } from '@/components/shared/EmailStatusBadge'
 import type { Reservation } from '@/payload/payload-types'
 
 const HU_MONTHS_SHORT = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
@@ -497,19 +498,19 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
     onClose()
   }
 
-  const cancelReservation = async () => {
+  // Végleges törlés — nem státuszváltás, a rekord ténylegesen kikerül az adatbázisból.
+  const deleteReservation = async () => {
     if (!reservation) return
     setSaving(true)
     try {
-      // App-auth + capability-vezérelt route (nem a nyers, owner-only Payload REST).
-      const res = await fetch('/api/restaurant/reservation-status', {
+      const res = await fetch('/api/restaurant/delete-reservation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ reservationId: reservation.id, status: 'cancelled' }),
+        body: JSON.stringify({ reservationId: reservation.id }),
       })
       if (!res.ok) throw new Error()
-      toast.success('Foglalás lemondva')
+      toast.success('Foglalás törölve')
       setConfirmCancel(false)
       onClose()
       markLocalMutation()
@@ -871,7 +872,16 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                 />
               </div>
               <div className="space-y-1.5">
-                <Label>Email</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Email</Label>
+                  {isEdit && reservation?.id && (
+                    <EmailStatusBadge
+                      endpoint={`/api/restaurant/reservation-email-status?reservationId=${reservation.id}`}
+                      resendEndpoint="/api/restaurant/resend-reservation-email"
+                      resendBody={{ reservationId: reservation.id }}
+                    />
+                  )}
+                </div>
                 <Input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -960,14 +970,14 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                     <Trash2 className="h-4 w-4 mr-2" /> Vázlat törlése
                   </Button>
                 ) : (
-                  isEdit && status !== 'cancelled' && (
+                  isEdit && (
                     <Button
                       onClick={() => setConfirmCancel(true)}
                       disabled={saving}
                       variant="ghost"
                       className="w-full text-red-600 hover:text-red-700"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" /> Foglalás lemondása
+                      <Trash2 className="h-4 w-4 mr-2" /> Törlés
                     </Button>
                   )
                 )}
@@ -981,13 +991,13 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
         <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
           <div className="w-full max-w-md rounded-2xl bg-white border border-zinc-200 p-6 shadow-2xl">
             <div className="flex items-start gap-3 mb-4">
-              <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
-                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              <div className="h-10 w-10 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5 text-red-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-zinc-900 mb-1">Biztosan lemondod a foglalást?</h3>
+                <h3 className="font-bold text-zinc-900 mb-1">Biztosan törlöd a foglalást?</h3>
                 <p className="text-sm text-zinc-500">
-                  Ez a művelet a foglalást lemondottra állítja. A vendég értesülhet róla.
+                  Ez a művelet nem vonható vissza — a foglalás véglegesen törlődik a rendszerből.
                 </p>
               </div>
             </div>
@@ -1002,12 +1012,12 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
               </button>
               <button
                 type="button"
-                onClick={cancelReservation}
+                onClick={deleteReservation}
                 disabled={saving}
                 className="flex-1 h-11 rounded-full bg-red-600 text-white text-sm font-semibold hover:bg-red-700 transition-colors disabled:opacity-50 inline-flex items-center justify-center gap-2"
               >
                 {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                {saving ? 'Lemondás...' : 'Igen, lemondom'}
+                {saving ? 'Törlés...' : 'Igen, törlöm'}
               </button>
             </div>
           </div>

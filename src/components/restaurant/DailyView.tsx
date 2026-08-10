@@ -370,8 +370,11 @@ export function DailyView(props: DailyViewProps) {
           ugyanaz az animáció/viselkedés, mint az Áttekintésen (StatusPills + CountUpKpi). ── */}
       {!focusMode && (() => {
         const totalRes = reservations.length || 1
-        const confirmedCount = reservations.filter((r) => r.status === 'confirmed' || r.status === 'seated' || r.status === 'completed').length
-        const pendingCount = reservations.filter((r) => r.status === 'pending').length
+        // A csík első (sötét) sávja a MÁR LEZÁRULT (Befejezett) foglalásokat méri, a második
+        // (arany) a MÉG AKTÍV, megerősített/leültetett (nem befejezett, nem lemondott)
+        // foglalásokat — így a három sáv ténylegesen a nap valós lefolyását tükrözi.
+        const completedResCount = reservations.filter((r) => r.status === 'completed').length
+        const activeConfirmedCount = reservations.filter((r) => r.status === 'confirmed' || r.status === 'seated').length
         const paxTotal = reservations.filter((r) => r.status !== 'cancelled' && r.status !== 'no_show').reduce((s, r) => s + (r.pax ?? 0), 0)
         const avgParty = activeCount > 0 ? Math.round((paxTotal / activeCount) * 10) / 10 : 0
         const HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)'
@@ -381,8 +384,8 @@ export function DailyView(props: DailyViewProps) {
               eager
               className="flex-1 lg:max-w-[760px]"
               segments={[
-                { label: 'Megerősített', pct: Math.round((confirmedCount / totalRes) * 100), background: '#1D1C19', color: '#fff' },
-                { label: 'Függő', pct: Math.round((pendingCount / totalRes) * 100), background: '#F1CE45', color: '#1D1C19' },
+                { label: 'Befejezett', pct: Math.round((completedResCount / totalRes) * 100), background: '#1D1C19', color: '#fff' },
+                { label: 'Megerősített', pct: Math.round((activeConfirmedCount / totalRes) * 100), background: '#F1CE45', color: '#1D1C19' },
                 { label: 'Lemondva', pct: Math.round((cancelledCount / totalRes) * 100), background: HATCH, color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
               ]}
             />
@@ -483,11 +486,18 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
                 ? 'bg-gold/[0.08]'
                 : overdue
                   ? 'bg-[#F1CE45]/[0.12]'
-                  : r.status === 'cancelled'
-                    ? 'bg-[#C0564A]/[0.10]'
-                    : ''
+                  : ''
             }`}
-            style={!draft && !overdue && r.status !== 'cancelled' ? statusBg(r.status) : undefined}
+            style={
+              draft || overdue
+                ? undefined
+                // Safari-bug: a bg-[#hex]/[opacity] Tailwind arbitrary-szintaxis a lemondott
+                // piros háttérnél nem alkalmazódott — sima style-lal garantáltan minden
+                // böngészőben fut.
+                : r.status === 'cancelled'
+                  ? { background: 'rgba(192,86,74,0.10)' }
+                  : statusBg(r.status)
+            }
           >
             {urgency && (
               <span
@@ -1353,6 +1363,7 @@ function TableGrid({
             { c: '#F1CE45', l: 'Függő' },
             { c: '#1D9D63', l: 'Leültetve' },
             { c: 'repeating-linear-gradient(115deg,#f3efe4 0 3px,#e8e4d8 3px 5px)', l: 'Befejezett' },
+            { c: CANCEL_RED, l: 'Lemondva' },
           ].map((x) => (
             <div key={x.l} className="flex items-center gap-[7px]">
               <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
@@ -1437,10 +1448,11 @@ function TableGrid({
                 {minutesToHHMMWrapped(m)}
               </span>
             ))}
-            {/* Záróra felirat — eddig nem volt semmi jelezve, csak a sraffozott "zárva" sáv
-                a végén, ami magában nem árulta el a pontos időt. */}
+            {/* Záróra felirat — a jobb szélen NEM középre igazított (mint az első/nyitási
+                címke a bal szélen sem az) — középre igazítva a szöveg fele jobbra kilógott
+                volna a konténerből, ahol nincs hely. Csak balra nyúlik a pontjától. */}
             <span
-              className="absolute bottom-0.5 -translate-x-1/2 whitespace-nowrap text-[11px] font-semibold tabular-nums text-ink-soft2"
+              className="absolute bottom-0.5 -translate-x-full whitespace-nowrap text-[11px] font-semibold tabular-nums text-ink-soft2"
               style={{ left: left(closeMin) }}
             >
               Zárás {minutesToHHMMWrapped(closeMin)}

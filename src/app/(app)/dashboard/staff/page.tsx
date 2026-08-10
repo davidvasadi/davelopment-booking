@@ -19,7 +19,7 @@ export default async function StaffPage() {
 
   const ownerUserId = salon.owner && typeof salon.owner === 'object' ? (salon.owner as { id: string | number }).id : salon.owner as string | number | null
   const ownerUserRaw = ownerUserId ? await payload.findByID({ collection: 'users', id: ownerUserId, depth: 0, overrideAccess: true }).catch(() => null) : null
-  const ownerUser = ownerUserRaw ? { name: (ownerUserRaw as { name?: string }).name ?? null, email: (ownerUserRaw as { email?: string }).email ?? null, avatar_url: (ownerUserRaw as { avatar_url?: string }).avatar_url ?? null, join_date: (ownerUserRaw as { join_date?: string }).join_date ?? null, createdAt: (ownerUserRaw as { createdAt?: string }).createdAt ?? null } : null
+  const ownerUser = ownerUserRaw ? { name: (ownerUserRaw as { name?: string }).name ?? null, email: (ownerUserRaw as { email?: string }).email ?? null, avatar_url: (ownerUserRaw as { avatar_url?: string }).avatar_url ?? null, join_date: (ownerUserRaw as { join_date?: string }).join_date ?? null, createdAt: (ownerUserRaw as { createdAt?: string }).createdAt ?? null, role_title: (ownerUserRaw as { role_title?: string }).role_title ?? null } : null
 
   const [staffResult, stats, shiftsRes, roster, servicesRes, invitedRes, rolesRes] = await Promise.all([
     payload.find({

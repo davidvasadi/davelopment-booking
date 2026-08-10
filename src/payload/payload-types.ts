@@ -429,6 +429,12 @@ export interface EmailLogEntry {
   subject?: string | null
   ok?: boolean | null
   error?: string | null
+  resend_id?: string | null
+  status?: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'complained' | 'failed' | null
+  delivered_at?: string | null
+  opened_at?: string | null
+  booking?: (string | null) | Booking
+  reservation?: (string | null) | Reservation
   createdAt: string
   updatedAt: string
 }
@@ -482,6 +488,7 @@ export interface User {
   emergency_contact?: string | null
   weekly_hours?: number | null
   bio?: string | null
+  role_title?: string | null
   role: 'admin' | 'salon_owner' | 'restaurant_owner'
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, ArrowUpRight, User } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ArrowUpRight, User, UserRound } from 'lucide-react'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 import { buttonHover } from '@/lib/motion'
 
@@ -29,7 +29,7 @@ export type TimelineBlock = {
   occasionIcon?: string | null
   subline?: string | null // ha megadott, felülírja a "N fő · HH:MM" sort
 }
-export type TimelineRow = { table: string; label?: string; blocks: TimelineBlock[] }
+export type TimelineRow = { table: string; label?: string; avatarUrl?: string | null; blocks: TimelineBlock[] }
 
 const TABLE_COL = 88 // bal asztal-oszlop szélessége (px)
 const ROW_H = 54
@@ -280,9 +280,23 @@ export function OverviewTimeline({
               <div key={row.table} className="flex" style={{ minHeight: ROW_H }}>
 
                 <div
-                  className="flex shrink-0 items-center border-t border-dotted border-[#e4dfd0] pr-2 text-[12px] font-semibold text-ink"
+                  className="flex shrink-0 items-center gap-1.5 border-t border-dotted border-[#e4dfd0] pr-2 text-[12px] font-semibold text-ink"
                   style={{ width: TABLE_COL }}
                 >
+                  {row.avatarUrl !== undefined && (
+                    row.avatarUrl ? (
+                      <img src={row.avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover object-top" />
+                    ) : (
+                      // Ugyanaz a fallback, mint a Foglalások oldal `Ava` komponensében — sötét
+                      // gradiens + UserRound ikon, ha nincs feltöltött profilkép.
+                      <span
+                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full"
+                        style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}
+                      >
+                        <UserRound className="h-[55%] w-[55%] text-white/30" strokeWidth={1.2} />
+                      </span>
+                    )
+                  )}
                   <span className="line-clamp-2 break-words leading-tight">{row.label ?? row.table}</span>
                 </div>
                 <div

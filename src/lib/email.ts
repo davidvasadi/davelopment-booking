@@ -126,7 +126,7 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
     ? renderSubject(subjectTpl, vars)
     : t(locale, 'email.confirm.subjectFallback', { place: salon.name })
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
       subject,
@@ -138,10 +138,10 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
         },
       ],
     })
-    await logEmail('booking_confirmation', booking.customer_email, subject, true)
+    await logEmail('booking_confirmation', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Booking confirmation failed:', err)
-    await logEmail('booking_confirmation', booking.customer_email, subject, false, String(err))
+    await logEmail('booking_confirmation', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
   }
 }
 
@@ -163,7 +163,7 @@ export async function sendNewBookingNotification(data: BookingEmailData, fallbac
     ? renderSubject(subjectTpl, emailVars(data))
     : `Új foglalás: ${data.booking.customer_name} — ${data.booking.date} ${data.booking.start_time}`
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: recipients,
       subject,
@@ -175,10 +175,10 @@ export async function sendNewBookingNotification(data: BookingEmailData, fallbac
         },
       ],
     })
-    await logEmail('new_booking', recipients.join(', '), subject, true)
+    await logEmail('new_booking', recipients.join(', '), subject, true, undefined, { resendId: sendResult?.id, bookingId: data.booking.id })
   } catch (err) {
     console.error('[Email] New booking notification failed:', err)
-    await logEmail('new_booking', recipients.join(', '), subject, false, String(err))
+    await logEmail('new_booking', recipients.join(', '), subject, false, String(err), { bookingId: data.booking.id })
   }
 }
 
@@ -192,16 +192,16 @@ export async function sendCancellationEmail(data: BookingEmailData) {
     ? renderSubject(subjectTpl, emailVars(data))
     : t(locale, 'email.cancel.subjectFallback', { place: salon.name })
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
       subject,
       html: cancellationHtml(data),
     })
-    await logEmail('cancellation', booking.customer_email, subject, true)
+    await logEmail('cancellation', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Cancellation email failed:', err)
-    await logEmail('cancellation', booking.customer_email, subject, false, String(err))
+    await logEmail('cancellation', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
   }
 }
 
@@ -214,16 +214,16 @@ export async function sendReminderEmail(data: BookingEmailData) {
     ? renderSubject(subjectTpl, emailVars(data))
     : `Emlékeztető: közeleg a foglalásod – ${salon.name}`
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
       subject,
       html: reminderHtml(data),
     })
-    await logEmail('reminder', booking.customer_email, subject, true)
+    await logEmail('reminder', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Reminder email failed:', err)
-    await logEmail('reminder', booking.customer_email, subject, false, String(err))
+    await logEmail('reminder', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
   }
 }
 
@@ -237,16 +237,16 @@ export async function sendFeedbackRequestEmail(data: BookingEmailData) {
     ? renderSubject(subjectTpl, emailVars(data))
     : `Milyen volt nálunk? Értékeld a látogatásod – ${salon.name}`
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
       subject,
       html: feedbackHtml(data),
     })
-    await logEmail('feedback', booking.customer_email, subject, true)
+    await logEmail('feedback', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Feedback request email failed:', err)
-    await logEmail('feedback', booking.customer_email, subject, false, String(err))
+    await logEmail('feedback', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
   }
 }
 
@@ -268,7 +268,7 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
   if (!resend) return
   const subject = `Felkerültél a várólistára – ${data.salon.name}`
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: data.customer_email,
       subject,
@@ -285,7 +285,7 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
         ${bottomSpacer()}
       `),
     })
-    await logEmail('waitlist_signup', data.customer_email, subject, true)
+    await logEmail('waitlist_signup', data.customer_email, subject, true, undefined, { resendId: sendResult?.id })
   } catch (err) {
     console.error('[Email] Waitlist signup failed:', err)
     await logEmail('waitlist_signup', data.customer_email, subject, false, String(err))
@@ -299,7 +299,7 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
   const bookUrl = data.bookUrl ?? `${APP_URL}/${data.salon.slug}`
   const subject = `Felszabadult egy időpont – ${data.salon.name}`
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: data.customer_email,
       subject,
@@ -321,7 +321,7 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
         ${bottomSpacer()}
       `),
     })
-    await logEmail('waitlist_opening', data.customer_email, subject, true)
+    await logEmail('waitlist_opening', data.customer_email, subject, true, undefined, { resendId: sendResult?.id })
   } catch (err) {
     console.error('[Email] Waitlist opening failed:', err)
     await logEmail('waitlist_opening', data.customer_email, subject, false, String(err))
@@ -359,13 +359,13 @@ export async function sendTeamInviteEmail(data: TeamInviteEmailData) {
     ${bottomSpacer()}`
   const subject = `Meghívó a csapatba – ${data.businessName}`
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: data.to,
       subject,
       html: emailLayout({ brandName: data.businessName, brandLogoUrl: data.businessLogoUrl ?? null, content }),
     })
-    await logEmail('team_invite', data.to, subject, true)
+    await logEmail('team_invite', data.to, subject, true, undefined, { resendId: sendResult?.id })
   } catch (err) {
     console.error('[Email] Team invite failed:', err)
     await logEmail('team_invite', data.to, subject, false, String(err))
@@ -585,16 +585,16 @@ export async function sendBookingModification(data: BookingEmailData) {
   if (!resend) return
   const subject = `Foglalásod módosítva – ${salon.name}`
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: booking.customer_email,
       subject,
       html: modificationHtml(data),
     })
-    await logEmail('modification', booking.customer_email, subject, true)
+    await logEmail('modification', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Booking modification failed:', err)
-    await logEmail('modification', booking.customer_email, subject, false, String(err))
+    await logEmail('modification', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
   }
 }
 
@@ -640,8 +640,8 @@ export async function sendShiftChangeEmail(data: ShiftChangeEmailData) {
     `,
   })
   try {
-    await resend.emails.send({ from: `${FROM_NAME} <${FROM}>`, to, subject, html })
-    await logEmail('schedule_change', to, subject, true)
+    const { data: sendResult } = await resend.emails.send({ from: `${FROM_NAME} <${FROM}>`, to, subject, html })
+    await logEmail('schedule_change', to, subject, true, undefined, { resendId: sendResult?.id })
   } catch (err) {
     console.error('[Email] Shift change email failed:', err)
     await logEmail('schedule_change', to, subject, false, String(err))
@@ -718,13 +718,13 @@ export async function sendSalonDigestEmail(data: SalonDigestEmailData) {
   `)
 
   try {
-    await resend.emails.send({
+    const { data: sendResult } = await resend.emails.send({
       from: `${FROM_NAME} <${FROM}>`,
       to: ownerEmail,
       subject,
       html,
     })
-    await logEmail(isEvening ? 'digest_evening' : 'digest_morning', ownerEmail, subject, true)
+    await logEmail(isEvening ? 'digest_evening' : 'digest_morning', ownerEmail, subject, true, undefined, { resendId: sendResult?.id })
   } catch (err) {
     console.error('[Email] Digest email failed:', err)
     await logEmail(isEvening ? 'digest_evening' : 'digest_morning', ownerEmail, subject, false, String(err))

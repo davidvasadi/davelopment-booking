@@ -151,6 +151,8 @@ export const Users: CollectionConfig = {
     { name: 'emergency_contact', type: 'text', label: 'Vészhelyzeti kontakt' },
     { name: 'weekly_hours', type: 'number', label: 'Heti óraszám' },
     { name: 'bio', type: 'textarea', label: 'Megjegyzés / bemutatkozás' },
+    // Szalon-tulajdonos saját pozíciója (pl. "Tulajdonos, Fodrász") — a munkatársak oldalon jelenik meg.
+    { name: 'role_title', type: 'text', label: 'Pozíció (munkakör)' },
     {
       name: 'personal_notif_prefs',
       type: 'group',

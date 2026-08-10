@@ -147,8 +147,9 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       user,
     })
-    // Módosítás email a vendégnek (ha be van kapcsolva és van email).
-    if (salon.notification_prefs?.modification_email !== false) {
+    // Módosítás email a vendégnek — alapból KIKAPCSOLVA (a mezők defaultValue-ja is false),
+    // csak ha a tulaj kifejezetten bekapcsolta a Beállításokban.
+    if (salon.notification_prefs?.modification_email === true) {
       const updatedBooking = updated as unknown as Booking
       if (updatedBooking.customer_email) {
         void sendBookingModification({ booking: updatedBooking, salon, service, staff })

@@ -240,10 +240,11 @@ export function SalonDailyView(props: SalonDailyViewProps) {
   // KPI-számok a nap valós adataiból (vázlatokkal együtt).
   const nowMin = useNowMinutes(date)
   const totalB = bookings.length || 1
-  const confirmedCount = bookings.filter((b) => b.status === 'confirmed' || b.status === 'completed').length
-  // Szalonoknál nincs külön "függő" foglalási munkafolyamat (minden online foglalás rögtön
-  // megerősítve jön be) — a "Függő" pill helyette a KEZELENDŐ (lejárt idősávú, még nem lezárt)
-  // foglalásokat mutatja valós adatból, ugyanazzal a gold jelöléssel, mint a kártyákon.
+  // A csík első (sötét) sávja a MÁR LEZÁRULT (Befejezett) foglalásokat méri, a második (arany)
+  // a MÉG AKTÍV, megerősített (nem befejezett, nem lemondott) foglalásokat — így a három sáv
+  // ténylegesen a nap valós lefolyását tükrözi, nem csak egy statikus "megerősítve" halmazt.
+  const activeConfirmedCount = bookings.filter((b) => b.status === 'confirmed').length
+  // A Kezelendő KPI-szám (lejárt idősávú, még nem lezárt foglalás) külön, a pilltől függetlenül.
   const pendingCount = bookings.filter((b) => needsHandling(b, nowMin)).length
   const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length
   const activeCount = bookings.filter((b) => b.status !== 'cancelled').length
@@ -309,8 +310,8 @@ export function SalonDailyView(props: SalonDailyViewProps) {
             eager
             className="flex-1 lg:max-w-[760px]"
             segments={[
-              { label: 'Megerősített', pct: Math.round((confirmedCount / totalB) * 100), background: '#1D1C19', color: '#fff' },
-              { label: 'Függő', pct: Math.round((pendingCount / totalB) * 100), background: '#F1CE45', color: '#1D1C19' },
+              { label: 'Befejezett', pct: Math.round((completedCount / totalB) * 100), background: '#1D1C19', color: '#fff' },
+              { label: 'Megerősített', pct: Math.round((activeConfirmedCount / totalB) * 100), background: '#F1CE45', color: '#1D1C19' },
               { label: 'Lemondva', pct: Math.round((cancelledCount / totalB) * 100), background: HATCH, color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
             ]}
           />
@@ -401,8 +402,17 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
               </div>
             )}
             <div
-              className={`relative flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 transition-colors hover:bg-[var(--dav-glass)] ${draft ? 'bg-gold/[0.08]' : overdue ? 'bg-[#F1CE45]/[0.12]' : b.status === 'cancelled' ? 'bg-[#C0564A]/[0.10]' : ''}`}
-              style={!draft && !overdue && b.status !== 'cancelled' ? statusBg(b.status) : undefined}
+              className={`relative flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 transition-colors hover:bg-[var(--dav-glass)] ${draft ? 'bg-gold/[0.08]' : overdue ? 'bg-[#F1CE45]/[0.12]' : ''}`}
+              style={
+                draft || overdue
+                  ? undefined
+                  // Safari-bug: a bg-[#hex]/[opacity] Tailwind arbitrary-szintaxis a lemondott
+                  // piros háttérnél nem alkalmazódott (ugyanaz a hiba-osztály, mint a hatch-
+                  // mintáknál) — sima style-lal garantáltan minden böngészőben fut.
+                  : b.status === 'cancelled'
+                    ? { background: 'rgba(192,86,74,0.10)' }
+                    : statusBg(b.status)
+              }
             >
               {urgency && (
                 <span className={`absolute right-2 top-2 z-10 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${urgency.cls}`}>
@@ -413,6 +423,9 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
                 <div className="w-11 sm:w-12 shrink-0">
                   <div className="text-sm sm:text-base font-semibold text-ink tabular-nums leading-tight">{b.start_time}</div>
                   <div className="text-[11px] text-ink-soft2 tabular-nums">{b.end_time}</div>
+                </div>
+                <div className="hidden shrink-0 sm:block">
+                  <Ava url={avatarUrlOf(st)} className="h-8 w-8 rounded-full overflow-hidden" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 min-w-0">
@@ -477,15 +490,21 @@ function TimelineView({ date, bookings, staff, openMin, closeMin, onEdit, onCrea
   for (let m = Math.ceil(openMin / 60) * 60; m < closeMin; m += 60) hourMarks.push(m)
 
   const active = bookings.filter((b) => ACTIVE.has(b.status))
+  // 6+ szakembernél a szakember-oszlopos rács már szűk képernyőn sem fér el kényelmesen (a
+  // reszponzív oszlop-keskenyítés is elfogy) — ilyenkor desktopon is a mobil (egy közös,
+  // óránkénti) elrendezést kapja, ne csak a kis képernyőnél váltson.
+  const forceMobile = staff.length >= 6
 
   return (
     <>
-      <div className="lg:hidden">
+      <div className={forceMobile ? '' : 'lg:hidden'}>
         <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
       </div>
-      <div className="hidden lg:block">
-        <StaffColumnsTimeline {...{ staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit }} />
-      </div>
+      {!forceMobile && (
+        <div className="hidden lg:block">
+          <StaffColumnsTimeline {...{ staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit }} />
+        </div>
+      )}
     </>
   )
 }
@@ -832,6 +851,7 @@ function StaffColumnsTimeline({
             { c: '#1D1C19', l: 'Megerősített' },
             { c: '#F1CE45', l: 'Függő' },
             { c: 'repeating-linear-gradient(115deg,#f3efe4 0 3px,#e8e4d8 3px 5px)', l: 'Befejezett' },
+            { c: CANCEL_RED, l: 'Lemondva' },
           ].map((x) => (
             <div key={x.l} className="flex items-center gap-[7px]">
               <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
@@ -845,13 +865,19 @@ function StaffColumnsTimeline({
         <div className="py-10 text-center text-[13px] text-ink-soft">Nincs aktív szakember. Vegyél fel szakembert a foglalások idővonalához.</div>
       ) : (
         <div className="overflow-x-auto">
-          <div
-            className="grid gap-x-3"
-            style={{
-              gridTemplateColumns: `62px repeat(${staff.length}, minmax(220px, 1fr))`,
-              minWidth: 62 + staff.length * 220,
-            }}
-          >
+          {(() => {
+            // 4 szakemberig kényelmes 220px oszlop; afölött fokozatosan keskenyedik (de 160px
+            // alá sosem megy, hogy az avatar+név+idő tartalom még olvasható maradjon) — így a
+            // rács nem nő korlátlanul szélesre, amikor sok szakember dolgozik egyszerre.
+            const colMin = staff.length <= 4 ? 220 : Math.max(160, Math.round(880 / staff.length))
+            return (
+              <div
+                className="grid gap-x-3"
+                style={{
+                  gridTemplateColumns: `62px repeat(${staff.length}, minmax(${colMin}px, 1fr))`,
+                  minWidth: 62 + staff.length * colMin,
+                }}
+              >
             {/* Fejléc-sor: üres bal sarok (a tengely fölött) + szakember-fejlécek. */}
             <div style={{ gridColumn: 1, gridRow: 1 }} />
             {staff.map((t, ci) => {
@@ -1006,7 +1032,9 @@ function StaffColumnsTimeline({
               }
               return cells
             })}
-          </div>
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>

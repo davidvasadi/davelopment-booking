@@ -54,7 +54,7 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div><label className={lc}>Név</label><input value={f.name} onChange={set('name')} className={ic} /></div>
-        {!isOwner && (
+        {(!isOwner || variant === 'salon') && (
           <div>
             <label className={lc}>Pozíció (munkakör)</label>
             {hasCatalog ? (
@@ -175,7 +175,8 @@ export interface Employee {
   id: string
   name: string
   avatarUrl?: string | null  // valós profilkép (media URL / Google avatar); null → monogram
-  position: string           // pozíció az üzletben (Séf, Pincér, Fodrász…)
+  position: string           // pozíció az üzletben (Séf, Pincér, Fodrász…) — tulajnál "Tulajdonos" (+ extra pozíció)
+  extraPosition?: string     // CSAK tulajnál: a "Tulajdonos" MELLETT felvett nyers extra pozíció (a `position` ebbe van belesűrítve a megjelenítéshez)
   roleTone: RoleTone         // szerep: tulajdonos / manager / munkatárs
   status?: 'active' | 'invited' | 'suspended' // tagság-státusz (étterem); a profilban állítható
   // Nyers, SZERKESZTHETŐ HR-adatok (étterem-tag) — az adatlap szerkesztő-módja ezekkel dolgozik.
@@ -753,6 +754,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             emergency_contact: form.emergency_contact,
             weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
             bio: form.bio,
+            ...(variant === 'salon' ? { role_title: form.position.trim() || null } : {}),
           }),
         })
         if (!res.ok) throw new Error()
@@ -760,6 +762,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
           name: form.name.trim(),
           phone: form.phone,
           note: form.bio,
+          ...(variant === 'salon' ? { position: form.position.trim() ? `Tulajdonos · ${form.position.trim()}` : 'Tulajdonos', extraPosition: form.position.trim() } : {}),
           hr: {
             ...eff.hr,
             birthday: form.birthday || null,
@@ -1233,7 +1236,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                 <ProfileEditForm
                   initial={{
                     name: eff.name,
-                    position: eff.position,
+                    position: isOwnerRow ? (eff.extraPosition ?? '') : eff.position,
                     phone: eff.phone,
                     birthday: (eff.hr?.birthday ?? '').slice(0, 10),
                     address: eff.hr?.address ?? '',

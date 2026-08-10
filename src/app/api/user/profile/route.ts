@@ -6,7 +6,7 @@
  * élnek — a HiringView adatlap ugyanúgy szerkeszti, mint a munkatársakét, csak ide POST-ol.
  * Bér/borravaló SOHA nem kerül ide (azt a membershipek hordozzák).
  *
- * Body: { name?, phone?, birthday?, join_date?, address?, tax_id?, emergency_contact?, weekly_hours?, bio? }
+ * Body: { name?, phone?, birthday?, join_date?, address?, tax_id?, emergency_contact?, weekly_hours?, bio?, role_title? }
  * A user MINDIG csak a saját rekordját frissíti (id = a session user-e).
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -47,6 +47,7 @@ export async function PATCH(req: NextRequest) {
   if ('tax_id' in body) data.tax_id = toText(body.tax_id)
   if ('emergency_contact' in body) data.emergency_contact = toText(body.emergency_contact)
   if ('bio' in body) data.bio = toText(body.bio)
+  if ('role_title' in body) data.role_title = toText(body.role_title)
   if ('birthday' in body) data.birthday = toNoonUtc(body.birthday)
   if ('join_date' in body) data.join_date = toNoonUtc(body.join_date)
   if ('weekly_hours' in body) {
