@@ -171,6 +171,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   const [pax, setPax] = useState(2)
   const [tableId, setTableId] = useState<string>('') // '' = auto
   const [name, setName] = useState('')
+  const [city, setCity] = useState('')
   const [phone, setPhone] = useState('')
   const [country, setCountry] = useState('HU')
   const [email, setEmail] = useState('')
@@ -246,6 +247,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
         : []
     setTableId(currentTables.length ? currentTables.map(String).join(',') : '')
     setName(r?.customer_name ?? '')
+    setCity(r?.customer_city ?? '')
     // A tárolt teljes szám (pl. „+36 30…") vissza ország-kódra + helyi részre a mezőhöz.
     const initCountry = r?.country ?? 'HU'
     const parsedPhone = splitLocalPhone(r?.customer_phone, initCountry)
@@ -277,6 +279,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       r?.pax ?? 2,
       currentTables.length ? currentTables.map(String).join(',') : '',
       r?.customer_name ?? '',
+      r?.customer_city ?? '',
       parsedPhone.phone,
       parsedPhone.country,
       r?.customer_email ?? '',
@@ -404,6 +407,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       pax,
       tableIds: selectedTableIds,
       customer_name: name,
+      customer_city: city,
       customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
       customer_email: email,
       notes,
@@ -458,6 +462,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
           pax,
           tableIds: selectedTableIds,
           customer_name: name,
+          customer_city: city.trim(),
           // A helyi szám elé az ország-előhívó (a publikus foglaló formátumával egyezően).
           customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
           country,
@@ -524,7 +529,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
 
   // Dirty-guard: a jelenlegi állapot aláírása vs. a nyitáskori. Ha eltér → mentetlen változás.
   const dirty = JSON.stringify([
-    selectedDate, startTime, pax, tableId, name, phone, country, email, notes, status, source, occasion, occasionIcon, duration,
+    selectedDate, startTime, pax, tableId, name, city, phone, country, email, notes, status, source, occasion, occasionIcon, duration,
   ]) !== initSigRef.current
 
   // Záráskor rákérdezünk, ha van mentetlen változás (X, háttér-kattintás, Esc).
@@ -851,18 +856,30 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
               <UserRound className="h-3.5 w-3.5" strokeWidth={2} /> Vendég
             </div>
 
-            <div className="space-y-1.5">
-              <Label>Vendég neve {source !== 'online' && <span className="text-zinc-400 font-normal">(opcionális)</span>}</Label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={source === 'walk_in' ? 'Üresen: „Beeső"' : source === 'phone' ? 'Üresen: „Telefon"' : 'Pl. Kovács Anna'}
-              />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Vendég neve {source !== 'online' && <span className="text-zinc-400 font-normal">(opcionális)</span>}</Label>
+                </div>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={source === 'walk_in' ? 'Üresen: „Beeső"' : source === 'phone' ? 'Üresen: „Telefon"' : 'Pl. Kovács Anna'}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Város <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
+                </div>
+                <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Pl. Budapest" />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Telefon</Label>
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Telefon</Label>
+                </div>
                 <PhoneCountryInput
                   country={country}
                   phone={phone}

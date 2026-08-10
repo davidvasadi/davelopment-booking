@@ -34,6 +34,7 @@ interface Body {
   customer_name?: string
   customer_email?: string
   customer_phone?: string
+  customer_city?: string
   notes?: string
   status?: Booking['status']
 }
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
   }
   if (body.customer_name !== undefined) data.customer_name = body.customer_name.trim() || 'Vendég'
   if (body.customer_phone !== undefined) data.customer_phone = body.customer_phone
+  if (body.customer_city !== undefined) data.customer_city = body.customer_city.trim() || null
   if (body.notes !== undefined) data.notes = body.notes
   if (body.status !== undefined) data.status = body.status
 

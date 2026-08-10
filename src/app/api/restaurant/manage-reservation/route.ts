@@ -32,6 +32,7 @@ interface Body {
   pax: number
   tableIds?: (string | number)[] | null
   customer_name?: string
+  customer_city?: string
   customer_phone?: string
   customer_email?: string
   country?: string
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
     tables: validation.tableIds.map(Number) as unknown as Reservation['tables'],
   }
   if (body.customer_name !== undefined) data.customer_name = body.customer_name
+  if (body.customer_city !== undefined) data.customer_city = body.customer_city.trim() || null
   if (body.customer_phone !== undefined) data.customer_phone = body.customer_phone
   if (body.country !== undefined) data.country = body.country
   // Üres email-t ne küldjünk: a Payload 'email' mezője az üres stringet is validálja → hiba.

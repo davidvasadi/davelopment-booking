@@ -149,6 +149,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
   const [staffId, setStaffId] = useState('')
   const [startTime, setStartTime] = useState('')
   const [name, setName] = useState('')
+  const [city, setCity] = useState('')
   const [phone, setPhone] = useState('')
   const [country, setCountry] = useState('HU')
   const [email, setEmail] = useState('')
@@ -225,6 +226,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     setStaffId(initStaffId)
     setStartTime(initStart)
     setName(b?.customer_name ?? '')
+    setCity(b?.customer_city ?? '')
     setCountry(parsedPhone.country)
     setPhone(parsedPhone.phone)
     setEmail(b?.customer_email ?? '')
@@ -238,7 +240,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     setConfirmDiscard(false)
 
     initSigRef.current = JSON.stringify([
-      initDate, initServiceId, initStaffId, initStart, b?.customer_name ?? '',
+      initDate, initServiceId, initStaffId, initStart, b?.customer_name ?? '', b?.customer_city ?? '',
       parsedPhone.phone, parsedPhone.country, b?.customer_email ?? '', b?.notes ?? '', initStatus,
     ])
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -363,6 +365,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     serviceName: selectedService?.name,
     staffName: staffChoices.find((s) => String(s.id) === staffId)?.name,
     customer_name: name,
+    customer_city: city,
     customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
     customer_email: email.trim(),
     notes,
@@ -406,6 +409,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
           date: selectedDate,
           start_time: startTime,
           customer_name: name,
+          customer_city: city.trim(),
           customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
           customer_email: email.trim(),
           notes,
@@ -462,7 +466,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
   }
 
   const dirty = JSON.stringify([
-    selectedDate, serviceId, staffId, startTime, name, phone, country, email, notes, status,
+    selectedDate, serviceId, staffId, startTime, name, city, phone, country, email, notes, status,
   ]) !== initSigRef.current
 
   const requestClose = useCallback(() => {
@@ -690,14 +694,26 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                     <UserRound className="h-3.5 w-3.5" strokeWidth={2} /> Vendég
                   </div>
 
-                  <div className="space-y-1.5">
-                    <Label>Vendég neve <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Pl. Kovács Anna" />
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Vendég neve <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
+                      </div>
+                      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Pl. Kovács Anna" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Város <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
+                      </div>
+                      <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Pl. Budapest" />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label>Telefon</Label>
+                      <div className="flex items-center justify-between gap-2">
+                        <Label>Telefon</Label>
+                      </div>
                       <PhoneCountryInput
                         country={country}
                         phone={phone}

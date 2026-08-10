@@ -23,6 +23,7 @@ export interface SalonDraftPayload {
   serviceId: string
   staffId: string
   customer_name: string
+  customer_city: string
   customer_email: string
   customer_phone: string
   notes: string

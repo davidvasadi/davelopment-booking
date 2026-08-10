@@ -36,8 +36,12 @@ function getResend(): Resend | null {
 }
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
-const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'davelopment booking'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+
+/** RFC 5322 "From" fejléc az üzlet nevével megjelenítési névként (idézőjelezve, hogy a névben lévő speciális karakter — vessző, idézőjel — ne törje el a fejlécet). */
+function fromHeader(name: string): string {
+  return `"${name.replace(/"/g, '\\"')}" <${FROM}>`
+}
 
 export interface BookingEmailData {
   booking: Booking
@@ -127,7 +131,8 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
     : t(locale, 'email.confirm.subjectFallback', { place: salon.name })
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(salon.name),
+      reply_to: salon.email || undefined,
       to: booking.customer_email,
       subject,
       html: confirmationHtml(data, cancelUrl),
@@ -164,7 +169,7 @@ export async function sendNewBookingNotification(data: BookingEmailData, fallbac
     : `Új foglalás: ${data.booking.customer_name} — ${data.booking.date} ${data.booking.start_time}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(salon.name),
       to: recipients,
       subject,
       html: notificationHtml(data),
@@ -193,7 +198,8 @@ export async function sendCancellationEmail(data: BookingEmailData) {
     : t(locale, 'email.cancel.subjectFallback', { place: salon.name })
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(salon.name),
+      reply_to: salon.email || undefined,
       to: booking.customer_email,
       subject,
       html: cancellationHtml(data),
@@ -215,7 +221,8 @@ export async function sendReminderEmail(data: BookingEmailData) {
     : `Emlékeztető: közeleg a foglalásod – ${salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(salon.name),
+      reply_to: salon.email || undefined,
       to: booking.customer_email,
       subject,
       html: reminderHtml(data),
@@ -238,7 +245,8 @@ export async function sendFeedbackRequestEmail(data: BookingEmailData) {
     : `Milyen volt nálunk? Értékeld a látogatásod – ${salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(salon.name),
+      reply_to: salon.email || undefined,
       to: booking.customer_email,
       subject,
       html: feedbackHtml(data),
@@ -269,7 +277,8 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
   const subject = `Felkerültél a várólistára – ${data.salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(data.salon.name),
+      reply_to: data.salon.email || undefined,
       to: data.customer_email,
       subject,
       html: wrap(data.salon, `
@@ -300,7 +309,8 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
   const subject = `Felszabadult egy időpont – ${data.salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(data.salon.name),
+      reply_to: data.salon.email || undefined,
       to: data.customer_email,
       subject,
       html: wrap(data.salon, `
@@ -360,7 +370,7 @@ export async function sendTeamInviteEmail(data: TeamInviteEmailData) {
   const subject = `Meghívó a csapatba – ${data.businessName}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(data.businessName),
       to: data.to,
       subject,
       html: emailLayout({ brandName: data.businessName, brandLogoUrl: data.businessLogoUrl ?? null, content }),
@@ -586,7 +596,8 @@ export async function sendBookingModification(data: BookingEmailData) {
   const subject = `Foglalásod módosítva – ${salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(salon.name),
+      reply_to: salon.email || undefined,
       to: booking.customer_email,
       subject,
       html: modificationHtml(data),
@@ -640,7 +651,7 @@ export async function sendShiftChangeEmail(data: ShiftChangeEmailData) {
     `,
   })
   try {
-    const { data: sendResult } = await resend.emails.send({ from: `${FROM_NAME} <${FROM}>`, to, subject, html })
+    const { data: sendResult } = await resend.emails.send({ from: fromHeader(businessName), to, subject, html })
     await logEmail('schedule_change', to, subject, true, undefined, { resendId: sendResult?.id })
   } catch (err) {
     console.error('[Email] Shift change email failed:', err)
@@ -719,7 +730,7 @@ export async function sendSalonDigestEmail(data: SalonDigestEmailData) {
 
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(salon.name),
       to: ownerEmail,
       subject,
       html,

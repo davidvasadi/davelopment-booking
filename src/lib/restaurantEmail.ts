@@ -35,8 +35,12 @@ function getResend(): Resend | null {
 }
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
-const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'davelopment booking'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+
+/** RFC 5322 "From" fejléc az üzlet nevével megjelenítési névként (idézőjelezve, hogy a névben lévő speciális karakter — vessző, idézőjel — ne törje el a fejlécet). */
+function fromHeader(name: string): string {
+  return `"${name.replace(/"/g, '\\"')}" <${FROM}>`
+}
 
 export interface ReservationEmailData {
   reservation: Reservation
@@ -119,7 +123,8 @@ export async function sendReservationConfirmation(data: ReservationEmailData) {
     : t(locale, 'email.confirm.subjectFallback', { place: restaurant.name })
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: confirmationHtml(data, cancelUrl),
@@ -145,7 +150,7 @@ export async function sendReservationNotification(data: ReservationEmailData, fa
     : `Új asztalfoglalás: ${data.reservation.customer_name} — ${data.reservation.date} ${data.reservation.start_time}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(restaurant.name),
       to,
       subject,
       html: notificationHtml(data),
@@ -168,7 +173,8 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
     : t(locale, 'email.cancel.subjectFallback', { place: restaurant.name })
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: cancellationHtml(data),
@@ -190,7 +196,8 @@ export async function sendReminderEmail(data: ReservationEmailData) {
     : `Emlékeztető: közeleg a foglalásod – ${restaurant.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: reminderHtml(data),
@@ -213,7 +220,8 @@ export async function sendFeedbackRequestEmail(data: ReservationEmailData) {
     : `Milyen volt nálunk? Értékeld a látogatásod – ${restaurant.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: feedbackHtml(data),
@@ -245,7 +253,8 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
   const subject = `Felkerültél a várólistára – ${data.restaurant.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(data.restaurant.name),
+      reply_to: data.restaurant.email || undefined,
       to: data.customer_email,
       subject,
       html: wrap(data.restaurant, `
@@ -277,7 +286,8 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
   const subject = `Felszabadult egy asztal – ${data.restaurant.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(data.restaurant.name),
+      reply_to: data.restaurant.email || undefined,
       to: data.customer_email,
       subject,
       html: wrap(data.restaurant, `
@@ -511,7 +521,8 @@ export async function sendReservationModification(data: ReservationEmailData) {
   const subject = `Foglalásod módosítva – ${restaurant.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: modificationHtml(data),

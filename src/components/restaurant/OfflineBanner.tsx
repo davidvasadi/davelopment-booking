@@ -43,6 +43,7 @@ export function OfflineBanner({
           pax: d.pax,
           tableIds: d.tableIds,
           customer_name: d.customer_name,
+          customer_city: d.customer_city,
           customer_phone: d.customer_phone,
           customer_email: d.customer_email,
           notes: d.notes,
