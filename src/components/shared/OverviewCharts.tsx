@@ -56,7 +56,7 @@ export function TrendLineChart({ series, deltaPct }: { series: SeriesPoint[]; de
   const xInterval = Math.max(0, Math.round(data.length / 7) - 1)
 
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 300, height: 200 }}>
       <LineChart data={data} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
         <CartesianGrid vertical={false} stroke="#efebdf" />
         <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#A8A496', fontWeight: 500 }} interval={xInterval} minTickGap={12} />
@@ -100,7 +100,7 @@ export function OccupancyDonut({ pct, centerLabel }: { pct: number; centerLabel:
   ]
   return (
     <div className="relative h-[168px] w-[188px]">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 188, height: 168 }}>
         <PieChart>
           <Pie data={pieData} dataKey="pct" nameKey="label" cx="50%" cy="50%" innerRadius={56} outerRadius={78} startAngle={90} endAngle={-270} cornerRadius={6} stroke="none" isAnimationActive animationDuration={800}>
             {pieData.map((d, i) => <Cell key={i} fill={d.color} />)}
@@ -142,7 +142,7 @@ export function StatusDonut({ segments, centerValue, centerLabel }: { segments: 
   const data = segments.filter((s) => s.value > 0)
   return (
     <div className="relative h-[170px] w-full">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 300, height: 170 }}>
         <PieChart>
           <Pie data={data.length ? data : [{ label: 'Nincs', value: 1, color: C.track }]} dataKey="value" nameKey="label" cx="50%" cy="50%" innerRadius={52} outerRadius={74} startAngle={90} endAngle={-270} cornerRadius={6} paddingAngle={data.length > 1 ? 3 : 0} stroke="none" isAnimationActive animationDuration={800}>
             {(data.length ? data : [{ color: C.track }]).map((d, i) => <Cell key={i} fill={d.color} />)}
@@ -186,7 +186,7 @@ export function WeekBarChart({ bars }: { bars: WeekBar[] }) {
     return <div className="flex h-full items-center justify-center text-sm text-ink-soft">Nincs adat a diagramhoz.</div>
   }
   return (
-    <ResponsiveContainer width="100%" height="100%">
+    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0} initialDimension={{ width: 300, height: 200 }}>
       <BarChart data={bars} margin={{ top: 8, right: 6, left: -18, bottom: 0 }} barCategoryGap="28%">
         <CartesianGrid vertical={false} stroke="#efebdf" />
         <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11, fill: '#A8A496', fontWeight: 500 }} />
