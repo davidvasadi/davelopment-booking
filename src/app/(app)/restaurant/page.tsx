@@ -17,12 +17,12 @@ import { DetailSheet } from '@/components/shared/DetailSheet'
 import { OverviewTimeline, type TimelineBlock, type TimelineRow } from '@/components/shared/OverviewTimeline'
 import { HoverButtonLink } from '@/components/shared/HoverButtonLink'
 import { HoverScaleCard } from '@/components/shared/HoverScaleCard'
-import { CalendarDays, Users, Users2, Plus, UserRound } from 'lucide-react'
+import { CalendarDays, Users, Users2, Plus, UserRound, Banknote } from 'lucide-react'
 import { CARD, HeroKpi } from '@/components/dashboard/overview-ui'
 import { can } from '@/lib/permissions'
 import { getMyUpcomingShifts } from '@/lib/myShifts'
 import { StaffOverview } from '@/components/dashboard/StaffOverview'
-import { fixMediaUrl, formatDayBadge } from '@/lib/utils'
+import { fixMediaUrl, formatDayBadge, formatPrice } from '@/lib/utils'
 import { deleteStaleTasks } from '@/lib/taskCleanup'
 import type { Reservation, Media, Task, OpeningHour, Shift } from '@/payload/payload-types'
 
@@ -366,6 +366,10 @@ export default async function RestaurantDashboardPage() {
           <HeroKpi icon={CalendarDays} value={String(stats.reservationsToday)} label="Foglalás" />
           <HeroKpi icon={Users} value={String(stats.paxToday)} label="Vendég" />
           <HeroKpi icon={Users2} value={String(staffToday)} label="Személyzet" />
+          {/* Csak akkor jelenik meg, ha az étteremnél be van kapcsolva a vendég-előleg. */}
+          {restaurant.deposit_settings?.enabled && (
+            <HeroKpi icon={Banknote} value={formatPrice(stats.depositsToday, 'HUF')} label="Előleg ma" />
+          )}
         </div>
       </div>
 

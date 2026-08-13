@@ -191,6 +191,21 @@ export default async function SettingsPage() {
           google_review_url: fm.google_review_url ?? null,
           review_delay_hours: fm.review_delay_hours ?? 2,
         }}
+        depositSettings={{
+          enabled: salon.deposit_settings?.enabled ?? false,
+          type: (salon.deposit_settings?.type as 'fixed' | 'percent' | 'per_pax') ?? 'fixed',
+          fixedAmountHuf: salon.deposit_settings?.fixed_amount_huf ?? null,
+          percentValue: salon.deposit_settings?.percent_value ?? null,
+          perPaxAmountHuf: salon.deposit_settings?.per_pax_amount_huf ?? null,
+          refundHoursBefore: salon.deposit_settings?.refund_hours_before ?? 24,
+        }}
+        invoiceSettings={{
+          provider: (salon.invoice_settings?.invoice_provider as 'szamlazz' | 'billingo' | 'none') ?? 'none',
+          hasSzamlazzKey: !!salon.invoice_settings?.szamlazz_agent_key_enc,
+          hasBillingoKey: !!salon.invoice_settings?.billingo_api_key_enc,
+        }}
+        stripeConnectAccountId={salon.stripe_connect_account_id ?? null}
+        stripeConnectOnboarded={!!salon.stripe_connect_onboarded}
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}

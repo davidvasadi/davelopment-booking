@@ -42,6 +42,7 @@ export type Capability =
   | 'team.view'
   | 'team.manage'
   | 'billing.manage'
+  | 'payments.manage'
   | 'danger'
   | 'audit.view'
 
@@ -79,6 +80,9 @@ export const CAPABILITY_META: {
   { value: 'team.view',            label: 'Csapat megtekintése',                 group: 'Csapat' },
   { value: 'team.manage',          label: 'Csapat kezelése (meghívás / szerep)', group: 'Csapat' },
   { value: 'billing.manage',       label: 'Számlázás / előfizetés',              group: 'Számlázás' },
+  // Külön a billing.manage-től: ki láthatja a bevételt (billing) vs. ki köthet be egy
+  // bankszámla-kapcsolt Stripe Connect fizetési fiókot (payments) — két eltérő bizalmi szint.
+  { value: 'payments.manage',      label: 'Vendég-előleg / Stripe Connect kezelése', group: 'Számlázás' },
   { value: 'danger',               label: 'Veszélyzóna (üzlet törlése)',         group: 'Veszélyzóna' },
   { value: 'audit.view',           label: 'Audit-napló',                         group: 'Audit' },
 ]

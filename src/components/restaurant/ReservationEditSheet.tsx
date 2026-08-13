@@ -622,6 +622,24 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                               {urgency.label}
                             </span>
                           )}
+                          {reservation?.payment_status === 'paid' && (
+                            <span
+                              title={reservation.invoice_status === 'issued' ? `Számla: ${reservation.invoice_number}` : 'Bizonylat még nincs kiállítva'}
+                              className="inline-flex items-center gap-1 rounded-full bg-[#DCF3E2] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#1D7A3C]"
+                            >
+                              Előleg befizetve{reservation.deposit_amount_huf ? ` · ${reservation.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''}
+                            </span>
+                          )}
+                          {reservation?.payment_status === 'failed' && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#FBE1DE] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#B3261E]">
+                              Sikertelen előleg-fizetés
+                            </span>
+                          )}
+                          {reservation?.payment_status === 'refunded' && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600">
+                              Előleg visszatérítve
+                            </span>
+                          )}
                         </>
                       )}
                       {/* Alkalom (occasion) — feltűnő jelvény fent, ahogy korábban a szülinapnál volt. */}

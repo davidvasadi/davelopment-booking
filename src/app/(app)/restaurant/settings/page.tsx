@@ -187,6 +187,21 @@ export default async function RestaurantSettingsPage() {
           google_review_url: fm.google_review_url ?? null,
           review_delay_hours: fm.review_delay_hours ?? 2,
         }}
+        depositSettings={{
+          enabled: r.deposit_settings?.enabled ?? false,
+          type: (r.deposit_settings?.type as 'fixed' | 'percent' | 'per_pax') ?? 'fixed',
+          fixedAmountHuf: r.deposit_settings?.fixed_amount_huf ?? null,
+          percentValue: r.deposit_settings?.percent_value ?? null,
+          perPaxAmountHuf: r.deposit_settings?.per_pax_amount_huf ?? null,
+          refundHoursBefore: r.deposit_settings?.refund_hours_before ?? 24,
+        }}
+        invoiceSettings={{
+          provider: (r.invoice_settings?.invoice_provider as 'szamlazz' | 'billingo' | 'none') ?? 'none',
+          hasSzamlazzKey: !!r.invoice_settings?.szamlazz_agent_key_enc,
+          hasBillingoKey: !!r.invoice_settings?.billingo_api_key_enc,
+        }}
+        stripeConnectAccountId={r.stripe_connect_account_id ?? null}
+        stripeConnectOnboarded={!!r.stripe_connect_onboarded}
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}

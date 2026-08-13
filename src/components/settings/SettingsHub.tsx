@@ -24,10 +24,11 @@ import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext
 import {
   Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
   Plus, ScrollText, KeyRound, Building2, Mail, Check, Languages, FileText,
-  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, type LucideIcon,
+  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
+import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData } from './PaymentsSettingsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
 import { PersonalNotifPrefsCard } from './PersonalNotifPrefsCard'
@@ -115,7 +116,7 @@ type RailId =
   | 'profile' | 'booking' | 'features' | 'languages' | 'email'
   | 'rules' | 'notifications' | 'team' | 'audit'
   | 'self' | 'documents' | 'billing' | 'sites'
-  | 'integrations' | 'api' | 'danger'
+  | 'integrations' | 'api' | 'danger' | 'payments'
 
 // A bal lista mely elemei a MEGLÉVŐ profil-form egy-egy fülét mutatják (rail vezérli a fület).
 const FORM_TABS: Record<string, string> = {
@@ -130,6 +131,7 @@ const RAIL_LABELS: Record<RailId, string> = {
   rules: 'Foglalási szabályok', notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
   self: 'Saját profil', documents: 'Dokumentumok', billing: 'Számlázás', sites: 'Telephelyek',
   integrations: 'Integrációk', api: 'API & webhookok', danger: 'Fiók törlése',
+  payments: 'Fizetések',
 }
 
 export interface RulesData {
@@ -254,6 +256,11 @@ export interface SettingsHubProps {
   startedAt?: string | null
   /** Felhasználó effektív képességei — a `billing` + `danger` nav-elem elrejtéséhez. */
   myCapabilities?: Capability[]
+  /** Vendég-előleg (Stripe Connect) + számlázási beállítások kezdőértéke — a Fizetések panelnek. */
+  depositSettings: DepositSettingsData
+  invoiceSettings: InvoiceSettingsData
+  stripeConnectAccountId: string | null
+  stripeConnectOnboarded: boolean
 }
 
 function fmtDate(dateStr?: string | null): string {
@@ -283,6 +290,7 @@ export function SettingsHub({
   featureModules, auditLog, rolesSection, customRoles = [],
   sub, billingAccount, pricing, activeBusinessId, startedAt,
   icalUrl, bookingUrl, webhookUrl, myCapabilities,
+  depositSettings, invoiceSettings, stripeConnectAccountId, stripeConnectOnboarded,
 }: SettingsHubProps) {
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
@@ -644,6 +652,7 @@ export function SettingsHub({
           { kind: 'btn', id: 'booking', icon: CalendarDays, label: 'Foglalás' },
           { kind: 'btn', id: 'rules', icon: Check, label: 'Foglalási szabályok' },
           { kind: 'btn', id: 'features', icon: SlidersHorizontal, label: 'Foglalási funkciók' },
+          ...(!myCapabilities || can(myCapabilities, 'payments.manage') ? [{ kind: 'btn' as const, id: 'payments' as RailId, icon: Wallet, label: 'Fizetések' }] : []),
           { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
           { kind: 'btn', id: 'languages', icon: Languages, label: 'Nyelvek' },
           { kind: 'btn', id: 'email', icon: Mail, label: 'Email-sablonok' },
@@ -899,21 +908,38 @@ export function SettingsHub({
                 </span>
               </button>
 
-              {/* Depozit / no-show — őszinte „Hamarosan" (fizetési integráció kell, mint Integrációk/API). */}
-              <div className="rounded-[26px] dav-card-glass px-6 py-4">
-                <div className="flex items-center gap-2">
-                  <span className="text-[15px] font-medium text-ink">Depozit & no-show védelem</span>
-                  <span className="rounded-full bg-[#F2ECDA] px-2.5 py-0.5 text-[10px] font-semibold tracking-[0.03em] text-ink-soft">Hamarosan</span>
+              {/* Depozit / no-show — a Fizetések szekció a gazdája (Stripe Connect bekötve). */}
+              <button
+                type="button"
+                onClick={() => setActive('payments')}
+                className="flex w-full items-center justify-between gap-3 rounded-[26px] dav-card-glass px-6 py-4 text-left transition-colors hover:border-ink/20"
+              >
+                <div className="min-w-0">
+                  <div className="text-[15px] font-medium text-ink">Depozit & no-show védelem</div>
+                  <div className="mt-0.5 text-[13px] text-ink-soft">
+                    Vendég-előleg Stripe-on keresztül — a <b className="font-semibold text-ink-soft">Fizetések</b> szekcióban kapcsolható.
+                  </div>
                 </div>
-                <p className="mt-0.5 text-[13px] text-ink-soft">
-                  Előleg nagy foglalásokhoz és no-show elleni védelem — fizetési integrációval érkezik.
-                </p>
-              </div>
+                <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-ink">
+                  Megnyitás <ArrowRight className="h-4 w-4" strokeWidth={2} />
+                </span>
+              </button>
 
               <p className="px-1 text-xs text-ink-soft2">
                 A pontos foglalási időzítést az „Üzlet profil → Foglalás" fülön mentheted.
               </p>
             </div>
+          )}
+
+          {active === 'payments' && (
+            <PaymentsSettingsPanel
+              variant={variant}
+              apiBase={apiBase}
+              deposit={depositSettings}
+              invoice={invoiceSettings}
+              stripeConnectAccountId={stripeConnectAccountId}
+              stripeConnectOnboarded={stripeConnectOnboarded}
+            />
           )}
 
           {active === 'notifications' && (

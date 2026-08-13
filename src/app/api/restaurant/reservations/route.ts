@@ -6,6 +6,9 @@ import { validateAndAllocate } from '@/lib/restaurantBooking'
 import { sendReservationConfirmation } from '@/lib/restaurantEmail'
 import { generateSeriesDates, MAX_SERIES_COUNT } from '@/lib/recurrence'
 import { isGuestBlocked } from '@/lib/blocklist'
+import { getStripe, hufToStripeMinor } from '@/lib/stripe'
+import { computeRestaurantDepositHuf } from '@/lib/depositCalc'
+import { issueDepositInvoiceBestEffort } from '@/lib/depositInvoice'
 import type { Restaurant, Reservation } from '@/payload/payload-types'
 
 const schema = z.object({
@@ -17,6 +20,7 @@ const schema = z.object({
   customer_email: z.string().email().max(254),
   customer_phone: z.string().max(30).optional(),
   customer_city: z.string().max(120).optional(),
+  customer_address: z.string().max(200).optional(),
   country: z.string().max(60).optional(),
   notes: z.string().max(1000).optional(),
   occasion: z.string().max(80).optional(),
@@ -29,6 +33,7 @@ const schema = z.object({
       count: z.coerce.number().int().min(1).max(MAX_SERIES_COUNT),
     })
     .optional(),
+  payment_intent_id: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -43,7 +48,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, country, notes, occasion, occasion_icon, locale, repeat } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id } = parsed.data
 
   try {
     const payload = await getPayloadClient()
@@ -69,11 +74,27 @@ export async function POST(request: NextRequest) {
 
     const alloc = await validateAndAllocate({ restaurantId, date, start_time, pax })
     if (!alloc.ok) {
+      // Ha volt már sikeres előleg-terhelés — AZONNALI visszatérítés, mint a szalon oldalon.
+      let refunded = false
+      if (payment_intent_id && restaurant.stripe_connect_account_id) {
+        const stripe = getStripe()
+        if (stripe) {
+          try {
+            await stripe.refunds.create({ payment_intent: payment_intent_id }, { stripeAccount: restaurant.stripe_connect_account_id })
+            refunded = true
+          } catch (e) {
+            console.error('[Restaurant Reservations API] refund-on-conflict hiba:', e)
+          }
+        }
+      }
       // Defenzív: ha telt/nincs asztal ÉS az étteremnél be van kapcsolva a várólista,
       // jelezzük a kliensnek (waitlist:true). A flag KI → változatlan 409 hiba.
       const waitlistAvailable = !!restaurant.feature_modules?.waitlist_on
       return NextResponse.json(
-        { error: alloc.error, ...(waitlistAvailable ? { waitlist: true } : {}) },
+        {
+          error: refunded ? 'Ez az időpont időközben lefoglalásra került. Az előleget visszatérítettük.' : alloc.error,
+          ...(waitlistAvailable ? { waitlist: true } : {}),
+        },
         { status: 409 },
       )
     }
@@ -82,6 +103,35 @@ export async function POST(request: NextRequest) {
     // false esetén 'pending' → a tulaj a meglévő státusz-kezeléssel erősíti meg.
     const reservationStatus: 'confirmed' | 'pending' =
       restaurant.booking_rules?.auto_confirm === false ? 'pending' : 'confirmed'
+
+    // Ha az étteremnél be van kapcsolva az előleg ÉS a Stripe onboarding kész, a fizetés
+    // KÖTELEZŐ — sose bízzunk kliens-oldali jelzésben.
+    const depositRequired = !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded && !!restaurant.stripe_connect_account_id
+    let depositHuf: number | null = null
+    if (depositRequired) {
+      if (!payment_intent_id) {
+        return NextResponse.json({ error: 'Előleg szükséges ehhez a foglaláshoz' }, { status: 400 })
+      }
+      const existing = await payload.find({
+        collection: 'reservations', where: { payment_intent_id: { equals: payment_intent_id } }, limit: 1, overrideAccess: true,
+      })
+      if (existing.totalDocs > 0) {
+        return NextResponse.json({ error: 'Ez az előleg-fizetés már fel lett használva.' }, { status: 409 })
+      }
+      const stripe = getStripe()
+      if (!stripe) return NextResponse.json({ error: 'A fizetés jelenleg nincs konfigurálva.' }, { status: 503 })
+      const intent = await stripe.paymentIntents.retrieve(payment_intent_id, undefined, { stripeAccount: restaurant.stripe_connect_account_id! })
+      const expectedHuf = computeRestaurantDepositHuf(restaurant.deposit_settings, pax)
+      if (intent.status !== 'succeeded' || !expectedHuf || intent.amount !== hufToStripeMinor(expectedHuf)) {
+        if (intent.status === 'succeeded') {
+          await stripe.refunds.create({ payment_intent: payment_intent_id }, { stripeAccount: restaurant.stripe_connect_account_id! }).catch((e) =>
+            console.error('[Restaurant Reservations API] anomália-refund hiba:', e),
+          )
+        }
+        return NextResponse.json({ error: 'A fizetés ellenőrzése sikertelen. Kérjük, próbáld újra.' }, { status: 400 })
+      }
+      depositHuf = expectedHuf
+    }
 
     // Ismétlődés csak akkor él, ha jött `repeat` ÉS a modul be van kapcsolva. Máskülönben
     // (nincs repeat, vagy recurring_on ki) → egyszeri foglalás, közös series_id nélkül.
@@ -119,6 +169,7 @@ export async function POST(request: NextRequest) {
           customer_email,
           ...(customer_phone ? { customer_phone } : {}),
           ...(customer_city ? { customer_city } : {}),
+          ...(customer_address ? { customer_address } : {}),
           ...(country ? { country } : {}),
           ...(notes ? { notes } : {}),
           ...(occasion ? { occasion } : {}),
@@ -127,6 +178,10 @@ export async function POST(request: NextRequest) {
           locale,
           cancel_token: randomBytes(24).toString('hex'),
           ...(seriesId ? { series_id: seriesId } : {}),
+          // Az előleg-kötelezettség FÁZIS 1-ben csak az ELSŐ (kért) alkalomra vonatkozik.
+          ...(d === date && depositRequired
+            ? { payment_gateway: 'stripe' as const, payment_status: 'paid' as const, deposit_amount_huf: depositHuf ?? undefined, deposit_paid: true, payment_intent_id }
+            : {}),
         },
         overrideAccess: true,
         context: { auditActor: 'Online foglalás' },
@@ -142,6 +197,17 @@ export async function POST(request: NextRequest) {
       for (const r of created) void sendReservationConfirmation({ reservation: r, restaurant })
     }
     // Nincs owner email — a digest összefoglalja a napot.
+    if (depositRequired && depositHuf) {
+      void issueDepositInvoiceBestEffort({
+        collection: 'reservations',
+        id: reservation.id,
+        invoiceSettings: restaurant.invoice_settings,
+        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address },
+        label: `Előleg — ${restaurant.name} · ${date} · ${pax} fő`,
+        grossHuf: depositHuf,
+        orderRef: String(payment_intent_id),
+      })
+    }
 
     // Egyszeri esetben a válasz alakja változatlan. Sorozatnál kiegészítjük series-metaadatokkal.
     if (seriesActive) {

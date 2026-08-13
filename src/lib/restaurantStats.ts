@@ -98,6 +98,10 @@ export interface RestaurantStats {
   avgLeadDaysDiff: number
   leadTrend: { label: string; value: number }[]
   leadBuckets: { label: string; value: number }[]
+  /** Ma befizetett vendég-előlegek összege (csak payment_status:'paid' foglalások). */
+  depositsToday: number
+  /** Ma sikertelen fizetéssel végződött foglalás-kísérletek száma. */
+  failedPaymentsToday: number
 }
 
 const ACTIVE_STATUSES = ['pending', 'confirmed', 'seated', 'completed']
@@ -178,7 +182,7 @@ export async function getRestaurantStats(
       depth: 0,
       limit: 5000,
       // Csak a számításhoz használt mezők – kevesebb adat a DB-ből és a hidratálásból.
-      select: { date: true, status: true, source: true, pax: true, start_time: true, end_time: true, country: true, customer_email: true, createdAt: true },
+      select: { date: true, status: true, source: true, pax: true, start_time: true, end_time: true, country: true, customer_email: true, createdAt: true, payment_status: true, deposit_amount_huf: true },
       overrideAccess: true,
     }),
     payload.find({
@@ -493,6 +497,9 @@ export async function getRestaurantStats(
   ]
   const leadBuckets = LEAD_BUCKETS.map((b) => ({ label: b.label, value: periodLeadDays.filter(b.test).length }))
 
+  const depositsToday = todayDocs.reduce((s, r) => s + (r.payment_status === 'paid' ? (r.deposit_amount_huf ?? 0) : 0), 0)
+  const failedPaymentsToday = todayDocs.filter((r) => r.payment_status === 'failed').length
+
   return {
     period: rangeDays,
     tableCount: tablesRes.totalDocs,
@@ -547,5 +554,7 @@ export async function getRestaurantStats(
     avgLeadDaysDiff,
     leadTrend,
     leadBuckets,
+    depositsToday,
+    failedPaymentsToday,
   }
 }

@@ -88,6 +88,12 @@ export const Bookings: CollectionConfig = {
       admin: { description: 'Opcionális — a vendég a foglalónál adja meg (vendég-analitika / térkép).' },
     },
     {
+      name: 'customer_address',
+      type: 'text',
+      label: 'Ügyfél címe (utca, házszám)',
+      admin: { description: 'Csak előleg-fizetéskor kötelező a vendégnek (a Számlázz.hu/Billingo bizonylathoz kell).' },
+    },
+    {
       name: 'date',
       type: 'text',
       required: true,
@@ -196,6 +202,61 @@ export const Bookings: CollectionConfig = {
         { label: 'Español', value: 'es' },
         { label: 'Italiano', value: 'it' },
         { label: 'Français', value: 'fr' },
+      ],
+      admin: { position: 'sidebar' },
+    },
+    {
+      // Pontos lemondás-időbélyeg — a `status` átállás önmagában nem elég a visszatérítési
+      // időablak (deposit_settings.refund_hours_before) kiszámításához, mert az implicit
+      // `updatedAt`-et más mentés is módosíthatja.
+      name: 'cancelled_at',
+      type: 'date',
+      admin: { readOnly: true, position: 'sidebar' },
+    },
+    {
+      name: 'payment_gateway',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'Stripe', value: 'stripe' },
+        { label: 'SimplePay', value: 'simplepay' },
+        { label: 'Nincs', value: 'none' },
+      ],
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'payment_status',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'Nincs előleg', value: 'none' },
+        { label: 'Függőben', value: 'pending' },
+        { label: 'Befizetve', value: 'paid' },
+        { label: 'Visszatérítve', value: 'refunded' },
+        { label: 'Sikertelen', value: 'failed' },
+      ],
+      admin: { position: 'sidebar' },
+    },
+    { name: 'deposit_amount_huf', type: 'number', label: 'Előleg összege (Ft)', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'deposit_paid', type: 'checkbox', defaultValue: false, admin: { position: 'sidebar', readOnly: true } },
+    { name: 'deposit_refunded', type: 'checkbox', defaultValue: false, admin: { position: 'sidebar', readOnly: true } },
+    {
+      // Idempotencia-kulcs a Connect-webhookhoz és a dupla-terhelés-védelemhez.
+      name: 'payment_intent_id',
+      type: 'text',
+      index: true,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    { name: 'invoice_number', type: 'text', label: 'Számlaszám', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'invoice_pdf_url', type: 'text', label: 'Számla PDF', admin: { position: 'sidebar', readOnly: true } },
+    {
+      name: 'invoice_status',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'Nincs', value: 'none' },
+        { label: 'Kiállítva', value: 'issued' },
+        { label: 'Sikertelen', value: 'failed' },
       ],
       admin: { position: 'sidebar' },
     },

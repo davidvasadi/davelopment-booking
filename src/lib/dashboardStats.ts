@@ -74,6 +74,10 @@ export interface DashboardStats {
   avgLeadDaysDiff: number
   leadTrend: { label: string; value: number }[]
   leadBuckets: { label: string; value: number }[]
+  /** Ma befizetett vendég-előlegek összege (csak payment_status:'paid' foglalások). */
+  depositsToday: number
+  /** Ma sikertelen fizetéssel végződött foglalás-kísérletek száma. */
+  failedPaymentsToday: number
 }
 
 function getPrice(b: Booking): number {
@@ -338,6 +342,9 @@ export async function getDashboardStats(
   ]
   const leadBuckets = LEAD_BUCKETS.map((b) => ({ label: b.label, value: periodLeadDays.filter(b.test).length }))
 
+  const depositsToday = todayDocs.reduce((s, b) => s + (b.payment_status === 'paid' ? (b.deposit_amount_huf ?? 0) : 0), 0)
+  const failedPaymentsToday = todayDocs.filter((b) => b.payment_status === 'failed').length
+
   return {
     period: rangeDays,
     revenueToday,
@@ -376,5 +383,7 @@ export async function getDashboardStats(
     avgLeadDaysDiff,
     leadTrend,
     leadBuckets,
+    depositsToday,
+    failedPaymentsToday,
   }
 }

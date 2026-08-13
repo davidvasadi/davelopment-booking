@@ -1,7 +1,7 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { slugify } from '../lib/slugify'
-import { settingsExtensionFields, businessTierField, emailTemplateFields } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
@@ -214,6 +214,9 @@ export const Restaurants: CollectionConfig = {
     },
     businessTierField,
     ...settingsExtensionFields,
+    ...depositSettingsFields,
+    ...stripeConnectFields,
+    ...invoiceSettingsFields,
     {
       name: 'booking_email_subject',
       type: 'text',

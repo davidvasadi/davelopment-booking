@@ -348,6 +348,10 @@ export default async function DashboardPage() {
           <HeroKpi icon={CalendarDays} value={String(stats.bookingsToday)} label="Foglalás" />
           <HeroKpi icon={Banknote} value={formatPrice(stats.revenueToday, 'HUF')} label="Bevétel" />
           <HeroKpi icon={CheckCircle2} value={`${stats.completionRate}%`} label="Teljesítés" />
+          {/* Csak akkor jelenik meg, ha az üzletnél be van kapcsolva a vendég-előleg. */}
+          {salon.deposit_settings?.enabled && (
+            <HeroKpi icon={Banknote} value={formatPrice(stats.depositsToday, 'HUF')} label="Előleg ma" />
+          )}
         </div>
       </div>
 

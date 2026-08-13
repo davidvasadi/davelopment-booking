@@ -130,6 +130,22 @@ export interface Restaurant {
     google_review_url?: string | null
     review_delay_hours?: number | null
   } | null
+  deposit_settings?: {
+    enabled?: boolean | null
+    type?: ('fixed' | 'percent' | 'per_pax') | null
+    fixed_amount_huf?: number | null
+    percent_value?: number | null
+    per_pax_amount_huf?: number | null
+    refund_hours_before?: number | null
+    payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  } | null
+  stripe_connect_account_id?: string | null
+  stripe_connect_onboarded?: boolean | null
+  invoice_settings?: {
+    invoice_provider?: ('szamlazz' | 'billingo' | 'none') | null
+    szamlazz_agent_key_enc?: string | null
+    billingo_api_key_enc?: string | null
+  } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
   cancel_email_subject?: string | null
@@ -227,6 +243,7 @@ export interface Reservation {
   customer_email: string
   customer_phone?: string | null
   customer_city?: string | null
+  customer_address?: string | null
   country?: string | null
   notes?: string | null
   internal_notes?: string | null
@@ -241,6 +258,16 @@ export interface Reservation {
   cancel_token?: string | null
   series_id?: string | null
   locale?: 'hu' | 'en' | null
+  cancelled_at?: string | null
+  payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  payment_status?: ('none' | 'pending' | 'paid' | 'refunded' | 'failed') | null
+  deposit_amount_huf?: number | null
+  deposit_paid?: boolean | null
+  deposit_refunded?: boolean | null
+  payment_intent_id?: string | null
+  invoice_number?: string | null
+  invoice_pdf_url?: string | null
+  invoice_status?: ('none' | 'issued' | 'failed') | null
   createdAt: string
   updatedAt: string
 }
@@ -569,6 +596,22 @@ export interface Salon {
     google_review_url?: string | null
     review_delay_hours?: number | null
   } | null
+  deposit_settings?: {
+    enabled?: boolean | null
+    type?: ('fixed' | 'percent' | 'per_pax') | null
+    fixed_amount_huf?: number | null
+    percent_value?: number | null
+    per_pax_amount_huf?: number | null
+    refund_hours_before?: number | null
+    payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  } | null
+  stripe_connect_account_id?: string | null
+  stripe_connect_onboarded?: boolean | null
+  invoice_settings?: {
+    invoice_provider?: ('szamlazz' | 'billingo' | 'none') | null
+    szamlazz_agent_key_enc?: string | null
+    billingo_api_key_enc?: string | null
+  } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
   cancel_email_subject?: string | null
@@ -683,6 +726,7 @@ export interface Booking {
   customer_email: string
   customer_phone?: string | null
   customer_city?: string | null
+  customer_address?: string | null
   date: string
   start_time: string
   end_time: string
@@ -695,6 +739,16 @@ export interface Booking {
   cancellation_token?: string | null
   series_id?: string | null
   locale?: 'hu' | 'en' | null
+  cancelled_at?: string | null
+  payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  payment_status?: ('none' | 'pending' | 'paid' | 'refunded' | 'failed') | null
+  deposit_amount_huf?: number | null
+  deposit_paid?: boolean | null
+  deposit_refunded?: boolean | null
+  payment_intent_id?: string | null
+  invoice_number?: string | null
+  invoice_pdf_url?: string | null
+  invoice_status?: ('none' | 'issued' | 'failed') | null
   createdAt: string
   updatedAt: string
 }

@@ -527,6 +527,24 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                       <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-zinc-600'}`}>
                         {statusLabelOf(status)}
                       </span>
+                      {target?.booking?.payment_status === 'paid' && (
+                        <span
+                          title={target.booking.invoice_status === 'issued' ? `Számla: ${target.booking.invoice_number}` : 'Bizonylat még nincs kiállítva'}
+                          className="inline-flex items-center gap-1 rounded-full bg-[#DCF3E2] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#1D7A3C]"
+                        >
+                          Előleg befizetve{target.booking.deposit_amount_huf ? ` · ${target.booking.deposit_amount_huf.toLocaleString('hu-HU')} Ft` : ''}
+                        </span>
+                      )}
+                      {target?.booking?.payment_status === 'failed' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[#FBE1DE] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#B3261E]">
+                          Sikertelen előleg-fizetés
+                        </span>
+                      )}
+                      {target?.booking?.payment_status === 'refunded' && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600">
+                          Előleg visszatérítve
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>

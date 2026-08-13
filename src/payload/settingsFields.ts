@@ -97,6 +97,127 @@ export const settingsExtensionFields: Field[] = [
 ]
 
 /**
+ * Vendég-előleg beállítások — PER ÜZLET, owner-írható (nincs field-szintű access, a
+ * collection-szintű owner-or-admin öröklődik). A `type` opciók listája szándékosan tartalmaz
+ * olyat is (`percent` szalonnál, `per_pax` étteremnél), amit a Settings UI a saját oldalán
+ * elrejt — a séma közös, csak a UI szűri, hogy melyik opció értelmes az adott üzlettípusnál
+ * (a szalonnak van `service.price`, az étteremnek nincs ár-mezője a foglaláson, csak fejenkénti
+ * összeg adható meg értelmesen).
+ */
+export const depositSettingsFields: Field[] = [
+  {
+    name: 'deposit_settings',
+    type: 'group',
+    label: 'Előleg-beállítások',
+    fields: [
+      { name: 'enabled', type: 'checkbox', defaultValue: false, label: 'Előleg bekapcsolva' },
+      {
+        name: 'type',
+        type: 'select',
+        defaultValue: 'fixed',
+        label: 'Előleg típusa',
+        options: [
+          { label: 'Fix összeg (Ft)', value: 'fixed' },
+          { label: 'Százalék', value: 'percent' },
+          { label: 'Fejenként (Ft)', value: 'per_pax' },
+        ],
+      },
+      { name: 'fixed_amount_huf', type: 'number', min: 0, label: 'Fix előleg (Ft)' },
+      { name: 'percent_value', type: 'number', min: 1, max: 100, label: 'Előleg (%)' },
+      { name: 'per_pax_amount_huf', type: 'number', min: 0, label: 'Előleg / fő (Ft)' },
+      {
+        name: 'refund_hours_before',
+        type: 'number',
+        defaultValue: 24,
+        label: 'Ingyenes lemondás határideje (óra)',
+        admin: { description: 'Ennyi órával a foglalás előtt még teljes visszatérítés jár. Ezután nem jár vissza.' },
+      },
+      {
+        name: 'payment_gateway',
+        type: 'select',
+        defaultValue: 'none',
+        label: 'Fizetési szolgáltató',
+        options: [
+          { label: 'Stripe', value: 'stripe' },
+          { label: 'SimplePay (hamarosan)', value: 'simplepay' },
+          { label: 'Nincs', value: 'none' },
+        ],
+        admin: { description: 'Jelenleg csak a Stripe aktív — a SimplePay a jövőbeli integráció helye.' },
+      },
+    ],
+  },
+]
+
+/**
+ * Stripe Connect állapot-mezők — ROOT-SZINTEN (nem a `deposit_settings` group-ban) és
+ * admin-only `access.update`-tel, mert a Salon/Restaurant Settings PATCH route
+ * (`src/app/api/salon|restaurant/settings/route.ts`) `overrideAccess: true`-val ment, ami a
+ * mező-szintű `access`-t megkerülné — a route SAJÁT `FORBIDDEN_KEYS` listája védi ezt a két
+ * mezőt ténylegesen (a `field.access` itt csak a nyers Payload admin/API felől ad védelmet).
+ * Az értéküket KIZÁRÓLAG szerver-oldali kód írhatja (Connect onboarding callback / webhook) —
+ * sosem a tulaj felőli settings-form.
+ */
+export const stripeConnectFields: Field[] = [
+  {
+    name: 'stripe_connect_account_id',
+    type: 'text',
+    label: 'Stripe Connect fiók azonosító',
+    access: { update: ({ req }) => req.user?.role === 'admin' },
+    admin: { position: 'sidebar', readOnly: true, description: 'A Stripe onboarding állítja — nem szerkeszthető.' },
+  },
+  {
+    name: 'stripe_connect_onboarded',
+    type: 'checkbox',
+    defaultValue: false,
+    label: 'Stripe onboarding kész',
+    access: { update: ({ req }) => req.user?.role === 'admin' },
+    admin: { position: 'sidebar', readOnly: true },
+  },
+]
+
+/**
+ * Számlázás-beállítások az előleg-fizetés után kiállított bizonylathoz — az üzlet SAJÁT
+ * Számlázz.hu/Billingo fiókjával, nem a platforméval. A kulcs-mezők (`*_key_enc`) TITKOSÍTVA
+ * tárolódnak (`src/lib/encryption.ts`), és `access.read: () => false`-szal ki vannak zárva
+ * minden API-válaszból — a kliens sosem kapja vissza a nyers értéket, csak azt tudja, hogy be
+ * van-e állítva (a Settings UI ezt maszkolt placeholderként jeleníti meg).
+ */
+export const invoiceSettingsFields: Field[] = [
+  {
+    name: 'invoice_settings',
+    type: 'group',
+    label: 'Számlázási beállítások',
+    fields: [
+      {
+        name: 'invoice_provider',
+        type: 'select',
+        defaultValue: 'none',
+        label: 'Számlázó',
+        options: [
+          { label: 'Számlázz.hu', value: 'szamlazz' },
+          { label: 'Billingo', value: 'billingo' },
+          { label: 'Nincs (csak fizetés, bizonylat nélkül)', value: 'none' },
+        ],
+      },
+      {
+        name: 'szamlazz_agent_key_enc',
+        type: 'text',
+        label: 'Számlázz.hu Agent kulcs',
+        access: { read: () => false },
+        admin: { position: 'sidebar', description: 'Titkosítva tárolva — a mentés után nem jelenik meg újra.' },
+      },
+      {
+        name: 'billingo_api_key_enc',
+        type: 'text',
+        label: 'Billingo API kulcs',
+        access: { read: () => false },
+        admin: { position: 'sidebar', description: 'Titkosítva tárolva — a mentés után nem jelenik meg újra.' },
+      },
+    ],
+  },
+]
+
+/**
  * Szerkeszthető email-tartalom (tárgy + bevezető) a tranzakciós vendég-emailekhez — a
  * `booking_email_*` (visszaigazoló) mintájára, localized (nyelvenként a dashboard nyelvváltóval).
  * A template üresen hagyva az alap tárgyat/bevezetőt használja. Bővíthető: új típus = új sor.

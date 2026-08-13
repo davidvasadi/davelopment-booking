@@ -43,6 +43,12 @@ export interface CreateInvoiceParams {
   orderRef?: string
   /** A fizetés már megtörtént (Stripe) → „kifizetett" számla. */
   paid?: boolean
+  /**
+   * Vendég-előleg bizonylatokhoz: az ÜZLET SAJÁT (dekódolt) Agent-kulcsa — ha jelen van, ez
+   * használódik a platform saját `SZAMLAZZ_AGENT_KEY` env-je HELYETT. A platform saját
+   * (SaaS-előfizetés) számlázása változatlanul az env-kulcsot használja (nem adja meg ezt).
+   */
+  agentKeyOverride?: string
 }
 
 export type CreateInvoiceResult =
@@ -83,7 +89,7 @@ function todayYmd(now: Date): string {
  * A nettó = bruttó (0% ÁFA). A `fizetve=true` → kifizetett számla (a Stripe már beszedte).
  */
 function buildXml(params: CreateInvoiceParams, now: Date): string {
-  const key = process.env.SZAMLAZZ_AGENT_KEY ?? ''
+  const key = params.agentKeyOverride ?? process.env.SZAMLAZZ_AGENT_KEY ?? ''
   const date = todayYmd(now)
 
   const tetelek = params.lines
@@ -140,7 +146,7 @@ ${tetelek}
  * logolható és jelölhető, a fizetés érvényes marad. A totalGross-t csak validáláshoz számoljuk.
  */
 export async function createInvoice(params: CreateInvoiceParams, now: Date = new Date()): Promise<CreateInvoiceResult> {
-  if (!isSzamlazzEnabled()) return { ok: false, disabled: true }
+  if (!params.agentKeyOverride && !isSzamlazzEnabled()) return { ok: false, disabled: true }
   if (!params.lines.length) return { ok: false, error: 'Nincs számlázható tétel' }
 
   const xml = buildXml(params, now)

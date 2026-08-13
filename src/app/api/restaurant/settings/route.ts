@@ -3,9 +3,12 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { can } from '@/lib/permissions'
+import { encryptInvoiceKeysInBody } from '@/lib/encryption'
 
 // Ezeket NEM szabad patch-elni ezen a végponton (owner/tier csak admin módosíthatja).
-const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt'])
+// `stripe_connect_*`: KIZÁRÓLAG szerver-oldali Connect onboarding/webhook írhatja — lásd a
+// salon/settings route azonos megjegyzését.
+const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt', 'stripe_connect_account_id', 'stripe_connect_onboarded'])
 
 function stripPayloadInternals(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(stripPayloadInternals)
@@ -42,6 +45,10 @@ export async function PATCH(request: NextRequest) {
       Object.entries(body as Record<string, unknown>).filter(([k]) => !FORBIDDEN_KEYS.has(k)),
     ),
   ) as Record<string, unknown>
+
+  // A Számlázz.hu/Billingo kulcsokat a kliens nyersen küldi (böngészőben nem lehet titkosítani)
+  // — itt, mentés előtt titkosítjuk, hogy sose kerüljön nyers szöveg a DB-be.
+  encryptInvoiceKeysInBody(safeBody)
 
   const payload = await getPayloadClient()
   const doUpdate = () => payload.update({
