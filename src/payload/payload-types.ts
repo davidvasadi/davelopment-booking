@@ -236,6 +236,8 @@ export interface Reservation {
   source: 'online' | 'walk_in' | 'phone'
   reminder_sent?: boolean | null
   feedback_sent?: boolean | null
+  email_open_check_24h?: boolean | null
+  email_open_check_12h?: boolean | null
   cancel_token?: string | null
   series_id?: string | null
   locale?: 'hu' | 'en' | null
@@ -451,7 +453,7 @@ export interface Notification {
   salon?: string | Salon | null
   user?: string | User | null
   audience: 'owner' | 'member' | 'admin'
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened'
   title: string
   body?: string | null
   read?: boolean | null
@@ -502,6 +504,8 @@ export interface User {
     system?: boolean | null
     staff?: boolean | null
     schedule?: boolean | null
+    digest?: boolean | null
+    email_not_opened?: boolean | null
   } | null
   createdAt: string
   updatedAt: string
@@ -686,6 +690,8 @@ export interface Booking {
   notes?: string | null
   reminder_sent?: boolean | null
   feedback_sent?: boolean | null
+  email_open_check_24h?: boolean | null
+  email_open_check_12h?: boolean | null
   cancellation_token?: string | null
   series_id?: string | null
   locale?: 'hu' | 'en' | null

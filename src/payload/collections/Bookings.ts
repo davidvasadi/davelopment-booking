@@ -153,6 +153,21 @@ export const Bookings: CollectionConfig = {
       admin: { position: 'sidebar', readOnly: true },
     },
     {
+      // Idempotencia: a cron állítja true-ra, miután megnézte, hogy a visszaigazoló email
+      // meg lett-e nyitva a foglalás előtti 24/12 órás ellenőrzési ponton (nem a riasztás
+      // tényét jelzi, hanem hogy az ellenőrzés MEGTÖRTÉNT — így nem kérdez rá kétszer).
+      name: 'email_open_check_24h',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'email_open_check_12h',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
       // Ismétlődő foglalás-sorozat közös azonosítója (opcionális). Egyszeri foglalásnál üres.
       // Ugyanaz az érték köti össze a sorozat tagjait; indexelt a sorozat-lekérdezéshez.
       name: 'series_id',

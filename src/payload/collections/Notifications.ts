@@ -81,6 +81,7 @@ export const Notifications: CollectionConfig = {
         { label: 'Reggeli összefoglaló', value: 'digest_morning' },
         { label: 'Esti összefoglaló', value: 'digest_evening' },
         { label: 'Beosztás változás', value: 'schedule_change' },
+        { label: 'Meg nem nyitott visszaigazoló email', value: 'email_not_opened' },
       ],
     },
     { name: 'title', type: 'text', required: true, label: 'Cím' },

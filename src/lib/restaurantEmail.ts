@@ -190,6 +190,9 @@ export async function sendReminderEmail(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend || !reservation.customer_email) return
+  const cancelUrl = reservation.cancel_token
+    ? `${APP_URL}/${restaurant.slug}/cancel/${reservation.cancel_token}`
+    : null
   const subjectTpl = (restaurant.reminder_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, emailVars(data))
@@ -200,7 +203,7 @@ export async function sendReminderEmail(data: ReservationEmailData) {
       reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
-      html: reminderHtml(data),
+      html: reminderHtml(data, cancelUrl),
     })
     await logEmail('reminder', reservation.customer_email, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
   } catch (err) {
@@ -410,7 +413,7 @@ function notificationHtml(data: ReservationEmailData): string {
   `)
 }
 
-function reminderHtml(data: ReservationEmailData): string {
+function reminderHtml(data: ReservationEmailData, cancelUrl: string | null): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
   return wrap(restaurant, `
@@ -432,7 +435,9 @@ function reminderHtml(data: ReservationEmailData): string {
       icsUrl: reservation.cancel_token
         ? `${APP_URL}/api/ics/reservation/${reservation.cancel_token}`
         : null,
+      directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
     })}
+    ${cancelBlock(cancelUrl, locale)}
     ${bottomSpacer()}
   `)
 }

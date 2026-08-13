@@ -215,6 +215,10 @@ export async function sendReminderEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
+  const cancellationToken = (booking as { cancellation_token?: string }).cancellation_token
+  const cancelUrl = cancellationToken
+    ? `${APP_URL}/booking/confirm-cancel/${cancellationToken}`
+    : null
   const subjectTpl = (salon.reminder_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, emailVars(data))
@@ -225,7 +229,7 @@ export async function sendReminderEmail(data: BookingEmailData) {
       reply_to: salon.email || undefined,
       to: booking.customer_email,
       subject,
-      html: reminderHtml(data),
+      html: reminderHtml(data, cancelUrl),
     })
     await logEmail('reminder', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
@@ -478,7 +482,7 @@ function notificationHtml(data: BookingEmailData): string {
   `)
 }
 
-function reminderHtml(data: BookingEmailData): string {
+function reminderHtml(data: BookingEmailData, cancelUrl: string | null): string {
   const { booking, salon } = data
   const locale = normalizeLocale((booking as { locale?: string }).locale)
   return wrap(salon, `
@@ -497,7 +501,9 @@ function reminderHtml(data: BookingEmailData): string {
       location: salonAddress(salon),
       description: `${t(locale, 'email.label.staff')}: ${data.staff.name}`,
       locale,
+      directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
     })}
+    ${cancelBlock(cancelUrl, locale)}
     ${bottomSpacer()}
   `)
 }

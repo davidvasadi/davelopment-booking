@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 
-type CategoryKey = 'bookings' | 'system' | 'staff' | 'schedule' | 'digest'
+type CategoryKey = 'bookings' | 'system' | 'staff' | 'schedule' | 'digest' | 'email_not_opened'
 
 const CATS: { key: CategoryKey; label: string; sub: string }[] = [
   { key: 'bookings',  label: 'Foglalás',          sub: 'Új foglalás, lemondás, módosítás' },
@@ -10,6 +10,7 @@ const CATS: { key: CategoryKey; label: string; sub: string }[] = [
   { key: 'staff',    label: 'Munkatársak',        sub: 'Csapattagokhoz kapcsolódó események' },
   { key: 'schedule', label: 'Beosztás',           sub: 'Heti beosztás elkészülte és változása' },
   { key: 'digest',   label: 'Napi összefoglaló',  sub: 'Reggeli és esti forgalom-összefoglaló' },
+  { key: 'email_not_opened', label: 'Meg nem nyitott email', sub: 'Ha a vendég 24, majd 12 órával a foglalás előtt sem nyitotta meg a visszaigazolást' },
 ]
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
@@ -22,8 +23,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 }
 
 function useNotifPrefs() {
-  const [prefs, setPrefs] = useState<Record<CategoryKey, boolean>>({ bookings: true, system: true, staff: true, schedule: true, digest: true })
-  const [allowed, setAllowed] = useState<Record<CategoryKey, boolean>>({ bookings: true, system: true, staff: true, schedule: true, digest: false })
+  const [prefs, setPrefs] = useState<Record<CategoryKey, boolean>>({ bookings: true, system: true, staff: true, schedule: true, digest: true, email_not_opened: true })
+  const [allowed, setAllowed] = useState<Record<CategoryKey, boolean>>({ bookings: true, system: true, staff: true, schedule: true, digest: false, email_not_opened: false })
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {

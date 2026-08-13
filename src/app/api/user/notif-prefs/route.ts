@@ -5,14 +5,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-type CategoryKey = 'bookings' | 'system' | 'staff' | 'schedule' | 'digest'
-const CATS: CategoryKey[] = ['bookings', 'system', 'staff', 'schedule', 'digest']
+type CategoryKey = 'bookings' | 'system' | 'staff' | 'schedule' | 'digest' | 'email_not_opened'
+const CATS: CategoryKey[] = ['bookings', 'system', 'staff', 'schedule', 'digest', 'email_not_opened']
 const CAP_KEY: Record<CategoryKey, string> = {
   bookings: 'notifications.bookings',
   system:   'notifications.system',
   staff:    'notifications.staff',
   schedule: 'notifications.schedule',
   digest:   'notifications.digest',
+  email_not_opened: 'notifications.email_not_opened',
 }
 
 export async function GET() {
@@ -30,13 +31,14 @@ export async function GET() {
     staff:    prefs.staff    !== false,
     schedule: prefs.schedule !== false,
     digest:   prefs.digest   !== false,
+    email_not_opened: prefs.email_not_opened !== false,
   }
 
   // Engedélyezett kategóriák: tulaj = minden; member = a custom_role.notification_prefs uniója
   const isOwner = user.role === 'salon_owner' || user.role === 'restaurant_owner' || user.role === 'admin'
 
-  // digest: csak tulajdonosnak releváns (összefoglaló az üzlet forgalmáról)
-  let allowed: Record<CategoryKey, boolean> = { bookings: true, system: true, staff: true, schedule: true, digest: isOwner }
+  // digest / email_not_opened: csak tulajdonosnak releváns (az üzlet forgalmáról/vendégeiről szól)
+  let allowed: Record<CategoryKey, boolean> = { bookings: true, system: true, staff: true, schedule: true, digest: isOwner, email_not_opened: isOwner }
 
   if (!isOwner) {
     // Aktív tagságok custom_role.capabilities-ének uniója alapján
@@ -48,7 +50,7 @@ export async function GET() {
       overrideAccess: true,
     })
 
-    const union: Record<CategoryKey, boolean> = { bookings: false, system: false, staff: false, schedule: false, digest: false }
+    const union: Record<CategoryKey, boolean> = { bookings: false, system: false, staff: false, schedule: false, digest: false, email_not_opened: false }
     for (const m of memberships.docs) {
       const caps = (m.custom_role as { capabilities?: string[] } | null | undefined)?.capabilities ?? []
       if (caps.length === 0) {
@@ -89,6 +91,7 @@ export async function PATCH(req: NextRequest) {
       staff:    existing.staff    !== false,
       schedule: existing.schedule !== false,
       digest:   existing.digest   !== false,
+      email_not_opened: existing.email_not_opened !== false,
     }
     for (const cat of CATS) {
       if (cat in body) merged[cat] = Boolean(body[cat])

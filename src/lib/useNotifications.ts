@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, CalendarRange, type LucideIcon } from 'lucide-react'
+import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, CalendarRange, MailWarning, type LucideIcon } from 'lucide-react'
 
 export type Notification = {
   id: number | string
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened'
   title: string
   body?: string | null
   read?: boolean | null
@@ -47,6 +47,7 @@ export function notificationVisual(type: Notification['type'], metadata?: Record
     case 'new_subscriber':  return { Icon: Sparkles,       color: 'text-[#8A6D12]', bg: 'bg-[#FBF1C9]' }
     case 'digest_morning':   return { Icon: Sunrise,       color: 'text-[#B45309]', bg: 'bg-[#FFFBEB]' }
     case 'digest_evening':   return { Icon: Sunset,        color: 'text-[#4B6CB7]', bg: 'bg-[#EEF2FC]' }
+    case 'email_not_opened': return { Icon: MailWarning,   color: 'text-[#C2410C]', bg: 'bg-[#FFEDD5]' }
     default:                 return { Icon: CalendarPlus,  color: 'text-[#1D9D63]', bg: 'bg-[#E4F2E9]' }
   }
 }

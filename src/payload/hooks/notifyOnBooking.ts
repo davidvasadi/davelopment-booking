@@ -138,7 +138,7 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
             if (typeof user === 'object' && user?.personal_notif_prefs?.bookings === false) return false
             return true
           })
-          .map((m) => m.user).filter(Boolean) as (string | number)[]
+          .map((m) => relId(m.user)).filter(Boolean)
         const url =
           kind === 'restaurant'
             ? `/restaurant/bookings?reservation=${doc.id}`

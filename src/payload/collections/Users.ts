@@ -164,6 +164,7 @@ export const Users: CollectionConfig = {
         { name: 'staff',     type: 'checkbox', defaultValue: true,  label: 'Munkatársak értesítések' },
         { name: 'schedule',  type: 'checkbox', defaultValue: true,  label: 'Beosztás értesítések' },
         { name: 'digest',    type: 'checkbox', defaultValue: true,  label: 'Napi összefoglaló értesítés' },
+        { name: 'email_not_opened', type: 'checkbox', defaultValue: true, label: 'Meg nem nyitott visszaigazoló email riasztás' },
       ],
     },
     {

@@ -56,6 +56,17 @@ function getBudapestInfo(): { hour: number; dateStr: string; dow: string } {
   return { hour, dateStr, dow }
 }
 
+/** A tulaj bekapcsolva hagyta-e a "meg nem nyitott visszaigazoló email" riasztást (alapból igen). */
+async function ownerWantsEmailOpenAlert(
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  ownerId: string | null,
+): Promise<boolean> {
+  if (!ownerId) return false
+  const ownerDoc = await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true })
+  const prefs = (ownerDoc?.personal_notif_prefs as Record<string, boolean | null> | null) ?? {}
+  return prefs.email_not_opened !== false
+}
+
 async function digestAlreadySent(
   payload: Awaited<ReturnType<typeof getPayloadClient>>,
   digestType: 'digest_morning' | 'digest_evening',
@@ -95,7 +106,7 @@ async function handle(request: NextRequest) {
     : null
 
   const now = Date.now()
-  const summary = { reminders: 0, feedback: 0, digest: 0, errors: 0 }
+  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, notificationsCleaned: 0, errors: 0 }
 
   try {
     const payload = await getPayloadClient()
@@ -219,6 +230,142 @@ async function handle(request: NextRequest) {
       } catch (err) {
         summary.errors++
         console.error('[Cron] Restaurant feedback failed for reservation', doc.id, err)
+      }
+    }
+
+    // ── SALON: meg nem nyitott visszaigazoló email riasztás (24h, majd 12h a foglalás előtt) ──
+    for (const hours of [24, 12] as const) {
+      const checkField = hours === 24 ? 'email_open_check_24h' : 'email_open_check_12h'
+      const candidates = await payload.find({
+        collection: 'bookings',
+        where: { [checkField]: { not_equals: true }, status: { not_in: ['cancelled', 'completed'] } },
+        depth: 0, limit: 500, overrideAccess: true,
+      })
+
+      for (const doc of candidates.docs as Booking[]) {
+        try {
+          const start = toMinutes(doc.date, doc.start_time)
+          if (now < start - hours * 3600_000 || now >= start) continue
+
+          const salonId = relId(doc.salon)
+          if (!salonId) continue
+          const salon = (await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })) as Salon
+          const ownerId = relId(salon.owner)
+
+          const emailLogRes = await payload.find({
+            collection: 'email-log',
+            where: { and: [{ type: { equals: 'booking_confirmation' } }, { booking: { equals: doc.id } }] },
+            sort: '-createdAt', limit: 1, depth: 0, overrideAccess: true,
+          })
+          const log = emailLogRes.docs[0] as { ok?: boolean; status?: string } | undefined
+          // Csak akkor riasztunk, ha az email tényleg elment (nem sikertelen — az más, már látható probléma) ÉS
+          // még nem lett megnyitva/rákattintva.
+          const stillUnopened = !!log?.ok && !['opened', 'clicked', 'failed', 'bounced', 'complained'].includes(log.status ?? '')
+
+          if (stillUnopened && (await ownerWantsEmailOpenAlert(payload, ownerId))) {
+            await payload.create({
+              collection: 'notifications',
+              overrideAccess: true,
+              data: {
+                salon: Number(salonId),
+                audience: 'owner',
+                type: 'email_not_opened',
+                title: `Nem nyitotta meg a visszaigazolást – ${doc.customer_name}`,
+                body: `${hours} órával a foglalás előtt (${doc.date} ${doc.start_time}) a vendég még nem nyitotta meg az emailt.`,
+                read: false,
+                booking: Number(doc.id),
+                metadata: { hours, date: doc.date, start_time: doc.start_time },
+              },
+            })
+            if (ownerId) {
+              try {
+                await sendPushToUsers(payload, [ownerId], {
+                  title: `Nem nyitott email – ${salon.name}`,
+                  body: `${doc.customer_name}: ${hours} órával a foglalás előtt még nem nyitotta meg a visszaigazolást.`,
+                  url: '/dashboard/bookings',
+                  tag: `email-open-${doc.id}-${hours}`,
+                })
+              } catch (pushErr) {
+                console.error('[Cron] Salon email-open push failed', pushErr)
+              }
+            }
+            summary.emailOpenAlerts++
+          }
+
+          await payload.update({ collection: 'bookings', id: doc.id, data: { [checkField]: true }, overrideAccess: true })
+        } catch (err) {
+          summary.errors++
+          console.error('[Cron] Salon email-open check failed for booking', doc.id, err)
+        }
+      }
+    }
+
+    // ── RESTAURANT: meg nem nyitott visszaigazoló email riasztás (24h, majd 12h a foglalás előtt) ──
+    for (const hours of [24, 12] as const) {
+      const checkField = hours === 24 ? 'email_open_check_24h' : 'email_open_check_12h'
+      const candidates = await payload.find({
+        collection: 'reservations',
+        where: { [checkField]: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'no_show'] } },
+        depth: 0, limit: 500, overrideAccess: true,
+      })
+
+      for (const doc of candidates.docs as Reservation[]) {
+        try {
+          if (!doc.customer_email) { // nincs kinek — csak jelöljük ellenőrzöttnek, ne kérdezzük újra
+            await payload.update({ collection: 'reservations', id: doc.id, data: { [checkField]: true }, overrideAccess: true })
+            continue
+          }
+          const start = toMinutes(doc.date, doc.start_time)
+          if (now < start - hours * 3600_000 || now >= start) continue
+
+          const restId = relId(doc.restaurant)
+          if (!restId) continue
+          const restaurant = (await payload.findByID({ collection: 'restaurants', id: restId, depth: 0, overrideAccess: true })) as Restaurant
+          const ownerId = relId(restaurant.owner)
+
+          const emailLogRes = await payload.find({
+            collection: 'email-log',
+            where: { and: [{ type: { equals: 'booking_confirmation' } }, { reservation: { equals: doc.id } }] },
+            sort: '-createdAt', limit: 1, depth: 0, overrideAccess: true,
+          })
+          const log = emailLogRes.docs[0] as { ok?: boolean; status?: string } | undefined
+          const stillUnopened = !!log?.ok && !['opened', 'clicked', 'failed', 'bounced', 'complained'].includes(log.status ?? '')
+
+          if (stillUnopened && (await ownerWantsEmailOpenAlert(payload, ownerId))) {
+            await payload.create({
+              collection: 'notifications',
+              overrideAccess: true,
+              data: {
+                restaurant: Number(restId),
+                audience: 'owner',
+                type: 'email_not_opened',
+                title: `Nem nyitotta meg a visszaigazolást – ${doc.customer_name}`,
+                body: `${hours} órával a foglalás előtt (${doc.date} ${doc.start_time}) a vendég még nem nyitotta meg az emailt.`,
+                read: false,
+                reservation: Number(doc.id),
+                metadata: { hours, date: doc.date, start_time: doc.start_time },
+              },
+            })
+            if (ownerId) {
+              try {
+                await sendPushToUsers(payload, [ownerId], {
+                  title: `Nem nyitott email – ${restaurant.name}`,
+                  body: `${doc.customer_name}: ${hours} órával a foglalás előtt még nem nyitotta meg a visszaigazolást.`,
+                  url: '/restaurant/bookings',
+                  tag: `email-open-${doc.id}-${hours}`,
+                })
+              } catch (pushErr) {
+                console.error('[Cron] Restaurant email-open push failed', pushErr)
+              }
+            }
+            summary.emailOpenAlerts++
+          }
+
+          await payload.update({ collection: 'reservations', id: doc.id, data: { [checkField]: true }, overrideAccess: true })
+        } catch (err) {
+          summary.errors++
+          console.error('[Cron] Restaurant email-open check failed for reservation', doc.id, err)
+        }
       }
     }
 
@@ -629,6 +776,22 @@ async function handle(request: NextRequest) {
         summary.errors++
         console.error('[Cron] Restaurant digest failed for', restaurant.id, err)
       }
+    }
+
+    // ── Takarítás: az app-on belüli értesítések (harang-ikon) 90 napnál régebbi
+    //    példányai törlődnek — ez CSAK a `notifications` kollekciót érinti, a foglalás/
+    //    vendég-adatokat (bookings/reservations) és a számlázási bizonylatokat soha.
+    //    Best-effort: nem szabad emiatt elszállnia a cronnak.
+    try {
+      const cutoff = new Date(now - 90 * 24 * 3600_000).toISOString()
+      const deleted = await payload.delete({
+        collection: 'notifications',
+        where: { createdAt: { less_than: cutoff } },
+        overrideAccess: true,
+      })
+      summary.notificationsCleaned = Array.isArray(deleted.docs) ? deleted.docs.length : 0
+    } catch (err) {
+      console.error('[Cron] Notifications cleanup failed', err)
     }
 
     return NextResponse.json({ ok: true, ...summary })

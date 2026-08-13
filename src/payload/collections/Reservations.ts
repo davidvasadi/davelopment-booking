@@ -97,6 +97,20 @@ export const Reservations: CollectionConfig = {
       admin: { position: 'sidebar', readOnly: true },
     },
     {
+      // Idempotencia: a cron állítja true-ra, miután megnézte, hogy a visszaigazoló email
+      // meg lett-e nyitva a foglalás előtti 24/12 órás ellenőrzési ponton.
+      name: 'email_open_check_24h',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'email_open_check_12h',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
       // Ismétlődő foglalás-sorozat közös azonosítója (opcionális). Egyszeri foglalásnál üres.
       name: 'series_id',
       type: 'text',
