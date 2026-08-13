@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal } from '@/lib/utils'
-import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, UserRound } from 'lucide-react'
+import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, UserRound, Banknote } from 'lucide-react'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import BookingActions from '@/components/dashboard/BookingActions'
@@ -84,6 +84,11 @@ const idOf = (v: unknown): string =>
 const serviceOf = (b: Booking): Service | null => (typeof b.service === 'object' ? b.service : null)
 const staffOf = (b: Booking): StaffMember | null => (typeof b.staff === 'object' ? b.staff : null)
 const durationOf = (b: Booking): number => Math.max(0, hhmmToMinutes(b.end_time) - hhmmToMinutes(b.start_time))
+// Egy "extra" (kinyíló) verem tényleges pixel-magassága — a Framer `height: 'auto'` animáció
+// CSS grid-cellában nem mindig méri fel helyesen (láthatatlan maradt a tartalom), ezért itt
+// EXPLICIT pixel-célértéket adunk az animate-nek: minden elem fix 62px + 8px rés köztük + 8px
+// felső padding (space-y-2 pt-2), pontosan a HatchBand/kártya-magassággal megegyezően.
+const extraStackHeightPx = (count: number): number => (count > 0 ? 8 + count * 62 + (count - 1) * 8 : 0)
 const avatarUrlOf = (s: StaffMember | null): string | null => {
   const a = s?.avatar
   return a && typeof a === 'object' ? ((a as Media).url ?? null) : null
@@ -439,6 +444,16 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
                         <Repeat className="h-3 w-3" /> Sorozat
                       </span>
                     )}
+                    {b.payment_status === 'paid' && (
+                      <span title={b.invoice_status === 'issued' ? `Előleg befizetve · Számla: ${b.invoice_number}` : 'Előleg befizetve'} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#DCF3E2] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1D7A3C]">
+                        <Banknote className="h-3 w-3" /> Előleg
+                      </span>
+                    )}
+                    {b.payment_status === 'failed' && (
+                      <span title="Az előleg-fizetés sikertelen volt" className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FBE1DE] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#B3261E]">
+                        <Banknote className="h-3 w-3" /> Sikertelen fizetés
+                      </span>
+                    )}
                   </div>
                   <div className="text-sm text-ink-soft truncate">
                     {svc?.name ?? '—'}{st?.name ? ` · ${st.name}` : ''}{b.customer_phone ? ` · ${b.customer_phone}` : ''}
@@ -686,6 +701,11 @@ function renderBookingCard(b: Booking, onEdit: (b: Booking) => void, showAvatar 
                 <Repeat className="h-3 w-3" /> Sorozat
               </span>
             )}
+            {b.payment_status === 'paid' && (
+              <span title="Előleg befizetve" className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#DCF3E2] text-[#1D7A3C]">
+                <Banknote className="h-2.5 w-2.5" />
+              </span>
+            )}
             <span className={`h-2 w-2 rounded-full ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
           </span>
         </div>
@@ -718,6 +738,13 @@ function HourList({
             .filter((b) => { const s = hhmmToMinutes(b.start_time); return s >= lo && s < hi })
             .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
           const inHour = groupOverlaps(inHourRaw)
+          // Korábbi órában induló, de a szolgáltatás hossza miatt ide is átnyúló foglalások —
+          // enélkül egy 4 órás foglalás a kezdő-óráján túl üresnek tűnt volna.
+          const continuing = active.filter((b) => {
+            const s = hhmmToMinutes(b.start_time)
+            const e = hhmmToMinutes(b.end_time)
+            return s < lo && e > lo
+          })
           const isNow = nowMin != null && nowMin >= m && nowMin < (hourMarks[i + 1] ?? closeMin + 1)
           const isOpen = expanded.has(m)
           const pillCls = isNow ? 'bg-ink-dark text-white' : inHour.length > 0 ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
@@ -773,6 +800,19 @@ function HourList({
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    {continuing.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        {continuing.map((b) => (
+                          <div key={`cont-${b.id}`}>{renderBookingCard(b, onEdit, true, nowMin)}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : continuing.length > 0 ? (
+                  <div className="space-y-2">
+                    {continuing.map((b) => (
+                      <div key={`cont-${b.id}`}>{renderBookingCard(b, onEdit, true, nowMin)}</div>
+                    ))}
                   </div>
                 ) : (
                   <div
@@ -840,6 +880,29 @@ function StaffColumnsTimeline({
         }),
       ),
     [staff, active, hourMarks, openMin, closeMin],
+  )
+
+  // Egy korábbi óra-sávban INDULÓ, de a szolgáltatás hossza miatt ebbe az óra-sávba is átnyúló
+  // foglalás — ha van ilyen, ebben a cellában (ahol maga nem indul semmi új) is ki kell rajzolni
+  // ugyanazt a kártyát, hogy a több órás foglalás vizuálisan minden érintett órában megjelenjen,
+  // ne csak a kezdő-sávjában (ld. felhasználói visszajelzés: pl. egy 10:00–14:40-es Balayage
+  // korábban csak a 10:00-s sorban látszott, 11–14 között üresnek tűnt, pedig foglalt volt).
+  const perStaffHourContinuation = useMemo(
+    () =>
+      staff.map((t) =>
+        hourMarks.map((m, i) => {
+          const lo = i === 0 ? openMin : m
+          return (
+            active.find((b) => {
+              if (idOf(b.staff) !== String(t.id)) return false
+              const s = hhmmToMinutes(b.start_time)
+              const e = hhmmToMinutes(b.end_time)
+              return s < lo && e > lo
+            }) ?? null
+          )
+        }),
+      ),
+    [staff, active, hourMarks, openMin],
   )
 
   return (
@@ -979,7 +1042,7 @@ function StaffColumnsTimeline({
                             key="extra"
                             className="overflow-hidden"
                             initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
+                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
                           >
@@ -987,8 +1050,52 @@ function StaffColumnsTimeline({
                               {rows.slice(1).map((item) => (
                                 <div key={cellKey(item)}>{renderCellItem(item, onEdit, false, nowMin)}</div>
                               ))}
+                              {/* Nincs több valódi extra ebben az oszlopban, DE a saját (rows[0])
+                                  foglalása még mindig tart — az ismétlése tölti ki a maradék
+                                  helyet, hogy egyértelmű legyen: ez nem szabad idő. */}
                               {Array.from({ length: hatchNeeded }).map((_, hi) => (
-                                <HatchBand key={`hatch-${hi}`} />
+                                <div key={`repeat-${hi}`} className="relative">
+                                  <span aria-hidden className="absolute -top-2 left-1/2 h-2 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
+                                  {renderCellItem(rows[0], onEdit, false, nowMin)}
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>,
+                  )
+                  ci += 1
+                } else if (perStaffHourContinuation[ci][i]) {
+                  // Korábbi órában induló, ide is átnyúló foglalás — ugyanaz a kártya jelenik
+                  // meg itt is, a fölötte lévő sorral szaggatott vonallal vizuálisan összekötve.
+                  const t = staff[ci]
+                  const continuing = perStaffHourContinuation[ci][i]!
+                  cells.push(
+                    <div key={`cont-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 2 }} className="relative pb-3">
+                      <span aria-hidden className="absolute -top-3 left-1/2 h-3 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
+                      {renderBookingCard(continuing, onEdit, false, nowMin)}
+                      {/* Ha ez az óra ki van nyitva (mert EGY MÁSIK oszlopnál extra foglalás van),
+                          ez az oszlop is kapjon ugyanannyi hatch-töltőt, hogy a sor magassága
+                          minden oszlopban egyezzen — különben "lyuk" marad a folytatás alatt. */}
+                      <AnimatePresence initial={false}>
+                        {isOpen && maxExtra > 0 && (
+                          <motion.div
+                            key="extra"
+                            className="overflow-hidden"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
+                          >
+                            <div className="space-y-2 pt-2">
+                              {/* A folytatódó foglalás ismétlése tölti ki a helyet — nem szabad
+                                  idő, ezért nem hatch-mintás, hanem maga a kártya. */}
+                              {Array.from({ length: maxExtra }).map((_, hi) => (
+                                <div key={`repeat-${hi}`} className="relative">
+                                  <span aria-hidden className="absolute -top-2 left-1/2 h-2 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
+                                  {renderBookingCard(continuing, onEdit, false, nowMin)}
+                                </div>
                               ))}
                             </div>
                           </motion.div>
@@ -999,7 +1106,7 @@ function StaffColumnsTimeline({
                   ci += 1
                 } else {
                   const start = ci
-                  while (ci < staff.length && perStaffHourBookings[ci][i].length === 0) ci += 1
+                  while (ci < staff.length && perStaffHourBookings[ci][i].length === 0 && !perStaffHourContinuation[ci][i]) ci += 1
                   const span = ci - start
                   cells.push(
                     <div
@@ -1014,11 +1121,12 @@ function StaffColumnsTimeline({
                             key="extra"
                             className="overflow-hidden"
                             initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
+                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
                             exit={{ height: 0, opacity: 0 }}
                             transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
                           >
                             <div className="space-y-2 pt-2">
+                              {/* Itt tényleg nincs semmi — marad a szokásos "szabad" hatch-minta. */}
                               {Array.from({ length: maxExtra }).map((_, hi) => (
                                 <HatchBand key={`hatch-${hi}`} />
                               ))}

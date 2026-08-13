@@ -78,7 +78,7 @@ export default function OpeningHoursLive({
   if (status) {
     if (status.open) {
       label = t(locale, 'openingHours.closeAt', { time: status.today?.close_time ? displayCloseTime(status.today.close_time) : '' })
-      dotClass = 'bg-emerald-400'
+      dotClass = 'bg-gold'
     } else if (status.openSoon && status.today?.open_time) {
       label = t(locale, 'openingHours.openAt', { time: status.today.open_time })
       dotClass = 'bg-amber-400'
@@ -106,7 +106,7 @@ export default function OpeningHoursLive({
           <span className={`relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${clockBgCls}`}>
             <Clock className={`h-4 w-4 ${clockIconCls}`} />
             {status?.open && (
-              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-400 opacity-70 animate-ping" />
+              <span className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-gold opacity-70 animate-ping" />
             )}
             <span className={`absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full ${dotRingCls} ${dotClass}`} />
           </span>

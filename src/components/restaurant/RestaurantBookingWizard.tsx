@@ -11,6 +11,7 @@ import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
 import { HoverArrow } from '@/components/ui/HoverArrow'
 import { DateStrip } from '@/components/booking/DateStrip'
+import { DepositStep } from '@/components/booking/DepositStep'
 import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
 import { makeT, dfLocale, type Locale } from '@/lib/i18n'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
@@ -36,6 +37,7 @@ export function RestaurantBookingWizard({
   initialDateProp,
   initialTimeProp,
   initialPaxProp,
+  depositEnabled = false,
 }: {
   restaurantId: string | number
   slug: string
@@ -52,11 +54,18 @@ export function RestaurantBookingWizard({
   initialDateProp?: string
   initialTimeProp?: string
   initialPaxProp?: number
+  /** Vendég-előleg — ha KI van kapcsolva, a wizard a mai viselkedést mutatja bit-pontosan. */
+  depositEnabled?: boolean
 }) {
   const dk = variant === 'dark'
   const router = useRouter()
   const tt = makeT(locale)
-  const STEPS = [tt('rbooking.step.datetime'), tt('rbooking.step.details'), tt('rbooking.step.review')]
+  // A review-lépés indexe: nincs előleg → MARAD 2 (mai viselkedés, változatlan). Van előleg →
+  // egy új lépés (index 2) ékelődik a details ÉS a review közé, a review 3-ra csúszik.
+  const REVIEW_STEP = depositEnabled ? 3 : 2
+  const STEPS = depositEnabled
+    ? [tt('rbooking.step.datetime'), tt('rbooking.step.details'), 'Előleg', tt('rbooking.step.review')]
+    : [tt('rbooking.step.datetime'), tt('rbooking.step.details'), tt('rbooking.step.review')]
   const searchParams = useSearchParams()
   const initialDate = initialDateProp ?? searchParams.get('date')
   const initialPax = initialPaxProp ?? Number(searchParams.get('pax'))
@@ -83,23 +92,32 @@ export function RestaurantBookingWizard({
   const [phone, setPhone] = useState('')
   const [country, setCountry] = useState('HU')
   const [city, setCity] = useState('')
+  const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
   // Kiválasztott alkalom (occasion) — a kiválasztott esemény-típus indexe, vagy null (nincs külön alkalom).
   const [occasionIdx, setOccasionIdx] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
+  const [depositAmountHuf, setDepositAmountHuf] = useState<number | null>(null)
 
   // ── Mező-szintű validáció (a szalon-wizarddal AZONOS minta: error-placement, blur, focus) ──
-  type FieldKey = 'name' | 'email' | 'phone'
+  type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address'
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const fieldRefs = {
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
     phone: useRef<HTMLInputElement>(null),
+    city: useRef<HTMLInputElement>(null),
+    address: useRef<HTMLInputElement>(null),
   }
   const validateField = (key: FieldKey): string | null => {
     if (key === 'name') return name.trim().length < 2 ? tt('rbooking.err.name') : null
     if (key === 'email') return !/^\S+@\S+\.\S+$/.test(email) ? tt('rbooking.err.email') : null
     if (key === 'phone') return requirePhone && phone.replace(/\s/g, '').length < 7 ? tt('rbooking.err.phone') : null
+    // A Számlázz.hu/Billingo bizonylathoz kötelező a vevő városa ÉS utca+házszáma — csak akkor
+    // kérjük, ha előleg van.
+    if (key === 'city') return depositEnabled && !city.trim() ? 'A város megadása kötelező az előleg-számlázáshoz' : null
+    if (key === 'address') return depositEnabled && !address.trim() ? 'A cím (utca, házszám) megadása kötelező az előleg-számlázáshoz' : null
     return null
   }
   const onFieldBlur = (key: FieldKey) => setErrors(prev => ({ ...prev, [key]: validateField(key) ?? undefined }))
@@ -133,7 +151,7 @@ export function RestaurantBookingWizard({
   }, [restaurantId, date, pax, slotsReloadKey])
 
   const validateDetails = (): boolean => {
-    const order: FieldKey[] = ['name', 'email', 'phone']
+    const order: FieldKey[] = ['name', 'email', 'phone', 'city', 'address']
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -163,11 +181,13 @@ export function RestaurantBookingWizard({
           customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : undefined,
           country,
           customer_city: city.trim() || undefined,
+          customer_address: address.trim() || undefined,
           notes: notes.trim() || undefined,
           ...(occasionIdx != null && eventTypes[occasionIdx]
             ? { occasion: eventTypes[occasionIdx].label, occasion_icon: eventTypes[occasionIdx].icon }
             : {}),
           locale,
+          ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
         }),
       })
       const data = await res.json()
@@ -407,7 +427,38 @@ export function RestaurantBookingWizard({
                   />
                   {errors.phone && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.phone}</p>}
                 </div>
-                <input className={inputClass} autoComplete="address-level2" placeholder={tt('rbooking.field.city')} aria-label={tt('rbooking.field.city')} value={city} onChange={(e) => setCity(e.target.value)} />
+                <div>
+                  <input
+                    ref={fieldRefs.city}
+                    className={cn(inputClass, errors.city && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                    autoComplete="address-level2"
+                    placeholder={depositEnabled ? `${tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('rbooking.field.city')}
+                    aria-label={depositEnabled ? tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '') : tt('rbooking.field.city')}
+                    aria-invalid={!!errors.city}
+                    value={city}
+                    onChange={(e) => { setCity(e.target.value); clearError('city') }}
+                    onBlur={() => onFieldBlur('city')}
+                  />
+                  {errors.city && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.city}</p>}
+                  {depositEnabled && !errors.city && <p className={`mt-1 text-[11px] ${labelCls}`}>Az előleg-számlázáshoz kötelező.</p>}
+                </div>
+                {depositEnabled && (
+                  <div>
+                    <input
+                      ref={fieldRefs.address}
+                      className={cn(inputClass, errors.address && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      autoComplete="street-address"
+                      placeholder="Cím (utca, házszám) *"
+                      aria-label="Cím (utca, házszám)"
+                      aria-invalid={!!errors.address}
+                      value={address}
+                      onChange={(e) => { setAddress(e.target.value); clearError('address') }}
+                      onBlur={() => onFieldBlur('address')}
+                    />
+                    {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
+                    {!errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>Az előleg-számlázáshoz kötelező.</p>}
+                  </div>
+                )}
                 <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
               </div>
 
@@ -471,8 +522,26 @@ export function RestaurantBookingWizard({
             </>
           )}
 
-          {/* Step 2: Összefoglalás + megerősítés */}
-          {step === 2 && (
+          {/* Step 2 (ha van előleg): Előleg-fizetés */}
+          {step === 2 && depositEnabled && (
+            <div className={cardClass} style={cardStyle}>
+              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>Előleg</p>
+              {time && (
+                <DepositStep
+                  dark={dk}
+                  requestBody={{ kind: 'restaurant', restaurantId, date, start_time: time, pax }}
+                  onPaid={(pid, amt) => {
+                    setPaymentIntentId(pid)
+                    setDepositAmountHuf(amt)
+                    goStep(REVIEW_STEP)
+                  }}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Összefoglalás + megerősítés */}
+          {step === REVIEW_STEP && (
             <>
               {/* Foglalás összegzése */}
               <div className="bg-ink-dark rounded-[20px] p-5">
@@ -481,6 +550,9 @@ export function RestaurantBookingWizard({
                 <p className="text-white/60 text-sm mt-1">{format(selectedDateObj, 'MMM d.', { locale: dfLocale(locale) })} · {time}</p>
                 {occasionIdx !== null && eventTypes[occasionIdx] && (
                   <p className="text-white/50 text-xs mt-2">{eventTypes[occasionIdx].label}</p>
+                )}
+                {paymentIntentId && depositAmountHuf && (
+                  <p className="text-gold/80 text-xs mt-2">Előleg fizetve: {depositAmountHuf.toLocaleString('hu-HU')} Ft</p>
                 )}
               </div>
 

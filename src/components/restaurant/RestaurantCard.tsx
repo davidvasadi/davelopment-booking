@@ -39,6 +39,7 @@ export function RestaurantCard({
   eventTypes,
   termsSections,
   company,
+  depositEnabled,
 }: {
   slug: string
   restaurantId: string | number
@@ -58,6 +59,7 @@ export function RestaurantCard({
   eventTypes: EventTypeOption[]
   termsSections?: { title?: string | null; body?: string | null }[] | null
   company?: CompanyInfo | null
+  depositEnabled?: boolean
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(true)
@@ -211,6 +213,7 @@ export function RestaurantCard({
         initialDateProp={bookInitial?.date}
         initialTimeProp={bookInitial?.time}
         initialPaxProp={bookInitial?.pax}
+        depositEnabled={depositEnabled}
       />
     </div>
   )

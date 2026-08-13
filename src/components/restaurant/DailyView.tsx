@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, durationMinutes, ymdLocal } from '@/lib/utils'
-import { List, LayoutGrid, Map as MapIcon, Plus, Users, User, Clock, Repeat } from 'lucide-react'
+import { List, LayoutGrid, Map as MapIcon, Plus, Users, User, Clock, Repeat, Banknote } from 'lucide-react'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -539,6 +539,16 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
                       <Repeat className="h-3 w-3" /> Sorozat
                     </span>
                   )}
+                  {r.payment_status === 'paid' && (
+                    <span title={r.invoice_status === 'issued' ? `Előleg befizetve · Számla: ${r.invoice_number}` : 'Előleg befizetve'} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#DCF3E2] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1D7A3C]">
+                      <Banknote className="h-3 w-3" /> Előleg
+                    </span>
+                  )}
+                  {r.payment_status === 'failed' && (
+                    <span title="Az előleg-fizetés sikertelen volt" className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FBE1DE] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#B3261E]">
+                      <Banknote className="h-3 w-3" /> Sikertelen fizetés
+                    </span>
+                  )}
                 </div>
                 <div className="text-sm text-ink-soft truncate">
                   {r.pax} fő{tableNames.length > 0 ? ` · ${tableNames.join(' + ')} asztal${tableNames.length > 1 ? ' (összevont)' : ''}` : ''}{r.customer_phone ? ` · ${r.customer_phone}` : ''}
@@ -869,6 +879,11 @@ function renderReservationCard(
                 <Repeat className="h-3 w-3" /> Sorozat
               </span>
             )}
+            {r.payment_status === 'paid' && (
+              <span title="Előleg befizetve" className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#DCF3E2] text-[#1D7A3C]">
+                <Banknote className="h-2.5 w-2.5" />
+              </span>
+            )}
             <span className={`h-2 w-2 rounded-full ${overdue ? 'bg-gold' : (statusDot[r.status] ?? 'bg-line-strong')}`} />
           </span>
         </div>
@@ -910,6 +925,13 @@ function MobileTimeline({
             .filter((r) => { const s = hhmmToMinutes(r.start_time); return s >= lo && s < hi })
             .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
           const inHour = groupOverlaps(inHourRaw)
+          // Korábbi órában induló, de a foglalás hossza miatt ide is átnyúló asztalfoglalások —
+          // enélkül egy hosszabb vacsora a kezdő-óráján túl üresnek tűnt volna.
+          const continuing = active.filter((r) => {
+            const s = hhmmToMinutes(r.start_time)
+            const e = hhmmToMinutes(r.end_time)
+            return s < lo && e > lo
+          })
           const isNow = nowMin != null && nowMin >= m && nowMin < (hourMarks[i + 1] ?? closeMin + 1)
           const isOpen = expanded.has(m)
           const pillCls = isNow
@@ -972,6 +994,19 @@ function MobileTimeline({
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    {continuing.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        {continuing.map((r) => (
+                          <div key={`cont-${r.id}`}>{renderReservationCard(r, onEdit, tableNamesOf, nowMin)}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : continuing.length > 0 ? (
+                  <div className="space-y-2">
+                    {continuing.map((r) => (
+                      <div key={`cont-${r.id}`}>{renderReservationCard(r, onEdit, tableNamesOf, nowMin)}</div>
+                    ))}
                   </div>
                 ) : (
                   // Üres óra — Crextio „prison" szaggatott hatch-placeholder kártya (nincs foglalás)

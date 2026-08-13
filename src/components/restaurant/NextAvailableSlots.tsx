@@ -112,8 +112,8 @@ export default function NextAvailableSlots({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <span className="relative flex h-2 w-2">
-            <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-60 animate-ping" />
-            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            <span className="absolute inline-flex h-full w-full rounded-full bg-gold opacity-60 animate-ping" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-gold" />
           </span>
           <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${dk ? 'text-white/50' : 'text-ink-soft'}`}>
             {t(locale, 'nextSlots.heading')} · {dayLabel(date, locale)}

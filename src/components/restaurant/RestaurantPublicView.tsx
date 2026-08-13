@@ -77,9 +77,14 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
           />
+          {/* Dedikált felső árnyék — a navbar mindig olvasható maradjon */}
+          <div
+            className="pointer-events-none absolute top-0 left-0 right-0 z-[2]"
+            style={{ height: '22%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
+          />
           <div
             className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2]"
-            style={{ height: '55%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.72) 100%)' }}
+            style={{ height: '62%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)' }}
           />
         </>
       )}
@@ -110,7 +115,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
         )}
         {reviews.count > 0 && (
           <div className="mt-2">
-            <RatingStars rating={reviews.average} count={reviews.count} />
+            <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
           </div>
         )}
       </div>
@@ -126,7 +131,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
             {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
           </p>
         )}
-        {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-4" />}
+        {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-4" dark={hasCover} />}
         <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
       </div>
 
@@ -158,6 +163,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
           email: restaurant.email,
           phone: restaurant.phone,
         }}
+        depositEnabled={!!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded}
       />
     </div>
   )

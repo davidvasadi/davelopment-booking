@@ -66,7 +66,7 @@ export function HeroNextSlot({ slug, source, locale = 'hu' }: { slug: string; so
   return (
     <Link
       href={`/${slug}/book?${q}`}
-      className="group inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white/90 py-2 pl-2 pr-4 backdrop-blur-[10px] transition-colors hover:bg-white"
+      className="group inline-flex items-center gap-2.5 rounded-full border border-white/20 bg-white py-2 pl-2 pr-4 shadow-[0_2px_16px_rgba(0,0,0,0.18)] transition-colors hover:bg-white"
     >
       <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gold/30 text-ink transition-transform group-hover:scale-105">
         <CalendarClock className="h-[16px] w-[16px]" strokeWidth={2} />

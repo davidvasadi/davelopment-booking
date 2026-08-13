@@ -4,7 +4,7 @@ import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
 import { placeMetadata, placeJsonLd } from '@/lib/publicSeo'
 import { getReviewSummary } from '@/lib/reviews'
 import type { Media } from '@/payload/payload-types'
-import { MapPin } from 'lucide-react'
+import { MapPin, Scissors, Users } from 'lucide-react'
 import { RatingStars } from '@/components/booking/RatingStars'
 import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
 import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
@@ -94,10 +94,17 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
           />
-          {/* Erős alul-gradient — fehér/világos borítóképnél is olvasható marad a cím */}
+          {/* Dedikált felső árnyék — a navbar (logó, jelvények, nyelvváltó) mindig olvasható
+              maradjon, függetlenül attól, hogy a borítókép teteje éppen világos-e */}
+          <div
+            className="pointer-events-none absolute top-0 left-0 right-0 z-[2]"
+            style={{ height: '22%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
+          />
+          {/* Erős alul-gradient — fehér/világos borítóképnél is olvasható marad a cím és a
+              Google-értékelés (magasabb + sötétebb, hogy a csillagok/szám is mindig kiolvasható) */}
           <div
             className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2]"
-            style={{ height: '55%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.72) 100%)' }}
+            style={{ height: '62%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)' }}
           />
         </>
       )}
@@ -111,6 +118,19 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
             // eslint-disable-next-line @next/next/no-img-element
             <img src={logoUrl} alt={salon.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
           )}
+        </div>
+        <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3 lg:gap-5">
+          <div className="flex items-center gap-1.5 lg:gap-2">
+            <Scissors className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+            <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{services.length}</span>
+            <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
+          </div>
+          <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
+          <div className="flex items-center gap-1.5 lg:gap-2">
+            <Users className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+            <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{staff.length}</span>
+            <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
+          </div>
         </div>
         {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
       </nav>
@@ -128,7 +148,7 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         )}
         {reviews.count > 0 && (
           <div className="mt-2">
-            <RatingStars rating={reviews.average} count={reviews.count} />
+            <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
           </div>
         )}
       </div>
@@ -144,7 +164,7 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
             {[salon.address, salon.city].filter(Boolean).join(', ')}
           </p>
         )}
-        {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-5" />}
+        {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-5" dark={hasCover} />}
         <div className="flex flex-wrap items-center gap-3">
           <SalonCtaWrapper>
             <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
@@ -173,7 +193,11 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         email={salon.email}
         website={salon.website}
         nextSlotNode={nextSlotNode}
+        requirePhone={salon.require_phone ?? true}
+        bookingWindowDays={salon.booking_window_days ?? 60}
         termsSections={salon.terms_sections}
+        goodToKnow={salon.good_to_know}
+        depositEnabled={!!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded}
         company={{
           name: salon.name,
           legal_name: salon.legal_name,

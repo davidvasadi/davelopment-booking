@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Check, Clock, ChevronRight, Loader2, Scissors, Users, User, Phone, Mail, Globe, MapPin } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, Loader2, Scissors, Users, User, Phone, Mail, Globe, MapPin, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatPrice, cn } from '@/lib/utils'
@@ -19,12 +18,14 @@ import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryI
 import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import type { Section } from '@/components/booking/TermsContent'
+import { DepositStep } from '@/components/booking/DepositStep'
+import { iconByKey } from '@/components/settings/goodToKnowIcons'
 
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map(c => [c.code, c.dial]))
 
 type Slot = { start: string; end: string }
-type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'summary'
-type FieldKey = 'name' | 'email' | 'phone'
+type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'summary' | 'success'
+type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address'
 
 interface Props {
   slug: string
@@ -45,6 +46,8 @@ interface Props {
   bookingWindowDays?: number
   termsSections?: Section[] | null
   company?: CompanyInfo | null
+  goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
+  depositEnabled?: boolean
 }
 
 function getCategoryId(cat: Service['category']): string | null {
@@ -58,15 +61,17 @@ export function ProfileCard({
   services, staff, serviceCategories,
   phone, email, website, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
-  termsSections, company,
+  termsSections, company, goodToKnow, depositEnabled = false,
 }: Props) {
-  const router = useRouter()
   const tt = makeT(locale)
 
   // Browse navigation state
   const [view, setView] = useState<View>('main')
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null)
+  // Ha a főnézeten előbb egy konkrét munkatársat választ a vendég, ezt tároljuk — a
+  // szolgáltatás-listát rá szűrjük, és a serviceDetail nézeten már nem kérdezünk rá újra.
+  const [preStaffId, setPreStaffId] = useState<string | null>(null)
   const [dir, setDir] = useState(1)
 
   // Booking flow state
@@ -78,7 +83,11 @@ export function ProfileCard({
   const [customerPhone, setCustomerPhone] = useState('')
   const [customerCountry, setCustomerCountry] = useState('HU')
   const [customerCity, setCustomerCity] = useState('')
+  const [customerAddress, setCustomerAddress] = useState('')
   const [customerNotes, setCustomerNotes] = useState('')
+  const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
+  const [depositAmountHuf, setDepositAmountHuf] = useState<number | null>(null)
+  const [successDetails, setSuccessDetails] = useState<{ service: string; staff: string; date: string; time: string } | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [slotsError, setSlotsError] = useState(false)
@@ -99,22 +108,35 @@ export function ProfileCard({
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
     phone: useRef<HTMLInputElement>(null),
+    city: useRef<HTMLInputElement>(null),
+    address: useRef<HTMLInputElement>(null),
   }
 
-  const isBookingView = view === 'datetime' || view === 'details' || view === 'summary'
+  const isBookingView = view === 'datetime' || view === 'details' || view === 'deposit' || view === 'summary'
+
+  // Egy szolgáltatás csak akkor foglalható a publikus oldalon, ha legalább egy munkatárs hozzá
+  // van rendelve — enélkül a foglaló-varázsló zsákutcába futna (nincs kit választani a
+  // szakember-lépésen), ezért az ilyen, még be nem állított szolgáltatás egyáltalán nem
+  // jelenik meg, amíg a tulaj hozzá nem rendel valakit a Beállításokban.
+  const staffIdsOf = (s: Service) =>
+    (s.staff ?? []).map(m => String(m && typeof m === 'object' && 'id' in m ? (m as { id: unknown }).id : m))
+  const isServiceEligibleForStaff = (s: Service, staffId: string) => staffIdsOf(s).includes(staffId)
+  const bookableServices = services.filter(s => staffIdsOf(s).length > 0)
+  const visibleServices = preStaffId ? bookableServices.filter(s => isServiceEligibleForStaff(s, preStaffId)) : bookableServices
+  const preStaff = preStaffId ? staff.find(m => String(m.id) === preStaffId) ?? null : null
 
   const hasCategories = serviceCategories.length > 0
   const categoryGroups = hasCategories
     ? serviceCategories
         .map(cat => ({
           ...cat,
-          services: services.filter(s => getCategoryId(s.category) === cat.id),
+          services: visibleServices.filter(s => getCategoryId(s.category) === cat.id),
         }))
         .filter(g => g.services.length > 0)
     : []
 
   const selectedCategory = categoryGroups.find(g => g.id === selectedCategoryId)
-  const servicesInView = selectedCategory?.services ?? services
+  const servicesInView = selectedCategory?.services ?? visibleServices
   const selectedService = services.find(s => String(s.id) === selectedServiceId) ?? null
   const serviceImgUrl = selectedService?.image && typeof selectedService.image === 'object'
     ? (selectedService.image as Media).url ?? null : null
@@ -142,6 +164,7 @@ export function ProfileCard({
     setDir(d ?? (newView !== 'main' ? 1 : -1))
     setSelectedCategoryId(catId)
     setSelectedServiceId(svcId)
+    if (newView === 'main') setPreStaffId(null)
     setView(newView)
   }
 
@@ -160,6 +183,27 @@ export function ProfileCard({
     else if (view === 'services' && selectedCategoryId !== null) goTo('services', null, null, -1)
     else if (view === 'services') goTo('main', null, null, -1)
     else goTo('main', null, null, -1)
+  }
+
+  const handleCloseSuccess = () => {
+    setDir(-1)
+    setView('main')
+    setSuccessDetails(null)
+    setSelectedCategoryId(null)
+    setSelectedServiceId(null)
+    setPreStaffId(null)
+    setBookingStaffId(null)
+    setBookingSlot(null)
+    setCustomerName('')
+    setCustomerEmail('')
+    setCustomerPhone('')
+    setCustomerCity('')
+    setCustomerAddress('')
+    setCustomerNotes('')
+    setPaymentIntentId(null)
+    setDepositAmountHuf(null)
+    setErrors({})
+    setSheetOpen(false)
   }
 
   // Desktop CTA — BookCtaMorph / nextSlotNode open services view
@@ -200,6 +244,8 @@ export function ProfileCard({
     if (key === 'name') return !customerName || customerName.trim().length < 2 ? tt('booking.err.name') : null
     if (key === 'email') return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) ? tt('booking.err.email') : null
     if (key === 'phone') return requirePhone && customerPhone.replace(/\s/g, '').length < 7 ? tt('booking.err.phone') : null
+    if (key === 'city') return depositEnabled && !customerCity.trim() ? 'A város megadása kötelező az előleg-számlázáshoz' : null
+    if (key === 'address') return depositEnabled && !customerAddress.trim() ? 'A cím (utca, házszám) megadása kötelező az előleg-számlázáshoz' : null
     return null
   }
 
@@ -214,7 +260,7 @@ export function ProfileCard({
 
   const submit = async () => {
     if (!selectedServiceId || !bookingSlot) return
-    const order: FieldKey[] = ['name', 'email', 'phone']
+    const order: FieldKey[] = ['name', 'email', 'phone', ...(depositEnabled ? (['city', 'address'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -239,18 +285,23 @@ export function ProfileCard({
             ? `${DIAL_BY_CODE[customerCountry] ?? ''} ${customerPhone.trim()}`.trim()
             : '',
           customer_city: customerCity.trim() || undefined,
+          customer_address: customerAddress.trim() || undefined,
           notes: customerNotes, locale,
+          ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
         }),
       })
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error ?? tt('booking.err.generic'))
       }
-      const params = new URLSearchParams({
-        name: customerName, service: bookingService?.name ?? '',
-        date: bookingDate, time: bookingSlot.start,
+      setSuccessDetails({
+        service: bookingService?.name ?? '',
+        staff: bookingStaffId ? (bookingStaff?.name ?? '') : tt('booking.staff.any'),
+        date: format(bookingDateParsed, 'MMM d.', { locale: dfLocale(locale) }),
+        time: bookingSlot.start,
       })
-      router.push(`/${slug}/book/success?${params}`)
+      setDir(1)
+      setView('success')
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : tt('booking.err.generic'))
     } finally {
@@ -324,10 +375,12 @@ export function ProfileCard({
           <div className="h-1 w-9 rounded-full bg-white/20" />
         </div>
 
-        {/* Step indicator row — minden nem-main nézeten */}
-        {view !== 'main' && (() => {
-          const stepIndex = view === 'services' || view === 'serviceDetail' ? 0 : view === 'datetime' ? 1 : view === 'details' ? 2 : 3
-          const stepCount = 4
+        {/* Step indicator row — minden nem-main, nem-success nézeten */}
+        {view !== 'main' && view !== 'success' && (() => {
+          const stepIndex = view === 'services' || view === 'serviceDetail' ? 0
+            : view === 'datetime' ? 1 : view === 'details' ? 2
+            : view === 'deposit' ? 3 : depositEnabled ? 4 : 3
+          const stepCount = depositEnabled ? 5 : 4
           return (
             <div className="shrink-0 flex items-center justify-between px-5 pb-2 pt-1 lg:px-6">
               <button
@@ -414,20 +467,20 @@ export function ProfileCard({
               {/* MAIN */}
               {view === 'main' && (
                 <div className="space-y-5 pb-2">
-                  {services.length > 0 && (
+                  {bookableServices.length > 0 && (
                     <div>
                       <div className="mb-3 flex items-center gap-2">
                         <Scissors className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.services')}</p>
                       </div>
                       <button
-                        onClick={() => goTo('services', null)}
+                        onClick={() => { setPreStaffId(null); goTo('services', null) }}
                         className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99]"
                         style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
                       >
                         <div>
                           <p className="text-[13px] font-semibold text-white">Válassz szolgáltatást</p>
-                          <p className="text-[11px] text-white/45">{services.length} szolgáltatás</p>
+                          <p className="text-[11px] text-white/45">{bookableServices.length} szolgáltatás</p>
                         </div>
                         <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
                       </button>
@@ -445,7 +498,7 @@ export function ProfileCard({
                           return (
                             <button
                               key={m.id}
-                              onClick={() => goTo('services', null)}
+                              onClick={() => { setPreStaffId(String(m.id)); goTo('services', null) }}
                               className="relative transition-opacity hover:opacity-90"
                               style={{ aspectRatio: '3/4', clipPath: 'inset(0 round 12px)' }}
                             >
@@ -509,8 +562,11 @@ export function ProfileCard({
               {/* SERVICES — service list */}
               {view === 'services' && (categoryGroups.length === 0 || selectedCategoryId !== null) && (
                 <div className="pb-2">
-                  <h3 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{selectedCategory?.name ?? tl(locale, 'public.services')}</h3>
-                  <div className="space-y-1.5">
+                  <h3 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{selectedCategory?.name ?? tl(locale, 'public.services')}</h3>
+                  {preStaff && (
+                    <p className="mb-4 text-[12px] text-white/45">{preStaff.name} szolgáltatásai</p>
+                  )}
+                  <div className={cn('space-y-1.5', !preStaff && 'mt-4')}>
                     {servicesInView.map(s => (
                       <button
                         key={s.id}
@@ -549,7 +605,26 @@ export function ProfileCard({
                   {selectedService.description && (
                     <p className="mt-3 text-[13px] leading-relaxed text-white/60">{selectedService.description}</p>
                   )}
-                  {serviceStaff.length > 0 && (
+                  {preStaff ? (
+                    <button
+                      onClick={() => startBooking(preStaffId)}
+                      className="mt-5 flex w-full items-center gap-3 rounded-2xl p-3 text-left transition-all active:scale-[0.98]"
+                      style={{ background: 'rgba(255,255,255,0.08)', boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.14)' }}
+                    >
+                      <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-full bg-white/10">
+                        {preStaff.avatar && typeof preStaff.avatar === 'object' && (preStaff.avatar as Media).url ? (
+                          <img src={(preStaff.avatar as Media).url ?? undefined} alt={preStaff.name} className="absolute inset-0 h-full w-full object-cover object-top" />
+                        ) : (
+                          <div className="absolute inset-0 flex items-center justify-center"><User className="h-6 w-6 text-white/40" /></div>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] text-white/45">Munkatárs</p>
+                        <p className="truncate text-[14px] font-semibold text-white">{preStaff.name}</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
+                    </button>
+                  ) : serviceStaff.length > 0 && (
                     <div className="mt-5 grid grid-cols-2 gap-2">
                       <button
                         onClick={() => startBooking(null)}
@@ -719,13 +794,35 @@ export function ProfileCard({
                       {errors.phone && <p role="alert" className="text-[12px] text-red-400">{errors.phone}</p>}
                     </div>
                     <div className="space-y-1">
-                      <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.city')}</Label>
+                      <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                        {depositEnabled ? `${tt('booking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.city')}
+                      </Label>
                       <Input
-                        id="bk-city" value={customerCity} onChange={e => setCustomerCity(e.target.value)}
+                        id="bk-city" ref={fieldRefs.city} value={customerCity}
+                        onChange={e => { setCustomerCity(e.target.value); clearError('city') }}
+                        onBlur={() => onFieldBlur('city')}
+                        aria-invalid={!!errors.city}
                         autoComplete="address-level2" placeholder={tt('booking.field.cityPlaceholder')}
-                        className="h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                        className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.city && 'ring-1 ring-red-400')}
                       />
+                      {errors.city && <p role="alert" className="text-[12px] text-red-400">{errors.city}</p>}
+                      {depositEnabled && !errors.city && <p className="text-[11px] text-white/40">Az előleg-számlázáshoz kötelező.</p>}
                     </div>
+                    {depositEnabled && (
+                      <div className="space-y-1">
+                        <Label htmlFor="bk-address" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Cím (utca, házszám) *</Label>
+                        <Input
+                          id="bk-address" ref={fieldRefs.address} value={customerAddress}
+                          onChange={e => { setCustomerAddress(e.target.value); clearError('address') }}
+                          onBlur={() => onFieldBlur('address')}
+                          aria-invalid={!!errors.address}
+                          autoComplete="street-address" placeholder="Pl. Fő utca 12."
+                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.address && 'ring-1 ring-red-400')}
+                        />
+                        {errors.address && <p role="alert" className="text-[12px] text-red-400">{errors.address}</p>}
+                        {!errors.address && <p className="text-[11px] text-white/40">Az előleg-számlázáshoz kötelező.</p>}
+                      </div>
+                    )}
                     <div className="space-y-1">
                       <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.note')}</Label>
                       <Textarea
@@ -735,6 +832,27 @@ export function ProfileCard({
                       />
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* DEPOSIT */}
+              {view === 'deposit' && depositEnabled && (
+                <div>
+                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">Előleg</h2>
+                  {/* bookingStaffId lehet null ("Bármelyik szakember") — a deposit-intent route
+                      old fel egy konkrét, szabad szakembert, ha nincs megadva. */}
+                  {selectedServiceId && bookingSlot && (
+                    <DepositStep
+                      dark
+                      requestBody={{ kind: 'salon', salonId, serviceId: selectedServiceId, staffId: bookingStaffId, date: bookingDate, start_time: bookingSlot.start }}
+                      onPaid={(pid, amount) => {
+                        setPaymentIntentId(pid)
+                        setDepositAmountHuf(amount)
+                        setDir(1)
+                        setView('summary')
+                      }}
+                    />
+                  )}
                 </div>
               )}
 
@@ -748,6 +866,7 @@ export function ProfileCard({
                       { label: tt('booking.step.staff'), value: bookingStaffId ? (bookingStaff?.name ?? '–') : tt('booking.staff.any') },
                       { label: tt('booking.step.datetime'), value: `${format(bookingDateParsed, 'MMM d.', { locale: dfLocale(locale) })} · ${bookingSlot.start}` },
                       { label: tt('booking.price'), value: formatPrice(bookingService.price, bookingService.currency) },
+                      ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: formatPrice(depositAmountHuf, 'HUF') }] : []),
                     ].map(({ label, value }, i, arr) => (
                       <div key={label}>
                         <div className="flex items-center justify-between">
@@ -775,6 +894,65 @@ export function ProfileCard({
                       </div>
                     ))}
                   </div>
+                  {(goodToKnow ?? []).filter(p => p?.title || p?.body).length > 0 && (
+                    <div className="mb-3 rounded-2xl p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+                      <div className="flex items-center gap-2 mb-1">
+                        <Info className="h-3.5 w-3.5 text-white/40" />
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tt('goodToKnow.title')}</p>
+                      </div>
+                      {(goodToKnow ?? []).filter(p => p?.title || p?.body).map((p, i) => {
+                        const Icon = iconByKey(p?.icon)
+                        return (
+                          <div key={p?.id ?? i} className="flex gap-2.5">
+                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.12] mt-0.5">
+                              <Icon className="h-3 w-3 text-white" />
+                            </div>
+                            <div className="min-w-0">
+                              {p?.title && <p className="text-[12px] font-semibold text-white">{p.title}</p>}
+                              {p?.body && <p className="text-[11px] text-white/55">{p.body}</p>}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SUCCESS */}
+              {view === 'success' && (
+                <div className="flex min-h-[50vh] flex-col items-center justify-center px-1 py-8 text-center">
+                  <motion.div
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                    className="mb-6 flex h-20 w-20 items-center justify-center rounded-full"
+                    style={{ background: 'rgba(52,211,153,0.15)' }}
+                  >
+                    <CheckCircle className="h-10 w-10 text-emerald-400" />
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.15 }}
+                  >
+                    <h2 className="mb-2 text-2xl font-light tracking-[-0.01em] text-white">{tt('public.success.title')}</h2>
+                    <p className="mb-8 text-sm text-white/55">{tt('public.success.subtitle')}</p>
+                    {successDetails && (
+                      <div className="mb-8 rounded-[16px] px-5 py-4 text-left" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                        <p className="mb-1 text-xs text-white/45">{tt('booking.summary.title')}</p>
+                        <p className="font-semibold text-gold">{successDetails.service}</p>
+                        <p className="mt-1 text-sm text-white/60">{successDetails.staff} · {successDetails.date} · {successDetails.time}</p>
+                      </div>
+                    )}
+                    <button
+                      onClick={handleCloseSuccess}
+                      className="flex h-12 w-full items-center justify-center rounded-full text-[14px] font-semibold text-ink-dark"
+                      style={{ background: '#FFD85F' }}
+                    >
+                      {tt('public.success.back')}
+                    </button>
+                  </motion.div>
                 </div>
               )}
 
@@ -784,50 +962,55 @@ export function ProfileCard({
         </div>{/* /scroll */}
 
         {/* Footer */}
-        {isBookingView ? (
+        {view === 'success' ? null : isBookingView ? (
           <div
             className="shrink-0 px-6 pt-2 space-y-2"
             style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
           >
-            <button
-              onClick={() => {
-                if (view === 'summary') {
-                  submit()
-                } else if (view === 'details') {
-                  const order: FieldKey[] = ['name', 'email', 'phone']
-                  const nextErrors: Partial<Record<FieldKey, string>> = {}
-                  for (const key of order) {
-                    const msg = validateField(key)
-                    if (msg) nextErrors[key] = msg
+            {/* A deposit view-n a DepositStep saját "Fizetés" gombja intézi a tovább-lépést, a közös CTA-t elrejtjük */}
+            {view !== 'deposit' && (
+              <>
+                <button
+                  onClick={() => {
+                    if (view === 'summary') {
+                      submit()
+                    } else if (view === 'details') {
+                      const order: FieldKey[] = ['name', 'email', 'phone', ...(depositEnabled ? (['city', 'address'] as FieldKey[]) : [])]
+                      const nextErrors: Partial<Record<FieldKey, string>> = {}
+                      for (const key of order) {
+                        const msg = validateField(key)
+                        if (msg) nextErrors[key] = msg
+                      }
+                      if (Object.keys(nextErrors).length > 0) {
+                        setErrors(nextErrors)
+                        const firstBad = order.find(k => nextErrors[k])
+                        if (firstBad) fieldRefs[firstBad].current?.focus()
+                        return
+                      }
+                      setDir(1)
+                      setView(depositEnabled ? 'deposit' : 'summary')
+                    }
+                  }}
+                  disabled={view === 'datetime' || submitting}
+                  className="flex h-14 w-full items-center justify-center gap-2 rounded-full text-[15px] font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100"
+                  style={{
+                    background: view === 'summary' ? '#FFD85F' : view === 'details' ? 'white' : 'rgba(255,255,255,0.10)',
+                    color: view === 'summary' ? 'var(--ink-dark)' : view === 'details' ? 'var(--ink-dark)' : 'rgba(255,255,255,0.30)',
+                  }}
+                >
+                  {submitting
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : view === 'summary' ? tt('booking.confirm') : tt('booking.next')
                   }
-                  if (Object.keys(nextErrors).length > 0) {
-                    setErrors(nextErrors)
-                    const firstBad = order.find(k => nextErrors[k])
-                    if (firstBad) fieldRefs[firstBad].current?.focus()
-                    return
-                  }
-                  setDir(1)
-                  setView('summary')
-                }
-              }}
-              disabled={view === 'datetime' || submitting}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-full text-[15px] font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100"
-              style={{
-                background: view === 'summary' ? '#FFD85F' : view === 'details' ? 'white' : 'rgba(255,255,255,0.10)',
-                color: view === 'summary' ? 'var(--ink-dark)' : view === 'details' ? 'var(--ink-dark)' : 'rgba(255,255,255,0.30)',
-              }}
-            >
-              {submitting
-                ? <Loader2 className="h-4 w-4 animate-spin" />
-                : view === 'summary' ? tt('booking.confirm') : tt('booking.next')
-              }
-              {!submitting && view === 'details' && <Check className="h-4 w-4 opacity-70" />}
-            </button>
-            {view === 'summary' && (
-              <div className="text-center text-xs text-white/40">
-                {tt('rbooking.termsPrefix')}{' '}
-                <TermsModal sections={termsSections} company={company} locale={locale} />
-              </div>
+                  {!submitting && view === 'details' && <Check className="h-4 w-4 opacity-70" />}
+                </button>
+                {view === 'summary' && (
+                  <div className="text-center text-xs text-white/40">
+                    {tt('rbooking.termsPrefix')}{' '}
+                    <TermsModal sections={termsSections} company={company} locale={locale} />
+                  </div>
+                )}
+              </>
             )}
           </div>
         ) : (

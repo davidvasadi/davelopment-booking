@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAvailableSlots } from '@/lib/availability'
+import { getAvailableSlots, getAvailableSlotsAnyStaff } from '@/lib/availability'
 import { getCurrentUser } from '@/lib/auth'
 
 const schema = z.object({
@@ -24,7 +24,13 @@ export async function GET(request: NextRequest) {
   const user = includePast ? await getCurrentUser() : null
 
   try {
-    const slots = await getAvailableSlots({ salonId, staffId, serviceId, date, includePast: !!user })
+    // staffId nélkül ("Bármelyik szakember") az eligible staff-pool minden tagjának SAJÁT
+    // nyitvatartását/foglaltságát nézve, unióban adjuk vissza a szabad időpontokat — lásd
+    // getAvailableSlotsAnyStaff dokumentációját arról, miért nem elég egyetlen staffId nélküli
+    // getAvailableSlots-hívás.
+    const slots = staffId
+      ? await getAvailableSlots({ salonId, staffId, serviceId, date, includePast: !!user })
+      : await getAvailableSlotsAnyStaff({ salonId, serviceId, date, includePast: !!user })
     return NextResponse.json({ slots })
   } catch (err) {
     console.error('[Slots API]', err)
