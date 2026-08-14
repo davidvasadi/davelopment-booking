@@ -20,6 +20,8 @@ export interface Config {
     'opening-hours-exceptions': OpeningHoursException
     reservations: Reservation
     waitlist: Waitlist
+    'gift-vouchers': GiftVoucher
+    'gift-voucher-types': GiftVoucherType
     customers: Customer
     notifications: Notification
     reviews: Review
@@ -138,6 +140,12 @@ export interface Restaurant {
     per_pax_amount_huf?: number | null
     refund_hours_before?: number | null
     payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  } | null
+  voucher_settings?: {
+    enabled?: boolean | null
+    min_amount_huf?: number | null
+    max_amount_huf?: number | null
+    validity_months?: number | null
   } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null
@@ -268,6 +276,8 @@ export interface Reservation {
   invoice_number?: string | null
   invoice_pdf_url?: string | null
   invoice_status?: ('none' | 'issued' | 'failed') | null
+  voucher_code?: string | null
+  voucher_discount_huf?: number | null
   createdAt: string
   updatedAt: string
 }
@@ -284,6 +294,48 @@ export interface Waitlist {
   customer_phone?: string | null
   status: 'waiting' | 'notified' | 'promoted' | 'expired'
   token: string
+  locale?: 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr' | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GiftVoucherType {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  name: string
+  amount_huf: number
+  image?: string | Media | null
+  description?: string | null
+  active?: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GiftVoucher {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  voucher_type?: string | GiftVoucherType | null
+  type_name?: string | null
+  code: string
+  amount_huf: number
+  image?: string | Media | null
+  qr_code_url?: string | null
+  purchaser_name: string
+  purchaser_email: string
+  recipient_name?: string | null
+  recipient_email?: string | null
+  message?: string | null
+  status: 'active' | 'redeemed' | 'expired' | 'refunded'
+  payment_intent_id: string
+  expires_at: string
+  redeemed_at?: string | null
+  redeemed_booking?: string | Booking | null
+  redeemed_reservation?: string | Reservation | null
+  invoice_number?: string | null
+  invoice_pdf_url?: string | null
+  invoice_status?: 'none' | 'issued' | 'failed' | null
   locale?: 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr' | null
   createdAt: string
   updatedAt: string
@@ -450,6 +502,7 @@ export interface EmailLogEntry {
     | 'digest_evening'
     | 'waitlist_signup'
     | 'waitlist_opening'
+    | 'voucher_purchase'
     | 'team_invite'
     | 'password_reset'
     | 'schedule_change'
@@ -480,13 +533,14 @@ export interface Notification {
   salon?: string | Salon | null
   user?: string | User | null
   audience: 'owner' | 'member' | 'admin'
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'voucher_purchase'
   title: string
   body?: string | null
   read?: boolean | null
   metadata?: Record<string, unknown> | null
   reservation?: string | Reservation | null
   booking?: string | Booking | null
+  voucher?: string | GiftVoucher | null
   createdAt: string
   updatedAt: string
 }
@@ -604,6 +658,12 @@ export interface Salon {
     per_pax_amount_huf?: number | null
     refund_hours_before?: number | null
     payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  } | null
+  voucher_settings?: {
+    enabled?: boolean | null
+    min_amount_huf?: number | null
+    max_amount_huf?: number | null
+    validity_months?: number | null
   } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null
@@ -749,6 +809,8 @@ export interface Booking {
   invoice_number?: string | null
   invoice_pdf_url?: string | null
   invoice_status?: ('none' | 'issued' | 'failed') | null
+  voucher_code?: string | null
+  voucher_discount_huf?: number | null
   createdAt: string
   updatedAt: string
 }

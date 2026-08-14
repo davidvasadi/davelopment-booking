@@ -200,6 +200,12 @@ export default async function RestaurantSettingsPage() {
           hasSzamlazzKey: !!r.invoice_settings?.szamlazz_agent_key_enc,
           hasBillingoKey: !!r.invoice_settings?.billingo_api_key_enc,
         }}
+        voucherSettings={{
+          enabled: r.voucher_settings?.enabled ?? false,
+          minAmountHuf: r.voucher_settings?.min_amount_huf ?? 2000,
+          maxAmountHuf: r.voucher_settings?.max_amount_huf ?? 100000,
+          validityMonths: r.voucher_settings?.validity_months ?? 12,
+        }}
         stripeConnectAccountId={r.stripe_connect_account_id ?? null}
         stripeConnectOnboarded={!!r.stripe_connect_onboarded}
         rules={rules}

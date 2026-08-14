@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
-import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData } from './PaymentsSettingsPanel'
+import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData, type VoucherSettingsData } from './PaymentsSettingsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
 import { PersonalNotifPrefsCard } from './PersonalNotifPrefsCard'
@@ -259,6 +259,7 @@ export interface SettingsHubProps {
   /** Vendég-előleg (Stripe Connect) + számlázási beállítások kezdőértéke — a Fizetések panelnek. */
   depositSettings: DepositSettingsData
   invoiceSettings: InvoiceSettingsData
+  voucherSettings: VoucherSettingsData
   stripeConnectAccountId: string | null
   stripeConnectOnboarded: boolean
 }
@@ -290,7 +291,7 @@ export function SettingsHub({
   featureModules, auditLog, rolesSection, customRoles = [],
   sub, billingAccount, pricing, activeBusinessId, startedAt,
   icalUrl, bookingUrl, webhookUrl, myCapabilities,
-  depositSettings, invoiceSettings, stripeConnectAccountId, stripeConnectOnboarded,
+  depositSettings, invoiceSettings, voucherSettings, stripeConnectAccountId, stripeConnectOnboarded,
 }: SettingsHubProps) {
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
@@ -937,6 +938,7 @@ export function SettingsHub({
               apiBase={apiBase}
               deposit={depositSettings}
               invoice={invoiceSettings}
+              voucher={voucherSettings}
               stripeConnectAccountId={stripeConnectAccountId}
               stripeConnectOnboarded={stripeConnectOnboarded}
             />

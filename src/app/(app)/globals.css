@@ -115,6 +115,18 @@ html {
   scrollbar-width: none;
 }
 
+/* Hibás mező-remegés — érvénytelen kötelező mezőknél (voucher-formok), a mező az érvénytelenné
+   válás PILLANATÁBAN fut le egyszer (a hívó a `key`-t váltja, hogy remount-tal újrainduljon). */
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
 @keyframes shimmer {
   from { background-position: -200% 0; }
   to   { background-position:  200% 0; }

@@ -18,6 +18,7 @@ import {
 } from './emailLayout'
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
+import { formatPrice } from './utils'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -339,6 +340,118 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
   } catch (err) {
     console.error('[Email] Waitlist opening failed:', err)
     await logEmail('waitlist_opening', data.customer_email, subject, false, String(err))
+  }
+}
+
+// ── Ajándékutalvány ────────────────────────────────────────────────────────────
+
+export interface VoucherEmailData {
+  salon: Salon
+  code: string
+  amountHuf: number
+  qrCodeDataUrl: string
+  purchaserName: string
+  purchaserEmail: string
+  recipientName?: string | null
+  recipientEmail?: string | null
+  message?: string | null
+}
+
+function voucherHtml(data: VoucherEmailData, forRecipient: boolean): string {
+  const subtitle = forRecipient
+    ? `${data.purchaserName} ajándékutalvánnyal lepett meg — ${data.salon.name}-nél váltható be.`
+    : `Köszönjük a vásárlást — az utalvány kódját alább, illetve a mellékelt QR-kóddal is átadhatod.`
+  return wrap(data.salon, `
+    ${heroBlock({
+      icon: 'success',
+      title: forRecipient ? 'Ajándékutalványt kaptál!' : 'Ajándékutalvány megvásárolva',
+      subtitle,
+    })}
+    ${detailsCard([
+      infoRow('sparkle', 'Kód', data.code),
+      infoRow('note', 'Összeg', formatPrice(data.amountHuf, 'HUF')),
+      ...(data.message ? [infoRow('mail', 'Üzenet', escapeHtml(data.message))] : []),
+    ].join(''))}
+    <tr>
+      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <img src="${data.qrCodeDataUrl}" width="180" height="180" alt="QR-kód a beváltáshoz" style="display:inline-block;border-radius:12px" />
+      </td>
+    </tr>
+    ${bottomSpacer()}
+  `)
+}
+
+/** Vásárlás-visszaigazolás a vásárlónak (mindig kimegy). */
+export async function sendVoucherPurchaseEmail(data: VoucherEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  const subject = `Ajándékutalvány megvásárolva – ${data.salon.name}`
+  try {
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(data.salon.name),
+      reply_to: data.salon.email || undefined,
+      to: data.purchaserEmail,
+      subject,
+      html: voucherHtml(data, false),
+    })
+    await logEmail('voucher_purchase', data.purchaserEmail, subject, true, undefined, { resendId: sendResult?.id })
+  } catch (err) {
+    console.error('[Email] Voucher purchase failed:', err)
+    await logEmail('voucher_purchase', data.purchaserEmail, subject, false, String(err))
+  }
+}
+
+/** Maga az ajándék a megajándékozottnak — csak akkor hívjuk, ha `recipient_email` van megadva. */
+export async function sendVoucherGiftEmail(data: VoucherEmailData) {
+  const resend = getResend()
+  if (!resend || !data.recipientEmail) return
+  const subject = `Ajándékutalványt kaptál – ${data.salon.name}`
+  try {
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(data.salon.name),
+      reply_to: data.salon.email || undefined,
+      to: data.recipientEmail,
+      subject,
+      html: voucherHtml(data, true),
+    })
+    await logEmail('voucher_purchase', data.recipientEmail, subject, true, undefined, { resendId: sendResult?.id })
+  } catch (err) {
+    console.error('[Email] Voucher gift failed:', err)
+    await logEmail('voucher_purchase', data.recipientEmail, subject, false, String(err))
+  }
+}
+
+/** A dashboardból (személyzet) kiállított fizetési link elküldése a vásárlónak emailben — a
+ *  vendég a linkről fizet, a kód/QR csak sikeres fizetés után, KÜLÖN emailben megy (lásd fent). */
+export async function sendVoucherPaymentLinkEmail(data: { salon: Salon; purchaserName: string; purchaserEmail: string; amountHuf: number; typeName?: string | null; url: string }) {
+  const resend = getResend()
+  if (!resend) return
+  const subject = `Fizetési link – ajándékutalvány – ${data.salon.name}`
+  const html = wrap(data.salon, `
+    ${heroBlock({
+      icon: 'success',
+      title: 'Ajándékutalvány fizetése',
+      subtitle: `${data.salon.name} elküldte a fizetési linket${data.typeName ? ` (${escapeHtml(data.typeName)})` : ''} — ${formatPrice(data.amountHuf, 'HUF')}.`,
+    })}
+    <tr>
+      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <a href="${data.url}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:999px;letter-spacing:-0.1px">Fizetés</a>
+      </td>
+    </tr>
+    ${bottomSpacer()}
+  `)
+  try {
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(data.salon.name),
+      reply_to: data.salon.email || undefined,
+      to: data.purchaserEmail,
+      subject,
+      html,
+    })
+    await logEmail('voucher_purchase', data.purchaserEmail, subject, true, undefined, { resendId: sendResult?.id })
+  } catch (err) {
+    console.error('[Email] Voucher payment link failed:', err)
+    await logEmail('voucher_purchase', data.purchaserEmail, subject, false, String(err))
   }
 }
 

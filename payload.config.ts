@@ -23,6 +23,8 @@ import { OpeningHours } from './src/payload/collections/OpeningHours'
 import { OpeningHoursExceptions } from './src/payload/collections/OpeningHoursExceptions'
 import { Reservations } from './src/payload/collections/Reservations'
 import { Waitlist } from './src/payload/collections/Waitlist'
+import { GiftVouchers } from './src/payload/collections/GiftVouchers'
+import { GiftVoucherTypes } from './src/payload/collections/GiftVoucherTypes'
 import { Customers } from './src/payload/collections/Customers'
 import { Notifications } from './src/payload/collections/Notifications'
 import { Reviews } from './src/payload/collections/Reviews'
@@ -81,6 +83,8 @@ export default buildConfig({
     OpeningHoursExceptions,
     Reservations,
     Waitlist,
+    GiftVouchers,
+    GiftVoucherTypes,
     Customers,
     Notifications,
     Reviews,

@@ -28,6 +28,26 @@ export async function ownsThisSalon(
   }
 }
 
+/** Az `ownsThisSalon` étterem-megfelelője — ugyanaz a minta, `restaurants` collectionre. */
+export async function ownsThisRestaurant(
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  user: { id: string | number; role?: string },
+  restaurantId: unknown,
+): Promise<boolean> {
+  if (user.role === 'admin') return true
+  const rid = restaurantId && typeof restaurantId === 'object' ? (restaurantId as { id: unknown }).id : restaurantId
+  if (rid == null) return false
+  try {
+    const restaurant = await payload.findByID({ collection: 'restaurants', id: rid as string | number, depth: 0, overrideAccess: true })
+    const ownerId = restaurant?.owner && typeof restaurant.owner === 'object'
+      ? (restaurant.owner as { id: unknown }).id
+      : restaurant?.owner
+    return String(ownerId) === String(user.id)
+  } catch {
+    return false
+  }
+}
+
 /** Auth check helper: visszaadja a usert vagy 401-es NextResponse-t. */
 export async function authOrUnauthorized(): Promise<User | NextResponse> {
   const user = await getCurrentUser()

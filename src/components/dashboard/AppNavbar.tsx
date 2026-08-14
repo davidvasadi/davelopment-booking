@@ -56,6 +56,7 @@ export function AppNavbar({
   userAvatarUrl = null,
   businesses = [],
   activeBusinessKey = null,
+  hiddenHrefs = [],
 }: {
   variant: DashboardVariant
   capabilities?: Capability[]
@@ -66,9 +67,11 @@ export function AppNavbar({
   userAvatarUrl?: string | null
   businesses?: SwitcherBusiness[]
   activeBusinessKey?: string | null
+  /** Nav-hrefek, amiket egy kikapcsolt funkció miatt el kell rejteni (pl. utalványok). */
+  hiddenHrefs?: string[]
 }) {
   const { publicUrlPrefix, settingsHref, subscriptionHref, notificationsHref } = getNavConfig(variant)
-  const items = navItemsForCapabilities(variant, capabilities)
+  const items = navItemsForCapabilities(variant, capabilities, hiddenHrefs)
   const pathname = usePathname()
   const searchParams = useSearchParams()
 

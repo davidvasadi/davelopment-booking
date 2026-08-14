@@ -36,6 +36,7 @@ export const EmailLog: CollectionConfig = {
         { label: 'Értékelés-kérés', value: 'feedback' },
         { label: 'Várólista feliratkozás', value: 'waitlist_signup' },
         { label: 'Várólista felszabadult', value: 'waitlist_opening' },
+        { label: 'Ajándékutalvány vásárlás', value: 'voucher_purchase' },
         { label: 'Foglalás módosítás', value: 'modification' },
         { label: 'Reggeli összefoglaló', value: 'digest_morning' },
         { label: 'Esti összefoglaló', value: 'digest_evening' },

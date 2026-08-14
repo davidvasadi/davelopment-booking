@@ -4,6 +4,8 @@ import type { Payload } from 'payload'
 import { getStripe } from '@/lib/stripe'
 import { getPayloadClient } from '@/lib/payload'
 import { isAccountFullyOnboarded } from '@/lib/stripeConnect'
+import { createGiftVoucher } from '@/lib/createGiftVoucher'
+import type { Salon, Restaurant } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -77,6 +79,35 @@ export async function POST(req: Request) {
 
       case 'payment_intent.succeeded': {
         const intent = event.data.object as Stripe.PaymentIntent
+
+        // Ajándékutalvány — admin által küldött fizetési link sikeres fizetése (a guest
+        // online-vásárlás flow-ja NEM ide fut be, azt a kliens hívja meg közvetlenül a
+        // `/api/vouchers` route-on, ez itt csak a link-alapú útra vonatkozik). A metadata a
+        // `manual-create` route-ban lett feltöltve. Dupla-védelem: ha már létezik voucher
+        // ezzel a payment_intent_id-vel (pl. a kliens-oldal is lefutott), nem hoz létre újat.
+        if (intent.metadata?.kind === 'gift-voucher') {
+          const existing = await payload.find({ collection: 'gift-vouchers', where: { payment_intent_id: { equals: intent.id } }, limit: 1, overrideAccess: true })
+          if (existing.totalDocs === 0) {
+            const md = intent.metadata
+            const kind: 'salon' | 'restaurant' = md.salonId ? 'salon' : 'restaurant'
+            const business = kind === 'salon'
+              ? ((await payload.findByID({ collection: 'salons', id: md.salonId, overrideAccess: true }).catch(() => null)) as Salon | null)
+              : ((await payload.findByID({ collection: 'restaurants', id: md.restaurantId, overrideAccess: true }).catch(() => null)) as Restaurant | null)
+            if (business) {
+              await createGiftVoucher({
+                kind,
+                business,
+                amountHuf: Math.round(intent.amount / 100),
+                voucherTypeId: md.voucherTypeId,
+                paymentIntentId: intent.id,
+                buyer: { name: md.purchaserName, email: md.purchaserEmail, city: md.purchaserCity, address: md.purchaserAddress, taxNumber: md.purchaserTaxNumber || undefined },
+                recipient: { name: md.recipientName || undefined, email: md.recipientEmail || undefined, message: md.message || undefined },
+              })
+            }
+          }
+          break
+        }
+
         const found = await findBookingByPaymentIntent(payload, intent.id)
         if (found && (found.doc as { payment_status?: string }).payment_status !== 'paid') {
           await payload.update({ collection: found.collection, id: found.doc.id, overrideAccess: true, data: { payment_status: 'paid', deposit_paid: true } })

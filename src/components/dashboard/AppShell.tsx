@@ -38,6 +38,7 @@ export function AppShell({
   businesses = [],
   activeBusinessKey = null,
   capabilities = [],
+  voucherEnabled = false,
   children,
 }: {
   variant: DashboardVariant
@@ -55,8 +56,11 @@ export function AppShell({
   activeBusinessKey?: string | null
   /** A hatékony képesség-halmaz az aktív üzletben — a nav-láthatóság ez alapján szűr. */
   capabilities?: Capability[]
+  /** Ha false, az "Utalványok" nav-elem sehol nem jelenik meg (a funkció ki van kapcsolva). */
+  voucherEnabled?: boolean
   children: React.ReactNode
 }) {
+  const hiddenHrefs = voucherEnabled ? [] : [variant === 'restaurant' ? '/restaurant/vouchers' : '/dashboard/vouchers']
   return (
     <div className="font-onest min-h-screen bg-paper bg-dav-container lg:bg-none text-ink">
       {/* Mobil fejléc + ⌘K (a desktop sidebart az új TopNav váltja) */}
@@ -73,6 +77,7 @@ export function AppShell({
         userAvatarUrl={userAvatarUrl}
         businesses={businesses}
         activeBusinessKey={activeBusinessKey}
+        hiddenHrefs={hiddenHrefs}
       />
 
       {/* Desktopon lekerekített, gradientes konténer; mobilon a gradient a teljes oldal-háttér (a kártyák üvegesen ülnek rajta) */}
@@ -89,6 +94,7 @@ export function AppShell({
               userAvatarUrl={userAvatarUrl}
               businesses={businesses}
               activeBusinessKey={activeBusinessKey}
+              hiddenHrefs={hiddenHrefs}
             />
 
             <div className="lg:mt-6">
@@ -106,6 +112,7 @@ export function AppShell({
         userName={userName}
         userEmail={userEmail}
         userAvatarUrl={userAvatarUrl}
+        hiddenHrefs={hiddenHrefs}
       />
       {lockedStatus && <DashboardLockModal status={lockedStatus} />}
       {variant !== 'backstage' && <OnboardingTour variant={variant} userId={userId} />}

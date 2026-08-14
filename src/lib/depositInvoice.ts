@@ -10,11 +10,13 @@ type InvoiceSettings = {
 } | null | undefined
 
 /**
- * Sikeres előleg-fizetés után bizonylat kiállítása az üzlet SAJÁT Számlázz.hu/Billingo
- * fiókjából — best-effort, fire-and-forget (a hívó `void`-dal hívja, nem blokkolja a
- * foglalás-válasz visszaadását, mint az emailküldés máshol is). Hiba esetén `invoice_status:
- * 'failed'`-ra állítja a foglalást — ez NEM vonja vissza a fizetést/foglalást, csak jelzi a
- * tulajnak, hogy manuálisan kell számlát kiállítania.
+ * Sikeres fizetés (előleg VAGY ajándékutalvány-vásárlás) után bizonylat kiállítása az üzlet
+ * SAJÁT Számlázz.hu/Billingo fiókjából — best-effort, fire-and-forget (a hívó `void`-dal hívja,
+ * nem blokkolja a válasz visszaadását, mint az emailküldés máshol is). Hiba esetén
+ * `invoice_status: 'failed'`-ra állítja a rekordot — ez NEM vonja vissza a fizetést, csak jelzi
+ * a tulajnak, hogy manuálisan kell számlát kiállítania. A név "deposit" marad (történeti okból,
+ * ez épült elsőnek), de a `collection` unió miatt a voucher-vásárlás (`/api/vouchers`) is ezt
+ * hívja — nincs értelme egy szinte szó szerint másolt második fájlnak.
  */
 export async function issueDepositInvoiceBestEffort({
   collection,
@@ -25,12 +27,13 @@ export async function issueDepositInvoiceBestEffort({
   grossHuf,
   orderRef,
 }: {
-  collection: 'bookings' | 'reservations'
+  collection: 'bookings' | 'reservations' | 'gift-vouchers'
   id: string | number
   invoiceSettings: InvoiceSettings
   /** A Számlázz.hu a `city`-t (település) kötelezőnek tartja — ha a vendég nem adta meg,
-   *  a bizonylat-kiállítás hibázni fog (best-effort, nem blokkolja a foglalást). */
-  buyer: { name: string; email: string; city?: string | null; address?: string | null; zip?: string | null }
+   *  a bizonylat-kiállítás hibázni fog (best-effort, nem blokkolja a foglalást). A `taxNumber`
+   *  opcionális — csak céges vásárlónál töltött, a `InvoiceBuyer.taxNumber`-be megy tovább. */
+  buyer: { name: string; email: string; city?: string | null; address?: string | null; zip?: string | null; taxNumber?: string | null }
   label: string
   grossHuf: number
   orderRef: string

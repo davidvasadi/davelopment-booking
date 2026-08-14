@@ -149,6 +149,33 @@ export const depositSettingsFields: Field[] = [
 ]
 
 /**
+ * Ajándékutalvány beállítások — PER ÜZLET. Ugyanazt a Stripe Connect-fiókot használja, mint az
+ * előleg (`stripeConnectFields` lent) — nincs második Connect-integráció. A vásárló szabadon
+ * beírt összeggel vásárol (nincs preset-lista), a min/max csak visszaélés elleni szerver-oldali
+ * korlát.
+ */
+export const voucherSettingsFields: Field[] = [
+  {
+    name: 'voucher_settings',
+    type: 'group',
+    label: 'Ajándékutalvány-beállítások',
+    fields: [
+      { name: 'enabled', type: 'checkbox', defaultValue: false, label: 'Ajándékutalvány bekapcsolva' },
+      { name: 'min_amount_huf', type: 'number', min: 0, defaultValue: 2000, label: 'Minimum összeg (Ft)' },
+      { name: 'max_amount_huf', type: 'number', min: 0, defaultValue: 100000, label: 'Maximum összeg (Ft)' },
+      {
+        name: 'validity_months',
+        type: 'number',
+        min: 1,
+        defaultValue: 12,
+        label: 'Érvényesség (hónap)',
+        admin: { description: 'A vásárlástól számítva ennyi hónapig váltható be az utalvány.' },
+      },
+    ],
+  },
+]
+
+/**
  * Stripe Connect állapot-mezők — ROOT-SZINTEN (nem a `deposit_settings` group-ban) és
  * admin-only `access.update`-tel, mert a Salon/Restaurant Settings PATCH route
  * (`src/app/api/salon|restaurant/settings/route.ts`) `overrideAccess: true`-val ment, ami a

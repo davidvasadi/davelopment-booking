@@ -26,6 +26,7 @@ export default function MobileBottomNav({
   userName = null,
   userEmail = null,
   userAvatarUrl = null,
+  hiddenHrefs = [],
 }: {
   subscription?: SubInfo
   variant?: DashboardVariant
@@ -33,9 +34,11 @@ export default function MobileBottomNav({
   userName?: string | null
   userEmail?: string | null
   userAvatarUrl?: string | null
+  /** Nav-hrefek, amiket egy kikapcsolt funkció miatt el kell rejteni (pl. utalványok). */
+  hiddenHrefs?: string[]
 }) {
   const { settingsHref, subscriptionHref } = getNavConfig(variant)
-  const navItems = navItemsForCapabilities(variant, capabilities)
+  const navItems = navItemsForCapabilities(variant, capabilities, hiddenHrefs)
   const canBilling = !capabilities || capabilities.includes('billing.manage')
   const pathname = usePathname()
   const router = useRouter()

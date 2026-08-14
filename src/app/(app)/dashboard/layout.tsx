@@ -62,6 +62,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       businesses={businesses}
       activeBusinessKey={`${active.type}:${active.id}`}
       capabilities={active.capabilities}
+      voucherEnabled={!!salon.voucher_settings?.enabled}
     >
       <LiveRefreshProvider businessKey={`${active.type}:${active.id}`} />
       <PageTransition>{children}</PageTransition>

@@ -28,11 +28,19 @@ export interface InvoiceSettingsData {
   hasBillingoKey: boolean
 }
 
+export interface VoucherSettingsData {
+  enabled: boolean
+  minAmountHuf: number
+  maxAmountHuf: number
+  validityMonths: number
+}
+
 interface Props {
   variant: 'salon' | 'restaurant'
   apiBase: string
   deposit: DepositSettingsData
   invoice: InvoiceSettingsData
+  voucher: VoucherSettingsData
   stripeConnectAccountId: string | null
   stripeConnectOnboarded: boolean
 }
@@ -51,12 +59,15 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   )
 }
 
-export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, stripeConnectAccountId, stripeConnectOnboarded }: Props) {
+export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, stripeConnectAccountId, stripeConnectOnboarded }: Props) {
   const [connecting, setConnecting] = useState(false)
   const [loginLinkLoading, setLoginLinkLoading] = useState(false)
 
   const [d, setD] = useState<DepositSettingsData>(deposit)
   const [saving, setSaving] = useState(false)
+
+  const [v, setV] = useState<VoucherSettingsData>(voucher)
+  const [savingVoucher, setSavingVoucher] = useState(false)
 
   const [invoiceProvider, setInvoiceProvider] = useState(invoice.provider)
   const [szamlazzKeyInput, setSzamlazzKeyInput] = useState('')
@@ -118,6 +129,31 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, stri
       toast.error('Hiba történt')
     } finally {
       setSaving(false)
+    }
+  }
+
+  const saveVoucher = async () => {
+    setSavingVoucher(true)
+    try {
+      const res = await fetch(apiBase, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          voucher_settings: {
+            enabled: v.enabled,
+            min_amount_huf: v.minAmountHuf,
+            max_amount_huf: v.maxAmountHuf,
+            validity_months: v.validityMonths,
+          },
+        }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Mentve')
+    } catch {
+      toast.error('Hiba történt')
+    } finally {
+      setSavingVoucher(false)
     }
   }
 
@@ -291,6 +327,64 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, stri
             className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            Mentés
+          </button>
+        </div>
+      </div>
+
+      {/* Ajándékutalvány */}
+      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-[15px] font-medium text-ink">Ajándékutalvány</div>
+            <div className="text-[13px] text-ink-soft">A típusok kezelése és az eladott utalványok a dashboard "Utalványok" oldalán érhetők el.</div>
+          </div>
+          <Toggle checked={v.enabled} onChange={() => setV((s) => ({ ...s, enabled: !s.enabled }))} />
+        </div>
+
+        {v.enabled && (
+          <div className="space-y-3 border-t border-dashed border-line pt-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Min. összeg (Ft)</label>
+                <input
+                  type="number" min={0}
+                  value={v.minAmountHuf}
+                  onChange={(e) => setV((s) => ({ ...s, minAmountHuf: Number(e.target.value) || 0 }))}
+                  className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+                />
+              </div>
+              <div>
+                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Max. összeg (Ft)</label>
+                <input
+                  type="number" min={0}
+                  value={v.maxAmountHuf}
+                  onChange={(e) => setV((s) => ({ ...s, maxAmountHuf: Number(e.target.value) || 0 }))}
+                  className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Érvényesség (hónap)</label>
+              <input
+                type="number" min={1}
+                value={v.validityMonths}
+                onChange={(e) => setV((s) => ({ ...s, validityMonths: Number(e.target.value) || 1 }))}
+                className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+              />
+              <p className="mt-1 text-[12px] text-ink-soft2">A vásárlástól számítva ennyi hónapig váltható be az utalvány.</p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={saveVoucher}
+            disabled={savingVoucher}
+            className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {savingVoucher && <Loader2 className="h-4 w-4 animate-spin" />}
             Mentés
           </button>
         </div>

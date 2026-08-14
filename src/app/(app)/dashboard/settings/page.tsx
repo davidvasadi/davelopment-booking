@@ -204,6 +204,12 @@ export default async function SettingsPage() {
           hasSzamlazzKey: !!salon.invoice_settings?.szamlazz_agent_key_enc,
           hasBillingoKey: !!salon.invoice_settings?.billingo_api_key_enc,
         }}
+        voucherSettings={{
+          enabled: salon.voucher_settings?.enabled ?? false,
+          minAmountHuf: salon.voucher_settings?.min_amount_huf ?? 2000,
+          maxAmountHuf: salon.voucher_settings?.max_amount_huf ?? 100000,
+          validityMonths: salon.voucher_settings?.validity_months ?? 12,
+        }}
         stripeConnectAccountId={salon.stripe_connect_account_id ?? null}
         stripeConnectOnboarded={!!salon.stripe_connect_onboarded}
         rules={rules}
