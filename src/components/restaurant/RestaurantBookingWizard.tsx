@@ -38,6 +38,7 @@ export function RestaurantBookingWizard({
   initialTimeProp,
   initialPaxProp,
   depositEnabled = false,
+  voucherEnabled = false,
 }: {
   restaurantId: string | number
   slug: string
@@ -56,6 +57,7 @@ export function RestaurantBookingWizard({
   initialPaxProp?: number
   /** Vendég-előleg — ha KI van kapcsolva, a wizard a mai viselkedést mutatja bit-pontosan. */
   depositEnabled?: boolean
+  voucherEnabled?: boolean
 }) {
   const dk = variant === 'dark'
   const router = useRouter()
@@ -99,6 +101,31 @@ export function RestaurantBookingWizard({
   const [submitting, setSubmitting] = useState(false)
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
   const [depositAmountHuf, setDepositAmountHuf] = useState<number | null>(null)
+
+  // Ajándékutalvány-beváltás — opcionális mező a details lépésen.
+  const [redeemOpen, setRedeemOpen] = useState(false)
+  const [redeemCode, setRedeemCode] = useState('')
+  const [redeemChecking, setRedeemChecking] = useState(false)
+  const [redeemValid, setRedeemValid] = useState<{ amount_huf: number } | null>(null)
+  const [redeemError, setRedeemError] = useState<string | null>(null)
+  const checkRedeemCode = async () => {
+    const code = redeemCode.trim()
+    if (!code) { setRedeemValid(null); setRedeemError(null); return }
+    setRedeemChecking(true)
+    setRedeemError(null)
+    try {
+      const params = new URLSearchParams({ code, restaurantId: String(restaurantId) })
+      const res = await fetch(`/api/vouchers/validate?${params}`)
+      const json = await res.json()
+      if (json.valid) setRedeemValid({ amount_huf: json.amount_huf })
+      else { setRedeemValid(null); setRedeemError(json.reason ?? 'Érvénytelen kód.') }
+    } catch {
+      setRedeemValid(null)
+      setRedeemError('Nem sikerült ellenőrizni a kódot.')
+    } finally {
+      setRedeemChecking(false)
+    }
+  }
 
   // ── Mező-szintű validáció (a szalon-wizarddal AZONOS minta: error-placement, blur, focus) ──
   type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address'
@@ -188,6 +215,7 @@ export function RestaurantBookingWizard({
             : {}),
           locale,
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
+          ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
         }),
       })
       const data = await res.json()
@@ -460,6 +488,32 @@ export function RestaurantBookingWizard({
                   </div>
                 )}
                 <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                {voucherEnabled && (
+                  <div className="space-y-2">
+                    {!redeemOpen ? (
+                      <button
+                        type="button"
+                        onClick={() => setRedeemOpen(true)}
+                        className={`text-[12px] font-medium underline underline-offset-2 transition-colors ${dk ? 'text-white/45 hover:text-white/70' : 'text-ink-soft hover:text-ink'}`}
+                      >
+                        Van ajándékutalványod?
+                      </button>
+                    ) : (
+                      <div>
+                        <input
+                          value={redeemCode}
+                          onChange={(e) => { setRedeemCode(e.target.value.toUpperCase()); setRedeemValid(null); setRedeemError(null) }}
+                          onBlur={checkRedeemCode}
+                          placeholder="XXXX-XXXX"
+                          className={inputClass}
+                        />
+                        {redeemChecking && <p className={`mt-1 text-[11px] ${labelCls}`}>Ellenőrzés…</p>}
+                        {redeemError && <p role="alert" className="mt-1 text-[12px] text-red-500">{redeemError}</p>}
+                        {redeemValid && <p className="mt-1 text-[12px] text-emerald-500">Érvényes utalvány — jóváírva a foglaláskor.</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Alkalom-választó — a tulaj esemény-típusaiból, Lucide-ikonos pillekkel. Opcionális. */}

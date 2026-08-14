@@ -24,7 +24,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
   const available = resolveAvailableLocales(base.restaurant.supported_locales)
   const locale = available.includes(requested) ? requested : 'hu'
   const data = locale === 'hu' ? base : (await getPublicRestaurant(slug, locale)) ?? base
-  const { restaurant } = data
+  const { restaurant, voucherTypes } = data
 
   const [reviews, maxPax] = await Promise.all([
     getReviewSummary('restaurant', restaurant.id),
@@ -164,6 +164,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
           phone: restaurant.phone,
         }}
         depositEnabled={!!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded}
+        voucherEnabled={!!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0}
+        voucherTypes={voucherTypes}
       />
     </div>
   )

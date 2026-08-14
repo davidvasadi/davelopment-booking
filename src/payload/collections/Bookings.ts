@@ -260,6 +260,8 @@ export const Bookings: CollectionConfig = {
       ],
       admin: { position: 'sidebar' },
     },
+    { name: 'voucher_code', type: 'text', label: 'Beváltott utalvány-kód', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'voucher_discount_huf', type: 'number', label: 'Utalvánnyal fedezett összeg (Ft)', admin: { position: 'sidebar', readOnly: true } },
   ],
   hooks: {
     afterChange: [notifyOnBooking('salon'), sseAfterChange('salon'), auditAfterChange('Foglalás', 'salon')],

@@ -8,6 +8,7 @@ import type {
   StaffMember,
   Restaurant,
   OpeningHour,
+  GiftVoucherType,
 } from '@/payload/payload-types'
 
 /**
@@ -33,11 +34,13 @@ export type PublicSalonData = {
   services: Service[]
   staff: StaffMember[]
   serviceCategories: ServiceCategory[]
+  voucherTypes: GiftVoucherType[]
 } | null
 
 export type PublicRestaurantData = {
   restaurant: Restaurant
   openingHours: OpeningHour[]
+  voucherTypes: GiftVoucherType[]
 } | null
 
 async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSalonData> {
@@ -55,7 +58,7 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
   if (!salonResult.docs.length) return null
   const salon = salonResult.docs[0] as Salon
 
-  const [servicesResult, staffResult, categoriesResult] = await Promise.all([
+  const [servicesResult, staffResult, categoriesResult, voucherTypesResult] = await Promise.all([
     payload.find({
       collection: 'services',
       where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }] },
@@ -83,6 +86,13 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
       locale,
       fallbackLocale: 'hu',
     }),
+    payload.find({
+      collection: 'gift-voucher-types',
+      where: { and: [{ salon: { equals: salon.id } }, { active: { equals: true } }] },
+      sort: 'amount_huf',
+      depth: 1,
+      limit: 100,
+    }),
   ])
 
   return {
@@ -90,6 +100,7 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
     services: servicesResult.docs as Service[],
     staff: staffResult.docs as StaffMember[],
     serviceCategories: categoriesResult.docs as ServiceCategory[],
+    voucherTypes: voucherTypesResult.docs as GiftVoucherType[],
   }
 }
 
@@ -107,15 +118,25 @@ async function fetchPublicRestaurant(slug: string, locale: Locale): Promise<Publ
   if (!result.docs.length) return null
   const restaurant = result.docs[0] as Restaurant
 
-  const ohResult = await payload.find({
-    collection: 'opening-hours',
-    where: { restaurant: { equals: restaurant.id } },
-    limit: 100,
-  })
+  const [ohResult, voucherTypesResult] = await Promise.all([
+    payload.find({
+      collection: 'opening-hours',
+      where: { restaurant: { equals: restaurant.id } },
+      limit: 100,
+    }),
+    payload.find({
+      collection: 'gift-voucher-types',
+      where: { and: [{ restaurant: { equals: restaurant.id } }, { active: { equals: true } }] },
+      sort: 'amount_huf',
+      depth: 1,
+      limit: 100,
+    }),
+  ])
 
   return {
     restaurant,
     openingHours: ohResult.docs as OpeningHour[],
+    voucherTypes: voucherTypesResult.docs as GiftVoucherType[],
   }
 }
 

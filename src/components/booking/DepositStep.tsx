@@ -20,9 +20,16 @@ type DepositStepProps = {
   /** A wizard hívja, ha a fizetés sikeresen megtörtént — a payment_intent_id-t a submit()-nak kell átadnia. */
   onPaid: (paymentIntentId: string, depositAmountHuf: number) => void
   dark?: boolean
+  /** Melyik intent-létrehozó endpointot hívja — előleg-fizetésnél a default marad, ajándék-
+   *  utalvány TELJES összegű vásárlásánál `/api/payments/voucher-intent`-re állítható. */
+  endpoint?: string
+  /** A fizetés-gomb felirat-előtagja (`{label} — {összeg}`) — default "Előleg fizetése". */
+  payLabel?: string
+  /** A pajzs-ikon melletti tájékoztató szöveg — default az előleg-szövegezés. */
+  infoText?: string
 }
 
-function ConfirmForm({ depositAmountHuf, onPaid, dark }: { depositAmountHuf: number; onPaid: DepositStepProps['onPaid']; paymentIntentId: string } & Pick<DepositStepProps, 'onPaid' | 'dark'>) {
+function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel }: { depositAmountHuf: number; onPaid: DepositStepProps['onPaid']; paymentIntentId: string } & Pick<DepositStepProps, 'onPaid' | 'dark' | 'payLabel'>) {
   const stripe = useStripe()
   const elements = useElements()
   const [submitting, setSubmitting] = useState(false)
@@ -54,13 +61,13 @@ function ConfirmForm({ depositAmountHuf, onPaid, dark }: { depositAmountHuf: num
           dark ? 'bg-gold text-ink-dark hover:opacity-90' : 'bg-ink-dark text-white hover:opacity-90'
         }`}
       >
-        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : `Előleg fizetése — ${formatPrice(depositAmountHuf, 'HUF')}`}
+        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : `${payLabel ?? 'Előleg fizetése'} — ${formatPrice(depositAmountHuf, 'HUF')}`}
       </button>
     </div>
   )
 }
 
-export function DepositStep({ requestBody, onPaid, dark }: DepositStepProps) {
+export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/payments/deposit-intent', payLabel, infoText }: DepositStepProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
@@ -72,18 +79,20 @@ export function DepositStep({ requestBody, onPaid, dark }: DepositStepProps) {
     let cancelled = false
     setLoading(true)
     setError(null)
-    fetch('/api/payments/deposit-intent', {
+    fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(requestBody),
     })
       .then(async (res) => {
         const json = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(json?.error ?? 'Nem sikerült előkészíteni az előleg-fizetést.')
+        if (!res.ok) throw new Error(json?.error ?? 'Nem sikerült előkészíteni a fizetést.')
         if (cancelled) return
         setClientSecret(json.clientSecret)
         setConnectedAccountId(json.connectedAccountId)
-        setDepositAmountHuf(json.depositAmountHuf)
+        // A `voucher-intent` `amountHuf`-ot ad vissza, a `deposit-intent` `depositAmountHuf`-ot —
+        // mindkettőt elfogadjuk, hogy a komponens változatlanul megosztható maradjon.
+        setDepositAmountHuf(json.depositAmountHuf ?? json.amountHuf)
         setPaymentIntentId(json.paymentIntentId)
       })
       .catch((e: Error) => {
@@ -125,10 +134,10 @@ export function DepositStep({ requestBody, onPaid, dark }: DepositStepProps) {
     <div className="space-y-3">
       <div className={`flex items-center gap-2 text-xs ${dark ? 'text-white/60' : 'text-ink-soft'}`}>
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-        <span>Az időpont biztosításához előleg szükséges — a fizetés biztonságos, a Stripe kezeli.</span>
+        <span>{infoText ?? 'Az időpont biztosításához előleg szükséges — a fizetés biztonságos, a Stripe kezeli.'}</span>
       </div>
       <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: dark ? 'night' : 'stripe' } }}>
-        <ConfirmForm depositAmountHuf={depositAmountHuf} onPaid={onPaid} dark={dark} paymentIntentId={paymentIntentId} />
+        <ConfirmForm depositAmountHuf={depositAmountHuf} onPaid={onPaid} dark={dark} paymentIntentId={paymentIntentId} payLabel={payLabel} />
       </Elements>
     </div>
   )

@@ -1,17 +1,19 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, Loader2, Scissors, Users, User, Phone, Mail, Globe, MapPin, Info } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, Loader2, Scissors, Users, User, Phone, Mail, Globe, MapPin, Info, Gift, Camera, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatPrice, cn } from '@/lib/utils'
 import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
-import type { Service, StaffMember, ServiceCategory, Media } from '@/payload/payload-types'
+import type { Service, StaffMember, ServiceCategory, Media, GiftVoucherType } from '@/payload/payload-types'
 import { t as tl, makeT, dfLocale, type Locale } from '@/lib/i18n'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/toggle-switch'
 import { Textarea } from '@/components/ui/textarea'
 import { DateStrip } from '@/components/booking/DateStrip'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
@@ -24,7 +26,7 @@ import { iconByKey } from '@/components/settings/goodToKnowIcons'
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map(c => [c.code, c.dial]))
 
 type Slot = { start: string; end: string }
-type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'summary' | 'success'
+type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'summary' | 'success' | 'voucher' | 'voucherSuccess'
 type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address'
 
 interface Props {
@@ -48,6 +50,8 @@ interface Props {
   company?: CompanyInfo | null
   goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
   depositEnabled?: boolean
+  voucherEnabled?: boolean
+  voucherTypes?: GiftVoucherType[]
 }
 
 function getCategoryId(cat: Service['category']): string | null {
@@ -62,6 +66,7 @@ export function ProfileCard({
   phone, email, website, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
   termsSections, company, goodToKnow, depositEnabled = false,
+  voucherEnabled = false, voucherTypes = [],
 }: Props) {
   const tt = makeT(locale)
 
@@ -93,6 +98,32 @@ export function ProfileCard({
   const [slotsError, setSlotsError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
+
+  // Ajándékutalvány-vásárlás állapota — a fő foglalás-flow-tól teljesen független mellékág.
+  // A vendég a tulaj által előre létrehozott típusok közül választ (nincs szabad összeg/kép).
+  const [selectedVoucherTypeId, setSelectedVoucherTypeId] = useState<string | null>(null)
+  const [voucherPurchaserName, setVoucherPurchaserName] = useState('')
+  const [voucherPurchaserEmail, setVoucherPurchaserEmail] = useState('')
+  const [voucherPurchaserCity, setVoucherPurchaserCity] = useState('')
+  const [voucherPurchaserAddress, setVoucherPurchaserAddress] = useState('')
+  const [voucherIsCompany, setVoucherIsCompany] = useState(false)
+  const [voucherPurchaserTaxNumber, setVoucherPurchaserTaxNumber] = useState('')
+  const [voucherRecipientName, setVoucherRecipientName] = useState('')
+  const [voucherRecipientEmail, setVoucherRecipientEmail] = useState('')
+  const [voucherMessage, setVoucherMessage] = useState('')
+  const [voucherFieldErrors, setVoucherFieldErrors] = useState<Record<string, string>>({})
+  const [voucherTypeError, setVoucherTypeError] = useState(false)
+  const [voucherShakeKey, setVoucherShakeKey] = useState(0)
+  const [voucherPaymentStep, setVoucherPaymentStep] = useState(false)
+  const [voucherCreating, setVoucherCreating] = useState(false)
+  const [voucherResult, setVoucherResult] = useState<{ code: string; amountHuf: number; qrCodeDataUrl: string } | null>(null)
+
+  // Ajándékutalvány-beváltás állapota — a `details` lépés opcionális mezője.
+  const [redeemOpen, setRedeemOpen] = useState(false)
+  const [redeemCode, setRedeemCode] = useState('')
+  const [redeemChecking, setRedeemChecking] = useState(false)
+  const [redeemValid, setRedeemValid] = useState<{ amount_huf: number } | null>(null)
+  const [redeemError, setRedeemError] = useState<string | null>(null)
 
   // Mobile sheet open state
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -203,6 +234,10 @@ export function ProfileCard({
     setPaymentIntentId(null)
     setDepositAmountHuf(null)
     setErrors({})
+    setRedeemOpen(false)
+    setRedeemCode('')
+    setRedeemValid(null)
+    setRedeemError(null)
     setSheetOpen(false)
   }
 
@@ -216,6 +251,18 @@ export function ProfileCard({
     }
     window.addEventListener('davelopment:openServices', handler)
     return () => window.removeEventListener('davelopment:openServices', handler)
+  }, [])
+
+  // Ajándékutalvány QR-kódjából/linkjéből érkező vendég — a `?voucher=KÓD` paramot előtöltjük
+  // a beváltás-mezőbe és nyitva hagyjuk, hogy mire a details lépésig ér, ne kelljen újra beírnia.
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const code = searchParams.get('voucher')
+    if (code) {
+      setRedeemCode(code.toUpperCase())
+      setRedeemOpen(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const loadSlots = () => {
@@ -288,6 +335,7 @@ export function ProfileCard({
           customer_address: customerAddress.trim() || undefined,
           notes: customerNotes, locale,
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
+          ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
         }),
       })
       if (!res.ok) {
@@ -307,6 +355,110 @@ export function ProfileCard({
     } finally {
       setSubmitting(false)
     }
+  }
+
+  // Ajándékutalvány-kód élő ellenőrzése a details lépésen — csak UX-visszajelzés, a tényleges
+  // beváltást a szerver a `submit()` foglalás-mentésekor ÚJRA leellenőrzi.
+  const checkRedeemCode = async () => {
+    const code = redeemCode.trim()
+    if (!code) { setRedeemValid(null); setRedeemError(null); return }
+    setRedeemChecking(true)
+    setRedeemError(null)
+    try {
+      const params = new URLSearchParams({ code, salonId })
+      const res = await fetch(`/api/vouchers/validate?${params}`)
+      const json = await res.json()
+      if (json.valid) {
+        setRedeemValid({ amount_huf: json.amount_huf })
+      } else {
+        setRedeemValid(null)
+        setRedeemError(json.reason ?? 'Érvénytelen kód.')
+      }
+    } catch {
+      setRedeemValid(null)
+      setRedeemError('Nem sikerült ellenőrizni a kódot.')
+    } finally {
+      setRedeemChecking(false)
+    }
+  }
+
+  const selectedVoucherType = voucherTypes.find(t => String(t.id) === selectedVoucherTypeId) ?? null
+
+  const voucherFieldErrorMap = (): Record<string, string> => {
+    const e: Record<string, string> = {}
+    if (!voucherPurchaserName.trim()) e.name = 'A neved megadása kötelező.'
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(voucherPurchaserEmail)) e.email = 'Érvénytelen email-cím.'
+    if (!voucherPurchaserCity.trim()) e.city = 'A település megadása kötelező a számlázáshoz.'
+    if (voucherIsCompany && !voucherPurchaserTaxNumber.trim()) e.taxNumber = 'Céges vásárlásnál az adószám megadása kötelező.'
+    if (!voucherPurchaserAddress.trim()) e.address = 'A cím megadása kötelező a számla kiküldéséhez.'
+    if (voucherRecipientEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(voucherRecipientEmail)) e.recipientEmail = 'Érvénytelen email-cím a megajándékozottnál.'
+    return e
+  }
+
+  const clearVoucherFieldError = (key: string) => {
+    setVoucherFieldErrors(prev => { if (!prev[key]) return prev; const next = { ...prev }; delete next[key]; return next })
+  }
+
+  const handleVoucherFormNext = () => {
+    const e = voucherFieldErrorMap()
+    const typeMissing = !selectedVoucherType
+    setVoucherTypeError(typeMissing)
+    setVoucherFieldErrors(e)
+    if (typeMissing || Object.keys(e).length > 0) {
+      setVoucherShakeKey(k => k + 1)
+      return
+    }
+    setVoucherPaymentStep(true)
+  }
+
+  const handleVoucherPaid = async (paymentIntentId: string) => {
+    setVoucherCreating(true)
+    try {
+      const res = await fetch('/api/vouchers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'salon', salonId, paymentIntentId,
+          purchaserName: voucherPurchaserName, purchaserEmail: voucherPurchaserEmail,
+          purchaserCity: voucherPurchaserCity.trim() || undefined,
+          purchaserAddress: voucherPurchaserAddress.trim() || undefined,
+          purchaserTaxNumber: voucherIsCompany ? voucherPurchaserTaxNumber.trim() : undefined,
+          recipientName: voucherRecipientName.trim() || undefined,
+          recipientEmail: voucherRecipientEmail.trim() || undefined,
+          message: voucherMessage.trim() || undefined,
+          locale,
+        }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Nem sikerült létrehozni az utalványt.')
+      setVoucherResult({ code: json.code, amountHuf: json.amountHuf, qrCodeDataUrl: json.qrCodeDataUrl })
+      setDir(1)
+      setView('voucherSuccess')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Nem sikerült létrehozni az utalványt.')
+    } finally {
+      setVoucherCreating(false)
+    }
+  }
+
+  const handleCloseVoucherSuccess = () => {
+    setDir(-1)
+    setView('main')
+    setSelectedVoucherTypeId(null)
+    setVoucherPurchaserName('')
+    setVoucherPurchaserEmail('')
+    setVoucherPurchaserCity('')
+    setVoucherPurchaserAddress('')
+    setVoucherIsCompany(false)
+    setVoucherPurchaserTaxNumber('')
+    setVoucherRecipientName('')
+    setVoucherRecipientEmail('')
+    setVoucherMessage('')
+    setVoucherPaymentStep(false)
+    setVoucherResult(null)
+    setVoucherFieldErrors({})
+    setVoucherTypeError(false)
+    setSheetOpen(false)
   }
 
   const staffCols = staff.length === 1 ? 'grid-cols-1' : staff.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
@@ -376,7 +528,7 @@ export function ProfileCard({
         </div>
 
         {/* Step indicator row — minden nem-main, nem-success nézeten */}
-        {view !== 'main' && view !== 'success' && (() => {
+        {view !== 'main' && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && (() => {
           const stepIndex = view === 'services' || view === 'serviceDetail' ? 0
             : view === 'datetime' ? 1 : view === 'details' ? 2
             : view === 'deposit' ? 3 : depositEnabled ? 4 : 3
@@ -522,6 +674,25 @@ export function ProfileCard({
                           )
                         })}
                       </div>
+                    </div>
+                  )}
+                  {voucherEnabled && (
+                    <div>
+                      <div className="mb-3 flex items-center gap-2">
+                        <Gift className="h-3.5 w-3.5 text-white/40" />
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">Ajándékutalvány</p>
+                      </div>
+                      <button
+                        onClick={() => goTo('voucher', null)}
+                        className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99]"
+                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+                      >
+                        <div>
+                          <p className="text-[13px] font-semibold text-white">Ajándékutalvány vásárlása</p>
+                          <p className="text-[11px] text-white/45">Lepd meg valakit egy utalvánnyal</p>
+                        </div>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
+                      </button>
                     </div>
                   )}
                 </div>
@@ -831,6 +1002,35 @@ export function ProfileCard({
                         className="rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 resize-none focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
                       />
                     </div>
+                    {voucherEnabled && (
+                      <div className="space-y-2">
+                        {!redeemOpen ? (
+                          <button
+                            type="button"
+                            onClick={() => setRedeemOpen(true)}
+                            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-white/45 underline underline-offset-2 transition-colors hover:text-white/70"
+                          >
+                            <Gift className="h-3 w-3" /> Van ajándékutalványod?
+                          </button>
+                        ) : (
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Utalvány-kód</Label>
+                            <Input
+                              value={redeemCode}
+                              onChange={e => { setRedeemCode(e.target.value.toUpperCase()); setRedeemValid(null); setRedeemError(null) }}
+                              onBlur={checkRedeemCode}
+                              placeholder="XXXX-XXXX"
+                              className="h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                            />
+                            {redeemChecking && <p className="text-[11px] text-white/40">Ellenőrzés…</p>}
+                            {redeemError && <p role="alert" className="text-[12px] text-red-400">{redeemError}</p>}
+                            {redeemValid && (
+                              <p className="text-[12px] text-emerald-400">Érvényes utalvány — {formatPrice(redeemValid.amount_huf, 'HUF')} jóváírva.</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -867,6 +1067,7 @@ export function ProfileCard({
                       { label: tt('booking.step.datetime'), value: `${format(bookingDateParsed, 'MMM d.', { locale: dfLocale(locale) })} · ${bookingSlot.start}` },
                       { label: tt('booking.price'), value: formatPrice(bookingService.price, bookingService.currency) },
                       ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: formatPrice(depositAmountHuf, 'HUF') }] : []),
+                      ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: formatPrice(redeemValid.amount_huf, 'HUF') }] : []),
                     ].map(({ label, value }, i, arr) => (
                       <div key={label}>
                         <div className="flex items-center justify-between">
@@ -956,13 +1157,193 @@ export function ProfileCard({
                 </div>
               )}
 
+              {/* VOUCHER — vásárlás */}
+              {view === 'voucher' && (
+                <div className="pb-2">
+                  <button onClick={() => goTo('main', null)} className="mb-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-white/45 transition-colors hover:text-white/70">
+                    <ArrowLeft className="h-3.5 w-3.5" /> Vissza
+                  </button>
+                  <h2 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">Ajándékutalvány</h2>
+                  <p className="mb-5 text-[12px] text-white/45">{salonName}-nél váltható be.</p>
+
+                  {!voucherPaymentStep ? (
+                    <div className="space-y-4">
+                      <div key={`vtype-${voucherShakeKey}`} className={cn('space-y-2 rounded-[16px]', voucherTypeError && 'animate-shake')}>
+                        <Label className={cn('text-[11px] font-semibold uppercase tracking-[0.12em]', voucherTypeError ? 'text-red-400' : 'text-white/55')}>Válassz típust *</Label>
+                        <div className={cn('grid grid-cols-2 gap-2.5 rounded-[16px]', voucherTypeError && 'ring-1 ring-red-400')}>
+                          {voucherTypes.map((vt) => {
+                            const url = typeof vt.image === 'object' && vt.image ? (vt.image as Media).url ?? null : null
+                            const selected = selectedVoucherTypeId === String(vt.id)
+                            return (
+                              <button
+                                key={vt.id}
+                                type="button"
+                                onClick={() => { setSelectedVoucherTypeId(String(vt.id)); setVoucherTypeError(false) }}
+                                className={cn(
+                                  'flex flex-col items-start overflow-hidden rounded-[14px] border text-left transition-colors',
+                                  selected ? 'border-gold bg-gold/[0.08]' : 'border-white/10 bg-white/[0.04] hover:bg-white/[0.07]',
+                                )}
+                              >
+                                <div className="h-20 w-full bg-white/[0.06]">
+                                  {url && (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img src={url} alt="" className="h-full w-full object-cover" />
+                                  )}
+                                </div>
+                                <div className="px-2.5 py-2">
+                                  <div className="truncate text-[12.5px] font-medium text-white">{vt.name}</div>
+                                  <div className="text-[12px] text-gold">{formatPrice(vt.amount_huf, 'HUF')}</div>
+                                </div>
+                              </button>
+                            )
+                          })}
+                        </div>
+                        {voucherTypeError && <p role="alert" className="text-[12px] text-red-400">Válassz egy utalvány-típust.</p>}
+                      </div>
+
+                      <div key={`name-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.name && 'animate-shake')}>
+                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">A te neved *</Label>
+                        <Input
+                          value={voucherPurchaserName} onChange={e => { setVoucherPurchaserName(e.target.value); clearVoucherFieldError('name') }}
+                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.name && 'ring-1 ring-red-400')}
+                        />
+                        {voucherFieldErrors.name && <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.name}</p>}
+                      </div>
+                      <div key={`email-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.email && 'animate-shake')}>
+                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">A te emailed *</Label>
+                        <Input
+                          type="email" inputMode="email" value={voucherPurchaserEmail} onChange={e => { setVoucherPurchaserEmail(e.target.value); clearVoucherFieldError('email') }}
+                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.email && 'ring-1 ring-red-400')}
+                        />
+                        {voucherFieldErrors.email && <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.email}</p>}
+                      </div>
+                      <div key={`city-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.city && 'animate-shake')}>
+                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Település *</Label>
+                        <Input
+                          value={voucherPurchaserCity} onChange={e => { setVoucherPurchaserCity(e.target.value); clearVoucherFieldError('city') }}
+                          autoComplete="address-level2"
+                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.city && 'ring-1 ring-red-400')}
+                        />
+                        {voucherFieldErrors.city ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.city}</p> : <p className="text-[11px] text-white/40">A számlázáshoz kötelező.</p>}
+                      </div>
+                      <div key={`address-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.address && 'animate-shake')}>
+                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Cím *</Label>
+                        <Input
+                          value={voucherPurchaserAddress} onChange={e => { setVoucherPurchaserAddress(e.target.value); clearVoucherFieldError('address') }}
+                          autoComplete="street-address"
+                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.address && 'ring-1 ring-red-400')}
+                        />
+                        {voucherFieldErrors.address ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.address}</p> : <p className="text-[11px] text-white/40">Enélkül a Számlázz.hu nem tudja kiküldeni a számlát emailben.</p>}
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">
+                        <span className="text-[13px] text-white/80">Cégként vásárolok (adószámos számla kell)</span>
+                        <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel="Cégként vásárolok" />
+                      </div>
+                      {voucherIsCompany && (
+                        <div key={`taxNumber-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.taxNumber && 'animate-shake')}>
+                          <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Adószám *</Label>
+                          <Input
+                            value={voucherPurchaserTaxNumber} onChange={e => { setVoucherPurchaserTaxNumber(e.target.value); clearVoucherFieldError('taxNumber') }}
+                            placeholder="12345678-1-42"
+                            className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.taxNumber && 'ring-1 ring-red-400')}
+                          />
+                          {voucherFieldErrors.taxNumber ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.taxNumber}</p> : <p className="text-[11px] text-white/40">"A te neved" mezőbe ekkor a cég neve kerüljön.</p>}
+                        </div>
+                      )}
+
+                      <div className="!mt-6 h-px bg-white/[0.08]" />
+
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Megajándékozott neve (opcionális)</Label>
+                        <Input
+                          value={voucherRecipientName} onChange={e => setVoucherRecipientName(e.target.value)}
+                          className="h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                        />
+                      </div>
+                      <div key={`recipientEmail-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.recipientEmail && 'animate-shake')}>
+                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Megajándékozott email (opcionális)</Label>
+                        <Input
+                          type="email" inputMode="email" value={voucherRecipientEmail} onChange={e => { setVoucherRecipientEmail(e.target.value); clearVoucherFieldError('recipientEmail') }}
+                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.recipientEmail && 'ring-1 ring-red-400')}
+                        />
+                        {voucherFieldErrors.recipientEmail ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.recipientEmail}</p> : <p className="text-[11px] text-white/40">Ha megadod, neki is elküldjük az utalványt.</p>}
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Üzenet (opcionális)</Label>
+                        <Textarea
+                          value={voucherMessage} onChange={e => setVoucherMessage(e.target.value)} rows={3}
+                          className="rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 resize-none focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
+                        />
+                      </div>
+
+                      <button
+                        onClick={handleVoucherFormNext}
+                        className="flex h-14 w-full items-center justify-center rounded-full text-[15px] font-semibold transition-all active:scale-[0.98]"
+                        style={{ background: 'white', color: 'var(--ink-dark)' }}
+                      >
+                        Tovább a fizetéshez
+                      </button>
+                    </div>
+                  ) : voucherCreating ? (
+                    <div className="flex h-32 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin text-white" /></div>
+                  ) : (
+                    <DepositStep
+                      dark
+                      endpoint="/api/payments/voucher-intent"
+                      payLabel="Vásárlás"
+                      infoText="Az utalvány összegét a Stripe biztonságosan kezeli."
+                      requestBody={{ kind: 'salon', salonId, voucherTypeId: selectedVoucherTypeId }}
+                      onPaid={(pid) => handleVoucherPaid(pid)}
+                    />
+                  )}
+                </div>
+              )}
+
+              {/* VOUCHER SUCCESS */}
+              {view === 'voucherSuccess' && voucherResult && (
+                <div className="flex min-h-[50vh] flex-col items-center justify-center px-1 py-8 text-center">
+                  <motion.div
+                    initial={{ scale: 0.7, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 28 }}
+                    className="mb-6 flex h-20 w-20 items-center justify-center rounded-full"
+                    style={{ background: 'rgba(52,211,153,0.15)' }}
+                  >
+                    <CheckCircle className="h-10 w-10 text-emerald-400" />
+                  </motion.div>
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: 0.15 }}
+                  >
+                    <h2 className="mb-2 text-2xl font-light tracking-[-0.01em] text-white">Ajándékutalvány elkészült!</h2>
+                    <p className="mb-6 text-sm text-white/55">A kódot emailben is elküldtük.</p>
+                    <div className="mb-6 rounded-[16px] px-5 py-4" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                      <p className="mb-1 text-xs text-white/45">Kód</p>
+                      <p className="text-xl font-semibold tracking-wide text-gold">{voucherResult.code}</p>
+                      <p className="mt-2 text-sm text-white/60">{formatPrice(voucherResult.amountHuf, 'HUF')}</p>
+                    </div>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={voucherResult.qrCodeDataUrl} alt="QR-kód a beváltáshoz" className="mx-auto mb-6 h-40 w-40 rounded-[12px]" />
+                    <button
+                      onClick={handleCloseVoucherSuccess}
+                      className="flex h-12 w-full items-center justify-center rounded-full text-[14px] font-semibold text-ink-dark"
+                      style={{ background: '#FFD85F' }}
+                    >
+                      Vissza a főoldalra
+                    </button>
+                  </motion.div>
+                </div>
+              )}
+
             </motion.div>
           </AnimatePresence>
           </div>{/* /pt-0 */}
         </div>{/* /scroll */}
 
         {/* Footer */}
-        {view === 'success' ? null : isBookingView ? (
+        {view === 'success' || view === 'voucher' || view === 'voucherSuccess' ? null : isBookingView ? (
           <div
             className="shrink-0 px-6 pt-2 space-y-2"
             style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}

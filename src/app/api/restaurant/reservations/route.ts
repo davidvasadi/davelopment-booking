@@ -34,6 +34,7 @@ const schema = z.object({
     })
     .optional(),
   payment_intent_id: z.string().optional(),
+  voucher_code: z.string().max(20).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -48,7 +49,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code } = parsed.data
 
   try {
     const payload = await getPayloadClient()
@@ -133,6 +134,23 @@ export async function POST(request: NextRequest) {
       depositHuf = expectedHuf
     }
 
+    // Ajándékutalvány beváltása — egyszeri, teljes felhasználás, ugyanaz a minta, mint a
+    // szalon `/api/bookings` route-jában.
+    let voucher: { id: string | number; code: string; amount_huf: number } | null = null
+    if (voucher_code) {
+      const voucherResult = await payload.find({
+        collection: 'gift-vouchers',
+        where: { and: [{ code: { equals: voucher_code.trim().toUpperCase() } }, { restaurant: { equals: restaurantId } }] },
+        limit: 1,
+        overrideAccess: true,
+      })
+      const found = voucherResult.docs[0]
+      if (!found || found.status !== 'active' || new Date(found.expires_at) < new Date()) {
+        return NextResponse.json({ error: 'Az utalvány-kód érvénytelen vagy már felhasznált.' }, { status: 400 })
+      }
+      voucher = { id: found.id, code: found.code, amount_huf: found.amount_huf }
+    }
+
     // Ismétlődés csak akkor él, ha jött `repeat` ÉS a modul be van kapcsolva. Máskülönben
     // (nincs repeat, vagy recurring_on ki) → egyszeri foglalás, közös series_id nélkül.
     const seriesActive = !!repeat && !!restaurant.feature_modules?.recurring_on
@@ -182,6 +200,7 @@ export async function POST(request: NextRequest) {
           ...(d === date && depositRequired
             ? { payment_gateway: 'stripe' as const, payment_status: 'paid' as const, deposit_amount_huf: depositHuf ?? undefined, deposit_paid: true, payment_intent_id }
             : {}),
+          ...(d === date && voucher ? { voucher_code: voucher.code, voucher_discount_huf: voucher.amount_huf } : {}),
         },
         overrideAccess: true,
         context: { auditActor: 'Online foglalás' },
@@ -192,6 +211,14 @@ export async function POST(request: NextRequest) {
 
     // Az első (kért) alkalom mindig created[0], mert az alloc fent már átment.
     const reservation = created[0]
+    if (voucher) {
+      void payload.update({
+        collection: 'gift-vouchers',
+        id: voucher.id,
+        overrideAccess: true,
+        data: { status: 'redeemed', redeemed_at: new Date().toISOString(), redeemed_reservation: reservation.id },
+      })
+    }
     // Emailek — best-effort, ne blokkoljanak hibára. Sorozatnál minden alkalomra megy.
     if (restaurant.notification_prefs?.confirm_email !== false) {
       for (const r of created) void sendReservationConfirmation({ reservation: r, restaurant })

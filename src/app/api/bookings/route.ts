@@ -40,6 +40,8 @@ const schema = z.object({
     .optional(),
   // A `/api/payments/deposit-intent`-ből kapott, már sikeresen megfizetett Stripe PaymentIntent.
   payment_intent_id: z.string().optional(),
+  // Ajándékutalvány beváltása — opcionális, a foglaló-varázsló details lépésén beírt kód.
+  voucher_code: z.string().max(20).optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, notes, locale, repeat, payment_intent_id } = parsed.data
+  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, notes, locale, repeat, payment_intent_id, voucher_code } = parsed.data
   let staffId = parsed.data.staffId
 
   // Tiltólista (üzletenként): tiltott e-mail/telefon → ÁLTALÁNOS hiba (nem áruljuk el a tiltást).
@@ -187,6 +189,26 @@ export async function POST(request: NextRequest) {
       depositHuf = expectedHuf
     }
 
+    // Ajándékutalvány beváltása — egyszeri, teljes felhasználás (nincs egyenleg/tárca-modell,
+    // a fel nem használt maradék elvész, mint egy papír-utalványnál). A kód érvényességét itt
+    // ÚJRA leellenőrizzük (sose bízzunk a kliens korábbi, `/api/vouchers/validate`-es
+    // ellenőrzésében, ami csak UX-célú élő visszajelzés volt) — a tényleges beváltás (a voucher
+    // `redeemed`-re állítása) csak a foglalás sikeres létrehozása UTÁN történik.
+    let voucher: { id: string | number; code: string; amount_huf: number } | null = null
+    if (voucher_code) {
+      const voucherResult = await payload.find({
+        collection: 'gift-vouchers',
+        where: { and: [{ code: { equals: voucher_code.trim().toUpperCase() } }, { salon: { equals: salonId } }] },
+        limit: 1,
+        overrideAccess: true,
+      })
+      const found = voucherResult.docs[0]
+      if (!found || found.status !== 'active' || new Date(found.expires_at) < new Date()) {
+        return NextResponse.json({ error: 'Az utalvány-kód érvénytelen vagy már felhasznált.' }, { status: 400 })
+      }
+      voucher = { id: found.id, code: found.code, amount_huf: found.amount_huf }
+    }
+
     // Szalonoknál nincs külön "függőben" munkafolyamat — minden online foglalás rögtön
     // megerősítve jön be (a lemondás/befejezés a kezelés útja, nem egy köztes jóváhagyás).
     const bookingStatus: 'confirmed' = 'confirmed'
@@ -236,6 +258,8 @@ export async function POST(request: NextRequest) {
           ...(d === date && depositRequired
             ? { payment_gateway: 'stripe' as const, payment_status: 'paid' as const, deposit_amount_huf: depositHuf ?? undefined, deposit_paid: true, payment_intent_id }
             : {}),
+          // Az utalvány-beváltás is csak az ELSŐ (kért) alkalomra vonatkozik, ugyanúgy mint az előleg.
+          ...(d === date && voucher ? { voucher_code: voucher.code, voucher_discount_huf: voucher.amount_huf } : {}),
         },
       })) as unknown as Booking
       created.push(booking)
@@ -244,6 +268,14 @@ export async function POST(request: NextRequest) {
     // Első (elsődleges) foglalás — a kért dátum mindig created[0], mert a fenti fő
     // availability-guard már átengedte, itt nem hagyjuk ki.
     const booking = created[0]
+    if (voucher) {
+      void payload.update({
+        collection: 'gift-vouchers',
+        id: voucher.id,
+        overrideAccess: true,
+        data: { status: 'redeemed', redeemed_at: new Date().toISOString(), redeemed_booking: booking.id },
+      })
+    }
     const emailData = { booking, salon, service, staff }
     if (salon.notification_prefs?.confirm_email !== false) {
       // A sorozat minden létrejött alkalmára megy visszaigazoló (a meglévő minta szerint).

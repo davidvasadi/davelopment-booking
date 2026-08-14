@@ -40,7 +40,7 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
   const available = resolveAvailableLocales(base.salon.supported_locales)
   const locale = available.includes(requested) ? requested : 'hu'
   const salonData = locale === 'hu' ? base : (await getPublicSalon(slug, locale)) ?? base
-  const { salon, services, staff, serviceCategories } = salonData
+  const { salon, services, staff, serviceCategories, voucherTypes } = salonData
 
   const reviews = await getReviewSummary('salon', salon.id)
 
@@ -198,6 +198,8 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         termsSections={salon.terms_sections}
         goodToKnow={salon.good_to_know}
         depositEnabled={!!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded}
+        voucherEnabled={!!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded && voucherTypes.length > 0}
+        voucherTypes={voucherTypes}
         company={{
           name: salon.name,
           legal_name: salon.legal_name,
