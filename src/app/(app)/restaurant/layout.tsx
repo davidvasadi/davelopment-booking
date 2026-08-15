@@ -65,6 +65,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
         activeBusinessKey={`${active.type}:${active.id}`}
         capabilities={active.capabilities}
         voucherEnabled={!!restaurant.voucher_settings?.enabled}
+        newsletterEnabled={restaurant.newsletter_settings?.package !== 'none'}
       >
         <LiveRefreshProvider businessKey={`${active.type}:${active.id}`} />
         <PageTransition>{children}</PageTransition>

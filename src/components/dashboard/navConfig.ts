@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, CalendarDays, CalendarClock, Briefcase, Users, Clock, Settings, BarChart2, Armchair, Lightbulb, HelpCircle, MapPin,
-  Store, CreditCard, TrendingUp, AlertTriangle, Activity, Building2, Gift,
+  Store, CreditCard, TrendingUp, AlertTriangle, Activity, Building2, Gift, Megaphone,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type Capability } from '@/lib/permissions'
@@ -31,6 +31,7 @@ const salonNav: NavConfig = {
     { href: '/dashboard/schedule', label: 'Naptár', icon: CalendarClock, capability: ['schedule.view.own', 'schedule.manage.own', 'schedule.manage'] },
     { href: '/dashboard/availability', label: 'Nyitvatartás', icon: Clock, capability: 'settings.profile' },
     { href: '/dashboard/vouchers', label: 'Utalványok', icon: Gift, capability: 'payments.manage' },
+    { href: '/dashboard/marketing', label: 'Marketing', icon: Megaphone, capability: 'payments.manage' },
     { href: '/dashboard/tips', label: 'Tippek', icon: Lightbulb, capability: 'tips.view' },
     { href: '/dashboard/help', label: 'Súgó', icon: HelpCircle },
     { href: '/dashboard/settings', label: 'Beállítások', icon: Settings, capability: ['settings.profile', 'settings.own_profile'] },
@@ -52,6 +53,7 @@ const restaurantNav: NavConfig = {
     { href: '/restaurant/schedule', label: 'Naptár', icon: CalendarClock, capability: ['schedule.view.own', 'schedule.manage.own', 'schedule.manage'] },
     { href: '/restaurant/availability', label: 'Nyitvatartás', icon: Clock, capability: 'settings.profile' },
     { href: '/restaurant/vouchers', label: 'Utalványok', icon: Gift, capability: 'payments.manage' },
+    { href: '/restaurant/marketing', label: 'Marketing', icon: Megaphone, capability: 'payments.manage' },
     { href: '/restaurant/tips', label: 'Tippek', icon: Lightbulb, capability: 'tips.view' },
     { href: '/restaurant/help', label: 'Súgó', icon: HelpCircle },
     { href: '/restaurant/settings', label: 'Beállítások', icon: Settings, capability: ['settings.profile', 'settings.own_profile'] },

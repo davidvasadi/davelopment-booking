@@ -208,6 +208,7 @@ export default async function RestaurantSettingsPage() {
         }}
         stripeConnectAccountId={r.stripe_connect_account_id ?? null}
         stripeConnectOnboarded={!!r.stripe_connect_onboarded}
+        newsletterPackage={r.newsletter_settings?.package ?? 'none'}
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}

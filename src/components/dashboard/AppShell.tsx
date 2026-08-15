@@ -39,6 +39,7 @@ export function AppShell({
   activeBusinessKey = null,
   capabilities = [],
   voucherEnabled = false,
+  newsletterEnabled = false,
   children,
 }: {
   variant: DashboardVariant
@@ -58,9 +59,15 @@ export function AppShell({
   capabilities?: Capability[]
   /** Ha false, az "Utalványok" nav-elem sehol nem jelenik meg (a funkció ki van kapcsolva). */
   voucherEnabled?: boolean
+  /** Ha false, a "Marketing" nav-elem sehol nem jelenik meg — ugyanaz a minta, mint a
+   *  voucherEnabled-nél (a hírlevél-csomag "Nincs"-re állítva a Beállítások/Fizetéseknél). */
+  newsletterEnabled?: boolean
   children: React.ReactNode
 }) {
-  const hiddenHrefs = voucherEnabled ? [] : [variant === 'restaurant' ? '/restaurant/vouchers' : '/dashboard/vouchers']
+  const hiddenHrefs = [
+    ...(voucherEnabled ? [] : [variant === 'restaurant' ? '/restaurant/vouchers' : '/dashboard/vouchers']),
+    ...(newsletterEnabled ? [] : [variant === 'restaurant' ? '/restaurant/marketing' : '/dashboard/marketing']),
+  ]
   return (
     <div className="font-onest min-h-screen bg-paper bg-dav-container lg:bg-none text-ink">
       {/* Mobil fejléc + ⌘K (a desktop sidebart az új TopNav váltja) */}

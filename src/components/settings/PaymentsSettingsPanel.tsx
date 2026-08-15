@@ -1,8 +1,16 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert } from 'lucide-react'
+import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, ArrowRight } from 'lucide-react'
+import { Switch } from '@/components/ui/toggle-switch'
+import { NotchedPricingCard } from '@/components/dashboard/NotchedPricingCard'
+import { cn } from '@/lib/utils'
+import { buttonHover, EASE } from '@/lib/motion'
+import { monthlyEmailCap } from '@/lib/newsletterLimits'
+import type { Pricing } from '@/lib/pricing'
 
 /**
  * "Fizetések" panel — vendég-előleg (Stripe Connect Express) + számlázás (Számlázz.hu/Billingo)
@@ -35,6 +43,8 @@ export interface VoucherSettingsData {
   validityMonths: number
 }
 
+type NewsletterPackage = 'none' | 'ingyenes' | 'alap' | 'premium'
+
 interface Props {
   variant: 'salon' | 'restaurant'
   apiBase: string
@@ -43,6 +53,12 @@ interface Props {
   voucher: VoucherSettingsData
   stripeConnectAccountId: string | null
   stripeConnectOnboarded: boolean
+  /** Globális árazási beállítások — a hírlevél-csomagválasztó kártyáihoz. */
+  pricing: Pricing
+  /** Az aktuális üzlet id-je — a csomagváltás POST-jához. */
+  businessId: string
+  /** A hírlevél funkció jelenlegi csomagja. */
+  newsletterPackage: NewsletterPackage
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
@@ -59,9 +75,38 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   )
 }
 
-export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, stripeConnectAccountId, stripeConnectOnboarded }: Props) {
+export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, stripeConnectAccountId, stripeConnectOnboarded, pricing, businessId, newsletterPackage }: Props) {
+  const router = useRouter()
   const [connecting, setConnecting] = useState(false)
   const [loginLinkLoading, setLoginLinkLoading] = useState(false)
+
+  const [switching, setSwitching] = useState(false)
+  const [pendingPackage, setPendingPackage] = useState<NewsletterPackage | null>(null)
+  const newsletterEnabled = newsletterPackage !== 'none'
+
+  const switchNewsletterPackage = async (pkg: NewsletterPackage) => {
+    if (pkg === newsletterPackage || switching) return
+    setSwitching(true)
+    setPendingPackage(pkg)
+    try {
+      const res = await fetch('/api/marketing/package', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ kind: variant, businessId, package: pkg }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error ?? 'Nem sikerült váltani a csomagot.')
+      toast.success('Csomag frissítve')
+      router.refresh()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Nem sikerült váltani a csomagot.')
+    } finally {
+      setSwitching(false)
+      setPendingPackage(null)
+    }
+  }
+  const toggleNewsletterEnabled = (on: boolean) => switchNewsletterPackage(on ? 'ingyenes' : 'none')
 
   const [d, setD] = useState<DepositSettingsData>(deposit)
   const [saving, setSaving] = useState(false)
@@ -230,6 +275,95 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             </div>
           )}
         </div>
+      </div>
+
+      {/* Hírlevél */}
+      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
+              <Mail className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
+            </div>
+            <div>
+              <div className="text-[15px] font-medium text-ink">Hírlevél</div>
+              <div className="text-[13px] text-ink-soft">A foglaló-oldalon megjelenik egy feliratkozó kapcsoló a vendégeidnek.</div>
+            </div>
+          </div>
+          <Switch checked={newsletterEnabled} onChange={toggleNewsletterEnabled} disabled={switching} ariaLabel="Hírlevél funkció be/ki" />
+        </div>
+
+        {newsletterEnabled && (
+          <div className="grid grid-cols-1 items-stretch gap-5 border-t border-dashed border-line pt-4 md:grid-cols-3">
+            {([
+              { key: 'ingyenes' as const, label: 'Ingyenes', sub: 'Kezdéshez', priceMain: '0', priceUnit: 'Ft / hó', marketingLabel: 'Ingyen', cap: monthlyEmailCap(pricing, 'ingyenes') },
+              { key: 'alap' as const, label: 'Alap', sub: 'Rendszeres kampányokhoz', priceMain: pricing.newsletter_alap_huf.toLocaleString('hu-HU'), priceUnit: 'Ft / hó', marketingLabel: 'Legnépszerűbb', cap: monthlyEmailCap(pricing, 'alap') },
+              { key: 'premium' as const, label: 'Prémium', sub: 'Nagy forgalmú üzleteknek', priceMain: pricing.newsletter_premium_huf.toLocaleString('hu-HU'), priceUnit: 'Ft / hó', marketingLabel: 'Legbővebb', cap: monthlyEmailCap(pricing, 'premium') },
+            ]).map((card) => {
+              const alapCap = monthlyEmailCap(pricing, 'alap')
+              const premiumCap = monthlyEmailCap(pricing, 'premium')
+              const selected = newsletterPackage === card.key
+              const featured = card.key === 'alap'
+              const isPending = switching && pendingPackage === card.key
+              const badgeLabel = selected ? 'Jelenlegi' : card.marketingLabel
+              const feats = [
+                { label: 'Feliratkozó kapcsoló a foglaló-oldalon', included: true },
+                { label: 'Márkázott, saját logós email-sablon', included: true },
+                { label: 'Kampány-előzmény és nyitási statisztika', included: true },
+                { label: `Legalább ${alapCap.toLocaleString('hu-HU')} email/hó keret`, included: card.cap >= alapCap },
+                { label: `Legalább ${premiumCap.toLocaleString('hu-HU')} email/hó keret`, included: card.cap >= premiumCap },
+              ]
+              const cta = (
+                <motion.button
+                  type="button"
+                  disabled={selected || switching}
+                  onClick={() => switchNewsletterPackage(card.key)}
+                  variants={buttonHover}
+                  initial="rest"
+                  whileHover={selected || switching ? undefined : 'hover'}
+                  className={cn(
+                    'mt-5 flex h-11 w-full items-center rounded-full text-[13.5px] font-medium transition-opacity hover:opacity-90 disabled:opacity-90',
+                    selected ? 'justify-center border border-dashed' : 'justify-between pl-5 pr-1.5',
+                    featured
+                      ? (selected ? 'border-white/25 text-white' : 'bg-white text-ink-dark')
+                      : (selected ? 'border-line-strong text-ink' : 'bg-ink-dark text-white'),
+                  )}
+                >
+                  {selected ? 'Jelenlegi csomagod' : 'Váltás erre'}
+                  {!selected && (
+                    <span className="relative flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full bg-gold">
+                      {isPending ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-dark" />
+                      ) : (
+                        <>
+                          <motion.div className="absolute flex" variants={{ rest: { x: 0 }, hover: { x: 32 } }} transition={{ duration: 0.28, ease: EASE }}>
+                            <ArrowRight className="h-3.5 w-3.5 text-ink-dark" />
+                          </motion.div>
+                          <motion.div className="absolute flex" variants={{ rest: { x: -32 }, hover: { x: 0 } }} transition={{ duration: 0.28, ease: EASE }}>
+                            <ArrowRight className="h-3.5 w-3.5 text-ink-dark" />
+                          </motion.div>
+                        </>
+                      )}
+                    </span>
+                  )}
+                </motion.button>
+              )
+              return (
+                <div key={card.key} className={cn('h-full', featured && 'md:-my-4')}>
+                  <NotchedPricingCard
+                    featured={featured}
+                    badgeLabel={badgeLabel}
+                    title={card.label}
+                    priceMain={card.priceMain}
+                    priceUnit={card.priceUnit}
+                    sub={card.sub}
+                    feats={feats}
+                    cta={cta}
+                  />
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Előleg-szabály */}

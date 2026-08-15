@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -516,6 +516,29 @@ export function DashboardNav({
                 className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
               >
                 <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+            </>
+          )}
+
+          {/* Marketing/Hírlevél — "Hírlevél írása" (fekete) + "Csomag bővítése" (üveg) ikon-gomb,
+              csak a marketing oldalakon (szalon + étterem), a Vouchers mintáját követve. */}
+          {pathname.endsWith('/marketing') && (
+            <>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-marketing-composer'))}
+                aria-label="Hírlevél írása"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-ink-dark text-white shadow-[0_2px_8px_rgba(0,0,0,.14)] outline-none transition-colors hover:bg-ink active:scale-95"
+              >
+                <PenLine className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-marketing-package'))}
+                aria-label="Csomag bővítése"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <CreditCard className="h-[19px] w-[19px]" strokeWidth={2} />
               </button>
             </>
           )}

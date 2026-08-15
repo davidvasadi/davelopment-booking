@@ -262,6 +262,8 @@ export interface SettingsHubProps {
   voucherSettings: VoucherSettingsData
   stripeConnectAccountId: string | null
   stripeConnectOnboarded: boolean
+  /** Hírlevél funkció jelenlegi csomagja — a Fizetések panel csomagválasztójához. */
+  newsletterPackage: 'none' | 'ingyenes' | 'alap' | 'premium'
 }
 
 function fmtDate(dateStr?: string | null): string {
@@ -292,6 +294,7 @@ export function SettingsHub({
   sub, billingAccount, pricing, activeBusinessId, startedAt,
   icalUrl, bookingUrl, webhookUrl, myCapabilities,
   depositSettings, invoiceSettings, voucherSettings, stripeConnectAccountId, stripeConnectOnboarded,
+  newsletterPackage,
 }: SettingsHubProps) {
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
@@ -941,6 +944,9 @@ export function SettingsHub({
               voucher={voucherSettings}
               stripeConnectAccountId={stripeConnectAccountId}
               stripeConnectOnboarded={stripeConnectOnboarded}
+              pricing={pricing}
+              businessId={activeBusinessId}
+              newsletterPackage={newsletterPackage}
             />
           )}
 

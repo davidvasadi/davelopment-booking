@@ -212,6 +212,7 @@ export default async function SettingsPage() {
         }}
         stripeConnectAccountId={salon.stripe_connect_account_id ?? null}
         stripeConnectOnboarded={!!salon.stripe_connect_onboarded}
+        newsletterPackage={salon.newsletter_settings?.package ?? 'none'}
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}
