@@ -55,6 +55,14 @@ export default function PrivacyPage() {
           <li>Számlázás és jogszabályi kötelezettségek teljesítése — jogalap: jogi kötelezettség [6. cikk (1) c)].</li>
           <li>A Szolgáltatás biztonsága, fejlesztése, visszaélések megelőzése — jogalap: jogos érdek [6. cikk (1) f)].</li>
           <li>Ügyfél-értesítések küldése a Felhasználó nevében — jogalap: a Felhasználó adatkezelői utasítása.</li>
+          <li id="marketing">
+            Marketing-hírlevél/kampány-email küldése a Felhasználó (üzlet) nevében — jogalap: a vendég
+            ÖNKÉNTES, előzetes hozzájárulása [6. cikk (1) a)], amit a foglaláskor egy külön, alapból
+            kipipálatlan jelölőnégyzettel ad meg. A hozzájárulás bármikor, ingyenesen visszavonható —
+            minden kiküldött hírlevél tartalmaz egyedi leiratkozó linket, aminek használatával a
+            hozzájárulás azonnal törlődik. A hozzájárulás megtagadása/visszavonása a foglalást
+            (a szolgáltatás igénybevételét) nem érinti.
+          </li>
         </ul>
       </LegalSection>
 

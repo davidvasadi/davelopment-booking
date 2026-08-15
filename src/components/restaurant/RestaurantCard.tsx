@@ -50,6 +50,7 @@ export function RestaurantCard({
   depositEnabled,
   voucherEnabled,
   voucherTypes = [],
+  newsletterEnabled,
 }: {
   slug: string
   restaurantId: string | number
@@ -72,6 +73,7 @@ export function RestaurantCard({
   depositEnabled?: boolean
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
+  newsletterEnabled?: boolean
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(true)
@@ -339,6 +341,7 @@ export function RestaurantCard({
         initialPaxProp={bookInitial?.pax}
         depositEnabled={depositEnabled}
         voucherEnabled={voucherEnabled}
+        newsletterEnabled={newsletterEnabled}
       />
     </div>
   )

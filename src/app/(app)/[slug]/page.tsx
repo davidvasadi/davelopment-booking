@@ -14,6 +14,7 @@ import { BrandLogo } from '@/components/BrandLogo'
 import { ProfileCard } from '@/components/booking/ProfileCard'
 import { SalonCtaWrapper } from '@/components/booking/SalonCtaWrapper'
 import { getLocale } from '@/lib/i18n/server'
+import { hasActivePackage } from '@/lib/newsletterLimits'
 import { t, resolveAvailableLocales } from '@/lib/i18n'
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -200,6 +201,7 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         depositEnabled={!!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded}
         voucherEnabled={!!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded && voucherTypes.length > 0}
         voucherTypes={voucherTypes}
+        newsletterEnabled={hasActivePackage(salon.newsletter_settings?.package)}
         company={{
           name: salon.name,
           legal_name: salon.legal_name,

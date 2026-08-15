@@ -11,6 +11,7 @@ import { RestaurantCard } from '@/components/restaurant/RestaurantCard'
 import { placeJsonLd } from '@/lib/publicSeo'
 import type { Media, Restaurant } from '@/payload/payload-types'
 import { t, resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import { hasActivePackage } from '@/lib/newsletterLimits'
 
 /**
  * Renders an active restaurant's public landing page.
@@ -166,6 +167,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
         depositEnabled={!!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded}
         voucherEnabled={!!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0}
         voucherTypes={voucherTypes}
+        newsletterEnabled={hasActivePackage(restaurant.newsletter_settings?.package)}
       />
     </div>
   )

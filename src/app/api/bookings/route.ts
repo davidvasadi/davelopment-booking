@@ -11,6 +11,7 @@ import { isGuestBlocked } from '@/lib/blocklist'
 import { getStripe, hufToStripeMinor } from '@/lib/stripe'
 import { computeSalonDepositHuf } from '@/lib/depositCalc'
 import { issueDepositInvoiceBestEffort } from '@/lib/depositInvoice'
+import { upsertMarketingConsent } from '@/lib/customerConsent'
 import type { Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
 const schema = z.object({
@@ -42,6 +43,9 @@ const schema = z.object({
   payment_intent_id: z.string().optional(),
   // Ajándékutalvány beváltása — opcionális, a foglaló-varázsló details lépésén beírt kód.
   voucher_code: z.string().max(20).optional(),
+  // Marketing-hírlevél hozzájárulás — alapból üres jelölőnégyzet a details lépésen, csak akkor
+  // küldi a kliens `true`-val, ha a vendég MAGA bepipálta (sose retroaktív/előre kipipált).
+  marketing_consent: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -61,7 +65,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, notes, locale, repeat, payment_intent_id, voucher_code } = parsed.data
+  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent } = parsed.data
   let staffId = parsed.data.staffId
 
   // Tiltólista (üzletenként): tiltott e-mail/telefon → ÁLTALÁNOS hiba (nem áruljuk el a tiltást).
@@ -275,6 +279,9 @@ export async function POST(request: NextRequest) {
         overrideAccess: true,
         data: { status: 'redeemed', redeemed_at: new Date().toISOString(), redeemed_booking: booking.id },
       })
+    }
+    if (marketing_consent) {
+      void upsertMarketingConsent({ kind: 'salon', businessId: salonId, name: customer_name, email: customer_email, phone: customer_phone, city: customer_city })
     }
     const emailData = { booking, salon, service, staff }
     if (salon.notification_prefs?.confirm_email !== false) {

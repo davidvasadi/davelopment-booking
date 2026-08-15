@@ -52,6 +52,7 @@ interface Props {
   depositEnabled?: boolean
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
+  newsletterEnabled?: boolean
 }
 
 function getCategoryId(cat: Service['category']): string | null {
@@ -66,7 +67,7 @@ export function ProfileCard({
   phone, email, website, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
   termsSections, company, goodToKnow, depositEnabled = false,
-  voucherEnabled = false, voucherTypes = [],
+  voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
 }: Props) {
   const tt = makeT(locale)
 
@@ -90,6 +91,8 @@ export function ProfileCard({
   const [customerCity, setCustomerCity] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
   const [customerNotes, setCustomerNotes] = useState('')
+  // GDPR opt-in — SOSE előre kipipált, a foglaláskor mentődik tartósan a Customers táblába.
+  const [marketingConsent, setMarketingConsent] = useState(false)
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
   const [depositAmountHuf, setDepositAmountHuf] = useState<number | null>(null)
   const [successDetails, setSuccessDetails] = useState<{ service: string; staff: string; date: string; time: string } | null>(null)
@@ -231,6 +234,7 @@ export function ProfileCard({
     setCustomerCity('')
     setCustomerAddress('')
     setCustomerNotes('')
+    setMarketingConsent(false)
     setPaymentIntentId(null)
     setDepositAmountHuf(null)
     setErrors({})
@@ -336,6 +340,7 @@ export function ProfileCard({
           notes: customerNotes, locale,
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
           ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
+          ...(newsletterEnabled && marketingConsent ? { marketing_consent: true } : {}),
         }),
       })
       if (!res.ok) {
@@ -1029,6 +1034,17 @@ export function ProfileCard({
                             )}
                           </div>
                         )}
+                      </div>
+                    )}
+                    {newsletterEnabled && (
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-3 py-1">
+                          <span className="text-[13px] text-white/70">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
+                          <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
+                        </div>
+                        <p className="text-[11px] text-white/40">
+                          Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className="underline underline-offset-2 hover:text-white/70">Adatvédelmi tájékoztató</a>.
+                        </p>
                       </div>
                     )}
                   </div>

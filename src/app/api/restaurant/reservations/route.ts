@@ -9,6 +9,7 @@ import { isGuestBlocked } from '@/lib/blocklist'
 import { getStripe, hufToStripeMinor } from '@/lib/stripe'
 import { computeRestaurantDepositHuf } from '@/lib/depositCalc'
 import { issueDepositInvoiceBestEffort } from '@/lib/depositInvoice'
+import { upsertMarketingConsent } from '@/lib/customerConsent'
 import type { Restaurant, Reservation } from '@/payload/payload-types'
 
 const schema = z.object({
@@ -35,6 +36,7 @@ const schema = z.object({
     .optional(),
   payment_intent_id: z.string().optional(),
   voucher_code: z.string().max(20).optional(),
+  marketing_consent: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -49,7 +51,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent } = parsed.data
 
   try {
     const payload = await getPayloadClient()
@@ -218,6 +220,9 @@ export async function POST(request: NextRequest) {
         overrideAccess: true,
         data: { status: 'redeemed', redeemed_at: new Date().toISOString(), redeemed_reservation: reservation.id },
       })
+    }
+    if (marketing_consent) {
+      void upsertMarketingConsent({ kind: 'restaurant', businessId: restaurantId, name: customer_name, email: customer_email, phone: customer_phone, city: customer_city, country })
     }
     // Emailek — best-effort, ne blokkoljanak hibára. Sorozatnál minden alkalomra megy.
     if (restaurant.notification_prefs?.confirm_email !== false) {

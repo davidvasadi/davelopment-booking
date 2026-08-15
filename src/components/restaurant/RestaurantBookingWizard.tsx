@@ -12,6 +12,7 @@ import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryI
 import { HoverArrow } from '@/components/ui/HoverArrow'
 import { DateStrip } from '@/components/booking/DateStrip'
 import { DepositStep } from '@/components/booking/DepositStep'
+import { Switch } from '@/components/ui/toggle-switch'
 import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
 import { makeT, dfLocale, type Locale } from '@/lib/i18n'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
@@ -39,6 +40,7 @@ export function RestaurantBookingWizard({
   initialPaxProp,
   depositEnabled = false,
   voucherEnabled = false,
+  newsletterEnabled = false,
 }: {
   restaurantId: string | number
   slug: string
@@ -58,6 +60,7 @@ export function RestaurantBookingWizard({
   /** Vendég-előleg — ha KI van kapcsolva, a wizard a mai viselkedést mutatja bit-pontosan. */
   depositEnabled?: boolean
   voucherEnabled?: boolean
+  newsletterEnabled?: boolean
 }) {
   const dk = variant === 'dark'
   const router = useRouter()
@@ -96,6 +99,8 @@ export function RestaurantBookingWizard({
   const [city, setCity] = useState('')
   const [address, setAddress] = useState('')
   const [notes, setNotes] = useState('')
+  // GDPR opt-in — SOSE előre kipipált, a foglaláskor mentődik tartósan a Customers táblába.
+  const [marketingConsent, setMarketingConsent] = useState(false)
   // Kiválasztott alkalom (occasion) — a kiválasztott esemény-típus indexe, vagy null (nincs külön alkalom).
   const [occasionIdx, setOccasionIdx] = useState<number | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -216,6 +221,7 @@ export function RestaurantBookingWizard({
           locale,
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
           ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
+          ...(newsletterEnabled && marketingConsent ? { marketing_consent: true } : {}),
         }),
       })
       const data = await res.json()
@@ -512,6 +518,17 @@ export function RestaurantBookingWizard({
                         {redeemValid && <p className="mt-1 text-[12px] text-emerald-500">Érvényes utalvány — jóváírva a foglaláskor.</p>}
                       </div>
                     )}
+                  </div>
+                )}
+                {newsletterEnabled && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-3 py-1">
+                      <span className={`text-[13px] ${dk ? 'text-white/70' : 'text-ink'}`}>Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
+                      <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
+                    </div>
+                    <p className={`text-[11px] ${dk ? 'text-white/40' : 'text-ink-soft2'}`}>
+                      Bármikor leiratkozhatok. Részletek: <a href="/privacy#marketing" target="_blank" rel="noreferrer" className={`underline underline-offset-2 ${dk ? 'hover:text-white/70' : 'hover:text-ink'}`}>Adatvédelmi tájékoztató</a>.
+                    </p>
                   </div>
                 )}
               </div>
