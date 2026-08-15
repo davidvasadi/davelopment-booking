@@ -1,7 +1,7 @@
 import type { Payload, PayloadRequest } from 'payload'
 import type { Subscription } from '@/payload/payload-types'
 import type { Pricing } from './pricing'
-import { businessMonthlyFee, applyCycle, resolveCycle } from './tier'
+import { businessMonthlyFee, applyCycle, resolveCycle, newsletterPackageFee } from './tier'
 
 const MS_PER_DAY = 86_400_000
 
@@ -36,6 +36,11 @@ async function readPricing(payload: Payload, req?: PayloadRequest): Promise<Pric
     salon_pro_huf: g.salon_pro_huf,
     salon_extra_staff_huf: g.salon_extra_staff_huf,
     restaurant_pro_huf: g.restaurant_pro_huf,
+    newsletter_alap_huf: g.newsletter_alap_huf,
+    newsletter_premium_huf: g.newsletter_premium_huf,
+    newsletter_ingyenes_email_cap: g.newsletter_ingyenes_email_cap,
+    newsletter_alap_email_cap: g.newsletter_alap_email_cap,
+    newsletter_premium_email_cap: g.newsletter_premium_email_cap,
     annual_discount_pct: g.annual_discount_pct,
     trial_days: g.trial_days,
   }
@@ -80,7 +85,8 @@ export async function computeAccountFee({ payload, req }: Ctx, userId: string | 
     payload.find({ collection: 'restaurants', where: { owner: { equals: userId } }, limit: 200, depth: 0, overrideAccess: true, req }),
     readPricing(payload, req),
   ])
-  const salonDocs = salons.docs as Array<{ id: string | number }>
+  const salonDocs = salons.docs as Array<{ id: string | number; newsletter_settings?: { package?: string | null } | null }>
+  const restaurantDocs = restaurants.docs as Array<{ newsletter_settings?: { package?: string | null } | null }>
   const salonCount = salons.totalDocs
   const restaurantCount = restaurants.totalDocs
 
@@ -89,7 +95,12 @@ export async function computeAccountFee({ payload, req }: Ctx, userId: string | 
   const salonSum = salonDocs.reduce(
     (sum, s) => sum + businessMonthlyFee(pricing, 'salon', staffBySalon.get(String(s.id)) ?? 0), 0)
   const restaurantSum = restaurantCount * businessMonthlyFee(pricing, 'restaurant')
-  const amountHuf = salonSum + restaurantSum
+  // Hírlevél-kiegészítő: üzletenkénti, választott csomag szerinti felár — a MEGLÉVŐ fiók-díj
+  // additív mintáját követve (mint a szalon extra-munkatárs felár), nincs külön Stripe-tétel.
+  const newsletterSum =
+    salonDocs.reduce((sum, s) => sum + newsletterPackageFee(pricing, s.newsletter_settings?.package), 0) +
+    restaurantDocs.reduce((sum, r) => sum + newsletterPackageFee(pricing, r.newsletter_settings?.package), 0)
+  const amountHuf = salonSum + restaurantSum + newsletterSum
 
   const parts: string[] = []
   if (restaurantCount) parts.push(`${restaurantCount} étterem`)

@@ -55,6 +55,10 @@ export const Customers: CollectionConfig = {
     { name: 'customer_name', type: 'text', label: 'Vendég neve' },
     { name: 'customer_email', type: 'text', label: 'Email' },
     { name: 'customer_phone', type: 'text', label: 'Telefon' },
+    // A foglaláskor megadott város/ország — ha a vendég megadta, a marketing-lista is mutatja
+    // (ország csak zászlóként, a `country` a Reservations 2-betűs ISO-kódját tükrözi).
+    { name: 'customer_city', type: 'text', label: 'Város' },
+    { name: 'customer_country', type: 'text', label: 'Ország (ISO-2)' },
     { name: 'notes', type: 'textarea', label: 'Belső jegyzet' },
     // A vendéghez tartozó ÖSSZES azonosító (régi+új e-mail/telefon), `\n`-nel elválasztva.
     // Így a telefon-csere után is átlinkelhető a régi foglalás → a levezetett adat frissül.
@@ -62,6 +66,10 @@ export const Customers: CollectionConfig = {
     { name: 'blocked', type: 'checkbox', defaultValue: false, label: 'Tiltólistán', admin: { position: 'sidebar' } },
     { name: 'block_reason', type: 'text', label: 'Tiltás indoka', admin: { position: 'sidebar' } },
     { name: 'blocked_at', type: 'date', label: 'Tiltás időpontja', admin: { position: 'sidebar', readOnly: true } },
+    // Marketing-hírlevél hozzájárulás — a foglaló-widget külön, alapból üres jelölőnégyzetével
+    // gyűlik (GDPR opt-in, sose retroaktív). A leiratkozó link false-ra állítja vissza.
+    { name: 'marketing_consent', type: 'checkbox', defaultValue: false, label: 'Feliratkozott hírlevélre', admin: { position: 'sidebar' } },
+    { name: 'marketing_consent_at', type: 'date', label: 'Hozzájárulás időpontja', admin: { position: 'sidebar', readOnly: true } },
   ],
   timestamps: true,
 }

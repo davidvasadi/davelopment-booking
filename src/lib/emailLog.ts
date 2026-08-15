@@ -10,6 +10,11 @@ export interface LogEmailOpts {
   resendId?: string
   bookingId?: string | number
   reservationId?: string | number
+  /** Csak `marketing_broadcast`-nál — az üzlet, aminek a havi hírlevél-plafonjába számít. */
+  salonId?: string | number
+  restaurantId?: string | number
+  /** Csak `marketing_broadcast`-nál — a kampány, amihez a nyitási-arány számításkor tartozik. */
+  campaignId?: string | number
 }
 
 /**
@@ -41,6 +46,9 @@ export async function logEmail(
         status: ok ? 'sent' : 'failed',
         booking: opts?.bookingId ?? null,
         reservation: opts?.reservationId ?? null,
+        salon: opts?.salonId ?? null,
+        restaurant: opts?.restaurantId ?? null,
+        campaign: opts?.campaignId ?? null,
       },
     })
   } catch {

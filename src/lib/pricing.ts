@@ -13,6 +13,13 @@ export type Pricing = {
   salon_extra_staff_huf: number
   /** Étterem fix havidíj (a normál csomag). */
   restaurant_pro_huf: number
+  /** Hírlevél-kiegészítő csomagok havi felára (üzletenként, `newsletter_settings.package`). */
+  newsletter_alap_huf: number
+  newsletter_premium_huf: number
+  /** Havi kemény email-plafon csomagonként — admin bármikor módosíthatja, nem kódba égetett. */
+  newsletter_ingyenes_email_cap: number
+  newsletter_alap_email_cap: number
+  newsletter_premium_email_cap: number
   annual_discount_pct: number
   trial_days: number
 }
@@ -24,6 +31,11 @@ export async function getPricing(): Promise<Pricing> {
     salon_pro_huf: g.salon_pro_huf,
     salon_extra_staff_huf: g.salon_extra_staff_huf,
     restaurant_pro_huf: g.restaurant_pro_huf,
+    newsletter_alap_huf: g.newsletter_alap_huf,
+    newsletter_premium_huf: g.newsletter_premium_huf,
+    newsletter_ingyenes_email_cap: g.newsletter_ingyenes_email_cap,
+    newsletter_alap_email_cap: g.newsletter_alap_email_cap,
+    newsletter_premium_email_cap: g.newsletter_premium_email_cap,
     annual_discount_pct: g.annual_discount_pct,
     trial_days: g.trial_days,
   }

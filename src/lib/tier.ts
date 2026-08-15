@@ -41,6 +41,13 @@ export function businessMonthlyFee(pricing: Pricing, type: 'salon' | 'restaurant
   return type === 'restaurant' ? pricing.restaurant_pro_huf : salonMonthlyFee(pricing, staffCount)
 }
 
+/** A hírlevél-kiegészítő csomag (`newsletter_settings.package`) havi felára. */
+export function newsletterPackageFee(pricing: Pricing, pkg: string | null | undefined): number {
+  if (pkg === 'alap') return pricing.newsletter_alap_huf
+  if (pkg === 'premium') return pricing.newsletter_premium_huf
+  return 0
+}
+
 /**
  * Éves ciklusnál a lista-havidíjat a kedvezménnyel csökkenti (effektív havi ár), havinál
  * változatlan. Az éves TERHELÉS ennek 12-szerese, évente egyszer.

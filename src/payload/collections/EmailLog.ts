@@ -37,6 +37,7 @@ export const EmailLog: CollectionConfig = {
         { label: 'Várólista feliratkozás', value: 'waitlist_signup' },
         { label: 'Várólista felszabadult', value: 'waitlist_opening' },
         { label: 'Ajándékutalvány vásárlás', value: 'voucher_purchase' },
+        { label: 'Marketing hírlevél', value: 'marketing_broadcast' },
         { label: 'Foglalás módosítás', value: 'modification' },
         { label: 'Reggeli összefoglaló', value: 'digest_morning' },
         { label: 'Esti összefoglaló', value: 'digest_evening' },
@@ -75,6 +76,12 @@ export const EmailLog: CollectionConfig = {
     // emlékeztető) van kitöltve — ez alapján jeleníti meg a szerkesztő ablak az állapotot.
     { name: 'booking', type: 'relationship', relationTo: 'bookings', label: 'Foglalás' },
     { name: 'reservation', type: 'relationship', relationTo: 'reservations', label: 'Asztalfoglalás' },
+    // Csak a `marketing_broadcast` típusnál kitöltve — ez alapján számolja a küldés-route az
+    // adott üzlet havi hírlevél-plafonjának felhasználását (naptári hónapra szűrve).
+    { name: 'salon', type: 'relationship', relationTo: 'salons', label: 'Szalon' },
+    { name: 'restaurant', type: 'relationship', relationTo: 'restaurants', label: 'Étterem' },
+    // Csak `marketing_broadcast`-nál — melyik kampányhoz tartozik (nyitási-arány számításhoz).
+    { name: 'campaign', type: 'relationship', relationTo: 'marketing-campaigns', label: 'Kampány' },
   ],
   timestamps: true,
 }

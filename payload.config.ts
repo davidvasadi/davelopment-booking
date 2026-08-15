@@ -26,6 +26,7 @@ import { Waitlist } from './src/payload/collections/Waitlist'
 import { GiftVouchers } from './src/payload/collections/GiftVouchers'
 import { GiftVoucherTypes } from './src/payload/collections/GiftVoucherTypes'
 import { Customers } from './src/payload/collections/Customers'
+import { MarketingCampaigns } from './src/payload/collections/MarketingCampaigns'
 import { Notifications } from './src/payload/collections/Notifications'
 import { Reviews } from './src/payload/collections/Reviews'
 import { Memberships } from './src/payload/collections/Memberships'
@@ -86,6 +87,7 @@ export default buildConfig({
     GiftVouchers,
     GiftVoucherTypes,
     Customers,
+    MarketingCampaigns,
     Notifications,
     Reviews,
     Memberships,

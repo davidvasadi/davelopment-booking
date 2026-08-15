@@ -23,6 +23,7 @@ export interface Config {
     'gift-vouchers': GiftVoucher
     'gift-voucher-types': GiftVoucherType
     customers: Customer
+    'marketing-campaigns': MarketingCampaign
     notifications: Notification
     reviews: Review
     memberships: Membership
@@ -46,6 +47,11 @@ export interface PricingSetting {
   salon_extra_staff_huf: number
   /** Étterem fix havidíj (a normál csomag). Slug maradt `restaurant_pro_huf`. */
   restaurant_pro_huf: number
+  newsletter_ingyenes_email_cap: number
+  newsletter_alap_huf: number
+  newsletter_alap_email_cap: number
+  newsletter_premium_huf: number
+  newsletter_premium_email_cap: number
   annual_discount_pct: number
   trial_days: number
   updatedAt?: string | null
@@ -146,6 +152,9 @@ export interface Restaurant {
     min_amount_huf?: number | null
     max_amount_huf?: number | null
     validity_months?: number | null
+  } | null
+  newsletter_settings?: {
+    package?: ('none' | 'ingyenes' | 'alap' | 'premium') | null
   } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null
@@ -348,11 +357,30 @@ export interface Customer {
   customer_name?: string | null
   customer_email?: string | null
   customer_phone?: string | null
+  customer_city?: string | null
+  customer_country?: string | null
   notes?: string | null
   match_index?: string | null
   blocked?: boolean | null
   block_reason?: string | null
   blocked_at?: string | null
+  marketing_consent?: boolean | null
+  marketing_consent_at?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MarketingCampaign {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  subject: string
+  body_text?: string | null
+  recipient_count?: number | null
+  package?: string | null
+  status: 'sent' | 'draft'
+  blocks_json?: unknown
+  target_customer_ids?: unknown
   createdAt: string
   updatedAt: string
 }
@@ -503,6 +531,7 @@ export interface EmailLogEntry {
     | 'waitlist_signup'
     | 'waitlist_opening'
     | 'voucher_purchase'
+    | 'marketing_broadcast'
     | 'team_invite'
     | 'password_reset'
     | 'schedule_change'
@@ -517,6 +546,9 @@ export interface EmailLogEntry {
   opened_at?: string | null
   booking?: (string | null) | Booking
   reservation?: (string | null) | Reservation
+  salon?: (string | null) | Salon
+  restaurant?: (string | null) | Restaurant
+  campaign?: (string | null) | MarketingCampaign
   createdAt: string
   updatedAt: string
 }
@@ -664,6 +696,9 @@ export interface Salon {
     min_amount_huf?: number | null
     max_amount_huf?: number | null
     validity_months?: number | null
+  } | null
+  newsletter_settings?: {
+    package?: ('none' | 'ingyenes' | 'alap' | 'premium') | null
   } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null

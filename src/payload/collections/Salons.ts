@@ -1,6 +1,6 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
-import { settingsExtensionFields, businessTierField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
@@ -196,6 +196,7 @@ export const Salons: CollectionConfig = {
             ...settingsExtensionFields,
             ...depositSettingsFields,
             ...voucherSettingsFields,
+            ...newsletterSettingsFields,
             ...stripeConnectFields,
             ...invoiceSettingsFields,
             {

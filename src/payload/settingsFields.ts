@@ -176,6 +176,34 @@ export const voucherSettingsFields: Field[] = [
 ]
 
 /**
+ * Hírlevél/marketing-kampány beállítások — PER ÜZLET. Fizetős kiegészítő (nem sima be/ki
+ * kapcsoló, mint a deposit/voucher) — a `package` a fiók havidíjába (`accountSubscription.ts`
+ * → `computeAccountFee`) is beleszámít. A csomagválasztás a dashboard "Marketing" oldaláról
+ * történik (nem itt, a Beállításokban — ott csak a mező LÉTEZIK, a UI máshol van).
+ */
+export const newsletterSettingsFields: Field[] = [
+  {
+    name: 'newsletter_settings',
+    type: 'group',
+    label: 'Hírlevél-beállítások',
+    fields: [
+      {
+        name: 'package',
+        type: 'select',
+        defaultValue: 'none',
+        label: 'Hírlevél-csomag',
+        options: [
+          { label: 'Kikapcsolva', value: 'none' },
+          { label: 'Ingyenes', value: 'ingyenes' },
+          { label: 'Alap', value: 'alap' },
+          { label: 'Prémium', value: 'premium' },
+        ],
+      },
+    ],
+  },
+]
+
+/**
  * Stripe Connect állapot-mezők — ROOT-SZINTEN (nem a `deposit_settings` group-ban) és
  * admin-only `access.update`-tel, mert a Salon/Restaurant Settings PATCH route
  * (`src/app/api/salon|restaurant/settings/route.ts`) `overrideAccess: true`-val ment, ami a
