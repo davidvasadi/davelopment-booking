@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import type { CustomQuestion, CustomQuestionType } from './CustomQuestionsEditor'
 
 /** A dashboardról szerkeszthető localizált mezők egy üzletön (salon/restaurant). */
 export interface LocalizedValues {
@@ -21,6 +22,7 @@ export interface LocalizedValues {
   good_to_know: { icon: string; title: string; body: string }[]
   /** Étterem-only: esemény-típusok (alkalmak). A `label` localizált, az icon/enabled globális. */
   event_types: { icon: string; label: string; enabled: boolean }[]
+  custom_questions: CustomQuestion[]
 }
 
 const EMPTY: LocalizedValues = {
@@ -37,6 +39,7 @@ const EMPTY: LocalizedValues = {
   terms_sections: [],
   good_to_know: [],
   event_types: [],
+  custom_questions: [],
 }
 
 /** A nyers (Payload) rekordból a localizált mezők kinyerése egy adott nyelven betöltve. */
@@ -44,6 +47,7 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
   const terms = Array.isArray(doc.terms_sections) ? doc.terms_sections : []
   const gtk = Array.isArray(doc.good_to_know) ? doc.good_to_know : []
   const evt = Array.isArray(doc.event_types) ? doc.event_types : []
+  const cq = Array.isArray(doc.custom_questions) ? doc.custom_questions : []
   return {
     booking_email_subject: (doc.booking_email_subject as string) ?? '',
     booking_email_intro: (doc.booking_email_intro as string) ?? '',
@@ -68,6 +72,14 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
       icon: (e.icon as string) ?? 'party',
       label: (e.label as string) ?? '',
       enabled: (e.enabled as boolean) ?? true,
+    })),
+    custom_questions: cq.map((q: Record<string, unknown>) => ({
+      label: (q.label as string) ?? '',
+      type: ((q.type as string) ?? 'text') as CustomQuestionType,
+      options: Array.isArray(q.options)
+        ? (q.options as Record<string, unknown>[]).map((o) => ({ value: (o.value as string) ?? '' }))
+        : [],
+      required: (q.required as boolean) ?? false,
     })),
   }
 }
@@ -168,6 +180,7 @@ export function useLocalizedFields(opts: {
           feedback_email_intro: values.feedback_email_intro,
           terms_sections: values.terms_sections,
           good_to_know: values.good_to_know,
+          custom_questions: values.custom_questions,
           // Az esemény-típusok étterem-only mező — a szalon PATCH-be ne kerüljön bele.
           ...(collection === 'restaurants' ? { event_types: values.event_types } : {}),
         }),

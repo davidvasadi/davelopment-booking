@@ -766,6 +766,20 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                     <Label>Megjegyzés</Label>
                     <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. hosszú haj, festés előtt" />
                   </div>
+
+                  {target?.booking?.custom_answers && Object.keys(target.booking.custom_answers).length > 0 && (
+                    <div className="space-y-1.5">
+                      <Label>Egyedi kérdések válaszai</Label>
+                      <div className="rounded-[12px] border border-zinc-200 divide-y divide-zinc-100">
+                        {Object.values(target.booking.custom_answers).map((qa, i) => (
+                          <div key={i} className="px-3.5 py-2.5">
+                            <div className="text-[12px] text-zinc-500">{qa.question}</div>
+                            <div className="text-sm text-zinc-900">{qa.answer}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>{/* /Törzs */}
 

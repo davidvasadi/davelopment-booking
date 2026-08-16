@@ -202,6 +202,10 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         voucherEnabled={!!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded && voucherTypes.length > 0}
         voucherTypes={voucherTypes}
         newsletterEnabled={hasActivePackage(salon.newsletter_settings?.package)}
+        consentEnabled={!!salon.consent_settings?.enabled && !!salon.consent_settings?.template_text?.trim()}
+        consentTitle={salon.consent_settings?.title}
+        consentText={salon.consent_settings?.template_text}
+        customQuestions={salon.custom_questions}
         company={{
           name: salon.name,
           legal_name: salon.legal_name,

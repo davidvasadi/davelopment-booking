@@ -15,6 +15,7 @@ import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor, type TermsSection } from '@/components/settings/TermsSectionsEditor'
 import { GoodToKnowEditor, type GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
+import { CustomQuestionsEditor, type CustomQuestion } from '@/components/settings/CustomQuestionsEditor'
 import { EventTypesEditor, type EventTypeItem } from '@/components/settings/EventTypesEditor'
 import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
@@ -136,6 +137,7 @@ type Settings = {
   terms_sections: TermsSection[]
   good_to_know: GoodToKnowItem[]
   event_types: EventTypeItem[]
+  custom_questions: CustomQuestion[]
 }
 
 // Crextio/Apple mező: tiszta fehér + meleg hajszálvékony keret + arany fókusz-gyűrű (NINCS krém fill).
@@ -226,6 +228,12 @@ export function RestaurantSettingsForm({
       terms_sections: initial.terms_sections.map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
       good_to_know: initial.good_to_know.map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
       event_types: initial.event_types.map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
+      custom_questions: initial.custom_questions.map((q) => ({
+        label: q.label ?? '',
+        type: q.type ?? 'text',
+        options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),
+        required: q.required ?? false,
+      })),
     },
   })
 
@@ -263,7 +271,7 @@ export function RestaurantSettingsForm({
     email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
     documents: [],
   }
-  const LOC_TABS = new Set(['general', 'email', 'documents'])
+  const LOC_TABS = new Set(['general', 'booking', 'email', 'documents'])
   const [internalTab, setActiveTab] = useState('general')
   // Vezérelt mód: ha a Beállítások-hub Providere körénk renderel, a context/prop dönt a fülről
   // ÉS elrejtjük a saját vízszintes fül-sort; különben a belső állapot + saját fülsor.
@@ -776,6 +784,14 @@ export function RestaurantSettingsForm({
             <p className="text-xs text-ink-soft">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
           </div>
         </div>
+      </Section>
+
+      <Section id="custom-questions" title="Egyedi kérdések a foglaláskor" full>
+        <p className="text-xs text-ink-soft -mt-1">
+          Saját kérdések, amiket a vendégnek fel kell tenni a foglaló-wizard adatlap lépésében (pl. „Van különleges alkalmuk?").
+        </p>
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
+        <CustomQuestionsEditor value={loc.current.custom_questions} onChange={(v) => loc.setField('custom_questions', v)} />
       </Section>
 
       {!embedded && <SaveBar dirty={tabDirty('booking')} submitting={submitting} onSave={() => saveTab('booking')} />}

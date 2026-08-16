@@ -168,6 +168,10 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
         voucherEnabled={!!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0}
         voucherTypes={voucherTypes}
         newsletterEnabled={hasActivePackage(restaurant.newsletter_settings?.package)}
+        consentEnabled={!!restaurant.consent_settings?.enabled && !!restaurant.consent_settings?.template_text?.trim()}
+        consentTitle={restaurant.consent_settings?.title}
+        consentText={restaurant.consent_settings?.template_text}
+        customQuestions={restaurant.custom_questions}
       />
     </div>
   )

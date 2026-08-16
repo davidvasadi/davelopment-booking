@@ -156,6 +156,11 @@ export interface Restaurant {
   newsletter_settings?: {
     package?: ('none' | 'ingyenes' | 'alap' | 'premium') | null
   } | null
+  consent_settings?: {
+    enabled?: boolean | null
+    title?: string | null
+    template_text?: string | null
+  } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null
   invoice_settings?: {
@@ -189,6 +194,13 @@ export interface Restaurant {
   billing_street?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
+  custom_questions?: {
+    label: string
+    type?: ('text' | 'yesno' | 'select') | null
+    options?: { value?: string | null; id?: string | null }[] | null
+    required?: boolean | null
+    id?: string | null
+  }[] | null
   event_types?: { icon?: string | null; label?: string | null; enabled?: boolean | null; id?: string | null }[] | null
   supported_locales?: Locale[] | null
   is_active?: boolean | null
@@ -287,6 +299,12 @@ export interface Reservation {
   invoice_status?: ('none' | 'issued' | 'failed') | null
   voucher_code?: string | null
   voucher_discount_huf?: number | null
+  consent_accepted?: boolean | null
+  consent_accepted_at?: string | null
+  consent_accepted_via?: ('online' | 'onsite') | null
+  consent_text_snapshot?: string | null
+  consent_accepted_ip?: string | null
+  custom_answers?: Record<string, { question: string; answer: string }> | null
   createdAt: string
   updatedAt: string
 }
@@ -700,6 +718,11 @@ export interface Salon {
   newsletter_settings?: {
     package?: ('none' | 'ingyenes' | 'alap' | 'premium') | null
   } | null
+  consent_settings?: {
+    enabled?: boolean | null
+    title?: string | null
+    template_text?: string | null
+  } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null
   invoice_settings?: {
@@ -733,6 +756,13 @@ export interface Salon {
   billing_street?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
+  custom_questions?: {
+    label: string
+    type?: ('text' | 'yesno' | 'select') | null
+    options?: { value?: string | null; id?: string | null }[] | null
+    required?: boolean | null
+    id?: string | null
+  }[] | null
   supported_locales?: Locale[] | null
   is_active?: boolean | null
   admin_notes?: string | null
@@ -846,6 +876,12 @@ export interface Booking {
   invoice_status?: ('none' | 'issued' | 'failed') | null
   voucher_code?: string | null
   voucher_discount_huf?: number | null
+  consent_accepted?: boolean | null
+  consent_accepted_at?: string | null
+  consent_accepted_via?: ('online' | 'onsite') | null
+  consent_text_snapshot?: string | null
+  consent_accepted_ip?: string | null
+  custom_answers?: Record<string, { question: string; answer: string }> | null
   createdAt: string
   updatedAt: string
 }

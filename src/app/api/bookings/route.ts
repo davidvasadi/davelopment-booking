@@ -46,7 +46,21 @@ const schema = z.object({
   // Marketing-hírlevél hozzájárulás — alapból üres jelölőnégyzet a details lépésen, csak akkor
   // küldi a kliens `true`-val, ha a vendég MAGA bepipálta (sose retroaktív/előre kipipált).
   marketing_consent: z.boolean().optional(),
+  // Digitális beleegyező nyilatkozat elfogadása — csak a toggle be/ki állapotát küldi a
+  // kliens, a szöveg-verziót és az IP-t a szerver írja be, sose bízunk a kliensben.
+  consent_accepted: z.boolean().optional(),
+  // Egyedi kérdések válaszai — a kliens csak a kérdés-id-t és a választ küldi, a kérdés
+  // pontos szövegét (snapshothoz) a szerver a saját, friss szalon-rekordjából olvassa ki.
+  custom_answers: z.array(z.object({ id: z.string(), answer: z.string().max(500) })).optional(),
 })
+
+function getIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  )
+}
 
 export async function POST(request: NextRequest) {
   let body: unknown
@@ -65,7 +79,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent } = parsed.data
+  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
   let staffId = parsed.data.staffId
 
   // Tiltólista (üzletenként): tiltott e-mail/telefon → ÁLTALÁNOS hiba (nem áruljuk el a tiltást).
@@ -193,6 +207,29 @@ export async function POST(request: NextRequest) {
       depositHuf = expectedHuf
     }
 
+    // Beleegyező nyilatkozat — ha az üzletnél be van kapcsolva ÉS van megadott szöveg, az
+    // elfogadás KÖTELEZŐ, sose bízunk kliens-oldali jelzésben, mindig a szerver dönt.
+    const consentTemplateText = salon.consent_settings?.template_text?.trim() || null
+    const consentRequired = !!salon.consent_settings?.enabled && !!consentTemplateText
+    if (consentRequired && !consent_accepted) {
+      return NextResponse.json({ error: 'A beleegyező nyilatkozat elfogadása szükséges a foglaláshoz' }, { status: 400 })
+    }
+
+    // Egyedi kérdések — kötelező kérdésre KÖTELEZŐ nem-üres válasz, a snapshot (kérdés + válasz)
+    // a szerver saját, friss `custom_questions` sablonjából épül, sose a kliens szövegéből.
+    const customQuestionDefs = salon.custom_questions ?? []
+    const customAnswersById = new Map((custom_answers ?? []).map((a) => [a.id, a.answer]))
+    for (const q of customQuestionDefs) {
+      if (q.required && q.type !== 'yesno' && !(customAnswersById.get(q.id ?? '') ?? '').trim()) {
+        return NextResponse.json({ error: 'Egy kötelező kérdésre nem érkezett válasz' }, { status: 400 })
+      }
+    }
+    const customAnswersSnapshot: Record<string, { question: string; answer: string }> = {}
+    for (const q of customQuestionDefs) {
+      const ans = (customAnswersById.get(q.id ?? '') ?? '').trim()
+      if (q.id && ans) customAnswersSnapshot[q.id] = { question: q.label, answer: ans }
+    }
+
     // Ajándékutalvány beváltása — egyszeri, teljes felhasználás (nincs egyenleg/tárca-modell,
     // a fel nem használt maradék elvész, mint egy papír-utalványnál). A kód érvényességét itt
     // ÚJRA leellenőrizzük (sose bízzunk a kliens korábbi, `/api/vouchers/validate`-es
@@ -264,6 +301,20 @@ export async function POST(request: NextRequest) {
             : {}),
           // Az utalvány-beváltás is csak az ELSŐ (kért) alkalomra vonatkozik, ugyanúgy mint az előleg.
           ...(d === date && voucher ? { voucher_code: voucher.code, voucher_discount_huf: voucher.amount_huf } : {}),
+          // A nyilatkozat-elfogadás is csak az ELSŐ (kért) alkalomra vonatkozik.
+          ...(d === date && consentRequired
+            ? {
+                consent_accepted: true,
+                consent_accepted_at: new Date().toISOString(),
+                consent_accepted_via: 'online' as const,
+                consent_text_snapshot: consentTemplateText,
+                consent_accepted_ip: getIp(request),
+              }
+            : {}),
+          // Az egyedi kérdések válaszai is csak az ELSŐ (kért) alkalomra vonatkoznak.
+          ...(d === date && Object.keys(customAnswersSnapshot).length > 0
+            ? { custom_answers: customAnswersSnapshot }
+            : {}),
         },
       })) as unknown as Booking
       created.push(booking)

@@ -34,7 +34,13 @@ export default async function SalonGuestsPage() {
   }
 
   // A szalon bookings-ban nincs `country` → a térkép a telefon-előhívóból töltődik.
-  type Src = GuestSource & { time?: string; svcName?: string; price?: number | null; note?: string | null }
+  type Src = GuestSource & {
+    time?: string
+    svcName?: string
+    price?: number | null
+    note?: string | null
+    customAnswers?: Record<string, { question: string; answer: string }> | null
+  }
   const sources: Src[] = docs.map((b) => ({
     name: b.customer_name,
     email: b.customer_email,
@@ -46,6 +52,7 @@ export default async function SalonGuestsPage() {
     svcName: serviceName(b.service),
     price: servicePrice(b.service),
     note: (b as { notes?: string | null }).notes ?? null,
+    customAnswers: b.custom_answers ?? null,
   }))
 
   const latestNote = (own: GuestSource[]): string | null => {
@@ -106,6 +113,19 @@ export default async function SalonGuestsPage() {
     return best || '—'
   }
 
+  // Egyedi kérdések TÖRTÉNETE a vendég profilján — kérdés-SZÖVEGENKÉNT (nem id-nkánt, mert a
+  // sablon időközben módosulhat/törölhető) a legutóbbi (legfrissebb dátumú) nem-üres választ
+  // tartjuk meg. NEM külön tárolt mezőből jön, hanem a foglalás-történetből levezetve.
+  const latestCustomAnswers = (own: GuestSource[]): { label: string; value: string }[] => {
+    const byQuestion = new Map<string, string>()
+    for (const s of [...own].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))) {
+      const answers = (s as Src).customAnswers
+      if (!answers) continue
+      for (const qa of Object.values(answers)) byQuestion.set(qa.question, qa.answer)
+    }
+    return Array.from(byQuestion.entries()).map(([label, value]) => ({ label, value }))
+  }
+
   const guestVMs = buildGuestVMs(guests, sources, {
     salon: true,
     labelFor: (s) => (s as { svcName?: string }).svcName || 'Foglalás',
@@ -123,6 +143,7 @@ export default async function SalonGuestsPage() {
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} foglalás` : '—' },
         { label: 'Kedvenc', value: favService([...past, ...upcoming]) },
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
+        ...latestCustomAnswers([...past, ...upcoming]),
       ]
     },
     noteFor: (own) => ({ guest: latestNote(own), internal: null }),

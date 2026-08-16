@@ -194,6 +194,23 @@ export const Reservations: CollectionConfig = {
     },
     { name: 'voucher_code', type: 'text', label: 'Beváltott utalvány-kód', admin: { position: 'sidebar', readOnly: true } },
     { name: 'voucher_discount_huf', type: 'number', label: 'Utalvánnyal fedezett összeg (Ft)', admin: { position: 'sidebar', readOnly: true } },
+    // Digitális beleegyező nyilatkozat elfogadása — per-foglalás (nem a Customers-en, mert
+    // ez per-látogatás dolog, nem tartós preferencia). A szöveg-snapshot és az IP a szervertől
+    // jön (a kliens sose adja meg közvetlenül), hogy ne legyen manipulálható bizonyíték.
+    { name: 'consent_accepted', type: 'checkbox', defaultValue: false, label: 'Nyilatkozat elfogadva', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'consent_accepted_at', type: 'date', admin: { position: 'sidebar', readOnly: true } },
+    {
+      name: 'consent_accepted_via',
+      type: 'select',
+      options: [
+        { label: 'Online (foglaláskor)', value: 'online' },
+        { label: 'Helyszínen', value: 'onsite' },
+      ],
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    { name: 'consent_text_snapshot', type: 'textarea', label: 'Elfogadott szöveg-verzió', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'consent_accepted_ip', type: 'text', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'custom_answers', type: 'json', label: 'Egyedi kérdések válaszai', admin: { position: 'sidebar', readOnly: true } },
   ],
   hooks: {
     beforeChange: [

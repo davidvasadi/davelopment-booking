@@ -26,7 +26,7 @@ import { iconByKey } from '@/components/settings/goodToKnowIcons'
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map(c => [c.code, c.dial]))
 
 type Slot = { start: string; end: string }
-type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'summary' | 'success' | 'voucher' | 'voucherSuccess'
+type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher' | 'voucherSuccess'
 type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address'
 
 interface Props {
@@ -53,6 +53,16 @@ interface Props {
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
   newsletterEnabled?: boolean
+  consentEnabled?: boolean
+  consentTitle?: string | null
+  consentText?: string | null
+  customQuestions?: {
+    id?: string | null
+    label: string
+    type?: string | null
+    options?: { id?: string | null; value?: string | null }[] | null
+    required?: boolean | null
+  }[] | null
 }
 
 function getCategoryId(cat: Service['category']): string | null {
@@ -68,6 +78,8 @@ export function ProfileCard({
   requirePhone = true, bookingWindowDays = 60,
   termsSections, company, goodToKnow, depositEnabled = false,
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
+  consentEnabled = false, consentTitle = null, consentText = null,
+  customQuestions = null,
 }: Props) {
   const tt = makeT(locale)
 
@@ -93,6 +105,12 @@ export function ProfileCard({
   const [customerNotes, setCustomerNotes] = useState('')
   // GDPR opt-in — SOSE előre kipipált, a foglaláskor mentődik tartósan a Customers táblába.
   const [marketingConsent, setMarketingConsent] = useState(false)
+  // Beleegyező nyilatkozat elfogadása — SOSE előre bekapcsolva, per-foglalás mentődik.
+  const [consentGiven, setConsentGiven] = useState(false)
+  // Egyedi kérdések válaszai — kérdés-id kulccsal, a details lépésben töltve ki.
+  const customQuestionsList = customQuestions ?? []
+  const [customAnswers, setCustomAnswers] = useState<Record<string, string>>({})
+  const [customErrors, setCustomErrors] = useState<Record<string, string>>({})
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
   const [depositAmountHuf, setDepositAmountHuf] = useState<number | null>(null)
   const [successDetails, setSuccessDetails] = useState<{ service: string; staff: string; date: string; time: string } | null>(null)
@@ -146,7 +164,7 @@ export function ProfileCard({
     address: useRef<HTMLInputElement>(null),
   }
 
-  const isBookingView = view === 'datetime' || view === 'details' || view === 'deposit' || view === 'summary'
+  const isBookingView = view === 'datetime' || view === 'details' || view === 'deposit' || view === 'consent' || view === 'summary'
 
   // Egy szolgáltatás csak akkor foglalható a publikus oldalon, ha legalább egy munkatárs hozzá
   // van rendelve — enélkül a foglaló-varázsló zsákutcába futna (nincs kit választani a
@@ -210,7 +228,8 @@ export function ProfileCard({
   }
 
   const handleBack = () => {
-    if (view === 'summary') { setDir(-1); setView('details') }
+    if (view === 'summary') { setDir(-1); setView(consentEnabled ? 'consent' : 'details') }
+    else if (view === 'consent') { setDir(-1); setView(depositEnabled ? 'deposit' : 'details') }
     else if (view === 'details') { setDir(-1); setView('datetime') }
     else if (view === 'datetime') { setDir(-1); setView('serviceDetail') }
     else if (view === 'serviceDetail') goTo('services', selectedCategoryId, null, -1)
@@ -309,6 +328,12 @@ export function ProfileCard({
     if (errors[key]) setErrors(prev => ({ ...prev, [key]: undefined }))
   }
 
+  const validateCustomQuestion = (q: NonNullable<Props['customQuestions']>[number]): string | null => {
+    if (!q.required || q.type === 'yesno') return null
+    const val = customAnswers[q.id ?? ''] ?? ''
+    return val.trim() ? null : 'Kötelező mező'
+  }
+
   const submit = async () => {
     if (!selectedServiceId || !bookingSlot) return
     const order: FieldKey[] = ['name', 'email', 'phone', ...(depositEnabled ? (['city', 'address'] as FieldKey[]) : [])]
@@ -317,8 +342,14 @@ export function ProfileCard({
       const msg = validateField(key)
       if (msg) nextErrors[key] = msg
     }
-    if (Object.keys(nextErrors).length > 0) {
+    const nextCustomErrors: Record<string, string> = {}
+    for (const q of customQuestionsList) {
+      const msg = validateCustomQuestion(q)
+      if (msg && q.id) nextCustomErrors[q.id] = msg
+    }
+    if (Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
       setErrors(nextErrors)
+      setCustomErrors(nextCustomErrors)
       const firstBad = order.find(k => nextErrors[k])
       if (firstBad) fieldRefs[firstBad].current?.focus()
       return
@@ -341,6 +372,10 @@ export function ProfileCard({
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
           ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
           ...(newsletterEnabled && marketingConsent ? { marketing_consent: true } : {}),
+          ...(consentEnabled ? { consent_accepted: consentGiven } : {}),
+          ...(customQuestionsList.length > 0
+            ? { custom_answers: customQuestionsList.filter(q => q.id).map(q => ({ id: q.id as string, answer: customAnswers[q.id as string] ?? '' })) }
+            : {}),
         }),
       })
       if (!res.ok) {
@@ -534,10 +569,12 @@ export function ProfileCard({
 
         {/* Step indicator row — minden nem-main, nem-success nézeten */}
         {view !== 'main' && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && (() => {
+          const stepCount = 4 + (depositEnabled ? 1 : 0) + (consentEnabled ? 1 : 0)
           const stepIndex = view === 'services' || view === 'serviceDetail' ? 0
             : view === 'datetime' ? 1 : view === 'details' ? 2
-            : view === 'deposit' ? 3 : depositEnabled ? 4 : 3
-          const stepCount = depositEnabled ? 5 : 4
+            : view === 'deposit' ? 3
+            : view === 'consent' ? 3 + (depositEnabled ? 1 : 0)
+            : stepCount - 1
           return (
             <div className="shrink-0 flex items-center justify-between px-5 pb-2 pt-1 lg:px-6">
               <button
@@ -999,6 +1036,53 @@ export function ProfileCard({
                         {!errors.address && <p className="text-[11px] text-white/40">Az előleg-számlázáshoz kötelező.</p>}
                       </div>
                     )}
+                    {customQuestionsList.map((q) => {
+                      const key = q.id ?? ''
+                      const val = customAnswers[key] ?? ''
+                      const err = customErrors[key]
+                      if (q.type === 'yesno') {
+                        return (
+                          <div key={key} className="flex items-center justify-between gap-4 py-1">
+                            <Label className="text-[13px] font-medium text-white/85">{q.label}</Label>
+                            <Switch
+                              checked={val === 'Igen'}
+                              onChange={(v) => setCustomAnswers(a => ({ ...a, [key]: v ? 'Igen' : 'Nem' }))}
+                              ariaLabel={q.label}
+                            />
+                          </div>
+                        )
+                      }
+                      if (q.type === 'select') {
+                        return (
+                          <div key={key} className="space-y-1">
+                            <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{q.label}{q.required ? ' *' : ''}</Label>
+                            <select
+                              value={val}
+                              onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
+                              className={cn('h-11 w-full rounded-[12px] border border-white/10 bg-white/[0.06] px-3 text-[14px] font-medium text-white focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', err && 'ring-1 ring-red-400')}
+                            >
+                              <option value="" className="text-ink">Válassz…</option>
+                              {(q.options ?? []).map((o, oi) => o.value ? (
+                                <option key={oi} value={o.value} className="text-ink">{o.value}</option>
+                              ) : null)}
+                            </select>
+                            {err && <p role="alert" className="text-[12px] text-red-400">{err}</p>}
+                          </div>
+                        )
+                      }
+                      return (
+                        <div key={key} className="space-y-1">
+                          <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{q.label}{q.required ? ' *' : ''}</Label>
+                          <Input
+                            value={val}
+                            onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
+                            aria-invalid={!!err}
+                            className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', err && 'ring-1 ring-red-400')}
+                          />
+                          {err && <p role="alert" className="text-[12px] text-red-400">{err}</p>}
+                        </div>
+                      )
+                    })}
                     <div className="space-y-1">
                       <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.note')}</Label>
                       <Textarea
@@ -1065,10 +1149,27 @@ export function ProfileCard({
                         setPaymentIntentId(pid)
                         setDepositAmountHuf(amount)
                         setDir(1)
-                        setView('summary')
+                        setView(consentEnabled ? 'consent' : 'summary')
                       }}
                     />
                   )}
+                </div>
+              )}
+
+              {/* CONSENT — digitális beleegyező nyilatkozat */}
+              {view === 'consent' && consentEnabled && (
+                <div>
+                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{consentTitle?.trim() || 'Beleegyező nyilatkozat'}</h2>
+                  <div
+                    className="mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed text-white/75"
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}
+                  >
+                    {consentText || 'A szolgáltató még nem adta meg a nyilatkozat szövegét.'}
+                  </div>
+                  <div className="flex items-center justify-between gap-3 py-1">
+                    <span className="text-[13px] text-white/70">Elolvastam és elfogadom a fenti nyilatkozatot</span>
+                    <Switch checked={consentGiven} onChange={setConsentGiven} ariaLabel="Nyilatkozat elfogadása" />
+                  </div>
                 </div>
               )}
 
@@ -1385,21 +1486,25 @@ export function ProfileCard({
                         return
                       }
                       setDir(1)
-                      setView(depositEnabled ? 'deposit' : 'summary')
+                      setView(depositEnabled ? 'deposit' : consentEnabled ? 'consent' : 'summary')
+                    } else if (view === 'consent') {
+                      if (!consentGiven) return
+                      setDir(1)
+                      setView('summary')
                     }
                   }}
-                  disabled={view === 'datetime' || submitting}
+                  disabled={view === 'datetime' || submitting || (view === 'consent' && !consentGiven)}
                   className="flex h-14 w-full items-center justify-center gap-2 rounded-full text-[15px] font-semibold transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:active:scale-100"
                   style={{
-                    background: view === 'summary' ? '#FFD85F' : view === 'details' ? 'white' : 'rgba(255,255,255,0.10)',
-                    color: view === 'summary' ? 'var(--ink-dark)' : view === 'details' ? 'var(--ink-dark)' : 'rgba(255,255,255,0.30)',
+                    background: view === 'summary' ? '#FFD85F' : (view === 'details' || (view === 'consent' && consentGiven)) ? 'white' : 'rgba(255,255,255,0.10)',
+                    color: view === 'summary' ? 'var(--ink-dark)' : (view === 'details' || (view === 'consent' && consentGiven)) ? 'var(--ink-dark)' : 'rgba(255,255,255,0.30)',
                   }}
                 >
                   {submitting
                     ? <Loader2 className="h-4 w-4 animate-spin" />
                     : view === 'summary' ? tt('booking.confirm') : tt('booking.next')
                   }
-                  {!submitting && view === 'details' && <Check className="h-4 w-4 opacity-70" />}
+                  {!submitting && (view === 'details' || (view === 'consent' && consentGiven)) && <Check className="h-4 w-4 opacity-70" />}
                 </button>
                 {view === 'summary' && (
                   <div className="text-center text-xs text-white/40">

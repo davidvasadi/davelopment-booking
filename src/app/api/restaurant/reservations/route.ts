@@ -37,7 +37,21 @@ const schema = z.object({
   payment_intent_id: z.string().optional(),
   voucher_code: z.string().max(20).optional(),
   marketing_consent: z.boolean().optional(),
+  // Digitális beleegyező nyilatkozat elfogadása — csak a toggle be/ki állapotát küldi a
+  // kliens, a szöveg-verziót és az IP-t a szerver írja be, sose bízunk a kliensben.
+  consent_accepted: z.boolean().optional(),
+  // Egyedi kérdések válaszai — a kliens csak a kérdés-id-t és a választ küldi, a kérdés
+  // pontos szövegét (snapshothoz) a szerver a saját, friss étterem-rekordjából olvassa ki.
+  custom_answers: z.array(z.object({ id: z.string(), answer: z.string().max(500) })).optional(),
 })
+
+function getIp(req: NextRequest): string {
+  return (
+    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+    req.headers.get('x-real-ip') ??
+    'unknown'
+  )
+}
 
 export async function POST(request: NextRequest) {
   let body: unknown
@@ -51,7 +65,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
 
   try {
     const payload = await getPayloadClient()
@@ -136,6 +150,29 @@ export async function POST(request: NextRequest) {
       depositHuf = expectedHuf
     }
 
+    // Beleegyező nyilatkozat — ha az étteremnél be van kapcsolva ÉS van megadott szöveg, az
+    // elfogadás KÖTELEZŐ, sose bízunk kliens-oldali jelzésben.
+    const consentTemplateText = restaurant.consent_settings?.template_text?.trim() || null
+    const consentRequired = !!restaurant.consent_settings?.enabled && !!consentTemplateText
+    if (consentRequired && !consent_accepted) {
+      return NextResponse.json({ error: 'A beleegyező nyilatkozat elfogadása szükséges a foglaláshoz' }, { status: 400 })
+    }
+
+    // Egyedi kérdések — kötelező kérdésre KÖTELEZŐ nem-üres válasz, a snapshot (kérdés + válasz)
+    // a szerver saját, friss `custom_questions` sablonjából épül, sose a kliens szövegéből.
+    const customQuestionDefs = restaurant.custom_questions ?? []
+    const customAnswersById = new Map((custom_answers ?? []).map((a) => [a.id, a.answer]))
+    for (const q of customQuestionDefs) {
+      if (q.required && q.type !== 'yesno' && !(customAnswersById.get(q.id ?? '') ?? '').trim()) {
+        return NextResponse.json({ error: 'Egy kötelező kérdésre nem érkezett válasz' }, { status: 400 })
+      }
+    }
+    const customAnswersSnapshot: Record<string, { question: string; answer: string }> = {}
+    for (const q of customQuestionDefs) {
+      const ans = (customAnswersById.get(q.id ?? '') ?? '').trim()
+      if (q.id && ans) customAnswersSnapshot[q.id] = { question: q.label, answer: ans }
+    }
+
     // Ajándékutalvány beváltása — egyszeri, teljes felhasználás, ugyanaz a minta, mint a
     // szalon `/api/bookings` route-jában.
     let voucher: { id: string | number; code: string; amount_huf: number } | null = null
@@ -203,6 +240,18 @@ export async function POST(request: NextRequest) {
             ? { payment_gateway: 'stripe' as const, payment_status: 'paid' as const, deposit_amount_huf: depositHuf ?? undefined, deposit_paid: true, payment_intent_id }
             : {}),
           ...(d === date && voucher ? { voucher_code: voucher.code, voucher_discount_huf: voucher.amount_huf } : {}),
+          ...(d === date && consentRequired
+            ? {
+                consent_accepted: true,
+                consent_accepted_at: new Date().toISOString(),
+                consent_accepted_via: 'online' as const,
+                consent_text_snapshot: consentTemplateText,
+                consent_accepted_ip: getIp(request),
+              }
+            : {}),
+          ...(d === date && Object.keys(customAnswersSnapshot).length > 0
+            ? { custom_answers: customAnswersSnapshot }
+            : {}),
         },
         overrideAccess: true,
         context: { auditActor: 'Online foglalás' },

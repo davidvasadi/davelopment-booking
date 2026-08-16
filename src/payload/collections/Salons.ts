@@ -1,6 +1,6 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
-import { settingsExtensionFields, businessTierField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
@@ -197,6 +197,7 @@ export const Salons: CollectionConfig = {
             ...depositSettingsFields,
             ...voucherSettingsFields,
             ...newsletterSettingsFields,
+            ...consentSettingsFields,
             ...stripeConnectFields,
             ...invoiceSettingsFields,
             {
@@ -281,6 +282,34 @@ export const Salons: CollectionConfig = {
                 { name: 'icon', type: 'text', label: 'Ikon kulcs', defaultValue: 'info' },
                 { name: 'title', type: 'text', localized: true, label: 'Pont címe' },
                 { name: 'body', type: 'textarea', localized: true, label: 'Pont szövege' },
+              ],
+            },
+            {
+              name: 'custom_questions',
+              type: 'array',
+              label: 'Egyedi kérdések a foglaláskor',
+              admin: { description: 'Saját kérdések, amiket a vendégnek fel kell tenni foglaláskor (pl. „Allergiás vagy valamire?").' },
+              fields: [
+                { name: 'label', type: 'text', required: true, localized: true, label: 'Kérdés szövege' },
+                {
+                  name: 'type',
+                  type: 'select',
+                  defaultValue: 'text',
+                  label: 'Típus',
+                  options: [
+                    { label: 'Szöveges válasz', value: 'text' },
+                    { label: 'Igen / Nem', value: 'yesno' },
+                    { label: 'Választható lista', value: 'select' },
+                  ],
+                },
+                {
+                  name: 'options',
+                  type: 'array',
+                  label: 'Választható opciók',
+                  admin: { description: 'Csak „Választható lista" típusnál használt.' },
+                  fields: [{ name: 'value', type: 'text', localized: true, label: 'Opció szövege' }],
+                },
+                { name: 'required', type: 'checkbox', defaultValue: false, label: 'Kötelező' },
               ],
             },
             {

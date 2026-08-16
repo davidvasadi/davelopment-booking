@@ -16,6 +16,7 @@ import { getAccountBilling } from '@/lib/accountBilling'
 import { getPricing } from '@/lib/pricing'
 import { createHmac } from 'crypto'
 import type { Restaurant, Invoice } from '@/payload/payload-types'
+import type { CustomQuestionType } from '@/components/settings/CustomQuestionsEditor'
 
 function icalUrl(type: string, id: string | number) {
   const secret = process.env.PAYLOAD_SECRET ?? 'dev-secret'
@@ -206,6 +207,11 @@ export default async function RestaurantSettingsPage() {
           maxAmountHuf: r.voucher_settings?.max_amount_huf ?? 100000,
           validityMonths: r.voucher_settings?.validity_months ?? 12,
         }}
+        consentSettings={{
+          enabled: r.consent_settings?.enabled ?? false,
+          title: r.consent_settings?.title ?? '',
+          templateText: r.consent_settings?.template_text ?? '',
+        }}
         stripeConnectAccountId={r.stripe_connect_account_id ?? null}
         stripeConnectOnboarded={!!r.stripe_connect_onboarded}
         newsletterPackage={r.newsletter_settings?.package ?? 'none'}
@@ -283,6 +289,12 @@ export default async function RestaurantSettingsPage() {
               terms_sections: (r.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
               good_to_know: (r.good_to_know ?? []).map((s) => ({ icon: s.icon ?? 'info', title: s.title ?? '', body: s.body ?? '' })),
               event_types: (r.event_types ?? []).map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
+              custom_questions: (r.custom_questions ?? []).map((q) => ({
+                label: q.label ?? '',
+                type: (q.type ?? 'text') as CustomQuestionType,
+                options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),
+                required: q.required ?? false,
+              })),
             }}
           />
         }

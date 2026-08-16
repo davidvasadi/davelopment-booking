@@ -51,6 +51,10 @@ export function RestaurantCard({
   voucherEnabled,
   voucherTypes = [],
   newsletterEnabled,
+  consentEnabled,
+  consentTitle,
+  consentText,
+  customQuestions,
 }: {
   slug: string
   restaurantId: string | number
@@ -74,6 +78,16 @@ export function RestaurantCard({
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
   newsletterEnabled?: boolean
+  consentEnabled?: boolean
+  consentTitle?: string | null
+  consentText?: string | null
+  customQuestions?: {
+    id?: string | null
+    label: string
+    type?: string | null
+    options?: { id?: string | null; value?: string | null }[] | null
+    required?: boolean | null
+  }[] | null
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(true)
@@ -342,6 +356,10 @@ export function RestaurantCard({
         depositEnabled={depositEnabled}
         voucherEnabled={voucherEnabled}
         newsletterEnabled={newsletterEnabled}
+        consentEnabled={consentEnabled}
+        consentTitle={consentTitle}
+        consentText={consentText}
+        customQuestions={customQuestions}
       />
     </div>
   )

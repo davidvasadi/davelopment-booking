@@ -43,7 +43,15 @@ export default async function RestaurantGuestsPage() {
       .filter((v): v is string => !!v)
 
   // Forrás + eredeti időpont/pax/jegyzet/alkalom/asztalok megőrzése a részletekhez.
-  type Src = GuestSource & { time?: string; occasion?: string | null; occasionIcon?: string | null; note?: string | null; internal?: string | null; tables?: string[] }
+  type Src = GuestSource & {
+    time?: string
+    occasion?: string | null
+    occasionIcon?: string | null
+    note?: string | null
+    internal?: string | null
+    tables?: string[]
+    customAnswers?: Record<string, { question: string; answer: string }> | null
+  }
   const sources: Src[] = docs.map((r) => ({
     name: r.customer_name,
     email: r.customer_email,
@@ -59,6 +67,7 @@ export default async function RestaurantGuestsPage() {
     note: r.notes,
     internal: r.internal_notes,
     tables: tablesOf(r.tables),
+    customAnswers: r.custom_answers ?? null,
   }))
 
   const latestNote = (own: GuestSource[], pick: (s: Src) => string | null | undefined): string | null => {
@@ -121,6 +130,19 @@ export default async function RestaurantGuestsPage() {
     return best >= 0 ? DAYS[best] : '—'
   }
 
+  // Egyedi kérdések TÖRTÉNETE a vendég profilján — kérdés-SZÖVEGENKÉNT (nem id-nkánt, mert a
+  // sablon időközben módosulhat/törölhető) a legutóbbi (legfrissebb dátumú) nem-üres választ
+  // tartjuk meg. NEM külön tárolt mezőből jön, hanem a foglalás-történetből levezetve.
+  const latestCustomAnswers = (own: GuestSource[]): { label: string; value: string }[] => {
+    const byQuestion = new Map<string, string>()
+    for (const s of [...own].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))) {
+      const answers = (s as Src).customAnswers
+      if (!answers) continue
+      for (const qa of Object.values(answers)) byQuestion.set(qa.question, qa.answer)
+    }
+    return Array.from(byQuestion.entries()).map(([label, value]) => ({ label, value }))
+  }
+
   const guestVMs = buildGuestVMs(guests, sources, {
     labelFor: (s) => `${s.pax ?? 0} fő foglalás`,
     amountFor: () => null,
@@ -135,6 +157,7 @@ export default async function RestaurantGuestsPage() {
         { label: 'Asztalok', value: tables.length > 0 ? tables.join(', ') : '—' },
         { label: 'Kedvenc nap', value: favDay([...past, ...upcoming]) },
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
+        ...latestCustomAnswers([...past, ...upcoming]),
       ]
     },
     birthdayDateFor: (own) => {
