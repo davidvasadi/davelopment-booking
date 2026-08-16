@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react'
+import { MoreHorizontal, AlertTriangle, Loader2, FileSignature } from 'lucide-react'
 import { markLocalMutation } from '@/lib/localMutationTracker'
 
 // Ugyanaz az 5 (nem "függő") státusz, mint a teljes szerkesztő <select>-jében
@@ -24,13 +24,15 @@ const statusOptions: { label: string; status: string }[] = [
   { label: 'Lemondás', status: 'cancelled' },
 ]
 
-export function ReservationActions({ reservationId, status }: { reservationId: number | string; status: string }) {
+export function ReservationActions({
+  reservationId, status, consentEnabled = false, consentAccepted = false,
+}: { reservationId: number | string; status: string; consentEnabled?: boolean; consentAccepted?: boolean }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
   const available = statusOptions.filter((o) => o.status !== status && (o.status !== 'pending' || status === 'pending'))
 
-  if (available.length === 0) return null
+  if (available.length === 0 && !(consentEnabled && !consentAccepted)) return null
 
   const updateStatus = async (newStatus: string) => {
     setLoading(true)
@@ -71,6 +73,11 @@ export function ReservationActions({ reservationId, status }: { reservationId: n
               {label}
             </DropdownMenuItem>
           ))}
+          {consentEnabled && !consentAccepted && (
+            <DropdownMenuItem onClick={() => router.push(`/restaurant/bookings/consent/${reservationId}`)}>
+              <FileSignature className="mr-2 h-4 w-4" /> Nyilatkozat aláíratása helyszínen
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

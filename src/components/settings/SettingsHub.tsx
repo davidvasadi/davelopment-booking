@@ -28,7 +28,7 @@ import {
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
-import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData, type VoucherSettingsData } from './PaymentsSettingsPanel'
+import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData, type VoucherSettingsData, type ConsentSettingsData } from './PaymentsSettingsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
 import { PersonalNotifPrefsCard } from './PersonalNotifPrefsCard'
@@ -260,6 +260,7 @@ export interface SettingsHubProps {
   depositSettings: DepositSettingsData
   invoiceSettings: InvoiceSettingsData
   voucherSettings: VoucherSettingsData
+  consentSettings: ConsentSettingsData
   stripeConnectAccountId: string | null
   stripeConnectOnboarded: boolean
   /** Hírlevél funkció jelenlegi csomagja — a Fizetések panel csomagválasztójához. */
@@ -293,7 +294,7 @@ export function SettingsHub({
   featureModules, auditLog, rolesSection, customRoles = [],
   sub, billingAccount, pricing, activeBusinessId, startedAt,
   icalUrl, bookingUrl, webhookUrl, myCapabilities,
-  depositSettings, invoiceSettings, voucherSettings, stripeConnectAccountId, stripeConnectOnboarded,
+  depositSettings, invoiceSettings, voucherSettings, consentSettings, stripeConnectAccountId, stripeConnectOnboarded,
   newsletterPackage,
 }: SettingsHubProps) {
   const router = useRouter()
@@ -942,6 +943,7 @@ export function SettingsHub({
               deposit={depositSettings}
               invoice={invoiceSettings}
               voucher={voucherSettings}
+              consent={consentSettings}
               stripeConnectAccountId={stripeConnectAccountId}
               stripeConnectOnboarded={stripeConnectOnboarded}
               pricing={pricing}

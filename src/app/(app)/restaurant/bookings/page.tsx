@@ -156,6 +156,7 @@ export default async function RestaurantBookingsPage({
             />
           }
           canManage={canManage}
+          consentEnabled={!!restaurant.consent_settings?.enabled}
         />
         <WaitlistPanel restaurantId={restaurant.id} />
       </div>

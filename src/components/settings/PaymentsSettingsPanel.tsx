@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, ArrowRight } from 'lucide-react'
+import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, ArrowRight, FileSignature } from 'lucide-react'
 import { Switch } from '@/components/ui/toggle-switch'
 import { NotchedPricingCard } from '@/components/dashboard/NotchedPricingCard'
 import { cn } from '@/lib/utils'
@@ -43,6 +43,12 @@ export interface VoucherSettingsData {
   validityMonths: number
 }
 
+export interface ConsentSettingsData {
+  enabled: boolean
+  title: string
+  templateText: string
+}
+
 type NewsletterPackage = 'none' | 'ingyenes' | 'alap' | 'premium'
 
 interface Props {
@@ -51,6 +57,7 @@ interface Props {
   deposit: DepositSettingsData
   invoice: InvoiceSettingsData
   voucher: VoucherSettingsData
+  consent: ConsentSettingsData
   stripeConnectAccountId: string | null
   stripeConnectOnboarded: boolean
   /** Globális árazási beállítások — a hírlevél-csomagválasztó kártyáihoz. */
@@ -75,7 +82,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   )
 }
 
-export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, stripeConnectAccountId, stripeConnectOnboarded, pricing, businessId, newsletterPackage }: Props) {
+export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, consent, stripeConnectAccountId, stripeConnectOnboarded, pricing, businessId, newsletterPackage }: Props) {
   const router = useRouter()
   const [connecting, setConnecting] = useState(false)
   const [loginLinkLoading, setLoginLinkLoading] = useState(false)
@@ -113,6 +120,9 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
 
   const [v, setV] = useState<VoucherSettingsData>(voucher)
   const [savingVoucher, setSavingVoucher] = useState(false)
+
+  const [c, setC] = useState<ConsentSettingsData>(consent)
+  const [savingConsent, setSavingConsent] = useState(false)
 
   const [invoiceProvider, setInvoiceProvider] = useState(invoice.provider)
   const [szamlazzKeyInput, setSzamlazzKeyInput] = useState('')
@@ -199,6 +209,30 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
       toast.error('Hiba történt')
     } finally {
       setSavingVoucher(false)
+    }
+  }
+
+  const saveConsent = async () => {
+    setSavingConsent(true)
+    try {
+      const res = await fetch(apiBase, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          consent_settings: {
+            enabled: c.enabled,
+            title: c.title,
+            template_text: c.templateText,
+          },
+        }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Mentve')
+    } catch {
+      toast.error('Hiba történt')
+    } finally {
+      setSavingConsent(false)
     }
   }
 
@@ -519,6 +553,80 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {savingVoucher && <Loader2 className="h-4 w-4 animate-spin" />}
+            Mentés
+          </button>
+        </div>
+      </div>
+
+      {/* Beleegyező nyilatkozat */}
+      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
+              <FileSignature className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
+            </div>
+            <div>
+              <div className="text-[15px] font-medium text-ink">Beleegyező nyilatkozat</div>
+              <div className="text-[13px] text-ink-soft">A vendégnek el kell fogadnia a foglalás véglegesítéséhez — vagy helyszínen, check-inkor.</div>
+            </div>
+          </div>
+          <Toggle checked={c.enabled} onChange={() => setC((s) => ({ ...s, enabled: !s.enabled }))} />
+        </div>
+
+        {c.enabled && (
+          <div className="space-y-3 border-t border-dashed border-line pt-4">
+            <div className="space-y-1.5">
+              <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Nyilatkozat címe</label>
+              <input
+                type="text"
+                name="consent-title"
+                autoComplete="off"
+                value={c.title}
+                onChange={(e) => setC((s) => ({ ...s, title: e.target.value }))}
+                placeholder="Beleegyező nyilatkozat"
+                className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-2.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Nyilatkozat szövege</label>
+              {!c.templateText.trim() && (
+                <button
+                  type="button"
+                  onClick={() => setC((s) => ({
+                    ...s,
+                    templateText:
+                      'Kijelentem, hogy az általam igénybe vett kezeléssel/szolgáltatással kapcsolatos kockázatokról tájékoztatást kaptam, ' +
+                      'egészségügyi állapotomról (allergia, gyógyszerérzékenység, bőrprobléma stb.) a valóságnak megfelelően nyilatkoztam, ' +
+                      'és a szolgáltatás elvégzéséhez hozzájárulok.',
+                  }))}
+                  className="text-[12px] font-semibold text-ink-soft underline underline-offset-2 hover:text-ink"
+                >
+                  Sablon betöltése
+                </button>
+              )}
+            </div>
+            <textarea
+              rows={5}
+              value={c.templateText}
+              onChange={(e) => setC((s) => ({ ...s, templateText: e.target.value }))}
+              placeholder="Ezt a szöveget látja majd a vendég elfogadásra…"
+              className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-3 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+            />
+            <p className="text-[12px] text-ink-soft2">
+              A vendég a foglalás során fogadja el (kapcsolóval), vagy a személyzet a helyszínen, tableten íratja alá vele érkezéskor — mindkét
+              elfogadás dátummal, IP-vel és a pontos szöveg-verzióval mentődik a foglaláshoz.
+            </p>
+          </div>
+        )}
+
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={saveConsent}
+            disabled={savingConsent}
+            className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {savingConsent && <Loader2 className="h-4 w-4 animate-spin" />}
             Mentés
           </button>
         </div>

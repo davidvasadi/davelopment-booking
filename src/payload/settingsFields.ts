@@ -204,6 +204,36 @@ export const newsletterSettingsFields: Field[] = [
 ]
 
 /**
+ * Digitális beleegyező nyilatkozat — kezelés/szolgáltatás előtti hozzájárulás (pl. allergia-
+ * vagy egészségügyi nyilatkozat). Egyszerű be/ki kapcsoló + egy sablon-szöveg (sima textarea,
+ * nincs rich-text a projektben, ld. `TermsSectionsEditor.tsx`). A tényleges elfogadás
+ * per-foglalás történik és a `Bookings`/`Reservations` rekordon tárolódik (ld. ott), NEM itt —
+ * ez a group csak a sablont és a be/ki kapcsolót tartja.
+ */
+export const consentSettingsFields: Field[] = [
+  {
+    name: 'consent_settings',
+    type: 'group',
+    label: 'Beleegyező nyilatkozat',
+    fields: [
+      { name: 'enabled', type: 'checkbox', defaultValue: false, label: 'Beleegyező nyilatkozat bekapcsolva' },
+      {
+        name: 'title',
+        type: 'text',
+        label: 'Nyilatkozat címe',
+        admin: { description: 'A vendég ezt a címet látja a lépés/oldal tetején (üresen hagyva: „Beleegyező nyilatkozat").' },
+      },
+      {
+        name: 'template_text',
+        type: 'textarea',
+        label: 'Nyilatkozat szövege',
+        admin: { description: 'Ezt a szöveget látja a vendég elfogadásra a foglalás során, vagy helyszíni check-inkor.' },
+      },
+    ],
+  },
+]
+
+/**
  * Stripe Connect állapot-mezők — ROOT-SZINTEN (nem a `deposit_settings` group-ban) és
  * admin-only `access.update`-tel, mert a Salon/Restaurant Settings PATCH route
  * (`src/app/api/salon|restaurant/settings/route.ts`) `overrideAccess: true`-val ment, ami a

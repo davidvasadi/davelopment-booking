@@ -143,6 +143,7 @@ export default async function BookingsPage({
             <PrintDayButton key="print-btn" date={selectedDate} salonName={salon.name} bookings={bookings} />
           }
           canManage={canManage}
+          consentEnabled={!!salon.consent_settings?.enabled}
         />
         <WaitlistPanel salonId={salon.id} />
       </div>

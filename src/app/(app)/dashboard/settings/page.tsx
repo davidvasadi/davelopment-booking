@@ -210,6 +210,11 @@ export default async function SettingsPage() {
           maxAmountHuf: salon.voucher_settings?.max_amount_huf ?? 100000,
           validityMonths: salon.voucher_settings?.validity_months ?? 12,
         }}
+        consentSettings={{
+          enabled: salon.consent_settings?.enabled ?? false,
+          title: salon.consent_settings?.title ?? '',
+          templateText: salon.consent_settings?.template_text ?? '',
+        }}
         stripeConnectAccountId={salon.stripe_connect_account_id ?? null}
         stripeConnectOnboarded={!!salon.stripe_connect_onboarded}
         newsletterPackage={salon.newsletter_settings?.package ?? 'none'}

@@ -128,6 +128,8 @@ export interface DailyViewProps {
   printButton: React.ReactNode
   /** Ha false, csak olvasható nézet — az Új foglalás gomb, szerkesztés és drag rejtve. */
   canManage?: boolean
+  /** Az étterem beleegyező nyilatkozat funkciója be van-e kapcsolva. */
+  consentEnabled?: boolean
 }
 
 /** A belső nézetek (Timeline/Floor) propjai — csak az adat/geometria. */
@@ -198,7 +200,7 @@ export function DailyView(props: DailyViewProps) {
   const {
     date, restaurantId, eventTypes, rooms, tables, openMin, closeMin, turnMinutes, openReservationId,
     roomCount, tableCount, activeCount, completedCount, cancelledCount, walkInCount,
-    dateFilter, printButton, canManage = false,
+    dateFilter, printButton, canManage = false, consentEnabled = false,
   } = props
   const [view, setView] = useState<ViewMode>('timeline')
   const [target, setTarget] = useState<EditTarget | null>(null)
@@ -399,7 +401,7 @@ export function DailyView(props: DailyViewProps) {
         )
       })()}
 
-      {view === 'list' && <ListView date={date} reservations={reservations} onEdit={openEdit} />}
+      {view === 'list' && <ListView date={date} reservations={reservations} onEdit={openEdit} consentEnabled={consentEnabled} />}
       {view === 'timeline' && (
         <TimelineView
           date={date}
@@ -443,7 +445,7 @@ export function DailyView(props: DailyViewProps) {
 }
 
 /* ---------- Lista nézet ---------- */
-function ListView({ date, reservations, onEdit }: { date: string; reservations: Reservation[]; onEdit: (r: Reservation) => void }) {
+function ListView({ date, reservations, onEdit, consentEnabled }: { date: string; reservations: Reservation[]; onEdit: (r: Reservation) => void; consentEnabled?: boolean }) {
   const card = 'rounded-[26px] dav-card-glass'
   const nowMin = useNowMinutes(date)
   const nowRef = useRef<HTMLDivElement>(null)
@@ -476,7 +478,7 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
                 <span className="h-px flex-1 bg-red-500/40" />
               </div>
             )}
-            <ReservationRow r={r} onEdit={onEdit} nowMin={nowMin} />
+            <ReservationRow r={r} onEdit={onEdit} nowMin={nowMin} consentEnabled={consentEnabled} />
           </Fragment>
         )
       })}
@@ -486,7 +488,7 @@ function ListView({ date, reservations, onEdit }: { date: string; reservations: 
 
 /** Egy kompakt asztalfoglalás-sor (idő/vendég/badge-ek/státusz) — a Lista-nézet ÉS a Heti nézet
  *  közös sor-renderelője, hogy a két nézet vizuálisan egyezzen és ne duplikálódjon a JSX. */
-export function ReservationRow({ r, onEdit, nowMin }: { r: Reservation; onEdit: (r: Reservation) => void; nowMin: number | null }) {
+export function ReservationRow({ r, onEdit, nowMin, consentEnabled }: { r: Reservation; onEdit: (r: Reservation) => void; nowMin: number | null; consentEnabled?: boolean }) {
   const tableNames = tableNamesOf(r)
   const draft = isDraft(r)
   const urgency = draft ? null : urgencyOf(r, nowMin)
@@ -577,7 +579,14 @@ export function ReservationRow({ r, onEdit, nowMin }: { r: Reservation; onEdit: 
           </span>
         </span>
         <div className="flex items-center justify-end w-10 shrink-0">
-          {!draft && <ReservationActions reservationId={r.id} status={r.status} />}
+          {!draft && (
+            <ReservationActions
+              reservationId={r.id}
+              status={r.status}
+              consentEnabled={consentEnabled}
+              consentAccepted={!!r.consent_accepted}
+            />
+          )}
         </div>
       </div>
     </div>

@@ -146,10 +146,12 @@ export interface SalonDailyViewProps {
   printButton?: React.ReactNode
   /** Ha false, csak olvasható nézet — az Új foglalás gomb, szerkesztés és drag rejtve. */
   canManage?: boolean
+  /** A szalon beleegyező nyilatkozat funkciója be van-e kapcsolva. */
+  consentEnabled?: boolean
 }
 
 export function SalonDailyView(props: SalonDailyViewProps) {
-  const { date, salonId, staff, services, openMin, closeMin, openBookingId, dateFilter, printButton, canManage = false } = props
+  const { date, salonId, staff, services, openMin, closeMin, openBookingId, dateFilter, printButton, canManage = false, consentEnabled = false } = props
   const [view, setView] = useState<ViewMode>('timeline')
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<SalonBookingDraft[]>([])
@@ -329,7 +331,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
         </div>
       )}
 
-      {view === 'list' && <ListView date={date} bookings={bookings} onEdit={openEdit} />}
+      {view === 'list' && <ListView date={date} bookings={bookings} onEdit={openEdit} consentEnabled={consentEnabled} />}
       {view === 'timeline' && (
         <TimelineView
           date={date}
@@ -369,7 +371,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
 }
 
 /* ---------- Lista nézet (egynapos) ---------- */
-function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[]; onEdit: (b: Booking) => void }) {
+function ListView({ date, bookings, onEdit, consentEnabled }: { date: string; bookings: Booking[]; onEdit: (b: Booking) => void; consentEnabled?: boolean }) {
   const card = 'rounded-[26px] dav-card-glass'
   const nowMin = useNowMinutes(date)
   const nowRef = useRef<HTMLDivElement>(null)
@@ -401,7 +403,7 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
                 <span className="h-px flex-1 bg-red-500/40" />
               </div>
             )}
-            <BookingRow b={b} onEdit={onEdit} nowMin={nowMin} />
+            <BookingRow b={b} onEdit={onEdit} nowMin={nowMin} consentEnabled={consentEnabled} />
           </div>
         )
       })}
@@ -411,7 +413,7 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
 
 /** Egy kompakt foglalás-sor (idő/ügyfél/badge-ek/státusz) — a Lista-nézet ÉS a Heti nézet közös
  *  sor-renderelője, hogy a két nézet vizuálisan egyezzen és ne duplikálódjon a JSX. */
-export function BookingRow({ b, onEdit, nowMin }: { b: Booking; onEdit: (b: Booking) => void; nowMin: number | null }) {
+export function BookingRow({ b, onEdit, nowMin, consentEnabled }: { b: Booking; onEdit: (b: Booking) => void; nowMin: number | null; consentEnabled?: boolean }) {
   const svc = serviceOf(b)
   const st = staffOf(b)
   const draft = isDraft(b)
@@ -479,7 +481,14 @@ export function BookingRow({ b, onEdit, nowMin }: { b: Booking; onEdit: (b: Book
           <span className="text-xs text-ink-soft truncate">{overdue ? 'Kezelendő' : (statusLabel[b.status] ?? b.status)}</span>
         </span>
         <div className="flex items-center justify-end w-10 shrink-0">
-          {!draft && <BookingActions bookingId={String(b.id)} status={b.status} />}
+          {!draft && (
+            <BookingActions
+              bookingId={String(b.id)}
+              status={b.status}
+              consentEnabled={consentEnabled}
+              consentAccepted={!!b.consent_accepted}
+            />
+          )}
         </div>
       </div>
     </div>
