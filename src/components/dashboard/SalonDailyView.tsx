@@ -48,7 +48,7 @@ const statusDot: Record<string, string> = {
   pending: 'bg-gold', confirmed: 'bg-ink-dark', completed: 'bg-[#C9C2AE]', cancelled: 'bg-[#C0564A]',
 }
 const CANCEL_RED = '#C0564A'
-const ACTIVE = new Set(['pending', 'confirmed', 'completed', 'cancelled'])
+export const ACTIVE = new Set(['pending', 'confirmed', 'completed', 'cancelled'])
 const STATUS_DARK_BG = new Set(['confirmed', 'cancelled'])
 
 /** Élő, percenként frissülő aktuális idő (perc éjféltől). null, ha a megtekintett nap nem ma van. */
@@ -79,17 +79,17 @@ function urgencyOf(b: Booking, nowMin: number | null): { label: string; cls: str
 }
 
 // ── segéd-getterek (a reláció lehet id vagy kifejtett objektum) ──
-const idOf = (v: unknown): string =>
+export const idOf = (v: unknown): string =>
   v && typeof v === 'object' ? String((v as { id: string | number }).id) : String(v ?? '')
 const serviceOf = (b: Booking): Service | null => (typeof b.service === 'object' ? b.service : null)
 const staffOf = (b: Booking): StaffMember | null => (typeof b.staff === 'object' ? b.staff : null)
 const durationOf = (b: Booking): number => Math.max(0, hhmmToMinutes(b.end_time) - hhmmToMinutes(b.start_time))
 // Egy "extra" (kinyíló) verem tényleges pixel-magassága — a Framer `height: 'auto'` animáció
 // CSS grid-cellában nem mindig méri fel helyesen (láthatatlan maradt a tartalom), ezért itt
-// EXPLICIT pixel-célértéket adunk az animate-nek: minden elem fix 62px + 8px rés köztük + 8px
+// EXPLICIT pixel-célértéket adunk az animate-nek: minden elem fix 72px + 8px rés köztük + 8px
 // felső padding (space-y-2 pt-2), pontosan a HatchBand/kártya-magassággal megegyezően.
-const extraStackHeightPx = (count: number): number => (count > 0 ? 8 + count * 62 + (count - 1) * 8 : 0)
-const avatarUrlOf = (s: StaffMember | null): string | null => {
+export const extraStackHeightPx = (count: number): number => (count > 0 ? 8 + count * 72 + (count - 1) * 8 : 0)
+export const avatarUrlOf = (s: StaffMember | null): string | null => {
   const a = s?.avatar
   return a && typeof a === 'object' ? ((a as Media).url ?? null) : null
 }
@@ -97,7 +97,7 @@ const initialsOf = (name: string): string =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '·'
 
 /** Kis avatar-kör (profilkép vagy UserRound fallback) — a szakember-sáv címkéjéhez. */
-function Ava({ url, className }: { url?: string | null; ini?: string; className: string }) {
+export function Ava({ url, className }: { url?: string | null; ini?: string; className: string }) {
   if (url) return <img src={url} alt="" className={`${className} object-cover object-top`} />
   return (
     <span className={`${className} flex items-center justify-center`} style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
@@ -111,7 +111,7 @@ type DraftBooking = Booking & { __draft: true; draftId: string }
 export function isDraft(b: Booking): b is DraftBooking {
   return (b as DraftBooking).__draft === true
 }
-function draftToBooking(d: SalonBookingDraft): DraftBooking {
+export function draftToBooking(d: SalonBookingDraft): DraftBooking {
   const end = d.end_time || d.start_time
   return {
     id: d.draftId as unknown as string,
@@ -391,11 +391,6 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
   return (
     <div className={`${card} divide-y divide-line overflow-hidden`}>
       {sorted.map((b, i) => {
-        const svc = serviceOf(b)
-        const st = staffOf(b)
-        const draft = isDraft(b)
-        const urgency = draft ? null : urgencyOf(b, nowMin)
-        const overdue = !draft && needsHandling(b, nowMin)
         const showNow = i === nowIndex
         return (
           <div key={String(b.id)}>
@@ -406,74 +401,87 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
                 <span className="h-px flex-1 bg-red-500/40" />
               </div>
             )}
-            <div
-              className={`relative flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 transition-colors hover:bg-[var(--dav-glass)] ${draft ? 'bg-gold/[0.08]' : overdue ? 'bg-[#F1CE45]/[0.12]' : ''}`}
-              style={
-                draft || overdue
-                  ? undefined
-                  // Safari-bug: a bg-[#hex]/[opacity] Tailwind arbitrary-szintaxis a lemondott
-                  // piros háttérnél nem alkalmazódott (ugyanaz a hiba-osztály, mint a hatch-
-                  // mintáknál) — sima style-lal garantáltan minden böngészőben fut.
-                  : b.status === 'cancelled'
-                    ? { background: 'rgba(192,86,74,0.10)' }
-                    : statusBg(b.status)
-              }
-            >
-              {urgency && (
-                <span className={`absolute right-2 top-2 z-10 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${urgency.cls}`}>
-                  {urgency.label}
-                </span>
-              )}
-              <button onClick={() => onEdit(b)} className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 text-left">
-                <div className="w-11 sm:w-12 shrink-0">
-                  <div className="text-sm sm:text-base font-semibold text-ink tabular-nums leading-tight">{b.start_time}</div>
-                  <div className="text-[11px] text-ink-soft2 tabular-nums">{b.end_time}</div>
-                </div>
-                <div className="hidden shrink-0 sm:block">
-                  <Ava url={avatarUrlOf(st)} className="h-8 w-8 rounded-full overflow-hidden" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`h-2 w-2 shrink-0 rounded-full sm:hidden ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
-                    <span className="font-medium text-ink truncate">{b.customer_name}</span>
-                    {draft && (
-                      <span className="shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-dark">Vázlat</span>
-                    )}
-                    {b.series_id && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
-                        <Repeat className="h-3 w-3" /> Sorozat
-                      </span>
-                    )}
-                    {b.payment_status === 'paid' && (
-                      <span title={b.invoice_status === 'issued' ? `Előleg befizetve · Számla: ${b.invoice_number}` : 'Előleg befizetve'} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#DCF3E2] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1D7A3C]">
-                        <Banknote className="h-3 w-3" /> Előleg
-                      </span>
-                    )}
-                    {b.payment_status === 'failed' && (
-                      <span title="Az előleg-fizetés sikertelen volt" className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FBE1DE] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#B3261E]">
-                        <Banknote className="h-3 w-3" /> Sikertelen fizetés
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-ink-soft truncate">
-                    {svc?.name ?? '—'}{st?.name ? ` · ${st.name}` : ''}{b.customer_phone ? ` · ${b.customer_phone}` : ''}
-                  </div>
-                  {b.notes && <div className="text-xs text-ink-soft2 mt-0.5 truncate">„{b.notes}”</div>}
-                </div>
-              </button>
-              <div className="flex items-center shrink-0">
-                <span className="hidden sm:flex items-center gap-2 w-32 shrink-0">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
-                  <span className="text-xs text-ink-soft truncate">{overdue ? 'Kezelendő' : (statusLabel[b.status] ?? b.status)}</span>
-                </span>
-                <div className="flex items-center justify-end w-10 shrink-0">
-                  {!draft && <BookingActions bookingId={String(b.id)} status={b.status} />}
-                </div>
-              </div>
-            </div>
+            <BookingRow b={b} onEdit={onEdit} nowMin={nowMin} />
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/** Egy kompakt foglalás-sor (idő/ügyfél/badge-ek/státusz) — a Lista-nézet ÉS a Heti nézet közös
+ *  sor-renderelője, hogy a két nézet vizuálisan egyezzen és ne duplikálódjon a JSX. */
+export function BookingRow({ b, onEdit, nowMin }: { b: Booking; onEdit: (b: Booking) => void; nowMin: number | null }) {
+  const svc = serviceOf(b)
+  const st = staffOf(b)
+  const draft = isDraft(b)
+  const urgency = draft ? null : urgencyOf(b, nowMin)
+  const overdue = !draft && needsHandling(b, nowMin)
+  return (
+    <div
+      className={`relative flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 transition-colors hover:bg-[var(--dav-glass)] ${draft ? 'bg-gold/[0.08]' : overdue ? 'bg-[#F1CE45]/[0.12]' : ''}`}
+      style={
+        draft || overdue
+          ? undefined
+          // Safari-bug: a bg-[#hex]/[opacity] Tailwind arbitrary-szintaxis a lemondott
+          // piros háttérnél nem alkalmazódott (ugyanaz a hiba-osztály, mint a hatch-
+          // mintáknál) — sima style-lal garantáltan minden böngészőben fut.
+          : b.status === 'cancelled'
+            ? { background: 'rgba(192,86,74,0.10)' }
+            : statusBg(b.status)
+      }
+    >
+      {urgency && (
+        <span className={`absolute right-2 top-2 z-10 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${urgency.cls}`}>
+          {urgency.label}
+        </span>
+      )}
+      <button onClick={() => onEdit(b)} className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 text-left">
+        <div className="w-11 sm:w-12 shrink-0">
+          <div className="text-sm sm:text-base font-semibold text-ink tabular-nums leading-tight">{b.start_time}</div>
+          <div className="text-[11px] text-ink-soft2 tabular-nums">{b.end_time}</div>
+        </div>
+        <div className="hidden shrink-0 sm:block">
+          <Ava url={avatarUrlOf(st)} className="h-8 w-8 rounded-full overflow-hidden" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`h-2 w-2 shrink-0 rounded-full sm:hidden ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
+            <span className="font-medium text-ink truncate">{b.customer_name}</span>
+            {draft && (
+              <span className="shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-dark">Vázlat</span>
+            )}
+            {b.series_id && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
+                <Repeat className="h-3 w-3" /> Sorozat
+              </span>
+            )}
+            {b.payment_status === 'paid' && (
+              <span title={b.invoice_status === 'issued' ? `Előleg befizetve · Számla: ${b.invoice_number}` : 'Előleg befizetve'} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#DCF3E2] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1D7A3C]">
+                <Banknote className="h-3 w-3" /> Előleg
+              </span>
+            )}
+            {b.payment_status === 'failed' && (
+              <span title="Az előleg-fizetés sikertelen volt" className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FBE1DE] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#B3261E]">
+                <Banknote className="h-3 w-3" /> Sikertelen fizetés
+              </span>
+            )}
+          </div>
+          <div className="text-sm text-ink-soft truncate">
+            {svc?.name ?? '—'}{st?.name ? ` · ${st.name}` : ''}{b.customer_phone ? ` · ${b.customer_phone}` : ''}
+          </div>
+          {b.notes && <div className="text-xs text-ink-soft2 mt-0.5 truncate">„{b.notes}”</div>}
+        </div>
+      </button>
+      <div className="flex items-center shrink-0">
+        <span className="hidden sm:flex items-center gap-2 w-32 shrink-0">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
+          <span className="text-xs text-ink-soft truncate">{overdue ? 'Kezelendő' : (statusLabel[b.status] ?? b.status)}</span>
+        </span>
+        <div className="flex items-center justify-end w-10 shrink-0">
+          {!draft && <BookingActions bookingId={String(b.id)} status={b.status} />}
+        </div>
+      </div>
     </div>
   )
 }
@@ -525,7 +533,7 @@ function TimelineView({ date, bookings, staff, openMin, closeMin, onEdit, onCrea
 }
 
 // A kinyíló extra foglalás-kártyák „staggered spring" belépője (etalon: a UserMenu popover).
-const TL_EXTRA_ITEM = {
+export const TL_EXTRA_ITEM = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
 }
@@ -533,22 +541,22 @@ const TL_EXTRA_ITEM = {
 /** Megerősítve maradt, de a kezdés ideje már elmúlt, senki nem vezette át (befejezve/lemondva)
  *  — ez utólagos KEZELÉST igényel, ezért a "Függő" (arany) színt kapja a kártyán, nem a rendes
  *  sötét "megerősítve" színt (a piros "Késik" jelvény önmagában kevés volt). */
-function needsHandling(b: Booking, nowMin: number | null): boolean {
+export function needsHandling(b: Booking, nowMin: number | null): boolean {
   return nowMin != null && b.status === 'confirmed' && nowMin > hhmmToMinutes(b.start_time)
 }
 
 /** Egy idősáv-cella tartalma: vagy egyetlen foglalás, vagy egy [aktív, lemondott] pár, amikor
  *  ugyanarra az időre lemondtak egy foglalást, majd újra lefoglalták — ekkor a kettő egy
  *  kártya-veremben jelenik meg (a lemondott pirosan kandikál ki mögüle, kattintásra cserélnek). */
-type CellItem = Booking | [Booking, Booking]
+export type CellItem = Booking | [Booking, Booking]
 
-function cellKey(item: CellItem): string {
+export function cellKey(item: CellItem): string {
   return Array.isArray(item) ? `${item[0].id}-${item[1].id}` : String(item.id)
 }
 
 /** Az órás sávon belüli foglalásokat csoportosítja: az időben átfedő lemondott+aktív párok egy
  *  verembe kerülnek, a többi (magában álló, akár lemondott is) sima elem marad — időrendben. */
-function groupOverlaps(rows: Booking[]): CellItem[] {
+export function groupOverlaps(rows: Booking[]): CellItem[] {
   const cancelled = rows.filter((b) => b.status === 'cancelled')
   const activeOnes = rows.filter((b) => b.status !== 'cancelled')
   const usedIds = new Set<string>()
@@ -622,7 +630,7 @@ function BookingCardStack({
   const freshestId = String([...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0].id)
   const [frontId, setFrontId] = useState<string>(freshestId)
   return (
-    <div className="flex h-[62px] items-stretch gap-1.5">
+    <div className="flex h-[72px] items-stretch gap-1.5">
       {ordered.map((b) => {
         const id = String(b.id)
         const isFront = id === frontId
@@ -667,12 +675,12 @@ function BookingCardStack({
 }
 
 /** Egy cella-elem (sima foglalás, magában álló lemondott, vagy kártya-verem) kirajzolása. */
-function renderCellItem(item: CellItem, onEdit: (b: Booking) => void, showAvatar: boolean, nowMin: number | null) {
+export function renderCellItem(item: CellItem, onEdit: (b: Booking) => void, showAvatar: boolean, nowMin: number | null) {
   if (Array.isArray(item)) return <BookingCardStack items={item} onEdit={onEdit} showAvatar={showAvatar} nowMin={nowMin} />
   return renderBookingCard(item, onEdit, showAvatar, nowMin)
 }
 
-function renderBookingCard(b: Booking, onEdit: (b: Booking) => void, showAvatar = true, nowMin: number | null = null) {
+export function renderBookingCard(b: Booking, onEdit: (b: Booking) => void, showAvatar = true, nowMin: number | null = null) {
   const svc = serviceOf(b)
   const st = staffOf(b)
   const overdue = needsHandling(b, nowMin)
@@ -681,7 +689,7 @@ function renderBookingCard(b: Booking, onEdit: (b: Booking) => void, showAvatar 
   return (
     <HoverButton
       onClick={() => onEdit(b)}
-      className={`flex h-[62px] w-full items-center gap-2.5 rounded-[18px] border px-4 text-left shadow-dav-card ${block}`}
+      className={`flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border px-4 text-left shadow-dav-card ${block}`}
       style={overdue ? undefined : statusBg(b.status)}
     >
       {/* Szakember avatarja — gyors azonosítás, kihez van a foglalás. Csak mobilon/vegyes
@@ -720,7 +728,7 @@ function renderBookingCard(b: Booking, onEdit: (b: Booking) => void, showAvatar 
 /** Óránkénti lista — a mobil idővonal "törzse" (idő-pill + foglalás-kártya/üres rés),
  *  a kártya-wrapper NÉLKÜL, hogy desktopon szakemberenként egymás mellé lehessen tenni
  *  (ld. StaffColumnsTimeline) — ÍGY garantáltan ugyanúgy néz ki, mint mobilon. */
-function HourList({
+export function HourList({
   hourMarks, active, openMin, closeMin, nowMin, onEdit,
 }: {
   hourMarks: number[]; active: Booking[]; openMin: number; closeMin: number; nowMin: number | null; onEdit: (b: Booking) => void
@@ -817,7 +825,7 @@ function HourList({
                 ) : (
                   <div
                     aria-hidden
-                    className="h-[62px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
+                    className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
                     style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
                   />
                 )}
@@ -1023,7 +1031,7 @@ function StaffColumnsTimeline({
               const HatchBand = () => (
                 <div
                   aria-hidden
-                  className="h-[62px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
+                  className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
                   style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
                 />
               )

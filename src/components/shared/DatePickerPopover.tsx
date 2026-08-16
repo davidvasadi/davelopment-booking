@@ -3,20 +3,13 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { CalendarMonthGrid, LOAD_TIERS } from './CalendarMonthGrid'
 
 const HU_MONTHS_FULL = [
   'Január', 'Február', 'Március', 'Április', 'Május', 'Június',
   'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December',
 ]
 const HU_DAYS_SHORT = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']
-
-// Terheltség-jelölő 3 sávja — a MEGLÉVŐ státusz-paletta (statusBlock, SalonDailyView.tsx):
-// Befejezett-zöld (nyugodt) → Függő-arany (közepes) → Megerősítve-sötét (forgalmas).
-const LOAD_TIERS = [
-  { bg: 'rgba(29,157,99,0.50)', text: 'text-ink' },   // Befejezett zöld
-  { bg: '#FFD85F', text: 'text-ink' },  // Függő arany — teljes tömör szín, nem halványítva
-  { bg: 'rgba(29,28,25,0.85)', text: 'text-white' },  // Megerősítve sötét
-] as const
 
 // A sheet-ek "genie" nyitó-animációjának kicsinyített, popoverhez illő változata — ugyanaz a
 // pattanó-spring nyelv, mint az Új foglalás panelen, csak kisebb elmozdulással/scale-lel.
@@ -69,6 +62,10 @@ export function DatePickerPopover({
   // (a felhasználó által észlelt "egyszer bejön, aztán nem" villogás pont ez volt).
   const fetchedMonthsRef = useRef<Set<string>>(new Set())
   const ref = useRef<HTMLDivElement>(null)
+  // A panel bal-eltolása a triggerhez képest (px), úgy kiszámolva, hogy a panel sose lógjon ki
+  // a viewportból — a trigger pozíciójától függően (pl. a jobb szélhez közeli dátum-gomboknál)
+  // sima CSS-középre-igazítás nem lett volna elég, a panel egy része kilógott a képernyőről.
+  const [panelOffset, setPanelOffset] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -79,6 +76,26 @@ export function DatePickerPopover({
     fetchedMonthsRef.current = new Set()
     setLoadByMonth({})
   }, [open, value])
+
+  useEffect(() => {
+    if (!open) return
+    const compute = () => {
+      const el = ref.current
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      const vw = window.innerWidth
+      const margin = 16
+      const panelWidth = Math.min(292, vw - margin * 2)
+      // A trigger közepéhez igazítva indulunk (ugyanaz, mint a korábbi CSS `left-1/2`), majd
+      // rácsípjük a viewport széleire, ha a trigger a szélhez közel van.
+      const idealViewportLeft = rect.left + rect.width / 2 - panelWidth / 2
+      const clampedViewportLeft = Math.max(margin, Math.min(idealViewportLeft, vw - panelWidth - margin))
+      setPanelOffset(clampedViewportLeft - rect.left)
+    }
+    compute()
+    window.addEventListener('resize', compute)
+    return () => window.removeEventListener('resize', compute)
+  }, [open])
 
   useEffect(() => {
     if (!open) return
@@ -117,19 +134,7 @@ export function DatePickerPopover({
     return () => ctrl.abort()
   }, [open, loadEndpoint, key])
 
-  const monthCounts = loadByMonth[key]
-  const maxCount = monthCounts ? Math.max(0, ...Object.values(monthCounts)) : 0
-
-  const today = ymd(new Date())
-  const startOffset = (new Date(y, m, 1).getDay() + 6) % 7 // hétfő = 0
-  const daysInMonth = new Date(y, m + 1, 0).getDate()
-  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7
-
-  const cells = Array.from({ length: totalCells }, (_, i) => {
-    const dayNum = i - startOffset + 1
-    const date = new Date(y, m, dayNum)
-    return { date, inMonth: dayNum >= 1 && dayNum <= daysInMonth }
-  })
+  const monthCounts = loadByMonth[key] ?? {}
 
   return (
     <div className="relative" ref={ref}>
@@ -138,13 +143,17 @@ export function DatePickerPopover({
       </button>
       <AnimatePresence>
         {open && (
+          <div
+            className="absolute top-full z-50 mt-2 w-[min(292px,calc(100vw-2rem))]"
+            style={{ left: panelOffset }}
+          >
           <motion.div
             variants={POP}
             initial="hidden"
             animate="show"
             exit="exit"
-            style={{ transformOrigin: 'top left' }}
-            className="absolute left-0 top-full z-50 mt-2 w-[292px] rounded-2xl border border-line bg-white p-4 shadow-xl"
+            style={{ transformOrigin: 'top center' }}
+            className="rounded-2xl border border-line bg-white p-4 shadow-xl"
           >
             <div className="flex items-center justify-between">
               <button
@@ -166,51 +175,14 @@ export function DatePickerPopover({
             <div className="mt-3 grid grid-cols-7 gap-y-1 text-center text-[11px] font-semibold text-ink-soft">
               {HU_DAYS_SHORT.map((d, i) => <span key={i}>{d}</span>)}
             </div>
-            <div className="mt-1 grid grid-cols-7 gap-y-1">
-              {cells.map(({ date, inMonth }, i) => {
-                const dstr = ymd(date)
-                const isSelected = dstr === value
-                const isToday = dstr === today
-                const count = inMonth ? (monthCounts?.[dstr] ?? 0) : 0
-                // Terheltség-szín: csak a hónap saját napjaira, a max. 3 sávra bontva a hónap
-                // legforgalmasabb napjához képest (relatív, nem abszolút kapacitás-százalék).
-                // Valódi színátmenet (nem csak egy szín eltérő átlátszósága) a jobb
-                // felismerhetőségért — halvány arany → borostyán → sötét borostyán, ez utóbbin
-                // fehér szám kell a kontraszthoz.
-                const tier =
-                  isSelected || !inMonth || count === 0 || maxCount === 0
-                    ? null
-                    : count > (maxCount * 2) / 3
-                      ? LOAD_TIERS[2]
-                      : count > maxCount / 3
-                        ? LOAD_TIERS[1]
-                        : LOAD_TIERS[0]
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    title={count > 0 ? `${count} foglalás` : undefined}
-                    onClick={() => { onChange(dstr); setOpen(false) }}
-                    style={tier ? { backgroundColor: tier.bg } : undefined}
-                    className={`mx-auto flex h-8 w-8 items-center justify-center rounded-full text-[13px] font-medium tabular-nums transition-colors ${
-                      isSelected
-                        ? `bg-ink-dark text-white ${isToday ? 'ring-2 ring-ink-dark ring-offset-2 ring-offset-white' : ''}`
-                        : isToday
-                          // Sötét gyűrű + fehér offset-rés — ez FÜGGETLENÜL a kör belsejének
-                          // színétől (zöld/arany/sötét terheltség-jelölés) mindig jól látszik,
-                          // szemben az előző arany gyűrűvel, ami az arany (közepes) sávon eltűnt.
-                          ? `font-bold ring-2 ring-ink-dark ring-offset-2 ring-offset-white ${tier ? tier.text : 'text-ink'}`
-                          : tier
-                            ? tier.text
-                            : inMonth
-                              ? 'text-ink hover:bg-paper'
-                              : 'text-ink-soft2/50 hover:bg-paper'
-                    }`}
-                  >
-                    {date.getDate()}
-                  </button>
-                )
-              })}
+            <div className="mt-1">
+              <CalendarMonthGrid
+                year={y}
+                month={m}
+                value={value}
+                counts={monthCounts}
+                onSelectDay={(d) => { onChange(d); setOpen(false) }}
+              />
             </div>
             {loadEndpoint && (
               <div className="mt-3 flex items-center justify-center gap-3 border-t border-line pt-2.5 text-[10px] font-medium text-ink-soft">
@@ -226,6 +198,7 @@ export function DatePickerPopover({
               </div>
             )}
           </motion.div>
+          </div>
         )}
       </AnimatePresence>
     </div>
