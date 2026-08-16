@@ -238,8 +238,15 @@ export interface SettingsHubProps {
   icalUrl: string
   /** Nyilvános foglalási URL. */
   bookingUrl: string
+  /** Beágyazható (`?embed=1`) publikus foglaló URL — az iframe-snippethez. */
+  embedUrl: string
+  /** Kész `<div>` + `<script src=".../embed.js">` snippet — automatikus magasság-igazítással. */
+  embedSmartSnippet: string
   /** Zapier/Make webhook URL (tárolt érték). */
   webhookUrl?: string | null
+  /** Marketing-követés (GA4/Facebook Pixel) tárolt azonosítói. */
+  ga4Id?: string | null
+  facebookPixelId?: string | null
   /** Egyedi szerepek panel (2. fázis) — a Csapat tab alján renderelődik. */
   rolesSection?: ReactNode
   /** Egyedi szerepek (id + név) — a meghívó/tag-szerep legördülőhöz. */
@@ -293,7 +300,7 @@ export function SettingsHub({
   team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
   featureModules, auditLog, rolesSection, customRoles = [],
   sub, billingAccount, pricing, activeBusinessId, startedAt,
-  icalUrl, bookingUrl, webhookUrl, myCapabilities,
+  icalUrl, bookingUrl, embedUrl, embedSmartSnippet, webhookUrl, ga4Id, facebookPixelId, myCapabilities,
   depositSettings, invoiceSettings, voucherSettings, consentSettings, stripeConnectAccountId, stripeConnectOnboarded,
   newsletterPackage,
 }: SettingsHubProps) {
@@ -1197,8 +1204,12 @@ export function SettingsHub({
               variant={variant}
               bookingUrl={bookingUrl}
               icalUrl={icalUrl}
+              embedUrl={embedUrl}
+              embedSmartSnippet={embedSmartSnippet}
               apiBase={apiBase}
               webhookUrl={webhookUrl}
+              ga4Id={ga4Id}
+              facebookPixelId={facebookPixelId}
             />
           )}
 

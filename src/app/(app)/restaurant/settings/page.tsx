@@ -232,7 +232,11 @@ export default async function RestaurantSettingsPage() {
         customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
         icalUrl={icalUrl('restaurant', r.id)}
         bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/${(r as Restaurant & { slug?: string }).slug ?? r.id}/book`}
+        embedUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/${(r as Restaurant & { slug?: string }).slug ?? r.id}?embed=1`}
+        embedSmartSnippet={`<div class="davelopment-embed" data-slug="${(r as Restaurant & { slug?: string }).slug ?? r.id}"></div>\n<script src="${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/embed.js" async></script>`}
         webhookUrl={(r as Restaurant & { webhook_url?: string | null }).webhook_url ?? null}
+        ga4Id={r.marketing_tracking?.ga4_measurement_id ?? null}
+        facebookPixelId={r.marketing_tracking?.facebook_pixel_id ?? null}
         rolesSection={
           <RolesManager
             key="roles-panel"

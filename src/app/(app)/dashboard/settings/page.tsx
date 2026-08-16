@@ -235,7 +235,11 @@ export default async function SettingsPage() {
         customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
         icalUrl={icalUrl('salon', salon.id)}
         bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/${salon.slug}/book`}
+        embedUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/${salon.slug}?embed=1`}
+        embedSmartSnippet={`<div class="davelopment-embed" data-slug="${salon.slug}"></div>\n<script src="${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/embed.js" async></script>`}
         webhookUrl={(salon as unknown as { webhook_url?: string | null }).webhook_url ?? null}
+        ga4Id={salon.marketing_tracking?.ga4_measurement_id ?? null}
+        facebookPixelId={salon.marketing_tracking?.facebook_pixel_id ?? null}
         rolesSection={
           <RolesManager
             key="roles-panel"

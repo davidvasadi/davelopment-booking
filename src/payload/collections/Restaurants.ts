@@ -1,7 +1,7 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { slugify } from '../lib/slugify'
-import { settingsExtensionFields, businessTierField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields, marketingTrackingFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
@@ -218,6 +218,7 @@ export const Restaurants: CollectionConfig = {
     ...voucherSettingsFields,
     ...newsletterSettingsFields,
     ...consentSettingsFields,
+    ...marketingTrackingFields,
     ...stripeConnectFields,
     ...invoiceSettingsFields,
     {

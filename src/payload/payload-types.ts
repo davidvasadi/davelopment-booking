@@ -161,6 +161,10 @@ export interface Restaurant {
     title?: string | null
     template_text?: string | null
   } | null
+  marketing_tracking?: {
+    ga4_measurement_id?: string | null
+    facebook_pixel_id?: string | null
+  } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null
   invoice_settings?: {
@@ -722,6 +726,10 @@ export interface Salon {
     enabled?: boolean | null
     title?: string | null
     template_text?: string | null
+  } | null
+  marketing_tracking?: {
+    ga4_measurement_id?: string | null
+    facebook_pixel_id?: string | null
   } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Script from 'next/script'
 import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
 import { placeMetadata, placeJsonLd } from '@/lib/publicSeo'
@@ -12,6 +13,7 @@ import { RestaurantPublicView } from '@/components/restaurant/RestaurantPublicVi
 import { LangSwitcher } from '@/components/booking/LangSwitcher'
 import { BrandLogo } from '@/components/BrandLogo'
 import { ProfileCard } from '@/components/booking/ProfileCard'
+import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
 import { SalonCtaWrapper } from '@/components/booking/SalonCtaWrapper'
 import { getLocale } from '@/lib/i18n/server'
 import { hasActivePackage } from '@/lib/newsletterLimits'
@@ -26,14 +28,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {}
 }
 
-export default async function SalonPublicPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function SalonPublicPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>
+  searchParams: Promise<{ embed?: string }>
+}) {
   const { slug } = await params
+  const embed = (await searchParams).embed === '1'
   const requested = await getLocale()
 
   const base = await getPublicSalon(slug, 'hu')
 
   if (!base) {
-    const restaurantView = await RestaurantPublicView({ slug, requested })
+    const restaurantView = await RestaurantPublicView({ slug, requested, embed })
     if (restaurantView) return restaurantView
     notFound()
   }
@@ -76,8 +85,8 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
 
   return (
     <div
-      className="font-onest min-h-[100dvh] relative overflow-hidden"
-      style={hasCover ? { background: '#111' } : {
+      className={`font-onest relative overflow-hidden ${embed ? 'min-h-[640px]' : 'min-h-[100dvh]'}`}
+      style={embed ? { background: '#fff' } : hasCover ? { background: '#111' } : {
         background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)',
       }}
     >
@@ -85,9 +94,10 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(salon, 'salon')) }}
       />
+      <MarketingTrackingScripts ga4Id={salon.marketing_tracking?.ga4_measurement_id} facebookPixelId={salon.marketing_tracking?.facebook_pixel_id} />
 
-      {/* Cover image + overlay */}
-      {hasCover && (
+      {/* Cover image + overlay — embed módban nem jelenik meg (kevesebb navigáció/fejléc). */}
+      {!embed && hasCover && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={coverUrl} alt="" aria-hidden className="absolute inset-0 z-0 h-full w-full object-cover" />
@@ -110,73 +120,77 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         </>
       )}
 
-      {/* Navbar */}
-      <nav className="relative z-50 flex items-center justify-between px-5 py-5 lg:px-8 lg:py-6">
-        <div className="flex items-center gap-3">
-          <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6 lg:h-7" />
-          {logoUrl && <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
-          {logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={salon.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
-          )}
-        </div>
-        <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3 lg:gap-5">
-          <div className="flex items-center gap-1.5 lg:gap-2">
-            <Scissors className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
-            <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{services.length}</span>
-            <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
-          </div>
-          <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
-          <div className="flex items-center gap-1.5 lg:gap-2">
-            <Users className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
-            <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{staff.length}</span>
-            <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
-          </div>
-        </div>
-        {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
-      </nav>
+      {!embed && (
+        <>
+          {/* Navbar */}
+          <nav className="relative z-50 flex items-center justify-between px-5 py-5 lg:px-8 lg:py-6">
+            <div className="flex items-center gap-3">
+              <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6 lg:h-7" />
+              {logoUrl && <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
+              {logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt={salon.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
+              )}
+            </div>
+            <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-3 lg:gap-5">
+              <div className="flex items-center gap-1.5 lg:gap-2">
+                <Scissors className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+                <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{services.length}</span>
+                <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
+              </div>
+              <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
+              <div className="flex items-center gap-1.5 lg:gap-2">
+                <Users className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+                <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{staff.length}</span>
+                <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
+              </div>
+            </div>
+            {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
+          </nav>
 
-      {/* Szalon neve + cím — mobil hero (kártya megnyitása előtt) */}
-      <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
-        <h1 className={`text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
-          {salon.name}
-        </h1>
-        {(salon.address || salon.city) && (
-          <p className={`mt-1 flex items-center gap-1.5 text-sm ${heroSub}`}>
-            <MapPin className="h-3.5 w-3.5 shrink-0" />
-            {[salon.address, salon.city].filter(Boolean).join(', ')}
-          </p>
-        )}
-        {reviews.count > 0 && (
-          <div className="mt-2">
-            <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
+          {/* Szalon neve + cím — mobil hero (kártya megnyitása előtt) */}
+          <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
+            <h1 className={`text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
+              {salon.name}
+            </h1>
+            {(salon.address || salon.city) && (
+              <p className={`mt-1 flex items-center gap-1.5 text-sm ${heroSub}`}>
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                {[salon.address, salon.city].filter(Boolean).join(', ')}
+              </p>
+            )}
+            {reviews.count > 0 && (
+              <div className="mt-2">
+                <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Szalon neve + CTA — desktop, bal alul */}
-      <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
-        <h1 className={`text-[3rem] font-light leading-none tracking-[-0.02em] mb-2 ${heroText}`}>
-          {salon.name}
-        </h1>
-        {(salon.address || salon.city) && (
-          <p className={`flex items-center gap-1.5 text-sm mb-4 ${heroSub}`}>
-            <MapPin className="h-3.5 w-3.5" />
-            {[salon.address, salon.city].filter(Boolean).join(', ')}
-          </p>
-        )}
-        {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-5" dark={hasCover} />}
-        <div className="flex flex-wrap items-center gap-3">
-          <SalonCtaWrapper>
-            <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
-          </SalonCtaWrapper>
-          {nextSlotNode && (
-            <SalonCtaWrapper>
-              {nextSlotNode}
-            </SalonCtaWrapper>
-          )}
-        </div>
-      </div>
+          {/* Szalon neve + CTA — desktop, bal alul */}
+          <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
+            <h1 className={`text-[3rem] font-light leading-none tracking-[-0.02em] mb-2 ${heroText}`}>
+              {salon.name}
+            </h1>
+            {(salon.address || salon.city) && (
+              <p className={`flex items-center gap-1.5 text-sm mb-4 ${heroSub}`}>
+                <MapPin className="h-3.5 w-3.5" />
+                {[salon.address, salon.city].filter(Boolean).join(', ')}
+              </p>
+            )}
+            {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-5" dark={hasCover} />}
+            <div className="flex flex-wrap items-center gap-3">
+              <SalonCtaWrapper>
+                <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
+              </SalonCtaWrapper>
+              {nextSlotNode && (
+                <SalonCtaWrapper>
+                  {nextSlotNode}
+                </SalonCtaWrapper>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Interaktív profil kártya */}
       <ProfileCard
@@ -206,6 +220,7 @@ export default async function SalonPublicPage({ params }: { params: Promise<{ sl
         consentTitle={salon.consent_settings?.title}
         consentText={salon.consent_settings?.template_text}
         customQuestions={salon.custom_questions}
+        embed={embed}
         company={{
           name: salon.name,
           legal_name: salon.legal_name,

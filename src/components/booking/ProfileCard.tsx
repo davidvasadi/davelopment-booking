@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatPrice, cn } from '@/lib/utils'
 import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
+import { trackBookingConversion } from '@/lib/marketingTracking'
 import type { Service, StaffMember, ServiceCategory, Media, GiftVoucherType } from '@/payload/payload-types'
 import { t as tl, makeT, dfLocale, type Locale } from '@/lib/i18n'
 import { Input } from '@/components/ui/input'
@@ -63,6 +64,9 @@ interface Props {
     options?: { id?: string | null; value?: string | null }[] | null
     required?: boolean | null
   }[] | null
+  /** Beágyazott (iframe) nézet — a widget normál, statikus blokkként jelenik meg a lebegő
+   *  hero-kártya pozicionálás helyett (nincs teljes-viewport hero, amihez képest lebeghetne). */
+  embed?: boolean
 }
 
 function getCategoryId(cat: Service['category']): string | null {
@@ -79,7 +83,7 @@ export function ProfileCard({
   termsSections, company, goodToKnow, depositEnabled = false,
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
   consentEnabled = false, consentTitle = null, consentText = null,
-  customQuestions = null,
+  customQuestions = null, embed = false,
 }: Props) {
   const tt = makeT(locale)
 
@@ -156,6 +160,22 @@ export function ProfileCard({
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
   }, [])
+
+  // Embed módban: a kártya saját tartalom-magasságát figyeljük, és postMessage-en jelezzük a
+  // beágyazó oldal felé (a `public/embed.js` loader ez alapján méretezi élőben az iframe-et —
+  // nincs kézzel beírt magasság-szám, nincs felesleges üres hely/görgetés).
+  const embedCardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!embed || !embedCardRef.current || typeof ResizeObserver === 'undefined') return
+    const el = embedCardRef.current
+    const send = () => {
+      window.parent.postMessage({ source: 'davelopment-embed', height: el.offsetHeight }, '*')
+    }
+    const ro = new ResizeObserver(send)
+    ro.observe(el)
+    send()
+    return () => ro.disconnect()
+  }, [embed])
   const fieldRefs = {
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
@@ -388,6 +408,7 @@ export function ProfileCard({
         date: format(bookingDateParsed, 'MMM d.', { locale: dfLocale(locale) }),
         time: bookingSlot.start,
       })
+      trackBookingConversion()
       setDir(1)
       setView('success')
     } catch (e: unknown) {
@@ -505,67 +526,81 @@ export function ProfileCard({
 
   return (
     <>
-    {/* Backdrop — kártya mögé, kattintásra zár */}
-    <AnimatePresence>
-      {isMobile && sheetOpen && (
-        <motion.div
-          key="sheet-backdrop"
-          className="fixed inset-0 z-[29] lg:hidden"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.2 }}
-          onClick={() => setSheetOpen(false)}
-        />
-      )}
-    </AnimatePresence>
+    {/* Backdrop — kártya mögé, kattintásra zár (embed módban nincs mobil-sheet, nem kell) */}
+    {!embed && (
+      <AnimatePresence>
+        {isMobile && sheetOpen && (
+          <motion.div
+            key="sheet-backdrop"
+            className="fixed inset-0 z-[29] lg:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={() => setSheetOpen(false)}
+          />
+        )}
+      </AnimatePresence>
+    )}
 
-    {/* Lebegő CTA — mobilon, kártya nyitása előtt */}
-    <AnimatePresence>
-      {isMobile && !sheetOpen && (
-        <motion.div
-          key="mobile-hero-cta"
-          className="fixed bottom-0 left-0 right-0 z-20 px-5 lg:hidden"
-          style={{ paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 16 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.3 }}
-        >
-          <button
-            onClick={() => setSheetOpen(true)}
-            className="flex w-full h-14 items-center justify-center gap-2 rounded-full text-[15px] font-semibold text-ink-dark"
-            style={{ background: '#FFD85F', boxShadow: '0 4px 32px rgba(0,0,0,0.45)' }}
+    {/* Lebegő CTA — mobilon, kártya nyitása előtt (embed módban a kártya mindig nyitva van) */}
+    {!embed && (
+      <AnimatePresence>
+        {isMobile && !sheetOpen && (
+          <motion.div
+            key="mobile-hero-cta"
+            className="fixed bottom-0 left-0 right-0 z-20 px-5 lg:hidden"
+            style={{ paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.3 }}
           >
-            {tl(locale, 'public.bookCta')}
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </motion.div>
-      )}
-    </AnimatePresence>
+            <button
+              onClick={() => setSheetOpen(true)}
+              className="flex w-full h-14 items-center justify-center gap-2 rounded-full text-[15px] font-semibold text-ink-dark"
+              style={{ background: '#FFD85F', boxShadow: '0 4px 32px rgba(0,0,0,0.45)' }}
+            >
+              {tl(locale, 'public.bookCta')}
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    )}
 
     <div
-      className="fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:w-[500px] lg:-translate-y-1/2"
-      style={{ pointerEvents: isMobile && !sheetOpen ? 'none' : undefined }}
+      className={embed
+        ? 'relative w-full p-3 sm:p-4'
+        : 'fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:w-[500px] lg:-translate-y-1/2'}
+      style={embed ? undefined : { pointerEvents: isMobile && !sheetOpen ? 'none' : undefined }}
     >
       <motion.div
-        initial={{ y: '100%' }}
-        animate={{ y: isMobile ? (sheetOpen ? 0 : '100%') : 0 }}
+        ref={embed ? embedCardRef : undefined}
+        initial={embed ? false : { y: '100%' }}
+        animate={embed ? { y: 0 } : { y: isMobile ? (sheetOpen ? 0 : '100%') : 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-        className="flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]"
+        className={embed ? 'flex flex-col overflow-hidden rounded-[24px]' : 'flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]'}
         style={{
-          height: 'min(82dvh, calc(100dvh - 48px))',
-          background: 'rgba(22,22,26,0.52)',
+          // Embed módban a kártya a TERMÉSZETES tartalom-magasságára nő (nincs korlát) — a
+          // fenti ResizeObserver ezt küldi el postMessage-ben a beágyazó oldalnak. Ha valaki a
+          // sima, fix-magasságú iframe-snippetet használja (nem az automatikus loadert), a
+          // böngésző NATÍV iframe-görgetése lép életbe, ha a tartalom nagyobb a megadott
+          // magasságnál — nincs szükség egyedi belső görgetésre.
+          ...(embed ? { height: 'auto' } : { height: 'min(82dvh, calc(100dvh - 48px))' }),
+          background: embed ? '#16161A' : 'rgba(22,22,26,0.52)',
           border: '1px solid rgba(255,255,255,0.10)',
-          boxShadow: '0 -2px 40px rgba(0,0,0,0.35), 0 24px 56px -12px rgba(0,0,0,0.4)',
-          backdropFilter: 'blur(24px) saturate(1.4)',
-          WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
+          boxShadow: embed ? '0 4px 24px rgba(0,0,0,0.25)' : '0 -2px 40px rgba(0,0,0,0.35), 0 24px 56px -12px rgba(0,0,0,0.4)',
+          backdropFilter: embed ? undefined : 'blur(24px) saturate(1.4)',
+          WebkitBackdropFilter: embed ? undefined : 'blur(24px) saturate(1.4)',
         }}
       >
-        {/* Drag handle — mobilon */}
-        <div className="flex shrink-0 justify-center pb-1 pt-3 lg:hidden">
-          <div className="h-1 w-9 rounded-full bg-white/20" />
-        </div>
+        {/* Drag handle — mobilon (embed módban nincs húzható sheet) */}
+        {!embed && (
+          <div className="flex shrink-0 justify-center pb-1 pt-3 lg:hidden">
+            <div className="h-1 w-9 rounded-full bg-white/20" />
+          </div>
+        )}
 
         {/* Step indicator row — minden nem-main, nem-success nézeten */}
         {view !== 'main' && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && (() => {
@@ -705,8 +740,8 @@ export function ProfileCard({
                                   </div>
                                 )}
                                 <div
-                                  className="absolute inset-x-0 bottom-0 px-2.5 py-2.5"
-                                  style={{ background: 'rgba(0,0,0,0.32)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                                  className="absolute inset-x-0 bottom-0 flex min-h-[52px] flex-col justify-center px-2.5 py-2.5"
+                                  style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
                                 >
                                   <p className="truncate text-[12px] font-semibold leading-tight text-white">{m.name}</p>
                                   {m.bio && <p className="mt-0.5 truncate text-[10px] text-white/65">{m.bio}</p>}
@@ -854,7 +889,7 @@ export function ProfileCard({
                         </div>
                         <div
                           className="absolute inset-x-0 bottom-0 px-2.5 py-2.5 text-left"
-                          style={{ background: 'rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                          style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
                         >
                           <p className="truncate text-[12px] font-semibold leading-tight text-white">{tt('booking.staff.any')}</p>
                           <p className="mt-0.5 truncate text-[10px] text-white/60">{tt('booking.staff.bestSlot')}</p>
@@ -879,8 +914,8 @@ export function ProfileCard({
                               : <div className="absolute inset-0 flex items-center justify-center"><User className="h-10 w-10 text-white/25" /></div>
                             }
                             <div
-                              className="absolute inset-x-0 bottom-0 px-2.5 py-2.5 text-left"
-                              style={{ background: 'rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)' }}
+                              className="absolute inset-x-0 bottom-0 flex min-h-[52px] flex-col justify-center px-2.5 py-2.5 text-left"
+                              style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
                             >
                               <p className="truncate text-[12px] font-semibold leading-tight text-white">{m.name}</p>
                               {m.bio && <p className="mt-0.5 truncate text-[10px] text-white/60">{m.bio}</p>}

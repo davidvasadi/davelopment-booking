@@ -13,6 +13,7 @@ import { HoverArrow } from '@/components/ui/HoverArrow'
 import { DateStrip } from '@/components/booking/DateStrip'
 import { DepositStep } from '@/components/booking/DepositStep'
 import { Switch } from '@/components/ui/toggle-switch'
+import { trackBookingConversion } from '@/lib/marketingTracking'
 import { staggerContainer, fadeUp, stepSlide, stepSlideTransition } from '@/lib/motion'
 import { makeT, dfLocale, type Locale } from '@/lib/i18n'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
@@ -267,6 +268,7 @@ export function RestaurantBookingWizard({
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? tt('rbooking.err.generic'))
+      trackBookingConversion()
       if (onSuccess) onSuccess(date, time!, pax)
       else router.push(`/${slug}/book/success`)
     } catch (e) {

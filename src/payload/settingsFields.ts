@@ -234,6 +234,35 @@ export const consentSettingsFields: Field[] = [
 ]
 
 /**
+ * Marketing-követés a publikus foglaló oldalon — csak konkrét, névvel felsorolt szolgáltatás
+ * (Google Analytics 4 + Facebook Pixel), NEM teljes Google Tag Manager, mert a GTM utólag
+ * tetszőleges más szkriptet is engedélyezne a saját felületén keresztül, ami a szigorú CSP-t
+ * (`next.config.ts`) érdemben tágra nyitná. A sikeres foglaláskor kimenő esemény mindig anonim
+ * (nincs név/telefon/email), ld. `ProfileCard.tsx`/`RestaurantBookingWizard.tsx`.
+ */
+export const marketingTrackingFields: Field[] = [
+  {
+    name: 'marketing_tracking',
+    type: 'group',
+    label: 'Marketing-követés',
+    fields: [
+      {
+        name: 'ga4_measurement_id',
+        type: 'text',
+        label: 'Google Analytics 4 mérési azonosító',
+        admin: { description: 'Pl. G-XXXXXXXXXX' },
+      },
+      {
+        name: 'facebook_pixel_id',
+        type: 'text',
+        label: 'Facebook (Meta) Pixel ID',
+        admin: { description: 'Csak számjegyek, a Meta Események Kezelőjéből.' },
+      },
+    ],
+  },
+]
+
+/**
  * Stripe Connect állapot-mezők — ROOT-SZINTEN (nem a `deposit_settings` group-ban) és
  * admin-only `access.update`-tel, mert a Salon/Restaurant Settings PATCH route
  * (`src/app/api/salon|restaurant/settings/route.ts`) `overrideAccess: true`-val ment, ami a

@@ -3,7 +3,7 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import {
-  Upload, Link2, Webhook, MapPin, Share2, Calendar,
+  Upload, Link2, Webhook, MapPin, Share2, Calendar, Code2, BarChart3,
   ChevronDown, ChevronRight, Check, Copy, Loader2, ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -15,8 +15,13 @@ interface Props {
   variant: 'salon' | 'restaurant'
   bookingUrl: string
   icalUrl: string
+  embedUrl: string
+  /** Kész `<div>` + `<script src=".../embed.js">` snippet — automatikus magasság-igazítással. */
+  embedSmartSnippet: string
   apiBase: string
   webhookUrl?: string | null
+  ga4Id?: string | null
+  facebookPixelId?: string | null
 }
 
 // ── iCal CTA — platform-érzékeny ──────────────────────────────────────────
@@ -99,6 +104,17 @@ function UrlRow({ url }: { url: string }) {
     <div className="flex items-center gap-2 rounded-[12px] border border-line bg-[#FBF9F2] px-3 py-2.5">
       <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink-soft">{url}</span>
       <CopyBtn value={url} />
+    </div>
+  )
+}
+
+// ── Multi-line code snippet display ────────────────────────────────────────
+
+function SnippetBox({ code }: { code: string }) {
+  return (
+    <div className="flex items-start gap-2 rounded-[12px] border border-line bg-[#FBF9F2] px-3 py-2.5">
+      <pre className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[12px] text-ink-soft">{code}</pre>
+      <CopyBtn value={code} />
     </div>
   )
 }
@@ -233,9 +249,84 @@ function WebhookConfig({ apiBase, initialUrl }: { apiBase: string; initialUrl: s
   )
 }
 
+// ── Marketing-követés save ─────────────────────────────────────────────────
+
+function MarketingTrackingConfig({
+  apiBase,
+  initialGa4Id,
+  initialPixelId,
+}: {
+  apiBase: string
+  initialGa4Id: string
+  initialPixelId: string
+}) {
+  const [ga4Id, setGa4Id] = useState(initialGa4Id)
+  const [pixelId, setPixelId] = useState(initialPixelId)
+  const [saving, setSaving] = useState(false)
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch(apiBase, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          marketing_tracking: {
+            ga4_measurement_id: ga4Id.trim() || null,
+            facebook_pixel_id: pixelId.trim() || null,
+          },
+        }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Marketing-követés mentve')
+    } catch {
+      toast.error('Nem sikerült menteni')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <p className="text-[12.5px] text-ink-soft">
+        Csak akkor jelenik meg bármelyik követő-kód a publikus foglaló oldalon, ha kitöltöd az azonosítóját. Foglalás sikeres létrejöttekor egy anonim eseményt küldünk — a vendég neve, telefonja vagy e-mail címe SOHA nem kerül bele.
+      </p>
+      <div>
+        <p className="text-[13px] font-medium text-ink mb-1.5">Google Analytics 4 mérési azonosító</p>
+        <input
+          value={ga4Id}
+          onChange={(e) => setGa4Id(e.target.value)}
+          placeholder="G-XXXXXXXXXX"
+          className="w-full rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+        />
+      </div>
+      <div>
+        <p className="text-[13px] font-medium text-ink mb-1.5">Facebook (Meta) Pixel ID</p>
+        <input
+          value={pixelId}
+          onChange={(e) => setPixelId(e.target.value)}
+          placeholder="123456789012345"
+          className="w-full rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+        />
+      </div>
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving}
+        className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-60"
+      >
+        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+        Mentés
+      </button>
+    </div>
+  )
+}
+
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function IntegrationsPanel({ variant, bookingUrl, icalUrl, apiBase, webhookUrl }: Props) {
+export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embedSmartSnippet, apiBase, webhookUrl, ga4Id, facebookPixelId }: Props) {
+  const embedSnippet = `<iframe src="${embedUrl}" width="100%" height="700" style="border:0"></iframe>`
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-ink-soft">
@@ -435,6 +526,42 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, apiBase, webho
                 ]} />
               </div>
             </details>
+          </div>
+        </div>
+      </IntegCard>
+
+      {/* ── Marketing-követés (GA4, Facebook Pixel) ── */}
+      <IntegCard
+        icon={BarChart3}
+        title="Marketing-követés"
+        description="Mérd a saját Google/Facebook hirdetéseid megtérülését — Google Analytics 4 és Facebook Pixel"
+        status={ga4Id || facebookPixelId ? 'active' : 'setup'}
+      >
+        <MarketingTrackingConfig apiBase={apiBase} initialGa4Id={ga4Id ?? ''} initialPixelId={facebookPixelId ?? ''} />
+      </IntegCard>
+
+      {/* ── Weboldalba/Facebook oldalba ágyazás ── */}
+      <IntegCard
+        icon={Code2}
+        title="Beágyazás weboldalba"
+        description="Illeszd be a foglalót közvetlenül a saját weboldaladba"
+        status="active"
+      >
+        <div className="space-y-5">
+          <div>
+            <p className="text-[13px] font-medium text-ink mb-1.5">Ajánlott — automatikus méretezés</p>
+            <p className="text-[12.5px] text-ink-soft mb-2">
+              A foglaló mindig pontosan akkora helyet foglal el, amennyi a tartalmához kell — nincs felesleges üres hely vagy görgetés.
+            </p>
+            <SnippetBox code={embedSmartSnippet} />
+          </div>
+
+          <div>
+            <p className="text-[13px] font-medium text-ink mb-1.5">Kézi (fix méretű iframe)</p>
+            <p className="text-[12.5px] text-ink-soft mb-2">
+              Akkor használd, ha a weboldal-szerkesztőd nem enged `&lt;script&gt;` kódot beilleszteni. A `height` értéket nyugodtan módosítsd — ha a tartalom nem fér el, a böngésző automatikusan görgethetővé teszi.
+            </p>
+            <SnippetBox code={embedSnippet} />
           </div>
         </div>
       </IntegCard>
