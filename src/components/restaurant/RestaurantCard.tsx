@@ -55,6 +55,7 @@ export function RestaurantCard({
   consentTitle,
   consentText,
   customQuestions,
+  embed = false,
 }: {
   slug: string
   restaurantId: string | number
@@ -88,6 +89,8 @@ export function RestaurantCard({
     options?: { id?: string | null; value?: string | null }[] | null
     required?: boolean | null
   }[] | null
+  /** Beágyazott (iframe) nézet — normál, statikus blokkként jelenik meg lebegő kártya helyett. */
+  embed?: boolean
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(true)
@@ -104,6 +107,21 @@ export function RestaurantCard({
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
   }, [])
+
+  // Embed módban: a kártya saját tartalom-magasságát figyeljük, és postMessage-en jelezzük a
+  // beágyazó oldal felé (a `public/embed.js` loader ez alapján méretezi élőben az iframe-et).
+  const embedCardRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!embed || !embedCardRef.current || typeof ResizeObserver === 'undefined') return
+    const el = embedCardRef.current
+    const send = () => {
+      window.parent.postMessage({ source: 'davelopment-embed', height: el.offsetHeight }, '*')
+    }
+    const ro = new ResizeObserver(send)
+    ro.observe(el)
+    send()
+    return () => ro.disconnect()
+  }, [embed])
 
   useEffect(() => {
     if (!autoOpenedRef.current && searchParams.get('book') === '1') {
@@ -587,70 +605,84 @@ export function RestaurantCard({
 
   return (
     <>
-      {/* Backdrop */}
-      <AnimatePresence>
-        {isMobile && sheetOpen && (
-          <motion.div
-            key="restaurant-sheet-backdrop"
-            className="fixed inset-0 z-[29] lg:hidden"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={() => {
-              if (view !== 'success') setSheetOpen(false)
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {/* Backdrop (embed módban nincs mobil-sheet, nem kell) */}
+      {!embed && (
+        <AnimatePresence>
+          {isMobile && sheetOpen && (
+            <motion.div
+              key="restaurant-sheet-backdrop"
+              className="fixed inset-0 z-[29] lg:hidden"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => {
+                if (view !== 'success') setSheetOpen(false)
+              }}
+            />
+          )}
+        </AnimatePresence>
+      )}
 
-      {/* Lebegő CTA gomb (mobil, sheet megnyitása előtt) */}
-      <AnimatePresence>
-        {isMobile && !sheetOpen && (
-          <motion.div
-            key="restaurant-mobile-cta"
-            className="fixed bottom-0 left-0 right-0 z-20 px-5 lg:hidden"
-            style={{ paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.3 }}
-          >
-            <button
-              onClick={() => { setSheetOpen(true) }}
-              className="flex w-full h-14 items-center justify-center gap-2 rounded-full text-[15px] font-semibold text-ink-dark"
-              style={{ background: '#FFD85F', boxShadow: '0 4px 32px rgba(0,0,0,0.45)' }}
+      {/* Lebegő CTA gomb (mobil, sheet megnyitása előtt) — embed módban a kártya mindig nyitva van */}
+      {!embed && (
+        <AnimatePresence>
+          {isMobile && !sheetOpen && (
+            <motion.div
+              key="restaurant-mobile-cta"
+              className="fixed bottom-0 left-0 right-0 z-20 px-5 lg:hidden"
+              style={{ paddingBottom: 'max(2.5rem, env(safe-area-inset-bottom))' }}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 16 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.3 }}
             >
-              {t(locale, 'public.bookTable')}
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
+              <button
+                onClick={() => { setSheetOpen(true) }}
+                className="flex w-full h-14 items-center justify-center gap-2 rounded-full text-[15px] font-semibold text-ink-dark"
+                style={{ background: '#FFD85F', boxShadow: '0 4px 32px rgba(0,0,0,0.45)' }}
+              >
+                {t(locale, 'public.bookTable')}
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      )}
 
       {/* Kártya */}
       <div
-        className="fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:w-[500px] lg:-translate-y-1/2"
-        style={{ pointerEvents: isMobile && !sheetOpen ? 'none' : undefined }}
+        className={embed
+          ? 'relative w-full p-3 sm:p-4'
+          : 'fixed bottom-0 left-0 right-0 z-30 lg:absolute lg:bottom-auto lg:left-auto lg:right-8 lg:top-1/2 lg:w-[500px] lg:-translate-y-1/2'}
+        style={embed ? undefined : { pointerEvents: isMobile && !sheetOpen ? 'none' : undefined }}
       >
         <motion.div
-          initial={{ y: '100%' }}
-          animate={{ y: isMobile ? (sheetOpen ? 0 : '100%') : 0 }}
+          ref={embed ? embedCardRef : undefined}
+          initial={embed ? false : { y: '100%' }}
+          animate={embed ? { y: 0 } : { y: isMobile ? (sheetOpen ? 0 : '100%') : 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 32 }}
-          className="flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]"
+          className={embed ? 'flex flex-col overflow-hidden rounded-[24px]' : 'flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]'}
           style={{
-            height: 'min(82dvh, calc(100dvh - 48px))',
-            background: 'rgba(22,22,26,0.52)',
-            backdropFilter: 'blur(24px) saturate(1.4)',
-            WebkitBackdropFilter: 'blur(24px) saturate(1.4)',
-            border: '1px solid rgba(255,255,255,0.08)',
-            borderBottom: 'none',
+            // Embed módban a kártya a természetes tartalom-magasságára nő — a fenti
+            // ResizeObserver ezt küldi postMessage-ben a beágyazó oldalnak (`public/embed.js`).
+            // Sima, fix-magasságú iframe-snippetnél a böngésző natív iframe-görgetése a
+            // tartalék, ha a tartalom nagyobb a megadott magasságnál.
+            ...(embed ? { height: 'auto' } : { height: 'min(82dvh, calc(100dvh - 48px))' }),
+            background: embed ? '#16161A' : 'rgba(22,22,26,0.52)',
+            backdropFilter: embed ? undefined : 'blur(24px) saturate(1.4)',
+            WebkitBackdropFilter: embed ? undefined : 'blur(24px) saturate(1.4)',
+            border: embed ? '1px solid rgba(255,255,255,0.10)' : '1px solid rgba(255,255,255,0.08)',
+            borderBottom: embed ? undefined : 'none',
+            boxShadow: embed ? '0 4px 24px rgba(0,0,0,0.25)' : undefined,
           }}
         >
-          {/* Drag handle (mobil) */}
-          <div className="shrink-0 flex justify-center pt-3 pb-1 lg:hidden">
-            <div className="h-1 w-10 rounded-full bg-white/20" />
-          </div>
+          {/* Drag handle (mobil) — embed módban nincs húzható sheet */}
+          {!embed && (
+            <div className="shrink-0 flex justify-center pt-3 pb-1 lg:hidden">
+              <div className="h-1 w-10 rounded-full bg-white/20" />
+            </div>
+          )}
 
           {/* Nézet-tartalom animált csere */}
           <AnimatePresence mode="wait" initial={false}>
