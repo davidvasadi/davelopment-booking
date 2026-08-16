@@ -332,7 +332,7 @@ export function UserMenu({
                   >
                     {active.logoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={active.logoUrl} alt={active.name} className="h-[30px] w-[30px] shrink-0 rounded-[8px] object-cover" />
+                      <img src={active.logoUrl} alt={active.name} className="h-[30px] w-[30px] shrink-0 rounded-[8px] bg-[#f5f5f4] object-contain p-[3px]" />
                     ) : (
                       <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#1d1c19] text-[12px] font-bold text-[#ffd85f]">{activeMono}</span>
                     )}
@@ -374,7 +374,7 @@ export function UserMenu({
                               >
                                 {b.logoUrl ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={b.logoUrl} alt={b.name} className="h-[26px] w-[26px] shrink-0 rounded-[7px] object-cover" />
+                                  <img src={b.logoUrl} alt={b.name} className="h-[26px] w-[26px] shrink-0 rounded-[7px] bg-[#f5f5f4] object-contain p-[2px]" />
                                 ) : (
                                   <span className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] text-[11px] font-bold', isActive ? 'bg-[#1d1c19] text-[#ffd85f]' : 'bg-[#e8e7e2] text-[#5a5549]')}>{mono}</span>
                                 )}

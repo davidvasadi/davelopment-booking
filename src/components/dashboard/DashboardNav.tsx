@@ -190,7 +190,7 @@ export function DashboardNav({
               <div className="flex flex-col items-center gap-2">
                 {brandLogoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={brandLogoUrl} alt={salonName} className="h-9 w-9 rounded-full object-cover bg-zinc-100 dark:bg-white/[0.06]" />
+                  <img src={brandLogoUrl} alt={salonName} className="h-9 w-9 rounded-full bg-zinc-100 object-contain p-1.5 dark:bg-white/[0.06]" />
                 ) : (
                   <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white text-sm font-bold">
                     {salonName?.trim()?.[0]?.toUpperCase() ?? '?'}

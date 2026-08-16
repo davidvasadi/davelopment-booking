@@ -110,7 +110,7 @@ export function StoreSwitcher({
             <span className="flex items-center gap-2 min-w-0">
               {logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt="" className="h-7 w-7 rounded-lg object-cover bg-white/10" />
+                <img src={logoUrl} alt="" className="h-7 w-7 rounded-lg bg-white/10 object-contain p-1" />
               ) : (
                 <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/10 text-xs font-bold">{initial}</span>
               )}
@@ -139,7 +139,7 @@ export function StoreSwitcher({
         <span className="relative shrink-0">
           {logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={name} className={cn('rounded-full object-cover bg-zinc-100 dark:bg-white/[0.06]', compact ? 'h-7 w-7' : 'h-9 w-9')} />
+            <img src={logoUrl} alt={name} className={cn('rounded-full bg-zinc-100 object-contain dark:bg-white/[0.06]', compact ? 'h-7 w-7 p-1' : 'h-9 w-9 p-1.5')} />
           ) : (
             <span className={cn('flex items-center justify-center rounded-full bg-ink-dark text-white font-bold', compact ? 'h-7 w-7 text-xs' : 'h-9 w-9 text-sm')}>
               {initial}
@@ -189,7 +189,7 @@ export function StoreSwitcher({
                 >
                   {b.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={b.logoUrl} alt={b.name} className="h-7 w-7 rounded-full object-cover bg-[#f5f5f4]" />
+                    <img src={b.logoUrl} alt={b.name} className="h-7 w-7 rounded-full bg-[#f5f5f4] object-contain p-1" />
                   ) : (
                     <span className="flex h-7 w-7 items-center justify-center rounded-full bg-ink-dark text-white text-xs font-bold">{monogram(b.name)}</span>
                   )}
