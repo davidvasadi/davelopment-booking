@@ -2,6 +2,7 @@ import type { Payload, PayloadRequest } from 'payload'
 import type { Subscription } from '@/payload/payload-types'
 import type { Pricing } from './pricing'
 import { businessMonthlyFee, applyCycle, resolveCycle, newsletterPackageFee } from './tier'
+import { getStripe, hufToStripeMinor } from './stripe'
 
 const MS_PER_DAY = 86_400_000
 
@@ -159,9 +160,15 @@ export async function getOrCreateAccountSubscription({ payload, req }: Ctx, user
 }
 
 /**
- * Újraszámolja a fiók-előfizetés üzlet-összetételét és díját (üzlet hozzáadás/törlés után hívandó).
- * Ha nincs még fiók-sub, létrehozza (trial). A státuszt NEM bántja — csak a count/díj/breakdown
- * frissül, így a fizető fiók díja azonnal nő/csökken az üzletek számával.
+ * Újraszámolja a fiók-előfizetés üzlet-összetételét és díját (üzlet hozzáadás/törlés, vagy
+ * bármi más díj-befolyásoló változás — pl. hírlevél-csomag váltás — után hívandó). Ha nincs még
+ * fiók-sub, létrehozza (trial). A státuszt NEM bántja — csak a count/díj/breakdown frissül.
+ *
+ * Ha a fiók már FIZETŐ (élő Stripe-előfizetéssel), az új összeget a Stripe-nál is érvényesíti
+ * (`stripe.subscriptions.update` price_data-val, azonnali arányos számlával) — különben a
+ * DB-ben számolt díj elszakadna a ténylegesen terhelt összegtől. A Stripe-hívás best-effort:
+ * hibája NEM dobja tovább (a hívók egy része, pl. a Salons afterChange hook, catch nélkül
+ * awaitolja ezt a függvényt — egy Stripe-hiba nem törheti el az üzlet létrehozását).
  */
 export async function syncAccountSubscription({ payload, req }: Ctx, userId: string | number): Promise<void> {
   const fee = await computeAccountFee({ payload, req }, userId)
@@ -178,6 +185,7 @@ export async function syncAccountSubscription({ payload, req }: Ctx, userId: str
   const pricing = await readPricing(payload, req)
   const cycle = resolveCycle(existing.billing_cycle)
   const effectiveAmount = applyCycle(fee.amountHuf, cycle, pricing.annual_discount_pct)
+  const previousAmount = existing.amount_huf ?? 0
 
   await payload.update({
     collection: 'subscriptions',
@@ -191,6 +199,35 @@ export async function syncAccountSubscription({ payload, req }: Ctx, userId: str
       breakdown: fee.breakdown,
     },
   })
+
+  if (existing.status === 'active' && existing.stripe_subscription_id && effectiveAmount !== previousAmount) {
+    const stripe = getStripe()
+    if (stripe) {
+      try {
+        const stripeSub = await stripe.subscriptions.retrieve(existing.stripe_subscription_id)
+        const item = stripeSub.items.data[0]
+        if (item) {
+          const unitForint = cycle === 'annual' ? effectiveAmount * 12 : effectiveAmount
+          const interval: 'month' | 'year' = cycle === 'annual' ? 'year' : 'month'
+          const productId = typeof item.price.product === 'string' ? item.price.product : item.price.product.id
+          await stripe.subscriptions.update(existing.stripe_subscription_id, {
+            proration_behavior: 'always_invoice',
+            items: [{
+              id: item.id,
+              price_data: {
+                currency: 'huf',
+                unit_amount: hufToStripeMinor(unitForint),
+                recurring: { interval },
+                product: productId,
+              },
+            }],
+          })
+        }
+      } catch (err) {
+        payload.logger.error(`[accountSubscription] Stripe ár-szinkron hiba: ${String(err)}`)
+      }
+    }
+  }
 }
 
 /** Aktívan FUTÓ a próbaidő? (trialing + jövőbeli lejárat) */
