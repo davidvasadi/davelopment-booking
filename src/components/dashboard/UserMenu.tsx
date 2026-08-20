@@ -534,6 +534,7 @@ function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: 
   const [sheetOpen, setSheetOpen] = useState(false)
 
   function openSheet() {
+    console.log('[DigestCard] openSheet fired for', n.id, n.type)
     if (!n.read) onMarkRead()
     setSheetOpen(true)
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, CalendarRange, MailWarning, type LucideIcon } from 'lucide-react'
 
@@ -30,6 +30,15 @@ export type DigestMetadata = {
   source?: { walk_in?: number; phone?: number; online?: number }
   /** Esti összefoglalónál: státusz breakdown */
   status?: { completed?: number; cancelled?: number; no_show?: number }
+  /** Ma beszedett előleg (Ft) — a `deposit_paid` foglalások összege. */
+  revenue_huf?: number
+  /** Top 3 legtöbbet foglalt szolgáltatás ma (szalon-only). */
+  top_services?: { name: string; bookings: number }[]
+  /** Ma egyedi vendégei közül hány új (nincs korábbi, nem-lemondott foglalása) / hány visszatérő. */
+  new_guests?: number
+  returning_guests?: number
+  /** Ország-bontás (ISO kód → darabszám) — étterem-only, a `country` mezőből. */
+  countries?: Record<string, number>
 }
 
 export function notificationVisual(type: Notification['type'], metadata?: Record<string, unknown> | null): { Icon: LucideIcon; color: string; bg: string } {
@@ -82,17 +91,33 @@ export function useNotifications(onNavigate?: () => void) {
   const [items, setItems] = useState<Notification[]>([])
   const [unread, setUnread] = useState(0)
 
+  // Az „ÉPP MOST érkezett digest" felugró popuphoz: a legutóbbi pollingból ismert id-k
+  // (null = még nem volt betöltés) — csak az ELSŐ betöltés UTÁN érkező, tehát ÚJ digest
+  // triggerel automatikus popupot, a bejelentkezéskor már meglévő, régi digest nem.
+  const seenIdsRef = useRef<Set<Notification['id']> | null>(null)
+  const [newDigest, setNewDigest] = useState<Notification | null>(null)
+
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/notifications', { credentials: 'include' })
       if (!res.ok) return
       const data = await res.json()
-      setItems(data.notifications ?? [])
+      const next: Notification[] = data.notifications ?? []
+      if (seenIdsRef.current) {
+        const arrived = next.find(
+          (n) => (n.type === 'digest_morning' || n.type === 'digest_evening') && !seenIdsRef.current!.has(n.id),
+        )
+        if (arrived) setNewDigest(arrived)
+      }
+      seenIdsRef.current = new Set(next.map((n) => n.id))
+      setItems(next)
       setUnread(data.unread ?? 0)
     } catch {
       /* csendben — best-effort */
     }
   }, [])
+
+  const clearNewDigest = useCallback(() => setNewDigest(null), [])
 
   useEffect(() => {
     load()
@@ -105,6 +130,7 @@ export function useNotifications(onNavigate?: () => void) {
   }, [load])
 
   const remove = useCallback(async (id: number | string) => {
+    console.trace('[useNotifications] remove() called for', id)
     setItems((prev) => prev.filter((n) => n.id !== id))
     setUnread((u) => Math.max(0, u - 1))
     await fetch(`/api/notifications?id=${encodeURIComponent(String(id))}`, {
@@ -140,6 +166,7 @@ export function useNotifications(onNavigate?: () => void) {
   }, [])
 
   const openItem = useCallback((n: Notification) => {
+    console.log('[useNotifications] openItem fired (generic row path) for', n.id, n.type)
     onNavigate?.()
     remove(n.id)
     const t = Date.now()
@@ -169,5 +196,5 @@ export function useNotifications(onNavigate?: () => void) {
     { label: 'Korábbi', rows: items.filter((n) => n.read) },
   ].filter((g) => g.rows.length > 0)
 
-  return { items, unread, groups, remove, markRead, clearAll, openItem, reload: load }
+  return { items, unread, groups, remove, markRead, clearAll, openItem, reload: load, newDigest, clearNewDigest }
 }

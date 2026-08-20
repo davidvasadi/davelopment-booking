@@ -478,6 +478,75 @@ async function handle(request: NextRequest) {
           .sort((a, b) => b.count - a.count)
           .map((e) => ({ name: e.name, bookings: e.count }))
 
+        // Bevétel — ma beszedett előleg (a `deposit_paid` foglalásokból).
+        const revenueHuf = (todayBookings.docs as Booking[]).reduce(
+          (sum, b) => sum + (b.deposit_paid ? (b.deposit_amount_huf ?? 0) : 0),
+          0,
+        )
+
+        // Top szolgáltatások — a mai foglalások szolgáltatás-bontása, ugyanaz a minta,
+        // mint a fenti per-staff bontás.
+        const serviceCountMap = new Map<string, { name: string; count: number }>()
+        for (const b of todayBookings.docs as Booking[]) {
+          const svcId = typeof b.service === 'object' ? String((b.service as Service).id) : String(b.service)
+          if (!serviceCountMap.has(svcId)) serviceCountMap.set(svcId, { name: svcId, count: 0 })
+          serviceCountMap.get(svcId)!.count++
+        }
+        if (serviceCountMap.size > 0) {
+          const serviceDocs = await payload.find({
+            collection: 'services',
+            where: { id: { in: [...serviceCountMap.keys()].map(Number) } },
+            depth: 0, limit: 100, overrideAccess: true,
+          })
+          for (const s of serviceDocs.docs as Service[]) {
+            const e = serviceCountMap.get(String(s.id))
+            if (e) e.name = s.name
+          }
+        }
+        const topServices = [...serviceCountMap.values()]
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 3)
+          .map((e) => ({ name: e.name, bookings: e.count }))
+
+        // Új vs visszatérő vendég — a mai egyedi vendégek közül hánynak volt a mai nap ELŐTT
+        // bármilyen nem-lemondott foglalása ennél az üzletnél (telefon VAGY email alapján).
+        const todayCustomers = new Map<string, { phone?: string | null; email?: string | null }>()
+        for (const b of todayBookings.docs as Booking[]) {
+          const key = b.customer_phone ? `p:${b.customer_phone}` : b.customer_email ? `e:${b.customer_email}` : `n:${b.customer_name}`
+          if (!todayCustomers.has(key)) todayCustomers.set(key, { phone: b.customer_phone, email: b.customer_email })
+        }
+        const todayPhones = [...new Set([...todayCustomers.values()].map((c) => c.phone).filter(Boolean))] as string[]
+        const todayEmails = [...new Set([...todayCustomers.values()].map((c) => c.email).filter(Boolean))] as string[]
+        const returningKeys = new Set<string>()
+        if (todayPhones.length || todayEmails.length) {
+          const priorBookings = await payload.find({
+            collection: 'bookings',
+            where: {
+              and: [
+                { salon: { equals: salonId } },
+                { date: { less_than: dateStr } },
+                { status: { not_equals: 'cancelled' } },
+                { or: [
+                  ...(todayPhones.length ? [{ customer_phone: { in: todayPhones } }] : []),
+                  ...(todayEmails.length ? [{ customer_email: { in: todayEmails } }] : []),
+                ] },
+              ],
+            },
+            depth: 0, limit: 500, overrideAccess: true,
+          })
+          for (const b of priorBookings.docs as Booking[]) {
+            if (b.customer_phone) returningKeys.add(`p:${b.customer_phone}`)
+            if (b.customer_email) returningKeys.add(`e:${b.customer_email}`)
+          }
+        }
+        let newGuestCount = 0
+        let returningGuestCount = 0
+        for (const c of todayCustomers.values()) {
+          const isReturning = (c.phone && returningKeys.has(`p:${c.phone}`)) || (c.email && returningKeys.has(`e:${c.email}`))
+          if (isReturning) returningGuestCount++
+          else newGuestCount++
+        }
+
         const statusCounts = isEvening
           ? (todayBookings.docs as Booking[]).reduce(
               (acc, b) => {
@@ -518,6 +587,10 @@ async function handle(request: NextRequest) {
                 shift_manager: shiftManager,
                 staff_breakdown: staffBreakdown,
                 status: statusCounts,
+                revenue_huf: revenueHuf > 0 ? revenueHuf : undefined,
+                top_services: topServices.length > 0 ? topServices : undefined,
+                new_guests: newGuestCount,
+                returning_guests: returningGuestCount,
               },
             },
           })
@@ -670,6 +743,55 @@ async function handle(request: NextRequest) {
           if (r.occasion) occasions[r.occasion] = (occasions[r.occasion] ?? 0) + 1
         }
 
+        // Bevétel — ma beszedett előleg (a `deposit_paid` foglalásokból).
+        const revenueHuf = docs.reduce((sum, r) => sum + (r.deposit_paid ? (r.deposit_amount_huf ?? 0) : 0), 0)
+
+        // Ország-bontás — a `country` mező (ISO kód, a telefon-előhívóból) MÁR MEGLÉVŐ adat,
+        // eddig sehol nem volt összesítve.
+        const countries: Record<string, number> = {}
+        for (const r of docs) {
+          const c = (r as { country?: string | null }).country
+          if (c) countries[c] = (countries[c] ?? 0) + 1
+        }
+
+        // Új vs visszatérő vendég — ugyanaz a minta, mint a szalon-digestnél.
+        const todayCustomers = new Map<string, { phone?: string | null; email?: string | null }>()
+        for (const r of docs) {
+          const key = r.customer_phone ? `p:${r.customer_phone}` : r.customer_email ? `e:${r.customer_email}` : `n:${r.customer_name}`
+          if (!todayCustomers.has(key)) todayCustomers.set(key, { phone: r.customer_phone, email: r.customer_email })
+        }
+        const todayPhones = [...new Set([...todayCustomers.values()].map((c) => c.phone).filter(Boolean))] as string[]
+        const todayEmails = [...new Set([...todayCustomers.values()].map((c) => c.email).filter(Boolean))] as string[]
+        const returningKeys = new Set<string>()
+        if (todayPhones.length || todayEmails.length) {
+          const priorReservations = await payload.find({
+            collection: 'reservations',
+            where: {
+              and: [
+                { restaurant: { equals: restId } },
+                { date: { less_than: dateStr } },
+                { status: { not_equals: 'cancelled' } },
+                { or: [
+                  ...(todayPhones.length ? [{ customer_phone: { in: todayPhones } }] : []),
+                  ...(todayEmails.length ? [{ customer_email: { in: todayEmails } }] : []),
+                ] },
+              ],
+            },
+            depth: 0, limit: 500, overrideAccess: true,
+          })
+          for (const r of priorReservations.docs as Reservation[]) {
+            if (r.customer_phone) returningKeys.add(`p:${r.customer_phone}`)
+            if (r.customer_email) returningKeys.add(`e:${r.customer_email}`)
+          }
+        }
+        let newGuestCount = 0
+        let returningGuestCount = 0
+        for (const c of todayCustomers.values()) {
+          const isReturning = (c.phone && returningKeys.has(`p:${c.phone}`)) || (c.email && returningKeys.has(`e:${c.email}`))
+          if (isReturning) returningGuestCount++
+          else newGuestCount++
+        }
+
         const source = isEvening
           ? docs.reduce(
               (acc, r) => {
@@ -743,6 +865,10 @@ async function handle(request: NextRequest) {
                 shift_manager: shiftManager,
                 source,
                 status,
+                revenue_huf: revenueHuf > 0 ? revenueHuf : undefined,
+                countries: Object.keys(countries).length > 0 ? countries : undefined,
+                new_guests: newGuestCount,
+                returning_guests: returningGuestCount,
               },
             },
           })
