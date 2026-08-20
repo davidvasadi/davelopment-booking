@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Trash2, ChevronUp, ChevronDown, ChevronDown as Caret, Sparkles, Info } from 'lucide-react'
+import { Reorder, useDragControls } from 'framer-motion'
+import { Plus, Trash2, GripVertical, ChevronDown as Caret, Sparkles, Info } from 'lucide-react'
 import { GOOD_TO_KNOW_ICONS, iconByKey } from './goodToKnowIcons'
 import { goodToKnowTemplate } from './contentTemplates'
 import type { Locale } from '@/lib/i18n'
@@ -36,12 +37,14 @@ export function GoodToKnowEditor({
     onChange(value.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
   const add = () => onChange([...value, { icon: 'info', title: '', body: '' }])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir
-    if (j < 0 || j >= value.length) return
-    const next = [...value]
-    ;[next[i], next[j]] = [next[j], next[i]]
-    onChange(next)
+
+  // Stabil kulcs objektum-referenciánként — a `GoodToKnowItem`-eknek nincs saját id-jük.
+  const keysRef = useRef(new WeakMap<GoodToKnowItem, number>())
+  const nextKeyRef = useRef(0)
+  const keyFor = (s: GoodToKnowItem) => {
+    let k = keysRef.current.get(s)
+    if (k === undefined) { k = nextKeyRef.current++; keysRef.current.set(s, k) }
+    return k
   }
 
   if (value.length === 0) {
@@ -78,17 +81,16 @@ export function GoodToKnowEditor({
 
   return (
     <div className="space-y-3">
-      {value.map((s, i) => (
-        <GoodToKnowRow
-          key={i}
-          item={s}
-          index={i}
-          total={value.length}
-          onChange={(patch) => update(i, patch)}
-          onMove={(dir) => move(i, dir)}
-          onRemove={() => remove(i)}
-        />
-      ))}
+      <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
+        {value.map((s, i) => (
+          <GoodToKnowRow
+            key={keyFor(s)}
+            item={s}
+            onChange={(patch) => update(i, patch)}
+            onRemove={() => remove(i)}
+          />
+        ))}
+      </Reorder.Group>
 
       <button
         type="button"
@@ -102,25 +104,21 @@ export function GoodToKnowEditor({
   )
 }
 
-/** Egy „Jó tudni" pont kártyája: ikon-popover + cím egy sorban, alatta a szöveg. */
+/** Egy „Jó tudni" pont kártyája: ikon-popover + cím egy sorban, alatta a szöveg.
+ *  `Reorder.Item`-ként — a húzást csak a bal széli fogópont indítja (`dragListener={false}`). */
 function GoodToKnowRow({
   item,
-  index,
-  total,
   onChange,
-  onMove,
   onRemove,
 }: {
   item: GoodToKnowItem
-  index: number
-  total: number
   onChange: (patch: Partial<GoodToKnowItem>) => void
-  onMove: (dir: -1 | 1) => void
   onRemove: () => void
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
   const ActiveIcon = iconByKey(item.icon)
+  const dragControls = useDragControls()
 
   useEffect(() => {
     if (!pickerOpen) return
@@ -132,7 +130,13 @@ function GoodToKnowRow({
   }, [pickerOpen])
 
   return (
-    <div className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card">
+    <Reorder.Item
+      as="div"
+      value={item}
+      dragListener={false}
+      dragControls={dragControls}
+      className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card"
+    >
       <div className="flex items-center gap-2.5">
         {/* Ikonválasztó popover */}
         <div ref={pickerRef} className="relative shrink-0">
@@ -180,12 +184,13 @@ function GoodToKnowRow({
         />
 
         <div className="flex shrink-0 items-center">
-          <button type="button" onClick={() => onMove(-1)} disabled={index === 0} title="Fel" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
-            <ChevronUp className="h-4 w-4" />
-          </button>
-          <button type="button" onClick={() => onMove(1)} disabled={index === total - 1} title="Le" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
-            <ChevronDown className="h-4 w-4" />
-          </button>
+          <div
+            onPointerDown={(e) => dragControls.start(e)}
+            className="flex h-8 w-7 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+            title="Húzd az átrendezéshez"
+          >
+            <GripVertical className="h-4 w-4" />
+          </div>
           <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-red-500">
             <Trash2 className="h-4 w-4" />
           </button>
@@ -199,6 +204,6 @@ function GoodToKnowRow({
         placeholder="A pont szövege…"
         className={cn(fieldBase, 'resize-y px-3.5 py-2.5 text-sm leading-relaxed')}
       />
-    </div>
+    </Reorder.Item>
   )
 }

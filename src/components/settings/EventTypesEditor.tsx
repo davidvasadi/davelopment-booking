@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Plus, Trash2, ChevronUp, ChevronDown, ChevronDown as Caret, Sparkles } from 'lucide-react'
+import { Reorder, useDragControls } from 'framer-motion'
+import { Plus, Trash2, GripVertical, ChevronDown as Caret, Sparkles } from 'lucide-react'
 import { EVENT_TYPE_ICONS, eventIconByKey, DEFAULT_EVENT_TYPES } from './eventTypeIcons'
 import { cn } from '@/lib/utils'
 
@@ -23,12 +24,14 @@ export function EventTypesEditor({
     onChange(value.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
   const add = () => onChange([...value, { icon: 'party', label: '', enabled: true }])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir
-    if (j < 0 || j >= value.length) return
-    const next = [...value]
-    ;[next[i], next[j]] = [next[j], next[i]]
-    onChange(next)
+
+  // Stabil kulcs objektum-referenciánként — az `EventTypeItem`-eknek nincs saját id-jük.
+  const keysRef = useRef(new WeakMap<EventTypeItem, number>())
+  const nextKeyRef = useRef(0)
+  const keyFor = (s: EventTypeItem) => {
+    let k = keysRef.current.get(s)
+    if (k === undefined) { k = nextKeyRef.current++; keysRef.current.set(s, k) }
+    return k
   }
 
   return (
@@ -63,17 +66,16 @@ export function EventTypesEditor({
         </div>
       ) : (
         <>
-          {value.map((s, i) => (
-            <EventTypeRow
-              key={i}
-              item={s}
-              index={i}
-              total={value.length}
-              onChange={(patch) => update(i, patch)}
-              onMove={(dir) => move(i, dir)}
-              onRemove={() => remove(i)}
-            />
-          ))}
+          <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
+            {value.map((s, i) => (
+              <EventTypeRow
+                key={keyFor(s)}
+                item={s}
+                onChange={(patch) => update(i, patch)}
+                onRemove={() => remove(i)}
+              />
+            ))}
+          </Reorder.Group>
 
           <button
             type="button"
@@ -89,25 +91,21 @@ export function EventTypesEditor({
   )
 }
 
-/** Egy esemény-típus sora: ikon-popover + megnevezés + aktív-kapcsoló + rendezés/törlés. */
+/** Egy esemény-típus sora: ikon-popover + megnevezés + aktív-kapcsoló + fogópont/törlés.
+ *  `Reorder.Item`-ként — a húzást csak a bal széli fogópont indítja (`dragListener={false}`). */
 function EventTypeRow({
   item,
-  index,
-  total,
   onChange,
-  onMove,
   onRemove,
 }: {
   item: EventTypeItem
-  index: number
-  total: number
   onChange: (patch: Partial<EventTypeItem>) => void
-  onMove: (dir: -1 | 1) => void
   onRemove: () => void
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
   const pickerRef = useRef<HTMLDivElement>(null)
   const ActiveIcon = eventIconByKey(item.icon)
+  const dragControls = useDragControls()
 
   useEffect(() => {
     if (!pickerOpen) return
@@ -119,10 +117,16 @@ function EventTypeRow({
   }, [pickerOpen])
 
   return (
-    <div className={cn(
-      'flex items-center gap-2.5 rounded-[18px] border bg-white p-3 shadow-dav-card transition-opacity',
-      item.enabled ? 'border-line' : 'border-line opacity-55',
-    )}>
+    <Reorder.Item
+      as="div"
+      value={item}
+      dragListener={false}
+      dragControls={dragControls}
+      className={cn(
+        'flex items-center gap-2.5 rounded-[18px] border bg-white p-3 shadow-dav-card transition-opacity',
+        item.enabled ? 'border-line' : 'border-line opacity-55',
+      )}
+    >
       {/* Ikonválasztó popover */}
       <div ref={pickerRef} className="relative shrink-0">
         <button
@@ -183,16 +187,17 @@ function EventTypeRow({
       </button>
 
       <div className="flex shrink-0 items-center">
-        <button type="button" onClick={() => onMove(-1)} disabled={index === 0} title="Fel" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
-          <ChevronUp className="h-4 w-4" />
-        </button>
-        <button type="button" onClick={() => onMove(1)} disabled={index === total - 1} title="Le" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
-          <ChevronDown className="h-4 w-4" />
-        </button>
+        <div
+          onPointerDown={(e) => dragControls.start(e)}
+          className="flex h-8 w-7 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+          title="Húzd az átrendezéshez"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
         <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-bad">
           <Trash2 className="h-4 w-4" />
         </button>
       </div>
-    </div>
+    </Reorder.Item>
   )
 }

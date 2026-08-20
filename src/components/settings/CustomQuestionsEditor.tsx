@@ -1,6 +1,8 @@
 'use client'
 
-import { Plus, Trash2, ChevronUp, ChevronDown, HelpCircle } from 'lucide-react'
+import { useRef } from 'react'
+import { Reorder, useDragControls } from 'framer-motion'
+import { Plus, Trash2, GripVertical, HelpCircle } from 'lucide-react'
 import { Switch } from '@/components/ui/toggle-switch'
 import { cn } from '@/lib/utils'
 
@@ -37,12 +39,14 @@ export function CustomQuestionsEditor({
     onChange(value.map((q, idx) => (idx === i ? { ...q, ...patch } : q)))
   const add = () => onChange([...value, { label: '', type: 'text', options: [], required: false }])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir
-    if (j < 0 || j >= value.length) return
-    const next = [...value]
-    ;[next[i], next[j]] = [next[j], next[i]]
-    onChange(next)
+
+  // Stabil kulcs objektum-referenciánként — a `CustomQuestion`-öknek nincs saját id-jük.
+  const keysRef = useRef(new WeakMap<CustomQuestion, number>())
+  const nextKeyRef = useRef(0)
+  const keyFor = (q: CustomQuestion) => {
+    let k = keysRef.current.get(q)
+    if (k === undefined) { k = nextKeyRef.current++; keysRef.current.set(q, k) }
+    return k
   }
 
   if (value.length === 0) {
@@ -69,17 +73,16 @@ export function CustomQuestionsEditor({
 
   return (
     <div className="space-y-3">
-      {value.map((q, i) => (
-        <CustomQuestionRow
-          key={i}
-          item={q}
-          index={i}
-          total={value.length}
-          onChange={(patch) => update(i, patch)}
-          onMove={(dir) => move(i, dir)}
-          onRemove={() => remove(i)}
-        />
-      ))}
+      <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
+        {value.map((q, i) => (
+          <CustomQuestionRow
+            key={keyFor(q)}
+            item={q}
+            onChange={(patch) => update(i, patch)}
+            onRemove={() => remove(i)}
+          />
+        ))}
+      </Reorder.Group>
 
       <button
         type="button"
@@ -95,17 +98,11 @@ export function CustomQuestionsEditor({
 
 function CustomQuestionRow({
   item,
-  index,
-  total,
   onChange,
-  onMove,
   onRemove,
 }: {
   item: CustomQuestion
-  index: number
-  total: number
   onChange: (patch: Partial<CustomQuestion>) => void
-  onMove: (dir: -1 | 1) => void
   onRemove: () => void
 }) {
   const options = item.options ?? []
@@ -113,9 +110,16 @@ function CustomQuestionRow({
     onChange({ options: options.map((o, idx) => (idx === i ? { value: val } : o)) })
   const addOption = () => onChange({ options: [...options, { value: '' }] })
   const removeOption = (i: number) => onChange({ options: options.filter((_, idx) => idx !== i) })
+  const dragControls = useDragControls()
 
   return (
-    <div className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card">
+    <Reorder.Item
+      as="div"
+      value={item}
+      dragListener={false}
+      dragControls={dragControls}
+      className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card"
+    >
       <div className="flex items-center gap-2.5">
         <input
           value={item.label}
@@ -124,12 +128,13 @@ function CustomQuestionRow({
           className={cn(fieldBase, 'h-11 flex-1 min-w-0 px-3.5 text-sm font-semibold')}
         />
         <div className="flex shrink-0 items-center">
-          <button type="button" onClick={() => onMove(-1)} disabled={index === 0} title="Fel" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
-            <ChevronUp className="h-4 w-4" />
-          </button>
-          <button type="button" onClick={() => onMove(1)} disabled={index === total - 1} title="Le" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
-            <ChevronDown className="h-4 w-4" />
-          </button>
+          <div
+            onPointerDown={(e) => dragControls.start(e)}
+            className="flex h-8 w-7 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+            title="Húzd az átrendezéshez"
+          >
+            <GripVertical className="h-4 w-4" />
+          </div>
           <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-red-500">
             <Trash2 className="h-4 w-4" />
           </button>
@@ -187,6 +192,6 @@ function CustomQuestionRow({
           </button>
         </div>
       )}
-    </div>
+    </Reorder.Item>
   )
 }
