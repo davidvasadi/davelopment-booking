@@ -311,16 +311,16 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
         {newsletterEnabled && (
           <div className="grid grid-cols-1 items-stretch gap-5 border-t border-dashed border-line pt-4 md:grid-cols-3">
             {([
-              { key: 'ingyenes' as const, label: 'Ingyenes', sub: 'Kezdéshez', priceMain: '0', priceUnit: 'Ft / hó', marketingLabel: 'Ingyen', cap: monthlyEmailCap(pricing, 'ingyenes') },
-              { key: 'alap' as const, label: 'Alap', sub: 'Rendszeres kampányokhoz', priceMain: pricing.newsletter_alap_huf.toLocaleString('hu-HU'), priceUnit: 'Ft / hó', marketingLabel: 'Legnépszerűbb', cap: monthlyEmailCap(pricing, 'alap') },
-              { key: 'premium' as const, label: 'Prémium', sub: 'Nagy forgalmú üzleteknek', priceMain: pricing.newsletter_premium_huf.toLocaleString('hu-HU'), priceUnit: 'Ft / hó', marketingLabel: 'Legbővebb', cap: monthlyEmailCap(pricing, 'premium') },
+              { key: 'ingyenes' as const, label: 'Ingyenes', sub: 'Kezdéshez', priceMain: '0', priceUnit: 'Ft / hó', marketingLabel: 'Ingyen', dotColor: '#A8A496', cap: monthlyEmailCap(pricing, 'ingyenes') },
+              { key: 'alap' as const, label: 'Alap', sub: 'Rendszeres kampányokhoz', priceMain: pricing.newsletter_alap_huf.toLocaleString('hu-HU'), priceUnit: 'Ft / hó', marketingLabel: 'Népszerű', dotColor: '#F1CE45', cap: monthlyEmailCap(pricing, 'alap') },
+              { key: 'premium' as const, label: 'Prémium', sub: 'Nagy forgalmú üzleteknek', priceMain: pricing.newsletter_premium_huf.toLocaleString('hu-HU'), priceUnit: 'Ft / hó', marketingLabel: 'Bővebb', dotColor: '#1D1C19', cap: monthlyEmailCap(pricing, 'premium') },
             ]).map((card) => {
               const alapCap = monthlyEmailCap(pricing, 'alap')
               const premiumCap = monthlyEmailCap(pricing, 'premium')
               const selected = newsletterPackage === card.key
               const featured = card.key === 'alap'
               const isPending = switching && pendingPackage === card.key
-              const badgeLabel = selected ? 'Jelenlegi' : card.marketingLabel
+              const badgeLabel = selected ? 'Aktív' : card.marketingLabel
               const feats = [
                 { label: 'Feliratkozó kapcsoló a foglaló-oldalon', included: true },
                 { label: 'Márkázott, saját logós email-sablon', included: true },
@@ -337,7 +337,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
                   initial="rest"
                   whileHover={selected || switching ? undefined : 'hover'}
                   className={cn(
-                    'mt-5 flex h-11 w-full items-center rounded-full text-[13.5px] font-medium transition-opacity hover:opacity-90 disabled:opacity-90',
+                    'flex h-11 w-full items-center rounded-full text-[13.5px] font-medium transition-opacity hover:opacity-90 disabled:opacity-90',
                     selected ? 'justify-center border border-dashed' : 'justify-between pl-5 pr-1.5',
                     featured
                       ? (selected ? 'border-white/25 text-white' : 'bg-white text-ink-dark')
@@ -364,10 +364,11 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
                 </motion.button>
               )
               return (
-                <div key={card.key} className={cn('h-full', featured && 'md:-my-4')}>
+                <div key={card.key} className="h-full">
                   <NotchedPricingCard
                     featured={featured}
                     badgeLabel={badgeLabel}
+                    dotColor={card.dotColor}
                     title={card.label}
                     priceMain={card.priceMain}
                     priceUnit={card.priceUnit}
