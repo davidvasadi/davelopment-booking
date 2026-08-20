@@ -26,6 +26,9 @@ type Body = {
   phone?: string
   businessTypes?: string[]
   templateId?: string
+  /** A landing árazás-kártyáján kiválasztott csomag (?tier= a /register-en). Alap: 'pro'
+   *  (a `businessTierField` schema-defaultja is ez, tehát meg nem adva ugyanoda esne vissza). */
+  tier?: 'starter' | 'pro'
 }
 
 const generateSlug = (name: string) =>
@@ -44,6 +47,7 @@ export async function POST(req: NextRequest) {
 
   const payload = await getPayloadClient()
   const role = kind === 'restaurant' ? 'restaurant_owner' : 'salon_owner'
+  const tier: 'starter' | 'pro' | undefined = body.tier === 'starter' ? 'starter' : undefined
 
   // Duplikált email: ha már megerősített fiók, be kell jelentkeznie; ha még nem, a korábbi
   // (esetleg félbehagyott) regisztráció linkjét kell megkeresnie — nem hozunk létre másodikat.
@@ -104,7 +108,7 @@ export async function POST(req: NextRequest) {
     try {
       place = await payload.create({
         collection: 'restaurants',
-        data: { name: placeName, slug, owner: user.id, phone, city, is_active: true },
+        data: { name: placeName, slug, owner: user.id, phone, city, is_active: true, ...(tier ? { tier } : {}) },
         overrideAccess: true,
         user,
       })
@@ -125,7 +129,7 @@ export async function POST(req: NextRequest) {
     try {
       place = await payload.create({
         collection: 'salons',
-        data: { name: placeName, slug, owner: user.id, phone, city, is_active: true },
+        data: { name: placeName, slug, owner: user.id, phone, city, is_active: true, ...(tier ? { tier } : {}) },
         overrideAccess: true,
         user,
       })

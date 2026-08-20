@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { Label } from '@/components/ui/label'
 import Link from 'next/link'
@@ -45,6 +45,9 @@ type Step2Data = z.infer<typeof step2Schema>
 
 export function RegisterRestaurantWizard() {
   const router = useRouter()
+  // A landing árazás-kártyáján kiválasztott csomag (?tier=starter) — lásd RegisterWizard azonos indoklása.
+  const searchParams = useSearchParams()
+  const selectedTier = searchParams.get('tier') === 'starter' ? 'starter' : undefined
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [loading, setLoading] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
@@ -83,6 +86,7 @@ export function RegisterRestaurantWizard() {
           placeName: v.restaurantName,
           city: v.city,
           phone: v.phone,
+          tier: selectedTier,
         }),
       })
       if (!res.ok) {
@@ -120,6 +124,7 @@ export function RegisterRestaurantWizard() {
           city: data.city,
           phone: data.phone,
           templateId: selectedTemplate ?? undefined,
+          tier: selectedTier,
         }),
       })
 
