@@ -24,7 +24,7 @@ import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext
 import {
   Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
   Plus, ScrollText, Building2, Mail, Check, Languages, FileText,
-  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, type LucideIcon,
+  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
@@ -254,8 +254,8 @@ export interface SettingsHubProps {
   consentSettings: ConsentSettingsData
   stripeConnectAccountId: string | null
   stripeConnectOnboarded: boolean
-  /** Hírlevél funkció jelenlegi csomagja — a Fizetések panel csomagválasztójához. */
-  newsletterPackage: 'none' | 'ingyenes' | 'alap' | 'premium'
+  /** Az üzlet jelenlegi csomagja (starter/pro/egyedi) — a hírlevél beépített email-keretének kijelzéséhez. */
+  businessTier: string | null
 }
 
 function fmtDate(dateStr?: string | null): string {
@@ -298,7 +298,7 @@ export function SettingsHub({
   billingAccount, pricing, activeBusinessId, startedAt,
   icalUrl, bookingUrl, embedUrl, embedSmartSnippet, webhookUrl, ga4Id, facebookPixelId, myCapabilities,
   depositSettings, invoiceSettings, voucherSettings, consentSettings, stripeConnectAccountId, stripeConnectOnboarded,
-  newsletterPackage,
+  businessTier,
 }: SettingsHubProps) {
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
@@ -313,6 +313,10 @@ export function SettingsHub({
     if (t === 'danger' && myCapabilities && !can(myCapabilities, 'danger')) return limitedOnly ? 'self' : 'profile'
     // Jogosulatlan tab URL-ből → visszaesik self-re.
     if (limitedOnly && t !== 'self') return 'self'
+    // Lejárt/megszűnt/szüneteltetett előfizetésnél egy mély-linkelt (?tab=...) tiltott fül is
+    // a billingre esik vissza — a nav-lakatok csak a KATTINTÁST védik, ez a közvetlen URL-t.
+    const lockedNow = billing.subscriptionStatus === 'past_due' || billing.subscriptionStatus === 'canceled' || billing.subscriptionStatus === 'paused'
+    if (lockedNow && t !== 'billing' && t !== 'danger') return 'billing'
     return t as RailId
   })()
   const [active, setActive] = useState<RailId>(initialTab)
@@ -336,10 +340,33 @@ export function SettingsHub({
   }, [mobileNavOpen])
 
   useEffect(() => {
-    if (searchParams.get('checkout') === 'success') {
-      setActive('billing')
+    if (searchParams.get('checkout') !== 'success') return
+    setActive('billing')
+    // A DB-frissítés rendesen a Stripe-webhookon menne — ez a fallback azonnal (a redirect
+    // pillanatában) is szinkronizál, hogy a webhook lokális hiánya/késése esetén se maradjon
+    // "Próbaidőszak" kiírva egy ténylegesen sikeres fizetés után.
+    const sessionId = searchParams.get('session_id')
+    if (!sessionId) {
       toast.success('Fizetés sikeres — előfizetés aktiválva!')
+      return
     }
+    fetch('/api/stripe/checkout/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ sessionId }),
+    })
+      .then((r) => r.json())
+      .then((data: { paid?: boolean }) => {
+        if (data.paid) {
+          toast.success('Fizetés sikeres — előfizetés aktiválva!')
+          router.refresh()
+        } else {
+          toast.error('A fizetés nem sikerült — próbáld újra, vagy válassz másik kártyát.')
+        }
+      })
+      .catch(() => toast.success('Fizetés sikeres — előfizetés aktiválva!'))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // mobil szekció-választó legördülő
 
   // ── Számlázási adatok helyi form (Számlázás panel) — PATCH az apiBase-re.
@@ -715,6 +742,10 @@ export function SettingsHub({
     ? Math.max(0, Math.ceil((new Date(billing.trialEndsAt).getTime() - Date.now()) / 86_400_000))
     : null
   const trialBadge = trialDaysLeft !== null ? (trialDaysLeft === 0 ? 'Ma jár le' : `${trialDaysLeft} nap`) : undefined
+  // Lejárt/megszűnt/szüneteltetett előfizetésnél a Beállítások MINDEN füle lakat mögé kerül,
+  // KIVÉVE az Előfizetés & számlázást (itt lehet újraaktiválni) és a Fiók törlését (mindig
+  // elérhető, hogy valaki akkor is le tudja zárni a fiókját, ha épp nem tud/akar fizetni).
+  const subscriptionLocked = billing.subscriptionStatus === 'past_due' || billing.subscriptionStatus === 'canceled' || billing.subscriptionStatus === 'paused'
   const canDanger = !myCapabilities || can(myCapabilities, 'danger')
   // `settings.own_profile` jogú tag: csak a Saját profil + Dokumentumok tab látszik.
   const canFullSettings = !myCapabilities || can(myCapabilities, 'settings.profile')
@@ -815,6 +846,20 @@ export function SettingsHub({
                         <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{grp.group}</div>
                         {grp.items.map((it) => {
                           const Icon = it.icon
+                          const itemLocked = subscriptionLocked && (it.kind !== 'btn' || it.id !== 'billing')
+                          if (itemLocked) {
+                            return (
+                              <span
+                                key={it.kind === 'btn' ? it.id : it.href}
+                                aria-disabled
+                                className="flex cursor-not-allowed items-center gap-3 rounded-[14px] px-3 py-3 text-[14.5px] font-medium text-[#3a352a]/35"
+                              >
+                                <Icon className="h-[18px] w-[18px]" strokeWidth={1.5} />
+                                {it.label}
+                                <Lock className="ml-auto h-4 w-4 shrink-0" strokeWidth={1.6} />
+                              </span>
+                            )
+                          }
                           return it.kind === 'btn' ? (
                             <button
                               key={it.id}
@@ -880,9 +925,25 @@ export function SettingsHub({
               <GroupLabel>{grp.group}</GroupLabel>
               {grp.items.map((it) => {
                 const Icon = it.icon
-                return it.kind === 'btn' ? (
-                  <RailBtn key={it.id} id={it.id} active={active} onClick={setActive} icon={it.icon} label={it.label} soon={it.soon} badge={it.badge} />
-                ) : (
+                if (it.kind === 'btn') {
+                  const itemLocked = subscriptionLocked && it.id !== 'billing'
+                  return <RailBtn key={it.id} id={it.id} active={active} onClick={setActive} icon={it.icon} label={it.label} soon={it.soon} badge={it.badge} locked={itemLocked} />
+                }
+                if (subscriptionLocked) {
+                  return (
+                    <span
+                      key={it.href}
+                      aria-disabled
+                      title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
+                      className="flex cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-[#3a352a]/35"
+                    >
+                      <Icon className="h-[17px] w-[17px]" strokeWidth={1.5} />
+                      {it.label}
+                      <Lock className="ml-auto h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />
+                    </span>
+                  )
+                }
+                return (
                   <Link
                     key={it.href}
                     href={it.href}
@@ -980,7 +1041,7 @@ export function SettingsHub({
                 stripeConnectOnboarded={stripeConnectOnboarded}
                 pricing={pricing}
                 businessId={activeBusinessId}
-                newsletterPackage={newsletterPackage}
+                tier={businessTier}
                 sections={['consent']}
                 onDirtyChange={documentsPanel.onDirtyChange}
                 registerApi={documentsPanel.registerApi}
@@ -1009,8 +1070,8 @@ export function SettingsHub({
               stripeConnectOnboarded={stripeConnectOnboarded}
               pricing={pricing}
               businessId={activeBusinessId}
-              newsletterPackage={newsletterPackage}
-              sections={['stripe', 'deposit', 'voucher']}
+              tier={businessTier}
+              sections={['stripe', 'deposit', 'voucher', 'newsletter']}
               onDirtyChange={paymentsTabPanel.onDirtyChange}
               registerApi={paymentsTabPanel.registerApi}
             />
@@ -1305,8 +1366,8 @@ export function SettingsHub({
                 stripeConnectOnboarded={stripeConnectOnboarded}
                 pricing={pricing}
                 businessId={activeBusinessId}
-                newsletterPackage={newsletterPackage}
-                sections={['newsletter', 'invoicing']}
+                tier={businessTier}
+                sections={['invoicing']}
                 onDirtyChange={integPaymentsPanel.onDirtyChange}
                 registerApi={integPaymentsPanel.registerApi}
               />
@@ -1505,7 +1566,7 @@ export function SettingsHub({
                   </div>
                 )}
 
-                <div className="mt-5 flex items-center justify-between rounded-[16px] bg-[#FBF9F2] px-4 py-3.5">
+                <div className="mt-5 flex items-center justify-between rounded-[16px] bg-paper px-4 py-3.5">
                   <div>
                     <div className="text-[12px] text-ink-soft">
                       {billing.subscriptionStatus === 'trialing' ? 'Próbaidőszak vége' : 'Következő terhelés'}
@@ -1560,7 +1621,7 @@ export function SettingsHub({
                   {billingAccount.items.map((item) => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between gap-3 rounded-[16px] bg-[#FBF9F2] px-4 py-3.5"
+                      className="flex items-center justify-between gap-3 rounded-[16px] bg-paper px-4 py-3.5"
                     >
                       <div className="flex items-center gap-3">
                         <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-white shadow-dav-card">
@@ -1571,7 +1632,7 @@ export function SettingsHub({
                           <div className="text-[11.5px] text-ink-soft">
                             {item.type === 'salon' ? 'Szalon' : 'Étterem'}
                             {item.type === 'salon' && item.staffCount > 0 && ` · ${item.staffCount} naptár`}
-                            {' · '}{item.tier === 'pro' ? 'Pro' : 'Start'}
+                            {' · '}{item.tier === 'starter' ? 'Starter' : item.tier === 'egyedi' ? 'Egyedi' : 'Pro'}
                           </div>
                         </div>
                       </div>
@@ -1620,7 +1681,7 @@ export function SettingsHub({
                 {billing.invoices.length > 0 ? (
                   <div className="mt-4 flex flex-col gap-2">
                     {billing.invoices.map((inv) => (
-                      <div key={inv.id} className="flex items-center justify-between gap-3 rounded-[16px] bg-[#FBF9F2] px-4 py-3.5">
+                      <div key={inv.id} className="flex items-center justify-between gap-3 rounded-[16px] bg-paper px-4 py-3.5">
                         <div className="flex items-center gap-3">
                           <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-white shadow-dav-card">
                             <FileText className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
@@ -1648,7 +1709,7 @@ export function SettingsHub({
                     ))}
                   </div>
                 ) : (
-                  <div className="mt-4 rounded-[16px] bg-[#FBF9F2] px-4 py-8 text-center">
+                  <div className="mt-4 rounded-[16px] bg-paper px-4 py-8 text-center">
                     <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[12px] bg-white shadow-dav-card">
                       <FileText className="h-5 w-5 text-ink-soft2" strokeWidth={1.5} />
                     </div>
@@ -2018,7 +2079,7 @@ function GroupLabel({ children }: { children: ReactNode }) {
 }
 
 function RailBtn({
-  id, active, onClick, icon: Icon, label, soon, danger, badge,
+  id, active, onClick, icon: Icon, label, soon, danger, badge, locked,
 }: {
   id: RailId
   active: RailId
@@ -2028,8 +2089,24 @@ function RailBtn({
   soon?: boolean
   danger?: boolean
   badge?: string
+  /** Lejárt/megszűnt/szüneteltetett előfizetésnél true minden fülre, KIVÉVE az Előfizetés &
+   *  számlázást és a Fiók törlését — lakat-ikonnal jelzett, nem kattintható. */
+  locked?: boolean
 }) {
   const isActive = active === id
+  if (locked) {
+    return (
+      <span
+        aria-disabled
+        title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
+        className="flex shrink-0 cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-[#3a352a]/35"
+      >
+        <Icon className="h-[17px] w-[17px]" strokeWidth={1.5} />
+        {label}
+        <Lock className="ml-auto h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />
+      </span>
+    )
+  }
   return (
     <button
       type="button"
