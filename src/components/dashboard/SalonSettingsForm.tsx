@@ -357,6 +357,10 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     }
     if (tab === 'general') { setLogoModified(false); setCoverModified(false) }
     if (tab === 'languages') setSupportedExtras(savedSupported)
+    // A localizált mezőket (jó tudni, feltételek, email-sablonok, egyedi kérdések) a `loc` hook
+    // KÜLÖN cache-eli — enélkül a „Mégse" ezeket sose állította volna vissza, csak a sima
+    // react-hook-form mezőket, ami úgy nézett ki, mintha a gomb nem csinálna semmit.
+    if (LOC_TABS.has(tab)) loc.discardLocale()
   }
 
   const requestTab = (id: string) => {

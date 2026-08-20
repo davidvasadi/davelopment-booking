@@ -450,6 +450,10 @@ export function RestaurantSettingsForm({
       setCoverModified(false); setCoverPreview(mediaUrl(coverImage)); setCoverId(mediaId(coverImage))
     }
     if (tab === 'languages') setSupportedExtras(savedSupported)
+    // A localizált mezőket (jó tudni, feltételek, email-sablonok, egyedi kérdések) a `loc` hook
+    // KÜLÖN cache-eli — enélkül a „Mégse" ezeket sose állította volna vissza, csak a sima
+    // mezőket, ami úgy nézett ki, mintha a gomb nem csinálna semmit.
+    if (LOC_TABS.has(tab)) loc.discardLocale()
   }
 
   // Fülváltás: ha az aktuális fülön van mentetlen változás, rákérdezünk.

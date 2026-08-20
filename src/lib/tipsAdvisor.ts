@@ -285,7 +285,7 @@ function buildFeatureCards(b: Salon | Restaurant, variant: 'salon' | 'restaurant
     impact: d.impact,
     state: d.on ? ('enabled' as const) : ('apply' as const),
     action: d.on
-      ? ({ kind: 'nav', href: `${settingsBase}/settings?tab=features` } as TipAction)
+      ? ({ kind: 'nav', href: `${settingsBase}/settings?tab=booking` } as TipAction)
       : ({ kind: 'patch', body: enableFeatureBody(b.feature_modules, d.changes), toast: d.toast } as TipAction),
   }))
 }
@@ -489,7 +489,7 @@ export function buildSalonAdvisor(salon: Salon, setup: SetupFlags, stats: Dashbo
       actionLabel: off ? 'Emlékeztető bekapcsolása' : 'Beállítások',
       action: off
         ? { kind: 'patch', body: enableFeatureBody(salon.feature_modules, { reminders_on: true, reminder_ch_email: true, reminder_t_24h: true }), toast: 'Emlékeztetők bekapcsolva' }
-        : { kind: 'nav', href: `${base}/settings?tab=features` },
+        : { kind: 'nav', href: `${base}/settings?tab=booking` },
       priority: 60 + (80 - stats.completionRate),
       requiredCap: 'settings.profile',
     })

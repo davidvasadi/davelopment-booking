@@ -112,6 +112,10 @@ export function useLocalizedFields(opts: {
 
   // Per-nyelv értékcache. A magyar a baseline-ból indul; a többit lustán töltjük.
   const cacheRef = useRef<Partial<Record<Locale, LocalizedValues>>>({ hu: huValues })
+  // A LEGUTÓBB betöltött/mentett, MÉG NEM szerkesztett érték nyelvenként — ebből áll vissza a
+  // „Mégse" (`discardLocale`). A `cacheRef` a `setField`-del folyamatosan MUTÁLÓDIK, ezért
+  // önmagából nem tudná visszaadni az eredetit — ezért kell egy külön, érintetlen másolat.
+  const pristineRef = useRef<Partial<Record<Locale, LocalizedValues>>>({})
   // Trigger a re-renderhez, amikor a cache vagy az aktív nyelv értéke változik.
   const [, force] = useState(0)
   const rerender = () => force((n) => n + 1)
@@ -139,7 +143,9 @@ export function useLocalizedFields(opts: {
         )
         if (!res.ok) throw new Error()
         const doc = await res.json()
-        cacheRef.current[loc] = fromDoc(doc)
+        const loaded = fromDoc(doc)
+        cacheRef.current[loc] = loaded
+        pristineRef.current[loc] = loaded
         setEditLocale(loc)
       } catch {
         toast.error('A nyelv betöltése nem sikerült')
@@ -186,6 +192,9 @@ export function useLocalizedFields(opts: {
         }),
       })
       if (!res.ok) throw new Error()
+      // A sikeresen mentett állapot a mostantól „érintetlen" baseline — így egy KÉSŐBBI
+      // szerkesztés+Mégse ide áll vissza, nem az eredeti, session-eleji értékre.
+      pristineRef.current[editLocale] = values
       setDirty(false)
       return true
     } catch {
@@ -194,5 +203,14 @@ export function useLocalizedFields(opts: {
     }
   }, [collection, id, editLocale])
 
-  return { available, editLocale, current, loading, dirty, selectLocale, setField, saveLocale }
+  /** Az aktív nyelv mentetlen szerkesztéseinek elvetése — a legutóbb betöltött/mentett,
+   *  ÉRINTETLEN értékre áll vissza (nem a session-eleji állapotra, ha közben már mentettünk). */
+  const discardLocale = useCallback(() => {
+    const base = editLocale === 'hu' ? huValues : pristineRef.current[editLocale]
+    if (base) cacheRef.current[editLocale] = base
+    setDirty(false)
+    rerender()
+  }, [editLocale, huValues])
+
+  return { available, editLocale, current, loading, dirty, selectLocale, setField, saveLocale, discardLocale }
 }

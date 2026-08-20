@@ -151,7 +151,6 @@ export default async function SettingsPage() {
     <div className="p-5 lg:p-0">
       <SettingsHub
         variant="salon"
-        businessName={salon.name}
         subtitle={subtitle}
         availabilityHref="/dashboard/availability"
         selfProfile={
@@ -221,7 +220,6 @@ export default async function SettingsPage() {
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}
-        sub={sub}
         billingAccount={billingAccount}
         pricing={pricing}
         activeBusinessId={String(salon.id)}

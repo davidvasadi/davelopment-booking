@@ -148,7 +148,6 @@ export default async function RestaurantSettingsPage() {
     <div className="p-5 lg:p-0">
       <SettingsHub
         variant="restaurant"
-        businessName={r.name}
         subtitle={subtitle}
         availabilityHref="/restaurant/availability"
         selfProfile={
@@ -218,7 +217,6 @@ export default async function RestaurantSettingsPage() {
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}
-        sub={sub}
         billingAccount={billingAccount}
         pricing={pricing}
         activeBusinessId={String(r.id)}

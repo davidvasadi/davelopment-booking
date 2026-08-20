@@ -181,7 +181,8 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
   }, [variant, businessId])
 
   const enabled = currentPackage !== 'none'
-  const settingsHref = variant === 'salon' ? '/dashboard/settings?tab=payments' : '/restaurant/settings?tab=payments'
+  // A hírlevél-csomag választó a Fizetésekből az "API & Integrációk" fülre költözött.
+  const settingsHref = variant === 'salon' ? '/dashboard/settings?tab=integrations' : '/restaurant/settings?tab=integrations'
 
   const composerRef = useRef<HTMLDivElement>(null)
   const subscribersRef = useRef<HTMLDivElement>(null)
