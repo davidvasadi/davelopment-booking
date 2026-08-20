@@ -159,6 +159,11 @@ function tableIdsOf(r: Reservation): string[] {
   return (r.tables ?? []).map((t) => String(typeof t === 'object' && t ? t.id : t))
 }
 
+/** Szintetikus "asztal" a Timeline-rácsban az asztalhoz NEM rendelt foglalásoknak — enélkül
+ *  ezek a `TableGrid` asztalonkénti csoportosítása miatt sehol sem jelentek meg (kiestek a
+ *  szűrésből). Csak `id`/`name`/`capacity` mezőt olvas rá a rács, a többi Table-mező sosem. */
+const NO_TABLE_ID = '__no_table__'
+
 export function tableNamesOf(r: Reservation): string[] {
   return (r.tables ?? [])
     .map((t) => (typeof t === 'object' && t ? t.name : null))
@@ -632,9 +637,20 @@ function TimelineView({
       tablesByRoom.set(String(rid), arr)
     }
   }
+  // Asztalhoz NEM rendelt aktív foglalások — külön, "Nincs asztalhoz rendelve" sávban, mint
+  // az Áttekintés idővonala már teszi. Enélkül ezek a foglalások a lenti asztalonkénti
+  // szűrésben sehol sem egyeznének, tehát némán eltűnnének a nézetből.
+  const unassignedCount = active.filter((r) => tableIdsOf(r).length === 0).length
   const groups: TimelineGroup[] = [
     ...roomOrder.map((r) => ({ name: r.name, room: r, tables: tablesByRoom.get(String(r.id)) ?? [] })),
     ...(noRoom.length ? [{ name: roomOrder.length ? 'Egyéb' : null, room: null, tables: noRoom }] : []),
+    ...(unassignedCount > 0
+      ? [{
+          name: 'Nincs asztalhoz rendelve',
+          room: null,
+          tables: [{ id: NO_TABLE_ID, name: 'Nincs asztalhoz rendelve', capacity: unassignedCount } as unknown as Table],
+        }]
+      : []),
   ].filter((g) => g.tables.length > 0)
 
   return (
@@ -1472,9 +1488,10 @@ function TableGrid({
                 </div>
               )}
               {g.tables.map((t) => {
-                const isDropTarget = drag && String(drag.tableId) === String(t.id)
+                const isNoTable = t.id === NO_TABLE_ID
+                const isDropTarget = !isNoTable && drag && String(drag.tableId) === String(t.id)
                 const dragging = !!drag
-                const tooSmall = dragging && t.capacity < (drag?.r.pax ?? 0)
+                const tooSmall = !isNoTable && dragging && t.capacity < (drag?.r.pax ?? 0)
                 return (
                   <div
                     key={t.id}
@@ -1489,7 +1506,9 @@ function TableGrid({
                     }`}
                   >
                     <span className="text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
-                    <span className={`text-[11px] tabular-nums leading-tight ${tooSmall ? 'font-semibold text-red-500' : 'text-[#A8A496]'}`}>{t.capacity} fő</span>
+                    {!isNoTable && (
+                      <span className={`text-[11px] tabular-nums leading-tight ${tooSmall ? 'font-semibold text-red-500' : 'text-[#A8A496]'}`}>{t.capacity} fő</span>
+                    )}
                   </div>
                 )
               })}
@@ -1547,29 +1566,36 @@ function TableGrid({
               </div>
             )}
             {g.tables.map((t) => {
-              const rows = active.filter((r) => tableIdsOf(r).includes(String(t.id)))
+              const isNoTable = t.id === NO_TABLE_ID
+              const rows = isNoTable
+                ? active.filter((r) => tableIdsOf(r).length === 0)
+                : active.filter((r) => tableIdsOf(r).includes(String(t.id)))
               // Üres idősávok (a foglalások előtti/közti/utáni szabad rések) — Crextio
               // szaggatott hatch-pillekkel jelölve, mint a mobil nézetben. A foglalás-blokkok
               // ezek FÖLÉ rendelődnek; a <15 perces réseket kihagyjuk (nem jelölünk pici sávot).
+              // A "Nincs asztalhoz rendelve" sáv is megkapja, hogy a többi sorral vizuálisan
+              // egységes maradjon (nem "üres asztal" itt, hanem "nincs itt senki ebben az idősávban").
               const sortedRows = [...rows].sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
               const freeGaps: Array<[number, number]> = []
-              let gapCursor = openMin
-              for (const r of sortedRows) {
-                const gs = hhmmToMinutes(r.start_time)
-                const ge = hhmmToMinutes(r.end_time)
-                if (gs - gapCursor >= 15) freeGaps.push([gapCursor, gs])
-                gapCursor = Math.max(gapCursor, ge)
+              {
+                let gapCursor = openMin
+                for (const r of sortedRows) {
+                  const gs = hhmmToMinutes(r.start_time)
+                  const ge = hhmmToMinutes(r.end_time)
+                  if (gs - gapCursor >= 15) freeGaps.push([gapCursor, gs])
+                  gapCursor = Math.max(gapCursor, ge)
+                }
+                // A rács jobb szélééig (openMin+totalMin) ér, NEM csak a záróráig — így ha egy másik
+                // asztalnál van záróra utáni foglalás, ennek az asztalnak az üres sávja is ugyanaddig
+                // fut, nem áll meg korábban (ld. dayEnd a TimelineView-ban).
+                const rightEdge = openMin + totalMin
+                if (rightEdge - gapCursor >= 15) freeGaps.push([gapCursor, rightEdge])
               }
-              // A rács jobb szélééig (openMin+totalMin) ér, NEM csak a záróráig — így ha egy másik
-              // asztalnál van záróra utáni foglalás, ennek az asztalnak az üres sávja is ugyanaddig
-              // fut, nem áll meg korábban (ld. dayEnd a TimelineView-ban).
-              const rightEdge = openMin + totalMin
-              if (rightEdge - gapCursor >= 15) freeGaps.push([gapCursor, rightEdge])
-              const isDropTarget = drag && String(drag.tableId) === String(t.id)
+              const isDropTarget = !isNoTable && drag && String(drag.tableId) === String(t.id)
               // Húzás közben: az az asztal, ami önmagában kisebb a húzott foglalás létszámánál,
               // piros/halvány (ejtéskor a szerver a szomszédokkal próbálja összevonni).
               const dragging = !!drag
-              const tooSmall = dragging && t.capacity < (drag?.r.pax ?? 0)
+              const tooSmall = !isNoTable && dragging && t.capacity < (drag?.r.pax ?? 0)
               return (
                 <div
                   key={t.id}
