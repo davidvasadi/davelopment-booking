@@ -789,6 +789,12 @@ export interface SalonDigestEmailData {
   shiftManager?: { name: string } | null
   source?: { walk_in?: number; phone?: number; online?: number }
   status?: { completed?: number; cancelled?: number; no_show?: number }
+  /** Ma beszedett előleg (Ft). */
+  revenueHuf?: number
+  /** Top 3 legtöbbet foglalt szolgáltatás ma. */
+  topServices?: { name: string; bookings: number }[]
+  newGuests?: number
+  returningGuests?: number
 }
 
 const OCCASION_LABELS: Record<string, string> = {
@@ -802,7 +808,7 @@ const OCCASION_LABELS: Record<string, string> = {
 export async function sendSalonDigestEmail(data: SalonDigestEmailData) {
   const resend = getResend()
   if (!resend) return
-  const { salon, ownerEmail, digestType, date, bookingCount, guestCount, occasions, shiftManager, source, status } = data
+  const { salon, ownerEmail, digestType, date, bookingCount, guestCount, occasions, shiftManager, source, status, revenueHuf, topServices, newGuests, returningGuests } = data
   const isEvening = digestType === 'evening'
   const typeLabel = isEvening ? 'Esti összefoglaló' : 'Reggeli összefoglaló'
   const subject = `${typeLabel} – ${date} – ${salon.name}`
@@ -830,6 +836,19 @@ export async function sendSalonDigestEmail(data: SalonDigestEmailData) {
       ].filter(Boolean).join('')
     : ''
 
+  // Ugyanaz a "mélyebb összefoglaló" (bevétel, top szolgáltatás, új/visszatérő vendég), ami az
+  // in-app DigestSheet popupban is megjelenik — meglévő adatból, nincs külön lekérdezés itt.
+  const topServiceRows = topServices?.length
+    ? topServices.map((s) => infoRow('scissors', s.name, `${s.bookings} foglalás`)).join('')
+    : ''
+
+  const guestMixRows = (newGuests != null && returningGuests != null && newGuests + returningGuests > 0)
+    ? [
+        infoRow('sparkle', 'Új vendég', `${newGuests}`),
+        infoRow('people', 'Visszatérő vendég', `${returningGuests}`),
+      ].join('')
+    : ''
+
   const html = wrap(salon, `
     ${heroBlock({
       icon: isEvening ? 'bell' : 'success',
@@ -839,8 +858,11 @@ export async function sendSalonDigestEmail(data: SalonDigestEmailData) {
     ${detailsCard([
       infoRow('calendar', 'Foglalás', `${bookingCount} db`),
       infoRow('user', 'Vendég', `${guestCount} fő`),
+      revenueHuf ? infoRow('note', 'Bevétel (előleg)', formatPrice(revenueHuf)) : '',
       shiftManager ? infoRow('user', 'Műszak vezető', shiftManager.name) : '',
     ].filter(Boolean).join(''))}
+    ${guestMixRows ? detailsCard(guestMixRows) : ''}
+    ${topServiceRows ? detailsCard(topServiceRows) : ''}
     ${occasionRows ? detailsCard(occasionRows) : ''}
     ${sourceRows ? detailsCard(sourceRows) : ''}
     ${statusRows ? detailsCard(statusRows) : ''}

@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
 import { buttonHover } from '@/lib/motion'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notifDate, notificationVisual, type Notification, type DigestMetadata } from '@/lib/useNotifications'
-import { DigestSheet } from './DigestSheet'
+import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
 import type { SwitcherBusiness } from './StoreSwitcher'
 import type { Capability } from '@/lib/permissions'
 
@@ -527,52 +527,47 @@ function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () 
   )
 }
 
-/** Digest értesítés kártya — kattintásra DigestSheet nyílik, nem navigál. */
+/** Digest értesítés kártya — kattintásra a KÖZPONTI `DigestAutoPopup`-mount nyitja meg a
+ *  sheetet (esemény-alapú, nem saját, beágyazott portál — ld. `DigestAutoPopup.tsx`). */
 function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: () => void; onRemove: () => void }) {
   const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   const meta = n.metadata as DigestMetadata | null
-  const [sheetOpen, setSheetOpen] = useState(false)
 
   function openSheet() {
-    console.log('[DigestCard] openSheet fired for', n.id, n.type)
     if (!n.read) onMarkRead()
-    setSheetOpen(true)
+    window.dispatchEvent(new CustomEvent(OPEN_DIGEST_EVENT, { detail: n }))
   }
 
   return (
-    <>
-      <div className={cn('group relative mb-1.5 rounded-[18px] border border-black/[0.04] cursor-pointer', bg)} onClick={openSheet}>
-        <div className="flex items-start gap-2.5 p-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/70">
-            <Icon className={cn('h-[16px] w-[16px]', color)} strokeWidth={2.2} />
+    <div className={cn('group relative mb-1.5 rounded-[18px] border border-black/[0.04] cursor-pointer', bg)} onClick={openSheet}>
+      <div className="flex items-start gap-2.5 p-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/70">
+          <Icon className={cn('h-[16px] w-[16px]', color)} strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold leading-tight text-[#2a2620]">{n.title}</p>
+          <p className="text-[11px] text-[#b0ac9e] mt-0.5">{notifDate(n.createdAt)}</p>
+          {meta && (
+            <p className="mt-1.5 text-[11px] text-[#5a5549]">
+              {meta.bookings} foglalás · {meta.guests} fő
+              {meta.team_count ? ` · ${meta.team_count} munkatárs` : ''}
+            </p>
+          )}
+        </div>
+        <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
+          {!n.read && (
+            <span className="absolute h-[7px] w-[7px] rounded-full bg-[#ffd85f] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
+          )}
+          <span
+            role="button"
+            aria-label="Értesítés törlése"
+            onClick={(e) => { e.stopPropagation(); onRemove() }}
+            className="absolute inset-0 flex items-center justify-center rounded-full text-[#b0ac9e] opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-black/[0.08] hover:text-[#3a352a] group-hover:opacity-100 group-hover:scale-100 cursor-pointer"
+          >
+            <X className="h-3.5 w-3.5" />
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight text-[#2a2620]">{n.title}</p>
-            <p className="text-[11px] text-[#b0ac9e] mt-0.5">{notifDate(n.createdAt)}</p>
-            {meta && (
-              <p className="mt-1.5 text-[11px] text-[#5a5549]">
-                {meta.bookings} foglalás · {meta.guests} fő
-                {meta.team_count ? ` · ${meta.team_count} munkatárs` : ''}
-              </p>
-            )}
-          </div>
-          <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
-            {!n.read && (
-              <span className="absolute h-[7px] w-[7px] rounded-full bg-[#ffd85f] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
-            )}
-            <span
-              role="button"
-              aria-label="Értesítés törlése"
-              onClick={(e) => { e.stopPropagation(); onRemove() }}
-              className="absolute inset-0 flex items-center justify-center rounded-full text-[#b0ac9e] opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-black/[0.08] hover:text-[#3a352a] group-hover:opacity-100 group-hover:scale-100 cursor-pointer"
-            >
-              <X className="h-3.5 w-3.5" />
-            </span>
-          </div>
         </div>
       </div>
-
-      <DigestSheet n={n} open={sheetOpen} onClose={() => setSheetOpen(false)} />
-    </>
+    </div>
   )
 }

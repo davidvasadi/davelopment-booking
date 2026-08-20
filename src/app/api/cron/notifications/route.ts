@@ -643,6 +643,10 @@ async function handle(request: NextRequest) {
               guestCount: bookingCount,
               shiftManager,
               status: statusCounts,
+              revenueHuf: revenueHuf > 0 ? revenueHuf : undefined,
+              topServices: topServices.length > 0 ? topServices : undefined,
+              newGuests: newGuestCount,
+              returningGuests: returningGuestCount,
             })
           }
         }
@@ -738,9 +742,15 @@ async function handle(request: NextRequest) {
         const docs = todayReservations.docs as Reservation[]
         const guestCount = docs.reduce((s, r) => s + (r.pax ?? 1), 0)
 
-        const occasions: Record<string, number> = {}
+        // Az ikon-kulcsot is megőrizzük (`occasion_icon` — a foglaló saját esemény-típus
+        // választójából jön, ld. `EVENT_TYPE_ICONS`), hogy a digestben ikonnal jelenhessen meg.
+        const occasions: Record<string, { count: number; icon?: string | null }> = {}
         for (const r of docs) {
-          if (r.occasion) occasions[r.occasion] = (occasions[r.occasion] ?? 0) + 1
+          if (r.occasion) {
+            const entry = occasions[r.occasion] ?? { count: 0, icon: r.occasion_icon }
+            entry.count++
+            occasions[r.occasion] = entry
+          }
         }
 
         // Bevétel — ma beszedett előleg (a `deposit_paid` foglalásokból).

@@ -23,7 +23,7 @@ export type DigestMetadata = {
   guests: number
   date?: string
   team_count?: number
-  occasions?: Record<string, number>
+  occasions?: Record<string, { count: number; icon?: string | null }>
   shift_manager?: { name: string; avatar_url?: string | null }
   staff_breakdown?: { name: string; bookings: number }[]
   /** Esti összefoglalónál: foglalás-forrás breakdown */
@@ -130,7 +130,6 @@ export function useNotifications(onNavigate?: () => void) {
   }, [load])
 
   const remove = useCallback(async (id: number | string) => {
-    console.trace('[useNotifications] remove() called for', id)
     setItems((prev) => prev.filter((n) => n.id !== id))
     setUnread((u) => Math.max(0, u - 1))
     await fetch(`/api/notifications?id=${encodeURIComponent(String(id))}`, {
@@ -166,7 +165,6 @@ export function useNotifications(onNavigate?: () => void) {
   }, [])
 
   const openItem = useCallback((n: Notification) => {
-    console.log('[useNotifications] openItem fired (generic row path) for', n.id, n.type)
     onNavigate?.()
     remove(n.id)
     const t = Date.now()

@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, Settings2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { DigestSheet } from './DigestSheet'
+import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
 import { listStagger, pageTransition, sheetSpring } from '@/lib/motion'
 import {
   useNotifications,
@@ -294,15 +294,13 @@ function FullDigestCard({ n, onMarkRead, onRemove }: {
   const meta = n.metadata as DigestMetadata | null
   const isEvening = n.type === 'digest_evening'
   const isUnread = !n.read
-  const [sheetOpen, setSheetOpen] = useState(false)
 
   function openSheet() {
     if (isUnread) onMarkRead()
-    setSheetOpen(true)
+    window.dispatchEvent(new CustomEvent(OPEN_DIGEST_EVENT, { detail: n }))
   }
 
   return (
-    <>
       <div
         role="button"
         tabIndex={0}
@@ -365,8 +363,5 @@ function FullDigestCard({ n, onMarkRead, onRemove }: {
           Kattints a részletekért →
         </p>
       </div>
-
-      <DigestSheet n={n} open={sheetOpen} onClose={() => setSheetOpen(false)} />
-    </>
   )
 }
