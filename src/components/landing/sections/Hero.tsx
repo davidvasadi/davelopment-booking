@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { createPortal } from 'react-dom'
 import Link from 'next/link'
 import { motion, AnimatePresence, animate, useInView } from 'framer-motion'
@@ -317,6 +317,7 @@ function MiniTrendCard() {
   const top = Math.max(...TCUR, ...TPREV, 1)
   const curPath  = smoothPath(TCUR, top)
   const prevPath = smoothPath(TPREV, top)
+  const clipId = useId()
 
   return (
     <div
@@ -348,6 +349,17 @@ function MiniTrendCard() {
       {/* SVG — Catmull-Rom smooth görbék */}
       <div style={{ flex: 1, minHeight: 54 }}>
         <svg viewBox={`0 0 ${TW} ${TH}`} className="h-full w-full" preserveAspectRatio="none">
+          {/* Bal→jobb "kirajzolás" clip-path szélesség-animációval, NEM framer `pathLength`
+              stroke-dasharray-jal — a `preserveAspectRatio="none"` miatt a doboz nem egyenletesen
+              (X/Y külön arányban) nyújtja a görbét, és a dasharray-alapú ívhossz-animáció ilyenkor
+              rosszul jelenik meg (a vonal a görbültebb szakaszokon "túlrajzol"/elcsúszik a valós
+              vég­pont­hoz képest). A clip-path viszont a KÉSZ, már nyújtott képen vág — ugyanabban
+              a koordináta-rendszerben mozog, mint maga a görbe, így nem csúszhat el tőle. */}
+          <defs>
+            <clipPath id={clipId}>
+              <motion.rect x="0" y="0" height={TH} initial={{ width: 0 }} animate={{ width: TW }} transition={{ duration: 1.4, ease: EASE }} />
+            </clipPath>
+          </defs>
           {[0.33, 0.67].map((f, i) => (
             <line key={i}
               x1={TP} y1={TP + f * (TH - TP * 2)}
@@ -359,12 +371,10 @@ function MiniTrendCard() {
             d={prevPath} fill="none" stroke="#1d1c19" strokeWidth="1.3"
             strokeDasharray="2 5" strokeLinecap="round" vectorEffect="non-scaling-stroke"
           />
-          <motion.path
+          <path
             d={curPath} fill="none" stroke="#F1CE45" strokeWidth="2.3"
             strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 1.4, ease: EASE }}
+            clipPath={`url(#${clipId})`}
           />
         </svg>
       </div>

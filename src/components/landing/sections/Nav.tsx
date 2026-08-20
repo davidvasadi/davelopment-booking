@@ -31,7 +31,7 @@ export const SERVICES = [
   { label: 'Marketing',           href: 'https://davelopment.hu/hu' },
 ]
 
-const NAV_OFFSET = 72
+const NAV_OFFSET = 110
 
 export function Nav() {
   const [active, setActive] = useState<string>(LINKS[0].id)

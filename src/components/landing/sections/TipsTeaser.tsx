@@ -100,7 +100,13 @@ export function TipsTeaser({ relatedExclude }: { relatedExclude?: string }) {
   const scrollBy = (dir: 1 | -1) => {
     const el = trackRef.current
     if (!el) return
-    el.scrollBy({ left: dir * el.clientWidth * 0.4, behavior: 'smooth' })
+    // Pontosan egy kártyányit (+ a köztük lévő gap-4 rés) lépünk, ne a konténer-szélesség
+    // egy önkényes hányadát — különben (pl. mobilon, ahol egy kártya 85%-ot foglal) a nyíl
+    // csak félig görget a következő kártyáig, ahelyett hogy pontosan odaugorna.
+    const card = el.querySelector<HTMLElement>(':scope > *')
+    const GAP = 16 // gap-4
+    const step = card ? card.offsetWidth + GAP : el.clientWidth * 0.4
+    el.scrollBy({ left: dir * step, behavior: 'smooth' })
   }
 
   return (

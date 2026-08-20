@@ -1,5 +1,6 @@
 'use client'
 
+import { useId } from 'react'
 import { motion } from 'framer-motion'
 import { Activity, SquareKanban, CreditCard, ArrowDown, ArrowUp, ArrowRight } from 'lucide-react'
 import { float } from '@/components/landing/Motion'
@@ -37,6 +38,7 @@ const AVATARS = [
 
 
 export function Testimonials({ trial_days }: { trial_days: number }) {
+  const clipId = useId()
   return (
     <section id="velemenyek" className="mx-auto max-w-7xl px-4 lg:px-5 pb-8">
       <motion.div
@@ -117,16 +119,28 @@ export function Testimonials({ trial_days }: { trial_days: number }) {
                 fill="none"
                 aria-hidden
               >
-                {/* Görbe draw-in */}
-                <motion.path
+                {/* Bal→jobb "kirajzolás" clip-path szélesség-animációval, NEM framer
+                    `pathLength` stroke-dasharray-jal — a `preserveAspectRatio="none"` miatt a
+                    doboz nem egyenletesen (X/Y külön arányban) nyújtja a görbét, és a
+                    dasharray-alapú ívhossz-animáció ilyenkor rosszul jelenik meg (a vonal a
+                    görbültebb szakaszokon "túlrajzol" / elcsúszik a valós végponthoz képest). */}
+                <defs>
+                  <clipPath id={clipId}>
+                    <motion.rect
+                      x="0" y="0" height="149.743"
+                      initial={{ width: 0 }}
+                      whileInView={{ width: 379.649 }}
+                      viewport={{ once: true, amount: 0.2 }}
+                      transition={{ duration: 1.4, ease: EASE, delay: 0.15 }}
+                    />
+                  </clipPath>
+                </defs>
+                <path
                   d={CURVE}
                   stroke="#191314"
                   strokeWidth="2"
                   vectorEffect="non-scaling-stroke"
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  whileInView={{ pathLength: 1, opacity: 1 }}
-                  viewport={{ once: true, amount: 0.2 }}
-                  transition={{ duration: 1.4, ease: EASE, delay: 0.15 }}
+                  clipPath={`url(#${clipId})`}
                 />
               </svg>
 
