@@ -375,3 +375,16 @@ html {
       "accordion charts tasks";
   }
 }
+
+/* ===== Auth mezők — Chrome mentett jelszó/email javaslatnál kék/lila autofill-hátteret
+   kényszerít a user-agent stílusból, ami felülírja a bg-white-ot. A böngésző csak
+   box-shadow-inset trükkel írható felül (background-color-t nem enged), a szín-átmenetet
+   pedig egy irreálisan hosszú transition-nal némítjuk le. */
+.dav-auth-input-light:-webkit-autofill,
+.dav-auth-input-light:-webkit-autofill:hover,
+.dav-auth-input-light:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--dav-text);
+  -webkit-box-shadow: 0 0 0px 1000px #fff inset;
+  box-shadow: 0 0 0px 1000px #fff inset;
+  transition: background-color 9999s ease-in-out 0s;
+}

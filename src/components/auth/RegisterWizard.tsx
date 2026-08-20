@@ -12,10 +12,10 @@ import {
   ChevronRight, ChevronLeft, Check, Loader2,
   Sparkles, HeartPulse, Dumbbell, LayoutGrid, ChefHat,
 } from 'lucide-react'
-import { motion } from 'framer-motion'
-import { listStagger } from '@/lib/motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { listStagger, EASE } from '@/lib/motion'
 import { cn } from '@/lib/utils'
-import { MAIN_CATEGORIES, getSubTypesForCategory, type BusinessType, type MainCategory } from '@/lib/businessTemplates'
+import { MAIN_CATEGORIES, getSubTypesForCategory, type BusinessType, type MainCategory, type MainCategoryDef } from '@/lib/businessTemplates'
 import { BrandLogo } from '@/components/BrandLogo'
 import { signIn } from 'next-auth/react'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
@@ -28,6 +28,9 @@ import {
 } from '@/components/auth/authStyles'
 import { PasswordInput } from '@/components/auth/PasswordInput'
 import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
+import { AuthPillButton } from '@/components/auth/AuthPillButton'
+import { useAvailabilityCheck } from '@/components/auth/useAvailabilityCheck'
+import { FieldStatusIcon } from '@/components/auth/FieldStatusIcon'
 
 const MAIN_CAT_ICONS: Record<MainCategory, React.ElementType> = {
   szepseg: Sparkles,
@@ -36,13 +39,18 @@ const MAIN_CAT_ICONS: Record<MainCategory, React.ElementType> = {
   egyeb: LayoutGrid,
 }
 
+/** Formátum-előszűrés, mielőtt a hook hálózati elérhetőség-ellenőrzést indítana. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const isEmailFormatValid = (v: string) => EMAIL_RE.test(v)
+const isNameFormatValid = (v: string) => v.trim().length >= 2
+
 const step2Schema = z.object({
-  salonName: z.string().min(2, 'Minimum 2 karakter'),
-  ownerName: z.string().min(2, 'Minimum 2 karakter'),
-  email: z.string().email('Érvényes email szükséges'),
-  password: z.string().min(8, 'Minimum 8 karakter'),
-  city: z.string().min(2, 'Kötelező'),
-  phone: z.string().min(7, 'Érvényes telefonszám'),
+  salonName: z.string().min(1, 'Kötelező mező').min(2, 'Minimum 2 karakter'),
+  ownerName: z.string().min(1, 'Kötelező mező').min(2, 'Minimum 2 karakter'),
+  email: z.string().min(1, 'Kötelező mező').email('Érvényes email szükséges'),
+  password: z.string().min(1, 'Kötelező mező').min(8, 'Minimum 8 karakter'),
+  city: z.string().min(1, 'Kötelező mező').min(2, 'Minimum 2 karakter'),
+  phone: z.string().min(1, 'Kötelező mező').min(7, 'Érvényes telefonszám'),
 })
 type Step2Data = z.infer<typeof step2Schema>
 
@@ -63,6 +71,18 @@ export function RegisterWizard() {
   // ne olvasson üres desktop-inputokból mobilon (és fordítva).
   const mobileForm = useForm<Step2Data>({ resolver: zodResolver(step2Schema) })
   const desktopForm = useForm<Step2Data>({ resolver: zodResolver(step2Schema) })
+
+  // Élő elérhetőség-ellenőrzés (email foglalt-e, szalonnév/slug ütközik-e) — a hookot a
+  // React-szabályok miatt feltétel nélkül, a komponens tetején kell hívni (nem a step===2
+  // ágban), de amíg a mezők üresek (más lépésen vagyunk), nem indít hálózati kérést.
+  const mobileEmailVal = mobileForm.watch('email') ?? ''
+  const desktopEmailVal = desktopForm.watch('email') ?? ''
+  const mobileNameVal = mobileForm.watch('salonName') ?? ''
+  const desktopNameVal = desktopForm.watch('salonName') ?? ''
+  const mobileEmailStatus = useAvailabilityCheck('email', mobileEmailVal, isEmailFormatValid(mobileEmailVal))
+  const desktopEmailStatus = useAvailabilityCheck('email', desktopEmailVal, isEmailFormatValid(desktopEmailVal))
+  const mobileNameStatus = useAvailabilityCheck('business-name', mobileNameVal, isNameFormatValid(mobileNameVal))
+  const desktopNameStatus = useAvailabilityCheck('business-name', desktopNameVal, isNameFormatValid(desktopNameVal))
 
   /**
    * „Folytatás Google-lel" a 2. lépés végén: a cégadatok (név, város, telefon, sajátnév)
@@ -107,117 +127,37 @@ export function RegisterWizard() {
   const onStep2 = async (data: Step2Data) => {
     setLoading(true)
     try {
-      let userId_: string
-      let authToken_: string
-
       // Az email-t normalizáljuk: mobilon az autocapitalize nagybetűssé teheti az első karaktert,
-      // Payload pedig kisbetűsítve tárolja → login case-sensitive keresés esetén nem találna.
+      // Payload pedig kisbetűsítve tárolja.
       const email = data.email.toLowerCase().trim()
-      const password = data.password
 
-      const userRes = await fetch('/api/users', {
+      // Minden (user + szalon + kezdő-sablon) EGY szerver-oldali kérésben történik — a Users
+      // collection `verify: true`-ja miatt a friss fiók úgysem kapna érvényes tokent egy
+      // azonnali login-próbálkozástól, tehát a régi „create → login (JWT-vel) → create salon"
+      // lánc itt nem működne. Lásd `/api/auth/register` route.
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: data.ownerName, email, password, role: 'salon_owner' }),
+        body: JSON.stringify({
+          kind: 'salon',
+          ownerName: data.ownerName,
+          placeName: data.salonName,
+          email,
+          password: data.password,
+          city: data.city,
+          phone: data.phone,
+          businessTypes: selectedTypes,
+        }),
       })
 
-      if (!userRes.ok) {
-        const err = await userRes.json()
-        const msg: string = err.errors?.[0]?.message ?? ''
-        const isDuplicate = msg.toLowerCase().includes('uniqueness') || msg.toLowerCase().includes('already registered')
-        if (!isDuplicate) {
-          const status = userRes.status
-          throw new Error(`Regisztráció sikertelen (${status}). Ellenőrizd az adatokat.`)
-        }
-
-        const recoveryLogin = await fetch('/api/users/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include',
-        })
-        if (!recoveryLogin.ok) throw new Error('Ez az email már regisztrált, de a jelszó nem stimmel. Jelentkezz be!')
-        const recoveryData = await recoveryLogin.json()
-        authToken_ = recoveryData.token
-        userId_ = recoveryData.user?.id ?? recoveryData.user
-
-        const meRes = await fetch('/api/users/me', { credentials: 'include' })
-        const meData = await meRes.json()
-        if (meData?.user?.salon) {
-          router.push('/dashboard')
-          return
-        }
-      } else {
-        const { doc: user } = await userRes.json()
-        userId_ = user.id
-
-        const loginRes = await fetch('/api/users/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include',
-        })
-        if (!loginRes.ok) {
-          const loginStatus = loginRes.status
-          throw new Error(`Bejelentkezés sikertelen (${loginStatus}) a regisztráció után. Próbálj belépni manuálisan.`)
-        }
-        const loginData = await loginRes.json()
-        authToken_ = loginData.token
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        if (err.error === 'already_registered') throw new Error('Ez az email már regisztrált.')
+        if (err.error === 'unverified_pending') throw new Error('Ez az email már regisztrált, de még nincs megerősítve — nézd meg a postafiókod a korábbi levélért.')
+        throw new Error('Regisztráció sikertelen. Ellenőrizd az adatokat.')
       }
 
-      setUserId(userId_)
-      setToken(authToken_)
-
-      const baseSlug = generateSlug(data.salonName)
-      let slug = baseSlug
-      let salonRes = await fetch('/api/salons', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-        body: JSON.stringify({ name: data.salonName, slug, owner: userId_, phone: data.phone, city: data.city, is_active: true }),
-      })
-      if (!salonRes.ok) {
-        slug = `${baseSlug}-${Date.now().toString(36)}`
-        salonRes = await fetch('/api/salons', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-          body: JSON.stringify({ name: data.salonName, slug, owner: userId_, phone: data.phone, city: data.city, is_active: true }),
-        })
-        if (!salonRes.ok) throw new Error('Szalon létrehozása sikertelen')
-      }
-      const { doc: salon } = await salonRes.json()
-      setSalonId(salon.id)
-
-      // A user.salon a PRIMER szalon-jelölés; az aktív üzletet is az újra állítjuk, hogy egy
-      // vegyes fiók (aki máshol alkalmazott) a saját friss szalonján kössön ki, ne a régi
-      // munkahelyén (különben a /dashboard redirect az aktív membership-üzletre vinné).
-      await fetch(`/api/users/${userId_}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-        body: JSON.stringify({ salon: salon.id, last_active_business: `salon:${salon.id}` }),
-      })
-
-      // A választott üzlet-típus(ok) alapján a háttérben feltöltjük a szolgáltatás-katalógust
-      // (kategóriák + szolgáltatások árral/idővel) — így az új tulaj nem üres dashboarddal indul.
-      // Nem blokkoljuk a wizardot, DE a hibát már nem nyeljük el csendben: a friss JWT-t
-      // fejlécként is átadjuk (nem csak a cookie-ra hagyatkozunk), és ha mégsem sikerül,
-      // logolunk + diszkrét (nem blokkoló) jelzést adunk, mert a katalógus a dashboardon pótolható.
-      if (selectedTypes.length > 0) {
-        fetch('/api/seed-templates', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-          credentials: 'include',
-          body: JSON.stringify({ salonId: salon.id, businessTypes: selectedTypes }),
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error(`seed-templates ${res.status}`)
-          })
-          .catch((e) => {
-            console.warn('[register] szolgáltatás-sablon seed sikertelen:', e)
-            toast.message('A szolgáltatásaidat később a vezérlőpulton állíthatod be.')
-          })
-      }
-
-      setStep(3)
+      router.push(`/register/check-email?email=${encodeURIComponent(email)}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Hiba történt')
     } finally {
@@ -259,63 +199,92 @@ export function RegisterWizard() {
     router.push('/dashboard')
   }
 
-  const TOTAL_STEPS = 5
-  const progressWidth = (step / TOTAL_STEPS) * 100
+  // A sikeres-képernyő (5.) nem számít bele — az csak visszaigazolás, nincs "hátralévő" rész,
+  // ezért a Figma is 4 szegmenst mutat (node 350:1621). A korábbi folytonos sáv + a "3/5"-re
+  // ugró felirat (miközben az 1-2. lépés "/4"-et írt ki) volt a felhasználó által jelzett hiba.
+  const TOTAL_STEPS = 4
+  const progressStep = Math.min(step, TOTAL_STEPS)
+
+  /** Figma-pontos, diszkrét szegmens-sáv (4 db pill) — mindegyik szegmens saját animált
+   *  kitöltéssel (framer `scaleX`), nem csak egy néma CSS-színváltás. */
+  const progressPills = (current: number) => (
+    <div className="flex gap-1.5 mb-10">
+      {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+        <div key={i} className="h-2 flex-1 rounded-full overflow-hidden" style={{ background: '#f7f7f7' }}>
+          <motion.div
+            className="h-full w-full rounded-full bg-ink-dark"
+            style={{ transformOrigin: 'left' }}
+            initial={false}
+            animate={{ scaleX: i < current ? 1 : 0 }}
+            transition={{ duration: 0.4, ease: EASE }}
+          />
+        </div>
+      ))}
+    </div>
+  )
 
   // ─── STEP 1: Two-phase business type selection ───────────────────────────
   if (step === 1) {
     const subTypes = selectedCategory ? getSubTypesForCategory(selectedCategory) : []
 
     // Reusable card renderers
+    const renderCatCard = (cat: MainCategoryDef, isDark: boolean) => {
+      const Icon = MAIN_CAT_ICONS[cat.id]
+      const isSelected = selectedCategory === cat.id
+      return (
+        <button
+          key={cat.id}
+          onClick={() => {
+            setSelectedCategory(cat.id)
+            setSelectedTypes([])
+            setSubStep('types')
+            setTimeout(() => mobileCTARef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50)
+          }}
+          className={cn(
+            'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
+            isDark && 'backdrop-blur-[10px]',
+            isDark
+              ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
+              : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-transparent bg-[#f7f7f7] hover:brightness-[0.97]'
+          )}
+        >
+          {isSelected && (
+            <div className="absolute top-2.5 right-2.5 h-5 w-5 rounded-full bg-gold flex items-center justify-center">
+              <Check className="h-3 w-3 text-ink-dark" />
+            </div>
+          )}
+          <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? (isSelected ? 'bg-gold' : 'bg-white/10') : (isSelected ? 'bg-gold' : 'bg-white'))}>
+            <Icon className={cn(isDark ? (isSelected ? 'text-ink-dark' : 'text-white/70') : (isSelected ? 'text-ink-dark' : 'text-ink-soft'))} style={{ width: 18, height: 18 }} />
+          </div>
+          <p className={cn('font-semibold text-sm leading-tight', isDark ? (isSelected ? 'text-white' : 'text-white/80') : 'text-ink')}>{cat.label}</p>
+          <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-white/45' : 'text-ink-soft')}>{cat.description}</p>
+        </button>
+      )
+    }
+
+    const restaurantCard = (isDark: boolean) => (
+      <Link href="/register-restaurant" className={cn(
+        'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
+        isDark && 'backdrop-blur-[10px]',
+        isDark
+          ? 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
+          : 'border-transparent bg-[#f7f7f7] hover:brightness-[0.97]'
+      )}>
+        <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? 'bg-white/10' : 'bg-white')}>
+          <ChefHat className={isDark ? 'text-white/70' : 'text-ink-soft'} style={{ width: 18, height: 18 }} />
+        </div>
+        <p className={cn('font-semibold text-sm leading-tight', isDark ? 'text-white/80' : 'text-ink')}>Étterem</p>
+        <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-white/45' : 'text-ink-soft')}>Asztalfoglalás</p>
+      </Link>
+    )
+
+    // Az Étterem-csempe a rács 4. helyére kerül (a fitnesz mellé), az "Egyéb" pedig egyedül
+    // marad az utolsó sorban — user explicit kérése, hogy ne az Étterem lógjon ki magányosan.
     const mainCatCards = (isDark: boolean) => (
       <div className="grid grid-cols-2 gap-3">
-        {MAIN_CATEGORIES.map(cat => {
-          const Icon = MAIN_CAT_ICONS[cat.id]
-          const isSelected = selectedCategory === cat.id
-          return (
-            <button
-              key={cat.id}
-              onClick={() => {
-                setSelectedCategory(cat.id)
-                setSelectedTypes([])
-                setSubStep('types')
-                setTimeout(() => mobileCTARef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' }), 50)
-              }}
-              className={cn(
-                'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
-                isDark && 'backdrop-blur-[10px]',
-                isDark
-                  ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
-                  : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
-              )}
-            >
-              {isSelected && (
-                <div className="absolute top-2.5 right-2.5 h-5 w-5 rounded-full bg-gold flex items-center justify-center">
-                  <Check className="h-3 w-3 text-ink-dark" />
-                </div>
-              )}
-              <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? (isSelected ? 'bg-gold' : 'bg-white/10') : (isSelected ? 'bg-gold' : 'bg-paper'))}>
-                <Icon className={cn(isDark ? (isSelected ? 'text-ink-dark' : 'text-white/70') : (isSelected ? 'text-ink-dark' : 'text-ink-soft'))} style={{ width: 18, height: 18 }} />
-              </div>
-              <p className={cn('font-semibold text-sm leading-tight', isDark ? (isSelected ? 'text-white' : 'text-white/80') : 'text-ink')}>{cat.label}</p>
-              <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-white/45' : 'text-ink-soft')}>{cat.description}</p>
-            </button>
-          )
-        })}
-        {/* Étterem — külön regisztrációs flow */}
-        <Link href="/register-restaurant" className={cn(
-          'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
-          isDark && 'backdrop-blur-[10px]',
-          isDark
-            ? 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
-            : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
-        )}>
-          <div className={cn('h-9 w-9 rounded-xl flex items-center justify-center mb-2.5', isDark ? 'bg-white/10' : 'bg-paper')}>
-            <ChefHat className={isDark ? 'text-white/70' : 'text-ink-soft'} style={{ width: 18, height: 18 }} />
-          </div>
-          <p className={cn('font-semibold text-sm leading-tight', isDark ? 'text-white/80' : 'text-ink')}>Étterem</p>
-          <p className={cn('text-xs mt-0.5 leading-tight', isDark ? 'text-white/45' : 'text-ink-soft')}>Asztalfoglalás</p>
-        </Link>
+        {MAIN_CATEGORIES.slice(0, -1).map(cat => renderCatCard(cat, isDark))}
+        {restaurantCard(isDark)}
+        {MAIN_CATEGORIES.slice(-1).map(cat => renderCatCard(cat, isDark))}
       </div>
     )
 
@@ -337,7 +306,7 @@ export function RegisterWizard() {
                 isDark && 'backdrop-blur-[10px]',
                 isDark
                   ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
-                  : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
+                  : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-transparent bg-[#f7f7f7] hover:brightness-[0.97]'
               )}
             >
               {isSelected && (
@@ -383,49 +352,52 @@ export function RegisterWizard() {
               </div>
             </div>
             <div className="mt-12">
-              {subStep === 'category' ? (
-                <>
-                  <h2 className="text-white font-light text-[2rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
-                    MILYEN<br />VÁLLALKOZÁST<br />VEZETSZ?
-                  </h2>
-                  {mainCatCards(true)}
-                  <div className="mt-6 space-y-3">
-                    <button onClick={() => setStep(2)} className={authGhostBtnDark}>
-                      Kihagyás
-                    </button>
-                    <Link href="/login" className="w-full h-14 rounded-dav-pill flex items-center justify-center text-white/40 font-medium text-base hover:text-white/70 transition-colors">
-                      Van már fiókom
-                    </Link>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-white font-light text-[2rem] uppercase leading-[1.0] tracking-[-0.02em] mb-2">
-                    MILYEN<br />SZOLGÁL-<br />TATÁSOKAT<br />KÍNÁLSZ?
-                  </h2>
-                  <p className="text-white/45 text-sm mb-6">Többet is választhatsz.</p>
-                  {subTypeCards(true)}
-                  <div ref={mobileCTARef} className="mt-6 space-y-4">
-                    <button
-                      onClick={() => selectedTypes.length > 0 && setStep(2)}
-                      disabled={selectedTypes.length === 0}
-                      className={cn(authPillBtnLight, 'disabled:cursor-not-allowed')}
-                    >
-                      Tovább {selectedTypes.length > 0 && `(${selectedTypes.length})`} <ChevronRight className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => setStep(2)} className={authGhostBtnDark}>
-                      Kihagyás
-                    </button>
-                  </div>
-                </>
-              )}
+              <AnimatePresence mode="wait" initial={false}>
+                {subStep === 'category' ? (
+                  <motion.div key="category" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
+                    <h2 className="text-white font-light text-[2rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
+                      MILYEN<br />VÁLLALKOZÁST<br />VEZETSZ?
+                    </h2>
+                    {mainCatCards(true)}
+                    <div className="mt-6 space-y-3">
+                      <button onClick={() => setStep(2)} className={authGhostBtnDark}>
+                        Kihagyás
+                      </button>
+                      <Link href="/login" className="w-full h-14 rounded-dav-pill flex items-center justify-center text-white/40 font-medium text-base hover:text-white/70 transition-colors">
+                        Van már fiókom
+                      </Link>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div key="types" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
+                    <h2 className="text-white font-light text-[2rem] uppercase leading-[1.0] tracking-[-0.02em] mb-2">
+                      MILYEN<br />SZOLGÁL-<br />TATÁSOKAT<br />KÍNÁLSZ?
+                    </h2>
+                    <p className="text-white/45 text-sm mb-6">Többet is választhatsz.</p>
+                    {subTypeCards(true)}
+                    <div ref={mobileCTARef} className="mt-6 space-y-4">
+                      <button
+                        onClick={() => selectedTypes.length > 0 && setStep(2)}
+                        disabled={selectedTypes.length === 0}
+                        className={cn(authPillBtnLight, 'disabled:cursor-not-allowed')}
+                      >
+                        Tovább {selectedTypes.length > 0 && `(${selectedTypes.length})`} <ChevronRight className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => setStep(2)} className={authGhostBtnDark}>
+                        Kihagyás
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
         </div>
 
         {/* ── DESKTOP ── */}
-        <div className="hidden lg:flex min-h-dvh font-onest">
-          <div className="relative w-[45%] bg-ink-dark flex flex-col p-14 select-none">
+        <div className="hidden lg:block min-h-dvh bg-[#f7f7f7] p-5 font-onest">
+        <div className="flex h-[calc(100dvh-40px)] gap-5">
+          <div className="relative w-[45%] overflow-hidden rounded-[30px] bg-ink-dark flex flex-col p-14 select-none">
             <AuthVideoBg />
             <div className="relative z-10 flex flex-col justify-between flex-1">
               <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
@@ -441,55 +413,56 @@ export function RegisterWizard() {
             </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light] overflow-y-auto">
-            <div className="w-full max-w-sm">
-              <div className="h-1 bg-line rounded-full mb-10 overflow-hidden">
-                <div className="h-full bg-ink-dark rounded-full transition-all duration-500" style={{ width: '25%' }} />
-              </div>
+          <div className="flex-1 flex items-center justify-center overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
+            <div className="w-full max-w-md">
+              {progressPills(1)}
 
-              {subStep === 'category' ? (
-                <>
-                  <div className="mb-6">
-                    <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">1 / 4</p>
-                    <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Milyen vállalkozást vezetsz?</h2>
-                    <p className="text-ink-soft text-sm mt-1">Beállítjuk az alapokat, te csak testreszabod.</p>
-                  </div>
-                  {mainCatCards(false)}
-                  <button onClick={() => setStep(2)} className="mt-4 w-full h-10 text-sm text-ink-soft hover:text-ink transition-colors">
-                    Kihagyás — manuálisan töltöm fel
-                  </button>
-                  <p className="text-center text-sm text-ink-soft mt-2">
-                    Van már fiókod?{' '}
-                    <Link href="/login" className="font-semibold text-ink hover:underline no-underline">Bejelentkezés</Link>
-                  </p>
-                </>
-              ) : (
-                <>
-                  <div className="mb-6">
-                    <button onClick={() => setSubStep('category')} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
-                      <ChevronLeft className="h-3 w-3" /> Vissza
-                    </button>
-                    <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">1 / 4 — {MAIN_CATEGORIES.find(c => c.id === selectedCategory)?.label}</p>
-                    <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Milyen szolgáltatásokat kínálsz?</h2>
-                    <p className="text-ink-soft text-sm mt-1">Többet is választhatsz.</p>
-                  </div>
-                  {subTypeCards(false)}
-                  <div className="mt-6 space-y-3">
-                    <button
-                      onClick={() => selectedTypes.length > 0 && setStep(2)}
-                      disabled={selectedTypes.length === 0}
-                      className={cn(authPillBtn, 'disabled:cursor-not-allowed')}
-                    >
-                      Tovább {selectedTypes.length > 0 && `(${selectedTypes.length} kiválasztva)`} <ChevronRight className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => setStep(2)} className="w-full h-10 text-sm text-ink-soft hover:text-ink transition-colors">
+              <AnimatePresence mode="wait" initial={false}>
+                {subStep === 'category' ? (
+                  <motion.div key="category" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
+                    <div className="mb-6">
+                      <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">1 / 4</p>
+                      <h2 className="text-[36px] font-light leading-[1.15] tracking-[-0.02em] text-ink">Milyen vállalkozást vezetsz?</h2>
+                      <p className="text-ink-soft text-base mt-2">Beállítjuk az alapokat, te csak testreszabod.</p>
+                    </div>
+                    {mainCatCards(false)}
+                    <button onClick={() => setStep(2)} className="mt-4 w-full h-10 text-sm text-ink-soft hover:text-ink transition-colors">
                       Kihagyás — manuálisan töltöm fel
                     </button>
-                  </div>
-                </>
-              )}
+                    <p className="text-center text-sm text-ink-soft mt-2">
+                      Van már fiókod?{' '}
+                      <Link href="/login" className="font-semibold text-ink hover:underline no-underline">Bejelentkezés</Link>
+                    </p>
+                  </motion.div>
+                ) : (
+                  <motion.div key="types" initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
+                    <div className="mb-6">
+                      <button onClick={() => setSubStep('category')} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
+                        <ChevronLeft className="h-3 w-3" /> Vissza
+                      </button>
+                      <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">1 / 4 — {MAIN_CATEGORIES.find(c => c.id === selectedCategory)?.label}</p>
+                      <h2 className="text-[36px] font-light leading-[1.15] tracking-[-0.02em] text-ink">Milyen szolgáltatásokat kínálsz?</h2>
+                      <p className="text-ink-soft text-base mt-2">Többet is választhatsz.</p>
+                    </div>
+                    {subTypeCards(false)}
+                    <div className="mt-6 space-y-3">
+                      <AuthPillButton
+                        onClick={() => selectedTypes.length > 0 && setStep(2)}
+                        disabled={selectedTypes.length === 0}
+                        className="disabled:cursor-not-allowed"
+                      >
+                        Tovább {selectedTypes.length > 0 && `(${selectedTypes.length} kiválasztva)`}
+                      </AuthPillButton>
+                      <button onClick={() => setStep(2)} className="w-full h-10 text-sm text-ink-soft hover:text-ink transition-colors">
+                        Kihagyás — manuálisan töltöm fel
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </div>
+        </div>
         </div>
       </>
     )
@@ -543,15 +516,20 @@ export function RegisterWizard() {
               <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={mobileForm.handleSubmit(onStep2)} className="space-y-3" noValidate>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Szalon neve</Label>
-                  <input
-                    autoComplete="organization"
-                    placeholder="Pl. Anna Fodrászat"
-                    aria-invalid={!!mobileForm.formState.errors.salonName}
-                    aria-describedby={mobileForm.formState.errors.salonName ? 'reg-m-salon-err' : undefined}
-                    className={cn(authInputDark, mobileForm.formState.errors.salonName && 'ring-2 ring-red-400 border-red-400')}
-                    {...mobileForm.register('salonName')}
-                  />
-                  {mobileForm.formState.errors.salonName && <p id="reg-m-salon-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.salonName.message}</p>}
+                  <div className="relative">
+                    <input
+                      autoComplete="organization"
+                      placeholder="Pl. Anna Fodrászat"
+                      aria-invalid={!!mobileForm.formState.errors.salonName}
+                      aria-describedby={mobileForm.formState.errors.salonName ? 'reg-m-salon-err' : undefined}
+                      className={cn(authInputDark, 'pr-11', mobileForm.formState.errors.salonName && 'ring-2 ring-red-400 border-red-400')}
+                      {...mobileForm.register('salonName')}
+                    />
+                    <FieldStatusIcon status={mobileNameStatus} />
+                  </div>
+                  {mobileForm.formState.errors.salonName
+                    ? <p id="reg-m-salon-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.salonName.message}</p>
+                    : mobileNameStatus === 'taken' && <p className={authErrorTextDark}>Ez a név már foglalt — a nyilvános oldalad címe ütközne egy meglévővel.</p>}
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>A te neved</Label>
@@ -567,17 +545,22 @@ export function RegisterWizard() {
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Email</Label>
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    inputMode="email"
-                    placeholder="te@pelda.hu"
-                    aria-invalid={!!mobileForm.formState.errors.email}
-                    aria-describedby={mobileForm.formState.errors.email ? 'reg-m-email-err' : undefined}
-                    className={cn(authInputDark, mobileForm.formState.errors.email && 'ring-2 ring-red-400 border-red-400')}
-                    {...mobileForm.register('email')}
-                  />
-                  {mobileForm.formState.errors.email && <p id="reg-m-email-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.email.message}</p>}
+                  <div className="relative">
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      inputMode="email"
+                      placeholder="te@pelda.hu"
+                      aria-invalid={!!mobileForm.formState.errors.email}
+                      aria-describedby={mobileForm.formState.errors.email ? 'reg-m-email-err' : undefined}
+                      className={cn(authInputDark, 'pr-11', mobileForm.formState.errors.email && 'ring-2 ring-red-400 border-red-400')}
+                      {...mobileForm.register('email')}
+                    />
+                    <FieldStatusIcon status={mobileEmailStatus} />
+                  </div>
+                  {mobileForm.formState.errors.email
+                    ? <p id="reg-m-email-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.email.message}</p>
+                    : mobileEmailStatus === 'taken' && <p className={authErrorTextDark}>Ez az email már regisztrált.</p>}
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Jelszó</Label>
@@ -728,9 +711,10 @@ export function RegisterWizard() {
       </div>
 
       {/* ── DESKTOP ────────────────────────────────────────────────── */}
-      <div className="hidden lg:flex min-h-dvh font-onest">
+      <div className="hidden lg:block min-h-dvh bg-[#f7f7f7] p-5 font-onest">
+      <div className="flex h-[calc(100dvh-40px)] gap-5">
         {/* Left panel */}
-        <div className="relative w-[45%] bg-ink-dark flex flex-col p-14 select-none">
+        <div className="relative w-[45%] overflow-hidden rounded-[30px] bg-ink-dark flex flex-col p-14 select-none">
           <AuthVideoBg />
           <div className="relative z-10 flex flex-col justify-between flex-1">
             <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
@@ -747,20 +731,15 @@ export function RegisterWizard() {
         </div>
 
         {/* Right panel */}
-        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light]">
+        <div className="flex-1 flex items-center justify-center overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
           <div className="w-full max-w-sm">
 
-            {/* Progress bar */}
-            <div className="h-1 bg-line rounded-full mb-10 overflow-hidden">
-              <div
-                className="h-full bg-ink-dark rounded-full transition-all duration-500"
-                style={{ width: `${progressWidth}%` }}
-              />
-            </div>
+            {progressPills(progressStep)}
 
+            <AnimatePresence mode="wait" initial={false}>
             {/* Step 2 */}
             {step === 2 && (
-              <>
+              <motion.div key={2} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
                 <div className="mb-8">
                   <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
                     <ChevronLeft className="h-3 w-3" /> Vissza
@@ -771,15 +750,20 @@ export function RegisterWizard() {
                 <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={desktopForm.handleSubmit(onStep2)} className="space-y-4" noValidate>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Szalon neve</Label>
-                    <input
-                      autoComplete="organization"
-                      placeholder="Pl. Anna Fodrászat"
-                      aria-invalid={!!desktopForm.formState.errors.salonName}
-                      aria-describedby={desktopForm.formState.errors.salonName ? 'reg-d-salon-err' : undefined}
-                      className={cn(authInputBase, desktopForm.formState.errors.salonName && 'ring-2 ring-bad/40 border-bad/60')}
-                      {...desktopForm.register('salonName')}
-                    />
-                    {desktopForm.formState.errors.salonName && <p id="reg-d-salon-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.salonName.message}</p>}
+                    <div className="relative">
+                      <input
+                        autoComplete="organization"
+                        placeholder="Pl. Anna Fodrászat"
+                        aria-invalid={!!desktopForm.formState.errors.salonName}
+                        aria-describedby={desktopForm.formState.errors.salonName ? 'reg-d-salon-err' : undefined}
+                        className={cn(authInputBase, 'pr-11', desktopForm.formState.errors.salonName && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...desktopForm.register('salonName')}
+                      />
+                      <FieldStatusIcon status={desktopNameStatus} />
+                    </div>
+                    {desktopForm.formState.errors.salonName
+                      ? <p id="reg-d-salon-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.salonName.message}</p>
+                      : desktopNameStatus === 'taken' && <p className={authErrorText}>Ez a név már foglalt — a nyilvános oldalad címe ütközne egy meglévővel.</p>}
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>A te neved</Label>
@@ -795,17 +779,22 @@ export function RegisterWizard() {
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Email</Label>
-                    <input
-                      type="email"
-                      autoComplete="email"
-                      inputMode="email"
-                      placeholder="te@pelda.hu"
-                      aria-invalid={!!desktopForm.formState.errors.email}
-                      aria-describedby={desktopForm.formState.errors.email ? 'reg-d-email-err' : undefined}
-                      className={cn(authInputBase, desktopForm.formState.errors.email && 'ring-2 ring-bad/40 border-bad/60')}
-                      {...desktopForm.register('email')}
-                    />
-                    {desktopForm.formState.errors.email && <p id="reg-d-email-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.email.message}</p>}
+                    <div className="relative">
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        inputMode="email"
+                        placeholder="te@pelda.hu"
+                        aria-invalid={!!desktopForm.formState.errors.email}
+                        aria-describedby={desktopForm.formState.errors.email ? 'reg-d-email-err' : undefined}
+                        className={cn(authInputBase, 'pr-11', desktopForm.formState.errors.email && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...desktopForm.register('email')}
+                      />
+                      <FieldStatusIcon status={desktopEmailStatus} />
+                    </div>
+                    {desktopForm.formState.errors.email
+                      ? <p id="reg-d-email-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.email.message}</p>
+                      : desktopEmailStatus === 'taken' && <p className={authErrorText}>Ez az email már regisztrált.</p>}
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Jelszó</Label>
@@ -865,14 +854,14 @@ export function RegisterWizard() {
                   Van már fiókod?{' '}
                   <Link href="/login" className="font-semibold text-ink hover:underline no-underline">Bejelentkezés</Link>
                 </p>
-              </>
+              </motion.div>
             )}
 
             {/* Step 3 */}
             {step === 3 && (
-              <>
+              <motion.div key={3} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">3 / 5</p>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">3 / 4</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Add hozzá az első munkatársat</h2>
                   <p className="text-ink-soft text-sm mt-1">Kihagyható — később is hozzáadhatsz.</p>
                 </div>
@@ -898,26 +887,26 @@ export function RegisterWizard() {
                     Kihagyás
                   </button>
                 </div>
-              </>
+              </motion.div>
             )}
 
             {/* Step 4 — import (optional) */}
             {step === 4 && (
-              <>
+              <motion.div key={4} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">4 / 5</p>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">4 / 4</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Importáld az adataid</h2>
                   <p className="text-ink-soft text-sm mt-1">Ha más rendszerből váltasz — kihagyható, bármikor elvégezhető.</p>
                 </div>
                 <WizardImportStep isDark={false} onContinue={() => setStep(5)} />
-              </>
+              </motion.div>
             )}
 
             {/* Step 5 — success */}
             {step === 5 && (
-              <>
+              <motion.div key={5} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">5 / 5</p>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">Kész</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Készen vagy!</h2>
                   <p className="text-ink-soft text-sm mt-1">A szalonod sikeresen létrejött.</p>
                 </div>
@@ -939,10 +928,12 @@ export function RegisterWizard() {
                 <button onClick={finish} className={cn(authPillBtn, 'mt-6')}>
                   Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
                 </button>
-              </>
+              </motion.div>
             )}
+            </AnimatePresence>
           </div>
         </div>
+      </div>
       </div>
     </>
   )

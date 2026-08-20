@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { ChevronRight, ChevronLeft, Check, Loader2, UtensilsCrossed } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { listStagger } from '@/lib/motion'
+import { listStagger, EASE } from '@/lib/motion'
 import { cn } from '@/lib/utils'
 import { RESTAURANT_TEMPLATES } from '@/lib/restaurantTemplates'
 import { BrandLogo } from '@/components/BrandLogo'
@@ -24,14 +24,22 @@ import {
 import { PasswordInput } from '@/components/auth/PasswordInput'
 import { WizardImportStep } from '@/components/auth/WizardImportStep'
 import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
+import { AuthPillButton } from '@/components/auth/AuthPillButton'
+import { useAvailabilityCheck } from '@/components/auth/useAvailabilityCheck'
+import { FieldStatusIcon } from '@/components/auth/FieldStatusIcon'
+
+/** Formátum-előszűrés, mielőtt a hook hálózati elérhetőség-ellenőrzést indítana. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const isEmailFormatValid = (v: string) => EMAIL_RE.test(v)
+const isNameFormatValid = (v: string) => v.trim().length >= 2
 
 const step2Schema = z.object({
-  restaurantName: z.string().min(2, 'Minimum 2 karakter'),
-  ownerName: z.string().min(2, 'Minimum 2 karakter'),
-  email: z.string().email('Érvényes email szükséges'),
-  password: z.string().min(8, 'Minimum 8 karakter'),
-  city: z.string().min(2, 'Kötelező'),
-  phone: z.string().min(7, 'Érvényes telefonszám'),
+  restaurantName: z.string().min(1, 'Kötelező mező').min(2, 'Minimum 2 karakter'),
+  ownerName: z.string().min(1, 'Kötelező mező').min(2, 'Minimum 2 karakter'),
+  email: z.string().min(1, 'Kötelező mező').email('Érvényes email szükséges'),
+  password: z.string().min(1, 'Kötelező mező').min(8, 'Minimum 8 karakter'),
+  city: z.string().min(1, 'Kötelező mező').min(2, 'Minimum 2 karakter'),
+  phone: z.string().min(1, 'Kötelező mező').min(7, 'Érvényes telefonszám'),
 })
 type Step2Data = z.infer<typeof step2Schema>
 
@@ -45,6 +53,17 @@ export function RegisterRestaurantWizard() {
   // Két különálló useForm példány a mobil + desktop form-hoz (lásd RegisterWizard magyarázat)
   const mobileForm = useForm<Step2Data>({ resolver: zodResolver(step2Schema) })
   const desktopForm = useForm<Step2Data>({ resolver: zodResolver(step2Schema) })
+
+  // Élő elérhetőség-ellenőrzés (email foglalt-e, étteremnév/slug ütközik-e) — lásd RegisterWizard
+  // azonos indoklását (a hookot feltétel nélkül kell hívni, üres mezőnél nem indít kérést).
+  const mobileEmailVal = mobileForm.watch('email') ?? ''
+  const desktopEmailVal = desktopForm.watch('email') ?? ''
+  const mobileNameVal = mobileForm.watch('restaurantName') ?? ''
+  const desktopNameVal = desktopForm.watch('restaurantName') ?? ''
+  const mobileEmailStatus = useAvailabilityCheck('email', mobileEmailVal, isEmailFormatValid(mobileEmailVal))
+  const desktopEmailStatus = useAvailabilityCheck('email', desktopEmailVal, isEmailFormatValid(desktopEmailVal))
+  const mobileNameStatus = useAvailabilityCheck('business-name', mobileNameVal, isNameFormatValid(mobileNameVal))
+  const desktopNameStatus = useAvailabilityCheck('business-name', desktopNameVal, isNameFormatValid(desktopNameVal))
 
   /** Google-folytatás a regisztráció utolsó adatbeviteli lépésén (lásd RegisterWizard) */
   const continueWithGoogle = async (form: typeof mobileForm) => {
@@ -84,111 +103,34 @@ export function RegisterRestaurantWizard() {
   const onStep2 = async (data: Step2Data) => {
     setLoading(true)
     try {
-      let userId_: string
-      let authToken_: string
-
       const email = data.email.toLowerCase().trim()
-      const password = data.password
 
-      const userRes = await fetch('/api/users', {
+      // Minden (user + étterem + kezdő-sablon) EGY szerver-oldali kérésben történik — lásd
+      // RegisterWizard (salon) azonos indoklását: a `verify: true` miatt egy azonnali
+      // login-próbálkozás úgysem adna érvényes tokent, a régi lánc emiatt itt sem működne.
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: data.ownerName, email, password, role: 'restaurant_owner' }),
+        body: JSON.stringify({
+          kind: 'restaurant',
+          ownerName: data.ownerName,
+          placeName: data.restaurantName,
+          email,
+          password: data.password,
+          city: data.city,
+          phone: data.phone,
+          templateId: selectedTemplate ?? undefined,
+        }),
       })
 
-      if (!userRes.ok) {
-        const err = await userRes.json()
-        const msg: string = err.errors?.[0]?.message ?? ''
-        const isDuplicate = msg.toLowerCase().includes('uniqueness') || msg.toLowerCase().includes('already registered')
-        if (!isDuplicate) {
-          const status = userRes.status
-          throw new Error(`Regisztráció sikertelen (${status}). Ellenőrizd az adatokat.`)
-        }
-
-        const recoveryLogin = await fetch('/api/users/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include',
-        })
-        if (!recoveryLogin.ok) throw new Error('Ez az email már regisztrált, de a jelszó nem stimmel. Jelentkezz be!')
-        const recoveryData = await recoveryLogin.json()
-        authToken_ = recoveryData.token
-        userId_ = recoveryData.user?.id ?? recoveryData.user
-
-        const meRes = await fetch('/api/users/me', { credentials: 'include' })
-        const meData = await meRes.json()
-        if (meData?.user?.restaurant) {
-          router.push('/restaurant')
-          return
-        }
-      } else {
-        const { doc: user } = await userRes.json()
-        userId_ = user.id
-
-        const loginRes = await fetch('/api/users/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password }),
-          credentials: 'include',
-        })
-        if (!loginRes.ok) {
-          const loginStatus = loginRes.status
-          throw new Error(`Bejelentkezés sikertelen (${loginStatus}) a regisztráció után. Próbálj belépni manuálisan.`)
-        }
-        const loginData = await loginRes.json()
-        authToken_ = loginData.token
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        if (err.error === 'already_registered') throw new Error('Ez az email már regisztrált.')
+        if (err.error === 'unverified_pending') throw new Error('Ez az email már regisztrált, de még nincs megerősítve — nézd meg a postafiókod a korábbi levélért.')
+        throw new Error('Regisztráció sikertelen. Ellenőrizd az adatokat.')
       }
 
-      const baseSlug = generateSlug(data.restaurantName)
-      let slug = baseSlug
-      let restaurantRes = await fetch('/api/restaurants', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-        body: JSON.stringify({ name: data.restaurantName, slug, owner: userId_, phone: data.phone, city: data.city, is_active: true }),
-      })
-      if (!restaurantRes.ok) {
-        slug = `${baseSlug}-${Date.now().toString(36)}`
-        restaurantRes = await fetch('/api/restaurants', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-          body: JSON.stringify({ name: data.restaurantName, slug, owner: userId_, phone: data.phone, city: data.city, is_active: true }),
-        })
-        if (!restaurantRes.ok) throw new Error('Étterem létrehozása sikertelen')
-      }
-      const { doc: restaurant } = await restaurantRes.json()
-      setRestaurantId(restaurant.id)
-
-      // A user.restaurant a PRIMER étterem-jelölés; az aktív üzletet is az újra állítjuk, hogy
-      // egy vegyes fiók (aki máshol alkalmazott) a saját friss éttermén kössön ki, ne a régi
-      // munkahelyén (különben a /restaurant redirect az aktív membership-üzletre vinné).
-      await fetch(`/api/users/${userId_}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-        body: JSON.stringify({ restaurant: restaurant.id, last_active_business: `restaurant:${restaurant.id}` }),
-      })
-
-      // A választott asztalfoglalás-sablon alapján a háttérben feltöltjük az étterem kezdő-
-      // beállításait — a friss JWT-t fejlécként is átadjuk (nem csak a cookie-ra hagyatkozunk),
-      // és a hibát már nem nyeljük el csendben (log + diszkrét, nem blokkoló jelzés).
-      // Azonos minta a szalon-regisztrációval (RegisterWizard).
-      if (selectedTemplate) {
-        fetch('/api/restaurant/seed-template', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `JWT ${authToken_}` },
-          credentials: 'include',
-          body: JSON.stringify({ restaurantId: restaurant.id, templateId: selectedTemplate }),
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error(`seed-template ${res.status}`)
-          })
-          .catch((e) => {
-            console.warn('[register] étterem-sablon seed sikertelen:', e)
-            toast.message('A beállításaidat később a vezérlőpulton módosíthatod.')
-          })
-      }
-
-      setStep(3)
+      router.push(`/register/check-email?email=${encodeURIComponent(email)}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Hiba történt')
     } finally {
@@ -223,7 +165,7 @@ export function RegisterRestaurantWizard() {
               isDark && 'backdrop-blur-[10px]',
               isDark
                 ? isSelected ? 'border-gold bg-white/[0.06] ring-2 ring-gold' : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
-                : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper'
+                : isSelected ? 'border-gold bg-gold/[0.06] ring-2 ring-gold' : 'border-transparent bg-[#f7f7f7] hover:brightness-[0.97]'
             )}
           >
             {isSelected && (
@@ -240,7 +182,24 @@ export function RegisterRestaurantWizard() {
   )
 
   const TOTAL_STEPS = 4
-  const progressWidth = (step / TOTAL_STEPS) * 100
+
+  /** Figma-pontos, diszkrét szegmens-sáv (4 db pill) — mindegyik szegmens saját animált
+   *  kitöltéssel (framer `scaleX`), nem csak egy néma CSS-színváltás. */
+  const progressPills = (current: number) => (
+    <div className="flex gap-1.5 mb-10">
+      {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+        <div key={i} className="h-2 flex-1 rounded-full overflow-hidden" style={{ background: '#f7f7f7' }}>
+          <motion.div
+            className="h-full w-full rounded-full bg-ink-dark"
+            style={{ transformOrigin: 'left' }}
+            initial={false}
+            animate={{ scaleX: i < current ? 1 : 0 }}
+            transition={{ duration: 0.4, ease: EASE }}
+          />
+        </div>
+      ))}
+    </div>
+  )
 
   const leftHeadlines: Record<number, { headline: string; sub: string }> = {
     1: { headline: 'MILYEN\nÉTTERMET\nVEZETSZ?', sub: 'Válassz egy sablont — asztalokat és turnusokat állítunk be, te csak testreszabod.' },
@@ -309,15 +268,20 @@ export function RegisterRestaurantWizard() {
               <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={mobileForm.handleSubmit(onStep2)} className="space-y-3" noValidate>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Étterem neve</Label>
-                  <input
-                    placeholder="Pl. Bistro Central"
-                    autoComplete="organization"
-                    aria-invalid={!!mobileForm.formState.errors.restaurantName}
-                    aria-describedby={mobileForm.formState.errors.restaurantName ? 'rreg-m-name-err' : undefined}
-                    className={cn(authInputDark, mobileForm.formState.errors.restaurantName && 'ring-2 ring-red-400 border-red-400')}
-                    {...mobileForm.register('restaurantName')}
-                  />
-                  {mobileForm.formState.errors.restaurantName && <p id="rreg-m-name-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.restaurantName.message}</p>}
+                  <div className="relative">
+                    <input
+                      placeholder="Pl. Bistro Central"
+                      autoComplete="organization"
+                      aria-invalid={!!mobileForm.formState.errors.restaurantName}
+                      aria-describedby={mobileForm.formState.errors.restaurantName ? 'rreg-m-name-err' : undefined}
+                      className={cn(authInputDark, 'pr-11', mobileForm.formState.errors.restaurantName && 'ring-2 ring-red-400 border-red-400')}
+                      {...mobileForm.register('restaurantName')}
+                    />
+                    <FieldStatusIcon status={mobileNameStatus} />
+                  </div>
+                  {mobileForm.formState.errors.restaurantName
+                    ? <p id="rreg-m-name-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.restaurantName.message}</p>
+                    : mobileNameStatus === 'taken' && <p className={authErrorTextDark}>Ez a név már foglalt — a nyilvános oldalad címe ütközne egy meglévővel.</p>}
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>A te neved</Label>
@@ -333,17 +297,22 @@ export function RegisterRestaurantWizard() {
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Email</Label>
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    inputMode="email"
-                    placeholder="te@pelda.hu"
-                    aria-invalid={!!mobileForm.formState.errors.email}
-                    aria-describedby={mobileForm.formState.errors.email ? 'rreg-m-email-err' : undefined}
-                    className={cn(authInputDark, mobileForm.formState.errors.email && 'ring-2 ring-red-400 border-red-400')}
-                    {...mobileForm.register('email')}
-                  />
-                  {mobileForm.formState.errors.email && <p id="rreg-m-email-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.email.message}</p>}
+                  <div className="relative">
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      inputMode="email"
+                      placeholder="te@pelda.hu"
+                      aria-invalid={!!mobileForm.formState.errors.email}
+                      aria-describedby={mobileForm.formState.errors.email ? 'rreg-m-email-err' : undefined}
+                      className={cn(authInputDark, 'pr-11', mobileForm.formState.errors.email && 'ring-2 ring-red-400 border-red-400')}
+                      {...mobileForm.register('email')}
+                    />
+                    <FieldStatusIcon status={mobileEmailStatus} />
+                  </div>
+                  {mobileForm.formState.errors.email
+                    ? <p id="rreg-m-email-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.email.message}</p>
+                    : mobileEmailStatus === 'taken' && <p className={authErrorTextDark}>Ez az email már regisztrált.</p>}
                 </motion.div>
                 <motion.div variants={listStagger.item} className="space-y-1.5">
                   <Label className={authLabelDark}>Jelszó</Label>
@@ -444,8 +413,9 @@ export function RegisterRestaurantWizard() {
       </div>
 
       {/* ── DESKTOP ── */}
-      <div className="hidden lg:flex min-h-dvh font-onest">
-        <div className="relative w-[45%] bg-ink-dark flex flex-col p-14 select-none">
+      <div className="hidden lg:block min-h-dvh bg-[#f7f7f7] p-5 font-onest">
+      <div className="flex h-[calc(100dvh-40px)] gap-5">
+        <div className="relative w-[45%] overflow-hidden rounded-[30px] bg-ink-dark flex flex-col p-14 select-none">
           <AuthVideoBg />
           <div className="relative z-10 flex flex-col justify-between flex-1">
             <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
@@ -461,11 +431,9 @@ export function RegisterRestaurantWizard() {
           </div>
         </div>
 
-        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light] overflow-y-auto">
+        <div className="flex-1 flex items-center justify-center overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
           <div className="w-full max-w-sm">
-            <div className="h-1 bg-line rounded-full mb-10 overflow-hidden">
-              <div className="h-full bg-ink-dark rounded-full transition-all duration-500" style={{ width: `${progressWidth}%` }} />
-            </div>
+            {progressPills(step)}
 
             {step === 1 && (
               <>
@@ -479,13 +447,9 @@ export function RegisterRestaurantWizard() {
                 </div>
                 {templateCards(false)}
                 <div className="mt-6">
-                  <button
-                    onClick={() => selectedTemplate && setStep(2)}
-                    disabled={!selectedTemplate}
-                    className={authPillBtn}
-                  >
-                    Tovább <ChevronRight className="h-4 w-4" />
-                  </button>
+                  <AuthPillButton onClick={() => selectedTemplate && setStep(2)} disabled={!selectedTemplate}>
+                    Tovább
+                  </AuthPillButton>
                 </div>
                 <p className="text-center text-sm text-ink-soft mt-4">
                   Van már fiókod?{' '}
@@ -506,15 +470,20 @@ export function RegisterRestaurantWizard() {
                 <motion.form variants={listStagger.container} initial="hidden" animate="show" onSubmit={desktopForm.handleSubmit(onStep2)} className="space-y-4" noValidate>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Étterem neve</Label>
-                    <input
-                      placeholder="Pl. Bistro Central"
-                      autoComplete="organization"
-                      aria-invalid={!!desktopForm.formState.errors.restaurantName}
-                      aria-describedby={desktopForm.formState.errors.restaurantName ? 'rreg-d-name-err' : undefined}
-                      className={cn(authInputBase, desktopForm.formState.errors.restaurantName && 'ring-2 ring-bad/40 border-bad/60')}
-                      {...desktopForm.register('restaurantName')}
-                    />
-                    {desktopForm.formState.errors.restaurantName && <p id="rreg-d-name-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.restaurantName.message}</p>}
+                    <div className="relative">
+                      <input
+                        placeholder="Pl. Bistro Central"
+                        autoComplete="organization"
+                        aria-invalid={!!desktopForm.formState.errors.restaurantName}
+                        aria-describedby={desktopForm.formState.errors.restaurantName ? 'rreg-d-name-err' : undefined}
+                        className={cn(authInputBase, 'pr-11', desktopForm.formState.errors.restaurantName && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...desktopForm.register('restaurantName')}
+                      />
+                      <FieldStatusIcon status={desktopNameStatus} />
+                    </div>
+                    {desktopForm.formState.errors.restaurantName
+                      ? <p id="rreg-d-name-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.restaurantName.message}</p>
+                      : desktopNameStatus === 'taken' && <p className={authErrorText}>Ez a név már foglalt — a nyilvános oldalad címe ütközne egy meglévővel.</p>}
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>A te neved</Label>
@@ -530,17 +499,22 @@ export function RegisterRestaurantWizard() {
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Email</Label>
-                    <input
-                      type="email"
-                      autoComplete="email"
-                      inputMode="email"
-                      placeholder="te@pelda.hu"
-                      aria-invalid={!!desktopForm.formState.errors.email}
-                      aria-describedby={desktopForm.formState.errors.email ? 'rreg-d-email-err' : undefined}
-                      className={cn(authInputBase, desktopForm.formState.errors.email && 'ring-2 ring-bad/40 border-bad/60')}
-                      {...desktopForm.register('email')}
-                    />
-                    {desktopForm.formState.errors.email && <p id="rreg-d-email-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.email.message}</p>}
+                    <div className="relative">
+                      <input
+                        type="email"
+                        autoComplete="email"
+                        inputMode="email"
+                        placeholder="te@pelda.hu"
+                        aria-invalid={!!desktopForm.formState.errors.email}
+                        aria-describedby={desktopForm.formState.errors.email ? 'rreg-d-email-err' : undefined}
+                        className={cn(authInputBase, 'pr-11', desktopForm.formState.errors.email && 'ring-2 ring-bad/40 border-bad/60')}
+                        {...desktopForm.register('email')}
+                      />
+                      <FieldStatusIcon status={desktopEmailStatus} />
+                    </div>
+                    {desktopForm.formState.errors.email
+                      ? <p id="rreg-d-email-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.email.message}</p>
+                      : desktopEmailStatus === 'taken' && <p className={authErrorText}>Ez az email már regisztrált.</p>}
                   </motion.div>
                   <motion.div variants={listStagger.item} className="space-y-1.5">
                     <Label className={authLabelBase}>Jelszó</Label>
@@ -638,6 +612,7 @@ export function RegisterRestaurantWizard() {
             )}
           </div>
         </div>
+      </div>
       </div>
     </>
   )

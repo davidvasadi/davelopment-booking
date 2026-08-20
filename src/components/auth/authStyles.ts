@@ -6,9 +6,11 @@
  * „nincs krém a mezőkön" szabályt: bg-white + border-line-strong + gold fókusz.
  */
 
-/** Fő szöveges input (világos felületen, pl. a jobb panel / kártya). */
+/** Fő szöveges input (világos felületen, pl. a jobb panel / kártya). A `dav-auth-input-light`
+ *  osztály a globals.css autofill-override horgonya — Chrome a mentett jelszó/email
+ *  javaslatnál kék/lila háttérszínt kényszerít a mezőre, ezt írjuk felül fehérre. */
 export const authInputBase =
-  'w-full h-[50px] rounded-[14px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 px-4 text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
+  'dav-auth-input-light w-full h-[50px] rounded-[14px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 px-4 text-base outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
 
 /** Input a SÖTÉT panelen / mobil splash-en (ink-dark háttéren). */
 export const authInputDark =
