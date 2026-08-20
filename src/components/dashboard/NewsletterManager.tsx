@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { Search, Send, PenLine, ArrowRight, Check, UserX, ChevronDown, ArrowUpDown, FileText, LayoutTemplate, Trash2, X, Users } from 'lucide-react'
+import { Search, Send, PenLine, Check, UserX, ChevronDown, ArrowUpDown, FileText, LayoutTemplate, Trash2, X, Users } from 'lucide-react'
 import { buttonHover } from '@/lib/motion'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusPills } from '@/components/dashboard/StatusPills'
@@ -22,8 +22,6 @@ import { emailLayout, brandHeroBlock, richContentBlock, bottomSpacer, COLORS } f
  * "Bővítés" link látszik. Sorrend: statisztika (fent) → feliratkozók → kampány-előzmény →
  * szerkesztő+élő előnézet (legalul) — a "Hírlevél írása" fejléc-gomb ide görget le.
  */
-
-type Package = 'none' | 'ingyenes' | 'alap' | 'premium'
 
 export type CampaignRow = {
   id: string
@@ -59,12 +57,8 @@ interface Props {
   businessId: string
   businessName: string
   logoUrl?: string | null
-  currentPackage: Package
-  packages: {
-    ingyenes: { cap: number }
-    alap: { huf: number; cap: number }
-    premium: { huf: number; cap: number }
-  }
+  /** A csomaghoz (Starter/Pro/Egyedi) beépítve járó havi hírlevél-küldési keret. */
+  emailCap: number
   subscriberCount: number
   initialSubscribers: SubscriberRow[]
   initialSubscribersHasMore: boolean
@@ -127,7 +121,7 @@ function marketingEmailTemplate(): { subject: string; blocks: ComposerBlock[] } 
   }
 }
 
-export function NewsletterManager({ variant, businessId, businessName, logoUrl, currentPackage, packages, subscriberCount, initialSubscribers, initialSubscribersHasMore, countryOptions, usedThisMonth, openedThisMonth, initialCampaigns }: Props) {
+export function NewsletterManager({ variant, businessId, businessName, logoUrl, emailCap, subscriberCount, initialSubscribers, initialSubscribersHasMore, countryOptions, usedThisMonth, openedThisMonth, initialCampaigns }: Props) {
   const router = useRouter()
   const [campaigns, setCampaigns] = useState(initialCampaigns)
   useEffect(() => setCampaigns(initialCampaigns), [initialCampaigns])
@@ -180,9 +174,9 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
     }
   }, [variant, businessId])
 
-  const enabled = currentPackage !== 'none'
-  // A hírlevél-csomag választó a Fizetésekből az "API & Integrációk" fülre költözött.
-  const settingsHref = variant === 'salon' ? '/dashboard/settings?tab=integrations' : '/restaurant/settings?tab=integrations'
+  // A hírlevél-küldés BEÉPÍTVE jár minden csomaghoz — a keret bővítése a csomagváltással
+  // (Előfizetés & számlázás fül) történik, nincs önálló hírlevél-csomag-választó.
+  const settingsHref = variant === 'salon' ? '/dashboard/settings?tab=billing' : '/restaurant/settings?tab=billing'
 
   const composerRef = useRef<HTMLDivElement>(null)
   const subscribersRef = useRef<HTMLDivElement>(null)
@@ -415,7 +409,7 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [recipientPickerOpen])
 
-  const cap = currentPackage === 'ingyenes' ? packages.ingyenes.cap : currentPackage === 'alap' ? packages.alap.cap : currentPackage === 'premium' ? packages.premium.cap : 0
+  const cap = emailCap
   const remaining = Math.max(0, cap - usedThisMonth)
   const notOpened = Math.max(0, usedThisMonth - openedThisMonth)
   const openedPct = cap > 0 ? (openedThisMonth / cap) * 100 : 0
@@ -590,7 +584,7 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
   }
 
   const plainLength = bodyHtml.replace(/<[^>]+>/g, '').trim().length
-  const canSend = enabled && subject.trim().length > 0 && plainLength > 0 && targetCount > 0 && usedThisMonth < cap
+  const canSend = subject.trim().length > 0 && plainLength > 0 && targetCount > 0 && usedThisMonth < cap
 
   const previewHtml = useMemo(() => {
     if (!subject.trim() && !plainLength) return null
@@ -660,43 +654,26 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
           title="Hírlevél"
           description="Küldj marketing-emailt a feliratkozott vendégeidnek."
         />
-        {enabled && (
-          <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <StatusPills
-              eager
-              minSegmentWidth={110}
-              className="flex-1 lg:max-w-[760px]"
-              segments={[
-                { label: 'Megnyitva', pct: openedPct, value: openedThisMonth, suffix: ' email', background: '#F1CE45', color: '#1D1C19' },
-                { label: 'Nem nyitva', pct: notOpenedPct, value: notOpened, suffix: ' email', background: '#1D1C19', color: '#fff' },
-                { label: 'Szabad keret', pct: freePct, value: remaining, suffix: ' email', background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
-              ]}
-            />
-            <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-              <CountUpKpi icon="users" value={subscriberCount} label="Feliratkozó" />
-              <CountUpKpi icon="layers" value={campaigns.length} label="Kiküldött kampány" />
-              <CountUpKpi icon="check" value={openRatePct} label="Nyitási arány" suffix=" %" />
-            </div>
+        <div className="mt-5 flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <StatusPills
+            eager
+            minSegmentWidth={110}
+            className="flex-1 lg:max-w-[760px]"
+            segments={[
+              { label: 'Megnyitva', pct: openedPct, value: openedThisMonth, suffix: ' email', background: '#F1CE45', color: '#1D1C19' },
+              { label: 'Nem nyitva', pct: notOpenedPct, value: notOpened, suffix: ' email', background: '#1D1C19', color: '#fff' },
+              { label: 'Szabad keret', pct: freePct, value: remaining, suffix: ' email', background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
+            ]}
+          />
+          <div className="flex flex-wrap items-start gap-8 lg:gap-10">
+            <CountUpKpi icon="users" value={subscriberCount} label="Feliratkozó" />
+            <CountUpKpi icon="layers" value={campaigns.length} label="Kiküldött kampány" />
+            <CountUpKpi icon="check" value={openRatePct} label="Nyitási arány" suffix=" %" />
           </div>
-        )}
+        </div>
       </div>
 
-      {!enabled && (
-        <div className="flex flex-col items-center justify-center gap-3 rounded-[28px] bg-white px-6 py-14 text-center shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)]">
-          <p className="text-[14px] font-medium text-ink-soft">A hírlevél funkció jelenleg ki van kapcsolva.</p>
-          <motion.div variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover">
-            <Link
-              href={settingsHref}
-              className="inline-flex h-11 items-center gap-2 rounded-full bg-ink-dark px-5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90"
-            >
-              Csomag bekapcsolása <ArrowRight className="h-4 w-4" />
-            </Link>
-          </motion.div>
-        </div>
-      )}
-
-      {enabled && (
-        <>
+      <>
           {/* ── MAPPA-FÜL kártya — nézet-váltó (Feliratkozók/Kampányok), jobbra az akció-gombok EGY
               vonalban; ALATTA külön sorban a szűrők (státusz/ország/kereső) — ezeket korábban
               magába a keskeny mappa-fül sávba zsúfoltuk, ami több szűrő hozzáadása után (státusz-
@@ -1303,7 +1280,6 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
             </div>
           </div>
         </>
-      )}
 
       <ConfirmDialog
         open={sendConfirmOpen}

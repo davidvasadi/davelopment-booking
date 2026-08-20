@@ -2,7 +2,7 @@ import { getOwnedSalon } from '@/lib/salonContext'
 import { requireCapability } from '@/lib/requireCapability'
 import { getPayloadClient } from '@/lib/payload'
 import { getPricing } from '@/lib/pricing'
-import { monthlyEmailCap } from '@/lib/newsletterLimits'
+import { monthlyEmailCapForTier } from '@/lib/tier'
 import { newsletterMonthStats, campaignOpenCounts } from '@/lib/marketingStats'
 import { NewsletterManager, type CampaignRow, type SubscriberRow } from '@/components/dashboard/NewsletterManager'
 import type { MarketingCampaign, Customer } from '@/payload/payload-types'
@@ -57,7 +57,6 @@ export default async function MarketingPage() {
     targetCustomerIds: (c.target_customer_ids as string[] | null) ?? null,
   }))
 
-  const currentPackage = salon.newsletter_settings?.package ?? 'none'
   const logoUrl = salon.logo && typeof salon.logo === 'object' ? salon.logo.url : null
 
   return (
@@ -67,12 +66,7 @@ export default async function MarketingPage() {
         businessId={String(salon.id)}
         businessName={salon.name}
         logoUrl={logoUrl}
-        currentPackage={currentPackage}
-        packages={{
-          ingyenes: { cap: monthlyEmailCap(pricing, 'ingyenes') },
-          alap: { huf: pricing.newsletter_alap_huf, cap: monthlyEmailCap(pricing, 'alap') },
-          premium: { huf: pricing.newsletter_premium_huf, cap: monthlyEmailCap(pricing, 'premium') },
-        }}
+        emailCap={monthlyEmailCapForTier(pricing, salon.tier)}
         subscriberCount={subscriberCount}
         initialSubscribers={subscribers}
         initialSubscribersHasMore={subscribersHasMore}

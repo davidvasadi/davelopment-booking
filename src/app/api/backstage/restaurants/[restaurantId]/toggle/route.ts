@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
+import { syncAccountSubscription } from '@/lib/accountSubscription'
 
-// Étterem aktív/inaktív váltás + admin-megjegyzés mentése (a salons/[salonId]/toggle mintájára).
+// Étterem aktív/inaktív váltás + admin-megjegyzés + csomag/egyedi-díj mentése (a
+// salons/[salonId]/toggle mintájára).
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ restaurantId: string }> }
@@ -17,6 +19,11 @@ export async function POST(
   const data: Record<string, unknown> = {}
   if (typeof body.is_active === 'boolean') data.is_active = body.is_active
   if (typeof body.admin_notes === 'string') data.admin_notes = body.admin_notes
+  if (body.tier === 'starter' || body.tier === 'pro' || body.tier === 'egyedi') data.tier = body.tier
+  if (body.custom_monthly_fee_huf === null) data.custom_monthly_fee_huf = null
+  else if (typeof body.custom_monthly_fee_huf === 'number' && Number.isFinite(body.custom_monthly_fee_huf) && body.custom_monthly_fee_huf >= 0) {
+    data.custom_monthly_fee_huf = Math.round(body.custom_monthly_fee_huf)
+  }
 
   const payload = await getPayloadClient()
   await payload.update({
@@ -26,6 +33,13 @@ export async function POST(
     overrideAccess: true,
     user,
   })
+
+  // A csomag/díj-váltás azonnal módosítja a fiók havidíját — szinkronizáljuk.
+  if ('tier' in data || 'custom_monthly_fee_huf' in data) {
+    const doc = await payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 0, overrideAccess: true })
+    const ownerId = doc.owner && typeof doc.owner === 'object' ? (doc.owner as { id: unknown }).id : doc.owner
+    if (ownerId != null) await syncAccountSubscription({ payload }, ownerId as string | number)
+  }
 
   return NextResponse.json({ ok: true })
 }

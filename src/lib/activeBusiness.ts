@@ -31,6 +31,8 @@ export interface Business {
   createdAt: string
   /** Az üzlet csomagja (Start/Pro), feloldva — a régi null tier Pro-ként jön. */
   tier: Tier
+  /** Egyedi csomag tényleges, megegyezés szerinti havidíja (Ft) — csak `tier === 'egyedi'`-nél számít. */
+  customMonthlyFeeHuf: number | null
   /** A bejelentkezett user szerepe EBBEN az üzletben: 'owner' (tulaj-mező) vagy a tagság szerepe. */
   role: TeamRole
   /** A megjelenített szerep-NÉV: 'Tulajdonos', vagy a tag egyedi szerepének neve (Felszolgáló…), különben 'Nincs szerep'. */
@@ -81,6 +83,7 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       logoUrl: logoUrlOf(s.logo),
       createdAt: s.createdAt,
       tier: resolveTier(s.tier),
+      customMonthlyFeeHuf: s.custom_monthly_fee_huf ?? null,
       role: 'owner' as const,
       roleName: 'Tulajdonos',
       capabilities: ALL_CAPABILITIES,
@@ -93,6 +96,7 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       logoUrl: logoUrlOf(r.logo),
       createdAt: r.createdAt,
       tier: resolveTier(r.tier),
+      customMonthlyFeeHuf: r.custom_monthly_fee_huf ?? null,
       role: 'owner' as const,
       roleName: 'Tulajdonos',
       capabilities: ALL_CAPABILITIES,
@@ -111,11 +115,11 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
     const memName = memRole === 'owner' ? 'Tulajdonos' : memCustomRole?.name ?? 'Nincs szerep'
     if (s && !seen.has(`salon:${s.id}`)) {
       seen.add(`salon:${s.id}`)
-      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: logoUrlOf(s.logo), createdAt: s.createdAt, tier: resolveTier(s.tier), role: memRole, roleName: memName, capabilities: memCaps })
+      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: logoUrlOf(s.logo), createdAt: s.createdAt, tier: resolveTier(s.tier), customMonthlyFeeHuf: s.custom_monthly_fee_huf ?? null, role: memRole, roleName: memName, capabilities: memCaps })
     }
     if (r && !seen.has(`restaurant:${r.id}`)) {
       seen.add(`restaurant:${r.id}`)
-      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: logoUrlOf(r.logo), createdAt: r.createdAt, tier: resolveTier(r.tier), role: memRole, roleName: memName, capabilities: memCaps })
+      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: logoUrlOf(r.logo), createdAt: r.createdAt, tier: resolveTier(r.tier), customMonthlyFeeHuf: r.custom_monthly_fee_huf ?? null, role: memRole, roleName: memName, capabilities: memCaps })
     }
   }
 

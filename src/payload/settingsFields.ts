@@ -1,12 +1,14 @@
 import type { Field } from 'payload'
 
 /**
- * Üzlet-csomag — PER ÜZLET. Két érték: `pro` (a normál, önkiszolgáló csomag — minden funkció
- * elérhető) és `egyedi` (testreszabott, kapcsolatfelvétellel egyeztetett deal). A fiók-díj az
- * üzletek díjából áll össze (lásd src/lib/accountSubscription.ts).
+ * Üzlet-csomag — PER ÜZLET. Három érték: `starter` (belépő szint, kisebb email-keret), `pro`
+ * (a normál, önkiszolgáló csomag — minden funkció elérhető, nincs funkció-zár) és `egyedi`
+ * (testreszabott, kapcsolatfelvétellel egyeztetett deal). A hírlevél-küldés BEÉPÍTVE jár minden
+ * csomaghoz (a keret a csomag szerint dől el, lásd `monthlyEmailCapForTier` a `src/lib/tier.ts`-
+ * ben). A fiók-díj az üzletek díjából áll össze (lásd src/lib/accountSubscription.ts).
  *
- * ⚠️ BIZTONSÁG: a tulaj NEM írhatja (field-szintű update = admin-only). Az `egyedi`-t admin
- * állítja (a megrendelővel egyeztetve). Grandfathering: a régi (null) csomag `pro`-ként olvasandó.
+ * ⚠️ BIZTONSÁG: a tulaj NEM írhatja (field-szintű update = admin-only). Grandfathering: a régi
+ * (null) csomag `pro`-ként olvasandó, tehát a meglévő ügyfelek NEM esnek vissza Starterre.
  */
 export const businessTierField: Field = {
   name: 'tier',
@@ -15,6 +17,7 @@ export const businessTierField: Field = {
   defaultValue: 'pro',
   label: 'Csomag',
   options: [
+    { label: 'Starter', value: 'starter' },
     { label: 'Pro (normál)', value: 'pro' },
     { label: 'Egyedi', value: 'egyedi' },
   ],
@@ -23,6 +26,27 @@ export const businessTierField: Field = {
   },
   admin: {
     description: 'Az üzlet csomagja. A normál a „Pro"; az „Egyedi" a testreszabott (admin állítja, a megrendelővel egyeztetve).',
+  },
+}
+
+/**
+ * Az „Egyedi" (Enterprise) csomag TÉNYLEGES, megegyezés szerinti havidíja — mivel az Egyedi
+ * csomagnak nincs fix listaára, ez a mező adja a valódi számlázási alapot, amíg `tier ===
+ * 'egyedi'`. `null` esetén (még nincs megegyezés) a díjszámítás a Pro-árra esik vissza
+ * (lásd `businessMonthlyFee` a `src/lib/tier.ts`-ben) — ez csak egy ideiglenes becslés-alap,
+ * NEM tényleges ajánlat. Admin-only, mint a `tier` mező.
+ */
+export const customMonthlyFeeField: Field = {
+  name: 'custom_monthly_fee_huf',
+  type: 'number',
+  min: 0,
+  label: 'Egyedi havidíj (Ft)',
+  access: {
+    update: ({ req }) => req.user?.role === 'admin',
+  },
+  admin: {
+    description: 'Csak Egyedi csomagnál számít: a megrendelővel egyeztetett tényleges havidíj. Üresen a Pro-ár a becslés-alap.',
+    condition: (data) => data?.tier === 'egyedi',
   },
 }
 
@@ -198,6 +222,19 @@ export const newsletterSettingsFields: Field[] = [
           { label: 'Alap', value: 'alap' },
           { label: 'Prémium', value: 'premium' },
         ],
+      },
+      {
+        // Belső "küldés folyamatban" zár — a `/api/marketing/send` route ATOMIKUSAN próbálja
+        // false→true-ra állítani (egyetlen SQL UPDATE...WHERE), mielőtt a havi email-plafont
+        // ellenőrizné. Ha a where nem talál (mert már true), a route elutasítja a kérést —
+        // ez zárja be a versenyhelyzetet, amikor ugyanaz az üzlet két kampányt indítana szinte
+        // egyszerre, és mindkettő a plafon alatti "már elküldve" számot látná ellenőrzéskor
+        // (enélkül összesen túlléphetnék a Resend-keretet). NEM admin-szerkeszthető mező.
+        name: 'sending',
+        type: 'checkbox',
+        defaultValue: false,
+        label: 'Kampány-küldés folyamatban (belső zár)',
+        admin: { hidden: true },
       },
     ],
   },

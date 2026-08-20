@@ -7,7 +7,8 @@ import { businessMonthlyFee, applyCycle, resolveCycle, type Tier, type BillingCy
 /**
  * Fiók-szintű számlázási áttekintés. Egy fiók = egy előfizetés; a fiók havidíja az üzletek
  * összetételéből áll. Ez a helper az üzlet-bontást adja a /subscription oldal listájához:
- * minden üzlet a saját TIERje (Start/Pro) szerinti egységárral (a globális `pricing-settings`-ből).
+ * minden üzlet a saját TIERje (Starter/Pro/Egyedi) szerinti egységárral (a globális
+ * `pricing-settings`-ből) — a hírlevél-küldési keret BEÉPÍTVE jár a tierbe, nincs külön tétel.
  *
  * - `feeHuf` (per üzlet) = LISTA havi ár (kedvezmény nélkül) — a bontás tételei.
  * - `listMonthlyHuf` = a lista-tételek összege.
@@ -20,11 +21,11 @@ export interface AccountBillingItem {
   id: string
   name: string
   slug: string
-  /** Az üzlet csomagja (Start/Pro). */
+  /** Az üzlet csomagja (Starter/Pro/Egyedi). */
   tier: Tier
   /** Aktív munkatársak/naptárak száma (csak szalonnál releváns; a per-fő díjhoz). */
   staffCount: number
-  /** Az üzlet havi LISTA-díja (étterem = fix; szalon = alap + per-fő), kedvezmény nélkül. */
+  /** Az üzlet havi LISTA-díja (a csomag alapdíja, a hírlevél-kerettel együtt), kedvezmény nélkül. */
   feeHuf: number
 }
 
@@ -68,7 +69,7 @@ export async function getAccountBilling(userId: string | number): Promise<Accoun
       slug: b.slug,
       tier: b.tier,
       staffCount,
-      feeHuf: businessMonthlyFee(pricing, b.type, staffCount),
+      feeHuf: businessMonthlyFee(pricing, b.type, staffCount, b.tier, b.customMonthlyFeeHuf),
     }
   })
 

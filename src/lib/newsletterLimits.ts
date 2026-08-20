@@ -1,16 +1,12 @@
-import type { Pricing } from './pricing'
-
-export type NewsletterPackage = 'none' | 'ingyenes' | 'alap' | 'premium'
-
-/** Havi kemény email-plafon a választott csomag szerint — admin-állítható, `pricing-settings`-ből. */
-export function monthlyEmailCap(pricing: Pricing, pkg: string | null | undefined): number {
-  if (pkg === 'ingyenes') return pricing.newsletter_ingyenes_email_cap
-  if (pkg === 'alap') return pricing.newsletter_alap_email_cap
-  if (pkg === 'premium') return pricing.newsletter_premium_email_cap
-  return 0
-}
-
-/** Van-e egyáltalán aktív hírlevél-csomag (bármelyik fizetős VAGY az ingyenes is számít). */
-export function hasActivePackage(pkg: string | null | undefined): boolean {
-  return pkg === 'ingyenes' || pkg === 'alap' || pkg === 'premium'
+/**
+ * A hírlevél-küldés MINDEN fizetős csomaghoz (Starter/Pro/Egyedi) BEÉPÍTVE jár — nincs többé
+ * önálló, kapcsolható hírlevél-csomag. A havi email-keret a csomag szerint dől el, lásd
+ * `monthlyEmailCapForTier` a `src/lib/tier.ts`-ben.
+ *
+ * `hasActivePackage` a régi (kikapcsolható) modellből maradt meg, mindig `true`-t ad vissza —
+ * a két publikus hívási hely (`RestaurantPublicView.tsx`, `[slug]/page.tsx`) így módosítás
+ * nélkül helyesen viselkedik (a hírlevél-feliratkozás mindig elérhető a publikus oldalon).
+ */
+export function hasActivePackage(_pkg: string | null | undefined): boolean {
+  return true
 }

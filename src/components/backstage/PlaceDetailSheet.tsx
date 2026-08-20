@@ -6,6 +6,7 @@ import { Building2, UtensilsCrossed, MapPin, Phone, Mail, Globe, Clock, External
 import {
   PLAN_LABELS, STATUS_LABELS, type PlaceKind,
 } from '@/lib/backstagePlaces'
+import TierEditor from './TierEditor'
 
 /* davelopment státusz-badge — token-alapú (ok/warn/bad), nem ad-hoc hex */
 const SUB_BADGE: Record<string, string> = {
@@ -49,10 +50,9 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
   const TypeIcon = isRestaurant ? UtensilsCrossed : Building2
   const apiBase = isRestaurant ? '/api/backstage/restaurants' : '/api/backstage/salons'
 
-  useEffect(() => {
-    if (!open || !place) return
-    setData(null)
-    setLoading(true)
+  function loadDetail(showSpinner: boolean) {
+    if (!place) return
+    if (showSpinner) { setData(null); setLoading(true) }
     fetch(`${apiBase}/${place.id}/detail`)
       .then(r => r.json())
       .then(d => {
@@ -60,6 +60,12 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
         setNotes(d.salon?.admin_notes ?? '')
       })
       .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    if (!open || !place) return
+    loadDetail(true)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, place, apiBase])
 
   async function saveNotes() {
@@ -187,6 +193,18 @@ export default function PlaceDetailSheet({ place, open, onOpenChange }: Props) {
                   )}
                 </div>
               ) : <p className="text-[14px] text-ink-soft">Nincs előfizetés</p>}
+            </div>
+
+            {/* Csomag (Starter/Pro/Egyedi) + Egyedi havidíj */}
+            <div className="rounded-[18px] border border-line bg-white p-4">
+              <p className="mb-3 text-[10px] font-semibold uppercase tracking-wider text-ink-soft">Csomag</p>
+              <TierEditor
+                kind={kind}
+                placeId={placeDoc.id}
+                initialTier={placeDoc.tier ?? 'pro'}
+                initialCustomFeeHuf={placeDoc.custom_monthly_fee_huf ?? null}
+                onSaved={() => loadDetail(false)}
+              />
             </div>
 
             {/* Contact */}

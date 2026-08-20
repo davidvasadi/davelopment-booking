@@ -1,7 +1,7 @@
 import type { Payload, PayloadRequest } from 'payload'
 import type { Subscription } from '@/payload/payload-types'
 import type { Pricing } from './pricing'
-import { businessMonthlyFee, applyCycle, resolveCycle, newsletterPackageFee } from './tier'
+import { businessMonthlyFee, applyCycle, resolveCycle, resolveTier } from './tier'
 import { getStripe, hufToStripeMinor } from './stripe'
 
 const MS_PER_DAY = 86_400_000
@@ -34,14 +34,14 @@ export interface AccountFee {
 async function readPricing(payload: Payload, req?: PayloadRequest): Promise<Pricing> {
   const g = (await payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true, req })) as Pricing
   return {
+    salon_starter_huf: g.salon_starter_huf,
     salon_pro_huf: g.salon_pro_huf,
     salon_extra_staff_huf: g.salon_extra_staff_huf,
+    restaurant_starter_huf: g.restaurant_starter_huf,
     restaurant_pro_huf: g.restaurant_pro_huf,
-    newsletter_alap_huf: g.newsletter_alap_huf,
-    newsletter_premium_huf: g.newsletter_premium_huf,
-    newsletter_ingyenes_email_cap: g.newsletter_ingyenes_email_cap,
-    newsletter_alap_email_cap: g.newsletter_alap_email_cap,
-    newsletter_premium_email_cap: g.newsletter_premium_email_cap,
+    starter_email_cap: g.starter_email_cap,
+    pro_email_cap: g.pro_email_cap,
+    egyedi_email_cap: g.egyedi_email_cap,
     annual_discount_pct: g.annual_discount_pct,
     trial_days: g.trial_days,
   }
@@ -86,22 +86,20 @@ export async function computeAccountFee({ payload, req }: Ctx, userId: string | 
     payload.find({ collection: 'restaurants', where: { owner: { equals: userId } }, limit: 200, depth: 0, overrideAccess: true, req }),
     readPricing(payload, req),
   ])
-  const salonDocs = salons.docs as Array<{ id: string | number; newsletter_settings?: { package?: string | null } | null }>
-  const restaurantDocs = restaurants.docs as Array<{ newsletter_settings?: { package?: string | null } | null }>
+  const salonDocs = salons.docs as Array<{ id: string | number; tier?: string | null; custom_monthly_fee_huf?: number | null }>
+  const restaurantDocs = restaurants.docs as Array<{ tier?: string | null; custom_monthly_fee_huf?: number | null }>
   const salonCount = salons.totalDocs
   const restaurantCount = restaurants.totalDocs
 
-  // Szalon per-fő: aktív munkatársak száma szalononként → díj = alap + (fő − benne foglalt) × extra.
+  // Szalon per-fő: aktív munkatársak száma szalononként → díj = alap (csomag szerint) +
+  // (fő − benne foglalt) × extra. A hírlevél-keret BEÉPÍTVE jár a csomagba, nincs külön felár.
+  // Egyedi csomagnál a `custom_monthly_fee_huf` (ha be van állítva) felülírja a teljes díjat.
   const staffBySalon = await countActiveStaffBySalon(payload, salonDocs.map((s) => s.id), req)
   const salonSum = salonDocs.reduce(
-    (sum, s) => sum + businessMonthlyFee(pricing, 'salon', staffBySalon.get(String(s.id)) ?? 0), 0)
-  const restaurantSum = restaurantCount * businessMonthlyFee(pricing, 'restaurant')
-  // Hírlevél-kiegészítő: üzletenkénti, választott csomag szerinti felár — a MEGLÉVŐ fiók-díj
-  // additív mintáját követve (mint a szalon extra-munkatárs felár), nincs külön Stripe-tétel.
-  const newsletterSum =
-    salonDocs.reduce((sum, s) => sum + newsletterPackageFee(pricing, s.newsletter_settings?.package), 0) +
-    restaurantDocs.reduce((sum, r) => sum + newsletterPackageFee(pricing, r.newsletter_settings?.package), 0)
-  const amountHuf = salonSum + restaurantSum + newsletterSum
+    (sum, s) => sum + businessMonthlyFee(pricing, 'salon', staffBySalon.get(String(s.id)) ?? 0, resolveTier(s.tier), s.custom_monthly_fee_huf), 0)
+  const restaurantSum = restaurantDocs.reduce(
+    (sum, r) => sum + businessMonthlyFee(pricing, 'restaurant', 0, resolveTier(r.tier), r.custom_monthly_fee_huf), 0)
+  const amountHuf = salonSum + restaurantSum
 
   const parts: string[] = []
   if (restaurantCount) parts.push(`${restaurantCount} étterem`)
@@ -125,8 +123,40 @@ export async function findAccountSubscription({ payload, req }: Ctx, userId: str
 }
 
 /**
+ * Már használt-e ez az email valaha ingyenes próbaidőt — a `trial-ledger` FÜGGETLEN a
+ * `Users`/`Subscriptions` törlésétől (lásd a collection dokumentációját), tehát törölt-majd-
+ * újraregisztrált fiókoknál is helyesen "igen"-t ad.
+ */
+async function hasUsedTrialBefore(payload: Payload, email: string): Promise<boolean> {
+  const res = await payload.find({
+    collection: 'trial-ledger',
+    where: { email: { equals: email.trim().toLowerCase() } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  return res.totalDocs > 0
+}
+
+/** Az email felvétele a próbaidő-nyilvántartásba — csak ÚJ trial indításakor hívjuk, egyszer. */
+async function recordTrialEmail(payload: Payload, email: string): Promise<void> {
+  await payload.create({
+    collection: 'trial-ledger',
+    overrideAccess: true,
+    data: { email: email.trim().toLowerCase(), first_seen_at: new Date().toISOString() },
+    // Ha valamiért versenyhelyzetben duplán próbálná felvenni (egyedi index ütközés), nem
+    // fatális — a lényeg, hogy a sor létezzen utána, nem hogy ez a hívás dobjon-e hibát.
+  }).catch(() => null)
+}
+
+/**
  * A user fiók-előfizetését adja vissza; ha még nincs, létrehozza próbaidővel. A díjat és a
  * count-okat az aktuális üzletek alapján állítja be.
+ *
+ * Csalás-védelem: ha az email már szerepel a `trial-ledger`-ben (korábban már kapott
+ * próbaidőt — akár egy azóta törölt fiókon), NEM kap új próbaidőt: a subscription rögtön
+ * `past_due` státusszal, lejárt `trial_ends_at`-tal jön létre, tehát azonnal a fizetési zárral
+ * találkozik. Ha nem szerepel, normál trial indul, és az email felkerül a listára.
  */
 export async function getOrCreateAccountSubscription({ payload, req }: Ctx, userId: string | number): Promise<Subscription> {
   const existing = await findAccountSubscription({ payload, req }, userId)
@@ -134,8 +164,14 @@ export async function getOrCreateAccountSubscription({ payload, req }: Ctx, user
 
   const fee = await computeAccountFee({ payload, req }, userId)
   const pricing = await readPricing(payload, req)
-  const trialEnd = new Date()
-  trialEnd.setDate(trialEnd.getDate() + pricing.trial_days)
+
+  const user = await payload.findByID({ collection: 'users', id: userId, depth: 0, overrideAccess: true, req }).catch(() => null) as { email?: string } | null
+  const email = user?.email
+  const repeatTrial = email ? await hasUsedTrialBefore(payload, email) : false
+
+  const now = new Date()
+  const trialEnd = repeatTrial ? now : new Date(now.getTime() + pricing.trial_days * 86_400_000)
+  if (!repeatTrial && email) await recordTrialEmail(payload, email)
 
   // Az owner reláció a DB-ben int FK — numerikus stringet számmá alakítunk, hogy a Payload
   // reláció-validáció megtalálja a usert (különben „Tulajdonos érvénytelen").
@@ -148,7 +184,7 @@ export async function getOrCreateAccountSubscription({ payload, req }: Ctx, user
     data: {
       owner: ownerVal,
       plan: 'trial',
-      status: 'trialing',
+      status: repeatTrial ? 'past_due' : 'trialing',
       trial_ends_at: trialEnd.toISOString(),
       salon_count: fee.salonCount,
       restaurant_count: fee.restaurantCount,

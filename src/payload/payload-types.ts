@@ -32,6 +32,7 @@ export interface Config {
     'audit-log': AuditLogEntry
     'email-log': EmailLogEntry
     tasks: Task
+    'trial-ledger': TrialLedgerEntry
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
@@ -42,16 +43,19 @@ export interface Config {
 
 export interface PricingSetting {
   id: string
-  /** Szalon alapdíj (a normál csomag; + per-fő). Slug maradt `salon_pro_huf`. */
+  /** Szalon — Starter havidíj. */
+  salon_starter_huf: number
+  /** Szalon alapdíj (a Pro csomag; + per-fő). Slug maradt `salon_pro_huf`. */
   salon_pro_huf: number
   salon_extra_staff_huf: number
-  /** Étterem fix havidíj (a normál csomag). Slug maradt `restaurant_pro_huf`. */
+  /** Étterem — Starter fix havidíj. */
+  restaurant_starter_huf: number
+  /** Étterem fix havidíj (a Pro csomag). Slug maradt `restaurant_pro_huf`. */
   restaurant_pro_huf: number
-  newsletter_ingyenes_email_cap: number
-  newsletter_alap_huf: number
-  newsletter_alap_email_cap: number
-  newsletter_premium_huf: number
-  newsletter_premium_email_cap: number
+  /** Csomagonként beépítve járó havi hírlevél-küldési keret — nincs önálló hírlevél-fizetés. */
+  starter_email_cap: number
+  pro_email_cap: number
+  egyedi_email_cap: number
   annual_discount_pct: number
   trial_days: number
   updatedAt?: string | null
@@ -107,8 +111,10 @@ export interface Restaurant {
   booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
-  /** Üzlet-csomag (pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
-  tier?: ('pro' | 'egyedi') | null
+  /** Üzlet-csomag (starter / pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
+  tier?: ('starter' | 'pro' | 'egyedi') | null
+  /** Egyedi csomag tényleges havidíja (Ft) — csak `tier === 'egyedi'`-nél számít. */
+  custom_monthly_fee_huf?: number | null
   notification_prefs?: {
     confirm_email?: boolean | null
     reminder_email?: boolean | null
@@ -155,6 +161,8 @@ export interface Restaurant {
   } | null
   newsletter_settings?: {
     package?: ('none' | 'ingyenes' | 'alap' | 'premium') | null
+    /** Belső "küldés folyamatban" zár — nem admin-szerkeszthető. */
+    sending?: boolean | null
   } | null
   consent_settings?: {
     enabled?: boolean | null
@@ -466,6 +474,14 @@ export interface Role {
   createdAt: string
   updatedAt: string
 }
+/** Örökre megmaradó email-lista arról, ki használt már ingyenes próbaidőt (a fiók-törléstől független). */
+export interface TrialLedgerEntry {
+  id: string
+  email: string
+  first_seen_at: string
+  createdAt: string
+  updatedAt: string
+}
 export interface PushSubscription {
   id: string
   user: string | User
@@ -673,8 +689,10 @@ export interface Salon {
   booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
-  /** Üzlet-csomag (pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
-  tier?: ('pro' | 'egyedi') | null
+  /** Üzlet-csomag (starter / pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
+  tier?: ('starter' | 'pro' | 'egyedi') | null
+  /** Egyedi csomag tényleges havidíja (Ft) — csak `tier === 'egyedi'`-nél számít. */
+  custom_monthly_fee_huf?: number | null
   notification_prefs?: {
     confirm_email?: boolean | null
     reminder_email?: boolean | null
@@ -721,6 +739,8 @@ export interface Salon {
   } | null
   newsletter_settings?: {
     package?: ('none' | 'ingyenes' | 'alap' | 'premium') | null
+    /** Belső "küldés folyamatban" zár — nem admin-szerkeszthető. */
+    sending?: boolean | null
   } | null
   consent_settings?: {
     enabled?: boolean | null

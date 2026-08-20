@@ -7,7 +7,7 @@ import { getStripe } from '@/lib/stripe'
 
 /**
  * POST /api/subscription/select
- *   body: { type: 'salon'|'restaurant', id: string, tier: 'pro'|'egyedi', cycle: 'monthly'|'annual' }
+ *   body: { type: 'salon'|'restaurant', id: string, tier: 'starter'|'pro'|'egyedi', cycle: 'monthly'|'annual' }
  *
  * SZÁNDÉKOS csomag-választás: egy BIRTOKOLT üzlet tierjét ÉS a fiók számlázási ciklusát EGYSZERRE
  * állítja (a havi/éves toggle csak előnézet a kliensen — a tényleges átállás csak itt, kiválasztáskor
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
 
   const body = (await req.json().catch(() => ({}))) as { type?: string; id?: string; tier?: string; cycle?: string }
   const collection = body.type === 'salon' ? 'salons' : body.type === 'restaurant' ? 'restaurants' : null
-  const tier = body.tier === 'egyedi' ? 'egyedi' : body.tier === 'pro' ? 'pro' : null
+  const tier = body.tier === 'egyedi' ? 'egyedi' : body.tier === 'pro' ? 'pro' : body.tier === 'starter' ? 'starter' : null
   const cycle = body.cycle === 'annual' ? 'annual' : body.cycle === 'monthly' ? 'monthly' : null
   if (!collection || !tier || !body.id) {
     return NextResponse.json({ error: 'Érvénytelen kérés' }, { status: 400 })

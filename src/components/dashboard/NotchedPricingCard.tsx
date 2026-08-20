@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { Check, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -21,7 +21,11 @@ const HATCH = 'repeating-linear-gradient(45deg, #F1CE45 0, #F1CE45 7px, #E6C238 
 function useElementSize<T extends HTMLElement>() {
   const ref = useRef<T>(null)
   const [size, setSize] = useState({ width: 0, height: 0 })
-  useEffect(() => {
+  // `useLayoutEffect` (NEM `useEffect`) — az első mérés így a böngésző festése ELŐTT, szinkron
+  // fut le, tehát a kártya sosem jelenik meg átmenetileg bemarás nélkül (0 szélességgel), majd
+  // "beugorva" a helyes clip-path-ra. Enélkül ez a kezdeti villanás úgy nézett ki, mintha maga a
+  // bemarás szélessége animálódna, holott csak a késleltetett méréstől "ugrott" egyet.
+  useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     // offsetWidth/Height (NEM getBoundingClientRect) — a clip-path a border-boxra vonatkozik,
@@ -59,9 +63,14 @@ function notchedCardPath(w: number, h: number, r: number, notch: { width: number
 const CARD_RADIUS = 30
 const NOTCH_DEPTH = 50
 const NOTCH_RADIUS = CARD_RADIUS
-// A jelvény körüli belső margó a recesz-kivágásban — a recesz szélessége EBBŐL + a ténylegesen
-// mért jelvény-szélességből adódik (nem fix szám).
+// A jelvény körüli belső margó a recesz-kivágásban.
 const NOTCH_PAD_X = 20
+// FIX recesz-szélesség (NEM a ténylegesen mért jelvény-szélességből számolva) — elég széles a
+// leghosszabb valós jelvényhez ("Legjobb deal" + pötty). Korábban ResizeObserver mérte a jelvény
+// szövegét, de ez a webfont betöltése UTÁN újramért (a kezdeti méret a fallback betűtípussal
+// készült), ami úgy nézett ki, mintha maga a bemarás szélessége animálódna — a fix szélesség ezt
+// teljesen kizárja, a jelvény mindig ugyanabban a recesz-méretben, jobbra igazítva jelenik meg.
+const NOTCH_WIDTH = 90
 
 export function NotchedPricingCard({ featured, badgeLabel, dotColor = '#A8A496', title, priceStrike, priceMain, priceUnit, sub, extra, feats, cta }: {
   featured: boolean
@@ -83,12 +92,11 @@ export function NotchedPricingCard({ featured, badgeLabel, dotColor = '#A8A496',
   cta: React.ReactNode
 }) {
   const [innerRef, size] = useElementSize<HTMLDivElement>()
-  const [badgeRef, badgeSize] = useElementSize<HTMLSpanElement>()
-  // A recesz MINDIG ott van, minden kártyán (egységes sziluett) — csak a szélessége igazodik a
-  // tényleges jelvényhez, jelvény nélkül egy szerényebb alap-méretet kap. Reszponzív védelem:
-  // a recesz SOSE lehet szélesebb, mint a kártya saját mért szélességének ~62%-a — keskeny
-  // elrendezésnél a jelvény szövege inkább kisebb betűvel fér el, nem törheti szét a geometriát.
-  const rawNotchWidth = badgeLabel ? Math.max(badgeSize.width + NOTCH_PAD_X * 2, 80) : 90
+  // A recesz MINDIG ott van, minden kártyán (egységes sziluett), FIX szélességgel — lásd
+  // `NOTCH_WIDTH` fenti megjegyzését. Reszponzív védelem: a recesz SOSE lehet szélesebb, mint a
+  // kártya saját mért szélességének ~62%-a — keskeny elrendezésnél a jelvény szövege inkább
+  // kisebb betűvel fér el, nem törheti szét a geometriát.
+  const rawNotchWidth = badgeLabel ? NOTCH_WIDTH : 90
   const notchWidth = size.width > 0 ? Math.min(rawNotchWidth, size.width * 0.62) : rawNotchWidth
   const clipPath = notchedCardPath(size.width, size.height, CARD_RADIUS, { width: notchWidth, depth: NOTCH_DEPTH, radius: NOTCH_RADIUS })
 
@@ -120,9 +128,8 @@ export function NotchedPricingCard({ featured, badgeLabel, dotColor = '#A8A496',
     <div className="relative flex h-full flex-col">
       {badgeLabel && (
         <span
-          ref={badgeRef}
           className={cn('absolute z-10 flex items-center gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-semibold sm:text-[12.5px]', featured ? 'text-ink-dark' : 'text-ink')}
-          style={{ right: NOTCH_PAD_X, top: NOTCH_DEPTH / 2 - badgeSize.height / 2, maxWidth: notchWidth - NOTCH_PAD_X * 1.5 }}
+          style={{ right: NOTCH_PAD_X, top: NOTCH_DEPTH / 2, transform: 'translateY(-50%)', maxWidth: notchWidth - NOTCH_PAD_X * 1.5 }}
         >
           {badgeLabel}
           <span className="h-[6px] w-[6px] shrink-0 rounded-full" style={{ background: dotColor }} />
