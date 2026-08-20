@@ -3,8 +3,8 @@
 import { useState, useEffect, type ReactNode } from 'react'
 import { toast } from 'sonner'
 import {
-  Upload, Link2, Webhook, MapPin, Share2, Calendar, Code2, BarChart3,
-  ChevronDown, ChevronRight, Check, Copy, Loader2, ExternalLink,
+  Upload, Link2, Webhook, MapPin, Share2, Calendar, Code2, BarChart3, KeyRound,
+  ChevronDown, ChevronRight, Check, Copy, ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { ImportPanel } from './ImportPanel'
@@ -22,6 +22,11 @@ interface Props {
   webhookUrl?: string | null
   ga4Id?: string | null
   facebookPixelId?: string | null
+  /** A Webhook + Marketing-követés kártyák összevont mentetlen-állapota — a hub közös lebegő
+   *  sávjának. (A többi kártya nem tartalmaz szerkeszthető, mentendő mezőt.) */
+  onDirtyChange?: (dirty: boolean) => void
+  /** A hub ezen regisztrálja a mentés/elvetés műveletet. */
+  registerApi?: (api: { save: () => Promise<boolean>; discard: () => void }) => void
 }
 
 // ── iCal CTA — platform-érzékeny ──────────────────────────────────────────
@@ -197,30 +202,9 @@ function IntegCard({
   )
 }
 
-// ── Webhook save ───────────────────────────────────────────────────────────
+// ── Webhook config — kontrollált (a mentés a hub közös lebegő sávjából) ────
 
-function WebhookConfig({ apiBase, initialUrl }: { apiBase: string; initialUrl: string }) {
-  const [url, setUrl] = useState(initialUrl)
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      const res = await fetch(apiBase, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ webhook_url: url.trim() || null }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Webhook URL mentve')
-    } catch {
-      toast.error('Nem sikerült menteni')
-    } finally {
-      setSaving(false)
-    }
-  }
-
+function WebhookConfig({ url, onChange }: { url: string; onChange: (url: string) => void }) {
   return (
     <div className="space-y-3">
       <div>
@@ -228,65 +212,30 @@ function WebhookConfig({ apiBase, initialUrl }: { apiBase: string; initialUrl: s
         <p className="text-[12.5px] text-ink-soft mb-3">
           Hozz létre egy Zap-et a Zapier-en „Catch Hook" triggerrel, másold be az ott generált URL-t, és mentsd el. Minden új foglalásnál automatikusan POST-ot küldünk erre a végpontra.
         </p>
-        <div className="flex gap-2">
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://hooks.zapier.com/hooks/catch/..."
-            className="flex-1 rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mentés'}
-          </button>
-        </div>
+        <input
+          value={url}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://hooks.zapier.com/hooks/catch/..."
+          className="w-full rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+        />
       </div>
     </div>
   )
 }
 
-// ── Marketing-követés save ─────────────────────────────────────────────────
+// ── Marketing-követés — kontrollált (a mentés a hub közös lebegő sávjából) ─
 
 function MarketingTrackingConfig({
-  apiBase,
-  initialGa4Id,
-  initialPixelId,
+  ga4Id,
+  pixelId,
+  onGa4Change,
+  onPixelChange,
 }: {
-  apiBase: string
-  initialGa4Id: string
-  initialPixelId: string
+  ga4Id: string
+  pixelId: string
+  onGa4Change: (v: string) => void
+  onPixelChange: (v: string) => void
 }) {
-  const [ga4Id, setGa4Id] = useState(initialGa4Id)
-  const [pixelId, setPixelId] = useState(initialPixelId)
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      const res = await fetch(apiBase, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          marketing_tracking: {
-            ga4_measurement_id: ga4Id.trim() || null,
-            facebook_pixel_id: pixelId.trim() || null,
-          },
-        }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Marketing-követés mentve')
-    } catch {
-      toast.error('Nem sikerült menteni')
-    } finally {
-      setSaving(false)
-    }
-  }
-
   return (
     <div className="space-y-4">
       <p className="text-[12.5px] text-ink-soft">
@@ -296,7 +245,7 @@ function MarketingTrackingConfig({
         <p className="text-[13px] font-medium text-ink mb-1.5">Google Analytics 4 mérési azonosító</p>
         <input
           value={ga4Id}
-          onChange={(e) => setGa4Id(e.target.value)}
+          onChange={(e) => onGa4Change(e.target.value)}
           placeholder="G-XXXXXXXXXX"
           className="w-full rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
         />
@@ -305,28 +254,59 @@ function MarketingTrackingConfig({
         <p className="text-[13px] font-medium text-ink mb-1.5">Facebook (Meta) Pixel ID</p>
         <input
           value={pixelId}
-          onChange={(e) => setPixelId(e.target.value)}
+          onChange={(e) => onPixelChange(e.target.value)}
           placeholder="123456789012345"
           className="w-full rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
         />
       </div>
-      <button
-        type="button"
-        onClick={save}
-        disabled={saving}
-        className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-60"
-      >
-        {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-        Mentés
-      </button>
     </div>
   )
 }
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embedSmartSnippet, apiBase, webhookUrl, ga4Id, facebookPixelId }: Props) {
+export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embedSmartSnippet, apiBase, webhookUrl, ga4Id, facebookPixelId, onDirtyChange, registerApi }: Props) {
   const embedSnippet = `<iframe src="${embedUrl}" width="100%" height="700" style="border:0"></iframe>`
+
+  const [webhook, setWebhook] = useState(webhookUrl ?? '')
+  const [ga4, setGa4] = useState(ga4Id ?? '')
+  const [pixel, setPixel] = useState(facebookPixelId ?? '')
+
+  const dirty = webhook !== (webhookUrl ?? '') || ga4 !== (ga4Id ?? '') || pixel !== (facebookPixelId ?? '')
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    registerApi?.({
+      save: async () => {
+        try {
+          const res = await fetch(apiBase, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              webhook_url: webhook.trim() || null,
+              marketing_tracking: {
+                ga4_measurement_id: ga4.trim() || null,
+                facebook_pixel_id: pixel.trim() || null,
+              },
+            }),
+          })
+          if (!res.ok) throw new Error()
+          return true
+        } catch {
+          toast.error('Nem sikerült menteni')
+          return false
+        }
+      },
+      discard: () => {
+        setWebhook(webhookUrl ?? '')
+        setGa4(ga4Id ?? '')
+        setPixel(facebookPixelId ?? '')
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webhook, ga4, pixel, webhookUrl, ga4Id, facebookPixelId])
+
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-ink-soft">
@@ -498,7 +478,7 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embe
         status="setup"
       >
         <div className="space-y-4">
-          <WebhookConfig apiBase={apiBase} initialUrl={webhookUrl ?? ''} />
+          <WebhookConfig url={webhook} onChange={setWebhook} />
 
           <div className="space-y-3">
             <p className="text-[13px] font-semibold text-ink">Beállítás lépései (Zapier)</p>
@@ -537,7 +517,7 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embe
         description="Mérd a saját Google/Facebook hirdetéseid megtérülését — Google Analytics 4 és Facebook Pixel"
         status={ga4Id || facebookPixelId ? 'active' : 'setup'}
       >
-        <MarketingTrackingConfig apiBase={apiBase} initialGa4Id={ga4Id ?? ''} initialPixelId={facebookPixelId ?? ''} />
+        <MarketingTrackingConfig ga4Id={ga4} pixelId={pixel} onGa4Change={setGa4} onPixelChange={setPixel} />
       </IntegCard>
 
       {/* ── Weboldalba/Facebook oldalba ágyazás ── */}
@@ -571,6 +551,14 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embe
         icon={Calendar}
         title="Google Calendar kétirányú szinkron"
         description="Foglalások ↔ Google Naptár valós idejű szinkronizálása — elfoglaltságok automatikus blokkolása"
+        status="soon"
+      />
+
+      {/* ── Saját API & webhookok — ŐSZINTE „Hamarosan" üres állapot (nincs hamis kulcs/webhook). ── */}
+      <IntegCard
+        icon={KeyRound}
+        title="API & webhookok"
+        description="Nyilvános REST API-kulcsok és esemény-webhookok saját alkalmazásfejlesztéshez"
         status="soon"
       />
     </div>

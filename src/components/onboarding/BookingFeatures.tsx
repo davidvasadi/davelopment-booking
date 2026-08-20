@@ -1,7 +1,6 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, Star, Check, ChevronDown, ExternalLink, type LucideIcon } from 'lucide-react'
@@ -11,9 +10,10 @@ import { Bell, Star, Check, ChevronDown, ExternalLink, type LucideIcon } from 'l
  * `docs/design_handoff_davelopment/Schedulio Csomag.dc.html` „Foglalási funkciók"
  * képernyője szerint). Ez váltja fel a Tippek oldal tartalmát.
  *
- * A modul-állapotok a VALÓS `feature_modules` group-mezőbe mentődnek AUTO-SAVE módon:
- * minden toggle-váltás azonnal PATCH-eli az endpointot (`apiBase`), finom „Mentve ✓"
- * visszajelzéssel — nincs külön mentés-gomb.
+ * A modul-állapotok a VALÓS `feature_modules` group-mezőbe mentődnek — a Beállítások közös
+ * lebegő mentés-sávján keresztül (`onDirtyChange`/`registerApi`, ugyanaz a szerződés, mint a
+ * profil-form `SettingsFormApi`-ja): a kapcsolók csak a helyi állapotot váltják, a tényleges
+ * PATCH a sáv „Mentés" gombjára történik.
  */
 
 type Variant = 'restaurant' | 'salon'
@@ -151,7 +151,14 @@ function featsFrom(fm: FeatureModules): Feats {
   }
 }
 
-function featsToModules(f: Feats): FeatureModules {
+/**
+ * A `waitlist_on`/`waitlist_auto_promote`/`recurring_on` mezőknek NINCS UI-ja ezen a panelen
+ * (a `Feats` típus nem is tartja őket) — ezért ITT sose szabad kitalált értéket küldeni rájuk,
+ * mindig a szerverről érkezett `initial`-ból megőrzött, ÉRINTETLEN értéket írjuk vissza. Enélkül
+ * minden emlékeztető/értékelés-kapcsoló mentés csendben lenullázná a várólista/ismétlődés
+ * beállítást, bármi is volt korábban elmentve.
+ */
+function featsToModules(f: Feats, preserve: Pick<FeatureModules, 'waitlist_on' | 'waitlist_auto_promote' | 'recurring_on'>): FeatureModules {
   return {
     reminders_on: f.reminders.on,
     reminder_ch_email: f.reminders.channels.email,
@@ -159,9 +166,9 @@ function featsToModules(f: Feats): FeatureModules {
     reminder_t_24h: f.reminders.times.h24,
     reminder_t_3h: f.reminders.times.h3,
     reminder_t_1h: f.reminders.times.h1,
-    waitlist_on: false,
-    waitlist_auto_promote: false,
-    recurring_on: false,
+    waitlist_on: preserve.waitlist_on,
+    waitlist_auto_promote: preserve.waitlist_auto_promote,
+    recurring_on: preserve.recurring_on,
     reviews_on: f.reviews.on,
     google_review_url: f.reviews.googleUrl.trim() || null,
     review_delay_hours: f.reviews.delay === 'h1' ? 1 : f.reviews.delay === 'next' ? 24 : 2,
@@ -173,6 +180,8 @@ export function BookingFeatures({
   apiBase,
   initial,
   embedded = false,
+  onDirtyChange,
+  registerApi,
 }: {
   variant: Variant
   /** VALÓS mentés végpont: `/api/salons/${id}` vagy `/api/restaurants/${id}`. */
@@ -180,17 +189,21 @@ export function BookingFeatures({
   /** `feature_modules` kezdőérték; ha nincs, alapértelmezett (mentés csak apiBase-szel). */
   initial?: FeatureModules
   /** Beágyazott mód (Beállítások-panel): nincs saját nagy fejléc + külső padding —
-   *  a szekció-cím a HUB-ból jön, csak a modul-kártyák + egy finom „Mentve ✓" látszik. */
+   *  a szekció-cím a HUB-ból jön. */
   embedded?: boolean
+  /** A panel felfelé jelenti a mentetlen-állapotát a hub közös lebegő sávjának. */
+  onDirtyChange?: (dirty: boolean) => void
+  /** A hub ezen regisztrálja a mentés/elvetés műveletet (a közös sáv ezt hívja). */
+  registerApi?: (api: { save: () => Promise<boolean>; discard: () => void }) => void
 }) {
-  const router = useRouter()
-  const [feats, setFeats] = useState<Feats>(
-    initial ? featsFrom(initial) : {
+  const baseline = useMemo<Feats>(
+    () => (initial ? featsFrom(initial) : {
       reminders: { on: true, times: { h24: true, h3: true, h1: false }, channels: { email: true, push: false } },
       reviews: { on: false, delay: 'h2', googleUrl: '' },
-    },
+    }),
+    [initial],
   )
-  const [saved, setSaved] = useState(false)
+  const [feats, setFeats] = useState<Feats>(baseline)
   // A Google-link szöveges mező draftja — csak blur-kor (nem minden leütésre) mentünk.
   const [googleUrlDraft, setGoogleUrlDraft] = useState(feats.reviews.googleUrl)
   const [googleHelpOpen, setGoogleHelpOpen] = useState(false)
@@ -200,28 +213,46 @@ export function BookingFeatures({
   // után a címsorból másolnak) — ezek mind az adott üzlethez viszik a vendéget.
   const looksLikeGoogleReview = /(g\.page\/r\/|\/local\/writereview|maps\.app\.goo\.gl|goo\.gl\/maps|google\.[a-z.]+\/(search|maps)|g\.co\/)/i.test(googleUrlDraft.trim())
 
-  // AUTO-SAVE: minden toggle-váltás után PATCH-eli a `feature_modules` groupot.
-  const update = (mutator: (f: Feats) => Feats) => {
-    setFeats((prev) => {
-      const next = mutator(prev)
-      if (apiBase) {
-        void fetch(apiBase, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ feature_modules: featsToModules(next) }),
-        })
-          .then((res) => {
-            if (!res.ok) throw new Error()
-            setSaved(true)
-            setTimeout(() => setSaved(false), 1600)
-            router.refresh()
+  const dirty = JSON.stringify(feats) !== JSON.stringify(baseline)
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const update = (mutator: (f: Feats) => Feats) => setFeats(mutator)
+
+  // A save/discard mindig a LEGFRISSEBB `feats`-et lássa a registerApi egyszeri regisztrációja
+  // után is (a hub csak mountkor hívja registerApi-t) — ezért ref-en át olvassuk.
+  const featsRef = useRef(feats)
+  featsRef.current = feats
+  useEffect(() => {
+    registerApi?.({
+      save: async () => {
+        if (!apiBase) return false
+        try {
+          const res = await fetch(apiBase, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              feature_modules: featsToModules(featsRef.current, {
+                waitlist_on: initial?.waitlist_on ?? false,
+                waitlist_auto_promote: initial?.waitlist_auto_promote ?? false,
+                recurring_on: initial?.recurring_on ?? false,
+              }),
+            }),
           })
-          .catch(() => toast.error('Hiba történt'))
-      }
-      return next
+          if (!res.ok) throw new Error()
+          return true
+        } catch {
+          toast.error('Hiba történt')
+          return false
+        }
+      },
+      discard: () => {
+        setFeats(baseline)
+        setGoogleUrlDraft(baseline.reviews.googleUrl)
+      },
     })
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [baseline])
 
   const isSalon = variant === 'salon'
   const visitWord = isSalon ? 'kezelés' : 'látogatás'
@@ -240,37 +271,7 @@ export function BookingFeatures({
                 Emlékeztetők, várólista, értékelések és több — kapcsolható modulok.
               </p>
             </div>
-            <AnimatePresence>
-              {saved && (
-                <motion.span
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0 }}
-                  className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-[#2E9E63]"
-                >
-                  <Check className="h-4 w-4" strokeWidth={2.2} /> Mentve
-                </motion.span>
-              )}
-            </AnimatePresence>
           </div>
-        </div>
-      )}
-
-      {/* Beágyazott módban finom mentés-visszajelzés a kártyák felett. */}
-      {embedded && (
-        <div className="flex h-5 items-center justify-end">
-          <AnimatePresence>
-            {saved && (
-              <motion.span
-                initial={{ opacity: 0, y: -4 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2E9E63]"
-              >
-                <Check className="h-4 w-4" strokeWidth={2.2} /> Mentve
-              </motion.span>
-            )}
-          </AnimatePresence>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { toast } from 'sonner'
@@ -13,10 +13,12 @@ import { monthlyEmailCap } from '@/lib/newsletterLimits'
 import type { Pricing } from '@/lib/pricing'
 
 /**
- * "Fizetések" panel — vendég-előleg (Stripe Connect Express) + számlázás (Számlázz.hu/Billingo)
- * beállítása. Önálló, beágyazott (embedded) komponens, mint az `IntegrationsPanel`/
- * `BookingFeatures` — a saját PATCH-jét maga intézi az `apiBase`-re, nem a SettingsHub közös
- * lebegő mentés-sávján keresztül.
+ * "Fizetések" panel — vendég-előleg (Stripe Connect Express), ajándékutalvány, beleegyező
+ * nyilatkozat és számlázás (Számlázz.hu/Billingo) beállítása. A Deposit/Voucher/Consent/
+ * Invoicing kártyák a helyi állapotukat a hub közös lebegő mentés-sávjának jelentik
+ * (`onDirtyChange`/`registerApi`) — nincs saját, mindig látható "Mentés" gombjuk. A Stripe és
+ * Hírlevél kártya kivétel: ott a gombok AZONNALI akciók (fiók-összekapcsolás / csomagváltás),
+ * nem "szerkesztés majd mentés", ezért változatlanul saját maguk intézik a hívást.
  */
 
 type DepositType = 'fixed' | 'percent' | 'per_pax'
@@ -66,6 +68,15 @@ interface Props {
   businessId: string
   /** A hírlevél funkció jelenlegi csomagja. */
   newsletterPackage: NewsletterPackage
+  /** Mely kártyák renderelődjenek — a Beállítások-oldal több fülre is beágyazza ugyanezt a
+   *  komponenst (Fizetés / API & Integrációk / Dokumentumok & jogi), mindegyik csak a rá
+   *  tartozó kártyákat mutatja. Alapértelmezetten mind a hat. */
+  sections?: Array<'stripe' | 'deposit' | 'voucher' | 'consent' | 'newsletter' | 'invoicing'>
+  /** A LÁTHATÓ Deposit/Voucher/Consent/Invoicing kártyák összevont mentetlen-állapota — a hub
+   *  közös lebegő sávjának. (A Stripe/Hírlevél kártya nem számít bele, azok azonnali akciók.) */
+  onDirtyChange?: (dirty: boolean) => void
+  /** A hub ezen regisztrálja ennek a példánynak a mentés/elvetés műveletét. */
+  registerApi?: (api: { save: () => Promise<boolean>; discard: () => void }) => void
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
@@ -82,7 +93,10 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   )
 }
 
-export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, consent, stripeConnectAccountId, stripeConnectOnboarded, pricing, businessId, newsletterPackage }: Props) {
+const ALL_SECTIONS: NonNullable<Props['sections']> = ['stripe', 'deposit', 'voucher', 'consent', 'newsletter', 'invoicing']
+
+export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, consent, stripeConnectAccountId, stripeConnectOnboarded, pricing, businessId, newsletterPackage, sections = ALL_SECTIONS, onDirtyChange, registerApi }: Props) {
+  const show = (s: NonNullable<Props['sections']>[number]) => sections.includes(s)
   const router = useRouter()
   const [connecting, setConnecting] = useState(false)
   const [loginLinkLoading, setLoginLinkLoading] = useState(false)
@@ -116,18 +130,88 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
   const toggleNewsletterEnabled = (on: boolean) => switchNewsletterPackage(on ? 'ingyenes' : 'none')
 
   const [d, setD] = useState<DepositSettingsData>(deposit)
-  const [saving, setSaving] = useState(false)
-
   const [v, setV] = useState<VoucherSettingsData>(voucher)
-  const [savingVoucher, setSavingVoucher] = useState(false)
-
   const [c, setC] = useState<ConsentSettingsData>(consent)
-  const [savingConsent, setSavingConsent] = useState(false)
-
   const [invoiceProvider, setInvoiceProvider] = useState(invoice.provider)
   const [szamlazzKeyInput, setSzamlazzKeyInput] = useState('')
   const [billingoKeyInput, setBillingoKeyInput] = useState('')
-  const [savingInvoice, setSavingInvoice] = useState(false)
+
+  // Csak a ténylegesen LÁTSZÓ (`sections`) kártyák dirty-je számít bele az összevont
+  // állapotba — egy `sections={['consent']}` példányon a d/v/invoiceProvider mögötti state
+  // sose renderelődik, tehát nem is szerkeszthető, de a biztonság kedvéért `show()`-val zárva.
+  const depositDirty = show('deposit') && JSON.stringify(d) !== JSON.stringify(deposit)
+  const voucherDirty = show('voucher') && JSON.stringify(v) !== JSON.stringify(voucher)
+  const consentDirty = show('consent') && JSON.stringify(c) !== JSON.stringify(consent)
+  const invoiceDirty = show('invoicing') && (invoiceProvider !== invoice.provider || szamlazzKeyInput.trim() !== '' || billingoKeyInput.trim() !== '')
+  const dirty = depositDirty || voucherDirty || consentDirty || invoiceDirty
+
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    registerApi?.({
+      save: async () => {
+        // Védekező tisztítás mentéskor: csak a KIVÁLASZTOTT típushoz tartozó összeg-mező mehet
+        // ki nem-nullként — így a DB-ben sose maradhat egy korábbi típusváltásból itt felejtett,
+        // már nem releváns érték (ami a számításnál/kijelzésnél zavaró, ellentmondó állapotot okozna).
+        const body: Record<string, unknown> = {}
+        if (depositDirty) {
+          body.deposit_settings = {
+            enabled: d.enabled,
+            type: d.type,
+            fixed_amount_huf: d.type === 'fixed' ? d.fixedAmountHuf : null,
+            percent_value: d.type === 'percent' ? d.percentValue : null,
+            per_pax_amount_huf: d.type === 'per_pax' ? d.perPaxAmountHuf : null,
+            refund_hours_before: d.refundHoursBefore,
+            payment_gateway: 'stripe',
+          }
+        }
+        if (voucherDirty) {
+          body.voucher_settings = {
+            enabled: v.enabled,
+            min_amount_huf: v.minAmountHuf,
+            max_amount_huf: v.maxAmountHuf,
+            validity_months: v.validityMonths,
+          }
+        }
+        if (consentDirty) {
+          body.consent_settings = { enabled: c.enabled, title: c.title, template_text: c.templateText }
+        }
+        if (invoiceDirty) {
+          // A kulcs-mezőket CSAK akkor küldjük, ha a user írt bele valamit — üresen hagyva a
+          // MEGLÉVŐ (titkosított) érték marad, nem íródik felül üresre.
+          const invoice_settings: Record<string, unknown> = { invoice_provider: invoiceProvider }
+          if (szamlazzKeyInput.trim()) invoice_settings.szamlazz_agent_key_enc = szamlazzKeyInput.trim()
+          if (billingoKeyInput.trim()) invoice_settings.billingo_api_key_enc = billingoKeyInput.trim()
+          body.invoice_settings = invoice_settings
+        }
+        if (Object.keys(body).length === 0) return true
+        try {
+          const res = await fetch(apiBase, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body),
+          })
+          if (!res.ok) throw new Error()
+          setSzamlazzKeyInput('')
+          setBillingoKeyInput('')
+          return true
+        } catch {
+          toast.error('Hiba történt')
+          return false
+        }
+      },
+      discard: () => {
+        setD(deposit)
+        setV(voucher)
+        setC(consent)
+        setInvoiceProvider(invoice.provider)
+        setSzamlazzKeyInput('')
+        setBillingoKeyInput('')
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [d, v, c, invoiceProvider, szamlazzKeyInput, billingoKeyInput, deposit, voucher, consent, invoice])
 
   const startOnboarding = async () => {
     setConnecting(true)
@@ -156,114 +240,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
     }
   }
 
-  const saveDeposit = async () => {
-    setSaving(true)
-    try {
-      // Védekező tisztítás mentéskor: csak a KIVÁLASZTOTT típushoz tartozó összeg-mező mehet
-      // ki nem-nullként — így a DB-ben sose maradhat egy korábbi típusváltásból itt felejtett,
-      // már nem releváns érték (ami a számításnál/kijelzésnél zavaró, ellentmondó állapotot okozna).
-      const res = await fetch(apiBase, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          deposit_settings: {
-            enabled: d.enabled,
-            type: d.type,
-            fixed_amount_huf: d.type === 'fixed' ? d.fixedAmountHuf : null,
-            percent_value: d.type === 'percent' ? d.percentValue : null,
-            per_pax_amount_huf: d.type === 'per_pax' ? d.perPaxAmountHuf : null,
-            refund_hours_before: d.refundHoursBefore,
-            payment_gateway: 'stripe',
-          },
-        }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Mentve')
-    } catch {
-      toast.error('Hiba történt')
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const saveVoucher = async () => {
-    setSavingVoucher(true)
-    try {
-      const res = await fetch(apiBase, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          voucher_settings: {
-            enabled: v.enabled,
-            min_amount_huf: v.minAmountHuf,
-            max_amount_huf: v.maxAmountHuf,
-            validity_months: v.validityMonths,
-          },
-        }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Mentve')
-    } catch {
-      toast.error('Hiba történt')
-    } finally {
-      setSavingVoucher(false)
-    }
-  }
-
-  const saveConsent = async () => {
-    setSavingConsent(true)
-    try {
-      const res = await fetch(apiBase, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          consent_settings: {
-            enabled: c.enabled,
-            title: c.title,
-            template_text: c.templateText,
-          },
-        }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Mentve')
-    } catch {
-      toast.error('Hiba történt')
-    } finally {
-      setSavingConsent(false)
-    }
-  }
-
-  const saveInvoiceSettings = async () => {
-    setSavingInvoice(true)
-    try {
-      // A kulcs-mezőket CSAK akkor küldjük, ha a user írt bele valamit — üresen hagyva a
-      // MEGLÉVŐ (titkosított) érték marad, nem íródik felül üresre.
-      const body: Record<string, unknown> = { invoice_settings: { invoice_provider: invoiceProvider } }
-      if (szamlazzKeyInput.trim()) (body.invoice_settings as Record<string, unknown>).szamlazz_agent_key_enc = szamlazzKeyInput.trim()
-      if (billingoKeyInput.trim()) (body.invoice_settings as Record<string, unknown>).billingo_api_key_enc = billingoKeyInput.trim()
-      const res = await fetch(apiBase, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(body),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Mentve')
-      setSzamlazzKeyInput('')
-      setBillingoKeyInput('')
-    } catch {
-      toast.error('Hiba történt')
-    } finally {
-      setSavingInvoice(false)
-    }
-  }
-
   return (
     <div className="space-y-4">
       {/* Stripe Connect állapot */}
+      {show('stripe') && (
       <div className="rounded-[26px] dav-card-glass px-6 py-5">
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
@@ -310,8 +290,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
           )}
         </div>
       </div>
+      )}
 
       {/* Hírlevél */}
+      {show('newsletter') && (
       <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -399,8 +381,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
           </div>
         )}
       </div>
+      )}
 
       {/* Előleg-szabály */}
+      {show('deposit') && (
       <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -486,21 +470,11 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             </div>
           </div>
         )}
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={saveDeposit}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Mentés
-          </button>
-        </div>
       </div>
+      )}
 
       {/* Ajándékutalvány */}
+      {show('voucher') && (
       <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div>
@@ -544,21 +518,11 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             </div>
           </div>
         )}
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={saveVoucher}
-            disabled={savingVoucher}
-            className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {savingVoucher && <Loader2 className="h-4 w-4 animate-spin" />}
-            Mentés
-          </button>
-        </div>
       </div>
+      )}
 
       {/* Beleegyező nyilatkozat */}
+      {show('consent') && (
       <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
@@ -618,21 +582,11 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             </p>
           </div>
         )}
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={saveConsent}
-            disabled={savingConsent}
-            className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {savingConsent && <Loader2 className="h-4 w-4 animate-spin" />}
-            Mentés
-          </button>
-        </div>
       </div>
+      )}
 
       {/* Számlázás */}
+      {show('invoicing') && (
       <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-3.5">
         <div>
           <div className="text-[15px] font-medium text-ink">Számlázás az előlegről</div>
@@ -668,19 +622,8 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             />
           </div>
         )}
-
-        <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={saveInvoiceSettings}
-            disabled={savingInvoice}
-            className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            {savingInvoice && <Loader2 className="h-4 w-4 animate-spin" />}
-            Mentés
-          </button>
-        </div>
       </div>
+      )}
     </div>
   )
 }

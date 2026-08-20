@@ -23,7 +23,7 @@ import { toast } from 'sonner'
 import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext'
 import {
   Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
-  Plus, ScrollText, KeyRound, Building2, Mail, Check, Languages, FileText,
+  Plus, ScrollText, Building2, Mail, Check, Languages, FileText,
   Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
@@ -38,7 +38,6 @@ import { StripeCheckoutButton } from '@/components/dashboard/StripeCheckoutButto
 import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
 import type { AccountBilling } from '@/lib/accountBilling'
 import type { Pricing } from '@/lib/pricing'
-import type { Subscription } from '@/payload/payload-types'
 import { can, type Capability } from '@/lib/permissions'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
@@ -99,24 +98,12 @@ function StatusBadge({ status }: { status: BillingData['subscriptionStatus'] }) 
   return <span className={`inline-block rounded-[8px] px-2.5 py-[3px] text-[11px] font-semibold ${cls}`}>{label}</span>
 }
 
-/* ── Stat-kártya (FBF9F2, nagy vékony érték + egység) ───────────────────── */
-function StatBox({ label, value, unit }: { label: string; value: string; unit?: string }) {
-  return (
-    <div className="rounded-[18px] bg-[#FBF9F2] p-4">
-      <div className="text-[12.5px] font-medium text-ink-soft">{label}</div>
-      <div className="mt-1 text-[26px] font-light tracking-[-0.02em] text-ink">
-        {value}
-        {unit && <span className="ml-1 text-[13px] font-medium text-ink-soft">{unit}</span>}
-      </div>
-    </div>
-  )
-}
 
 type RailId =
-  | 'profile' | 'booking' | 'features' | 'languages' | 'email'
-  | 'rules' | 'notifications' | 'team' | 'audit'
+  | 'profile' | 'booking' | 'languages' | 'email'
+  | 'notifications' | 'team' | 'audit'
   | 'self' | 'documents' | 'billing' | 'sites'
-  | 'integrations' | 'api' | 'danger' | 'payments'
+  | 'integrations' | 'danger' | 'payments'
 
 // A bal lista mely elemei a MEGLÉVŐ profil-form egy-egy fülét mutatják (rail vezérli a fület).
 const FORM_TABS: Record<string, string> = {
@@ -127,11 +114,11 @@ const FORM_TABS: Record<string, string> = {
 
 // A kiválasztott szekció neve = a tartalom címe (mivel nincs felső fül-sor, ez jelzi „hol vagy").
 const RAIL_LABELS: Record<RailId, string> = {
-  profile: 'Üzlet profil', booking: 'Foglalás', features: 'Foglalási funkciók', languages: 'Nyelvek', email: 'Email-sablonok',
-  rules: 'Foglalási szabályok', notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
-  self: 'Saját profil', documents: 'Dokumentumok', billing: 'Számlázás', sites: 'Telephelyek',
-  integrations: 'Integrációk', api: 'API & webhookok', danger: 'Fiók törlése',
-  payments: 'Fizetések',
+  profile: 'Üzlet profil', booking: 'Foglalás', languages: 'Nyelvek', email: 'Email-sablonok',
+  notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
+  self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés & számlázás', sites: 'Telephelyek',
+  integrations: 'API & Integrációk', danger: 'Fiók törlése',
+  payments: 'Fizetés',
 }
 
 export interface RulesData {
@@ -210,7 +197,6 @@ export interface AuditEntry {
 
 export interface SettingsHubProps {
   variant: 'salon' | 'restaurant'
-  businessName: string
   subtitle: string                 // fejléc alcím, pl. „Belvárosi Bisztró · Étterem Pro"
   availabilityHref: string
   /** VALÓS mentés végpont: `/api/salons/${id}` vagy `/api/restaurants/${id}`. */
@@ -251,8 +237,6 @@ export interface SettingsHubProps {
   rolesSection?: ReactNode
   /** Egyedi szerepek (id + név) — a meghívó/tag-szerep legördülőhöz. */
   customRoles?: { id: string; name: string }[]
-  /** Fiók-előfizetés (nyers Payload rekord) — a Számlázás panelhez. */
-  sub: Subscription | null
   /** Fiók-szintű számlázás összesítő — üzlet-bontás, ciklus, kedvezmény. */
   billingAccount: AccountBilling
   /** Globális árazási beállítások — a PricingCards-nak. */
@@ -295,11 +279,23 @@ function maskCompanyReg(raw: string): string {
   return `${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4)}`
 }
 
+/** A `PaymentsSettingsPanel`/`IntegrationsPanel`/`BookingFeatures` közös felfelé-jelentő
+ *  szerződéséhez (`onDirtyChange`/`registerApi`) egy kis wrapper — minden Beállítások-panel
+ *  ugyanígy jelenti a mentetlen-állapotát és regisztrálja a mentés/elvetés műveletét a hub
+ *  közös lebegő sávjának, mint ahogy a beágyazott profil-form is teszi (`SettingsFormApi`). */
+function usePanelRegistration() {
+  const [dirty, setDirty] = useState(false)
+  const apiRef = useRef<{ save: () => Promise<boolean>; discard: () => void } | null>(null)
+  const onDirtyChange = useCallback((d: boolean) => setDirty(d), [])
+  const registerApi = useCallback((api: { save: () => Promise<boolean>; discard: () => void }) => { apiRef.current = api }, [])
+  return { dirty, apiRef, onDirtyChange, registerApi }
+}
+
 export function SettingsHub({
   variant, subtitle, availabilityHref, profilePanel, selfProfile, rules, senderLabel, billing,
   team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
   featureModules, auditLog, rolesSection, customRoles = [],
-  sub, billingAccount, pricing, activeBusinessId, startedAt,
+  billingAccount, pricing, activeBusinessId, startedAt,
   icalUrl, bookingUrl, embedUrl, embedSmartSnippet, webhookUrl, ga4Id, facebookPixelId, myCapabilities,
   depositSettings, invoiceSettings, voucherSettings, consentSettings, stripeConnectAccountId, stripeConnectOnboarded,
   newsletterPackage,
@@ -430,7 +426,15 @@ export function SettingsHub({
   const reportDirty = useCallback((d: boolean) => setFormDirty(d), [])
   const registerApi = useCallback((api: SettingsFormApi) => { formApiRef.current = api }, [])
 
-  const partyLabel = variant === 'salon' ? 'Max. létszám / foglalás' : 'Max. létszám / foglalás'
+  // ── Ugyanez a felfelé-jelentő minta a Foglalás fülbe ágyazott Foglalási funkciók, a
+  //    Fizetés fülön/Dokumentumok & jogin belüli PaymentsSettingsPanel-példányok, és az API &
+  //    Integrációk fülön lévő két panel (IntegrationsPanel + PaymentsSettingsPanel) számára —
+  //    minden mentés a közös lebegő sávból történik, nincs többé kártyánkénti saját gomb.
+  const featuresPanel = usePanelRegistration()
+  const paymentsTabPanel = usePanelRegistration()
+  const documentsPanel = usePanelRegistration()
+  const integPanel = usePanelRegistration()
+  const integPaymentsPanel = usePanelRegistration()
 
   /** Egy group PATCH-elése a valós collection-endpointra (credentials:'include'). */
   const patchGroup = async (body: Record<string, unknown>): Promise<boolean> => {
@@ -542,6 +546,9 @@ export function SettingsHub({
   }, [])
 
   const [inviteOpen, setInviteOpen] = useState(false)
+  // Csapat fül al-navigáció — tag-kezelés és szerepkör-szerkesztés két külön koncepció,
+  // eddig sub-navigáció nélkül egymás alatt zsúfolva egy fülön.
+  const [teamSubTab, setTeamSubTab] = useState<'members' | 'roles'>('members')
   const [inviteEmail, setInviteEmail] = useState('')
   // Érték: `c:<roleId>` (a megadott egyedi szerepek közül). Nincs hardcoded szerep.
   const [inviteRole, setInviteRole] = useState<string>(customRoles[0] ? `c:${customRoles[0].id}` : '')
@@ -628,21 +635,75 @@ export function SettingsHub({
     }
   }
 
-  const num = (n: number | null) => (n === null || n === undefined ? '—' : String(n))
-
   // A KÖZÖS lebegő mentés-sáv az AKTÍV panelhez kötődik: beágyazott profil-form fül (felfelé
-  // jelentett állapot) / Értesítések / Foglalási szabályok. Egyetlen mentés-hely az egész oldalra.
+  // jelentett állapot) / Értesítések / a Foglalás fülbe összevont auto-megerősítés szabály.
+  // Egyetlen mentés-hely az egész oldalra.
   const saveForm = useCallback(async () => {
     const ok = await formApiRef.current?.save()
     if (ok) { setFormSaved(true); setTimeout(() => setFormSaved(false), 1800) }
   }, [])
+  // A „Foglalás" fül a profil-form saját booking-fülét, az auto-megerősítés szabályt ÉS a
+  // Foglalási funkciókat (BookingFeatures) is mutatja — a mentés-sáv mindhármat lefedi.
+  const saveBookingTab = useCallback(async () => {
+    if (rulesDirty) await saveRules()
+    if (featuresPanel.dirty) await featuresPanel.apiRef.current?.save()
+    const ok = await formApiRef.current?.save()
+    if (ok) { setFormSaved(true); setTimeout(() => setFormSaved(false), 1800) }
+  }, [rulesDirty, featuresPanel.dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A „Dokumentumok & jogi" fül a profil-form saját dokumentumok-fülét (ÁSZF-szakaszok) ÉS a
+  // beleegyező nyilatkozat kártyát (PaymentsSettingsPanel `sections={['consent']}`) mutatja.
+  const [documentsSaved, setDocumentsSaved] = useState(false)
+  const saveDocumentsTab = useCallback(async () => {
+    await documentsPanel.apiRef.current?.save()
+    const ok = await formApiRef.current?.save()
+    if (ok) { setDocumentsSaved(true); setTimeout(() => setDocumentsSaved(false), 1800) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A „Fizetés" fül egyetlen forrásból menti (Stripe/Előleg/Ajándékutalvány kártyák).
+  const [paymentsTabSaved, setPaymentsTabSaved] = useState(false)
+  const savePaymentsTab = useCallback(async () => {
+    const ok = await paymentsTabPanel.apiRef.current?.save()
+    if (ok) { setPaymentsTabSaved(true); setTimeout(() => setPaymentsTabSaved(false), 1800) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Az „API & Integrációk" fül két panelt mutat egyszerre (Webhook/Marketing-követés +
+  // Hírlevél/Számlázás) — mindkettő mentése egyetlen sávból.
+  const [integSaved, setIntegSaved] = useState(false)
+  const saveIntegrationsTab = useCallback(async () => {
+    const okA = await integPanel.apiRef.current?.save()
+    const okB = await integPaymentsPanel.apiRef.current?.save()
+    if (okA !== false && okB !== false) { setIntegSaved(true); setTimeout(() => setIntegSaved(false), 1800) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const activeBar =
-    active in FORM_TABS
+    active === 'booking'
+      ? {
+          dirty: formDirty || rulesDirty || featuresPanel.dirty,
+          saved: formSaved || rulesSaved,
+          onSave: saveBookingTab,
+          onCancel: () => { formApiRef.current?.discard(); resetRules(); featuresPanel.apiRef.current?.discard() },
+        }
+      : active === 'documents'
+      ? {
+          dirty: formDirty || documentsPanel.dirty,
+          saved: formSaved || documentsSaved,
+          onSave: saveDocumentsTab,
+          onCancel: () => { formApiRef.current?.discard(); documentsPanel.apiRef.current?.discard() },
+        }
+      : active === 'payments'
+      ? { dirty: paymentsTabPanel.dirty, saved: paymentsTabSaved, onSave: savePaymentsTab, onCancel: () => paymentsTabPanel.apiRef.current?.discard() }
+      : active === 'integrations'
+      ? {
+          dirty: integPanel.dirty || integPaymentsPanel.dirty,
+          saved: integSaved,
+          onSave: saveIntegrationsTab,
+          onCancel: () => { integPanel.apiRef.current?.discard(); integPaymentsPanel.apiRef.current?.discard() },
+        }
+      : active in FORM_TABS
       ? { dirty: formDirty, saved: formSaved, onSave: saveForm, onCancel: () => formApiRef.current?.discard() }
       : active === 'notifications'
       ? { dirty: notifDirty, saved: notifSaved, onSave: saveNotif, onCancel: resetNotif }
-      : active === 'rules'
-      ? { dirty: rulesDirty, saved: rulesSaved, onSave: saveRules, onCancel: resetRules }
       : null
 
   // ── Navigáció adatvezérelten (a desktop rail ÉS a mobil legördülő EGY forrásból) ──
@@ -661,28 +722,31 @@ export function SettingsHub({
     ? [
         { group: 'Üzlet', items: [
           { kind: 'btn', id: 'profile', icon: Home, label: 'Üzlet profil' },
-          { kind: 'btn', id: 'booking', icon: CalendarDays, label: 'Foglalás' },
-          { kind: 'btn', id: 'rules', icon: Check, label: 'Foglalási szabályok' },
-          { kind: 'btn', id: 'features', icon: SlidersHorizontal, label: 'Foglalási funkciók' },
-          ...(!myCapabilities || can(myCapabilities, 'payments.manage') ? [{ kind: 'btn' as const, id: 'payments' as RailId, icon: Wallet, label: 'Fizetések' }] : []),
           { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
           { kind: 'btn', id: 'languages', icon: Languages, label: 'Nyelvek' },
           { kind: 'btn', id: 'email', icon: Mail, label: 'Email-sablonok' },
         ] },
-        { group: 'Működés', items: [
-          { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
+        { group: 'Foglalás', items: [
+          { kind: 'btn', id: 'booking', icon: CalendarDays, label: 'Foglalás' },
+        ] },
+        ...(!myCapabilities || can(myCapabilities, 'payments.manage')
+          ? [{ group: 'Fizetés', items: [{ kind: 'btn' as const, id: 'payments' as RailId, icon: Wallet, label: 'Fizetés' }] }]
+          : []),
+        { group: 'API & Integrációk', items: [
+          { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'API & Integrációk' },
+        ] },
+        { group: 'Dokumentumok & jogi', items: [
+          { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok & jogi' },
+        ] },
+        { group: 'Csapat', items: [
           { kind: 'btn', id: 'team', icon: Users, label: 'Csapat & jogok' },
-          { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
         ] },
         { group: 'Fiók', items: [
           { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
-          { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok' },
-          ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Számlázás', badge: trialBadge }] : []),
+          ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Előfizetés & számlázás', badge: trialBadge }] : []),
           { kind: 'btn', id: 'sites', icon: Building2, label: 'Telephelyek' },
-        ] },
-        { group: 'Integrációk', items: [
-          { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'Integrációk' },
-          { kind: 'btn', id: 'api', icon: KeyRound, label: 'API & webhookok', soon: true },
+          { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
+          { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
         ] },
       ]
     : [
@@ -857,42 +921,11 @@ export function SettingsHub({
             <div className={active in FORM_TABS ? '' : 'hidden'}>{profilePanel}</div>
           </SettingsFormContext.Provider>
 
-          {/* ── Nem-form panelek — key változásakor fade-in animáció (a profilePanel mindig mountolva marad). ── */}
-          {!(active in FORM_TABS) && (
-          <motion.div
-            key={active}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
-          >
-
-          {/* ── Foglalási funkciók — a beágyazott BookingFeatures (önmentő, saját PATCH). ── */}
-          {active === 'features' && (
-            <BookingFeatures variant={variant} apiBase={apiBase} initial={featureModules} embedded />
-          )}
-
-          {active === 'rules' && (
-            <div className="space-y-4">
-              <Card>
-                <div className="text-[17px] font-medium text-ink">Időzítés</div>
-                <div className="mt-[18px] grid grid-cols-1 gap-3.5 sm:grid-cols-3">
-                  <StatBox label="Idősáv hossza" value={num(rules.slotDurationMin)} unit="perc" />
-                  <StatBox label="Buffer" value={num(rules.bufferMin)} unit="perc" />
-                  <StatBox label={partyLabel} value={num(rules.maxParty)} unit={rules.maxParty === null ? undefined : 'fő'} />
-                </div>
-                <div className="mt-3.5 grid grid-cols-1 gap-3.5 sm:grid-cols-2">
-                  <StatBox
-                    label="Legkorábbi foglalás"
-                    value={rules.leadTimeHours === null ? '—' : `${rules.leadTimeHours} órával előtte`}
-                  />
-                  <StatBox
-                    label="Legkésőbbi foglalás"
-                    value={rules.windowDays === null ? '—' : `${rules.windowDays} nappal előre`}
-                  />
-                </div>
-              </Card>
-
-              {/* Toggle-lista — CSAK a valós, hatással bíró szabály (`auto_confirm`). Mentés a lebegő sávból. */}
+          {/* ── „Foglalás" fül folytatása — a profil-form saját booking-fülje UTÁN, ugyanazon
+              a fülön: az egyetlen valódi „szabály" (auto-megerősítés) + a Foglalási funkciók
+              (emlékeztetők, értékelés-kérés). Régen 3 külön hely volt, most egy. ── */}
+          {active === 'booking' && (
+            <div className="mt-5 space-y-4">
               <div className="rounded-[26px] dav-card-glass px-6 py-2">
                 <RuleRow
                   title="Automatikus megerősítés"
@@ -903,24 +936,16 @@ export function SettingsHub({
                 />
               </div>
 
-              {/* Várólista — a „Foglalási funkciók" szekció a gazdája (nincs duplázás), ide csak ugró-gomb. */}
-              <button
-                type="button"
-                onClick={() => setActive('features')}
-                className="flex w-full items-center justify-between gap-3 rounded-[26px] dav-card-glass px-6 py-4 text-left transition-colors hover:border-ink/20"
-              >
-                <div className="min-w-0">
-                  <div className="text-[15px] font-medium text-ink">Várólista</div>
-                  <div className="mt-0.5 text-[13px] text-ink-soft">
-                    Feliratkozás telt háznál + automatikus előléptetés. A <b className="font-semibold text-ink-soft">Foglalási funkciók</b> szekcióban kapcsolható.
-                  </div>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-ink">
-                  Megnyitás <ArrowRight className="h-4 w-4" strokeWidth={2} />
-                </span>
-              </button>
+              <BookingFeatures
+                variant={variant}
+                apiBase={apiBase}
+                initial={featureModules}
+                embedded
+                onDirtyChange={featuresPanel.onDirtyChange}
+                registerApi={featuresPanel.registerApi}
+              />
 
-              {/* Depozit / no-show — a Fizetések szekció a gazdája (Stripe Connect bekötve). */}
+              {/* Depozit / no-show — a Fizetés szekció a gazdája (Stripe Connect bekötve). */}
               <button
                 type="button"
                 onClick={() => setActive('payments')}
@@ -929,19 +954,48 @@ export function SettingsHub({
                 <div className="min-w-0">
                   <div className="text-[15px] font-medium text-ink">Depozit & no-show védelem</div>
                   <div className="mt-0.5 text-[13px] text-ink-soft">
-                    Vendég-előleg Stripe-on keresztül — a <b className="font-semibold text-ink-soft">Fizetések</b> szekcióban kapcsolható.
+                    Vendég-előleg Stripe-on keresztül — a <b className="font-semibold text-ink-soft">Fizetés</b> szekcióban kapcsolható.
                   </div>
                 </div>
                 <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-ink">
                   Megnyitás <ArrowRight className="h-4 w-4" strokeWidth={2} />
                 </span>
               </button>
-
-              <p className="px-1 text-xs text-ink-soft2">
-                A pontos foglalási időzítést az „Üzlet profil → Foglalás" fülön mentheted.
-              </p>
             </div>
           )}
+
+          {/* ── „Dokumentumok & jogi" fül folytatása — a profil-form saját dokumentumok-fülje
+              (ÁSZF-szakaszok) UTÁN a beleegyező nyilatkozat sablon-szerkesztője, ami régen a
+              Fizetéseknél volt, pedig jogi dokumentum, nem fizetési beállítás. ── */}
+          {active === 'documents' && (
+            <div className="mt-5">
+              <PaymentsSettingsPanel
+                variant={variant}
+                apiBase={apiBase}
+                deposit={depositSettings}
+                invoice={invoiceSettings}
+                voucher={voucherSettings}
+                consent={consentSettings}
+                stripeConnectAccountId={stripeConnectAccountId}
+                stripeConnectOnboarded={stripeConnectOnboarded}
+                pricing={pricing}
+                businessId={activeBusinessId}
+                newsletterPackage={newsletterPackage}
+                sections={['consent']}
+                onDirtyChange={documentsPanel.onDirtyChange}
+                registerApi={documentsPanel.registerApi}
+              />
+            </div>
+          )}
+
+          {/* ── Nem-form panelek — key változásakor fade-in animáció (a profilePanel mindig mountolva marad). ── */}
+          {!(active in FORM_TABS) && (
+          <motion.div
+            key={active}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+          >
 
           {active === 'payments' && (
             <PaymentsSettingsPanel
@@ -956,6 +1010,9 @@ export function SettingsHub({
               pricing={pricing}
               businessId={activeBusinessId}
               newsletterPackage={newsletterPackage}
+              sections={['stripe', 'deposit', 'voucher']}
+              onDirtyChange={paymentsTabPanel.onDirtyChange}
+              registerApi={paymentsTabPanel.registerApi}
             />
           )}
 
@@ -1030,12 +1087,12 @@ export function SettingsHub({
                 <b className="font-semibold text-ink-soft">visszajelzés-kérés</b> a{' '}
                 <button
                   type="button"
-                  onClick={() => setActive('features')}
+                  onClick={() => setActive('booking')}
                   className="font-semibold text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
                 >
-                  Foglalási funkciók
+                  Foglalás
                 </button>{' '}
-                szekcióban állítható (be/ki + időzítés). A sablonokat az „Üzlet profil → Email" fülön szerkeszted.
+                fülön állítható (be/ki + időzítés). A sablonokat az „Üzlet profil → Email" fülön szerkeszted.
               </p>
             </div>
           )}
@@ -1043,6 +1100,26 @@ export function SettingsHub({
           {/* ── Csapat & jogok ── ref 536–556. VALÓS tulajdonos + membershipök. */}
           {active === 'team' && (
             <div className="space-y-4">
+              {/* Al-navigáció — Tagok (meghívás/kezelés) vs. Szerepek (jogosultság-szerkesztés). */}
+              <div className="inline-flex rounded-[14px] bg-[#FBF9F2] p-1">
+                <button
+                  type="button"
+                  onClick={() => setTeamSubTab('members')}
+                  className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${teamSubTab === 'members' ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink'}`}
+                >
+                  Tagok
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTeamSubTab('roles')}
+                  className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${teamSubTab === 'roles' ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink'}`}
+                >
+                  Szerepek & jogosultságok
+                </button>
+              </div>
+
+              {teamSubTab === 'roles' ? rolesSection : (
+              <>
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm font-medium text-ink-soft">
                   {team.filter((m) => !m.pending).length} tag
@@ -1185,7 +1262,8 @@ export function SettingsHub({
               <p className="px-1 text-xs text-ink-soft2">
                 A tulajdonos hozzáférése mindig megmarad. A meghívott tagok az email-linkkel csatlakoznak.
               </p>
-              {rolesSection}
+              </>
+              )}
             </div>
           )}
 
@@ -1198,19 +1276,41 @@ export function SettingsHub({
             </div>
           )}
 
-          {/* ── Integrációk ── */}
+          {/* ── API & Integrációk — MINDEN kulcs/API/webhook-jellegű beállítás egy helyen
+              (user-döntés: ne szedjük szét irány szerint, ez egyszerűbb, mint a szolgáltatás-
+              specifikus szétbontás). A Számlázás + Hírlevél a Fizetésekből költözött ide. ── */}
           {active === 'integrations' && (
-            <IntegrationsPanel
-              variant={variant}
-              bookingUrl={bookingUrl}
-              icalUrl={icalUrl}
-              embedUrl={embedUrl}
-              embedSmartSnippet={embedSmartSnippet}
-              apiBase={apiBase}
-              webhookUrl={webhookUrl}
-              ga4Id={ga4Id}
-              facebookPixelId={facebookPixelId}
-            />
+            <div className="space-y-4">
+              <IntegrationsPanel
+                variant={variant}
+                bookingUrl={bookingUrl}
+                icalUrl={icalUrl}
+                embedUrl={embedUrl}
+                embedSmartSnippet={embedSmartSnippet}
+                apiBase={apiBase}
+                webhookUrl={webhookUrl}
+                ga4Id={ga4Id}
+                facebookPixelId={facebookPixelId}
+                onDirtyChange={integPanel.onDirtyChange}
+                registerApi={integPanel.registerApi}
+              />
+              <PaymentsSettingsPanel
+                variant={variant}
+                apiBase={apiBase}
+                deposit={depositSettings}
+                invoice={invoiceSettings}
+                voucher={voucherSettings}
+                consent={consentSettings}
+                stripeConnectAccountId={stripeConnectAccountId}
+                stripeConnectOnboarded={stripeConnectOnboarded}
+                pricing={pricing}
+                businessId={activeBusinessId}
+                newsletterPackage={newsletterPackage}
+                sections={['newsletter', 'invoicing']}
+                onDirtyChange={integPaymentsPanel.onDirtyChange}
+                registerApi={integPaymentsPanel.registerApi}
+              />
+            </div>
           )}
 
           {active === 'billing' && (
@@ -1686,15 +1786,6 @@ export function SettingsHub({
             </div>
           )}
 
-          {/* ── API & webhookok ── ŐSZINTE „Hamarosan" üres állapot (nincs hamis kulcs/webhook). */}
-          {active === 'api' && (
-            <ComingSoon
-              icon={KeyRound}
-              title="API & webhookok hamarosan"
-              body="Nyilvános REST API-kulcsok és esemény-webhookok fejlesztés alatt. Amint elérhetők, itt generálhatsz éles és teszt kulcsokat, és köthetsz be végpontokat — addig nem mutatunk hamis kulcsokat."
-            />
-          )}
-
           {/* ── Telephelyek ── ref 652–667. VALÓS fiók-üzletek + Üzleti-csomag CTA. */}
           {active === 'sites' && (
             <div className="space-y-4">
@@ -1915,21 +2006,6 @@ function relativeTime(iso: string): string {
   return d.toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-/* ── Őszinte „Hamarosan" üres-állapot (Integrációk / API & webhookok) ─────── */
-function ComingSoon({ icon: Icon, title, body }: { icon: typeof Home; title: string; body: string }) {
-  return (
-    <div className="rounded-[26px] dav-card-glass px-6 py-14 text-center">
-      <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-[18px] bg-[#FBF9F2]">
-        <Icon className="h-6 w-6 text-ink-soft2" strokeWidth={1.5} />
-      </span>
-      <div className="text-[17px] font-medium text-ink">{title}</div>
-      <p className="mx-auto mt-2 max-w-[420px] text-[13px] leading-relaxed text-ink-soft">{body}</p>
-      <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-[#F2ECDA] px-3.5 py-1.5 text-[11px] font-semibold text-ink-soft">
-        <Sparkles className="h-3.5 w-3.5 text-gold" /> Hamarosan
-      </span>
-    </div>
-  )
-}
 
 /* ── Rail gomb ──────────────────────────────────────────────────────────── */
 /** Csoport-címke a bal listában (desktopon; mobil chip-soron elrejtve). */
