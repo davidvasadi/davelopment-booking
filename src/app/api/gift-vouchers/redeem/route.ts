@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 
 const schema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('salon'), salonId: z.coerce.string(), code: z.string().min(1) }),
@@ -29,8 +30,10 @@ export async function POST(request: NextRequest) {
   const data = parsed.data
 
   const payload = await getPayloadClient()
-  const owns = data.kind === 'salon' ? await ownsThisSalon(payload, user, data.salonId) : await ownsThisRestaurant(payload, user, data.restaurantId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = data.kind === 'salon'
+    ? await assertCapability(user.id, 'salon', data.salonId, 'vouchers.manage')
+    : await assertCapability(user.id, 'restaurant', data.restaurantId, 'vouchers.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const code = data.code.trim().toUpperCase()
   const result = await payload.find({

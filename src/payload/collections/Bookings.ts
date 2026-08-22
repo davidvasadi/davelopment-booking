@@ -1,7 +1,7 @@
 import { CollectionConfig } from 'payload'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
 import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
-import { userOwnsSalon } from '../lib/salonOwnerAccess'
+import { capabilityScoped } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const Bookings: CollectionConfig = {
@@ -16,30 +16,13 @@ export const Bookings: CollectionConfig = {
   access: {
     // A read access where-filtert ad vissza (NEM data-összehasonlítást: a `data`
     // listázásnál undefined, ami kiszivárogtatná más szalon foglalásait). Több-üzlet:
-    // a tulaj az ÖSSZES SAJÁT szalonja foglalásait látja (nem csak az „első"-ét);
-    // kívülálló semmit. (A dashboard úgyis az aktív szalon id-jára szűr tovább.)
-    read: async ({ req }) => {
-      if (req.user?.role === 'admin') return true
-      if (!req.user) return false
-      const salons = await req.payload.find({
-        collection: 'salons',
-        where: { owner: { equals: req.user.id } },
-        limit: 100,
-        depth: 0,
-        overrideAccess: true,
-        req,
-      })
-      const ids = salons.docs.map((s) => s.id)
-      if (ids.length === 0) return false
-      return { salon: { in: ids } }
-    },
+    // a tulaj az ÖSSZES SAJÁT szalonja foglalásait látja (nem csak az „első"-ét); egy
+    // TAG csak akkor, ha ténylegesen megvan nála a `bookings.view`/`bookings.manage`
+    // capability. (A dashboard úgyis az aktív szalon id-jára szűr tovább.)
+    read: capabilityScoped('salon', 'salon', ['bookings.view', 'bookings.manage']),
     create: () => true, // Publikus: ügyfél hozza létre
-    update: async ({ req, id }) => {
-      if (req.user?.role === 'admin') return true
-      if (!req.user || !id) return false
-      const booking = await req.payload.findByID({ collection: 'bookings', id, depth: 0, overrideAccess: true, req }).catch(() => null)
-      return userOwnsSalon(req, (booking as { salon?: number | string })?.salon)
-    },
+    update: capabilityScoped('salon', 'salon', 'bookings.manage'),
+    delete: capabilityScoped('salon', 'salon', 'bookings.manage'),
   },
   fields: [
     {
@@ -61,7 +44,10 @@ export const Bookings: CollectionConfig = {
       type: 'relationship',
       relationTo: 'staff',
       hasMany: false,
-      required: true,
+      // SZÁNDÉKOSAN nem kötelező: ha egy munkatársat törölnek, a Payload NULL-ra állítja ezt a
+      // mezőt minden rá hivatkozó foglaláson (lezárt/lemondott foglalásoknál ez rendben van —
+      // a foglalás megmarad, csak a munkatárs-hivatkozás nem). Az API (`/api/staff/[id]`) csak
+      // AKTÍV (pending/confirmed) foglalás esetén tiltja a törlést, lezárt/lemondott nem számít.
     },
     {
       name: 'customer_name',

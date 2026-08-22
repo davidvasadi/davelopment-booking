@@ -7,10 +7,13 @@ import {
   Plus, Pencil, Trash2, Check, X, Loader2, ShieldCheck, ShieldAlert,
   LayoutDashboard, CalendarDays, CalendarRange, MapPin, Briefcase, Armchair,
   Users, BarChart2, Settings, Shield, CreditCard, AlertTriangle, ScrollText,
-  ChevronRight, Sparkles,
+  ChevronRight, Sparkles, Clock, Gift, Megaphone, UserRound,
   type LucideIcon,
 } from 'lucide-react'
 import { CAPABILITY_META, type Capability } from '@/lib/permissions'
+
+/** Melyik capability dönti el az Áttekintés-nézetet — ez kapja a saját, elsőrangú választót. */
+const OVERVIEW_CAPABILITY: Capability = 'analytics.view'
 
 export type NotificationPrefs = {
   bookings: boolean
@@ -71,7 +74,11 @@ const SALON_TEMPLATES: RoleTemplate[] = [
       'schedule.manage',
       'guests.view', 'guests.manage',
       'catalog.view', 'catalog.manage',
+      'availability.view', 'availability.manage',
+      'vouchers.view', 'vouchers.manage',
+      'marketing.view', 'marketing.manage',
       'staff.view', 'staff.manage',
+      'tips.view', 'tips.manage',
       'settings.profile', 'team.view', 'audit.view',
     ],
   },
@@ -98,6 +105,7 @@ const SALON_TEMPLATES: RoleTemplate[] = [
       'overview.view',
       'bookings.view',
       'schedule.manage.own',
+      'analytics.view.own',
       'settings.own_profile',
     ],
   },
@@ -126,7 +134,11 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
       'schedule.manage',
       'guests.view', 'guests.manage',
       'tables.view', 'tables.manage',
+      'availability.view', 'availability.manage',
+      'vouchers.view', 'vouchers.manage',
+      'marketing.view', 'marketing.manage',
       'staff.view', 'staff.manage',
+      'tips.view', 'tips.manage',
       'settings.profile', 'team.view', 'audit.view',
     ],
   },
@@ -141,6 +153,7 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
       'schedule.manage',
       'staff.view',
       'tables.view',
+      'analytics.view.own',
       'settings.own_profile',
     ],
   },
@@ -155,6 +168,7 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
       'guests.view',
       'tables.view',
       'schedule.view.own',
+      'analytics.view.own',
       'settings.own_profile',
     ],
   },
@@ -167,6 +181,7 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
       'overview.view',
       'bookings.view',
       'schedule.view.own',
+      'analytics.view.own',
       'settings.own_profile',
     ],
   },
@@ -181,6 +196,9 @@ const GROUP_ICON: Record<string, LucideIcon> = {
   Vendégek:         MapPin,
   Szolgáltatások:   Briefcase,
   Asztalok:         Armchair,
+  Nyitvatartás:     Clock,
+  Utalványok:       Gift,
+  Marketing:        Megaphone,
   Munkatársak:      Users,
   Statisztika:      BarChart2,
   Beállítások:      Settings,
@@ -193,9 +211,15 @@ const GROUP_ICON: Record<string, LucideIcon> = {
 const DANGER_GROUPS = new Set(['Veszélyzóna'])
 
 // Csoportok variant-szűréssel: szalon nem látja az Asztalokat, étterem nem látja a Szolgáltatásokat.
+// Az `analytics.view` KIMARAD a sima chip-listából — saját, elsőrangú Áttekintés-nézet
+// választót kap fentebb (lásd `OVERVIEW_CAPABILITY`), nem egy checkbox a 26 közül.
+// Az `overview.view` is KIMARAD: ez az egyedi szerep alap-küszöbe, amit `effectiveCapabilities()`
+// mindig automatikusan hozzáad — checkboxként megjelenítve élő, de hatástalan kapcsoló lenne.
+// Az `analytics.view.own` is KIMARAD: saját, másodlagos kapcsolót kap az Áttekintés-nézet
+// választó alatt (csak Alkalmazotti nézetnél értelmezett), nem a sima chip-listában.
 function buildGroups(variant: 'salon' | 'restaurant') {
   return CAPABILITY_META
-    .filter((c) => !c.variant || c.variant === variant)
+    .filter((c) => c.value !== OVERVIEW_CAPABILITY && c.value !== 'overview.view' && c.value !== 'analytics.view.own' && (!c.variant || c.variant === variant))
     .reduce<Record<string, typeof CAPABILITY_META>>((acc, c) => {
       ;(acc[c.group] ??= []).push(c)
       return acc
@@ -245,6 +269,15 @@ export function RolesManager({
 
   function toggle(c: Capability) {
     setCaps((prev) => { const n = new Set(prev); n.has(c) ? n.delete(c) : n.add(c); return n })
+  }
+
+  function setOverviewView(view: 'owner' | 'staff') {
+    setCaps((prev) => {
+      const n = new Set(prev)
+      if (view === 'owner') n.add(OVERVIEW_CAPABILITY)
+      else n.delete(OVERVIEW_CAPABILITY)
+      return n
+    })
   }
 
   async function save() {
@@ -489,6 +522,87 @@ export function RolesManager({
                 placeholder="pl. Supervisor, Csapatvezető"
                 className="h-[46px] w-full rounded-[14px] border border-line-strong bg-white px-3.5 text-[14px] text-ink placeholder:text-ink-soft2/50 focus-visible:border-gold/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/25"
               />
+            </div>
+
+            {/* Áttekintés-nézet — elsőrangú, jól látható választó (NEM egy checkbox a 26 közül):
+                ez dönti el, hogy a szerep a teljes cég-KPI-kat (Tulajdonosi — Áttekintés ÉS
+                Statisztikák, ugyanaz az `analytics.view` capability mindkettőn) vagy a saját
+                műszakot/foglalást (Alkalmazotti, `StaffOverview`) lássa-e. Alkalmazotti nézetnél
+                még külön eldönthető, hogy kapjon-e SAJÁT Statisztika-oldalt is (`analytics.view.own`
+                — szalonban saját foglalás/bevétel, étteremben saját beosztás). */}
+            <div>
+              <label className="mb-2 block text-[12.5px] font-semibold uppercase tracking-wide text-ink-soft">
+                Áttekintés- és Statisztika-nézet
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { view: 'owner' as const, Icon: LayoutDashboard, title: 'Tulajdonosi nézet', desc: 'Teljes cég-KPI-k (Áttekintés + Statisztikák)' },
+                  { view: 'staff' as const, Icon: UserRound, title: 'Alkalmazotti nézet', desc: 'Saját műszak/foglalás' },
+                ]).map(({ view, Icon, title, desc }) => {
+                  const isOwnerView = caps.has(OVERVIEW_CAPABILITY)
+                  const isSelected = view === 'owner' ? isOwnerView : !isOwnerView
+                  const disabled = view === 'owner' && !grantable.has(OVERVIEW_CAPABILITY)
+                  return (
+                    <button
+                      key={view}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setOverviewView(view)}
+                      className={[
+                        'flex items-start gap-2.5 rounded-[16px] border p-3.5 text-left transition-all',
+                        disabled
+                          ? 'cursor-not-allowed border-line/50 bg-black/[0.02] text-ink-soft2/40'
+                          : isSelected
+                          ? 'border-ink-dark/30 bg-ink-dark/[0.04] ring-1 ring-ink-dark/10'
+                          : 'border-line bg-white hover:border-line-strong hover:bg-[#fafaf8]',
+                      ].join(' ')}
+                    >
+                      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${disabled ? 'bg-black/[0.04]' : 'bg-gold/15'}`}>
+                        <Icon className={`h-4 w-4 ${disabled ? 'text-ink-soft2/50' : 'text-ink-dark'}`} strokeWidth={1.8} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[13px] font-semibold text-ink">{title}</span>
+                          {isSelected && !disabled && <Check className="h-3.5 w-3.5 text-gold" strokeWidth={2.5} />}
+                        </div>
+                        <div className="mt-0.5 text-[11.5px] leading-snug text-ink-soft">
+                          {disabled ? 'Ehhez nincs jogosultságod' : desc}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Másodlagos kapcsoló — CSAK Alkalmazotti nézetnél értelmezett (Tulajdonosi nézet
+                  már eleve a teljes Statisztikákat is adja). */}
+              {!caps.has(OVERVIEW_CAPABILITY) && (
+                <label
+                  className={[
+                    'mt-2 flex items-center justify-between gap-3 rounded-[14px] border p-3 transition-all',
+                    grantable.has('analytics.view.own') ? 'border-line bg-white' : 'cursor-not-allowed border-line/50 bg-black/[0.02]',
+                  ].join(' ')}
+                >
+                  <span className="min-w-0">
+                    <span className={`block text-[12.5px] font-semibold ${grantable.has('analytics.view.own') ? 'text-ink' : 'text-ink-soft2/50'}`}>
+                      Saját statisztika megtekintése is
+                    </span>
+                    <span className="block text-[11px] leading-snug text-ink-soft2">
+                      Külön Statisztika-oldal a saját adatokból (nem a teljes cégé)
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={caps.has('analytics.view.own')}
+                    disabled={!grantable.has('analytics.view.own')}
+                    onClick={() => toggle('analytics.view.own')}
+                    className={`relative h-6 w-10 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${caps.has('analytics.view.own') ? 'bg-ink-dark' : 'bg-line-strong'}`}
+                  >
+                    <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${caps.has('analytics.view.own') ? 'left-5' : 'left-1'}`} />
+                  </button>
+                </label>
+              )}
             </div>
 
             {/* Jogosultság-chipek */}

@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { VouchersManager, type VoucherRow } from '@/components/dashboard/VouchersManager'
 import type { GiftVoucher, GiftVoucherType } from '@/payload/payload-types'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function RestaurantVouchersPage() {
   const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'payments.manage', '/restaurant')
+  requireAnyCapability(capabilities, ['vouchers.view', 'vouchers.manage'], '/restaurant')
   if (!restaurant.voucher_settings?.enabled) redirect('/restaurant/settings')
   const payload = await getPayloadClient()
 
@@ -61,6 +62,8 @@ export default async function RestaurantVouchersPage() {
         voucherTypes={voucherTypes}
         minAmountHuf={restaurant.voucher_settings?.min_amount_huf ?? 2000}
         maxAmountHuf={restaurant.voucher_settings?.max_amount_huf ?? 100000}
+        supportedLocales={restaurant.supported_locales}
+        canManage={can(capabilities, 'vouchers.manage')}
       />
     </div>
   )

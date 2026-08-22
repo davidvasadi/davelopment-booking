@@ -27,10 +27,18 @@ export type Capability =
   | 'catalog.manage'       // szalon: szolgáltatások kezelése
   | 'tables.view'          // étterem: asztalok megtekintése
   | 'tables.manage'        // étterem: asztalok kezelése
+  | 'availability.view'    // nyitvatartás megtekintése
+  | 'availability.manage'  // nyitvatartás kezelése
+  | 'vouchers.view'        // ajándékutalványok megtekintése
+  | 'vouchers.manage'      // ajándékutalványok kezelése
+  | 'marketing.view'       // hírlevél/marketing megtekintése
+  | 'marketing.manage'     // hírlevél/marketing kezelése (kampány-küldés)
   | 'staff.view'
   | 'staff.manage'
   | 'analytics.view'
+  | 'analytics.view.own'   // saját (nem cégszintű) statisztika — szalon: saját foglalás/bevétel, étterem: saját beosztás
   | 'tips.view'
+  | 'tips.manage'          // tippek gyors-javításainak alkalmazása (PATCH a beállításokon)
   | 'notifications.view'
   | 'notifications.manage'
   | 'notifications.bookings'
@@ -65,10 +73,18 @@ export const CAPABILITY_META: {
   { value: 'catalog.manage',       label: 'Szolgáltatások kezelése',             group: 'Szolgáltatások', variant: 'salon' },
   { value: 'tables.view',          label: 'Asztalok megtekintése',               group: 'Asztalok',       variant: 'restaurant' },
   { value: 'tables.manage',        label: 'Asztalok kezelése',                   group: 'Asztalok',       variant: 'restaurant' },
+  { value: 'availability.view',    label: 'Nyitvatartás megtekintése',           group: 'Nyitvatartás' },
+  { value: 'availability.manage',  label: 'Nyitvatartás kezelése',               group: 'Nyitvatartás' },
+  { value: 'vouchers.view',        label: 'Utalványok megtekintése',             group: 'Utalványok' },
+  { value: 'vouchers.manage',      label: 'Utalványok kezelése',                 group: 'Utalványok' },
+  { value: 'marketing.view',       label: 'Marketing megtekintése',              group: 'Marketing' },
+  { value: 'marketing.manage',     label: 'Marketing kezelése (kampány-küldés)', group: 'Marketing' },
   { value: 'staff.view',           label: 'Munkatársak megtekintése',            group: 'Munkatársak' },
   { value: 'staff.manage',         label: 'Munkatársak kezelése',                group: 'Munkatársak' },
-  { value: 'analytics.view',        label: 'Statisztikák megtekintése',          group: 'Statisztika' },
-  { value: 'tips.view',             label: 'Tippek és javaslatok',               group: 'Statisztika' },
+  { value: 'analytics.view',        label: 'Statisztikák megtekintése (teljes cég)', group: 'Statisztika' },
+  { value: 'analytics.view.own',    label: 'Saját statisztika megtekintése',     group: 'Statisztika' },
+  { value: 'tips.view',             label: 'Tippek megtekintése',                group: 'Statisztika' },
+  { value: 'tips.manage',           label: 'Tippek alkalmazása (gyors-javítások)', group: 'Statisztika' },
   { value: 'notifications.view',     label: 'Értesítések fogadása',               group: 'Értesítések' },
   { value: 'notifications.manage',  label: 'Értesítési beállítások kezelése',    group: 'Értesítések' },
   { value: 'notifications.bookings', label: 'Foglalás értesítések',              group: 'Értesítések' },

@@ -101,6 +101,10 @@ export async function getDashboardStats(
   salonId: string | number,
   days = 30,
   range?: { dateFrom?: string; dateTo?: string },
+  /** Ha meg van adva, a statisztika KIZÁRÓLAG erre a szakemberre szűkül (saját-nézet,
+   *  `analytics.view.own`) — minden lenti aggregáció (bevétel, trend, visszatérő vendég stb.)
+   *  automatikusan ebből a már-szűkített halmazból számol. */
+  staffId?: string | number,
 ): Promise<DashboardStats> {
   const payload = await getPayloadClient()
 
@@ -122,6 +126,8 @@ export async function getDashboardStats(
   // Query from the earliest needed date
   const queryFrom = [prevPeriodStartStr, lastMonthStartStr].sort()[0]
 
+  const staffFilter = staffId != null ? [{ staff: { equals: staffId } }] : []
+
   const [revenueBookings, allBookingsPeriod] = await Promise.all([
     payload.find({
       collection: 'bookings',
@@ -130,6 +136,7 @@ export async function getDashboardStats(
           { salon: { equals: salonId } },
           { date: { greater_than_equal: queryFrom } },
           { status: { not_equals: 'cancelled' } },
+          ...staffFilter,
         ],
       },
       depth: 2,
@@ -142,6 +149,7 @@ export async function getDashboardStats(
           { salon: { equals: salonId } },
           // Az előző időszakot is lefedi, hogy a lemondás-diff is számolható legyen.
           { date: { greater_than_equal: prevPeriodStartStr } },
+          ...staffFilter,
         ],
       },
       depth: 0,
@@ -271,6 +279,7 @@ export async function getDashboardStats(
           { salon: { equals: salonId } },
           { customer_email: { in: allGuestEmails } },
           { date: { less_than: periodStartStr } },
+          ...staffFilter,
         ],
       },
       depth: 0,

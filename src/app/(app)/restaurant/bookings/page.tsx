@@ -1,5 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { ReservationDateFilter, type BookingsRange } from '@/components/restaurant/ReservationDateFilter'
@@ -42,7 +42,7 @@ export default async function RestaurantBookingsPage({
   searchParams: Promise<{ date?: string; reservation?: string; range?: string }>
 }) {
   const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'bookings.view', '/restaurant')
+  requireAnyCapability(capabilities, ['bookings.view', 'bookings.manage'], '/restaurant')
   const { date, reservation: reservationParam, range: rawRange } = await searchParams
   const range: BookingsRange = rawRange === 'week' ? 'week' : rawRange === 'month' ? 'month' : 'day'
 
@@ -60,7 +60,9 @@ export default async function RestaurantBookingsPage({
 
   const turnMinutes = restaurant.turn_duration_minutes ?? 120
   const canManage = can(capabilities, 'bookings.manage')
-  const dateFilterEl = <ReservationDateFilter key="date-filter" currentDate={selectedDate} range={range} />
+  const dateFilterEl = (
+    <ReservationDateFilter key="date-filter" currentDate={selectedDate} range={range} hideRangeOnMobile={range === 'day'} />
+  )
 
   // Esemény-típusok az admin szerkesztő-laphoz (a tulaj engedélyezettjei, vagy az alapkészlet).
   const enabledEvents = ((restaurant as { event_types?: { icon?: string | null; label?: string | null; enabled?: boolean | null }[] | null }).event_types ?? [])
@@ -131,6 +133,7 @@ export default async function RestaurantBookingsPage({
       <div className="p-5 lg:p-0 space-y-5">
         <DailyView
           date={selectedDate}
+          range={range}
           restaurantId={String(restaurant.id)}
           eventTypes={eventTypes}
           reservations={reservations}

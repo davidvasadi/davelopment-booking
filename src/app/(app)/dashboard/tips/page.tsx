@@ -1,5 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { getPayloadClient } from '@/lib/payload'
@@ -14,7 +14,7 @@ function ymd(d: Date): string {
 
 export default async function SalonTipsPage() {
   const { salon, capabilities } = await getOwnedSalon()
-  requireCapability(capabilities, 'tips.view', '/dashboard')
+  requireAnyCapability(capabilities, ['tips.view', 'tips.manage'], '/dashboard')
   const payload = await getPayloadClient()
 
   const todayStr = ymd(new Date())
@@ -61,5 +61,5 @@ export default async function SalonTipsPage() {
 
   const data = buildSalonAdvisor(salon, setup, stats, capabilities)
 
-  return <TipsAdvisorView variant="salon" data={data} apiBase={`/api/salons/${salon.id}`} />
+  return <TipsAdvisorView variant="salon" data={data} apiBase={`/api/salons/${salon.id}`} canManage={can(capabilities, 'tips.manage')} />
 }

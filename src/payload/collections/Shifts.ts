@@ -1,26 +1,21 @@
 import { CollectionConfig, PayloadRequest, Access, Where } from 'payload'
-import { userOwnsSalon } from '../lib/salonOwnerAccess'
+import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
+import { capabilitiesForBusiness } from '@/lib/apiCapability'
+import { can } from '@/lib/permissions'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
-/**
- * Birtokolja-e a user a rekord ÉTTERMÉT? (Az étterem-műszakok `member`+`restaurant`
- * párost használnak; a tulaj-hozzáférés az `restaurant.owner`-en át.)
- */
-async function userOwnsRestaurant(
+/** Van-e a usernek `schedule.manage` capability-je a rekord üzletében (szalon VAGY étterem)? */
+async function canManageShiftBusiness(
   req: PayloadRequest,
-  restaurantId: number | string | { id: number | string } | null | undefined,
+  salonId: number | string | undefined,
+  restaurantId: number | string | undefined,
 ): Promise<boolean> {
   if (!req.user) return false
   if (req.user.role === 'admin') return true
-  const rid = restaurantId && typeof restaurantId === 'object' ? restaurantId.id : restaurantId
-  if (rid == null) return false
-  try {
-    const r = await req.payload.findByID({ collection: 'restaurants', id: rid, depth: 0, overrideAccess: true, req })
-    const ownerId = r?.owner && typeof r.owner === 'object' ? (r.owner as { id: number | string }).id : r?.owner
-    return String(ownerId) === String(req.user.id)
-  } catch {
-    return false
-  }
+  const [type, businessId] = restaurantId ? (['restaurant', restaurantId] as const) : (['salon', salonId] as const)
+  if (businessId == null) return false
+  const caps = await capabilitiesForBusiness(req.user.id, type, businessId)
+  return !!caps && can(caps, 'schedule.manage')
 }
 
 /**
@@ -44,27 +39,25 @@ export const Shifts: CollectionConfig = {
     hidden: true,
   },
   access: {
-    read: (async ({ req }) => {
-      if (req.user?.role === 'admin') return true
-      if (!req.user) return false
-      const [salons, restaurants] = await Promise.all([
-        req.payload.find({ collection: 'salons', where: { owner: { equals: req.user.id } }, limit: 200, depth: 0, overrideAccess: true, req }),
-        req.payload.find({ collection: 'restaurants', where: { owner: { equals: req.user.id } }, limit: 200, depth: 0, overrideAccess: true, req }),
+    read: (async (args) => {
+      if (args.req.user?.role === 'admin') return true
+      if (!args.req.user) return false
+      const [salonWhere, restaurantWhere] = await Promise.all([
+        capabilityScoped('salon', 'salon', 'schedule.manage')(args),
+        capabilityScoped('restaurant', 'restaurant', 'schedule.manage')(args),
       ])
-      const salonIds = salons.docs.map((s) => s.id)
-      const restaurantIds = restaurants.docs.map((r) => r.id)
       const or: Where[] = []
-      if (salonIds.length) or.push({ salon: { in: salonIds } })
-      if (restaurantIds.length) or.push({ restaurant: { in: restaurantIds } })
+      if (salonWhere && typeof salonWhere === 'object') or.push(salonWhere as Where)
+      if (restaurantWhere && typeof restaurantWhere === 'object') or.push(restaurantWhere as Where)
       if (or.length === 0) return false
       return { or }
     }) as Access,
-    create: async ({ req, data }) => {
-      if (req.user?.role === 'admin') return true
-      if (!req.user) return false
-      if (data?.restaurant) return userOwnsRestaurant(req, data.restaurant as number | string)
-      return userOwnsSalon(req, data?.salon as number | string | undefined)
-    },
+    create: (async (args) => {
+      if (args.req.user?.role === 'admin') return true
+      if (!args.req.user) return false
+      if (args.data?.restaurant) return capabilityCreate('restaurant', 'restaurant', 'schedule.manage')(args)
+      return capabilityCreate('salon', 'salon', 'schedule.manage')(args)
+    }) as Access,
     update: async ({ req, id, data }) => {
       if (req.user?.role === 'admin') return true
       if (!req.user) return false
@@ -73,15 +66,13 @@ export const Shifts: CollectionConfig = {
         : null
       const salon = doc?.salon ?? (data?.salon as number | string | undefined)
       const restaurant = doc?.restaurant ?? (data?.restaurant as number | string | undefined)
-      if (restaurant) return userOwnsRestaurant(req, restaurant)
-      return userOwnsSalon(req, salon)
+      return canManageShiftBusiness(req, salon, restaurant)
     },
     delete: async ({ req, id }) => {
       if (req.user?.role === 'admin') return true
       if (!id) return false
       const doc = (await req.payload.findByID({ collection: 'shifts', id, depth: 0, overrideAccess: true, req }).catch(() => null)) as { salon?: number | string; restaurant?: number | string } | null
-      if (doc?.restaurant) return userOwnsRestaurant(req, doc.restaurant)
-      return userOwnsSalon(req, doc?.salon)
+      return canManageShiftBusiness(req, doc?.salon, doc?.restaurant)
     },
   },
   fields: [

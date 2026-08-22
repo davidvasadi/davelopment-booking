@@ -1,5 +1,6 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { AvailabilityView } from '@/components/restaurant/AvailabilityView'
 import { type Exception } from '@/components/restaurant/OpeningHoursExceptions'
@@ -8,7 +9,7 @@ import type { OpeningHour } from '@/payload/payload-types'
 
 export default async function RestaurantAvailabilityPage() {
   const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'settings.profile', '/restaurant')
+  requireAnyCapability(capabilities, ['availability.view', 'availability.manage'], '/restaurant')
   const payload = await getPayloadClient()
 
   const res = await payload.find({
@@ -98,6 +99,7 @@ export default async function RestaurantAvailabilityPage() {
       heat={heat}
       heatTotal={heatTotal}
       heatStartHour={heatStartHour}
+      canManage={can(capabilities, 'availability.manage')}
     />
   )
 }

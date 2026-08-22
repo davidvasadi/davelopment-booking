@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 
 /**
  * Hírlevél-piszkozat mentése/frissítése — a `marketing-campaigns` collectionba ír, `status:
@@ -35,8 +36,8 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = await getPayloadClient()
-  const owns = kind === 'salon' ? await ownsThisSalon(payload, user, businessId) : await ownsThisRestaurant(payload, user, businessId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, kind, businessId, 'marketing.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const data = {
     ...(kind === 'salon' ? { salon: businessId } : { restaurant: businessId }),
@@ -86,8 +87,8 @@ export async function DELETE(request: NextRequest) {
   }
 
   const payload = await getPayloadClient()
-  const owns = kind === 'salon' ? await ownsThisSalon(payload, user, businessId) : await ownsThisRestaurant(payload, user, businessId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, kind, businessId, 'marketing.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     const existing = await payload.findByID({ collection: 'marketing-campaigns', id: draftId, depth: 0, overrideAccess: true }).catch(() => null)

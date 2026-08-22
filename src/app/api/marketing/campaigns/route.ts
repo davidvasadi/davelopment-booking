@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 
 /**
  * Kampány törlése — piszkozat VAGY már kiküldött is (a `/api/marketing/drafts` DELETE-je csak
@@ -27,8 +28,8 @@ export async function DELETE(request: NextRequest) {
   }
 
   const payload = await getPayloadClient()
-  const owns = kind === 'salon' ? await ownsThisSalon(payload, user, businessId) : await ownsThisRestaurant(payload, user, businessId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, kind, businessId, 'marketing.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     const existing = await payload.findByID({ collection: 'marketing-campaigns', id: campaignId, depth: 0, overrideAccess: true }).catch(() => null)

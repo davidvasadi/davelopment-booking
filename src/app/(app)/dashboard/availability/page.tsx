@@ -1,5 +1,6 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { SalonAvailabilityView } from '@/components/dashboard/SalonAvailabilityView'
 import { type SalonException } from '@/components/dashboard/SalonAvailabilityExceptions'
@@ -8,7 +9,7 @@ import type { Availability } from '@/payload/payload-types'
 
 export default async function AvailabilityPage() {
   const { salon, capabilities } = await getOwnedSalon()
-  requireCapability(capabilities, 'settings.profile', '/dashboard')
+  requireAnyCapability(capabilities, ['availability.view', 'availability.manage'], '/dashboard')
   const payload = await getPayloadClient()
 
   const [weeklyRes, excRes] = await Promise.all([
@@ -108,6 +109,7 @@ export default async function AvailabilityPage() {
       heat={heat}
       heatTotal={heatTotal}
       heatStartHour={heatStartHour}
+      canManage={can(capabilities, 'availability.manage')}
     />
   )
 }

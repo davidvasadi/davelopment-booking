@@ -1,5 +1,6 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { getPricing } from '@/lib/pricing'
 import { monthlyEmailCapForTier } from '@/lib/tier'
@@ -11,7 +12,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function MarketingPage() {
   const { salon, capabilities } = await getOwnedSalon()
-  requireCapability(capabilities, 'payments.manage', '/dashboard')
+  requireAnyCapability(capabilities, ['marketing.view', 'marketing.manage'], '/dashboard')
   const payload = await getPayloadClient()
   const pricing = await getPricing()
 
@@ -74,6 +75,7 @@ export default async function MarketingPage() {
         usedThisMonth={monthStats.usedThisMonth}
         openedThisMonth={monthStats.openedThisMonth}
         initialCampaigns={campaigns}
+        canManage={can(capabilities, 'marketing.manage')}
       />
     </div>
   )

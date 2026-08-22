@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { getStripe } from '@/lib/stripe'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 import type { Salon, Restaurant } from '@/payload/payload-types'
 
 /**
@@ -28,8 +29,10 @@ export async function GET(request: NextRequest) {
   }
 
   const payload = await getPayloadClient()
-  const owns = salonId ? await ownsThisSalon(payload, user, salonId) : await ownsThisRestaurant(payload, user, restaurantId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = salonId
+    ? await assertCapability(user.id, 'salon', salonId, 'vouchers.manage')
+    : await assertCapability(user.id, 'restaurant', restaurantId, 'vouchers.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const business =
     salonId

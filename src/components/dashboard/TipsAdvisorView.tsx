@@ -67,10 +67,12 @@ export function TipsAdvisorView({
   variant,
   data,
   apiBase,
+  canManage = false,
 }: {
   variant: 'salon' | 'restaurant'
   data: AdvisorResult
   apiBase: string
+  canManage?: boolean
 }) {
   const router = useRouter()
   const [filter, setFilter] = useState<'all' | TipCategory>('all')
@@ -99,6 +101,7 @@ export function TipsAdvisorView({
       if (action.href !== '#') router.push(action.href)
       return
     }
+    if (!canManage) return
     setBusyId(id)
     try {
       const res = await fetch(apiBase, {
@@ -247,15 +250,17 @@ export function TipsAdvisorView({
                 </span>
               )}
               <div className="relative mt-6 flex flex-wrap gap-2.5">
-                <button
-                  type="button"
-                  onClick={() => runAction(data.weeklyTip!.id, data.weeklyTip!.action)}
-                  disabled={busyId === data.weeklyTip.id}
-                  className="inline-flex items-center gap-2 rounded-[20px] bg-[#F1CE45] px-5 py-3 text-[14px] font-semibold text-ink-dark transition-transform active:scale-[0.97] disabled:opacity-60"
-                >
-                  {busyId === data.weeklyTip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  {data.weeklyTip.actionLabel}
-                </button>
+                {(data.weeklyTip.action.kind === 'nav' || canManage) && (
+                  <button
+                    type="button"
+                    onClick={() => runAction(data.weeklyTip!.id, data.weeklyTip!.action)}
+                    disabled={busyId === data.weeklyTip.id}
+                    className="inline-flex items-center gap-2 rounded-[20px] bg-[#F1CE45] px-5 py-3 text-[14px] font-semibold text-ink-dark transition-transform active:scale-[0.97] disabled:opacity-60"
+                  >
+                    {busyId === data.weeklyTip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {data.weeklyTip.actionLabel}
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setDismissedWeekly(true)}
@@ -344,6 +349,7 @@ export function TipsAdvisorView({
                 card={card}
                 index={i}
                 busy={busyId === card.id}
+                canAct={card.action.kind === 'nav' || canManage}
                 onAction={() => runAction(card.id, card.action)}
               />
             ))}
@@ -367,11 +373,13 @@ function RecCard({
   card,
   index,
   busy,
+  canAct,
   onAction,
 }: {
   card: TipCard
   index: number
   busy: boolean
+  canAct: boolean
   onAction: () => void
 }) {
   const Icon = CARD_ICON[card.id] ?? Zap
@@ -406,7 +414,7 @@ function RecCard({
           <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#1D9D63]">
             <Check className="h-4 w-4" strokeWidth={2.2} /> Bekapcsolva
           </span>
-        ) : (
+        ) : canAct ? (
           <button
             type="button"
             onClick={onAction}
@@ -417,6 +425,8 @@ function RecCard({
             Alkalmaz
             {!busy && <ArrowRight className="h-3.5 w-3.5" strokeWidth={2} />}
           </button>
+        ) : (
+          <span className="text-[13px] font-medium text-ink-soft2">Nincs jogosultság</span>
         )}
         {card.impact && !enabled && (
           <span className="text-[11.5px] font-medium text-ink-soft2">{card.impact}</span>

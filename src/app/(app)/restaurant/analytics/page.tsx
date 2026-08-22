@@ -1,12 +1,16 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
+import { getPayloadClient } from '@/lib/payload'
 import { getRestaurantStats } from '@/lib/restaurantStats'
+import { getMyShiftStats } from '@/lib/myShiftStats'
 import { daypartBuckets } from '@/lib/daypartBuckets'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
 import { ReservationTrendChart, DowChart, HourChart, DaypartChart } from '@/components/dashboard/DashboardCharts'
 import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
 import { DwellCard } from '@/components/restaurant/DwellCard'
 import { NationalityCard } from '@/components/restaurant/NationalityCard'
+import { StaffShiftStatsView } from '@/components/restaurant/StaffShiftStatsView'
 import { WeekMiniBars, WeekDayLabels, type WeekBar } from '@/components/shared/OverviewCharts'
 import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 import { PageHeader } from '@/components/ui/page-header'
@@ -32,14 +36,41 @@ export default async function RestaurantAnalyticsPage({
   searchParams: Promise<{ period?: string; from?: string; to?: string }>
 }) {
   const { period: periodParam, from: fromParam, to: toParam } = await searchParams
-  const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'analytics.view', '/restaurant')
+  const { restaurant, capabilities, userId } = await getOwnedRestaurant()
+  requireAnyCapability(capabilities, ['analytics.view', 'analytics.view.own'], '/restaurant')
 
   let days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
   let range: { dateFrom: string; dateTo: string } | undefined
   if (fromParam && toParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam) && /^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
     const today = new Date().toISOString().slice(0, 10)
     range = { dateFrom: fromParam, dateTo: toParam > today ? today : toParam }
+  }
+
+  // `analytics.view` hiányában (csak `.own`) a foglalás nincs felszolgálóhoz rendelve az
+  // étteremben, ezért a "saját nézet" a beosztás (ledolgozott órák) — SAJÁT, önálló
+  // komponensben (`StaffShiftStatsView`), NEM a céges `AnalyticsOverview`-ban.
+  //
+  // Nincs Üzlet↔Saját munka váltó itt (a szalonnal ellentétben): a tulaj/üzletvezető
+  // saját beosztása membership-rekordhoz kötődne, de a TULAJNAK nincs is membership-je a saját
+  // éttermében (a Restaurant.owner relációval jogosult, nem meghívással) — a váltó náluk mindig
+  // üres/nulla adatot mutatott volna, ezért inkább kikerült.
+  if (!can(capabilities, 'analytics.view')) {
+    const payload = await getPayloadClient()
+    const mem = await payload.find({
+      collection: 'memberships',
+      where: { and: [{ user: { equals: userId } }, { restaurant: { equals: restaurant.id } }] },
+      limit: 1, depth: 0, overrideAccess: true,
+    })
+    const memberId = mem.docs[0]?.id
+    const shiftStats = memberId
+      ? await getMyShiftStats(restaurant.id, memberId, days, range)
+      : {
+          period: days, periodHours: 0, periodHoursDiff: 0, workedDays: 0, workedDaysDiff: 0,
+          prevWorkedDays: 0, prevPeriodHours: 0,
+          avgShiftHours: 0, sickDays: 0, leaveDays: 0, upcomingShiftsCount: 0, upcomingShifts: [], trend: [], byDayOfWeek: [],
+          heatmap: { grid: [], dates: [], columnLabels: [] }, tipHuf: null, wageHuf: null, payLabel: null,
+        }
+    return <StaffShiftStatsView stats={shiftStats} filter={<DateRangeFilter basePath="/restaurant/analytics" />} />
   }
 
   const stats = await getRestaurantStats(restaurant.id, days, range)

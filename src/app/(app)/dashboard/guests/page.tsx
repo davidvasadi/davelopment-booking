@@ -1,5 +1,5 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
@@ -9,7 +9,7 @@ import type { Booking, Service, Customer } from '@/payload/payload-types'
 
 export default async function SalonGuestsPage() {
   const { salon, capabilities } = await getOwnedSalon()
-  requireCapability(capabilities, 'guests.view', '/dashboard')
+  requireAnyCapability(capabilities, ['guests.view', 'guests.manage'], '/dashboard')
   const payload = await getPayloadClient()
 
   const res = await payload.find({

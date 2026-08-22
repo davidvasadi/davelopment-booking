@@ -56,3 +56,22 @@ export async function assertCapability(
   if (!can(caps, capability)) return { error: 'Ehhez nincs jogosultságod', status: 403 }
   return null
 }
+
+/**
+ * Mint `assertCapability`, de OR logikával — a lista ELEMEINEK bármelyike elég. Olyan
+ * olvasó (GET) route-okhoz kell, ahol a `.manage` jog magában is elegendő kéne legyen (pl. aki
+ * kampányt küldhet, az a feliratkozó-listát is lássa `.view` nélkül is) — a `.manage` NEM
+ * implikálja automatikusan a `.view`-t a `can()`-ban, ezt itt, a hívási oldalon explicit kezeljük.
+ */
+export async function assertAnyCapability(
+  userId: string | number,
+  type: 'salon' | 'restaurant',
+  businessId: string | number | null | undefined,
+  capabilities: Capability[],
+): Promise<{ error: string; status: number } | null> {
+  if (!businessId) return { error: 'Hiányzó üzlet', status: 400 }
+  const caps = await capabilitiesForBusiness(userId, type, businessId)
+  if (!caps) return { error: 'Nincs jogosultság ehhez az üzlethez', status: 403 }
+  if (!capabilities.some((c) => can(caps, c))) return { error: 'Ehhez nincs jogosultságod', status: 403 }
+  return null
+}

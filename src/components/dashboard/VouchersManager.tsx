@@ -39,6 +39,8 @@ interface Props {
   voucherTypes: VoucherTypeData[]
   minAmountHuf: number
   maxAmountHuf: number
+  supportedLocales?: (string | null | undefined)[] | null
+  canManage?: boolean
 }
 
 const STATUS_OPTIONS: VoucherRow['status'][] = ['active', 'redeemed', 'expired', 'refunded']
@@ -54,7 +56,7 @@ function statusPill(status: VoucherRow['status']): { label: string; bg: string; 
   }
 }
 
-export function VouchersManager({ variant, businessId, initialVouchers, voucherTypes, minAmountHuf, maxAmountHuf }: Props) {
+export function VouchersManager({ variant, businessId, initialVouchers, voucherTypes, minAmountHuf, maxAmountHuf, supportedLocales, canManage = false }: Props) {
   const [vouchers, setVouchers] = useState<VoucherRow[]>(initialVouchers)
   // A `router.refresh()` (pl. a VoucherCreateWizard sikeres fizetés után) friss `initialVouchers`
   // propot küld, de a `useState` csak MOUNT-kor olvassa be — enélkül a lista a wizard bezárása
@@ -74,6 +76,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
   // Mobilon a fejléc csengő melletti ikonjai nyitják ezeket (DashboardNav dispatch-eli) — a
   // Foglalások/Beállítások fejléc-ikon mintáját követve.
   useEffect(() => {
+    if (!canManage) return
     const openRedeem = () => { setMode('code'); setRedeemOpen(true) }
     const openActions = () => setMobileActionsOpen(true)
     window.addEventListener('davelopment:open-vouchers-redeem', openRedeem)
@@ -82,7 +85,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
       window.removeEventListener('davelopment:open-vouchers-redeem', openRedeem)
       window.removeEventListener('davelopment:open-vouchers-actions', openActions)
     }
-  }, [])
+  }, [canManage])
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -201,7 +204,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
 
   // Mobilon a fejléc csengő melletti ikonjai (DashboardNav) váltják ki ezt a sort — ott csak a
   // fekete beolvasás-ikon + a lenti PopupModal nyílik, hogy ne foglaljon annyi helyet.
-  const actionButtons = (
+  const actionButtons = canManage ? (
     <div className="hidden flex-wrap items-center gap-2.5 lg:flex">
       <button
         onClick={() => setTypesOpen(true)}
@@ -230,7 +233,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
         </button>
       )}
     </div>
-  )
+  ) : null
 
   return (
     <>
@@ -321,15 +324,17 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
               >
                 {/* DESKTOP */}
                 <div className={`hidden ${GRID} items-center gap-3.5 px-3.5 py-2.5 lg:grid`}>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); toggleSelect(v.id) }}
-                    aria-pressed={isSel}
-                    aria-label="Kijelölés"
-                    className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
-                  >
-                    {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
-                  </button>
+                  {canManage ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleSelect(v.id) }}
+                      aria-pressed={isSel}
+                      aria-label="Kijelölés"
+                      className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
+                    >
+                      {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
+                    </button>
+                  ) : <span />}
                   <div className="min-w-0">
                     <p className="truncate text-[14.5px] font-semibold tracking-wide text-ink">{v.code}</p>
                     {v.type_name && <p className="truncate text-[12px] font-medium text-ink-soft">{v.type_name}</p>}
@@ -340,16 +345,16 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                   <div className="relative">
                     <button
                       type="button"
-                      disabled={updatingId === v.id}
-                      onClick={(e) => { e.stopPropagation(); setStatusMenuId(statusMenuId === v.id ? null : v.id) }}
+                      disabled={updatingId === v.id || !canManage}
+                      onClick={(e) => { e.stopPropagation(); if (canManage) setStatusMenuId(statusMenuId === v.id ? null : v.id) }}
                       className="inline-flex items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold disabled:opacity-60"
                       style={{ background: sp.bg, color: sp.color, border: sp.border }}
                     >
                       {updatingId === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="h-[7px] w-[7px] rounded-full" style={{ background: sp.dot }} />}
                       {sp.label}
-                      <ChevronDown className="h-3 w-3 opacity-60" />
+                      {canManage && <ChevronDown className="h-3 w-3 opacity-60" />}
                     </button>
-                    {statusMenuId === v.id && (
+                    {canManage && statusMenuId === v.id && (
                       <>
                         <div className="fixed inset-0 z-10" onClick={() => setStatusMenuId(null)} />
                         <div className="absolute left-0 top-[36px] z-20 w-44 rounded-[14px] border border-line bg-white p-1.5 shadow-dav-container">
@@ -372,14 +377,16 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                       </>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setDeleteId(v.id) }}
-                    title="Törlés"
-                    className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-paper"
-                  >
-                    <Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} />
-                  </button>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setDeleteId(v.id) }}
+                      title="Törlés"
+                      className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-paper"
+                    >
+                      <Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} />
+                    </button>
+                  )}
                 </div>
                 {/* MOBIL */}
                 <div className="flex items-center justify-between gap-3 px-3.5 py-3 lg:hidden">
@@ -391,15 +398,15 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                     <div className="relative shrink-0">
                       <button
                         type="button"
-                        disabled={updatingId === v.id}
-                        onClick={(e) => { e.stopPropagation(); setStatusMenuId(statusMenuId === v.id ? null : v.id) }}
+                        disabled={updatingId === v.id || !canManage}
+                        onClick={(e) => { e.stopPropagation(); if (canManage) setStatusMenuId(statusMenuId === v.id ? null : v.id) }}
                         className="inline-flex items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold disabled:opacity-60"
                         style={{ background: sp.bg, color: sp.color, border: sp.border }}
                       >
                         {updatingId === v.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="h-[7px] w-[7px] rounded-full" style={{ background: sp.dot }} />}
                         {sp.label}
                       </button>
-                      {statusMenuId === v.id && (
+                      {canManage && statusMenuId === v.id && (
                         <>
                           <div className="fixed inset-0 z-10" onClick={() => setStatusMenuId(null)} />
                           <div className="absolute right-0 top-[36px] z-20 w-44 rounded-[14px] border border-line bg-white p-1.5 shadow-dav-container">
@@ -422,14 +429,16 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                         </>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setDeleteId(v.id) }}
-                      title="Törlés"
-                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-paper"
-                    >
-                      <Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} />
-                    </button>
+                    {canManage && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setDeleteId(v.id) }}
+                        title="Törlés"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-paper"
+                      >
+                        <Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -524,6 +533,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
           initialTypes={voucherTypes}
           minAmountHuf={minAmountHuf}
           maxAmountHuf={maxAmountHuf}
+          supportedLocales={supportedLocales}
         />
       </PopupModal>
 

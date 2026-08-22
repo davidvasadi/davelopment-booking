@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Resend } from 'resend'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 import { getPricing } from '@/lib/pricing'
 import { monthlyEmailCapForTier, resolveTier } from '@/lib/tier'
 import { logEmail } from '@/lib/emailLog'
@@ -59,8 +60,8 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = await getPayloadClient()
-  const owns = kind === 'salon' ? await ownsThisSalon(payload, user, businessId) : await ownsThisRestaurant(payload, user, businessId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, kind, businessId, 'marketing.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const business = (await payload.findByID({ collection: kind === 'salon' ? 'salons' : 'restaurants', id: businessId, depth: 1, overrideAccess: true }).catch(() => null)) as (Salon | Restaurant | null)
   if (!business) return NextResponse.json({ error: 'Üzlet nem található' }, { status: 404 })

@@ -21,7 +21,7 @@ import { CARD, HeroKpi } from '@/components/dashboard/overview-ui'
 import { can } from '@/lib/permissions'
 import { getMyUpcomingShifts } from '@/lib/myShifts'
 import { StaffOverview } from '@/components/dashboard/StaffOverview'
-import { CalendarDays, Banknote, CheckCircle2, Plus, UserRound } from 'lucide-react'
+import { CalendarDays, Banknote, Plus, UserRound } from 'lucide-react'
 import Link from 'next/link'
 import type { Booking, Service, StaffMember, Media, Task, Availability } from '@/payload/payload-types'
 
@@ -347,7 +347,6 @@ export default async function DashboardPage() {
         <div className="flex flex-wrap items-start gap-8 lg:gap-10">
           <HeroKpi icon={CalendarDays} value={String(stats.bookingsToday)} label="Foglalás" />
           <HeroKpi icon={Banknote} value={formatPrice(stats.revenueToday, 'HUF')} label="Bevétel" />
-          <HeroKpi icon={CheckCircle2} value={`${stats.completionRate}%`} label="Teljesítés" />
           {/* Csak akkor jelenik meg, ha az üzletnél be van kapcsolva a vendég-előleg. */}
           {salon.deposit_settings?.enabled && (
             <HeroKpi icon={Banknote} value={formatPrice(stats.depositsToday, 'HUF')} label="Előleg ma" />

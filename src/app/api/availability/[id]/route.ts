@@ -1,23 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-
-async function ownsThisSalon(
-  payload: Awaited<ReturnType<typeof getPayloadClient>>,
-  user: { id: string | number; role?: string },
-  salonId: unknown,
-): Promise<boolean> {
-  if (user.role === 'admin') return true
-  const sid = salonId && typeof salonId === 'object' ? (salonId as { id: unknown }).id : salonId
-  if (sid == null) return false
-  try {
-    const salon = await payload.findByID({ collection: 'salons', id: sid as string | number, depth: 0, overrideAccess: true })
-    const ownerId = salon?.owner && typeof salon.owner === 'object' ? (salon.owner as { id: unknown }).id : salon?.owner
-    return String(ownerId) === String(user.id)
-  } catch {
-    return false
-  }
-}
+import { assertCapability } from '@/lib/apiCapability'
 
 /**
  * PATCH  /api/availability/[id]  — naptár-kivétel frissítése
@@ -46,8 +30,8 @@ export async function PATCH(
   const existing = await payload.findByID({ collection: 'availability', id: numId, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  const owns = await ownsThisSalon(payload, user, existing.salon)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, 'salon', existing.salon, 'availability.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     const doc = await payload.update({
@@ -79,8 +63,8 @@ export async function DELETE(
   const existing = await payload.findByID({ collection: 'availability', id: numId, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  const owns = await ownsThisSalon(payload, user, existing.salon)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, 'salon', existing.salon, 'availability.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     await payload.delete({ collection: 'availability', id: numId, overrideAccess: true })

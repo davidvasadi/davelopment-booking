@@ -63,10 +63,12 @@ export function TablesManager({
   restaurantId,
   initialRooms,
   initialTables,
+  canManage = false,
 }: {
   restaurantId: number | string
   initialRooms: RoomItem[]
   initialTables: TableItem[]
+  canManage?: boolean
 }) {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -388,16 +390,18 @@ export function TablesManager({
   return (
     <div className="space-y-4">
       {/* ── Akciók ── */}
-      <div className="flex flex-wrap items-center justify-end gap-2.5">
-        <button
-          onClick={() => setCreatingRoom(true)}
-          disabled={busy}
-          className="flex items-center gap-2 rounded-dav-pill border border-line bg-[var(--dav-glass)] px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong disabled:opacity-40"
-        >
-          <Home className="h-4 w-4" strokeWidth={1.7} />
-          Új terem
-        </button>
-      </div>
+      {canManage && (
+        <div className="flex flex-wrap items-center justify-end gap-2.5">
+          <button
+            onClick={() => setCreatingRoom(true)}
+            disabled={busy}
+            className="flex items-center gap-2 rounded-dav-pill border border-line bg-[var(--dav-glass)] px-4 py-2.5 text-sm font-medium text-ink transition-colors hover:border-line-strong disabled:opacity-40"
+          >
+            <Home className="h-4 w-4" strokeWidth={1.7} />
+            Új terem
+          </button>
+        </div>
+      )}
 
       {/* ── Összesítő ── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-3.5">
@@ -425,7 +429,7 @@ export function TablesManager({
         return (
           <div
             key={room.id}
-            draggable
+            draggable={canManage}
             onDragStart={(e) => {
               e.stopPropagation()
               setDragRoomId(String(room.id))
@@ -434,6 +438,7 @@ export function TablesManager({
               setDragRoomId(null)
             }}
             onDragOver={(e) => {
+              if (!canManage) return
               e.preventDefault()
               e.stopPropagation()
               // Élőben frissítjük a sorrendet drag közben
@@ -442,6 +447,7 @@ export function TablesManager({
               }
             }}
             onDrop={(e) => {
+              if (!canManage) return
               e.preventDefault()
               e.stopPropagation()
               setDragRoomId(null)
@@ -505,22 +511,26 @@ export function TablesManager({
                 <span className="text-[13px] font-medium text-ink-soft">
                   {roomTables.length} asztal · {seats} fő
                 </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setEditingRoom(room) }}
-                  disabled={busy}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper disabled:opacity-40"
-                  title="Terem szerkesztése"
-                >
-                  <Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} />
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); deleteRoom(room.id) }}
-                  disabled={busy}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink-soft shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:text-bad disabled:opacity-40"
-                  title="Terem törlése"
-                >
-                  <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.6} />
-                </button>
+                {canManage && (
+                  <>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setEditingRoom(room) }}
+                      disabled={busy}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper disabled:opacity-40"
+                      title="Terem szerkesztése"
+                    >
+                      <Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} />
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteRoom(room.id) }}
+                      disabled={busy}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink-soft shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:text-bad disabled:opacity-40"
+                      title="Terem törlése"
+                    >
+                      <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.6} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -538,21 +548,22 @@ export function TablesManager({
                   return (
                     <div
                       key={t.id}
-                      draggable
+                      draggable={canManage}
                       onDragStart={(e) => {
                         e.stopPropagation()
                         setDragId(String(t.id))
                         setDragRoomId(null)
                       }}
                       onDragEnd={() => setDragId(null)}
-                      onDragOver={(e) => e.preventDefault()}
+                      onDragOver={(e) => { if (canManage) e.preventDefault() }}
                       onDrop={(e) => {
+                        if (!canManage) return
                         e.preventDefault()
                         e.stopPropagation()
                         if (dragId) void reorder(room.id, dragId, String(t.id))
                         setDragId(null)
                       }}
-                      className={`group relative cursor-grab rounded-[18px] border bg-white p-4 transition-all active:cursor-grabbing ${
+                      className={`group relative rounded-[18px] border bg-white p-4 transition-all ${canManage ? 'cursor-grab active:cursor-grabbing' : ''} ${
                         dragId === String(t.id)
                           ? 'border-line-strong opacity-50'
                           : isCombinable
@@ -560,7 +571,7 @@ export function TablesManager({
                             : 'border-line hover:border-line-strong'
                       }`}
                     >
-                      <button onClick={() => setEditing(t)} className="block w-full text-left">
+                      <button onClick={() => canManage && setEditing(t)} className={`block w-full text-left ${canManage ? '' : 'cursor-default'}`}>
                         <div className="flex items-start justify-between">
                           <TableGlyph capacity={t.capacity} />
                           {isCombinable ? (
@@ -583,16 +594,18 @@ export function TablesManager({
                     </div>
                   )
                 })}
-                <button
-                  onClick={() => addTable(room.id)}
-                  disabled={busy}
-                  className="flex min-h-[118px] flex-col items-center justify-center gap-2 rounded-[18px] border-[1.5px] border-dashed border-line-strong text-ink-soft transition-colors hover:border-ink-soft hover:text-ink disabled:opacity-40"
-                >
-                  <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/60">
-                    <Plus className="h-4 w-4" strokeWidth={1.9} />
-                  </span>
-                  <span className="text-xs font-medium">Asztal hozzáadása</span>
-                </button>
+                {canManage && (
+                  <button
+                    onClick={() => addTable(room.id)}
+                    disabled={busy}
+                    className="flex min-h-[118px] flex-col items-center justify-center gap-2 rounded-[18px] border-[1.5px] border-dashed border-line-strong text-ink-soft transition-colors hover:border-ink-soft hover:text-ink disabled:opacity-40"
+                  >
+                    <span className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-white/60">
+                      <Plus className="h-4 w-4" strokeWidth={1.9} />
+                    </span>
+                    <span className="text-xs font-medium">Asztal hozzáadása</span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -627,28 +640,32 @@ export function TablesManager({
                 <span className="text-[13px] font-medium text-ink-soft">
                   {orphanTables.length} asztal · {seats} fő
                 </span>
-                <button
-                  onClick={() => setAssigningOrphans(true)}
-                  disabled={busy || localRooms.length === 0}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper disabled:opacity-40"
-                  title="Mind átsorolása egy terembe"
-                >
-                  <Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} />
-                </button>
-                <button
-                  onClick={() =>
-                    setConfirmState({
-                      title: 'Egyéb asztalok törlése',
-                      description: `Biztosan törlöd mind a(z) ${orphanTables.length} terem nélküli asztalt? Ez nem vonható vissza.`,
-                      onConfirm: () => runDeleteOrphanTables(orphanTables.map((t) => t.id)),
-                    })
-                  }
-                  disabled={busy}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink-soft shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:text-bad disabled:opacity-40"
-                  title="Összes egyéb asztal törlése"
-                >
-                  <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.6} />
-                </button>
+                {canManage && (
+                  <>
+                    <button
+                      onClick={() => setAssigningOrphans(true)}
+                      disabled={busy || localRooms.length === 0}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper disabled:opacity-40"
+                      title="Mind átsorolása egy terembe"
+                    >
+                      <Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} />
+                    </button>
+                    <button
+                      onClick={() =>
+                        setConfirmState({
+                          title: 'Egyéb asztalok törlése',
+                          description: `Biztosan törlöd mind a(z) ${orphanTables.length} terem nélküli asztalt? Ez nem vonható vissza.`,
+                          onConfirm: () => runDeleteOrphanTables(orphanTables.map((t) => t.id)),
+                        })
+                      }
+                      disabled={busy}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-ink-soft shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:text-bad disabled:opacity-40"
+                      title="Összes egyéb asztal törlése"
+                    >
+                      <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.6} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
             <div
@@ -663,8 +680,8 @@ export function TablesManager({
                 return (
                   <button
                     key={t.id}
-                    onClick={() => setEditing(t)}
-                    className={`group relative rounded-[18px] border bg-white p-4 text-left transition-all ${
+                    onClick={() => canManage && setEditing(t)}
+                    className={`group relative rounded-[18px] border bg-white p-4 text-left transition-all ${canManage ? '' : 'cursor-default'} ${
                       isCombinable ? 'border-gold/50 hover:border-gold' : 'border-line hover:border-line-strong'
                     }`}
                   >

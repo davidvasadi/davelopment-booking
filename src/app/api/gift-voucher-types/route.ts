@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 import type { Salon, Restaurant } from '@/payload/payload-types'
 
 /**
@@ -48,8 +49,10 @@ export async function POST(request: NextRequest) {
   if (!salonId && !restaurantId) return NextResponse.json({ error: 'salon vagy restaurant kötelező' }, { status: 400 })
 
   const payload = await getPayloadClient()
-  const owns = salonId ? await ownsThisSalon(payload, user, salonId) : await ownsThisRestaurant(payload, user, restaurantId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = salonId
+    ? await assertCapability(user.id, 'salon', salonId, 'vouchers.manage')
+    : await assertCapability(user.id, 'restaurant', restaurantId, 'vouchers.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const amountHuf = await clampToVoucherRange(payload, salonId ? 'salon' : 'restaurant', (salonId ?? restaurantId)!, Number(body.amount_huf) || 0)
 

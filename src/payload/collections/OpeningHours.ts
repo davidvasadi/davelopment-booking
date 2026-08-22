@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/restaurantAccess'
+import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
@@ -18,9 +18,9 @@ export const OpeningHours: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: canCreateForOwnRestaurant,
-    update: isRestaurantOwnerOrAdmin,
-    delete: isRestaurantOwnerOrAdmin,
+    create: capabilityCreate('restaurant', 'restaurant', 'availability.manage'),
+    update: capabilityScoped('restaurant', 'restaurant', 'availability.manage'),
+    delete: capabilityScoped('restaurant', 'restaurant', 'availability.manage'),
   },
   fields: [
     {

@@ -1,18 +1,19 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
-import { getPayloadClient } from '@/lib/payload'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
+import { findMyStaffId } from '@/lib/myStaffLink'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { daypartBuckets } from '@/lib/daypartBuckets'
 import { formatPrice } from '@/lib/utils'
 import { TrendChart, DowChart, ServiceChart, StaffChart, HourChart, DaypartChart, PopularServicesChart } from '@/components/dashboard/DashboardCharts'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
+import { AnalyticsScopeToggle } from '@/components/dashboard/AnalyticsScopeToggle'
 import { WeekMiniBars, WeekDayLabels, type WeekBar } from '@/components/shared/OverviewCharts'
 import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
-import { Sparkles } from 'lucide-react'
 
 const VALID_PERIODS = [1, 7, 30, 90, 180, 365]
 
@@ -29,12 +30,11 @@ function periodLabel(days: number) {
 export default async function AnalyticsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ period?: string; from?: string; to?: string }>
+  searchParams: Promise<{ period?: string; from?: string; to?: string; scope?: string }>
 }) {
-  const { period: periodParam, from: fromParam, to: toParam } = await searchParams
-  const { salon, capabilities } = await getOwnedSalon()
-  requireCapability(capabilities, 'analytics.view', '/dashboard')
-  const payload = await getPayloadClient()
+  const { period: periodParam, from: fromParam, to: toParam, scope: scopeParam } = await searchParams
+  const { salon, capabilities, userId, userEmail } = await getOwnedSalon()
+  requireAnyCapability(capabilities, ['analytics.view', 'analytics.view.own'], '/dashboard')
 
   let days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
   let range: { dateFrom: string; dateTo: string } | undefined
@@ -44,14 +44,24 @@ export default async function AnalyticsPage({
     range = { dateFrom: fromParam, dateTo: toParam > today ? today : toParam }
   }
 
-  const stats = await getDashboardStats(salon.id, days, range)
+  // `analytics.view` hiányában (csak `.own`) a nézet MINDIG a bejelentkezett szakember SAJÁT
+  // foglalásaira/bevételére szűkül — a `findMyStaffId` elsődlegesen a `Staff.user` relációt
+  // nézi (megbízható), email-fallbackkel. Akinek VAN teljes `analytics.view`-ja (tulaj,
+  // üzletvezető), az egy váltóval (`?scope=own`) IS átválthat a saját munkájára.
+  const hasFullView = can(capabilities, 'analytics.view')
+  const isOwnScope = !hasFullView || scopeParam === 'own'
+  // FONTOS: ha nincs saját staff-rekord (pl. a tulaj sose vette fel magát szakembernek), a
+  // `staffId` NEM maradhat undefined — a `getDashboardStats` üres szűrőt épít undefined-ra, ami
+  // a TELJES üzleti adatot adná vissza. Helyette egy sosem-egyező, NUMERIKUS sentinelt (0) adunk
+  // át — a `staff_id` oszlop numerikus, egy string sentinel NaN-re castolva eldobatta a lekérdezést.
+  const staffId = isOwnScope ? (await findMyStaffId(salon.id, userId, userEmail)) ?? 0 : undefined
+
+  const stats = await getDashboardStats(salon.id, days, range, staffId)
 
   // ── Statisztika-specifikus, ELEMZŐ jobb-oldali KPI-k — szándékosan MÁST mérnek,
   //    mint az áttekintő (az napi Foglalás/Bevétel/Teljesítés): havi átlagos bevétel
-  //    (időszakra vetített futó-ütem) · átlagos foglalás-érték (pénzügyi) · a
-  //    legnépszerűbb (legtöbbet foglalt) szolgáltatás neve. ──
+  //    (időszakra vetített futó-ütem) · átlagos foglalás-érték (pénzügyi). ──
   const monthlyAvgRevenue = Math.round((stats.periodRevenue / Math.max(1, days)) * 30)
-  const topService = [...stats.byService].sort((a, b) => b.bookings - a.bookings)[0]?.name ?? '—'
 
   // Idősorok a metrika-diagramokhoz.
   const revenueSeries = stats.trend.map((d) => ({ label: d.label, value: d.revenue }))
@@ -106,7 +116,7 @@ export default async function AnalyticsPage({
       views: [
         ...(stats.byService.length ? [{ id: 'service', label: 'Szolgáltatások', icon: 'service', target: 'service' }] : []),
         ...(stats.byService.length ? [{ id: 'popular', label: 'Legnépszerűbb szolgáltatások', icon: 'popular', target: 'popular' }] : []),
-        ...(stats.byStaff.length ? [{ id: 'staff', label: 'Munkatársak', icon: 'staff', target: 'staff' }] : []),
+        ...(!isOwnScope && stats.byStaff.length ? [{ id: 'staff', label: 'Munkatársak', icon: 'staff', target: 'staff' }] : []),
       ],
     },
     {
@@ -196,7 +206,11 @@ export default async function AnalyticsPage({
   return (
     <div className="p-5 lg:p-0 space-y-6">
 
-      <PageHeader eyebrow="Részletes nézet" title="Statisztikák" />
+      <PageHeader
+        eyebrow={isOwnScope ? 'Saját nézet' : 'Részletes nézet'}
+        title={isOwnScope ? 'Saját statisztika' : 'Statisztikák'}
+        description={isOwnScope ? 'A saját foglalásaid és bevételed — nem a teljes üzleté.' : undefined}
+      />
 
       {/* ── Crextio stat-terület: státusz-csík (striped cellával) + nagy KPI-számok ── */}
       <div className="flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
@@ -213,17 +227,6 @@ export default async function AnalyticsPage({
         <div className="flex flex-wrap items-start gap-8 lg:gap-10">
           <CountUpKpi icon="wallet" value={monthlyAvgRevenue} label="Havi átl. bevétel" suffix=" Ft" group />
           <CountUpKpi icon="gauge" value={stats.avgBookingValue} label="Átl. foglalás-érték" suffix=" Ft" group />
-          {/* Legnépszerűbb szolgáltatás — NÉV, nem szám: a KPI-ritmust követi, de kisebb
-              betűvel + truncate, hogy hosszú név se lógjon ki. */}
-          <div className="flex flex-col items-start">
-            <div className="flex items-center gap-2.5">
-              <Sparkles className="h-6 w-6 shrink-0 text-ink-soft" strokeWidth={1.6} />
-              <div className="max-w-[190px] truncate text-2xl lg:text-[26px] font-light leading-none tracking-[-0.02em] text-ink">
-                {topService}
-              </div>
-            </div>
-            <div className="mt-1.5 text-[13px] font-medium text-ink-soft">Legnépszerűbb szolgáltatás</div>
-          </div>
         </div>
       </div>
 
@@ -231,7 +234,20 @@ export default async function AnalyticsPage({
           Reveal nélkül, pontosan úgy mint az Áttekintés grafikonjai (azonnal renderel). */}
       <AnalyticsOverview
         metrics={metrics}
-        filter={<DateRangeFilter basePath="/dashboard/analytics" />}
+        filter={
+          <>
+            {hasFullView && (
+              <AnalyticsScopeToggle
+                basePath="/dashboard/analytics"
+                scope={isOwnScope ? 'own' : 'business'}
+                period={days}
+                from={range?.dateFrom}
+                to={range?.dateTo}
+              />
+            )}
+            <DateRangeFilter basePath="/dashboard/analytics" />
+          </>
+        }
         csvHref={
           range
             ? `/api/export-csv?dateFrom=${range.dateFrom}&dateTo=${range.dateTo}`

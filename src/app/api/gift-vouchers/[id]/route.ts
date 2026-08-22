@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -29,8 +30,10 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   const existing = await payload.findByID({ collection: 'gift-vouchers', id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  const owns = existing.salon ? await ownsThisSalon(payload, user, existing.salon) : await ownsThisRestaurant(payload, user, existing.restaurant)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = existing.salon
+    ? await assertCapability(user.id, 'salon', existing.salon, 'vouchers.manage')
+    : await assertCapability(user.id, 'restaurant', existing.restaurant, 'vouchers.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const { status } = parsed.data
   const doc = await payload.update({
@@ -60,8 +63,10 @@ export async function DELETE(request: NextRequest, { params }: Ctx) {
   const existing = await payload.findByID({ collection: 'gift-vouchers', id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  const owns = existing.salon ? await ownsThisSalon(payload, user, existing.salon) : await ownsThisRestaurant(payload, user, existing.restaurant)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = existing.salon
+    ? await assertCapability(user.id, 'salon', existing.salon, 'vouchers.manage')
+    : await assertCapability(user.id, 'restaurant', existing.restaurant, 'vouchers.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   await payload.delete({ collection: 'gift-vouchers', id, overrideAccess: true })
   return NextResponse.json({ success: true })

@@ -12,7 +12,7 @@ import { buttonHover } from '@/lib/motion'
 type TipEntry = { dataKey?: string | number; name?: string; value?: number; payload?: Record<string, unknown> }
 type TipProps = { active?: boolean; payload?: TipEntry[]; label?: string | number }
 import {
-  Download, ChevronDown, ChevronRight, HelpCircle,
+  Download, ChevronDown, ChevronLeft, ChevronRight, HelpCircle,
   CalendarCheck, Users, CheckCircle2, Megaphone, CalendarX,
   Clock, CalendarRange, CalendarDays, Timer, Globe, DoorOpen, Phone, UserX,
   Wallet, Receipt, Scissors, TrendingUp, UserPlus, Repeat, Hourglass, Star,
@@ -212,7 +212,10 @@ function HiringChart({
   }
   const hasPrev = deltaPct !== undefined && Number.isFinite(deltaPct)
   const prevScale = hasPrev ? 1 / (1 + (deltaPct as number) / 100) : 1
-  const cur = bucketSeries(series)
+  // Kevesebb, de értelmesebben elkülönülő pont — sűrű (napi) adatnál a sok pont "tördelt"
+  // görbét ad; 12-re ritkítva simább, olvashatóbb ívet kapunk (a munkavállalói nézet heti
+  // bontású trendjéhez hasonló stílus), a `bucketSeries` átlagolása miatt torzítás nélkül.
+  const cur = bucketSeries(series, 12)
   const data = cur.map((p) => ({
     label: p.label,
     cur: p.value,
@@ -222,8 +225,8 @@ function HiringChart({
   const xInterval = Math.max(0, Math.round(n / 8) - 1)
 
   return (
-    <ResponsiveContainer width="100%" height="100%" debounce={50}>
-      <LineChart data={data} margin={{ top: 8, right: 6, left: 0, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height="100%" debounce={50} initialDimension={{ width: 300, height: 200 }}>
+      <LineChart data={data} margin={{ top: 8, right: 6, left: -6, bottom: 14 }}>
         <CartesianGrid vertical={false} stroke="#efebdf" />
         <XAxis
           dataKey="label" tickLine={false} axisLine={false}
@@ -231,7 +234,7 @@ function HiringChart({
           interval={xInterval} minTickGap={12}
         />
         <YAxis
-          width={38} tickLine={false} axisLine={false}
+          width={42} domain={[0, 'auto']} tickLine={false} axisLine={false}
           tick={{ fontSize: 11, fill: '#A8A496', fontWeight: 500 }}
           tickFormatter={(v: number) => `${v}${unit === '%' ? '%' : ''}`}
           allowDecimals={false}
@@ -289,7 +292,7 @@ function MiniBarChart({ unit, series }: { unit: string; series: OverviewSeriesPo
   const xInterval = Math.max(0, Math.round(n / 6) - 1)
 
   return (
-    <ResponsiveContainer width="100%" height="100%" debounce={50}>
+    <ResponsiveContainer width="100%" height="100%" debounce={50} initialDimension={{ width: 300, height: 200 }}>
       <BarChart data={data} margin={{ top: 8, right: 6, left: 0, bottom: 0 }} barCategoryGap="30%">
         <CartesianGrid vertical={false} stroke="#efebdf" />
         <XAxis
@@ -361,7 +364,7 @@ function CompositionDonut({ metric, onOpen }: { metric: OverviewMetric; onOpen?:
       </div>
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="relative my-3 h-[150px] w-[170px]">
-          <ResponsiveContainer width="100%" height="100%" debounce={50}>
+          <ResponsiveContainer width="100%" height="100%" debounce={50} initialDimension={{ width: 170, height: 150 }}>
             <PieChart>
               <Pie
                 data={pieData} dataKey="pct" nameKey="name"
@@ -664,6 +667,13 @@ export function AnalyticsOverview({
   // A "Bontások" lista nem ismétli meg a "Teljesítés"-t — annak saját donut-kártyája van
   // (lásd `CompositionDonut`), a nyíl-gombja ugyanoda (a metrika sidebar-jába) navigál.
   const bontasMetrics = metrics.filter((m) => m.id !== 'completion')
+  // A trend-kártya szélén lévő 2 nyíl helyben lépteti a kiválasztott mutatót, ugyanúgy, mint a
+  // Bontások sorra kattintás — nem kell a listáig görgetni.
+  function stepSelected(dir: 1 | -1) {
+    const i = bontasMetrics.findIndex((m) => m.id === selectedId)
+    const next = bontasMetrics[(i + dir + bontasMetrics.length) % bontasMetrics.length]
+    if (next) setSelectedId(next.id)
+  }
 
   return (
     <section className="font-onest space-y-4">
@@ -699,33 +709,39 @@ export function AnalyticsOverview({
               <div className="text-xs font-medium text-white/55">Foglalási arány</div>
               <HeaderArrow dark label="Foglalási arány" onClick={() => openSheet(metrics.find((m) => m.id === 'source')?.id ?? primary.id)} />
             </div>
-            <div className="mt-4 flex items-center justify-between gap-5">
-              {/* Legenda */}
-              <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-                {donutSegs.map((seg) => (
-                  <div key={seg.label} className="flex items-center gap-2.5">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: seg.color }} />
-                    <span className="truncate text-[13px] text-white/80">{seg.label}</span>
-                    <span className="ml-auto text-[13px] font-semibold tabular-nums">{seg.value}</span>
-                  </div>
-                ))}
-              </div>
-              {/* Több-szegmenses donut (recharts: animál + hover, ívelt szegmens-végek) */}
-              <div className="h-[104px] w-[104px] shrink-0">
-                <ResponsiveContainer width="100%" height="100%" debounce={50}>
-                  <PieChart>
-                    <Pie
-                      data={donutSegs} dataKey="pct" nameKey="label"
-                      cx="50%" cy="50%" innerRadius={30} outerRadius={50}
-                      startAngle={90} endAngle={-270} paddingAngle={2} cornerRadius={6} stroke="none"
-                      isAnimationActive animationDuration={800}
-                    >
-                      {donutSegs.map((seg, i) => <Cell key={i} fill={seg.color} />)}
-                    </Pie>
-                    <Tooltip content={<DonutTip />} wrapperStyle={{ zIndex: 60, opacity: 1 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+            {/* Donut felül középen + legenda ALATTA, saját sorban (nem a donut mellett szorítva) —
+                a korábbi oldalt-egymás-mellett elrendezésben a keskeny (280px) kártyán a hosszabb
+                forrás-nevek ("Online foglalás" stb.) levágódtak, nem lehetett elolvasni őket. */}
+            <div className="mx-auto mt-4 h-[104px] w-[104px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%" debounce={50} initialDimension={{ width: 104, height: 104 }}>
+                <PieChart>
+                  <Pie
+                    data={donutSegs} dataKey="pct" nameKey="label"
+                    cx="50%" cy="50%" innerRadius={30} outerRadius={50}
+                    startAngle={90} endAngle={-270} paddingAngle={2} cornerRadius={6} stroke="none"
+                    isAnimationActive animationDuration={800}
+                  >
+                    {donutSegs.map((seg, i) => <Cell key={i} fill={seg.color} />)}
+                  </Pie>
+                  <Tooltip content={<DonutTip />} wrapperStyle={{ zIndex: 60, opacity: 1 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Az oszlopszám a TÉNYLEGES szegmensszámhoz igazodik (szalon: 3, étterem: 4) — fix
+                grid-cols-3 mellett a 4. elem (étterem) mindig új sorra tördelt volna, mobilon is. */}
+            <div
+              className="mt-5 grid gap-x-1.5 gap-y-3"
+              style={{ gridTemplateColumns: `repeat(${Math.max(1, donutSegs.length)}, minmax(0, 1fr))` }}
+            >
+              {donutSegs.map((seg) => (
+                <div key={seg.label} className="flex flex-col items-center gap-1 text-center">
+                  <span className="flex min-w-0 items-center gap-1">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: seg.color }} />
+                    <span className="truncate text-[10px] text-white/80">{seg.label}</span>
+                  </span>
+                  <span className="text-[13px] font-semibold tabular-nums">{seg.value}</span>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -836,9 +852,36 @@ export function AnalyticsOverview({
                 {selected.deltaPct !== undefined && <DeltaText pct={selected.deltaPct} />}
               </div>
             </div>
-            <HeaderArrow onClick={() => openSheet(selected.id)} />
+            {/* 2 nyíl a kártya szélén — helyben lépteti a kiválasztott mutatót (ugyanaz, mint a
+                Bontások sorra kattintás), a `stopPropagation` nélkül a kártya saját onClick-je
+                (sidebar-nyitás) is lefutna. */}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); stepSelected(-1) }}
+                aria-label="Előző mutató"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink transition-colors hover:bg-[#e7e3d6]"
+              >
+                <ChevronLeft className="h-4 w-4" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); stepSelected(1) }}
+                aria-label="Következő mutató"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink transition-colors hover:bg-[#e7e3d6]"
+              >
+                <ChevronRight className="h-4 w-4" strokeWidth={2} />
+              </button>
+              {/* A sidebar-nyitó környíl mobilon a 2 váltó-nyíl mellett túl zsúfolt — csak desktopon marad. */}
+              <div className="hidden lg:block">
+                <HeaderArrow onClick={() => openSheet(selected.id)} />
+              </div>
+            </div>
           </div>
-          <div key={selected.id} className="mt-3 min-w-0 flex-1 h-48 lg:h-[208px]">
+          {/* `flex-1` NÉLKÜL, explicit magassággal — flex-kontextusban a `flex-1` mobilon 0-ra
+              eshet a recharts ResponsiveContainer méret-mérése előtt, ami örökre láthatatlanná
+              teszi a grafikont (ugyanez a fix, ami a munkavállalói nézetnél is bevált). */}
+          <div key={selected.id} className="relative mt-3 w-full" style={{ height: 208 }}>
             <HiringChart unit={selected.unit} series={selected.series} deltaPct={selected.deltaPct} />
           </div>
         </div>

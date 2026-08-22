@@ -578,21 +578,21 @@ export function GuestsView({
                 <div className="mt-1 text-[12px] font-medium text-ink-soft2">{tierExplain(sel.tier, sel.visits)}</div>
               </div>
               <div className="flex flex-shrink-0 gap-2">
-                {sel.phone ? (
+                {sel.phone && canManage ? (
                   <a href={`tel:${sel.phone}`} title={`Hívás — ${sel.phone}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
                     <Phone className="h-4 w-4" strokeWidth={1.6} />
                   </a>
                 ) : (
-                  <span title="Nincs telefonszám" aria-disabled className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full bg-white/30 text-ink-soft2 opacity-50">
+                  <span title={sel.phone ? 'Nincs jogosultság a híváshoz' : 'Nincs telefonszám'} aria-disabled className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full bg-white/30 text-ink-soft2 opacity-50">
                     <Phone className="h-4 w-4" strokeWidth={1.6} />
                   </span>
                 )}
-                {sel.email ? (
+                {sel.email && canManage ? (
                   <a href={`mailto:${sel.email}`} title={`E-mail — ${sel.email}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
                     <Mail className="h-4 w-4" strokeWidth={1.6} />
                   </a>
                 ) : (
-                  <span title="Nincs e-mail-cím" aria-disabled className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full bg-white/30 text-ink-soft2 opacity-50">
+                  <span title={sel.email ? 'Nincs jogosultság az e-mail-küldéshez' : 'Nincs e-mail-cím'} aria-disabled className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full bg-white/30 text-ink-soft2 opacity-50">
                     <Mail className="h-4 w-4" strokeWidth={1.6} />
                   </span>
                 )}

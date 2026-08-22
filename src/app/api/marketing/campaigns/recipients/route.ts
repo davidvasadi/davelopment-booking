@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertAnyCapability } from '@/lib/apiCapability'
 import type { Customer } from '@/payload/payload-types'
 
 /**
@@ -22,8 +23,8 @@ export async function GET(request: NextRequest) {
   }
 
   const payload = await getPayloadClient()
-  const owns = kind === 'salon' ? await ownsThisSalon(payload, user, businessId) : await ownsThisRestaurant(payload, user, businessId)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertAnyCapability(user.id, kind, businessId, ['marketing.view', 'marketing.manage'])
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const logs = await payload.find({
     collection: 'email-log',

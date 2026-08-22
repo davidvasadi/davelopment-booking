@@ -3,21 +3,16 @@ import { can, type Capability } from './permissions'
 
 /**
  * Szerver-oldali jogosultság-kapu az oldalakhoz (C2). Ha a hatékony képesség-halmaz NEM
- * tartalmazza a képességet, átirányít (alapból az adott modul áttekintőjére).
+ * tartalmazza EGYIKET SEM a listából, átirányít (alapból az adott modul áttekintőjére).
  * A nav-elrejtés (C1) csak UX; ez állítja meg az URL-re gépelést is.
  *
+ * MINDIG az `X.view`/`X.manage` PÁRT add át (OR logika), még akkor is, ha az oldal csak
+ * `.view`-t vár — a `.manage` NEM implikálja automatikusan a `.view`-t a `can()`-ban, egy
+ * kizárólag `.manage`-es szerep egyetlen `.view`-ra szűkített kapun elakadt volna.
+ *
  * Használat a page.tsx elején, a getOwnedSalon/Restaurant után:
- *   requireCapability(capabilities, 'analytics.view', '/restaurant')
+ *   requireAnyCapability(capabilities, ['analytics.view', 'analytics.view.own'], '/restaurant')
  */
-export function requireCapability(
-  caps: Capability[] | null | undefined,
-  capability: Capability,
-  fallback: string,
-): void {
-  if (!can(caps, capability)) redirect(fallback)
-}
-
-/** Átirányít, ha a listán szereplő képességek EGYIKE SEM megvan. (OR logika) */
 export function requireAnyCapability(
   caps: Capability[] | null | undefined,
   anyOf: Capability[],

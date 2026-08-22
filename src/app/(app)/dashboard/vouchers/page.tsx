@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { VouchersManager, type VoucherRow } from '@/components/dashboard/VouchersManager'
 import type { GiftVoucher, GiftVoucherType } from '@/payload/payload-types'
@@ -9,7 +10,7 @@ export const dynamic = 'force-dynamic'
 
 export default async function VouchersPage() {
   const { salon, capabilities } = await getOwnedSalon()
-  requireCapability(capabilities, 'payments.manage', '/dashboard')
+  requireAnyCapability(capabilities, ['vouchers.view', 'vouchers.manage'], '/dashboard')
   if (!salon.voucher_settings?.enabled) redirect('/dashboard/settings')
   const payload = await getPayloadClient()
 
@@ -61,6 +62,8 @@ export default async function VouchersPage() {
         voucherTypes={voucherTypes}
         minAmountHuf={salon.voucher_settings?.min_amount_huf ?? 2000}
         maxAmountHuf={salon.voucher_settings?.max_amount_huf ?? 100000}
+        supportedLocales={salon.supported_locales}
+        canManage={can(capabilities, 'vouchers.manage')}
       />
     </div>
   )

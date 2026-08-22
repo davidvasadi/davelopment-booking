@@ -1,5 +1,5 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { getPayloadClient } from '@/lib/payload'
@@ -15,7 +15,7 @@ function ymd(d: Date): string {
 
 export default async function RestaurantTipsPage() {
   const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'tips.view', '/restaurant')
+  requireAnyCapability(capabilities, ['tips.view', 'tips.manage'], '/restaurant')
   const r = restaurant as Restaurant
   const payload = await getPayloadClient()
 
@@ -63,5 +63,5 @@ export default async function RestaurantTipsPage() {
 
   const data = buildRestaurantAdvisor(r, setup, stats, capabilities)
 
-  return <TipsAdvisorView variant="restaurant" data={data} apiBase={`/api/restaurants/${r.id}`} />
+  return <TipsAdvisorView variant="restaurant" data={data} apiBase={`/api/restaurants/${r.id}`} canManage={can(capabilities, 'tips.manage')} />
 }

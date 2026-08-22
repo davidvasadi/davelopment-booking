@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
+import { capabilityScoped } from '../access/capabilityAccess'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
 import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
 import { revalidateOnReservationChange, revalidateOnReservationDelete } from '../hooks/revalidateRestaurant'
@@ -19,10 +19,10 @@ export const Reservations: CollectionConfig = {
     // mint az update/delete). Korábban () => true volt → BÁRKI lekérhette az összes
     // étterem összes asztalfoglalását (vendégnév, telefon) bejelentkezés nélkül.
     // A vendég-foglalási flow nem ezen át olvas (overrideAccess), a create marad nyilvános.
-    read: isRestaurantOwnerOrAdmin,
+    read: capabilityScoped('restaurant', 'restaurant', ['bookings.view', 'bookings.manage']),
     create: () => true,
-    update: isRestaurantOwnerOrAdmin,
-    delete: isRestaurantOwnerOrAdmin,
+    update: capabilityScoped('restaurant', 'restaurant', 'bookings.manage'),
+    delete: capabilityScoped('restaurant', 'restaurant', 'bookings.manage'),
   },
   fields: [
     {
