@@ -10,7 +10,7 @@ import { TimeSelect } from '@/components/ui/time-select'
 import { TimeSlotGrid } from '@/components/ui/TimeSlotGrid'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, AlertTriangle, X, CalendarClock, CalendarDays, UserRound, Scissors } from 'lucide-react'
+import { Loader2, Trash2, AlertTriangle, X, CalendarClock, CalendarDays, UserRound, Scissors, Lock } from 'lucide-react'
 import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
 import { addDraft, updateDraft, removeDraft } from '@/lib/salonBookingDrafts'
 import { useOnline } from '@/lib/useOnline'
@@ -131,9 +131,12 @@ interface Props {
   /** A nap nyitvatartása (perc) — a TimeSelect ezt a tartományt kínálja (kemény korlát). */
   openMin?: number
   closeMin?: number
+  /** Azok az email-ek (kisbetűs), akiknek van függőben lévő meghívójuk — amíg nem fogadják el,
+   *  nem oszthatók be foglalásra (lakat + UX infó a kártyájukon, lásd lent). */
+  invitedEmails?: Set<string>
 }
 
-export function BookingEditSheet({ open, onClose, date, salonId, target, services, staff, openMin, closeMin }: Props) {
+export function BookingEditSheet({ open, onClose, date, salonId, target, services, staff, openMin, closeMin, invitedEmails }: Props) {
   const router = useRouter()
   const online = useOnline()
   const booking = target?.booking ?? null
@@ -177,12 +180,14 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
   const selectedService = useMemo(() => services.find((s) => String(s.id) === serviceId) ?? null, [services, serviceId])
   const duration = selectedService?.duration_minutes ?? 0
 
-  // A választható szakemberek: ha a szolgáltatásnál van megkötés (Service.staff), csak azok;
-  // egyébként minden aktív szakember. Szerkesztésnél a jelenlegi szakember mindig maradjon opció.
+  // A választható szakemberek KIZÁRÓLAG a szolgáltatáshoz hozzárendelt (Service.staff) aktív
+  // szakemberek — nincs "ha nincs kiválasztva, mindenki foglalható" fallback: valaki csak akkor
+  // foglalható egy adott szolgáltatásra, ha explicit hozzá van rendelve. Szerkesztésnél a
+  // jelenlegi szakember mindig maradjon opció (akkor is, ha időközben levették a listáról).
   const staffChoices = useMemo(() => {
     const active = staff.filter((s) => s.is_active !== false)
     const allowed = selectedService?.staff?.map(idOf) ?? []
-    let list = allowed.length > 0 ? active.filter((s) => allowed.includes(String(s.id))) : active
+    let list = active.filter((s) => allowed.includes(String(s.id)))
     const curId = booking ? idOf(booking.staff) : ''
     if (curId && !list.some((s) => String(s.id) === curId)) {
       const cur = staff.find((s) => String(s.id) === curId)
@@ -258,7 +263,10 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     if (!open) return
     if (!staffChoices.length) return
     if (!staffChoices.some((s) => String(s.id) === staffId)) {
-      setStaffId(String(staffChoices[0].id))
+      // A meghívóra váró (még nem elfogadott) szakembert sose válasszuk automatikusan — csak
+      // ténylegesen elfogadott, beosztható szakemberre essen az alapértelmezett választás.
+      const firstAvailable = staffChoices.find((s) => !invitedEmails?.has((s.email ?? '').toLowerCase())) ?? staffChoices[0]
+      setStaffId(String(firstAvailable.id))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [serviceId])
@@ -654,20 +662,27 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                           const slotList = staffSlotMap[startTime]
                           const known = !isEdit && !!startTime && !!slotList
                           const busy = known && !slotList.includes(sid)
+                          const pending = !!invitedEmails?.has((s.email ?? '').toLowerCase())
                           return (
                             <motion.button
                               key={s.id}
                               type="button"
+                              disabled={pending}
+                              title={pending ? 'Még nem fogadta el a meghívást — addig nem osztható be' : undefined}
                               variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 500, damping: 30 } } }}
-                              onClick={() => { setStaffId(sid); setStaffTouched(true) }}
-                              className={`flex h-[62px] w-[168px] shrink-0 items-center gap-2.5 rounded-[18px] border px-3 text-left shadow-dav-card transition-colors ${
-                                selected ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-900 hover:border-zinc-300'
+                              onClick={() => { if (pending) return; setStaffId(sid); setStaffTouched(true) }}
+                              className={`relative flex h-[62px] w-[168px] shrink-0 items-center gap-2.5 rounded-[18px] border px-3 text-left shadow-dav-card transition-colors ${
+                                pending
+                                  ? 'cursor-not-allowed border-zinc-200 bg-zinc-50 text-zinc-400 opacity-70'
+                                  : selected ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-900 hover:border-zinc-300'
                               }`}
                             >
                               <StaffAvatar staff={s} selected={selected} />
                               <span className="min-w-0 flex-1">
                                 <span className="block truncate text-[13px] font-semibold leading-tight">{s.name}</span>
-                                {known && (
+                                {pending ? (
+                                  <span className="block truncate text-[11px] font-medium leading-tight text-amber-600">Meghívó függőben</span>
+                                ) : known && (
                                   <span
                                     className={`block truncate text-[11px] font-medium leading-tight ${
                                       busy ? (selected ? 'text-red-300' : 'text-red-500') : selected ? 'text-white/60' : 'text-emerald-600'
@@ -677,6 +692,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                                   </span>
                                 )}
                               </span>
+                              {pending && <Lock className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-zinc-400" strokeWidth={2} />}
                             </motion.button>
                           )
                         })}

@@ -7,8 +7,43 @@
  *   Body: { avatar_url: string | null }.
  */
 import { NextRequest, NextResponse } from 'next/server'
+import { revalidateTag } from 'next/cache'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { salonTag } from '@/lib/publicPlace'
+import type { Membership, Salon } from '@/payload/payload-types'
+
+/**
+ * A publikus profil-oldal (`/[slug]`) `unstable_cache`-elt, `salonTag`-gel — a SAJÁT profilkép
+ * (`Users.avatar_url`) változása azonban NEM megy át a Salon/Staff collection afterChange
+ * hookjain (azok invalidálják ezt a taget), ezért enélkül a publikus oldal a régi (vagy hiányzó)
+ * képet mutatta volna a legközelebbi, MÁS okból történő invalidálásig. Minden olyan szalon
+ * tagjét frissítjük, amihez ennek a usernek van AKTÍV kapcsolata (tulaj VAGY staff-tag).
+ */
+async function revalidatePublicSalonsForUser(userId: string | number): Promise<void> {
+  const payload = await getPayloadClient()
+  const salonIds = new Set<string>()
+
+  const ownedSalons = await payload.find({
+    collection: 'salons', where: { owner: { equals: userId } }, depth: 0, limit: 50, overrideAccess: true,
+  }).catch(() => ({ docs: [] as Salon[] }))
+  for (const s of ownedSalons.docs as Salon[]) salonIds.add(String(s.id))
+
+  const memberships = await payload.find({
+    collection: 'memberships',
+    where: { and: [{ user: { equals: userId } }, { salon: { exists: true } }, { status: { equals: 'active' } }] },
+    depth: 0, limit: 50, overrideAccess: true,
+  }).catch(() => ({ docs: [] as Membership[] }))
+  for (const m of memberships.docs as Membership[]) {
+    if (m.salon != null) salonIds.add(String(typeof m.salon === 'object' ? m.salon.id : m.salon))
+  }
+
+  if (salonIds.size === 0) return
+  const salons = await payload.find({
+    collection: 'salons', where: { id: { in: [...salonIds] } }, depth: 0, limit: 50, overrideAccess: true,
+  }).catch(() => ({ docs: [] as Salon[] }))
+  for (const s of salons.docs as Salon[]) revalidateTag(salonTag(s.slug), 'max')
+}
 
 export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
@@ -46,6 +81,7 @@ export async function POST(req: NextRequest) {
   if (!url) return NextResponse.json({ error: 'no-url' }, { status: 500 })
 
   await payload.update({ collection: 'users', id: user.id, data: { avatar_url: url }, overrideAccess: true })
+  await revalidatePublicSalonsForUser(user.id)
   return NextResponse.json({ ok: true, avatar_url: url })
 }
 
@@ -73,6 +109,7 @@ export async function PATCH(req: NextRequest) {
     data: { avatar_url: raw || null },
     overrideAccess: true,
   })
+  await revalidatePublicSalonsForUser(user.id)
 
   return NextResponse.json({ ok: true, avatar_url: raw || null })
 }

@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { getPayloadClient } from './payload'
 import { resolveTier, type Tier } from './tier'
+import { fixMediaUrl } from './utils'
 import { effectiveCapabilities, ALL_CAPABILITIES, type TeamRole, type Capability } from './permissions'
 import type { User, Salon, Restaurant, Media, Membership, Role } from '@/payload/payload-types'
 
@@ -42,7 +43,7 @@ export interface Business {
 }
 
 const logoUrlOf = (logo: string | Media | null | undefined): string | null =>
-  typeof logo === 'object' && logo?.url ? logo.url : null
+  typeof logo === 'object' && logo?.url ? fixMediaUrl(logo.url) : null
 
 /** A felhasználó összes üzlete (étterem + szalon), createdAt szerint növekvőn. */
 export async function getUserBusinesses(userId: string | number): Promise<Business[]> {
@@ -64,12 +65,14 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       overrideAccess: true,
     }),
     // Tagként (membership) elért üzletek — hogy a MEGHÍVOTT+elfogadott tag is lássa a dashboardot,
-    // ne csak a tulaj. Csak az AKTÍV tagságok számítanak.
+    // ne csak a tulaj. Csak az AKTÍV tagságok számítanak. `depth: 2` KELL (nem 1) — a `depth:1` a
+    // `membership.salon`-t oldja fel objektummá, de az ABBAN beágyazott `salon.logo`-t már nem
+    // (raw ID marad), ezért egy taggal elért üzlet logója sosem jelent meg, csak a sajátunké.
     payload.find({
       collection: 'memberships',
       where: { and: [{ user: { equals: userId } }, { status: { equals: 'active' } }] },
       limit: 100,
-      depth: 1,
+      depth: 2,
       overrideAccess: true,
     }),
   ])

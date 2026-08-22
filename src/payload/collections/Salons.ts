@@ -45,6 +45,33 @@ export const Salons: CollectionConfig = {
         } catch (err) {
           req.payload.logger.error(`admin új-szalon értesítés hiba: ${String(err)}`)
         }
+        // A tulaj automatikus staff-rekordja: mivel aki regisztrál, az a szalon tulajdonosa,
+        // és egy kis vállalkozásnál a tulaj szinte mindig maga is dolgozik szakemberként —
+        // ettől fogva EGYBŐL kap egy valódi (foglalható) staff-rekordot, `Staff.user`-rel a
+        // fiókjához kötve. Így sosem kell külön linkelni/felvennie saját magát a Munkatársakon
+        // ahhoz, hogy a szolgáltatásoknál kiválasztható, a Naptáron ütemezhető, a "Saját munka"
+        // statisztikában megtalálható legyen.
+        try {
+          if (doc.owner) {
+            const owner = await req.payload.findByID({ collection: 'users', id: doc.owner, depth: 0, overrideAccess: true }).catch(() => null)
+            if (owner) {
+              await req.payload.create({
+                collection: 'staff',
+                overrideAccess: true,
+                req,
+                data: {
+                  salon: doc.id,
+                  user: doc.owner,
+                  name: owner.name || 'Tulajdonos',
+                  email: owner.email || undefined,
+                  is_active: true,
+                },
+              })
+            }
+          }
+        } catch (err) {
+          req.payload.logger.error(`tulaj automatikus staff-rekord hiba: ${String(err)}`)
+        }
       },
     ],
     beforeDelete: [

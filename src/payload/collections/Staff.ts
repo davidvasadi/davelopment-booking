@@ -1,6 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
-import { userOwnsSalon, canCreateForOwnSalon } from '../lib/salonOwnerAccess'
+import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const Staff: CollectionConfig = {
@@ -18,21 +18,9 @@ export const Staff: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: canCreateForOwnSalon,
-    update: async ({ req, id, data }) => {
-      if (req.user?.role === 'admin') return true
-      if (id) {
-        const doc = await req.payload.findByID({ collection: 'staff', id, depth: 0, overrideAccess: true, req }).catch(() => null)
-        return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
-      }
-      return userOwnsSalon(req, data?.salon as number | string | undefined)
-    },
-    delete: async ({ req, id }) => {
-      if (req.user?.role === 'admin') return true
-      if (!id) return false
-      const doc = await req.payload.findByID({ collection: 'staff', id, depth: 0, overrideAccess: true, req }).catch(() => null)
-      return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
-    },
+    create: capabilityCreate('salon', 'salon', 'staff.manage'),
+    update: capabilityScoped('salon', 'salon', 'staff.manage'),
+    delete: capabilityScoped('salon', 'salon', 'staff.manage'),
   },
   fields: [
     {
@@ -53,6 +41,16 @@ export const Staff: CollectionConfig = {
       relationTo: 'salons',
       hasMany: false,
       required: true,
+    },
+    {
+      name: 'user',
+      type: 'relationship',
+      relationTo: 'users',
+      hasMany: false,
+      label: 'Bejelentkezési fiók',
+      admin: {
+        description: 'Ha ez a szakember EGYBEN egy bejelentkezett fiók is (pl. a tulajdonos, aki maga is dolgozik, vagy egy elfogadott meghívású munkatárs) — enélkül a „Saját munka" statisztika és a munkavállalói foglalás-szűrés nem találja meg ezt a rekordot.',
+      },
     },
     {
       name: 'avatar',

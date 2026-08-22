@@ -1,15 +1,16 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
-import type { StaffMember, Shift, Service } from '@/payload/payload-types'
+import type { StaffMember, Shift, Service, User } from '@/payload/payload-types'
 import StaffManager from '@/components/dashboard/StaffManager'
 import { getStaffStats } from '@/lib/staffStats'
 import { getTeamRoster } from '@/lib/teamRoster'
+import { fixMediaUrl } from '@/lib/utils'
 
 export default async function StaffPage() {
   const { salon, capabilities } = await getOwnedSalon()
-  requireCapability(capabilities, 'staff.view', '/dashboard')
+  requireAnyCapability(capabilities, ['staff.view', 'staff.manage'], '/dashboard')
   const payload = await getPayloadClient()
 
   const now = new Date()
@@ -67,6 +68,24 @@ export default async function StaffPage() {
   const invitedEmails = new Set(invitedRes.docs.map((m) => (m as { email?: string }).email?.toLowerCase() ?? '').filter(Boolean))
   const salonRoles = rolesRes.docs.map((r) => ({ id: String(r.id), name: (r as { name?: string }).name ?? '' }))
 
+  // Fallback-avatar a STAFF-hoz EMAIL alapján (a `staff` collectionnak nincs `user` relációja,
+  // csak email-mező) — ha a tulaj sosem töltött fel külön staff-avatart, de a személy a SAJÁT
+  // profiljában igen (`Users.avatar_url`), azt mutatjuk. Az étteremi Munkatársak oldal ezt már
+  // tudta (`userAvatarByEmail`), a szalon oldalról hiányzott.
+  const staffEmails = (staffResult.docs as StaffMember[]).map((s) => s.email).filter((e): e is string => !!e)
+  const avatarUrlByEmail: Record<string, string> = {}
+  if (staffEmails.length > 0) {
+    const usersRes = await payload.find({
+      collection: 'users',
+      where: { email: { in: staffEmails } },
+      depth: 0, limit: 500, overrideAccess: true,
+    })
+    for (const u of usersRes.docs as User[]) {
+      const fixed = fixMediaUrl(u.avatar_url)
+      if (u.email && fixed) avatarUrlByEmail[u.email.toLowerCase()] = fixed
+    }
+  }
+
   // staffId → közelgő (legkorábbi jövőbeli) műszak címkéje.
   const upcomingShiftById: Record<string, string> = {}
   for (const sh of allMonthShifts) {
@@ -106,6 +125,8 @@ export default async function StaffPage() {
         freeDaysById={freeDaysById}
         employees={roster}
         ownerUser={ownerUser}
+        ownerUserId={ownerUserId != null ? String(ownerUserId) : null}
+        avatarUrlByEmail={avatarUrlByEmail}
         invitedEmails={invitedEmails}
         salonRoles={salonRoles}
         canManage={can(capabilities, 'staff.manage')}

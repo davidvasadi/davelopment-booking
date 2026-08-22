@@ -66,12 +66,20 @@ export async function POST(request: NextRequest) {
         overrideAccess: true,
       })
 
+      // A Munkatársak-form "Pozíció" mezőjét (role_title) a Csapat & jogok a membershipen
+      // keresztül mutatja (`Membership.position`) — enélkül a itt beírt pozíció sosem jelent
+      // meg ott, csak a Munkatársak listában.
+      const position = typeof body.role_title === 'string' && body.role_title.trim() ? body.role_title.trim() : undefined
+      // A Szerepkör-választó is CSAK az űrlapon (`!editing`) jelenik meg — a kiválasztott jogot
+      // ide, a membershipre kell vinni, KÜLÖNBEN a Csapat & jogok "Nincs szerep"-et mutat, holott
+      // a Munkatársaknál épp most választottak neki egyet.
+      const customRoleId = typeof body.custom_role === 'string' || typeof body.custom_role === 'number'
+        ? (/^\d+$/.test(String(body.custom_role)) ? Number(body.custom_role) : body.custom_role)
+        : undefined
+
       if (existing.docs.length === 0) {
         const token = crypto.randomBytes(24).toString('hex')
         const bizRel = /^\d+$/.test(String(salonId)) ? Number(salonId) : salonId
-        const customRoleId = typeof body.custom_role === 'string' || typeof body.custom_role === 'number'
-          ? (/^\d+$/.test(String(body.custom_role)) ? Number(body.custom_role) : body.custom_role)
-          : undefined
 
         await payload.create({
           collection: 'memberships',
@@ -83,6 +91,7 @@ export async function POST(request: NextRequest) {
             status: 'invited',
             invite_token: token,
             ...(customRoleId !== undefined ? { custom_role: customRoleId } : {}),
+            ...(position !== undefined ? { position } : {}),
             salon: bizRel,
           },
         })
@@ -111,6 +120,19 @@ export async function POST(request: NextRequest) {
         } catch (e) {
           console.error('[api/staff POST] meghívó email küldése sikertelen', e)
         }
+      } else if (position !== undefined || customRoleId !== undefined) {
+        // Már van membership ehhez az emailhez (pl. korábban törölt/újra felvett staff, vagy egy
+        // korábbi hiányzó membership pótlásából) — a frissen beírt pozíciót ÉS a kiválasztott
+        // szerepkört is átvezetjük, hogy a Csapat & jogok szinkronban maradjon.
+        await payload.update({
+          collection: 'memberships',
+          id: existing.docs[0].id,
+          overrideAccess: true,
+          data: {
+            ...(position !== undefined ? { position } : {}),
+            ...(customRoleId !== undefined ? { custom_role: customRoleId } : {}),
+          },
+        })
       }
     } catch (e) {
       console.error('[api/staff POST] membership létrehozás sikertelen', e)

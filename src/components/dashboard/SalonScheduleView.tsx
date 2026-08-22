@@ -39,6 +39,9 @@ export interface SalonScheduleViewProps {
   services: Service[]
   openMin: number
   closeMin: number
+  /** Azok az email-ek (kisbetűs), akiknek van függőben lévő meghívójuk — amíg nem fogadják el,
+   *  nem oszthatók be foglalásra (lakat + UX infó, ld. BookingEditSheet). */
+  invitedEmails?: Set<string>
   dateFilter: React.ReactNode
   canManage?: boolean
 }
@@ -52,7 +55,7 @@ export interface SalonScheduleViewProps {
  * mobil nézet is.
  */
 export function SalonScheduleView({
-  days, title, subtitle, salonId, bookings, staff, services, openMin, closeMin, dateFilter, canManage = false,
+  days, title, subtitle, salonId, bookings, staff, services, openMin, closeMin, invitedEmails, dateFilter, canManage = false,
 }: SalonScheduleViewProps) {
   const router = useRouter()
   const [target, setTarget] = useState<EditTarget | null>(null)
@@ -399,6 +402,7 @@ export function SalonScheduleView({
         staff={staff}
         openMin={openMin}
         closeMin={closeMin}
+        invitedEmails={invitedEmails}
       />
     </div>
   )

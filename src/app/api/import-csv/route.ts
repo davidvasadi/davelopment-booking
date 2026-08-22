@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
@@ -282,6 +283,34 @@ export async function POST(req: NextRequest) {
               data: { name, salon: businessId, email, phone, role_title, department, birthday, is_active: true },
               overrideAccess: true,
             })
+          }
+
+          // SZINKRON: minden e-maillel rendelkező munkatárs egyben membership is legyen —
+          // enélkül a Csapat & jogok panel sosem mutatja őket (az kizárólag a memberships
+          // collectionből olvas). Csendben (email-küldés nélkül) — a `/api/staff` egyenkénti
+          // felvételnél KÜLD meghívót, de tömeges CSV-importnál ez váratlan e-mail-áradat
+          // lenne; a tulaj a Csapat & jogokból bármikor tud onnan is meghívót küldeni.
+          if (email) {
+            const existingMembership = await payload.find({
+              collection: 'memberships',
+              where: { and: [{ salon: { equals: businessId } }, { email: { equals: email.toLowerCase() } }] },
+              limit: 1, depth: 0, overrideAccess: true,
+            })
+            if (existingMembership.docs.length === 0) {
+              await payload.create({
+                collection: 'memberships',
+                overrideAccess: true,
+                data: {
+                  email: email.toLowerCase(),
+                  name,
+                  role: 'staff',
+                  status: 'invited',
+                  invite_token: crypto.randomBytes(24).toString('hex'),
+                  position: role_title,
+                  salon: businessId,
+                },
+              })
+            }
           }
           result.imported.staff++
         } catch (e) {

@@ -8,6 +8,7 @@ import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { PageHeader } from '@/components/ui/page-header'
 import type { StaffMember, Shift, Media, Availability } from '@/payload/payload-types'
+import { fixMediaUrl } from '@/lib/utils'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,7 @@ function sizeLabel(m: Media | null): string {
   return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${Math.round(kb)} kb`
 }
 function mediaUrl(m: unknown): string | null {
-  return m && typeof m === 'object' && typeof (m as Media).url === 'string' ? ((m as Media).url as string) : null
+  return m && typeof m === 'object' && typeof (m as Media).url === 'string' ? fixMediaUrl((m as Media).url as string) : null
 }
 
 export default async function SalonSchedulePage({ searchParams }: { searchParams: Promise<{ date?: string }> }) {
@@ -68,12 +69,38 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
     .map((e) => e.exception_date)
     .filter((d): d is string => !!d)
 
+  // Meghívóra váró (még nem elfogadott) tagok — amíg nem fogadják el, nem oszthatók be
+  // műszakra (lakat + UX infó a szakember-választón, ld. ScheduleView DayEditor).
+  const invitedRes = await payload.find({
+    collection: 'memberships',
+    where: { and: [{ salon: { equals: salon.id } }, { status: { equals: 'invited' } }] },
+    depth: 0, limit: 500, overrideAccess: true,
+  })
+  const invitedEmails = new Set((invitedRes.docs as { email?: string | null }[]).map((m) => (m.email ?? '').toLowerCase()).filter(Boolean))
+
+  // Fallback-avatar EMAIL alapján (lásd `dashboard/staff/page.tsx` azonos komment) — ha a
+  // tulaj sosem töltött fel külön staff-avatart, de a személy a SAJÁT profiljában igen.
+  const scheduleStaffEmails = (staffRes.docs as StaffMember[]).map((s) => s.email).filter((e): e is string => !!e)
+  const scheduleAvatarByEmail: Record<string, string> = {}
+  if (scheduleStaffEmails.length > 0) {
+    const usersRes = await payload.find({
+      collection: 'users',
+      where: { email: { in: scheduleStaffEmails } },
+      depth: 0, limit: 500, overrideAccess: true,
+    })
+    for (const u of usersRes.docs as { email?: string | null; avatar_url?: string | null }[]) {
+      const fixed = fixMediaUrl(u.avatar_url)
+      if (u.email && fixed) scheduleAvatarByEmail[u.email.toLowerCase()] = fixed
+    }
+  }
+
   const allStaff: StaffVM[] = (staffRes.docs as StaffMember[]).map((s) => ({
     id: String(s.id),
     name: s.name,
     ini: initials(s.name),
-    avatarUrl: mediaUrl(s.avatar),
+    avatarUrl: mediaUrl(s.avatar) ?? (s.email ? (scheduleAvatarByEmail[s.email.toLowerCase()] ?? null) : null),
     role: s.role_title ?? '',
+    pending: invitedEmails.has((s.email ?? '').toLowerCase()),
     birthday: s.birthday ? toYmd(s.birthday) : null,
     join_date: s.join_date ? toYmd(s.join_date) : null,
     weekly_hours: typeof s.weekly_hours === 'number' ? s.weekly_hours : null,

@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal } from '@/lib/utils'
-import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, UserRound, Banknote } from 'lucide-react'
+import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal, fixMediaUrl } from '@/lib/utils'
+import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, CalendarRange, CalendarClock, UserRound, Banknote } from 'lucide-react'
+import type { BookingsRange } from './DateFilter'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import BookingActions from '@/components/dashboard/BookingActions'
@@ -91,7 +92,7 @@ const durationOf = (b: Booking): number => Math.max(0, hhmmToMinutes(b.end_time)
 export const extraStackHeightPx = (count: number): number => (count > 0 ? 8 + count * 72 + (count - 1) * 8 : 0)
 export const avatarUrlOf = (s: StaffMember | null): string | null => {
   const a = s?.avatar
-  return a && typeof a === 'object' ? ((a as Media).url ?? null) : null
+  return a && typeof a === 'object' ? fixMediaUrl((a as Media).url) : null
 }
 const initialsOf = (name: string): string =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '·'
@@ -132,12 +133,18 @@ export function draftToBooking(d: SalonBookingDraft): DraftBooking {
 
 export interface SalonDailyViewProps {
   date: string
+  /** A jelenlegi időszak-nézet (Nap/Hét/Hónap) — a mobil nézet-választó sheet-be ágyazott
+   *  Nap/Hét/Hónap váltóhoz kell (ld. dateFilter komment). Ezen az oldalon mindig 'day'. */
+  range: BookingsRange
   salonId: string
   bookings: Booking[]
   staff: StaffMember[]
   services: Service[]
   openMin: number
   closeMin: number
+  /** Azok az email-ek (kisbetűs), akiknek van függőben lévő meghívójuk — amíg nem fogadják el,
+   *  nem oszthatók be foglalásra (lakat + UX infó, ld. BookingEditSheet). */
+  invitedEmails?: Set<string>
   /** Értesítésből érkezve ezt a foglalást nyitjuk meg automatikusan. */
   openBookingId?: string
   /** A toolbar-ba ágyazott dátum-navigátor (server komponensből). */
@@ -151,7 +158,7 @@ export interface SalonDailyViewProps {
 }
 
 export function SalonDailyView(props: SalonDailyViewProps) {
-  const { date, salonId, staff, services, openMin, closeMin, openBookingId, dateFilter, printButton, canManage = false, consentEnabled = false } = props
+  const { date, range, salonId, staff, services, openMin, closeMin, invitedEmails, openBookingId, dateFilter, printButton, canManage = false, consentEnabled = false } = props
   const [view, setView] = useState<ViewMode>('timeline')
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<SalonBookingDraft[]>([])
@@ -243,6 +250,15 @@ export function SalonDailyView(props: SalonDailyViewProps) {
     { mode: 'timeline', icon: LayoutGrid, label: 'Idősáv' },
     { mode: 'list', icon: List, label: 'Lista' },
   ]
+
+  // Nap/Hét/Hónap — mobilon a nézet-választó sheet MÁSODIK csoportjaként jelenik meg (a
+  // desktop pill ilyenkor rejtve, ld. DateFilter `hideRangeOnMobile`).
+  const rangeButtons: { mode: BookingsRange; icon: typeof List; label: string }[] = [
+    { mode: 'day', icon: CalendarDays, label: 'Nap' },
+    { mode: 'week', icon: CalendarRange, label: 'Hét' },
+    { mode: 'month', icon: CalendarClock, label: 'Hónap' },
+  ]
+  const pickRange = (v: BookingsRange) => router.push(`/dashboard/bookings?date=${date}&range=${v}`)
 
   // KPI-számok a nap valós adataiból (vázlatokkal együtt).
   const nowMin = useNowMinutes(date)
@@ -356,6 +372,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
         staff={staff}
         openMin={openMin}
         closeMin={closeMin}
+        invitedEmails={invitedEmails}
       />
 
       <MobileOptionSheet
@@ -365,6 +382,10 @@ export function SalonDailyView(props: SalonDailyViewProps) {
         options={viewButtons}
         value={view}
         onChange={pick}
+        secondaryTitle="Időszak"
+        secondaryOptions={rangeButtons}
+        secondaryValue={range}
+        secondaryOnChange={pickRange}
       />
     </div>
   )
@@ -944,35 +965,47 @@ function StaffColumnsTimeline({
       {staff.length === 0 ? (
         <div className="py-10 text-center text-[13px] text-ink-soft">Nincs aktív szakember. Vegyél fel szakembert a foglalások idővonalához.</div>
       ) : (
+        // UGYANAZ a minta, mint a vízszintesen görgetett bal oszlopnál (lásd étterem DailyView):
+        // a fejléc-sor egy KÜLÖN, saját fa — NEM a görgő konténer gyereke —, ezért nem kell
+        // sticky-vel/háttérszín-egyeztetéssel bajlódni, egyszerűen nem tud alá csúszni semmi.
+        // A vízszintes görgetés az egészet (fejléc+tartalom) EGYÜTT mozgatja (közös `overflow-x-
+        // auto`), a függőleges görgetés viszont KIZÁRÓLAG a tartalom-rácsra vonatkozik.
         <div className="overflow-x-auto">
           {(() => {
             // 4 szakemberig kényelmes 220px oszlop; afölött fokozatosan keskenyedik (de 160px
             // alá sosem megy, hogy az avatar+név+idő tartalom még olvasható maradjon) — így a
             // rács nem nő korlátlanul szélesre, amikor sok szakember dolgozik egyszerre.
             const colMin = staff.length <= 4 ? 220 : Math.max(160, Math.round(880 / staff.length))
+            const gridTemplateColumns = `62px repeat(${staff.length}, minmax(${colMin}px, 1fr))`
+            const minWidth = 62 + staff.length * colMin
             return (
-              <div
-                className="grid gap-x-3"
-                style={{
-                  gridTemplateColumns: `62px repeat(${staff.length}, minmax(${colMin}px, 1fr))`,
-                  minWidth: 62 + staff.length * colMin,
-                }}
-              >
-            {/* Fejléc-sor: üres bal sarok (a tengely fölött) + szakember-fejlécek. */}
-            <div style={{ gridColumn: 1, gridRow: 1 }} />
-            {staff.map((t, ci) => {
-              const url = avatarUrlOf(t)
-              return (
-                <div key={String(t.id)} style={{ gridColumn: ci + 2, gridRow: 1 }} className="flex items-center gap-2.5 border-b border-line pb-3">
-                  <Ava url={url} className="h-9 w-9 shrink-0 rounded-full overflow-hidden" />
-                  <div className="min-w-0">
-                    <span className="block text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
-                    {t.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{t.role_title}</span>}
-                  </div>
+              <div style={{ minWidth }}>
+                {/* Fejléc-sor: üres bal sarok (a tengely fölött) + szakember-fejlécek — saját,
+                    NEM görgő rács, mindig látszik. */}
+                <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
+                  <div />
+                  {staff.map((t, ci) => {
+                    const url = avatarUrlOf(t)
+                    return (
+                      <div
+                        key={String(t.id)}
+                        style={{ gridColumn: ci + 2 }}
+                        className="flex items-center gap-2.5 border-b border-line pb-3"
+                      >
+                        <Ava url={url} className="h-9 w-9 shrink-0 rounded-full overflow-hidden" />
+                        <div className="min-w-0">
+                          <span className="block text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
+                          {t.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{t.role_title}</span>}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
 
+                {/* Tartalom: KÜLÖN, függőlegesen görgő konténer a fejléc alatt — hosszú
+                    nyitvatartásnál (sok óra-sor) ez görgethető belül, nem az egész oldal nő meg. */}
+                <div className="max-h-[65vh] overflow-y-auto pt-1">
+                  <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
             {/* Bal tengely — EGY időpont-pill óránként, alatta (mint mobilon) a nyitó "+" gomb,
                 ha ANY szakembernél van extra foglalás abban az órában; kattintásra minden
                 érintett oszlopban egyszerre nyílnak ki az extrák. */}
@@ -986,7 +1019,7 @@ function StaffColumnsTimeline({
               return (
                 <div
                   key={m}
-                  style={{ gridColumn: 1, gridRow: i + 2 }}
+                  style={{ gridColumn: 1, gridRow: i + 1 }}
                   className="flex flex-col items-center"
                 >
                   <span className={`flex h-9 w-full items-center justify-center rounded-full px-2 text-[13px] font-semibold tabular-nums ${pillCls}`}>
@@ -1051,7 +1084,7 @@ function StaffColumnsTimeline({
                   const t = staff[ci]
                   const hatchNeeded = maxExtra - (rows.length - 1)
                   cells.push(
-                    <div key={`${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 2 }} className="pb-3">
+                    <div key={`${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
                       {renderCellItem(rows[0], onEdit, false, nowMin)}
                       <AnimatePresence initial={false}>
                         {isOpen && maxExtra > 0 && (
@@ -1089,7 +1122,7 @@ function StaffColumnsTimeline({
                   const t = staff[ci]
                   const continuing = perStaffHourContinuation[ci][i]!
                   cells.push(
-                    <div key={`cont-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 2 }} className="relative pb-3">
+                    <div key={`cont-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="relative pb-3">
                       <span aria-hidden className="absolute -top-3 left-1/2 h-3 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
                       {renderBookingCard(continuing, onEdit, false, nowMin)}
                       {/* Ha ez az óra ki van nyitva (mert EGY MÁSIK oszlopnál extra foglalás van),
@@ -1128,7 +1161,7 @@ function StaffColumnsTimeline({
                   cells.push(
                     <div
                       key={`gap-${m}-${start}`}
-                      style={{ gridColumn: `${start + 2} / span ${span}`, gridRow: i + 2 }}
+                      style={{ gridColumn: `${start + 2} / span ${span}`, gridRow: i + 1 }}
                       className="pb-3"
                     >
                       <HatchBand />
@@ -1157,6 +1190,8 @@ function StaffColumnsTimeline({
               }
               return cells
             })}
+                  </div>
+                </div>
               </div>
             )
           })()}

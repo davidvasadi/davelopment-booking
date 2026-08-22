@@ -689,7 +689,12 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   // A profil-szerkesztőben választható pozíciók = az üzlet által létrehozott kategóriák (owner-created).
   const positionCatalog = Array.from(new Set(positionOptions.map((p) => p.label).filter(Boolean)))
   const sel = data.find((c) => c.id === selId) ?? data[0]
-  const isOwnerRow = sel.id === 'owner' || sel.roleTone === 'owner'
+  // FONTOS: kizárólag a szintetikus (nem-linkelt) tulaj-sor szentinel id-je ('owner') dönti el,
+  // hogy fiók-szinten (Users) mentsünk-e — a `roleTone === 'owner'` CSAK vizuális jelölés (pl.
+  // egy már valódi staff-rekordhoz linkelt tulaj is "owner" tónust kap), ha ez alapján is
+  // fiók-szintre mentenénk, a linkelt tulaj saját staff-profiljának szerkesztése sosem jutna
+  // el a `staff` rekordig (`/api/staff/[id]`) — semmi nem frissülne a Munkatársakon/publikus oldalon.
+  const isOwnerRow = sel.id === 'owner'
   // Státusz a profilban — csak étterem + kezelő (tulaj/vezető) + valós tag (nem a tulaj-sor).
   const canEditStatus = canManage && variant === 'restaurant' && !isOwnerRow
   // Élő státusz: a lista (statusById) a forrás; a helyi override az azonnali visszajelzés; végül a roster-érték.

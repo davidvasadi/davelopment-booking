@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import type { StaffMember, Media, Service } from '@/payload/payload-types'
+import { fixMediaUrl } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -54,6 +55,10 @@ const schema = z.object({
   bio: z.string().optional(),
   // Szakember e-mail — ide megy a hozzá rendelt foglalás értesítője (.ics-melléklettel).
   email: z.string().email('Érvénytelen email cím').optional().or(z.literal('')),
+  // Pozíció — eddig CSAK a meghívó-flow-n keresztül (Csapat & jogok) lehetett beállítani; a
+  // kézzel felvett munkatársaknak (pl. a tulaj saját magának) sosem volt hova beírni, ezért a
+  // Munkatársak/Naptár/foglalás-választó mindenhol üresen mutatta a pozíciójukat.
+  role_title: z.string().optional(),
   is_active: z.boolean(),
 })
 type FormData = z.infer<typeof schema>
@@ -86,15 +91,22 @@ interface Props {
   employees?: Employee[]
   /** A szalon tulajdonosa (Users collection) — külön sor a tábla tetején. */
   ownerUser?: { name?: string | null; email?: string | null; avatar_url?: string | null; join_date?: string | null; createdAt?: string | null; role_title?: string | null } | null
+  /** A tulajdonos User-id-je — ha van hozzá linkelt (`Staff.user`) rekord, azt jelöljük
+   *  "Tulajdonos" jelvénnyel a listában a duplikált szintetikus sor helyett. A linkelés maga
+   *  automatikus (regisztrációkor jön létre), itt nincs kézi kapcsoló hozzá. */
+  ownerUserId?: string | null
+  /** email (kisbetűs) → a személy SAJÁT (Users.avatar_url) profilképe — fallback, ha a tulaj
+   *  sosem töltött fel külön staff-avatart ennek a tagnak. */
+  avatarUrlByEmail?: Record<string, string>
   /** Ha false, az Új munkatárs / Export / Törlés gombok és a checkbox rejtve. */
   canManage?: boolean
 }
 
-/** davelopment stat-csík pill (label felül, érték-pill alul). */
-function avatarUrl(m: StaffMember): string | null {
-  if (!m.avatar) return null
-  if (typeof m.avatar === 'object') return (m.avatar as Media).url ?? null
-  return null
+/** A staff-avatar VAGY (ha nincs) a személy saját profilképe email-egyezéssel. */
+function avatarUrl(m: StaffMember, avatarUrlByEmail?: Record<string, string>): string | null {
+  if (m.avatar && typeof m.avatar === 'object') return fixMediaUrl((m.avatar as Media).url) ?? null
+  const email = (m.email ?? '').toLowerCase()
+  return email ? (avatarUrlByEmail?.[email] ?? null) : null
 }
 
 /** Első sor a bio-ból → „szerep” alcím a kártyán (a Crextio-referencia mintájára). */
@@ -116,6 +128,8 @@ export default function StaffManager({
   freeDaysById = {},
   employees,
   ownerUser,
+  ownerUserId,
+  avatarUrlByEmail,
   canManage = false,
 }: Props) {
   const router = useRouter()
@@ -162,22 +176,25 @@ export default function StaffManager({
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
 
   const openAdd = () => {
-    reset({ name: '', bio: '', email: '', is_active: true })
+    reset({ name: '', bio: '', email: '', role_title: '', is_active: true })
     setEditing(null)
     setEditLocale('hu')
     setAvatarId(null)
     setAvatarPreview(null)
     setAvatarModified(false)
     setSelectedServiceIds([])
-    setSelectedRoleId(salonRoles[0]?.id ?? '')
+    // "— Szerepkör nélkül —" a valódi alapértelmezett — korábban itt hibásan az ELSŐ elérhető
+    // szerepre állt, így ha valaki nem figyelt oda, minden új munkatárs AUTOMATIKUSAN megkapta
+    // az első szerepet, anélkül hogy ezt szándékosan választotta volna.
+    setSelectedRoleId('')
     setOpen(true)
   }
 
   const openEdit = (m: StaffMember) => {
-    reset({ name: m.name, bio: m.bio ?? '', email: m.email ?? '', is_active: m.is_active ?? true })
+    reset({ name: m.name, bio: m.bio ?? '', email: m.email ?? '', role_title: m.role_title ?? '', is_active: m.is_active ?? true })
     setEditing(m)
     setEditLocale('hu')
-    const url = avatarUrl(m)
+    const url = avatarUrl(m, avatarUrlByEmail)
     setAvatarPreview(url)
     const media = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media) : null
     setAvatarId(media ? Number(media.id) : null)
@@ -332,13 +349,20 @@ export default function StaffManager({
     setDeleting(true)
     try {
       const res = await fetch(`/api/staff/${deleteId}`, { method: 'DELETE', credentials: 'include' })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.error || 'Hiba történt')
+      }
       setStaff((prev) => prev.filter((m) => String(m.id) !== deleteId))
+      // Ha a törölt sor épp ki volt jelölve (checkbox), a kijelölésből is ki kell venni —
+      // különben a fejléc "Kijelöltek törlése" gombja beragadva ott marad egy már nem
+      // létező id-re mutatva.
+      setSelected((prev) => { if (!prev.has(deleteId)) return prev; const next = new Set(prev); next.delete(deleteId); return next })
       toast.success('Törölve')
       setDeleteId(null)
       router.refresh()
-    } catch {
-      toast.error('Hiba történt')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Hiba történt')
     } finally {
       setDeleting(false)
     }
@@ -359,8 +383,13 @@ export default function StaffManager({
       setStaff((prev) => prev.filter((m) => !okIds.includes(String(m.id))))
       setSelected(new Set())
       setBulkOpen(false)
-      if (okIds.length < ids.length) toast.error(`${ids.length - okIds.length} törlése nem sikerült`)
-      else toast.success(`${okIds.length} munkatárs törölve`)
+      if (okIds.length < ids.length) {
+        const failedRes = results.find((r) => r.status === 'fulfilled' && !(r as PromiseFulfilledResult<Response>).value.ok) as PromiseFulfilledResult<Response> | undefined
+        const firstError = failedRes ? await failedRes.value.json().catch(() => null) : null
+        toast.error(`${ids.length - okIds.length} törlése nem sikerült${firstError?.error ? ` — ${firstError.error}` : ''}`)
+      } else {
+        toast.success(`${okIds.length} munkatárs törölve`)
+      }
       router.refresh()
     } finally {
       setBulkBusy(false)
@@ -414,6 +443,13 @@ export default function StaffManager({
     const q = query.toLowerCase()
     return m.name.toLowerCase().includes(q) || (m.role_title ?? '').toLowerCase().includes(q)
   })
+  // Ha a tulaj már LINKELVE van egy valódi (foglalható) staff-rekordhoz, azt a rekordot magát
+  // jelöljük "Tulajdonos" jelvénnyel a listában — a felül lévő szintetikus "Tulajdonos sor"
+  // (ami a User-fiók mezőiből épül, NEM foglalható) ilyenkor felesleges duplikátum, elrejtjük.
+  const linkedOwnerStaffId = ownerUserId
+    ? staff.find((m) => m.user && (typeof m.user === 'object' ? String((m.user as { id: string | number }).id) : String(m.user)) === String(ownerUserId))?.id ?? null
+    : null
+  const showSyntheticOwnerRow = !!ownerUser && linkedOwnerStaffId == null
 
   const toggleSelect = (id: string) =>
     setSelected((prev) => {
@@ -538,8 +574,10 @@ export default function StaffManager({
             <div>Státusz</div>
           </div>
 
-          {/* Tulajdonos sor */}
-          {ownerUser && (
+          {/* Tulajdonos sor — csak akkor, ha a tulaj MÉG NINCS linkelve valódi staff-rekordhoz
+              (lásd `showSyntheticOwnerRow`); ha van, az a rekord kapja a "Tulajdonos" jelvényt
+              lent a listában, nem duplikáljuk. */}
+          {showSyntheticOwnerRow && (
             <div
               onClick={() => { const oi = empList.findIndex(e => e.id === 'owner'); setHiringIndex(oi >= 0 ? oi : 0) }}
               role="button"
@@ -550,8 +588,8 @@ export default function StaffManager({
               <div className={`hidden ${GRID} items-center gap-3.5 px-3.5 py-2.5 lg:grid`}>
                 <div />
                 <div className="flex min-w-0 items-center gap-3">
-                  {ownerUser.avatar_url ? (
-                    <img src={ownerUser.avatar_url} alt="" className="h-[38px] w-[38px] shrink-0 rounded-full object-cover object-top" />
+                  {fixMediaUrl(ownerUser.avatar_url) ? (
+                    <img src={fixMediaUrl(ownerUser.avatar_url) ?? undefined} alt="" className="h-[38px] w-[38px] shrink-0 rounded-full object-cover object-top" />
                   ) : (
                     <span className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                       <UserRound className="h-5 w-5 text-white/30" strokeWidth={1.2} />
@@ -581,8 +619,8 @@ export default function StaffManager({
               {/* MOBIL */}
               <div className="flex items-center gap-3 px-3.5 py-3 lg:hidden">
                 {canManage && <div className="h-[18px] w-[18px] shrink-0" />}
-                {ownerUser.avatar_url ? (
-                  <img src={ownerUser.avatar_url} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
+                {fixMediaUrl(ownerUser.avatar_url) ? (
+                  <img src={fixMediaUrl(ownerUser.avatar_url) ?? undefined} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
                 ) : (
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                     <UserRound className="h-6 w-6 text-white/30" strokeWidth={1.2} />
@@ -601,14 +639,14 @@ export default function StaffManager({
           )}
 
           {/* Sorok */}
-          {filtered.length === 0 && !ownerUser && (
+          {filtered.length === 0 && !showSyntheticOwnerRow && (
             <p className="py-10 text-center text-sm text-ink-soft">Nincs találat.</p>
           )}
-          {filtered.length === 0 && ownerUser && (
+          {filtered.length === 0 && showSyntheticOwnerRow && (
             <p className="py-6 text-center text-sm text-ink-soft">Nincs más munkatárs.</p>
           )}
           {filtered.map((m, idx) => {
-            const url = avatarUrl(m)
+            const url = avatarUrl(m, avatarUrlByEmail)
             const isInvited = invitedEmails?.has((m.email ?? '').toLowerCase()) ?? false
             const staffStatus: StaffStatus = isInvited ? 'invited' : m.is_active !== false ? 'active' : 'inactive'
             const sp = statusPill(staffStatus)
@@ -618,10 +656,11 @@ export default function StaffManager({
             const isSel = selected.has(String(m.id))
             const position = m.role_title || roleLine(m.bio) || '—'
             const canToggle = canManage && !isInvited
+            const isOwnerRow = linkedOwnerStaffId != null && String(m.id) === String(linkedOwnerStaffId)
             return (
               <div
                 key={m.id}
-                onClick={() => { const ei = empList.findIndex(e => String(e.id) === String(m.id)); setHiringIndex(ei >= 0 ? ei : ownerUser ? idx + 1 : idx) }}
+                onClick={() => { const ei = empList.findIndex(e => String(e.id) === String(m.id)); setHiringIndex(ei >= 0 ? ei : showSyntheticOwnerRow ? idx + 1 : idx) }}
                 role="button"
                 title="Adatlap megnyitása"
                 style={isSel ? { background: 'var(--dav-accent)' } : inactive ? { background: INACTIVE_HATCH } : undefined}
@@ -658,7 +697,10 @@ export default function StaffManager({
                       {m.email && <p className="truncate text-[12px] font-medium text-ink-soft">{m.email}</p>}
                     </div>
                   </div>
-                  <div className="truncate text-[13.5px] font-medium text-ink">{position}</div>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {isOwnerRow && <span className="inline-flex shrink-0 rounded-[9px] bg-ink-dark px-2 py-[3px] text-[11px] font-semibold text-gold">Tulajdonos</span>}
+                    <span className="truncate text-[13.5px] font-medium text-ink">{position}</span>
+                  </div>
                   <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(m.join_date)}</div>
                   <div>
                     {freeDaysById[String(m.id)] != null ? (
@@ -730,7 +772,10 @@ export default function StaffManager({
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold text-ink">{m.name}</p>
-                    <p className="truncate text-[12.5px] font-medium text-ink-soft">{position}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                      {isOwnerRow && <span className="inline-flex rounded-[7px] bg-ink-dark px-2 py-[3px] text-[11px] font-semibold text-gold">Tulajdonos</span>}
+                      <span className="truncate text-[12.5px] font-medium text-ink-soft">{position}</span>
+                    </div>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); const empIdx = employees?.findIndex(emp => String(emp.id) === String(m.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : idx); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
                 </div>
@@ -771,6 +816,12 @@ export default function StaffManager({
               <Label className="text-sm font-medium">Email <span className="font-normal text-ink-soft2">(a foglalás-értesítőkhöz)</span></Label>
               <Input type="email" className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('email')} placeholder="szakember@example.com" />
               {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
+            </div>
+            )}
+            {editLocale === 'hu' && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Pozíció</Label>
+              <Input className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('role_title')} placeholder="Műszakvezető · Stylist" />
             </div>
             )}
             {editLocale === 'hu' && !editing && salonRoles.length > 0 && (
