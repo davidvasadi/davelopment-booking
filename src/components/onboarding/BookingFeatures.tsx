@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bell, Star, Check, ChevronDown, ExternalLink, type LucideIcon } from 'lucide-react'
+import { Bell, type LucideIcon } from 'lucide-react'
 
 /**
  * FOGLALÁSI FUNKCIÓK — kapcsolható modulok (Crextio design, 1:1 a
@@ -132,8 +132,6 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 
 type Feats = {
   reminders: { on: boolean; times: { h24: boolean; h3: boolean; h1: boolean }; channels: { email: boolean; push: boolean } }
-  // delay: csak lokális UI-állapot, nincs séma-mezője → nem menti az API
-  reviews: { on: boolean; delay: 'h1' | 'h2' | 'next'; googleUrl: string }
 }
 
 function featsFrom(fm: FeatureModules): Feats {
@@ -143,22 +141,22 @@ function featsFrom(fm: FeatureModules): Feats {
       times: { h24: fm.reminder_t_24h, h3: fm.reminder_t_3h, h1: fm.reminder_t_1h },
       channels: { email: fm.reminder_ch_email, push: fm.reminder_ch_push },
     },
-    reviews: {
-      on: fm.reviews_on,
-      delay: fm.review_delay_hours === 1 ? 'h1' : fm.review_delay_hours === 24 ? 'next' : 'h2',
-      googleUrl: fm.google_review_url ?? '',
-    },
   }
 }
 
 /**
- * A `waitlist_on`/`waitlist_auto_promote`/`recurring_on` mezőknek NINCS UI-ja ezen a panelen
- * (a `Feats` típus nem is tartja őket) — ezért ITT sose szabad kitalált értéket küldeni rájuk,
- * mindig a szerverről érkezett `initial`-ból megőrzött, ÉRINTETLEN értéket írjuk vissza. Enélkül
- * minden emlékeztető/értékelés-kapcsoló mentés csendben lenullázná a várólista/ismétlődés
- * beállítást, bármi is volt korábban elmentve.
+ * A `waitlist_on`/`waitlist_auto_promote`/`recurring_on` ÉS a `reviews_on`/`google_review_url`/
+ * `review_delay_hours` mezőknek NINCS UI-ja ezen a panelen (utóbbi három a Beállítások → Google
+ * fülre költözött, `GoogleSettingsPanel.tsx`) — ezért ITT sose szabad kitalált értéket küldeni
+ * rájuk, mindig a szerverről érkezett `initial`-ból megőrzött, ÉRINTETLEN értéket írjuk vissza.
+ * Enélkül minden emlékeztető-kapcsoló mentés csendben lenullázná a várólista/ismétlődés/
+ * Google-értékelés beállítást, bármi is volt korábban elmentve — a Payload group mező PATCH-nél
+ * nem deep-mergel, a küldött objektum a teljes csoportot lecseréli.
  */
-function featsToModules(f: Feats, preserve: Pick<FeatureModules, 'waitlist_on' | 'waitlist_auto_promote' | 'recurring_on'>): FeatureModules {
+function featsToModules(
+  f: Feats,
+  preserve: Pick<FeatureModules, 'waitlist_on' | 'waitlist_auto_promote' | 'recurring_on' | 'reviews_on' | 'google_review_url' | 'review_delay_hours'>,
+): FeatureModules {
   return {
     reminders_on: f.reminders.on,
     reminder_ch_email: f.reminders.channels.email,
@@ -169,9 +167,9 @@ function featsToModules(f: Feats, preserve: Pick<FeatureModules, 'waitlist_on' |
     waitlist_on: preserve.waitlist_on,
     waitlist_auto_promote: preserve.waitlist_auto_promote,
     recurring_on: preserve.recurring_on,
-    reviews_on: f.reviews.on,
-    google_review_url: f.reviews.googleUrl.trim() || null,
-    review_delay_hours: f.reviews.delay === 'h1' ? 1 : f.reviews.delay === 'next' ? 24 : 2,
+    reviews_on: preserve.reviews_on,
+    google_review_url: preserve.google_review_url,
+    review_delay_hours: preserve.review_delay_hours,
   }
 }
 
@@ -199,19 +197,10 @@ export function BookingFeatures({
   const baseline = useMemo<Feats>(
     () => (initial ? featsFrom(initial) : {
       reminders: { on: true, times: { h24: true, h3: true, h1: false }, channels: { email: true, push: false } },
-      reviews: { on: false, delay: 'h2', googleUrl: '' },
     }),
     [initial],
   )
   const [feats, setFeats] = useState<Feats>(baseline)
-  // A Google-link szöveges mező draftja — csak blur-kor (nem minden leütésre) mentünk.
-  const [googleUrlDraft, setGoogleUrlDraft] = useState(feats.reviews.googleUrl)
-  const [googleHelpOpen, setGoogleHelpOpen] = useState(false)
-  const [urlError, setUrlError] = useState(false)
-  // Halk visszajelzés: Google-linknek tűnik-e? Elfogadjuk a rövid `g.page/…/review`-t, a
-  // `writereview` linket, ÉS a sima Google Kereső/Maps üzlet-linket is (amit a „Vélemény írása"
-  // után a címsorból másolnak) — ezek mind az adott üzlethez viszik a vendéget.
-  const looksLikeGoogleReview = /(g\.page\/r\/|\/local\/writereview|maps\.app\.goo\.gl|goo\.gl\/maps|google\.[a-z.]+\/(search|maps)|g\.co\/)/i.test(googleUrlDraft.trim())
 
   const dirty = JSON.stringify(feats) !== JSON.stringify(baseline)
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -236,6 +225,9 @@ export function BookingFeatures({
                 waitlist_on: initial?.waitlist_on ?? false,
                 waitlist_auto_promote: initial?.waitlist_auto_promote ?? false,
                 recurring_on: initial?.recurring_on ?? false,
+                reviews_on: initial?.reviews_on ?? false,
+                google_review_url: initial?.google_review_url ?? null,
+                review_delay_hours: initial?.review_delay_hours ?? 1,
               }),
             }),
           })
@@ -248,14 +240,10 @@ export function BookingFeatures({
       },
       discard: () => {
         setFeats(baseline)
-        setGoogleUrlDraft(baseline.reviews.googleUrl)
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [baseline])
-
-  const isSalon = variant === 'salon'
-  const visitWord = isSalon ? 'kezelés' : 'látogatás'
 
   return (
     <div className={embedded ? 'space-y-4 font-onest' : 'space-y-6 p-5 font-onest lg:p-0'}>
@@ -268,7 +256,7 @@ export function BookingFeatures({
                 Foglalási funkciók
               </h1>
               <p className="mt-2 max-w-lg text-[13px] leading-relaxed text-ink-soft lg:text-sm">
-                Emlékeztetők, várólista, értékelések és több — kapcsolható modulok.
+                Emlékeztetők, várólista és több — kapcsolható modulok.
               </p>
             </div>
           </div>
@@ -280,7 +268,7 @@ export function BookingFeatures({
         <ModuleCard
           icon={Bell}
           title="Automata emlékeztetők"
-          desc={`E-mail / push a foglalás előtt, „értékeld minket" a ${visitWord} után`}
+          desc="E-mail / push a foglalás előtt"
           on={feats.reminders.on}
           onToggle={() => update((f) => ({ ...f, reminders: { ...f.reminders, on: !f.reminders.on } }))}
         >
@@ -333,190 +321,6 @@ export function BookingFeatures({
           </div>
         </ModuleCard>
 
-        {/* ── Értékelések — custom kártya (URL mindig látható, toggle csak URL után aktív) ── */}
-        {(() => {
-          const hasUrl = feats.reviews.googleUrl.trim() !== ''
-          return (
-            <div className="rounded-[26px] bg-white p-5 shadow-dav-card lg:p-6">
-              {/* Fejléc sor */}
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-center gap-3.5">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#F7F3E4] text-[#9A7B12]">
-                    <Star className="h-5 w-5" strokeWidth={1.6} />
-                  </span>
-                  <div>
-                    <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">Értékelések</h2>
-                    <p className="mt-0.5 text-[12.5px] leading-relaxed text-ink-soft">
-                      Automatikus értékeléskérés {visitWord} után
-                    </p>
-                  </div>
-                </div>
-                {/* Toggle — ha nincs URL: szürke + cursor-not-allowed, kattintásra shake az input */}
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={feats.reviews.on}
-                  aria-label="Értékelések be/ki"
-                  onClick={() => {
-                    if (!hasUrl) {
-                      setUrlError(true)
-                      setTimeout(() => setUrlError(false), 600)
-                      return
-                    }
-                    update((f) => ({ ...f, reviews: { ...f.reviews, on: !f.reviews.on } }))
-                  }}
-                  className="relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors duration-200"
-                  style={{
-                    background: !hasUrl ? '#DAD5C6' : feats.reviews.on ? '#1D1C19' : '#DAD5C6',
-                    cursor: !hasUrl ? 'not-allowed' : 'pointer',
-                  }}
-                  title={!hasUrl ? 'Előbb add meg a Google értékelés-linket' : undefined}
-                >
-                  <span
-                    className="absolute top-[3px] h-[21px] w-[21px] rounded-full transition-all duration-200"
-                    style={{
-                      left: feats.reviews.on && hasUrl ? '22px' : '3px',
-                      background: feats.reviews.on && hasUrl ? '#F1CE45' : '#fff',
-                      boxShadow: '0 1px 3px rgba(0,0,0,.25)',
-                    }}
-                  />
-                </button>
-              </div>
-
-              {/* Google URL mező — MINDIG látható (nem kell toggle a linkhez) */}
-              <div className="mt-5 border-t border-[#efebdf] pt-5 space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <GroupLabel>Google értékelés link</GroupLabel>
-                  <button
-                    type="button"
-                    onClick={() => setGoogleHelpOpen((o) => !o)}
-                    className="inline-flex items-center gap-1 text-[12px] font-semibold text-ink-soft transition-colors hover:text-ink"
-                  >
-                    Hogyan találom meg?
-                    <ChevronDown className={`h-3.5 w-3.5 transition-transform ${googleHelpOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
-                  </button>
-                </div>
-
-                <motion.div
-                  animate={urlError ? { x: [0, -8, 8, -6, 6, -3, 3, 0] } : { x: 0 }}
-                  transition={{ duration: 0.45, ease: 'easeInOut' }}
-                >
-                  <input
-                    type="url"
-                    inputMode="url"
-                    value={googleUrlDraft}
-                    onChange={(e) => { setGoogleUrlDraft(e.target.value); setUrlError(false) }}
-                    onFocus={() => setUrlError(false)}
-                    onBlur={() => {
-                      const v = googleUrlDraft.trim()
-                      if (v !== feats.reviews.googleUrl) {
-                        update((f) => ({
-                          ...f,
-                          reviews: { ...f.reviews, googleUrl: v, on: v ? f.reviews.on : false },
-                        }))
-                      }
-                    }}
-                    placeholder="https://g.page/r/…/review"
-                    className="h-11 w-full rounded-[12px] border bg-white px-3.5 text-sm text-ink placeholder:text-ink-soft2/60 outline-none transition-colors"
-                    style={{
-                      borderColor: urlError ? 'var(--dav-bad)' : undefined,
-                      boxShadow: urlError ? '0 0 0 2px color-mix(in srgb, var(--dav-bad) 20%, transparent)' : undefined,
-                    }}
-                  />
-                </motion.div>
-
-                {/* URL hiba jelzés (toggle nélküli kattintás) */}
-                {urlError && (
-                  <p className="text-[12px] font-medium text-bad">Add meg a Google értékelés-linket az aktiváláshoz.</p>
-                )}
-
-                {/* Validáció visszajelzés ha van tartalom */}
-                {!urlError && googleUrlDraft.trim() !== '' && (
-                  looksLikeGoogleReview ? (
-                    <p className="inline-flex items-center gap-1 text-[12px] font-medium text-ok">
-                      <Check className="h-3.5 w-3.5" strokeWidth={2.4} /> Ez Google értékelés-linknek tűnik.
-                    </p>
-                  ) : (
-                    <p className="text-[12px] font-medium text-warn">
-                      Ez nem úgy néz ki, mint egy Google értékelés-link. Nézd meg a „Hogyan találom meg?" lépéseket.
-                    </p>
-                  )
-                )}
-
-                {/* Súgó accordion */}
-                <AnimatePresence initial={false}>
-                  {googleHelpOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="mt-1 rounded-[14px] border border-line bg-paper/50 p-4">
-                        <ol className="space-y-2 text-[12.5px] leading-relaxed text-ink-soft">
-                          <li><b className="font-semibold text-ink">1.</b> <b className="font-semibold text-ink">Keresd rá az üzleted nevére a Google-ban.</b></li>
-                          <li><b className="font-semibold text-ink">2.</b> A „Vélemények" résznél kattints a <b className="font-semibold text-ink">„+ Vélemény írása"</b> gombra.</li>
-                          <li><b className="font-semibold text-ink">3.</b> Másold ki a böngésző <b className="font-semibold text-ink">címsorából a linket</b>, és illeszd be ide.</li>
-                        </ol>
-                        <p className="mt-2.5 text-[11.5px] leading-relaxed text-ink-soft2">
-                          Még tisztább link: a Cégprofil <b className="font-medium text-ink-soft">„Értékelések kérése"</b> kártyája ad egy rövid{' '}
-                          <span className="rounded bg-white px-1 py-0.5 font-mono text-[11px] text-ink">g.page/…/review</span> linket.
-                        </p>
-                        <a
-                          href="https://support.google.com/business/answer/3474122"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-ink-dark px-3.5 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
-                        >
-                          Google súgó: értékelések kérése
-                          <ExternalLink className="h-3.5 w-3.5 text-gold" strokeWidth={2} />
-                        </a>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <p className="text-[12px] leading-relaxed text-ink-soft">
-                  A visszajelzés-email a <b className="font-semibold text-ink-soft">Google csillagozó-oldalára</b> viszi a vendéget.
-                </p>
-              </div>
-
-              {/* Időzítés chipek — csak ha a toggle ON */}
-              <AnimatePresence initial={false}>
-                {feats.reviews.on && hasUrl && (
-                  <motion.div
-                    key="delay"
-                    initial={{ height: 0, opacity: 0 }}
-                    animate={{ height: 'auto', opacity: 1 }}
-                    exit={{ height: 0, opacity: 0 }}
-                    transition={{ duration: 0.32, ease: EASE }}
-                    className="overflow-hidden"
-                  >
-                    <div className="mt-5 border-t border-[#efebdf] pt-5">
-                      <GroupLabel>Kérés a {visitWord} után</GroupLabel>
-                      <div className="flex flex-wrap gap-2.5">
-                        {([
-                          ['h1', '1 órával'],
-                          ['h2', '2 órával'],
-                          ['next', 'Másnap'],
-                        ] as const).map(([k, l]) => (
-                          <Chip
-                            key={k}
-                            on={feats.reviews.delay === k}
-                            onClick={() => update((f) => ({ ...f, reviews: { ...f.reviews, delay: k } }))}
-                          >
-                            {l}
-                          </Chip>
-                        ))}
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          )
-        })()}
       </div>
     </div>
   )

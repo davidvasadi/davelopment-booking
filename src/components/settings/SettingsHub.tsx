@@ -23,11 +23,12 @@ import { toast } from 'sonner'
 import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext'
 import {
   Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
-  Plus, ScrollText, Building2, Mail, Check, Languages, FileText,
+  Plus, ScrollText, Building2, Mail, Check, Languages, FileText, Star,
   Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
+import { GoogleSettingsPanel } from './GoogleSettingsPanel'
 import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData, type VoucherSettingsData, type ConsentSettingsData } from './PaymentsSettingsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
@@ -103,7 +104,7 @@ type RailId =
   | 'profile' | 'booking' | 'languages' | 'email'
   | 'notifications' | 'team' | 'audit'
   | 'self' | 'documents' | 'billing' | 'sites'
-  | 'integrations' | 'danger' | 'payments'
+  | 'integrations' | 'danger' | 'payments' | 'google'
 
 // A bal lista mely elemei a MEGLÉVŐ profil-form egy-egy fülét mutatják (rail vezérli a fület).
 const FORM_TABS: Record<string, string> = {
@@ -118,7 +119,7 @@ const RAIL_LABELS: Record<RailId, string> = {
   notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
   self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés & számlázás', sites: 'Telephelyek',
   integrations: 'API & Integrációk', danger: 'Fiók törlése',
-  payments: 'Fizetés',
+  payments: 'Fizetés', google: 'Google',
 }
 
 export interface RulesData {
@@ -162,6 +163,10 @@ export interface TeamMember {
   customRoleId?: string | null     // ha egyedi szerepe van, annak id-je (a legördülő értékéhez)
   pending?: boolean                // függő meghívó sor
   suspended?: boolean              // felfüggesztett tag (a Munkatársak „Inaktív"-jával egységes)
+  avatarUrl?: string | null        // a tag SAJÁT (fiók-szintű) profilképe, ha van
+  /** Munkaköri pozíció (pl. "Stylist"). Tagoknál a Membership.position, a tulajnál a linkelt
+   *  Staff-rekord role_title-je (ha a tulaj saját magát is felvette szakembernek). */
+  position?: string | null
 }
 
 /** Telephelyek — VALÓS: a fiók egy üzlete. */
@@ -174,6 +179,7 @@ export interface SiteData {
   role: string                     // szerep (Tulajdonos)
   current?: boolean                // ez az aktuálisan megnyitott üzlet
   gold?: boolean                   // avatar arany háttér (nem-aktuális kiemeléshez)
+  logoUrl?: string | null          // az üzlet logója, ha van (a `getActiveBusiness` már betölti)
 }
 
 /** Egy mező-változás a naplóban (módosításnál): mi → mire. */
@@ -256,6 +262,8 @@ export interface SettingsHubProps {
   stripeConnectOnboarded: boolean
   /** Az üzlet jelenlegi csomagja (starter/pro/egyedi) — a hírlevél beépített email-keretének kijelzéséhez. */
   businessTier: string | null
+  /** Az üzlet által támogatott nyelvek — a beleegyező nyilatkozat fordítás-szerkesztőjéhez. */
+  supportedLocales?: (string | null | undefined)[] | null
 }
 
 function fmtDate(dateStr?: string | null): string {
@@ -299,6 +307,7 @@ export function SettingsHub({
   icalUrl, bookingUrl, embedUrl, embedSmartSnippet, webhookUrl, ga4Id, facebookPixelId, myCapabilities,
   depositSettings, invoiceSettings, voucherSettings, consentSettings, stripeConnectAccountId, stripeConnectOnboarded,
   businessTier,
+  supportedLocales,
 }: SettingsHubProps) {
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
@@ -462,6 +471,7 @@ export function SettingsHub({
   const documentsPanel = usePanelRegistration()
   const integPanel = usePanelRegistration()
   const integPaymentsPanel = usePanelRegistration()
+  const googlePanel = usePanelRegistration()
 
   /** Egy group PATCH-elése a valós collection-endpointra (credentials:'include'). */
   const patchGroup = async (body: Record<string, unknown>): Promise<boolean> => {
@@ -586,14 +596,16 @@ export function SettingsHub({
   const sendInvite = async () => {
     const email = inviteEmail.trim()
     if (!email) return
-    if (!inviteRole.startsWith('c:')) { toast.error('Válassz szerepet (hozz létre egyet a lenti panelen)'); return }
+    // Szerep NÉLKÜL is elküldhető — a tag ilyenkor csak az alap `overview.view`-t kapja,
+    // utólag bármikor adható neki szerep. Korábban ez a gomb véglegesen le volt tiltva, ha az
+    // üzletnek még egyetlen egyedi szerepe sem volt (nem volt visszaesés beépített szerepre).
     setInviteBusy(true)
     try {
       const res = await fetch('/api/team/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ email, custom_role: inviteRole.slice(2) }),
+        body: JSON.stringify({ email, ...(inviteRole.startsWith('c:') ? { custom_role: inviteRole.slice(2) } : {}) }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Hiba')
@@ -703,6 +715,32 @@ export function SettingsHub({
     if (okA !== false && okB !== false) { setIntegSaved(true); setTimeout(() => setIntegSaved(false), 1800) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A „Google" fül (értékelés-kérés + Google Cégem/Calendar kártyák) egyetlen panelből ment.
+  // A `router.refresh()` KELL a sikeres mentés után — a panel `baseline`-ja a szerverről kapott
+  // `featureModules` propból számol, ami enélkül a mentés UTÁN is a RÉGI értéket mutatná, tehát a
+  // sáv „mentetlen"-nek látszana maradni/visszaugrani, még ha a DB-írás sikeres is volt.
+  const [googleSaved, setGoogleSaved] = useState(false)
+  const saveGoogleTab = useCallback(async () => {
+    const ok = await googlePanel.apiRef.current?.save()
+    if (ok) {
+      router.refresh()
+      setGoogleSaved(true)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // A `router.refresh()` aszinkron — ha a „Mentve" jelzést egy sima setTimeout tüntetné el, az
+  // gyakran HAMARABB lefutna, mint hogy a frissített props megérkezzen: abban a pillanatban a
+  // panel `dirty`-je még mindig `true` (a baseline még a régi), a sáv tehát visszavillanna
+  // „Mentetlen változások"-ra, majd újra eltűnne, amint a refresh landolt — ez okozta a
+  // villogást. Ehelyett a „Mentve" jelzést csak azután kezdjük el elrejteni, hogy a `dirty`
+  // TÉNYLEG hamisra vált (a friss props megérkeztek és egyeznek a helyi állapottal); eddig
+  // bármeddig eltarthat, addig folyamatosan „Mentve"-t mutatunk, nem villan vissza.
+  useEffect(() => {
+    if (googleSaved && !googlePanel.dirty) {
+      const t = setTimeout(() => setGoogleSaved(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [googleSaved, googlePanel.dirty])
+
   const activeBar =
     active === 'booking'
       ? {
@@ -727,6 +765,8 @@ export function SettingsHub({
           onSave: saveIntegrationsTab,
           onCancel: () => { integPanel.apiRef.current?.discard(); integPaymentsPanel.apiRef.current?.discard() },
         }
+      : active === 'google'
+      ? { dirty: googlePanel.dirty, saved: googleSaved, onSave: saveGoogleTab, onCancel: () => googlePanel.apiRef.current?.discard() }
       : active in FORM_TABS
       ? { dirty: formDirty, saved: formSaved, onSave: saveForm, onCancel: () => formApiRef.current?.discard() }
       : active === 'notifications'
@@ -765,6 +805,9 @@ export function SettingsHub({
           : []),
         { group: 'API & Integrációk', items: [
           { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'API & Integrációk' },
+        ] },
+        { group: 'Google', items: [
+          { kind: 'btn', id: 'google', icon: Star, label: 'Google' },
         ] },
         { group: 'Dokumentumok & jogi', items: [
           { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok & jogi' },
@@ -1042,6 +1085,7 @@ export function SettingsHub({
                 pricing={pricing}
                 businessId={activeBusinessId}
                 tier={businessTier}
+                supportedLocales={supportedLocales}
                 sections={['consent']}
                 onDirtyChange={documentsPanel.onDirtyChange}
                 registerApi={documentsPanel.registerApi}
@@ -1210,10 +1254,9 @@ export function SettingsHub({
                     <select
                       value={inviteRole}
                       onChange={(e) => setInviteRole(e.target.value)}
-                      disabled={liveRoles.length === 0}
-                      className="rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] font-medium text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25 disabled:opacity-50"
+                      className="rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] font-medium text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25"
                     >
-                      {liveRoles.length === 0 && <option value="">Előbb hozz létre szerepet ↓</option>}
+                      <option value="">Szerep nélkül (utólag beállítható)</option>
                       {liveRoles.map((r) => (
                         <option key={r.id} value={`c:${r.id}`}>{r.name}</option>
                       ))}
@@ -1221,13 +1264,18 @@ export function SettingsHub({
                     <button
                       type="button"
                       onClick={sendInvite}
-                      disabled={inviteBusy || !inviteEmail.trim() || !inviteRole.startsWith('c:')}
+                      disabled={inviteBusy || !inviteEmail.trim()}
                       className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-opacity disabled:opacity-40"
                     >
                       {inviteBusy && <Loader2 className="h-4 w-4 animate-spin" />}
                       Meghívó küldése
                     </button>
                   </div>
+                  {!inviteRole.startsWith('c:') && (
+                    <p className="mt-2 text-[12px] text-ink-soft2">
+                      Szerep nélkül a tag csak alap hozzáférést kap (belép, de üres a felülete) — ezt utólag is beállíthatod.
+                    </p>
+                  )}
                 </Card>
               )}
 
@@ -1237,7 +1285,7 @@ export function SettingsHub({
                     key={(m.id ?? m.email) + i}
                     className={`flex flex-wrap items-center gap-3.5 py-[18px] ${i < team.length - 1 ? 'border-b border-line' : ''}`}
                   >
-                    <Avatar name={m.name} email={m.email} pending={m.pending} gold={m.roleTone === 'manager'} />
+                    <Avatar name={m.name} email={m.email} pending={m.pending} gold={m.roleTone === 'manager'} avatarUrl={m.avatarUrl} />
                     <div className="min-w-0 flex-1">
                       <div className="truncate text-[14.5px] font-semibold text-ink">
                         {m.pending ? m.email : m.name}
@@ -1245,6 +1293,7 @@ export function SettingsHub({
                       <div className={`truncate text-[12.5px] ${m.pending ? 'text-[#C99A3A]' : 'text-ink-soft'}`}>
                         {m.pending ? 'Meghívó elküldve · függőben' : m.email}
                       </div>
+                      {m.position && <div className="truncate text-[12px] font-medium text-ink-soft2">{m.position}</div>}
                     </div>
                     {/* Státusz-LENYÍLÓ — a Munkatárs-adatlap (HiringView) státusz-menüjével AZONOS:
                         pill + ChevronDown, kattintásra „Aktív / Felfüggesztett" opciók (pipa a jelenlegin).
@@ -1372,6 +1421,17 @@ export function SettingsHub({
                 registerApi={integPaymentsPanel.registerApi}
               />
             </div>
+          )}
+
+          {active === 'google' && (
+            <GoogleSettingsPanel
+              variant={variant}
+              apiBase={apiBase}
+              bookingUrl={bookingUrl}
+              initialFeatureModules={featureModules}
+              onDirtyChange={googlePanel.onDirtyChange}
+              registerApi={googlePanel.registerApi}
+            />
           )}
 
           {active === 'billing' && (
@@ -1872,13 +1932,19 @@ export function SettingsHub({
                       i < sites.length - 1 ? 'border-b border-line' : ''
                     }`}
                   >
-                    <span
-                      className={`flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] text-[15px] font-semibold ${
-                        s.gold ? 'bg-[#C9A24B] text-ink-dark' : 'bg-ink-dark text-gold'
-                      }`}
-                    >
-                      {s.initials}
-                    </span>
+                    {s.logoUrl ? (
+                      // `object-contain` + belső padding, mint az üzletváltó gombnál (StoreSwitcher) —
+                      // a logó (gyakran nem négyzetes) így mindig teljesen kifér, nem vágódik le.
+                      <img src={s.logoUrl} alt="" className="h-[46px] w-[46px] shrink-0 rounded-[13px] bg-[#f5f5f4] object-contain p-1.5" />
+                    ) : (
+                      <span
+                        className={`flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] text-[15px] font-semibold ${
+                          s.gold ? 'bg-[#C9A24B] text-ink-dark' : 'bg-ink-dark text-gold'
+                        }`}
+                      >
+                        {s.initials}
+                      </span>
+                    )}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="truncate text-[14.5px] font-semibold text-ink">{s.name}</span>
@@ -2156,13 +2222,16 @@ function RuleRow({
 }
 
 /* ── Csapat: avatar (monogram vagy meghívó-ikon) ────────────────────────── */
-function Avatar({ name, email, pending, gold }: { name: string; email: string; pending?: boolean; gold?: boolean }) {
+function Avatar({ name, email, pending, gold, avatarUrl }: { name: string; email: string; pending?: boolean; gold?: boolean; avatarUrl?: string | null }) {
   if (pending) {
     return (
       <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EDE7D6]">
         <Mail className="h-[18px] w-[18px] text-ink-soft2" strokeWidth={1.6} />
       </span>
     )
+  }
+  if (avatarUrl) {
+    return <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
   }
   const initials = (name || email).split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
   return (

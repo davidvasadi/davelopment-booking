@@ -14,8 +14,14 @@ import {
 import { RolesManager } from '@/components/settings/RolesManager'
 import { getAccountBilling } from '@/lib/accountBilling'
 import { getPricing } from '@/lib/pricing'
+import { can } from '@/lib/permissions'
 import { createHmac } from 'crypto'
+import type { AccountBilling } from '@/lib/accountBilling'
 import type { Invoice } from '@/payload/payload-types'
+
+const EMPTY_ACCOUNT_BILLING: AccountBilling = {
+  items: [], totalMonthlyHuf: 0, listMonthlyHuf: 0, cycle: 'monthly', annualDiscountPct: 0, count: 0, accountStatus: null,
+}
 
 function icalUrl(type: string, id: string | number) {
   const secret = process.env.PAYLOAD_SECRET ?? 'dev-secret'
@@ -47,21 +53,25 @@ export default async function SettingsPage() {
   const plan = planName(sub)
   const subtitle = `${salon.name} · ${plan}`
 
-  // ── Csapat & jogok — VALÓS tulajdonos + membershipök (aktív tagok + függő meghívók).
+  // ── Csapat & jogok — VALÓS tulajdonos + membershipök (aktív tagok + függő meghívók). A
+  // teljes névsor (email) csak `team.view`/`team.manage` jogú tagnak megy ki a szerverről —
+  // korábban BÁRKI megkapta, aki egyáltalán be tudott lépni a Beállításokba, a UI csak a fület
+  // rejtette el kliens-oldalon (a payloadban ott volt az adat).
+  const canSeeTeam = can(capabilities, 'team.view') || can(capabilities, 'team.manage')
   const ownerEmail = (typeof salon.owner === 'object' && salon.owner?.email) || user.email || ''
   const ownerName = (typeof salon.owner === 'object' && salon.owner?.name) || user.name || salon.name
-  const team: TeamMember[] = await getTeamForBusiness({
-    type: 'salon',
-    businessId: salon.id,
-    ownerName,
-    ownerEmail,
-  })
+  const ownerAvatarUrl = (typeof salon.owner === 'object' && salon.owner?.avatar_url) || user.avatar_url || null
+  const team: TeamMember[] = canSeeTeam
+    ? await getTeamForBusiness({ type: 'salon', businessId: salon.id, ownerName, ownerEmail, ownerAvatarUrl, ownerUserId: ownerId })
+    : []
 
   // ── Egyedi szerepek (2. fázis) — az üzlet custom szerepei a RolesManager panelhez.
   const rolesRes = await payload.find({ collection: 'roles', where: { salon: { equals: salon.id } }, sort: 'name', limit: 100, overrideAccess: true })
 
-  // ── Audit-napló — VALÓS legutóbbi bejegyzések (a szalonra szűrve).
-  const auditLog = await getAuditLogForBusiness({ type: 'salon', businessId: salon.id })
+  // ── Audit-napló — VALÓS legutóbbi bejegyzések (a szalonra szűrve), csak `audit.view`-val.
+  const auditLog = can(capabilities, 'audit.view')
+    ? await getAuditLogForBusiness({ type: 'salon', businessId: salon.id })
+    : []
 
   // ── Telephelyek — VALÓS fiók-üzletek. Az aktuális üzlethez a betöltött szalon címét mutatjuk.
   const { businesses } = await getActiveBusiness(user)
@@ -76,9 +86,10 @@ export default async function SettingsPage() {
       initials: initialsOf(b.name),
       name: b.name,
       meta: meta || plan,
-      role: 'Tulajdonos',
+      role: b.roleName,
       current,
       gold: !current && i > 0,
+      logoUrl: b.logoUrl,
     }
   })
 
@@ -92,9 +103,13 @@ export default async function SettingsPage() {
     windowDays: salon.booking_window_days ?? null,
   }
 
-  // ── Számlázás — VALÓS fiók-előfizetés + üzlet-díjak + globális árazás.
+  // ── Számlázás — VALÓS fiók-előfizetés + üzlet-díjak + globális árazás. A teljes bontás
+  // (adószám, cégnév, számlák) csak `billing.manage` jogú tagnak megy ki a szerverről.
+  const canSeeBilling = can(capabilities, 'billing.manage')
   const [billingAccount, pricing] = await Promise.all([
-    getAccountBilling(typeof salon.owner === 'object' && salon.owner ? salon.owner.id : salon.owner ?? user.id),
+    canSeeBilling
+      ? getAccountBilling(typeof salon.owner === 'object' && salon.owner ? salon.owner.id : salon.owner ?? user.id)
+      : Promise.resolve(EMPTY_ACCOUNT_BILLING),
     getPricing(),
   ])
 
@@ -104,7 +119,7 @@ export default async function SettingsPage() {
     ? new Date(sub.trial_ends_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
     : null
 
-  const invoicesRes = sub ? await payload.find({
+  const invoicesRes = sub && canSeeBilling ? await payload.find({
     collection: 'invoices',
     where: { subscription: { equals: sub.id } },
     sort: '-issued_at',
@@ -115,20 +130,22 @@ export default async function SettingsPage() {
 
   const billing: BillingData = {
     planLabel: planName(sub),
+    // Státusz/ciklus/próbaidő MINDENKINEK látszik (pl. a nav trial-badge-hez) — csak a
+    // ténylegesen érzékeny (adószám, cím, számlák, terhelendő összeg) mezők vannak lakat mögött.
     subscriptionStatus: sub?.status ?? null,
     billingCycle: sub?.billing_cycle === 'annual' ? 'annual' : 'monthly',
     cancelAtPeriodEnd: sub?.cancel_at_period_end ?? false,
     trialEndsAt: sub?.trial_ends_at ?? null,
-    nextChargeDate,
-    nextChargeAmount: HUF(sub?.amount_huf ?? 0),
+    nextChargeDate: canSeeBilling ? nextChargeDate : null,
+    nextChargeAmount: canSeeBilling ? HUF(sub?.amount_huf ?? 0) : '',
     hasStripeCustomer: !!sub?.stripe_customer_id,
-    legalName: salon.legal_name ?? '',
-    taxNumber: salon.tax_number ?? '',
-    companyRegNumber: salon.company_reg_number ?? '',
-    billingEmail: salon.billing_email ?? '',
-    billingPostalCode: salon.billing_postal_code ?? '',
-    billingCity: salon.billing_city ?? '',
-    billingStreet: salon.billing_street ?? '',
+    legalName: canSeeBilling ? salon.legal_name ?? '' : '',
+    taxNumber: canSeeBilling ? salon.tax_number ?? '' : '',
+    companyRegNumber: canSeeBilling ? salon.company_reg_number ?? '' : '',
+    billingEmail: canSeeBilling ? salon.billing_email ?? '' : '',
+    billingPostalCode: canSeeBilling ? salon.billing_postal_code ?? '' : '',
+    billingCity: canSeeBilling ? salon.billing_city ?? '' : '',
+    billingStreet: canSeeBilling ? salon.billing_street ?? '' : '',
     invoices: (invoicesRes?.docs ?? [] as Invoice[]).map((inv) => ({
       id: String(inv.id),
       invoice_number: inv.invoice_number,
@@ -137,8 +154,8 @@ export default async function SettingsPage() {
       issued_at: inv.issued_at ?? null,
       test: inv.test ?? null,
     })),
-    lastInvoiceNumber: sub?.last_invoice_number ?? null,
-    lastInvoiceUrl: sub?.last_invoice_url ?? null,
+    lastInvoiceNumber: canSeeBilling ? sub?.last_invoice_number ?? null : null,
+    lastInvoiceUrl: canSeeBilling ? sub?.last_invoice_url ?? null : null,
   }
 
   const senderLabel = `${salon.name}${salon.email ? ` <${salon.email}>` : ''}`
@@ -188,7 +205,7 @@ export default async function SettingsPage() {
           recurring_on: fm.recurring_on ?? false,
           reviews_on: fm.reviews_on ?? false,
           google_review_url: fm.google_review_url ?? null,
-          review_delay_hours: fm.review_delay_hours ?? 2,
+          review_delay_hours: fm.review_delay_hours ?? 1,
         }}
         depositSettings={{
           enabled: salon.deposit_settings?.enabled ?? false,
@@ -217,6 +234,7 @@ export default async function SettingsPage() {
         stripeConnectAccountId={salon.stripe_connect_account_id ?? null}
         stripeConnectOnboarded={!!salon.stripe_connect_onboarded}
         businessTier={salon.tier ?? null}
+        supportedLocales={salon.supported_locales}
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}
