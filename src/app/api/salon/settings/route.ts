@@ -23,6 +23,27 @@ function stripPayloadInternals(obj: unknown): unknown {
   return obj
 }
 
+// A dashboard fordítás-szerkesztőinek (pl. beleegyező nyilatkozat) kell egy `?locale=`-es
+// olvasás is, hogy a nyelvváltáskor a MÁR mentett idegen-nyelvi tartalmat töltsék be — ugyanaz
+// a minta, mint a services/[id] GET-nél.
+export async function GET(request: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { active } = await getActiveBusiness(user)
+  if (!active || active.type !== 'salon') {
+    return NextResponse.json({ error: 'Nincs aktív szalon' }, { status: 400 })
+  }
+  if (!can(active.capabilities, 'settings.profile')) {
+    return NextResponse.json({ error: 'Nincs jogosultsága' }, { status: 403 })
+  }
+
+  const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr') || undefined
+  const payload = await getPayloadClient()
+  const doc = await payload.findByID({ collection: 'salons', id: active.id, depth: 0, locale, overrideAccess: true })
+  return NextResponse.json({ consent_settings: doc.consent_settings })
+}
+
 export async function PATCH(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -51,11 +72,13 @@ export async function PATCH(request: NextRequest) {
   // — itt, mentés előtt titkosítjuk, hogy sose kerüljön nyers szöveg a DB-be.
   encryptInvoiceKeysInBody(safeBody)
 
+  const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr') || undefined
   const payload = await getPayloadClient()
   const doUpdate = () => payload.update({
     collection: 'salons',
     id: active.id,
     data: safeBody,
+    locale,
     overrideAccess: true,
     user,
   })

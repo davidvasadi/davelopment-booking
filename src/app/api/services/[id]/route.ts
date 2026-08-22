@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -8,9 +9,14 @@ export async function GET(request: NextRequest, { params }: Ctx) {
   const { id } = await params
   const sp = request.nextUrl.searchParams
   const locale = (sp.get('locale') as 'hu' | 'en') ?? undefined
+  // A dashboard fordítás-szerkesztője `fallback-locale=null`-lal kéri le a nyelvi tartalmat,
+  // hogy ÜRESEN lássa a még le nem fordított mezőket (különben a HU-fallback becsapná: úgy
+  // tűnne, mintha már le lenne fordítva, pedig csak a magyar szöveg jött vissza).
+  const fallbackParam = sp.get('fallback-locale')
+  const fallbackLocale = fallbackParam === 'null' || fallbackParam === 'false' ? false : undefined
   const payload = await getPayloadClient()
   try {
-    const doc = await payload.findByID({ collection: 'services', id, depth: Number(sp.get('depth') ?? 1), locale, overrideAccess: true })
+    const doc = await payload.findByID({ collection: 'services', id, depth: Number(sp.get('depth') ?? 1), locale, fallbackLocale, overrideAccess: true })
     return NextResponse.json(doc)
   } catch {
     return NextResponse.json({ error: 'Nem található' }, { status: 404 })
@@ -33,8 +39,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   const existing = await payload.findByID({ collection: 'services', id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  if (!await ownsThisSalon(payload, user, existing.salon))
-    return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, 'salon', existing.salon, 'catalog.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     const doc = await payload.update({ collection: 'services', id, data: body as never, locale, overrideAccess: true })
@@ -54,8 +60,8 @@ export async function DELETE(request: NextRequest, { params }: Ctx) {
   const existing = await payload.findByID({ collection: 'services', id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  if (!await ownsThisSalon(payload, user, existing.salon))
-    return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, 'salon', existing.salon, 'catalog.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     await payload.delete({ collection: 'services', id, overrideAccess: true })

@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { Loader2, Plus, Pencil, Trash2, ImagePlus, X } from 'lucide-react'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { compressImage } from '@/lib/compressImage'
+import { LocaleEditBar } from './LocaleEditBar'
+import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 
 /**
  * Ajándékutalvány-típusok kezelése — a tulaj itt hozza létre a "termékeket" (név + fix Ft-
@@ -28,6 +30,7 @@ interface Props {
   initialTypes: VoucherTypeData[]
   minAmountHuf: number
   maxAmountHuf: number
+  supportedLocales?: (string | null | undefined)[] | null
 }
 
 const HUF = (n: number) => `${n.toLocaleString('hu-HU')} Ft`
@@ -51,7 +54,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   )
 }
 
-export function VoucherTypeManager({ variant, businessId, initialTypes, minAmountHuf, maxAmountHuf }: Props) {
+export function VoucherTypeManager({ variant, businessId, initialTypes, minAmountHuf, maxAmountHuf, supportedLocales }: Props) {
   const [types, setTypes] = useState<VoucherTypeData[]>(initialTypes)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<VoucherTypeData | null>(null)
@@ -66,8 +69,16 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
   const [saving, setSaving] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  // Nyelvkészlet + szerkesztési nyelv — a `name`/`description` localizált (ugyanaz a
+  // `?locale=` mentés-út, mint a ServicesManagernél), a többi mező (összeg, kép, aktív)
+  // nyelvfüggetlen, csak HU-n szerkeszthető.
+  const availableLocales = resolveAvailableLocales(supportedLocales)
+  const [editLocale, setEditLocale] = useState<Locale>('hu')
+  const [localeLoading, setLocaleLoading] = useState(false)
+
   const openCreate = () => {
     setEditing(null)
+    setEditLocale('hu')
     setName('')
     setAmount('')
     setDescription('')
@@ -79,6 +90,7 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
 
   const openEdit = (t: VoucherTypeData) => {
     setEditing(t)
+    setEditLocale('hu')
     setName(t.name)
     setAmount(String(t.amount_huf))
     setDescription(t.description ?? '')
@@ -86,6 +98,31 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
     setImageId(typeof t.image === 'object' && t.image ? t.image.id : (typeof t.image === 'string' ? t.image : null))
     setImagePreview(imageUrlOf(t.image))
     setModalOpen(true)
+  }
+
+  // Szerkesztési nyelv váltása — HU-ra váltva az alap (editing) érték tér vissza; más
+  // nyelvre lekérdezzük az adott nyelvi tartalmat (üres → a mező üres, HU fallback érvényes).
+  const selectEditLocale = async (loc: Locale) => {
+    if (loc === editLocale) return
+    if (loc === 'hu') {
+      setEditLocale('hu')
+      setName(editing?.name ?? '')
+      setDescription(editing?.description ?? '')
+      return
+    }
+    if (!editing) { setEditLocale(loc); return }
+    setLocaleLoading(true)
+    try {
+      const res = await fetch(`/api/gift-voucher-types/${editing.id}?locale=${loc}&fallback-locale=null`, { credentials: 'include' })
+      if (res.ok) {
+        const doc = await res.json()
+        setName(doc?.name ?? '')
+        setDescription(doc?.description ?? '')
+      }
+      setEditLocale(loc)
+    } finally {
+      setLocaleLoading(false)
+    }
   }
 
   const handleImagePick = async (file: File) => {
@@ -117,6 +154,25 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
   }
 
   const save = async () => {
+    // Idegen nyelv szerkesztése: csak a localizált name/description megy, a `?locale=` útvonalon.
+    if (editLocale !== 'hu' && editing) {
+      setSaving(true)
+      try {
+        const res = await fetch(`/api/gift-voucher-types/${editing.id}?locale=${editLocale}`, {
+          method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+          body: JSON.stringify({ name: name.trim() || undefined, description: description.trim() || undefined }),
+        })
+        if (!res.ok) throw new Error()
+        setModalOpen(false)
+        toast.success('Fordítás mentve')
+      } catch {
+        toast.error('Mentés sikertelen')
+      } finally {
+        setSaving(false)
+      }
+      return
+    }
+
     const amountHuf = Math.round(Number(amount))
     if (!name.trim()) return toast.error('A név megadása kötelező.')
     if (!amountHuf || amountHuf <= 0) return toast.error('Adj meg egy érvényes összeget.')
@@ -213,6 +269,11 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
 
       <PopupModal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Típus szerkesztése' : 'Új utalvány-típus'}>
         <div className="space-y-4">
+          {editing && availableLocales.length > 1 && (
+            <LocaleEditBar available={availableLocales} active={editLocale} onSelect={selectEditLocale} loading={localeLoading} />
+          )}
+
+          {editLocale === 'hu' && (
           <div className="flex justify-center">
             <div className="relative h-24 w-24 overflow-hidden rounded-[16px] bg-paper">
               {imagePreview ? (
@@ -237,15 +298,17 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
               <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handleImagePick(f) }} />
             </div>
           </div>
+          )}
 
           <div>
             <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Név</label>
             <input
               type="text" value={name} onChange={e => setName(e.target.value)}
-              placeholder="pl. 20.000 Ft-os ajándékutalvány"
+              placeholder={editLocale !== 'hu' ? (editing?.name ?? '') : 'pl. 20.000 Ft-os ajándékutalvány'}
               className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
             />
           </div>
+          {editLocale === 'hu' && (
           <div>
             <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Összeg (Ft)</label>
             <input
@@ -256,17 +319,21 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
             />
             <p className="mt-1 text-[11px] text-ink-soft2">{HUF(minAmountHuf)}–{HUF(maxAmountHuf)} között (a fenti sáv-beállítás korlátozza).</p>
           </div>
+          )}
           <div>
             <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Leírás (opcionális)</label>
             <textarea
               value={description} onChange={e => setDescription(e.target.value)} rows={2}
+              placeholder={editLocale !== 'hu' ? (editing?.description ?? '') : undefined}
               className="mt-1.5 w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-2.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
             />
           </div>
+          {editLocale === 'hu' && (
           <div className="flex items-center justify-between rounded-[12px] bg-paper px-3.5 py-3">
             <span className="text-[13px] text-ink">Aktív (megjelenik a vásárlás-oldalon)</span>
             <Toggle checked={active} onChange={() => setActive(a => !a)} />
           </div>
+          )}
 
           <button
             type="button"
@@ -275,7 +342,7 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
             className="flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-ink-dark text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-            Mentés
+            {editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
           </button>
         </div>
       </PopupModal>

@@ -16,6 +16,10 @@ const schema = z.discriminatedUnion('kind', [
     staffId: z.coerce.string().min(1).nullable().optional(),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     start_time: z.string().regex(/^\d{2}:\d{2}$/),
+    // Opcionális: ha a wizard ezen a ponton már ismeri a vendég emailjét, a Stripe ide küldi
+    // a fizetési nyugtát (`receipt_email`) — ez FÜGGETLEN az üzlet saját Számlázz.hu/Billingo
+    // bizonylatától (lásd `depositInvoice.ts`), a kettő együtt fut, nem helyettesíti egymást.
+    email: z.string().email().optional(),
   }),
   z.object({
     kind: z.literal('restaurant'),
@@ -23,6 +27,7 @@ const schema = z.discriminatedUnion('kind', [
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     start_time: z.string().regex(/^\d{2}:\d{2}$/),
     pax: z.coerce.number().int().min(1).max(50),
+    email: z.string().email().optional(),
   }),
 ])
 
@@ -90,6 +95,7 @@ export async function POST(request: NextRequest) {
           amount: hufToStripeMinor(depositHuf),
           currency: 'huf',
           automatic_payment_methods: { enabled: true },
+          receipt_email: data.email,
           metadata: {
             kind: 'salon', salonId: data.salonId, serviceId: data.serviceId, staffId,
             date: data.date, start_time: data.start_time, depositHuf: String(depositHuf),
@@ -127,6 +133,7 @@ export async function POST(request: NextRequest) {
         amount: hufToStripeMinor(depositHuf),
         currency: 'huf',
         automatic_payment_methods: { enabled: true },
+        receipt_email: data.email,
         metadata: {
           kind: 'restaurant', restaurantId: data.restaurantId, date: data.date,
           start_time: data.start_time, pax: String(data.pax), depositHuf: String(depositHuf),

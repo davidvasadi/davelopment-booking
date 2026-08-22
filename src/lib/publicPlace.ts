@@ -1,5 +1,6 @@
 import { unstable_cache } from 'next/cache'
 import { getPayloadClient } from '@/lib/payload'
+import { fixMediaUrl } from '@/lib/utils'
 import type { Locale } from '@/lib/i18n'
 import type {
   Salon,
@@ -92,13 +93,39 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
       sort: 'amount_huf',
       depth: 1,
       limit: 100,
+      locale,
+      fallbackLocale: 'hu',
     }),
   ])
+
+  // Fallback-avatar EMAIL alapján: ha a tulaj sosem töltött fel külön staff-avatart, de a
+  // személy a SAJÁT profiljában igen (`Users.avatar_url`), a publikus oldalon is azt mutassuk —
+  // ugyanaz a minta, mint a dashboard Munkatársak/Naptár oldalain.
+  const staffDocs = staffResult.docs as StaffMember[]
+  const staffEmails = staffDocs.map((s) => s.email).filter((e): e is string => !!e)
+  let staffWithFallback = staffDocs
+  if (staffEmails.length > 0) {
+    const usersRes = await payload.find({
+      collection: 'users',
+      where: { email: { in: staffEmails } },
+      depth: 0, limit: 500, overrideAccess: true,
+    })
+    const avatarByEmail: Record<string, string> = {}
+    for (const u of usersRes.docs as { email?: string | null; avatar_url?: string | null }[]) {
+      const fixed = fixMediaUrl(u.avatar_url)
+      if (u.email && fixed) avatarByEmail[u.email.toLowerCase()] = fixed
+    }
+    staffWithFallback = staffDocs.map((s) => {
+      if (s.avatar && typeof s.avatar === 'object') return s
+      const fallback = s.email ? avatarByEmail[s.email.toLowerCase()] : null
+      return fallback ? { ...s, avatar: { url: fallback } as StaffMember['avatar'] } : s
+    })
+  }
 
   return {
     salon,
     services: servicesResult.docs as Service[],
-    staff: staffResult.docs as StaffMember[],
+    staff: staffWithFallback,
     serviceCategories: categoriesResult.docs as ServiceCategory[],
     voucherTypes: voucherTypesResult.docs as GiftVoucherType[],
   }
@@ -130,6 +157,8 @@ async function fetchPublicRestaurant(slug: string, locale: Locale): Promise<Publ
       sort: 'amount_huf',
       depth: 1,
       limit: 100,
+      locale,
+      fallbackLocale: 'hu',
     }),
   ])
 

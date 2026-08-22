@@ -113,7 +113,7 @@ export const settingsExtensionFields: Field[] = [
         name: 'review_delay_hours',
         type: 'number',
         label: 'Értékelés-kérés késleltetése (óra)',
-        defaultValue: 2,
+        defaultValue: 1,
         admin: { description: '1 = 1 órával kezelés után, 2 = 2 órával, 24 = másnap.' },
       },
     ],
@@ -212,9 +212,14 @@ export const newsletterSettingsFields: Field[] = [
     label: 'Hírlevél-beállítások',
     fields: [
       {
+        // FONTOS: a `defaultValue` itt csak ÚJ szalonokra hat — meglévőknél a mentett DB-érték
+        // számít. A hírlevél az árazás-átálláskor (start-tier-plan) minden csomagba BEÉPÍTVE
+        // került, nincs önálló hírlevél-fizetés/választás többé — a mezőt csak visszafelé-
+        // kompatibilitásból (`!== 'none'` = "engedélyezve" kapcsoló, ld. AppShell nav-rejtés)
+        // tartjuk meg, a UI-n (PaymentsSettingsPanel) nincs is választó hozzá, csak infó-kártya.
         name: 'package',
         type: 'select',
-        defaultValue: 'none',
+        defaultValue: 'ingyenes',
         label: 'Hírlevél-csomag',
         options: [
           { label: 'Kikapcsolva', value: 'none' },
@@ -257,12 +262,14 @@ export const consentSettingsFields: Field[] = [
       {
         name: 'title',
         type: 'text',
+        localized: true,
         label: 'Nyilatkozat címe',
         admin: { description: 'A vendég ezt a címet látja a lépés/oldal tetején (üresen hagyva: „Beleegyező nyilatkozat").' },
       },
       {
         name: 'template_text',
         type: 'textarea',
+        localized: true,
         label: 'Nyilatkozat szövege',
         admin: { description: 'Ezt a szöveget látja a vendég elfogadásra a foglalás során, vagy helyszíni check-inkor.' },
       },

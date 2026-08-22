@@ -1,6 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
-import { userOwnsSalon, canCreateForOwnSalon } from '../lib/salonOwnerAccess'
+import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 
 export const ServiceCategories: CollectionConfig = {
   slug: 'service-categories',
@@ -17,29 +17,19 @@ export const ServiceCategories: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: canCreateForOwnSalon,
-    // Több-üzlet: csak a kategória szalonjának TULAJDONOSA (vagy admin) módosíthat/törölhet —
-    // különben bármely bejelentkezett user más szalon kategóriáihoz nyúlhatna (IDOR).
-    update: async ({ req, id, data }) => {
-      if (req.user?.role === 'admin') return true
-      if (id) {
-        const doc = await req.payload.findByID({ collection: 'service-categories', id, depth: 0, overrideAccess: true, req }).catch(() => null)
-        return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
-      }
-      return userOwnsSalon(req, data?.salon as number | string | undefined)
-    },
-    delete: async ({ req, id }) => {
-      if (req.user?.role === 'admin') return true
-      if (!id) return false
-      const doc = await req.payload.findByID({ collection: 'service-categories', id, depth: 0, overrideAccess: true, req }).catch(() => null)
-      return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
-    },
+    // Több-üzlet: csak a kategória szalonjához a `catalog.manage` capability-vel rendelkező
+    // (owner vagy egyedi szerepű tag) módosíthat/törölhet — különben bármely bejelentkezett
+    // user más szalon kategóriáihoz nyúlhatna (IDOR).
+    create: capabilityCreate('salon', 'salon', 'catalog.manage'),
+    update: capabilityScoped('salon', 'salon', 'catalog.manage'),
+    delete: capabilityScoped('salon', 'salon', 'catalog.manage'),
   },
   fields: [
     {
       name: 'name',
       type: 'text',
       required: true,
+      localized: true,
       label: 'Kategória neve',
     },
     {
@@ -51,6 +41,7 @@ export const ServiceCategories: CollectionConfig = {
     {
       name: 'duration_label',
       type: 'text',
+      localized: true,
       label: 'Időtartam felirat',
       admin: {
         placeholder: 'Pl. 30-90 perc',
@@ -59,6 +50,7 @@ export const ServiceCategories: CollectionConfig = {
     {
       name: 'description',
       type: 'textarea',
+      localized: true,
       label: 'Leírás',
     },
     {

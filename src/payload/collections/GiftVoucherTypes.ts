@@ -107,10 +107,10 @@ export const GiftVoucherTypes: CollectionConfig = {
   fields: [
     { name: 'restaurant', type: 'relationship', relationTo: 'restaurants', label: 'Étterem' },
     { name: 'salon', type: 'relationship', relationTo: 'salons', label: 'Szalon' },
-    { name: 'name', type: 'text', required: true, label: 'Név' },
+    { name: 'name', type: 'text', required: true, localized: true, label: 'Név' },
     { name: 'amount_huf', type: 'number', required: true, min: 0, label: 'Összeg (Ft)' },
     { name: 'image', type: 'upload', relationTo: 'media', label: 'Kép' },
-    { name: 'description', type: 'textarea', label: 'Leírás' },
+    { name: 'description', type: 'textarea', localized: true, label: 'Leírás' },
     { name: 'active', type: 'checkbox', defaultValue: true, label: 'Aktív' },
   ],
   timestamps: true,

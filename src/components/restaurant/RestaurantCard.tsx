@@ -341,8 +341,8 @@ export function RestaurantCard({
           <div className="flex items-center gap-2.5">
             <Gift className="h-4 w-4 shrink-0 text-white/40" />
             <div>
-              <p className="text-[13px] font-semibold text-white">Ajándékutalvány vásárlása</p>
-              <p className="text-[11px] text-white/45">Lepd meg valakit egy utalvánnyal</p>
+              <p className="text-[13px] font-semibold text-white">{t(locale, 'public.voucher.buy')}</p>
+              <p className="text-[11px] text-white/45">{t(locale, 'public.voucher.buySubtitle')}</p>
             </div>
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
@@ -439,36 +439,36 @@ export function RestaurantCard({
             <CheckCircle className="h-10 w-10 text-emerald-400" />
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, delay: 0.15 }}>
-            <h2 className="mb-2 text-2xl font-light tracking-[-0.01em] text-white">Ajándékutalvány elkészült!</h2>
-            <p className="mb-6 text-sm text-white/55">A kódot emailben is elküldtük.</p>
+            <h2 className="mb-2 text-2xl font-light tracking-[-0.01em] text-white">{t(locale, 'public.voucher.successTitle')}</h2>
+            <p className="mb-6 text-sm text-white/55">{t(locale, 'public.voucher.successSubtitle')}</p>
             <div className="mb-6 rounded-[16px] px-5 py-4" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
-              <p className="mb-1 text-xs text-white/45">Kód</p>
+              <p className="mb-1 text-xs text-white/45">{t(locale, 'public.voucher.code')}</p>
               <p className="text-xl font-semibold tracking-wide text-gold">{voucherResult.code}</p>
               <p className="mt-2 text-sm text-white/60">{formatPrice(voucherResult.amountHuf, 'HUF')}</p>
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={voucherResult.qrCodeDataUrl} alt="QR-kód a beváltáshoz" className="mx-auto mb-6 h-40 w-40 rounded-[12px]" />
+            <img src={voucherResult.qrCodeDataUrl} alt={t(locale, 'public.voucher.qrAlt')} className="mx-auto mb-6 h-40 w-40 rounded-[12px]" />
             <button
               onClick={handleCloseVoucherSuccess}
               className="flex h-12 w-full items-center justify-center rounded-full text-[14px] font-semibold text-ink-dark"
               style={{ background: '#FFD85F' }}
             >
-              Vissza a főoldalra
+              {t(locale, 'public.success.back')}
             </button>
           </motion.div>
         </div>
       ) : (
         <>
           <button onClick={() => setView('main')} className="mb-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-white/45 transition-colors hover:text-white/70">
-            <ArrowLeft className="h-3.5 w-3.5" /> Vissza
+            <ArrowLeft className="h-3.5 w-3.5" /> {t(locale, 'public.back')}
           </button>
-          <h2 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">Ajándékutalvány</h2>
-          <p className="mb-5 text-[12px] text-white/45">{restaurantName}-nél váltható be.</p>
+          <h2 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{t(locale, 'public.voucher')}</h2>
+          <p className="mb-5 text-[12px] text-white/45">{t(locale, 'public.voucher.redeemableAt', { salon: restaurantName })}</p>
 
           {!voucherPaymentStep ? (
             <div className="space-y-4">
               <div key={`vtype-${voucherShakeKey}`} className={cn('space-y-2 rounded-[16px]', voucherTypeError && 'animate-shake')}>
-                <Label className={cn('text-[11px] font-semibold uppercase tracking-[0.12em]', voucherTypeError ? 'text-red-400' : 'text-white/55')}>Válassz típust *</Label>
+                <Label className={cn('text-[11px] font-semibold uppercase tracking-[0.12em]', voucherTypeError ? 'text-red-400' : 'text-white/55')}>{t(locale, 'public.voucher.chooseType')} *</Label>
                 <div className={cn('grid grid-cols-2 gap-2.5 rounded-[16px]', voucherTypeError && 'ring-1 ring-red-400')}>
                   {voucherTypes.map((vt) => {
                     const url = typeof vt.image === 'object' && vt.image ? (vt.image as Media).url ?? null : null
@@ -497,11 +497,11 @@ export function RestaurantCard({
                     )
                   })}
                 </div>
-                {voucherTypeError && <p role="alert" className="text-[12px] text-red-400">Válassz egy utalvány-típust.</p>}
+                {voucherTypeError && <p role="alert" className="text-[12px] text-red-400">{t(locale, 'public.voucher.chooseTypeError')}</p>}
               </div>
 
               <div key={`name-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.name && 'animate-shake')}>
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">A te neved *</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.yourName')} *</Label>
                 <Input
                   value={voucherPurchaserName} onChange={e => { setVoucherPurchaserName(e.target.value); clearVoucherFieldError('name') }}
                   className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.name && 'ring-1 ring-red-400')}
@@ -509,7 +509,7 @@ export function RestaurantCard({
                 {voucherFieldErrors.name && <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.name}</p>}
               </div>
               <div key={`email-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.email && 'animate-shake')}>
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">A te emailed *</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.yourEmail')} *</Label>
                 <Input
                   type="email" inputMode="email" value={voucherPurchaserEmail} onChange={e => { setVoucherPurchaserEmail(e.target.value); clearVoucherFieldError('email') }}
                   className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.email && 'ring-1 ring-red-400')}
@@ -517,59 +517,59 @@ export function RestaurantCard({
                 {voucherFieldErrors.email && <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.email}</p>}
               </div>
               <div key={`city-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.city && 'animate-shake')}>
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Település *</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.city')} *</Label>
                 <Input
                   value={voucherPurchaserCity} onChange={e => { setVoucherPurchaserCity(e.target.value); clearVoucherFieldError('city') }}
                   autoComplete="address-level2"
                   className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.city && 'ring-1 ring-red-400')}
                 />
-                {voucherFieldErrors.city ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.city}</p> : <p className="text-[11px] text-white/40">A számlázáshoz kötelező.</p>}
+                {voucherFieldErrors.city ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.city}</p> : <p className="text-[11px] text-white/40">{t(locale, 'public.voucher.cityHint')}</p>}
               </div>
               <div key={`address-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.address && 'animate-shake')}>
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Cím *</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.address')} *</Label>
                 <Input
                   value={voucherPurchaserAddress} onChange={e => { setVoucherPurchaserAddress(e.target.value); clearVoucherFieldError('address') }}
                   autoComplete="street-address"
                   className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.address && 'ring-1 ring-red-400')}
                 />
-                {voucherFieldErrors.address ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.address}</p> : <p className="text-[11px] text-white/40">Enélkül a Számlázz.hu nem tudja kiküldeni a számlát emailben.</p>}
+                {voucherFieldErrors.address ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.address}</p> : <p className="text-[11px] text-white/40">{t(locale, 'public.voucher.addressHint')}</p>}
               </div>
 
               <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">
-                <span className="text-[13px] text-white/80">Cégként vásárolok (adószámos számla kell)</span>
-                <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel="Cégként vásárolok" />
+                <span className="text-[13px] text-white/80">{t(locale, 'public.voucher.companyToggle')}</span>
+                <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel={t(locale, 'public.voucher.companyToggle')} />
               </div>
               {voucherIsCompany && (
                 <div key={`taxNumber-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.taxNumber && 'animate-shake')}>
-                  <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Adószám *</Label>
+                  <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.taxNumber')} *</Label>
                   <Input
                     value={voucherPurchaserTaxNumber} onChange={e => { setVoucherPurchaserTaxNumber(e.target.value); clearVoucherFieldError('taxNumber') }}
                     placeholder="12345678-1-42"
                     className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.taxNumber && 'ring-1 ring-red-400')}
                   />
-                  {voucherFieldErrors.taxNumber ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.taxNumber}</p> : <p className="text-[11px] text-white/40">"A te neved" mezőbe ekkor a cég neve kerüljön.</p>}
+                  {voucherFieldErrors.taxNumber ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.taxNumber}</p> : <p className="text-[11px] text-white/40">{t(locale, 'public.voucher.taxNumberHint')}</p>}
                 </div>
               )}
 
               <div className="!mt-6 h-px bg-white/[0.08]" />
 
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Megajándékozott neve (opcionális)</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.recipientName')}</Label>
                 <Input
                   value={voucherRecipientName} onChange={e => setVoucherRecipientName(e.target.value)}
                   className="h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
                 />
               </div>
               <div key={`recipientEmail-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.recipientEmail && 'animate-shake')}>
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Megajándékozott email (opcionális)</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.recipientEmail')}</Label>
                 <Input
                   type="email" inputMode="email" value={voucherRecipientEmail} onChange={e => { setVoucherRecipientEmail(e.target.value); clearVoucherFieldError('recipientEmail') }}
                   className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', voucherFieldErrors.recipientEmail && 'ring-1 ring-red-400')}
                 />
-                {voucherFieldErrors.recipientEmail ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.recipientEmail}</p> : <p className="text-[11px] text-white/40">Ha megadod, neki is elküldjük az utalványt.</p>}
+                {voucherFieldErrors.recipientEmail ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.recipientEmail}</p> : <p className="text-[11px] text-white/40">{t(locale, 'public.voucher.recipientEmailHint')}</p>}
               </div>
               <div className="space-y-1">
-                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Üzenet (opcionális)</Label>
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.message')}</Label>
                 <Textarea
                   value={voucherMessage} onChange={e => setVoucherMessage(e.target.value)} rows={3}
                   className="rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 resize-none focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]"
@@ -581,7 +581,7 @@ export function RestaurantCard({
                 className="flex h-14 w-full items-center justify-center rounded-full text-[15px] font-semibold transition-all active:scale-[0.98]"
                 style={{ background: 'white', color: 'var(--ink-dark)' }}
               >
-                Tovább a fizetéshez
+                {t(locale, 'public.voucher.continueToPay')}
               </button>
             </div>
           ) : voucherCreating ? (
@@ -589,10 +589,11 @@ export function RestaurantCard({
           ) : (
             <DepositStep
               dark
+              locale={locale}
               endpoint="/api/payments/voucher-intent"
-              payLabel="Vásárlás"
-              infoText="Az utalvány összegét a Stripe biztonságosan kezeli."
-              requestBody={{ kind: 'restaurant', restaurantId, voucherTypeId: selectedVoucherTypeId }}
+              payLabel={t(locale, 'public.voucher.payLabel')}
+              infoText={t(locale, 'public.voucher.payInfo')}
+              requestBody={{ kind: 'restaurant', restaurantId, voucherTypeId: selectedVoucherTypeId, email: voucherPurchaserEmail || undefined }}
               onPaid={(pid) => handleVoucherPaid(pid)}
             />
           )}

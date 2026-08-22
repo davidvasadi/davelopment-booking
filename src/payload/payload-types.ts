@@ -803,6 +803,8 @@ export interface StaffMember {
   name: string
   bio?: string | null
   salon: string | Salon
+  /** Ha ez a szakember EGYBEN egy bejelentkezett fiók is (pl. a tulajdonos, aki maga is dolgozik). */
+  user?: string | User | null
   avatar?: string | Media | null
   is_active?: boolean | null
   role_title?: string | null

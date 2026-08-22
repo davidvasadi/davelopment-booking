@@ -6,6 +6,7 @@ import { Elements, PaymentElement, useElements, useStripe } from '@stripe/react-
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatPrice } from '@/lib/utils'
+import { t, type Locale } from '@/lib/i18n'
 
 /**
  * Előleg-fizetési lépés a publikus foglaló-wizardokban (szalon + étterem — MINDKETTŐ ezt a
@@ -27,12 +28,15 @@ type DepositStepProps = {
   payLabel?: string
   /** A pajzs-ikon melletti tájékoztató szöveg — default az előleg-szövegezés. */
   infoText?: string
+  /** A vendég nyelve — a Stripe Elements saját UI-ja (kártyamezők, hibaüzenetek) is ezen jelenik meg. */
+  locale?: Locale
 }
 
-function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel }: { depositAmountHuf: number; onPaid: DepositStepProps['onPaid']; paymentIntentId: string } & Pick<DepositStepProps, 'onPaid' | 'dark' | 'payLabel'>) {
+function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel, locale }: { depositAmountHuf: number; onPaid: DepositStepProps['onPaid']; paymentIntentId: string } & Pick<DepositStepProps, 'onPaid' | 'dark' | 'payLabel' | 'locale'>) {
   const stripe = useStripe()
   const elements = useElements()
   const [submitting, setSubmitting] = useState(false)
+  const lc = locale ?? 'hu'
 
   const handleConfirm = async () => {
     if (!stripe || !elements) return
@@ -40,13 +44,13 @@ function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel }: { depositAmou
     const { error, paymentIntent } = await stripe.confirmPayment({ elements, redirect: 'if_required' })
     setSubmitting(false)
     if (error) {
-      toast.error(error.message ?? 'A fizetés nem sikerült. Kérjük, próbáld újra.')
+      toast.error(error.message ?? t(lc, 'public.payment.errorGeneric'))
       return
     }
     if (paymentIntent?.status === 'succeeded') {
       onPaid(paymentIntent.id, depositAmountHuf)
     } else {
-      toast.error('A fizetés feldolgozása még folyamatban — kérjük, várj egy pillanatot és próbáld újra.')
+      toast.error(t(lc, 'public.payment.errorProcessing'))
     }
   }
 
@@ -61,13 +65,14 @@ function ConfirmForm({ depositAmountHuf, onPaid, dark, payLabel }: { depositAmou
           dark ? 'bg-gold text-ink-dark hover:opacity-90' : 'bg-ink-dark text-white hover:opacity-90'
         }`}
       >
-        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : `${payLabel ?? 'Előleg fizetése'} — ${formatPrice(depositAmountHuf, 'HUF')}`}
+        {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : `${payLabel ?? t(lc, 'public.deposit.payLabel')} — ${formatPrice(depositAmountHuf, 'HUF')}`}
       </button>
     </div>
   )
 }
 
-export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/payments/deposit-intent', payLabel, infoText }: DepositStepProps) {
+export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/payments/deposit-intent', payLabel, infoText, locale }: DepositStepProps) {
+  const lc = locale ?? 'hu'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [clientSecret, setClientSecret] = useState<string | null>(null)
@@ -86,7 +91,7 @@ export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/paymen
     })
       .then(async (res) => {
         const json = await res.json().catch(() => ({}))
-        if (!res.ok) throw new Error(json?.error ?? 'Nem sikerült előkészíteni a fizetést.')
+        if (!res.ok) throw new Error(json?.error ?? t(lc, 'public.payment.prepareFailed'))
         if (cancelled) return
         setClientSecret(json.clientSecret)
         setConnectedAccountId(json.connectedAccountId)
@@ -125,7 +130,7 @@ export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/paymen
   if (error || !clientSecret || !stripePromise || !paymentIntentId || !depositAmountHuf) {
     return (
       <div className={`rounded-2xl border px-4 py-3 text-sm ${dark ? 'border-white/15 text-white/80' : 'border-line text-ink-soft'}`}>
-        {error ?? 'Az előleg-fizetés jelenleg nem elérhető.'}
+        {error ?? t(lc, 'public.payment.unavailable')}
       </div>
     )
   }
@@ -134,10 +139,10 @@ export function DepositStep({ requestBody, onPaid, dark, endpoint = '/api/paymen
     <div className="space-y-3">
       <div className={`flex items-center gap-2 text-xs ${dark ? 'text-white/60' : 'text-ink-soft'}`}>
         <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-        <span>{infoText ?? 'Az időpont biztosításához előleg szükséges — a fizetés biztonságos, a Stripe kezeli.'}</span>
+        <span>{infoText ?? t(lc, 'public.deposit.payInfo')}</span>
       </div>
-      <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: dark ? 'night' : 'stripe' } }}>
-        <ConfirmForm depositAmountHuf={depositAmountHuf} onPaid={onPaid} dark={dark} paymentIntentId={paymentIntentId} payLabel={payLabel} />
+      <Elements stripe={stripePromise} options={{ clientSecret, locale: lc, appearance: { theme: dark ? 'night' : 'stripe' } }}>
+        <ConfirmForm depositAmountHuf={depositAmountHuf} onPaid={onPaid} dark={dark} paymentIntentId={paymentIntentId} payLabel={payLabel} locale={locale} />
       </Elements>
     </div>
   )

@@ -5,8 +5,8 @@ import { getStripe, hufToStripeMinor } from '@/lib/stripe'
 import type { Salon, Restaurant, GiftVoucherType } from '@/payload/payload-types'
 
 const schema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('salon'), salonId: z.coerce.string(), voucherTypeId: z.coerce.string() }),
-  z.object({ kind: z.literal('restaurant'), restaurantId: z.coerce.string(), voucherTypeId: z.coerce.string() }),
+  z.object({ kind: z.literal('salon'), salonId: z.coerce.string(), voucherTypeId: z.coerce.string(), email: z.string().email().optional() }),
+  z.object({ kind: z.literal('restaurant'), restaurantId: z.coerce.string(), voucherTypeId: z.coerce.string(), email: z.string().email().optional() }),
 ])
 
 /**
@@ -63,6 +63,7 @@ export async function POST(request: NextRequest) {
         amount: hufToStripeMinor(amountHuf),
         currency: 'huf',
         automatic_payment_methods: { enabled: true },
+        receipt_email: data.email,
         metadata: {
           kind: 'gift-voucher',
           ...(data.kind === 'salon' ? { salonId: data.salonId } : { restaurantId: data.restaurantId }),

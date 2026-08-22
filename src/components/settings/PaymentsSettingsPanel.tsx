@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, FileSignature } from 'lucide-react'
 import { monthlyEmailCapForTier, resolveTier } from '@/lib/tier'
+import { resolveAvailableLocales, LOCALE_LABELS, type Locale } from '@/lib/i18n'
 import type { Pricing } from '@/lib/pricing'
 
 /**
@@ -71,6 +72,8 @@ interface Props {
   onDirtyChange?: (dirty: boolean) => void
   /** A hub ezen regisztrálja ennek a példánynak a mentés/elvetés műveletét. */
   registerApi?: (api: { save: () => Promise<boolean>; discard: () => void }) => void
+  /** A beleegyező nyilatkozat nyelvenkénti fordításához (a foglaló oldal is ennyi nyelven megy). */
+  supportedLocales?: (string | null | undefined)[] | null
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
@@ -89,7 +92,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
 
 const ALL_SECTIONS: NonNullable<Props['sections']> = ['stripe', 'deposit', 'voucher', 'consent', 'newsletter', 'invoicing']
 
-export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, consent, stripeConnectAccountId, stripeConnectOnboarded, pricing, tier, sections = ALL_SECTIONS, onDirtyChange, registerApi }: Props) {
+export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, consent, stripeConnectAccountId, stripeConnectOnboarded, pricing, tier, sections = ALL_SECTIONS, onDirtyChange, registerApi, supportedLocales }: Props) {
   const show = (s: NonNullable<Props['sections']>[number]) => sections.includes(s)
   const [connecting, setConnecting] = useState(false)
   const [loginLinkLoading, setLoginLinkLoading] = useState(false)
@@ -97,6 +100,51 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
   const [d, setD] = useState<DepositSettingsData>(deposit)
   const [v, setV] = useState<VoucherSettingsData>(voucher)
   const [c, setC] = useState<ConsentSettingsData>(consent)
+
+  // Beleegyező nyilatkozat — fordítások. Önálló, azonnali akció (ugyanaz a minta, mint a
+  // Stripe-kártyánál), NEM a fő dirty-mentés-sávon megy, mert a többi kártyától eltérően
+  // per-nyelv menthető, HU-tól függetlenül.
+  const consentLocales = resolveAvailableLocales(supportedLocales).filter((l) => l !== 'hu')
+  const [translateLocale, setTranslateLocale] = useState<Locale | null>(null)
+  const [translateTitle, setTranslateTitle] = useState('')
+  const [translateText, setTranslateText] = useState('')
+  const [translateLoading, setTranslateLoading] = useState(false)
+  const [translateSaving, setTranslateSaving] = useState(false)
+
+  const openTranslate = async (loc: Locale) => {
+    setTranslateLocale(loc)
+    setTranslateLoading(true)
+    try {
+      const res = await fetch(`${apiBase}?locale=${loc}`, { credentials: 'include' })
+      if (res.ok) {
+        const json = await res.json()
+        setTranslateTitle(json?.consent_settings?.title ?? '')
+        setTranslateText(json?.consent_settings?.template_text ?? '')
+      }
+    } finally {
+      setTranslateLoading(false)
+    }
+  }
+
+  const saveTranslate = async () => {
+    if (!translateLocale) return
+    setTranslateSaving(true)
+    try {
+      const res = await fetch(`${apiBase}?locale=${translateLocale}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ consent_settings: { title: translateTitle || undefined, template_text: translateText || undefined } }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success('Fordítás mentve')
+      setTranslateLocale(null)
+    } catch {
+      toast.error('Mentés sikertelen')
+    } finally {
+      setTranslateSaving(false)
+    }
+  }
   const [invoiceProvider, setInvoiceProvider] = useState(invoice.provider)
   const [szamlazzKeyInput, setSzamlazzKeyInput] = useState('')
   const [billingoKeyInput, setBillingoKeyInput] = useState('')
@@ -266,9 +314,9 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               <Mail className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
             </div>
             <div>
-              <div className="text-[15px] font-medium text-ink">Hírlevél</div>
+              <div className="text-[15px] font-medium text-ink">Hírlevél — mindig bekapcsolva</div>
               <div className="text-[13px] text-ink-soft">
-                Beépítve jár a csomagodhoz — a foglaló-oldalon feliratkozó kapcsolót látnak a vendégeid.
+                Minden csomagba beépítve, nincs mit bekapcsolnod: a foglaló oldalon a vendégeid feliratkozhatnak, a Marketing menüpontban pedig kampányt küldhetsz nekik.
               </div>
             </div>
           </div>
@@ -476,6 +524,61 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               A vendég a foglalás során fogadja el (kapcsolóval), vagy a személyzet a helyszínen, tableten íratja alá vele érkezéskor — mindkét
               elfogadás dátummal, IP-vel és a pontos szöveg-verzióval mentődik a foglaláshoz.
             </p>
+
+            {consentLocales.length > 0 && (
+              <div className="space-y-2.5 border-t border-dashed border-line pt-4">
+                <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">
+                  Fordítások <span className="font-normal normal-case text-ink-soft2">(a foglaló ennyi nyelven is fut)</span>
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {consentLocales.map((loc) => (
+                    <button
+                      key={loc}
+                      type="button"
+                      onClick={() => openTranslate(loc)}
+                      className={`rounded-[10px] px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                        translateLocale === loc ? 'bg-ink-dark text-white' : 'bg-paper text-ink-soft hover:text-ink'
+                      }`}
+                    >
+                      {LOCALE_LABELS[loc]}
+                    </button>
+                  ))}
+                </div>
+                {translateLocale && (
+                  <div className="space-y-3 rounded-[14px] bg-paper p-3.5">
+                    {translateLoading ? (
+                      <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-ink-soft" /></div>
+                    ) : (
+                      <>
+                        <input
+                          type="text"
+                          value={translateTitle}
+                          onChange={(e) => setTranslateTitle(e.target.value)}
+                          placeholder={c.title || 'Beleegyező nyilatkozat'}
+                          className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-2.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+                        />
+                        <textarea
+                          rows={5}
+                          value={translateText}
+                          onChange={(e) => setTranslateText(e.target.value)}
+                          placeholder={c.templateText || 'Fordítás…'}
+                          className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-3 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+                        />
+                        <button
+                          type="button"
+                          onClick={saveTranslate}
+                          disabled={translateSaving}
+                          className="flex h-10 w-full items-center justify-center gap-2 rounded-[12px] bg-ink-dark text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                        >
+                          {translateSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                          Fordítás mentése
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>

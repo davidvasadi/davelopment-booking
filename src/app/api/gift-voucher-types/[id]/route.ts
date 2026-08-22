@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, ownsThisRestaurant, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 import type { Salon, Restaurant } from '@/payload/payload-types'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -12,11 +13,27 @@ async function clampToVoucherRange(payload: Awaited<ReturnType<typeof getPayload
   return Math.min(Math.max(Math.round(amountHuf), min), max)
 }
 
+export async function GET(request: NextRequest, { params }: Ctx) {
+  const { id } = await params
+  const sp = request.nextUrl.searchParams
+  const locale = (sp.get('locale') as 'hu' | 'en') ?? undefined
+  const fallbackParam = sp.get('fallback-locale')
+  const fallbackLocale = fallbackParam === 'null' || fallbackParam === 'false' ? false : undefined
+  const payload = await getPayloadClient()
+  try {
+    const doc = await payload.findByID({ collection: 'gift-voucher-types', id, depth: 0, locale, fallbackLocale, overrideAccess: true })
+    return NextResponse.json(doc)
+  } catch {
+    return NextResponse.json({ error: 'Nem található' }, { status: 404 })
+  }
+}
+
 export async function PATCH(request: NextRequest, { params }: Ctx) {
   const user = await authOrUnauthorized()
   if (user instanceof NextResponse) return user
 
   const { id } = await params
+  const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en') ?? undefined
   let body: Record<string, unknown>
   try { body = await request.json() } catch {
     return NextResponse.json({ error: 'Hibás kérés' }, { status: 400 })
@@ -26,8 +43,10 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   const existing = await payload.findByID({ collection: 'gift-voucher-types', id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  const owns = existing.salon ? await ownsThisSalon(payload, user, existing.salon) : await ownsThisRestaurant(payload, user, existing.restaurant)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = existing.salon
+    ? await assertCapability(user.id, 'salon', existing.salon, 'vouchers.manage')
+    : await assertCapability(user.id, 'restaurant', existing.restaurant, 'vouchers.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   // A tulajdonos (salon/restaurant) szerkesztéskor nem változhat — a klienstől jövő értéket
   // eldobjuk (ne is próbáljuk típus-konvertálni), a meglévő rekordét visszük tovább.
@@ -39,7 +58,7 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   }
 
   try {
-    const doc = await payload.update({ collection: 'gift-voucher-types', id, data: data as never, overrideAccess: true })
+    const doc = await payload.update({ collection: 'gift-voucher-types', id, data: data as never, locale, overrideAccess: true })
     return NextResponse.json({ doc })
   } catch (e) {
     console.error('[api/gift-voucher-types PATCH]', e)
@@ -56,8 +75,10 @@ export async function DELETE(request: NextRequest, { params }: Ctx) {
   const existing = await payload.findByID({ collection: 'gift-voucher-types', id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  const owns = existing.salon ? await ownsThisSalon(payload, user, existing.salon) : await ownsThisRestaurant(payload, user, existing.restaurant)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = existing.salon
+    ? await assertCapability(user.id, 'salon', existing.salon, 'vouchers.manage')
+    : await assertCapability(user.id, 'restaurant', existing.restaurant, 'vouchers.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     await payload.delete({ collection: 'gift-voucher-types', id, overrideAccess: true })
