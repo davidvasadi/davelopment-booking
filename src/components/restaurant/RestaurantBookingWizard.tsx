@@ -691,7 +691,7 @@ export function RestaurantBookingWizard({
               {time && (
                 <DepositStep
                   dark={dk}
-                  requestBody={{ kind: 'restaurant', restaurantId, date, start_time: time, pax }}
+                  requestBody={{ kind: 'restaurant', restaurantId, date, start_time: time, pax, email: email || undefined }}
                   onPaid={(pid, amt) => {
                     setPaymentIntentId(pid)
                     setDepositAmountHuf(amt)

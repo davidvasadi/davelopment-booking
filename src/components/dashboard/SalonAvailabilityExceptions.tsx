@@ -37,10 +37,12 @@ export function SalonAvailabilityExceptions({
   salonId,
   initial,
   weeklyHours,
+  canManage = false,
 }: {
   salonId: number | string
   initial: SalonException[]
   weeklyHours?: WeeklyHours
+  canManage?: boolean
 }) {
   const router = useRouter()
   const today = new Date()
@@ -191,14 +193,16 @@ export function SalonAvailabilityExceptions({
       <div className={cn(card, 'px-5 py-5 sm:px-6')}>
         <div className="flex items-center justify-between">
           <span className="text-[15px] font-semibold text-ink">Eltérő napok</span>
-          <button
-            type="button"
-            onClick={() => setOpen(true)}
-            aria-label="Eltérő nap hozzáadása"
-            className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-ink-dark transition-opacity hover:opacity-90"
-          >
-            <Plus className="h-3.5 w-3.5 text-gold" strokeWidth={1.9} />
-          </button>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              aria-label="Eltérő nap hozzáadása"
+              className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-ink-dark transition-opacity hover:opacity-90"
+            >
+              <Plus className="h-3.5 w-3.5 text-gold" strokeWidth={1.9} />
+            </button>
+          )}
         </div>
 
         {sortedExceptions.length === 0 ? (
@@ -208,7 +212,7 @@ export function SalonAvailabilityExceptions({
             const d = new Date(x.date + 'T00:00:00')
             return (
               <div key={x.id} className={cn('group flex w-full items-center gap-2', i < sortedExceptions.length - 1 && 'border-b border-line')}>
-                <button type="button" onClick={() => openOnDay(x.date)} className="flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left">
+                <button type="button" onClick={() => canManage && openOnDay(x.date)} className={cn('flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left', !canManage && 'cursor-default')}>
                   <div className="flex h-[42px] w-[42px] shrink-0 flex-col items-center justify-center rounded-xl bg-white shadow-[0_1px_3px_rgba(0,0,0,.06)]">
                     <span className="text-sm font-semibold leading-none text-ink">{String(d.getDate()).padStart(2, '0')}</span>
                     <span className={cn('text-[9px] font-medium', x.is_closed ? 'text-bad' : 'text-[#9A8B52]')}>{MONTH_ABBR[d.getMonth()]}</span>
@@ -223,16 +227,18 @@ export function SalonAvailabilityExceptions({
                     <span className="shrink-0 rounded-[9px] bg-paper px-2.5 py-1 text-[11px] font-semibold text-ink">{x.open_time}–{x.close_time}</span>
                   )}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => deleteExc(x)}
-                  disabled={saving}
-                  aria-label="Eltérő nap törlése"
-                  title="Törlés"
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft2 transition-colors hover:bg-bad-bg hover:text-bad disabled:opacity-40"
-                >
-                  <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.7} />
-                </button>
+                {canManage && (
+                  <button
+                    type="button"
+                    onClick={() => deleteExc(x)}
+                    disabled={saving}
+                    aria-label="Eltérő nap törlése"
+                    title="Törlés"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft2 transition-colors hover:bg-bad-bg hover:text-bad disabled:opacity-40"
+                  >
+                    <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.7} />
+                  </button>
+                )}
               </div>
             )
           })

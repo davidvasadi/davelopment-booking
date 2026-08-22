@@ -16,14 +16,22 @@ interface Option<T extends string> {
  * viszi ide a fejléc-ikon (a `davelopment:open-bookings-view` window-eseményt a DashboardNav
  * dispatch-eli, ugyanúgy mint a Beállítások/Tippek fejléc-ikonjai), ugyanazzal a belépő-nyelvvel mint
  * a többi sheet az appban (backdrop blur + spring felcsúszás).
+ *
+ * Opcionálisan egy MÁSODIK csoportot is felvesz (pl. Nap/Hét/Hónap időszak-váltó) — ugyanide,
+ * a nézet-választó alá kerül egy saját alcímmel, hogy mobilon ne kelljen külön, mindig
+ * látható pill-sorban helyet szorítani neki a fejlécben.
  */
-export function MobileOptionSheet<T extends string>({
+export function MobileOptionSheet<T extends string, U extends string = never>({
   open,
   onClose,
   title,
   options,
   value,
   onChange,
+  secondaryTitle,
+  secondaryOptions,
+  secondaryValue,
+  secondaryOnChange,
 }: {
   open: boolean
   onClose: () => void
@@ -31,12 +39,16 @@ export function MobileOptionSheet<T extends string>({
   options: Option<T>[]
   value: T
   onChange: (v: T) => void
+  secondaryTitle?: string
+  secondaryOptions?: Option<U>[]
+  secondaryValue?: U
+  secondaryOnChange?: (v: U) => void
 }) {
   if (typeof document === 'undefined') return null
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[92] flex items-end justify-center">
+        <div className="fixed inset-0 z-[92]">
           <motion.div
             className="absolute inset-0 bg-black/[0.15] backdrop-blur-[2px]"
             initial={{ opacity: 0 }}
@@ -45,8 +57,11 @@ export function MobileOptionSheet<T extends string>({
             transition={{ duration: 0.18, ease: 'easeOut' }}
             onClick={onClose}
           />
+          {/* `inset-x-0 bottom-0` — mindig a viewport TELJES szélességét foglalja el mobilon (nem
+              flex-center + max-width-ből számolt szélesség), a max-width csak `sm:`-től szűkíti
+              középre úszó panellé, ha valaha desktopon is megnyitnánk. */}
           <motion.div
-            className="relative z-10 w-full max-w-[520px] rounded-t-[28px] bg-white p-4 pb-[max(96px,calc(88px+env(safe-area-inset-bottom)))] shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]"
+            className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full rounded-t-[28px] bg-white p-4 pb-[max(96px,calc(88px+env(safe-area-inset-bottom)))] shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)] sm:max-w-[520px]"
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 16 }}
@@ -82,6 +97,30 @@ export function MobileOptionSheet<T extends string>({
                 </button>
               ))}
             </div>
+
+            {secondaryOptions && secondaryOptions.length > 0 && (
+              <>
+                {secondaryTitle && <h3 className="mt-4 mb-3 text-sm font-bold text-ink">{secondaryTitle}</h3>}
+                <div className="space-y-1.5">
+                  {secondaryOptions.map(({ mode, icon: Icon, label }) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => { secondaryOnChange?.(mode); onClose() }}
+                      className={cn(
+                        'flex w-full items-center gap-3 rounded-2xl border px-4 py-3.5 text-sm font-semibold transition-colors',
+                        secondaryValue === mode
+                          ? 'border-ink-dark bg-ink-dark text-white'
+                          : 'border-line text-ink hover:bg-zinc-50'
+                      )}
+                    >
+                      <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </motion.div>
         </div>
       )}

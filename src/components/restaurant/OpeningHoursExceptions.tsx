@@ -37,6 +37,7 @@ export function OpeningHoursExceptions({
   initial,
   variant = 'default',
   weeklyHours,
+  canManage = false,
 }: {
   restaurantId: number | string
   initial: Exception[]
@@ -44,6 +45,7 @@ export function OpeningHoursExceptions({
   variant?: 'default' | 'tiles'
   /** A rendes heti nyitvatartás (nap → idők) — helyes felirathoz + „rendessel megegyező = törlés". */
   weeklyHours?: WeeklyHours
+  canManage?: boolean
 }) {
   const router = useRouter()
   const today = new Date()
@@ -308,14 +310,16 @@ export function OpeningHoursExceptions({
         <div className={cn(card, 'px-5 py-5 sm:px-6')}>
           <div className="flex items-center justify-between">
             <span className="text-[15px] font-semibold text-ink">Eltérő napok</span>
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              aria-label="Eltérő nap hozzáadása"
-              className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-ink-dark transition-opacity hover:opacity-90"
-            >
-              <Plus className="h-3.5 w-3.5 text-gold" strokeWidth={1.9} />
-            </button>
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => setOpen(true)}
+                aria-label="Eltérő nap hozzáadása"
+                className="flex h-[30px] w-[30px] items-center justify-center rounded-full bg-ink-dark transition-opacity hover:opacity-90"
+              >
+                <Plus className="h-3.5 w-3.5 text-gold" strokeWidth={1.9} />
+              </button>
+            )}
           </div>
 
           {sortedExceptions.length === 0 ? (
@@ -333,8 +337,8 @@ export function OpeningHoursExceptions({
                 >
                   <button
                     type="button"
-                    onClick={() => openOnDay(x.start_date)}
-                    className="flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left"
+                    onClick={() => canManage && openOnDay(x.start_date)}
+                    className={cn('flex min-w-0 flex-1 items-center gap-3 py-3.5 text-left', !canManage && 'cursor-default')}
                   >
                     <div className="flex h-[42px] w-[42px] shrink-0 flex-col items-center justify-center rounded-xl bg-white shadow-[0_1px_3px_rgba(0,0,0,.06)]">
                       <span className="text-sm font-semibold leading-none text-ink">{String(d.getDate()).padStart(2, '0')}</span>
@@ -352,16 +356,18 @@ export function OpeningHoursExceptions({
                       <span className="shrink-0 rounded-[9px] bg-paper px-2.5 py-1 text-[11px] font-semibold text-ink">{x.open_time}–{x.close_time}</span>
                     )}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => deleteExc(x)}
-                    disabled={saving}
-                    aria-label="Eltérő nap törlése"
-                    title="Törlés"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft2 transition-colors hover:bg-bad-bg hover:text-bad disabled:opacity-40"
-                  >
-                    <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.7} />
-                  </button>
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => deleteExc(x)}
+                      disabled={saving}
+                      aria-label="Eltérő nap törlése"
+                      title="Törlés"
+                      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft2 transition-colors hover:bg-bad-bg hover:text-bad disabled:opacity-40"
+                    >
+                      <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.7} />
+                    </button>
+                  )}
                 </div>
               )
             })
@@ -375,7 +381,7 @@ export function OpeningHoursExceptions({
   return (
     <>
       {/* Kompakt kártya — a teljes kártya kattintható. */}
-      <button onClick={() => setOpen(true)} className={cn(card, 'w-full flex items-center gap-3 p-4 lg:p-5 text-left transition-colors hover:border-line-strong')}>
+      <button onClick={() => canManage && setOpen(true)} className={cn(card, 'w-full flex items-center gap-3 p-4 lg:p-5 text-left transition-colors', canManage ? 'hover:border-line-strong' : 'cursor-default')}>
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-paper text-ink-soft">
           <CalendarDays className="h-5 w-5" />
         </span>
@@ -416,8 +422,8 @@ export function OpeningHoursExceptions({
                     {g.items.map((x) => (
                       <button
                         key={x.id}
-                        onClick={() => openOnDay(x.start_date)}
-                        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-paper/60"
+                        onClick={() => canManage && openOnDay(x.start_date)}
+                        className={cn('flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors', canManage ? 'hover:bg-paper/60' : 'cursor-default')}
                       >
                         <span className={cn(
                           'flex h-8 w-8 shrink-0 items-center justify-center rounded-full',

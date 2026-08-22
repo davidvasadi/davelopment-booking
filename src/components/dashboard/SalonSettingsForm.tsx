@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import type { Salon, Media } from '@/payload/payload-types'
+import { fixMediaUrl } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -146,7 +147,7 @@ function Section({ title, children, full, id }: { title: string; children: React
 
 function mediaUrl(field: string | Media | null | undefined): string | null {
   if (!field) return null
-  if (typeof field === 'object') return (field as Media).url ?? null
+  if (typeof field === 'object') return fixMediaUrl((field as Media).url)
   return null
 }
 

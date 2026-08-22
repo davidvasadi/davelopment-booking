@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
 import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
-import type { Capability } from '@/lib/permissions'
+import { can, type Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
 import { CommandPalette } from './CommandPalette'
 import { StoreSwitcher, type SwitcherBusiness } from './StoreSwitcher'
@@ -499,7 +499,7 @@ export function DashboardNav({
           )}
           {/* Utalványok — fekete beolvasás/beváltás ikon + a "Típusok kezelése"/"Új utalvány"
               választó-sheetet nyitó ikon (csak a vouchers oldalakon, szalon + étterem). */}
-          {pathname.endsWith('/vouchers') && (
+          {pathname.endsWith('/vouchers') && can(capabilities, 'vouchers.manage') && (
             <>
               <button
                 type="button"
@@ -522,7 +522,7 @@ export function DashboardNav({
 
           {/* Marketing/Hírlevél — "Hírlevél írása" (fekete) + "Csomag bővítése" (üveg) ikon-gomb,
               csak a marketing oldalakon (szalon + étterem), a Vouchers mintáját követve. */}
-          {pathname.endsWith('/marketing') && (
+          {pathname.endsWith('/marketing') && can(capabilities, 'marketing.manage') && (
             <>
               <button
                 type="button"

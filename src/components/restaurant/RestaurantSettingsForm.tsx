@@ -23,6 +23,7 @@ import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
 import { useSettingsFormContext } from '@/components/settings/settingsFormContext'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { Media } from '@/payload/payload-types'
+import { fixMediaUrl } from '@/lib/utils'
 import { compressImage } from '@/lib/compressImage'
 
 /** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás.
@@ -159,7 +160,7 @@ function Section({ title, children, full, id }: { title: string; children: React
 
 function mediaUrl(field: string | Media | null | undefined): string | null {
   if (!field || typeof field !== 'object') return null
-  return (field as Media).url ?? null
+  return fixMediaUrl((field as Media).url)
 }
 function mediaId(field: string | Media | null | undefined): number | null {
   if (!field || typeof field !== 'object') return null

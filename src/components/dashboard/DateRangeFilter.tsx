@@ -73,6 +73,10 @@ export function DateRangeFilter({ basePath }: { basePath: string }) {
   const fromParam = searchParams.get('from')
   const toParam   = searchParams.get('to')
   const period    = Number(searchParams.get('period')) || 30
+  // A `scope` (Üzlet/Saját munka) paramot meg kell őrizni a navigáláskor — enélkül az
+  // időszak-váltás visszadobná a nézetet "Üzlet"-re (ld. AnalyticsScopeToggle).
+  const scopeParam = searchParams.get('scope')
+  const scopeSuffix = scopeParam ? `&scope=${scopeParam}` : ''
 
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -117,7 +121,7 @@ export function DateRangeFilter({ basePath }: { basePath: string }) {
 
   function applyPreset(days: number) {
     setRangeStart(null); setRangeEnd(null)
-    router.push(`${basePath}?period=${days}`)
+    router.push(`${basePath}?period=${days}${scopeSuffix}`)
     setOpen(false)
   }
 
@@ -126,7 +130,7 @@ export function DateRangeFilter({ basePath }: { basePath: string }) {
     const [s, e] = isBefore(rangeStart, rangeEnd)
       ? [rangeStart, rangeEnd]
       : [rangeEnd, rangeStart]
-    router.push(`${basePath}?from=${format(s, 'yyyy-MM-dd')}&to=${format(e, 'yyyy-MM-dd')}`)
+    router.push(`${basePath}?from=${format(s, 'yyyy-MM-dd')}&to=${format(e, 'yyyy-MM-dd')}${scopeSuffix}`)
     setOpen(false)
   }
 

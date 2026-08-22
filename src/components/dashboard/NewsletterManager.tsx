@@ -66,6 +66,7 @@ interface Props {
   usedThisMonth: number
   openedThisMonth: number
   initialCampaigns: CampaignRow[]
+  canManage?: boolean
 }
 
 const SUB_PAGE_SIZE = 20
@@ -121,7 +122,7 @@ function marketingEmailTemplate(): { subject: string; blocks: ComposerBlock[] } 
   }
 }
 
-export function NewsletterManager({ variant, businessId, businessName, logoUrl, emailCap, subscriberCount, initialSubscribers, initialSubscribersHasMore, countryOptions, usedThisMonth, openedThisMonth, initialCampaigns }: Props) {
+export function NewsletterManager({ variant, businessId, businessName, logoUrl, emailCap, subscriberCount, initialSubscribers, initialSubscribersHasMore, countryOptions, usedThisMonth, openedThisMonth, initialCampaigns, canManage = false }: Props) {
   const router = useRouter()
   const [campaigns, setCampaigns] = useState(initialCampaigns)
   useEffect(() => setCampaigns(initialCampaigns), [initialCampaigns])
@@ -423,6 +424,7 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
   // gombok külön, fekete/üveg körikonokként jelennek meg, itt nem kell duplán megjeleníteni őket
   // (lásd `actionButtons` `hidden lg:flex`-je lejjebb).
   useEffect(() => {
+    if (!canManage) return
     const openComposer = () => scrollToComposer()
     const openPackage = () => router.push(settingsHref)
     window.addEventListener('davelopment:open-marketing-composer', openComposer)
@@ -431,13 +433,13 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
       window.removeEventListener('davelopment:open-marketing-composer', openComposer)
       window.removeEventListener('davelopment:open-marketing-package', openPackage)
     }
-  }, [router, settingsHref])
+  }, [router, settingsHref, canManage])
 
   // Mindig CSAK egy gomb-pár látszik ebben a sorban (sose 4 egyszerre) — kijelöléskor a
   // kontextus-gombok (Levél/Leiratkoztatás/Törlés) VÁLTJÁK fel a Csomag/Hírlevél párost, nem
   // hozzáadódnak melléjük — így a sor szélessége sose nő meg annyira, hogy flex-wrap miatt
   // lejjebb tolja a kártyát kijelöléskor.
-  const actionButtons = (
+  const actionButtons = !canManage ? null : (
     <div className="hidden shrink-0 flex-wrap items-center gap-2.5 lg:flex">
       {view === 'campaigns' && selectedCampaigns.size > 0 ? (
         <motion.button
@@ -803,16 +805,18 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
                   transition={{ duration: 0.15, ease: 'easeOut' }}
                   className={subLoading ? 'opacity-60 transition-opacity' : 'transition-opacity'}>
                   <div className="hidden grid-cols-[24px_1.1fr_1.2fr_100px_1fr_130px] items-center gap-3.5 border-b border-line pb-3.5 pt-2 text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2 lg:grid">
-                    <button
-                      type="button"
-                      onClick={toggleSelectAll}
-                      disabled={selectingAll}
-                      aria-label="Mind kijelölése"
-                      title="Mind kijelölése"
-                      className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors disabled:opacity-50 ${allSelected ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
-                    >
-                      {allSelected && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
-                    </button>
+                    {canManage ? (
+                      <button
+                        type="button"
+                        onClick={toggleSelectAll}
+                        disabled={selectingAll}
+                        aria-label="Mind kijelölése"
+                        title="Mind kijelölése"
+                        className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors disabled:opacity-50 ${allSelected ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
+                      >
+                        {allSelected && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
+                      </button>
+                    ) : <span />}
                     <div>Név</div>
                     <div>Email</div>
                     <div>Ország</div>
@@ -833,7 +837,7 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
                     </p>
                   )}
 
-                  {subs.length > 0 && (
+                  {subs.length > 0 && canManage && (
                     <div className="mb-1 flex items-center justify-between gap-2 pb-2 lg:hidden">
                       <button type="button" onClick={toggleSelectAll} disabled={selectingAll} className="text-[12px] font-semibold text-ink-soft disabled:opacity-50">
                         {selectingAll ? 'Kijelölés…' : allSelected ? 'Kijelölés törlése' : 'Mind kijelölése'}
@@ -896,15 +900,17 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
                         )}
                       >
                         <div className="hidden grid-cols-[24px_1.1fr_1.2fr_100px_1fr_130px] items-center gap-3.5 px-3.5 py-2.5 lg:grid">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); toggleSelect(s.id) }}
-                            aria-pressed={isSel}
-                            aria-label="Kijelölés"
-                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
-                          >
-                            {isSel && <Check className="h-3 w-3 text-gold" strokeWidth={3} />}
-                          </button>
+                          {canManage ? (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); toggleSelect(s.id) }}
+                              aria-pressed={isSel}
+                              aria-label="Kijelölés"
+                              className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
+                            >
+                              {isSel && <Check className="h-3 w-3 text-gold" strokeWidth={3} />}
+                            </button>
+                          ) : <span />}
                           <p className="flex min-w-0 items-center gap-1.5 truncate text-[15px] font-semibold text-ink">
                             {isUnsub && <span className="shrink-0 rounded-full bg-[#C0392B]/15 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.03em] text-[#C0392B]">Leiratkozva</span>}
                             <span className="truncate">{s.name || '—'}</span>
@@ -917,15 +923,17 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
                           <p className="text-[14px] text-ink-soft">{fmtDate(s.consentAt)}</p>
                         </div>
                         <div className="flex items-start gap-3 px-4 py-3.5 lg:hidden">
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); toggleSelect(s.id) }}
-                            aria-pressed={isSel}
-                            aria-label="Kijelölés"
-                            className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong'}`}
-                          >
-                            {isSel && <Check className="h-3 w-3 text-gold" strokeWidth={3} />}
-                          </button>
+                          {canManage && (
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); toggleSelect(s.id) }}
+                              aria-pressed={isSel}
+                              aria-label="Kijelölés"
+                              className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSel ? 'border-ink-dark bg-ink-dark' : 'border-line-strong'}`}
+                            >
+                              {isSel && <Check className="h-3 w-3 text-gold" strokeWidth={3} />}
+                            </button>
+                          )}
                           <div className="min-w-0 flex-1">
                             <p className="flex min-w-0 items-center gap-1.5 truncate text-[16px] font-semibold text-ink">
                               {isUnsub && <span className="shrink-0 rounded-full bg-[#C0392B]/15 px-1.5 py-0.5 text-[9.5px] font-bold uppercase tracking-[0.03em] text-[#C0392B]">Leiratkozva</span>}
@@ -965,15 +973,17 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
               ) : (
                 <>
                   <div className="hidden grid-cols-[24px_1.5fr_120px_120px_140px] items-center gap-3.5 border-b border-line pb-3.5 pt-2 text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2 lg:grid">
-                    <button
-                      type="button"
-                      onClick={toggleSelectAllCampaigns}
-                      aria-label="Mind kijelölése"
-                      title="Mind kijelölése"
-                      className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${allCampaignsSelected ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
-                    >
-                      {allCampaignsSelected && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
-                    </button>
+                    {canManage ? (
+                      <button
+                        type="button"
+                        onClick={toggleSelectAllCampaigns}
+                        aria-label="Mind kijelölése"
+                        title="Mind kijelölése"
+                        className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${allCampaignsSelected ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
+                      >
+                        {allCampaignsSelected && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
+                      </button>
+                    ) : <span />}
                     <div>Tárgy</div>
                     <div>Címzettek</div>
                     <div>Megnyitva</div>
@@ -984,7 +994,7 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
                     <p className="py-10 text-center text-sm text-ink-soft">{campaigns.length === 0 ? 'Még nem küldtél hírlevelet.' : 'Nincs találat.'}</p>
                   )}
 
-                  {filteredCampaigns.length > 0 && (
+                  {filteredCampaigns.length > 0 && canManage && (
                     <div className="mb-1 flex items-center justify-between gap-2 pb-2 lg:hidden">
                       <button type="button" onClick={toggleSelectAllCampaigns} className="text-[12px] font-semibold text-ink-soft">
                         {allCampaignsSelected ? 'Kijelölés törlése' : 'Mind kijelölése'}
@@ -1012,23 +1022,26 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
                     return (
                     <div
                       key={c.id}
-                      onClick={() => loadCampaign(c)}
+                      onClick={() => canManage && loadCampaign(c)}
                       style={isSelC ? { background: 'var(--dav-accent)' } : undefined}
                       className={cn(
-                        'mt-2 cursor-pointer rounded-[18px] border-b border-line-strong/70 px-3.5 py-3 transition-all last:border-b-0',
+                        'mt-2 rounded-[18px] border-b border-line-strong/70 px-3.5 py-3 transition-all last:border-b-0',
+                        canManage && 'cursor-pointer',
                         isSelC ? 'shadow-[0_10px_24px_-12px_rgba(180,150,40,.55)]' : idx % 2 === 1 ? 'bg-paper/60 hover:bg-gold/10' : 'hover:bg-gold/10',
                       )}
                     >
                       <div className="hidden grid-cols-[24px_1.5fr_120px_120px_140px] items-center gap-3.5 lg:grid">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); toggleSelectCampaign(c.id) }}
-                          aria-pressed={isSelC}
-                          aria-label="Kijelölés"
-                          className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSelC ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
-                        >
-                          {isSelC && <Check className="h-3 w-3 text-gold" strokeWidth={3} />}
-                        </button>
+                        {canManage ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleSelectCampaign(c.id) }}
+                            aria-pressed={isSelC}
+                            aria-label="Kijelölés"
+                            className={`flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSelC ? 'border-ink-dark bg-ink-dark' : 'border-line-strong hover:border-ink-dark'}`}
+                          >
+                            {isSelC && <Check className="h-3 w-3 text-gold" strokeWidth={3} />}
+                          </button>
+                        ) : <span />}
                         <p className="flex min-w-0 items-center gap-2 truncate text-[15px] font-semibold text-ink">
                           {isDraft && <span className="shrink-0 rounded-full bg-gold/20 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.03em] text-ink">Piszkozat</span>}
                           <span className="truncate">{c.subject || 'Cím nélküli piszkozat'}</span>
@@ -1052,15 +1065,17 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
                         <p className="text-[14px] text-ink-soft">{fmtDate(c.createdAt)}</p>
                       </div>
                       <div className="flex items-start gap-3 py-0.5 lg:hidden">
-                        <button
-                          type="button"
-                          onClick={(e) => { e.stopPropagation(); toggleSelectCampaign(c.id) }}
-                          aria-pressed={isSelC}
-                          aria-label="Kijelölés"
-                          className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSelC ? 'border-ink-dark bg-ink-dark' : 'border-line-strong'}`}
-                        >
-                          {isSelC && <Check className="h-3 w-3 text-gold" strokeWidth={3} />}
-                        </button>
+                        {canManage && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); toggleSelectCampaign(c.id) }}
+                            aria-pressed={isSelC}
+                            aria-label="Kijelölés"
+                            className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border-[1.5px] transition-colors ${isSelC ? 'border-ink-dark bg-ink-dark' : 'border-line-strong'}`}
+                          >
+                            {isSelC && <Check className="h-3 w-3 text-gold" strokeWidth={3} />}
+                          </button>
+                        )}
                         <div className="min-w-0 flex-1">
                           <p className="flex min-w-0 items-center gap-2 truncate text-[16px] font-semibold text-ink">
                             {isDraft && <span className="shrink-0 rounded-full bg-gold/20 px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-[0.03em] text-ink">Piszkozat</span>}
@@ -1103,7 +1118,11 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
             </div>
           </div>
 
-          {/* ── Szerkesztő — NAGY, önálló canvas (a referencia szerint), nem szűk mezőbe zárva ── */}
+          {/* ── Szerkesztő — NAGY, önálló canvas (a referencia szerint), nem szűk mezőbe zárva ──
+              Csak `marketing.manage`-nél renderelődik — a `.view`-only tag nem írhat/küldhet
+              hírlevelet, csak a feliratkozó/kampány-listát nézheti. */}
+          {canManage && (
+          <>
           <div ref={composerRef} className="relative scroll-mt-6 overflow-hidden rounded-[28px] bg-white pt-10 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] sm:pt-14">
             {/* A tényleges email-tartalom (Tárgy/Címzettek/blokkok) egy KESKENY, középre igazított
                 oszlopban él — nagyjából a kiküldött email valódi szélessége (lásd emailLayout.ts
@@ -1279,6 +1298,8 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
               )}
             </div>
           </div>
+          </>
+          )}
         </>
 
       <ConfirmDialog

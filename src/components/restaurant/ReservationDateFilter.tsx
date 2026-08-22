@@ -54,7 +54,18 @@ function formatMonthLabel(dateStr: string) {
   return `${y}. ${HU_MONTHS_FULL[m - 1]}`
 }
 
-export function ReservationDateFilter({ currentDate, range = 'day' }: { currentDate: string; range?: BookingsRange }) {
+export function ReservationDateFilter({
+  currentDate,
+  range = 'day',
+  hideRangeOnMobile = false,
+}: {
+  currentDate: string
+  range?: BookingsRange
+  /** Napi nézetnél a Nap/Hét/Hónap pill mobilon a fejléc-ikon nézet-választó sheet-jébe kerül
+   *  (ld. DailyView), itt nem kell duplán, külön sorban megjelenítenünk. Heti/havi nézetnél
+   *  (ahol ilyen sheet nincs) marad látható, hogy mobilon is legyen visszaút Napra. */
+  hideRangeOnMobile?: boolean
+}) {
   const router = useRouter()
 
   const go = (offset: number) => {
@@ -71,7 +82,9 @@ export function ReservationDateFilter({ currentDate, range = 'day' }: { currentD
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="inline-flex h-[42px] items-center gap-0.5 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1">
+      {/* Nap/Hét/Hónap — napi nézetnél mobilon rejtve (a fejléc-ikon nyitja a DailyView
+          nézet-választó sheet-jébe ágyazva); heti/havi nézetnél mobilon is látható marad. */}
+      <div className={`${hideRangeOnMobile ? 'hidden lg:inline-flex' : 'inline-flex'} h-[42px] items-center gap-0.5 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1`}>
         {RANGE_OPTIONS.map(({ value, label: rangeLabel }) => (
           <HoverButton
             key={value}

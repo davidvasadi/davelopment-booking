@@ -6,7 +6,8 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, durationMinutes, ymdLocal } from '@/lib/utils'
-import { List, LayoutGrid, Map as MapIcon, Plus, Users, User, Clock, Repeat, Banknote } from 'lucide-react'
+import { List, LayoutGrid, Map as MapIcon, Plus, Users, User, Clock, Repeat, Banknote, CalendarDays, CalendarRange, CalendarClock } from 'lucide-react'
+import type { BookingsRange } from './ReservationDateFilter'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -104,6 +105,9 @@ export function urgencyOf(r: Reservation, nowMin: number | null): Urgency | null
 
 export interface DailyViewProps {
   date: string
+  /** A jelenlegi időszak-nézet (Nap/Hét/Hónap) — a mobil nézet-választó sheet-be ágyazott
+   *  Nap/Hét/Hónap váltóhoz kell (ld. dateFilter komment). Ezen az oldalon mindig 'day'. */
+  range: BookingsRange
   restaurantId: string
   /** Választható esemény-típusok (alkalmak) az admin szerkesztő-laphoz. */
   eventTypes?: { icon: string; label: string }[]
@@ -203,7 +207,7 @@ export function draftToReservation(d: ReservationDraft): DraftReservation {
 
 export function DailyView(props: DailyViewProps) {
   const {
-    date, restaurantId, eventTypes, rooms, tables, openMin, closeMin, turnMinutes, openReservationId,
+    date, range, restaurantId, eventTypes, rooms, tables, openMin, closeMin, turnMinutes, openReservationId,
     roomCount, tableCount, activeCount, completedCount, cancelledCount, walkInCount,
     dateFilter, printButton, canManage = false, consentEnabled = false,
   } = props
@@ -310,6 +314,15 @@ export function DailyView(props: DailyViewProps) {
     { mode: 'floor', icon: MapIcon, label: 'Terem' },
   ]
 
+  // Nap/Hét/Hónap — mobilon a nézet-választó sheet MÁSODIK csoportjaként jelenik meg (a
+  // desktop pill ilyenkor rejtve, ld. ReservationDateFilter `hideRangeOnMobile`).
+  const rangeButtons: { mode: BookingsRange; icon: typeof List; label: string }[] = [
+    { mode: 'day', icon: CalendarDays, label: 'Nap' },
+    { mode: 'week', icon: CalendarRange, label: 'Hét' },
+    { mode: 'month', icon: CalendarClock, label: 'Hónap' },
+  ]
+  const pickRange = (v: BookingsRange) => router.push(`/restaurant/bookings?date=${date}&range=${v}`)
+
   // Mobilon a nézet-váltó a fejléc csengő melletti ikonjából nyílik (DashboardNav dispatch-eli).
   useEffect(() => {
     const handler = () => setMobileViewOpen(true)
@@ -383,7 +396,6 @@ export function DailyView(props: DailyViewProps) {
         const completedResCount = reservations.filter((r) => r.status === 'completed').length
         const activeConfirmedCount = reservations.filter((r) => r.status === 'confirmed' || r.status === 'seated').length
         const paxTotal = reservations.filter((r) => r.status !== 'cancelled' && r.status !== 'no_show').reduce((s, r) => s + (r.pax ?? 0), 0)
-        const avgParty = activeCount > 0 ? Math.round((paxTotal / activeCount) * 10) / 10 : 0
         const HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)'
         return (
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
@@ -400,7 +412,6 @@ export function DailyView(props: DailyViewProps) {
               <CountUpKpi icon="calendar" value={activeCount} label="Foglalás" />
               <CountUpKpi icon="users" value={paxTotal} label="Vendég" />
               <CountUpKpi icon="walkin" value={walkInCount} label="Beeső (walk-in)" />
-              <CountUpKpi icon="gauge" value={avgParty} label="Átl. létszám" decimals={1} />
             </div>
           </div>
         )
@@ -444,6 +455,10 @@ export function DailyView(props: DailyViewProps) {
         options={viewButtons}
         value={view}
         onChange={pick}
+        secondaryTitle="Időszak"
+        secondaryOptions={rangeButtons}
+        secondaryValue={range}
+        secondaryOnChange={pickRange}
       />
     </div>
   )
@@ -1194,6 +1209,23 @@ function TableGrid({
   const [drag, setDrag] = useState<DragState | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  // A fejléc-vonalzó (óra-tengely) KÜLÖN görgő fa, mint a tartalom — függőlegesen sosem
+  // görgetjük együtt (lásd lent), vízszintesen viszont scrollLeft-tükrözéssel tartjuk
+  // szinkronban a tartalommal, hogy az órák a foglalások fölött maradjanak.
+  const axisRef = useRef<HTMLDivElement>(null)
+  const syncingScrollRef = useRef(false)
+  const onGridScroll = () => {
+    if (syncingScrollRef.current || !axisRef.current || !gridRef.current) return
+    syncingScrollRef.current = true
+    axisRef.current.scrollLeft = gridRef.current.scrollLeft
+    syncingScrollRef.current = false
+  }
+  const onAxisScroll = () => {
+    if (syncingScrollRef.current || !axisRef.current || !gridRef.current) return
+    syncingScrollRef.current = true
+    gridRef.current.scrollLeft = axisRef.current.scrollLeft
+    syncingScrollRef.current = false
+  }
 
   // Scroll módban (nagyon hosszú nyitvatartásnál) nyitáskor az aktuális időpontra görgetünk,
   // hogy ne kelljen kézzel odakeresni — csak egyszer, a felhasználó további görgetését nem írja felül.
@@ -1202,6 +1234,7 @@ function TableGrid({
     const el = gridRef.current
     const target = (nowMin - openMin) * PX_PER_MIN - el.clientWidth / 2
     el.scrollLeft = Math.max(0, target)
+    if (axisRef.current) axisRef.current.scrollLeft = el.scrollLeft
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   // Pending: a pointerdown még NEM indít drag-et, csak előkészíti. Valódi húzás csak akkor
@@ -1457,24 +1490,74 @@ function TableGrid({
         </div>
       </div>
 
-      <div className="flex">
-        {/* Bal: rögzített (SOSEM görgetett) asztal-oszlop — külön fa, nem a görgő gyereke,
-            így nem függ a position:sticky viselkedésétől semmilyen böngészőben. */}
+      <div className="flex flex-col">
+        {/* Fejléc: bal sarok (terem-cím) + óra-vonalzó — KÜLÖN, SOSEM függőlegesen görgő fa a
+            tartalom fölött (nem sticky — nem függ a böngésző position:sticky viselkedésétől).
+            Vízszintesen scrollLeft-tükrözéssel tartjuk szinkronban a tartalommal (lásd
+            onGridScroll/onAxisScroll), hogy az órák mindig a foglalások fölött maradjanak. */}
+        <div className="flex">
+          <div className={`${labelW} shrink-0`}>
+            {groups[0]?.name ? (
+              <div className="flex h-9 items-end gap-[9px] pb-0.5">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">
+                  {groups[0].name}
+                </span>
+                <span className="rounded-[10px] bg-[#EDE7D6] px-[9px] py-[3px] text-[10px] font-semibold text-[#9A8B52]">
+                  {roomPillLabel(groups[0].room)}
+                </span>
+              </div>
+            ) : (
+              <div className="h-9" />
+            )}
+          </div>
+
+          <div ref={axisRef} onScroll={onAxisScroll} className={`min-w-0 flex-1 ${fit ? '' : 'overflow-x-auto no-scrollbar'}`}>
+          <div style={fit ? undefined : { width: axisWidth }}>
+          {/* idő-tengely (vonalzó) — az első terem címével egy magasságban (h-9), lásd a bal oszlopot.
+              A sor MAGASABB (h-9), mint pusztán az óra-címkékhez kellene, hogy a piros "most" jelölő
+              fölötte kapjon saját helyet — így nem lóg bele/takarja a szomszédos óra-feliratokat. */}
+          <div className="relative h-9">
+              {hourMarks.map((m, i) => (
+                <span
+                  key={m}
+                  // Az ELSŐ (nyitási) címke NEM középre igazított — a görgethető sáv bal szélén
+                  // középre igazítva a szöveg fele balra kilógott volna, ahol nincs hely, és a
+                  // konténer levágta. A többi (belső) óracímke marad középre igazítva.
+                  className={`absolute bottom-0.5 text-[11px] font-medium tabular-nums text-[#A8A496] ${i === 0 ? '' : '-translate-x-1/2'}`}
+                  style={{ left: left(m) }}
+                >
+                  {minutesToHHMMWrapped(m)}
+                </span>
+              ))}
+              {/* Záróra felirat — a jobb szélen NEM középre igazított (mint az első/nyitási
+                  címke a bal szélen sem az) — középre igazítva a szöveg fele jobbra kilógott
+                  volna a konténerből, ahol nincs hely. Csak balra nyúlik a pontjától. */}
+              <span
+                className="absolute bottom-0.5 -translate-x-full whitespace-nowrap text-[11px] font-semibold tabular-nums text-ink-soft2"
+                style={{ left: left(closeMin) }}
+              >
+                Zárás {minutesToHHMMWrapped(closeMin)}
+              </span>
+              {nowVisible && (
+                <span
+                  className="absolute top-0 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-md"
+                  style={{ left: left(nowMin!) }}
+                >
+                  {minutesToHHMM(nowMin!)}
+                </span>
+              )}
+          </div>
+          </div>
+          </div>
+        </div>
+
+        {/* Tartalom: KÜLÖN, függőlegesen görgő konténer a fejléc alatt — sok teremnél/asztalnál
+            ez görgethető belül, nem az egész oldal nő meg alá. */}
+        <div className="max-h-[65vh] overflow-y-auto">
+        <div className="flex">
+        {/* Bal: rögzített (SOSEM vízszintesen görgetett) asztal-oszlop — külön fa, nem a görgő
+            gyereke, így nem függ a position:sticky viselkedésétől semmilyen böngészőben. */}
         <div className={`${labelW} shrink-0`}>
-          {/* Az első terem címe az óra-vonalzóval EGY sorban (helytakarékosság) — a további
-              termek címei a saját soruk elején maradnak, csak az első kerül a fejlécbe. */}
-          {groups[0]?.name ? (
-            <div className="flex h-9 items-end gap-[9px] pb-0.5">
-              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">
-                {groups[0].name}
-              </span>
-              <span className="rounded-[10px] bg-[#EDE7D6] px-[9px] py-[3px] text-[10px] font-semibold text-[#9A8B52]">
-                {roomPillLabel(groups[0].room)}
-              </span>
-            </div>
-          ) : (
-            <div className="h-9" />
-          )}
           {groups.map((g, gi) => (
             <div key={`label-${gi}-${g.name ?? 'none'}`}>
               {gi > 0 && g.name && (
@@ -1517,42 +1600,8 @@ function TableGrid({
         </div>
 
         {/* Jobb: görgethető idő-tengely + foglalás-blokkok. */}
-        <div ref={gridRef} className={`min-w-0 flex-1 ${fit ? '' : 'overflow-x-auto'}`}>
+        <div ref={gridRef} onScroll={onGridScroll} className={`min-w-0 flex-1 ${fit ? '' : 'overflow-x-auto'}`}>
         <div style={fit ? undefined : { width: axisWidth }}>
-        {/* idő-tengely (vonalzó) — az első terem címével egy magasságban (h-9), lásd a bal oszlopot.
-            A sor MAGASABB (h-9), mint pusztán az óra-címkékhez kellene, hogy a piros "most" jelölő
-            fölötte kapjon saját helyet — így nem lóg bele/takarja a szomszédos óra-feliratokat. */}
-        <div className="relative h-9">
-            {hourMarks.map((m, i) => (
-              <span
-                key={m}
-                // Az ELSŐ (nyitási) címke NEM középre igazított — a görgethető sáv bal szélén
-                // középre igazítva a szöveg fele balra kilógott volna, ahol nincs hely, és a
-                // konténer levágta. A többi (belső) óracímke marad középre igazítva.
-                className={`absolute bottom-0.5 text-[11px] font-medium tabular-nums text-[#A8A496] ${i === 0 ? '' : '-translate-x-1/2'}`}
-                style={{ left: left(m) }}
-              >
-                {minutesToHHMMWrapped(m)}
-              </span>
-            ))}
-            {/* Záróra felirat — a jobb szélen NEM középre igazított (mint az első/nyitási
-                címke a bal szélen sem az) — középre igazítva a szöveg fele jobbra kilógott
-                volna a konténerből, ahol nincs hely. Csak balra nyúlik a pontjától. */}
-            <span
-              className="absolute bottom-0.5 -translate-x-full whitespace-nowrap text-[11px] font-semibold tabular-nums text-ink-soft2"
-              style={{ left: left(closeMin) }}
-            >
-              Zárás {minutesToHHMMWrapped(closeMin)}
-            </span>
-            {nowVisible && (
-              <span
-                className="absolute top-0 z-20 -translate-x-1/2 whitespace-nowrap rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-md"
-                style={{ left: left(nowMin!) }}
-              >
-                {minutesToHHMM(nowMin!)}
-              </span>
-            )}
-        </div>
 
         {groups.map((g, gi) => (
           <div key={`${gi}-${g.name ?? 'none'}`}>
@@ -1656,6 +1705,8 @@ function TableGrid({
             })}
           </div>
         ))}
+        </div>
+        </div>
         </div>
         </div>
       </div>

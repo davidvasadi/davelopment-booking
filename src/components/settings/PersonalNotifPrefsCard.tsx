@@ -49,7 +49,21 @@ function useNotifPrefs() {
     }).catch(() => setPrefs(prefs))
   }
 
-  return { prefs, allowed, loaded, toggle }
+  /** Az összes LÁTHATÓ (jogosultság szerint engedett) kategóriát egyszerre kapcsolja — egy
+   *  összevont PATCH-hívással, nem kategóriánként külön. */
+  async function setAll(visibleKeys: CategoryKey[], value: boolean) {
+    const patch = Object.fromEntries(visibleKeys.map((k) => [k, value])) as Partial<Record<CategoryKey, boolean>>
+    const previous = prefs
+    setPrefs((p) => ({ ...p, ...patch }))
+    await fetch('/api/user/notif-prefs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(patch),
+    }).catch(() => setPrefs(previous))
+  }
+
+  return { prefs, allowed, loaded, toggle, setAll }
 }
 
 /**
@@ -57,8 +71,11 @@ function useNotifPrefs() {
  * compact=false → önálló kártyás megjelenés (NotificationsPage)
  */
 export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean }) {
-  const { prefs, allowed, loaded, toggle } = useNotifPrefs()
+  const { prefs, allowed, loaded, toggle, setAll } = useNotifPrefs()
   const visible = CATS.filter((c) => allowed[c.key])
+  const visibleKeys = visible.map((c) => c.key)
+  const allOn = visible.length > 0 && visible.every((c) => prefs[c.key])
+  const allOff = visible.length > 0 && visible.every((c) => !prefs[c.key])
 
   if (!loaded) {
     return (
@@ -72,9 +89,33 @@ export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean 
 
   if (visible.length === 0) return null
 
+  // Összefogó parancs — csak akkor van értelme, ha legalább 2 kapcsoló van egymás mellett.
+  const bulkControls = visible.length > 1 && (
+    <div className="mb-2 flex items-center justify-end gap-3">
+      <button
+        type="button"
+        onClick={() => setAll(visibleKeys, true)}
+        disabled={allOn}
+        className="text-[12px] font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:cursor-default disabled:text-ink-soft2/50 disabled:no-underline"
+      >
+        Mindet bekapcsolom
+      </button>
+      <span className="text-ink-soft2/40">·</span>
+      <button
+        type="button"
+        onClick={() => setAll(visibleKeys, false)}
+        disabled={allOff}
+        className="text-[12px] font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:cursor-default disabled:text-ink-soft2/50 disabled:no-underline"
+      >
+        Mindet kikapcsolom
+      </button>
+    </div>
+  )
+
   if (compact) {
     return (
       <>
+        {bulkControls}
         {visible.map((cat) => (
           <div key={cat.key} className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4 last:border-0">
             <div className="min-w-0">
@@ -92,6 +133,7 @@ export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean 
 
   return (
     <div className="space-y-2">
+      {bulkControls}
       {visible.map((cat) => (
         <div key={cat.key} className="flex items-center justify-between gap-3 rounded-[13px] border border-line bg-white px-4 py-3">
           <div>
