@@ -24,7 +24,7 @@ export default async function RestaurantTipsPage() {
   in14.setDate(in14.getDate() + 14)
   const in14Str = ymd(in14)
 
-  const [stats, hoursRes, tablesRes, shiftsAheadRes, pendingReservRes] = await Promise.all([
+  const [stats, hoursRes, tablesRes, shiftsAheadRes, pendingReservRes, campaignRes] = await Promise.all([
     getRestaurantStats(r.id, 30),
     payload.find({
       collection: 'opening-hours',
@@ -52,6 +52,14 @@ export default async function RestaurantTipsPage() {
           limit: 1, depth: 0, overrideAccess: true,
         })
       : null,
+    // Csak marketing.manage joggal rendelkezőknek — a "küldj kampányt" tipp gate-je.
+    can(capabilities, 'marketing.manage')
+      ? payload.find({
+          collection: 'marketing-campaigns',
+          where: { restaurant: { equals: r.id } },
+          limit: 1, depth: 0, overrideAccess: true,
+        })
+      : null,
   ])
 
   const setup: SetupFlags = {
@@ -59,6 +67,7 @@ export default async function RestaurantTipsPage() {
     catalog: tablesRes.totalDocs > 0,
     scheduleFilledAhead: shiftsAheadRes ? shiftsAheadRes.totalDocs > 0 : undefined,
     hasPendingBookings: pendingReservRes ? pendingReservRes.totalDocs > 0 : undefined,
+    hasSentCampaign: campaignRes ? campaignRes.totalDocs > 0 : undefined,
   }
 
   const data = buildRestaurantAdvisor(r, setup, stats, capabilities)

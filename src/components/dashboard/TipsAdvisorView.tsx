@@ -8,7 +8,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowRight, Bell, Star, Users, Phone, Image as ImageIcon, FileText, MapPin, Clock,
   Info, Globe, LayoutGrid, Check, Zap, Loader2, X, Calendar, AlertCircle, Heart,
-  MessageSquare, UserPlus, type LucideIcon,
+  MessageSquare, UserPlus, Gift, ExternalLink, ShieldCheck, Send, type LucideIcon,
 } from 'lucide-react'
 import type { AdvisorResult, TipCard, TipCategory, TipAction } from '@/lib/tipsAdvisor'
 
@@ -61,6 +61,11 @@ const CARD_ICON: Record<string, LucideIcon> = {
   'guest-loyalty': Heart,
   'guest-notes': MessageSquare,
   'guest-reengagement': UserPlus,
+  // Növekedés / bevétel-lehetőségek
+  'growth-vouchers': Gift,
+  'growth-reviews': ExternalLink,
+  'growth-deposit': ShieldCheck,
+  'growth-campaign': Send,
 }
 
 export function TipsAdvisorView({
@@ -269,6 +274,20 @@ export function TipsAdvisorView({
                   Később
                 </button>
               </div>
+            </motion.div>
+          ) : dismissedWeekly ? (
+            // A user KÉZZEL dismissolta a heti tippet — ez NEM ugyanaz, mint amikor tényleg
+            // nincs javaslat (lásd alább), ezért nem állíthatjuk félrevezetően, hogy "nincs
+            // teendő" — inkább a lenti kártya-rácsra tereljük a figyelmet.
+            <motion.div
+              key="weekly-dismissed"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex min-h-[200px] flex-col items-center justify-center rounded-[30px] border border-dashed border-line-strong bg-white/50 p-8 text-center"
+            >
+              <ArrowRight className="h-6 w-6 rotate-90 text-ink-soft2" strokeWidth={2} />
+              <p className="mt-3 text-[14px] font-medium text-ink">További javaslatokat lentebb találsz</p>
+              <p className="mt-1 text-[12.5px] text-ink-soft">Nézd át a kategóriák szerinti kártyákat — mindegyik konkrét, egy kattintással alkalmazható lépés.</p>
             </motion.div>
           ) : (
             <motion.div

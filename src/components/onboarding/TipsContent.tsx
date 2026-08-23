@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import {
   CalendarDays, Briefcase, Users, Clock, Settings, BarChart2, Armchair, LayoutDashboard, Printer, Bell,
-  MapPin, CalendarRange, CreditCard, Coins, Smartphone,
+  MapPin, CalendarRange, CreditCard, Coins, Smartphone, Gift, Megaphone, Wallet, Star, ShieldCheck,
 } from 'lucide-react'
 import { PageHeader } from '@/components/ui/page-header'
 import { popItem, expandHeight } from '@/lib/motion'
@@ -298,6 +298,77 @@ const TIPS: Record<Variant, Tip[]> = {
       href: '/restaurant/subscription',
       linkLabel: 'Megnyitom az Előfizetést',
     },
+    {
+      id: 'reviews',
+      icon: Star,
+      title: 'Vendég-értékelések',
+      body: 'A látogatás után a vendég egy gyors, saját csillagozó-oldalon értékel — jó értékelésnél egyenesen a Google-ra kerül.',
+      details: 'A visszajelzés-emailben küldött link a saját, egy-koppintásos csillagozó-oldaladra visz — nem kell Google-fiók, nem kell regisztráció. Ha a vendég 4 vagy 5 csillagot ad, az oldal automatikusan átirányítja a Google-értékelő oldaladra (ha az be van kötve a Google fülön), így a jó véleményed valóban megjelenik a Google-találatokban is. Alacsonyabb értékelésnél a visszajelzés csak nálad marad — privát, nem kerül nyilvánosságra.',
+      bullets: [
+        'A Google fülön (Beállítások → Google) add meg az étterem Google-értékelő linkjét, hogy a 4-5★ vendégek oda kerüljenek.',
+        'A vendég csillagozása és véleménye a Vendégek oldalon, az adott vendég profiljánál is megjelenik.',
+        'A visszajelzés-kérő email időzítése (1 óra / 2 óra / másnap) a Google fülön állítható.',
+      ],
+      href: '/restaurant/settings?tab=google',
+      linkLabel: 'Megnyitom a Google beállításokat',
+    },
+    {
+      id: 'vouchers',
+      icon: Gift,
+      title: 'Ajándékutalvány',
+      body: 'A vendégeid ajándékba is vehetnek nálad utalványt — extra bevétel, még szezonon kívül is.',
+      details: 'Az ajándékutalvány önálló, beépített funkció: a vendég a publikus oldaladon választott összegben vásárolhat utalványt, amit aztán beváltás vagy asztalfoglaláskor tud felhasználni. Nincs hozzá külön integráció — csak be kell kapcsolni és beállítani az összeghatárokat és az érvényességi időt.',
+      bullets: [
+        'Kapcsold be a Beállítások → Foglalás fülön, és állítsd be a minimum/maximum összeget és az érvényességi időt (alapból 12 hónap).',
+        'Az eladott és beváltott utalványok a Beállításokban követhetők.',
+        'Kiváló ajándékötlet ünnepek előtt — érdemes a publikus oldaladon és a közösségi médiában is megosztani.',
+      ],
+      href: '/restaurant/settings?tab=booking',
+      linkLabel: 'Megnyitom a Foglalás beállításokat',
+    },
+    {
+      id: 'marketing',
+      icon: Megaphone,
+      title: 'Hírlevél / marketing-kampány',
+      body: 'Küldj hírlevelet a vendégeidnek — ez benne van az előfizetésedben, nincs külön költsége.',
+      details: 'A Marketing oldalon a vendéglistádból (akik hozzájárultak) egyszerű hírlevél-kampányt indíthatsz — pl. egy akció, egy szezonális ajánlat vagy egyszerűen egy emlékeztető, hogy visszavárod őket. A funkció a csomagodba épített, nincs küldésenkénti díj.',
+      bullets: [
+        'A vendégek csak akkor kerülnek a listára, ha ehhez hozzájárultak (feliratkozás/leiratkozás-kezelés automatikus).',
+        'A leghasznosabb célcsoport a régen nem járt, korábban aktív vendég — a Vendégek oldalon szűrhetsz erre.',
+        'A kampány állapota és a korábbi küldések a Marketing oldalon követhetők.',
+      ],
+      href: '/restaurant/marketing',
+      linkLabel: 'Megnyitom a Marketinget',
+    },
+    {
+      id: 'payments',
+      icon: Wallet,
+      title: 'Vendég-előleg és online fizetés',
+      body: 'Kérj előleget a foglaláskor — kevesebb no-show, és lemondás esetén is marad bevétel.',
+      details: 'A Stripe Connect bekötése után a foglaláskor előleget kérhetsz a vendégtől — fix összeget, százalékot vagy fejenkénti díjat. Ez az egyik leghatékonyabb eszköz a meg nem jelenés ellen: aki előre fizetett, jóval nagyobb eséllyel meg is jelenik, vagy időben lemondja a helyet.',
+      bullets: [
+        'A Fizetés fülön kötheted be a Stripe Connect fiókodat (ehhez valós bankszámla-adat kell).',
+        'Az előleg típusa (fix / százalék / fejenként) és összege szabadon állítható.',
+        'A beérkezett előlegek és a kifizetések a Fizetés fülön követhetők.',
+      ],
+      href: '/restaurant/settings?tab=payments',
+      linkLabel: 'Megnyitom a Fizetés beállításokat',
+    },
+    {
+      id: 'permissions',
+      icon: ShieldCheck,
+      title: 'Jogosultságok — ki mit láthat/kezelhet',
+      body: 'A csapat & jogok rendszerrel pontosan szabályozod, ki mit lát és mit szerkeszthet — a tulajdonos mindig mindent.',
+      details: 'Minden csapattag (a tulajdonos kivételével) egy egyedi szerephez van kötve, aminek te állítod be a jogait — nincs alapból "menedzser" vagy "dolgozó" jogkészlet. Egy szerep-definíció létrehozása és szerkesztése (a jog-lista maga) mindig kizárólag a tulajdonosnak elérhető — egy csapattag legfeljebb MEGLÉVŐ szerepeket oszthat ki másoknak, ha van hozzá "Csapat kezelése" joga, de új szerepet nem hozhat létre és meglévőt nem módosíthat.',
+      bullets: [
+        'Aki nem kap semmilyen szerepet, csak belép, de üres a felülete — a jogokat neked kell hozzárendelned.',
+        '"Csapat megtekintése"/"Csapat kezelése" a csapat-listát és a meghívást szabályozza; "Jogosultságok megtekintése" külön jog ahhoz, hogy valaki lássa magukat a szerep-definíciókat.',
+        '"Mások fizetésének megtekintése" külön jog — a saját fizetését mindenki látja jog nélkül is, de mások fizetését csak akinek ezt kifejezetten megadod.',
+        'A "Veszélyzóna" (üzlet törlése) sosem adható ki — az mindig tulajdonos-jog marad.',
+      ],
+      href: '/restaurant/settings?tab=team',
+      linkLabel: 'Megnyitom a Csapat & jogokat',
+    },
   ],
   salon: [
     {
@@ -527,6 +598,77 @@ const TIPS: Record<Variant, Tip[]> = {
       href: '/dashboard/subscription',
       linkLabel: 'Megnyitom az Előfizetést',
     },
+    {
+      id: 'reviews',
+      icon: Star,
+      title: 'Vendég-értékelések',
+      body: 'A látogatás után a vendég egy gyors, saját csillagozó-oldalon értékel — jó értékelésnél egyenesen a Google-ra kerül.',
+      details: 'A visszajelzés-emailben küldött link a saját, egy-koppintásos csillagozó-oldaladra visz — nem kell Google-fiók, nem kell regisztráció. Ha a vendég 4 vagy 5 csillagot ad, az oldal automatikusan átirányítja a Google-értékelő oldaladra (ha az be van kötve a Google fülön), így a jó véleményed valóban megjelenik a Google-találatokban is. Alacsonyabb értékelésnél a visszajelzés csak nálad marad — privát, nem kerül nyilvánosságra.',
+      bullets: [
+        'A Google fülön (Beállítások → Google) add meg a szalon Google-értékelő linkjét, hogy a 4-5★ vendégek oda kerüljenek.',
+        'A vendég csillagozása és véleménye a Vendégek oldalon, az adott vendég profiljánál is megjelenik.',
+        'A visszajelzés-kérő email időzítése (1 óra / 2 óra / másnap) a Google fülön állítható.',
+      ],
+      href: '/dashboard/settings?tab=google',
+      linkLabel: 'Megnyitom a Google beállításokat',
+    },
+    {
+      id: 'vouchers',
+      icon: Gift,
+      title: 'Ajándékutalvány',
+      body: 'A vendégeid ajándékba is vehetnek nálad utalványt — extra bevétel, még szezonon kívül is.',
+      details: 'Az ajándékutalvány önálló, beépített funkció: a vendég a publikus oldaladon választott összegben vásárolhat utalványt, amit aztán beváltás vagy időpontfoglaláskor tud felhasználni. Nincs hozzá külön integráció — csak be kell kapcsolni és beállítani az összeghatárokat és az érvényességi időt.',
+      bullets: [
+        'Kapcsold be a Beállítások → Foglalás fülön, és állítsd be a minimum/maximum összeget és az érvényességi időt (alapból 12 hónap).',
+        'Az eladott és beváltott utalványok a Beállításokban követhetők.',
+        'Kiváló ajándékötlet ünnepek előtt — érdemes a publikus oldaladon és a közösségi médiában is megosztani.',
+      ],
+      href: '/dashboard/settings?tab=booking',
+      linkLabel: 'Megnyitom a Foglalás beállításokat',
+    },
+    {
+      id: 'marketing',
+      icon: Megaphone,
+      title: 'Hírlevél / marketing-kampány',
+      body: 'Küldj hírlevelet a vendégeidnek — ez benne van az előfizetésedben, nincs külön költsége.',
+      details: 'A Marketing oldalon a vendéglistádból (akik hozzájárultak) egyszerű hírlevél-kampányt indíthatsz — pl. egy akció, egy szezonális ajánlat vagy egyszerűen egy emlékeztető, hogy visszavárod őket. A funkció a csomagodba épített, nincs küldésenkénti díj.',
+      bullets: [
+        'A vendégek csak akkor kerülnek a listára, ha ehhez hozzájárultak (feliratkozás/leiratkozás-kezelés automatikus).',
+        'A leghasznosabb célcsoport a régen nem járt, korábban aktív vendég — a Vendégek oldalon szűrhetsz erre.',
+        'A kampány állapota és a korábbi küldések a Marketing oldalon követhetők.',
+      ],
+      href: '/dashboard/marketing',
+      linkLabel: 'Megnyitom a Marketinget',
+    },
+    {
+      id: 'payments',
+      icon: Wallet,
+      title: 'Vendég-előleg és online fizetés',
+      body: 'Kérj előleget a foglaláskor — kevesebb no-show, és lemondás esetén is marad bevétel.',
+      details: 'A Stripe Connect bekötése után a foglaláskor előleget kérhetsz a vendégtől — fix összeget, százalékot vagy fejenkénti díjat. Ez az egyik leghatékonyabb eszköz a meg nem jelenés ellen: aki előre fizetett, jóval nagyobb eséllyel meg is jelenik, vagy időben lemondja az időpontot.',
+      bullets: [
+        'A Fizetés fülön kötheted be a Stripe Connect fiókodat (ehhez valós bankszámla-adat kell).',
+        'Az előleg típusa (fix / százalék / fejenként) és összege szabadon állítható.',
+        'A beérkezett előlegek és a kifizetések a Fizetés fülön követhetők.',
+      ],
+      href: '/dashboard/settings?tab=payments',
+      linkLabel: 'Megnyitom a Fizetés beállításokat',
+    },
+    {
+      id: 'permissions',
+      icon: ShieldCheck,
+      title: 'Jogosultságok — ki mit láthat/kezelhet',
+      body: 'A csapat & jogok rendszerrel pontosan szabályozod, ki mit lát és mit szerkeszthet — a tulajdonos mindig mindent.',
+      details: 'Minden csapattag (a tulajdonos kivételével) egy egyedi szerephez van kötve, aminek te állítod be a jogait — nincs alapból "menedzser" vagy "dolgozó" jogkészlet. Egy szerep-definíció létrehozása és szerkesztése (a jog-lista maga) mindig kizárólag a tulajdonosnak elérhető — egy csapattag legfeljebb MEGLÉVŐ szerepeket oszthat ki másoknak, ha van hozzá "Csapat kezelése" joga, de új szerepet nem hozhat létre és meglévőt nem módosíthat.',
+      bullets: [
+        'Aki nem kap semmilyen szerepet, csak belép, de üres a felülete — a jogokat neked kell hozzárendelned.',
+        '"Csapat megtekintése"/"Csapat kezelése" a csapat-listát és a meghívást szabályozza; "Jogosultságok megtekintése" külön jog ahhoz, hogy valaki lássa magukat a szerep-definíciókat.',
+        '"Mások fizetésének megtekintése" külön jog — a saját fizetését mindenki látja jog nélkül is, de mások fizetését csak akinek ezt kifejezetten megadod.',
+        'A "Veszélyzóna" (üzlet törlése) sosem adható ki — az mindig tulajdonos-jog marad.',
+      ],
+      href: '/dashboard/settings?tab=team',
+      linkLabel: 'Megnyitom a Csapat & jogokat',
+    },
   ],
 }
 
@@ -548,10 +690,13 @@ const TIP_REQUIRED_CAP: Record<string, Capability | Capability[]> = {
   availability:           'settings.profile',
   analytics:              'analytics.view',
   tips:                   'tips.view',
-  notifications:          ['notifications.view', 'notifications.manage'],
-  'notifications-manage': 'notifications.manage',
   settings:               'settings.profile',
   subscription:           'billing.manage',
+  reviews:                'settings.profile',
+  vouchers:               'settings.profile',
+  marketing:              ['marketing.view', 'marketing.manage'],
+  payments:               'payments.manage',
+  permissions:            ['team.view', 'team.manage', 'roles.view'],
 }
 
 function tipVisible(id: string, caps: Capability[]): boolean {
@@ -575,6 +720,7 @@ const GROUP_OF: Record<string, GroupId> = {
   services: 'setup', tables: 'setup', schedule: 'setup', staff: 'setup', 'staff-manage': 'setup',
   availability: 'setup', notifications: 'setup', 'notifications-manage': 'setup', pwa: 'setup', settings: 'setup',
   tips: 'growth', analytics: 'growth', 'tips-money': 'growth', subscription: 'growth',
+  vouchers: 'setup', payments: 'setup', permissions: 'setup', reviews: 'growth', marketing: 'growth',
 }
 
 const GROUPS: { id: GroupId; label: string; tile: string; iconColor: string }[] = [

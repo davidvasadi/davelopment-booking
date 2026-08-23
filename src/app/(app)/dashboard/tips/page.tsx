@@ -22,7 +22,7 @@ export default async function SalonTipsPage() {
   in14.setDate(in14.getDate() + 14)
   const in14Str = ymd(in14)
 
-  const [stats, availRes, servicesRes, shiftsAheadRes, pendingBookRes] = await Promise.all([
+  const [stats, availRes, servicesRes, shiftsAheadRes, pendingBookRes, campaignRes] = await Promise.all([
     getDashboardStats(salon.id, 30),
     payload.find({
       collection: 'availability',
@@ -50,6 +50,14 @@ export default async function SalonTipsPage() {
           limit: 1, depth: 0, overrideAccess: true,
         })
       : null,
+    // Csak marketing.manage joggal rendelkezőknek — a "küldj kampányt" tipp gate-je.
+    can(capabilities, 'marketing.manage')
+      ? payload.find({
+          collection: 'marketing-campaigns',
+          where: { salon: { equals: salon.id } },
+          limit: 1, depth: 0, overrideAccess: true,
+        })
+      : null,
   ])
 
   const setup: SetupFlags = {
@@ -57,6 +65,7 @@ export default async function SalonTipsPage() {
     catalog: servicesRes.totalDocs > 0,
     scheduleFilledAhead: shiftsAheadRes ? shiftsAheadRes.totalDocs > 0 : undefined,
     hasPendingBookings: pendingBookRes ? pendingBookRes.totalDocs > 0 : undefined,
+    hasSentCampaign: campaignRes ? campaignRes.totalDocs > 0 : undefined,
   }
 
   const data = buildSalonAdvisor(salon, setup, stats, capabilities)
