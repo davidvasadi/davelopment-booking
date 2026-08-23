@@ -73,7 +73,7 @@ function initials(name: string): string {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
 
-export default function RestaurantTeamManager({ initialTeam, employees, customRoles = [], canManage = false, canEditSalary = false }: { initialTeam: TeamCard[]; employees?: Employee[]; customRoles?: { id: string; name: string }[]; canManage?: boolean; canEditSalary?: boolean }) {
+export default function RestaurantTeamManager({ initialTeam, employees, customRoles = [], canManage = false, canEditSalary = false, viewerEmail = null }: { initialTeam: TeamCard[]; employees?: Employee[]; customRoles?: { id: string; name: string }[]; canManage?: boolean; canEditSalary?: boolean; viewerEmail?: string | null }) {
   const [team, setTeam] = useState<TeamCard[]>(initialTeam)
   const [roster, setRoster] = useState<Employee[]>(employees ?? [])
 
@@ -636,6 +636,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
         positions={customRoles.map((r) => ({ label: r.name, level: 'staff' as const }))}
         canManage={canManage}
         canEditSalary={canEditSalary}
+        viewerEmail={viewerEmail}
         statusById={Object.fromEntries(
           team.filter((t) => t.id).map((t): [string, 'active' | 'invited' | 'suspended'] => [t.id as string, t.status]),
         )}

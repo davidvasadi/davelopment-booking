@@ -7,49 +7,37 @@ import {
   Plus, Pencil, Trash2, Check, X, Loader2, ShieldCheck, ShieldAlert,
   LayoutDashboard, CalendarDays, CalendarRange, MapPin, Briefcase, Armchair,
   Users, BarChart2, Settings, Shield, CreditCard, AlertTriangle, ScrollText,
-  ChevronRight, Sparkles, Clock, Gift, Megaphone, UserRound,
+  ChevronRight, Sparkles, Clock, Gift, Megaphone, Bell,
   type LucideIcon,
 } from 'lucide-react'
 import { CAPABILITY_META, type Capability } from '@/lib/permissions'
+import { Toggle } from './SettingsToggle'
 
-/** Melyik capability dönti el az Áttekintés-nézetet — ez kapja a saját, elsőrangú választót. */
-const OVERVIEW_CAPABILITY: Capability = 'analytics.view'
 
 export type NotificationPrefs = {
   bookings: boolean
-  system: boolean
-  staff: boolean
   schedule: boolean
 }
 
 const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
   bookings: true,
-  system: false,
-  staff: false,
   schedule: false,
 }
 
+// "Rendszer"/"Munkatársak" kategóriák töröltek — semmilyen tényleges értesítést nem
+// gate-eltek soha (halott UI volt, a hozzájuk tartozó `notifications.system`/
+// `notifications.staff` capability soha semmit nem ellenőrzött).
 const NOTIF_CATEGORIES: { key: keyof NotificationPrefs; label: string; sub: string }[] = [
   { key: 'bookings',  label: 'Foglalás',    sub: 'Új foglalás, lemondás, módosítás' },
-  { key: 'system',   label: 'Rendszer',    sub: 'Rendszer-, fiók- és díjértesítők' },
-  { key: 'staff',    label: 'Munkatársak', sub: 'Csapattagokhoz kapcsolódó események' },
   { key: 'schedule', label: 'Beosztás',    sub: 'Heti beosztás elkészülte és változása' },
 ]
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <button type="button" role="switch" aria-checked={checked} onClick={onChange}
-      className={`relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors ${checked ? 'bg-ink-dark' : 'bg-[#DAD5C6]'}`}>
-      <span className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${checked ? 'right-[3px] bg-white' : 'left-[3px] bg-white'}`} />
-    </button>
-  )
-}
 
 export interface RoleRow {
   id: string
   name: string
   capabilities?: Capability[] | null
   notification_prefs?: NotificationPrefs | null
+  booking_notify_level?: 'off' | 'own' | 'all' | null
 }
 
 // ── ELŐRE DEFINIÁLT SABLONOK ──────────────────────────────────────────────────
@@ -60,6 +48,9 @@ type RoleTemplate = {
   icon: LucideIcon
   desc: string
   caps: Capability[]
+  /** A sablon a Foglalás-értesítés szintjét is előtölti — nincs alapértelmezett érték nélkül
+   *  hagyva, mint a `booking_notify_level` mező (ami sose kapott sablon-előtöltést eddig). */
+  bookingNotifyLevel: 'off' | 'own' | 'all'
 }
 
 const SALON_TEMPLATES: RoleTemplate[] = [
@@ -81,6 +72,7 @@ const SALON_TEMPLATES: RoleTemplate[] = [
       'tips.view', 'tips.manage',
       'settings.profile', 'team.view', 'audit.view',
     ],
+    bookingNotifyLevel: 'all',
   },
   {
     id: 'receptionist',
@@ -95,6 +87,7 @@ const SALON_TEMPLATES: RoleTemplate[] = [
       'schedule.view.own',
       'settings.own_profile',
     ],
+    bookingNotifyLevel: 'all',
   },
   {
     id: 'stylist',
@@ -108,6 +101,7 @@ const SALON_TEMPLATES: RoleTemplate[] = [
       'analytics.view.own',
       'settings.own_profile',
     ],
+    bookingNotifyLevel: 'own',
   },
   {
     id: 'assistant',
@@ -119,6 +113,7 @@ const SALON_TEMPLATES: RoleTemplate[] = [
       'schedule.view.own',
       'settings.own_profile',
     ],
+    bookingNotifyLevel: 'off',
   },
 ]
 
@@ -141,6 +136,7 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
       'tips.view', 'tips.manage',
       'settings.profile', 'team.view', 'audit.view',
     ],
+    bookingNotifyLevel: 'all',
   },
   {
     id: 'scheduler',
@@ -156,6 +152,7 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
       'analytics.view.own',
       'settings.own_profile',
     ],
+    bookingNotifyLevel: 'all',
   },
   {
     id: 'head_waiter',
@@ -171,6 +168,7 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
       'analytics.view.own',
       'settings.own_profile',
     ],
+    bookingNotifyLevel: 'all',
   },
   {
     id: 'waiter',
@@ -184,6 +182,7 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
       'analytics.view.own',
       'settings.own_profile',
     ],
+    bookingNotifyLevel: 'off',
   },
 ]
 
@@ -206,20 +205,20 @@ const GROUP_ICON: Record<string, LucideIcon> = {
   Számlázás:        CreditCard,
   Veszélyzóna:      AlertTriangle,
   Audit:            ScrollText,
+  Értesítések:      Bell,
 }
 
 const DANGER_GROUPS = new Set(['Veszélyzóna'])
 
 // Csoportok variant-szűréssel: szalon nem látja az Asztalokat, étterem nem látja a Szolgáltatásokat.
-// Az `analytics.view` KIMARAD a sima chip-listából — saját, elsőrangú Áttekintés-nézet
-// választót kap fentebb (lásd `OVERVIEW_CAPABILITY`), nem egy checkbox a 26 közül.
-// Az `overview.view` is KIMARAD: ez az egyedi szerep alap-küszöbe, amit `effectiveCapabilities()`
-// mindig automatikusan hozzáad — checkboxként megjelenítve élő, de hatástalan kapcsoló lenne.
-// Az `analytics.view.own` is KIMARAD: saját, másodlagos kapcsolót kap az Áttekintés-nézet
-// választó alatt (csak Alkalmazotti nézetnél értelmezett), nem a sima chip-listában.
+// Minden jogosultság EGYSÉGESEN, ugyanolyan chipen jelenik meg (user-döntés: nincs külön,
+// "elsőrangú" kártyás kivétel egyiknek sem) — az `analytics.view`/`analytics.view.own` is sima
+// chip a Statisztika csoportban. Az `overview.view` az EGYETLEN kivétel: ez az egyedi szerep
+// alap-küszöbe, amit `effectiveCapabilities()` mindig automatikusan hozzáad — checkboxként
+// megjelenítve élő, de hatástalan kapcsoló lenne (soha nem lehetne kikapcsolni).
 function buildGroups(variant: 'salon' | 'restaurant') {
   return CAPABILITY_META
-    .filter((c) => c.value !== OVERVIEW_CAPABILITY && c.value !== 'overview.view' && c.value !== 'analytics.view.own' && (!c.variant || c.variant === variant))
+    .filter((c) => c.value !== 'overview.view' && (!c.variant || c.variant === variant))
     .reduce<Record<string, typeof CAPABILITY_META>>((acc, c) => {
       ;(acc[c.group] ??= []).push(c)
       return acc
@@ -242,16 +241,22 @@ export function RolesManager({
   businessId,
   initialRoles,
   myCapabilities,
+  isOwner = false,
 }: {
   variant: 'salon' | 'restaurant'
   businessId: string
   initialRoles: RoleRow[]
   myCapabilities: Capability[]
+  /** Szerep-DEFINÍCIÓ létrehozása/szerkesztése/törlése szándékosan owner-only (a szerver is ezt
+   *  kényszeríti ki) — nem-tulaj `team.manage`-es tag csak MEGLÉVŐ szerepeket oszthat ki
+   *  embereknek, a jog-listát magát nem módosíthatja (anti-eszkaláció). */
+  isOwner?: boolean
 }) {
   const [roles, setRoles] = useState<RoleRow[]>(initialRoles)
   const [editing, setEditing] = useState<RoleRow | 'new' | null>(null)
   const [name, setName] = useState('')
   const [caps, setCaps] = useState<Set<Capability>>(new Set())
+  const [bookingNotifyLevel, setBookingNotifyLevel] = useState<'off' | 'own' | 'all'>('off')
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
 
@@ -259,25 +264,18 @@ export function RolesManager({
   const templates = variant === 'salon' ? SALON_TEMPLATES : RESTAURANT_TEMPLATES
   const groups = buildGroups(variant)
 
-  function openNew() { setEditing('new'); setName(''); setCaps(new Set()) }
-  function openEdit(r: RoleRow) { setEditing(r); setName(r.name); setCaps(new Set(r.capabilities ?? [])) }
+  function openNew() { setEditing('new'); setName(''); setCaps(new Set()); setBookingNotifyLevel('off') }
+  function openEdit(r: RoleRow) { setEditing(r); setName(r.name); setCaps(new Set(r.capabilities ?? [])); setBookingNotifyLevel(r.booking_notify_level ?? 'off') }
 
   function applyTemplate(t: RoleTemplate) {
     setName(t.name)
     setCaps(new Set(t.caps.filter((c) => grantable.has(c))))
+    // "own" csak szalonnál értelmezhető (lásd `roles.booking_notify_level` admin-leírása).
+    setBookingNotifyLevel(variant === 'restaurant' && t.bookingNotifyLevel === 'own' ? 'off' : t.bookingNotifyLevel)
   }
 
   function toggle(c: Capability) {
     setCaps((prev) => { const n = new Set(prev); n.has(c) ? n.delete(c) : n.add(c); return n })
-  }
-
-  function setOverviewView(view: 'owner' | 'staff') {
-    setCaps((prev) => {
-      const n = new Set(prev)
-      if (view === 'owner') n.add(OVERVIEW_CAPABILITY)
-      else n.delete(OVERVIEW_CAPABILITY)
-      return n
-    })
   }
 
   async function save() {
@@ -292,12 +290,12 @@ export function RolesManager({
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(isNew
-          ? { type: variant, id: businessId, name: nm, capabilities }
-          : { name: nm, capabilities }),
+          ? { type: variant, id: businessId, name: nm, capabilities, booking_notify_level: bookingNotifyLevel }
+          : { name: nm, capabilities, booking_notify_level: bookingNotifyLevel }),
       })
       if (!res.ok) throw new Error()
       const json = await res.json()
-      const saved: RoleRow = { id: String((json?.doc ?? json).id), name: nm, capabilities }
+      const saved: RoleRow = { id: String((json?.doc ?? json).id), name: nm, capabilities, booking_notify_level: bookingNotifyLevel }
       const next = isNew ? [...roles, saved] : roles.map((r) => (r.id === saved.id ? saved : r))
       setRoles(next)
       window.dispatchEvent(new CustomEvent('davelopment:roles-changed', { detail: next.map((r) => ({ id: r.id, name: r.name })) }))
@@ -344,7 +342,7 @@ export function RolesManager({
             <div className="text-[12.5px] text-ink-soft">Saját jogosultságok az üzletedhez</div>
           </div>
         </div>
-        {editing === null && (
+        {editing === null && isOwner && (
           <button onClick={openNew} className="inline-flex items-center gap-1.5 rounded-dav-pill bg-ink-dark px-3.5 py-2 text-[13px] font-semibold text-white">
             <Plus className="h-4 w-4 text-gold" strokeWidth={2.5} />
             Új szerep
@@ -386,7 +384,7 @@ export function RolesManager({
                       initial={{ opacity: 0, y: 6 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.97 }}
-                      transition={{ type: 'spring', stiffness: 420, damping: 32 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                       className="group flex items-center gap-3 rounded-[18px] border border-line bg-white/70 px-4 py-3.5 transition-colors hover:bg-white/90"
                     >
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F4F2EC]">
@@ -405,14 +403,16 @@ export function RolesManager({
                           )}
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                        <button onClick={() => openEdit(r)} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-ink-soft hover:bg-black/[0.06] hover:text-ink">
-                          <Pencil className="h-[15px] w-[15px]" />
-                        </button>
-                        <button onClick={() => remove(r)} disabled={deletingId === r.id} title="Törlés" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-bad hover:bg-bad/10 disabled:opacity-40">
-                          {deletingId === r.id ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Trash2 className="h-[15px] w-[15px]" />}
-                        </button>
-                      </div>
+                      {isOwner && (
+                        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                          <button onClick={() => openEdit(r)} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-ink-soft hover:bg-black/[0.06] hover:text-ink">
+                            <Pencil className="h-[15px] w-[15px]" />
+                          </button>
+                          <button onClick={() => remove(r)} disabled={deletingId === r.id} title="Törlés" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-bad hover:bg-bad/10 disabled:opacity-40">
+                            {deletingId === r.id ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Trash2 className="h-[15px] w-[15px]" />}
+                          </button>
+                        </div>
+                      )}
                     </motion.div>
                   )
                 })}
@@ -426,7 +426,7 @@ export function RolesManager({
           <motion.div
             key="editor"
             initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 420, damping: 32 } }}
+            animate={{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 500, damping: 30 } }}
             exit={{ opacity: 0, y: 8, transition: { duration: 0.14 } }}
             className="mt-4 space-y-5"
           >
@@ -524,86 +524,6 @@ export function RolesManager({
               />
             </div>
 
-            {/* Áttekintés-nézet — elsőrangú, jól látható választó (NEM egy checkbox a 26 közül):
-                ez dönti el, hogy a szerep a teljes cég-KPI-kat (Tulajdonosi — Áttekintés ÉS
-                Statisztikák, ugyanaz az `analytics.view` capability mindkettőn) vagy a saját
-                műszakot/foglalást (Alkalmazotti, `StaffOverview`) lássa-e. Alkalmazotti nézetnél
-                még külön eldönthető, hogy kapjon-e SAJÁT Statisztika-oldalt is (`analytics.view.own`
-                — szalonban saját foglalás/bevétel, étteremben saját beosztás). */}
-            <div>
-              <label className="mb-2 block text-[12.5px] font-semibold uppercase tracking-wide text-ink-soft">
-                Áttekintés- és Statisztika-nézet
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                {([
-                  { view: 'owner' as const, Icon: LayoutDashboard, title: 'Tulajdonosi nézet', desc: 'Teljes cég-KPI-k (Áttekintés + Statisztikák)' },
-                  { view: 'staff' as const, Icon: UserRound, title: 'Alkalmazotti nézet', desc: 'Saját műszak/foglalás' },
-                ]).map(({ view, Icon, title, desc }) => {
-                  const isOwnerView = caps.has(OVERVIEW_CAPABILITY)
-                  const isSelected = view === 'owner' ? isOwnerView : !isOwnerView
-                  const disabled = view === 'owner' && !grantable.has(OVERVIEW_CAPABILITY)
-                  return (
-                    <button
-                      key={view}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => setOverviewView(view)}
-                      className={[
-                        'flex items-start gap-2.5 rounded-[16px] border p-3.5 text-left transition-all',
-                        disabled
-                          ? 'cursor-not-allowed border-line/50 bg-black/[0.02] text-ink-soft2/40'
-                          : isSelected
-                          ? 'border-ink-dark/30 bg-ink-dark/[0.04] ring-1 ring-ink-dark/10'
-                          : 'border-line bg-white hover:border-line-strong hover:bg-[#fafaf8]',
-                      ].join(' ')}
-                    >
-                      <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] ${disabled ? 'bg-black/[0.04]' : 'bg-gold/15'}`}>
-                        <Icon className={`h-4 w-4 ${disabled ? 'text-ink-soft2/50' : 'text-ink-dark'}`} strokeWidth={1.8} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[13px] font-semibold text-ink">{title}</span>
-                          {isSelected && !disabled && <Check className="h-3.5 w-3.5 text-gold" strokeWidth={2.5} />}
-                        </div>
-                        <div className="mt-0.5 text-[11.5px] leading-snug text-ink-soft">
-                          {disabled ? 'Ehhez nincs jogosultságod' : desc}
-                        </div>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Másodlagos kapcsoló — CSAK Alkalmazotti nézetnél értelmezett (Tulajdonosi nézet
-                  már eleve a teljes Statisztikákat is adja). */}
-              {!caps.has(OVERVIEW_CAPABILITY) && (
-                <label
-                  className={[
-                    'mt-2 flex items-center justify-between gap-3 rounded-[14px] border p-3 transition-all',
-                    grantable.has('analytics.view.own') ? 'border-line bg-white' : 'cursor-not-allowed border-line/50 bg-black/[0.02]',
-                  ].join(' ')}
-                >
-                  <span className="min-w-0">
-                    <span className={`block text-[12.5px] font-semibold ${grantable.has('analytics.view.own') ? 'text-ink' : 'text-ink-soft2/50'}`}>
-                      Saját statisztika megtekintése is
-                    </span>
-                    <span className="block text-[11px] leading-snug text-ink-soft2">
-                      Külön Statisztika-oldal a saját adatokból (nem a teljes cégé)
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={caps.has('analytics.view.own')}
-                    disabled={!grantable.has('analytics.view.own')}
-                    onClick={() => toggle('analytics.view.own')}
-                    className={`relative h-6 w-10 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${caps.has('analytics.view.own') ? 'bg-ink-dark' : 'bg-line-strong'}`}
-                  >
-                    <span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-all ${caps.has('analytics.view.own') ? 'left-5' : 'left-1'}`} />
-                  </button>
-                </label>
-              )}
-            </div>
 
             {/* Jogosultság-chipek */}
             <div>
@@ -620,6 +540,51 @@ export function RolesManager({
               </div>
 
               <motion.div variants={CHIP_LIST} initial="hidden" animate="show" className="space-y-4">
+                {/* Értesítések — a "Foglalás-értesítés" szint (booking_notify_level) ugyanolyan
+                    chipen, mint a sima jogosultságok, csak a 3 (szalonnál) / 2 (étteremnél) opció
+                    EGYMÁST KIZÁRÓ (nem külön-külön kapcsolható, mint a sima chipeknél). Elöl, hogy
+                    a Veszélyzóna maradjon a lista LEGVÉGÉN (lásd `CAPABILITY_META` sorrendje). */}
+                <motion.div variants={CHIP_ITEM}>
+                  <div className="mb-2 flex items-center gap-1.5">
+                    <Bell className="h-[13px] w-[13px] text-ink-soft2" strokeWidth={2} />
+                    <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-soft2">
+                      Értesítések
+                    </span>
+                    <div className="flex-1 border-t border-line" />
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {(variant === 'salon'
+                      ? ([
+                          { level: 'off' as const, label: 'Foglalás-értesítés: kikapcsolva' },
+                          { level: 'own' as const, label: 'Foglalás-értesítés: csak a sajátja' },
+                          { level: 'all' as const, label: 'Foglalás-értesítés: az összes' },
+                        ])
+                      : ([
+                          { level: 'off' as const, label: 'Foglalás-értesítés: kikapcsolva' },
+                          { level: 'all' as const, label: 'Foglalás-értesítés: bekapcsolva' },
+                        ])
+                    ).map(({ level, label }) => {
+                      const isOn = bookingNotifyLevel === level
+                      return (
+                        <button
+                          key={level}
+                          type="button"
+                          onClick={() => setBookingNotifyLevel(level)}
+                          className={[
+                            'inline-flex items-center gap-1.5 rounded-[11px] border px-3 py-[7px] text-[12.5px] font-medium transition-all',
+                            isOn
+                              ? 'border-transparent bg-ink-dark text-white shadow-sm'
+                              : 'border-line bg-white text-ink hover:border-line-strong hover:bg-[#fafaf8]',
+                          ].join(' ')}
+                        >
+                          {isOn && <Check className="h-[13px] w-[13px] shrink-0 text-gold" strokeWidth={2.5} />}
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </motion.div>
+
                 {Object.entries(groups).map(([group, items]) => {
                   const Icon = GROUP_ICON[group] ?? Shield
                   const isDanger = DANGER_GROUPS.has(group)

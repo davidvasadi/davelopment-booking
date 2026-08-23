@@ -74,9 +74,10 @@ export async function notifyShiftMember(
     const url = `${scheduleBase}?date=${shiftDate}`
     await sendPushToUsers(payload, [userId], { title, body, url, tag: `shift-${event}-${userId}` })
 
-    // Email értesítés — az üzlet neve + logója a fejlécbe.
+    // Email értesítés — SAJÁT, alapból KIKAPCSOLT preferencia mögött (schedule_email), a
+    // push/in-app-tól függetlenül — az app a fő csatorna, ez csak opt-in.
     const userEmail = fullUser?.email as string | null | undefined
-    if (userEmail) {
+    if (userEmail && personalPrefs?.schedule_email === true) {
       const biz = await payload.findByID({ collection: bizType === 'restaurant' ? 'restaurants' : 'salons', id: bizId, depth: 1, overrideAccess: true }).catch(() => null)
       const bizName = (biz as { name?: string } | null)?.name ?? 'davelopment booking'
       const logoField = (biz as { logo?: unknown } | null)?.logo
@@ -145,8 +146,9 @@ export async function notifyShiftStaff(
 
     await sendPushToUsers(payload, [userId], { title, body, url: `/dashboard/schedule?date=${shiftDate}`, tag: `shift-${event}-${userId}` })
 
-    // Email értesítés
-    if (email) {
+    // Email értesítés — SAJÁT, alapból KIKAPCSOLT preferencia mögött (schedule_email), a
+    // push/in-app-tól függetlenül — az app a fő csatorna, ez csak opt-in.
+    if (email && personalPrefs?.schedule_email === true) {
       const salon = await payload.findByID({ collection: 'salons', id: salonId, depth: 1, overrideAccess: true }).catch(() => null)
       const bizName = (salon as { name?: string } | null)?.name ?? 'davelopment booking'
       const logoField = (salon as { logo?: unknown } | null)?.logo

@@ -100,6 +100,12 @@ interface Props {
   avatarUrlByEmail?: Record<string, string>
   /** Ha false, az Új munkatárs / Export / Törlés gombok és a checkbox rejtve. */
   canManage?: boolean
+  /** MÁSOK fizetésének megtekintése/kezelése az adatlapon (`staff.salary`) — a sajátját ettől
+   *  függetlenül mindenki látja (lásd `viewerEmail`), jogosultság nélkül. */
+  canViewOthersSalary?: boolean
+  /** A bejelentkezett néző e-mailje — az adatlap ez alapján ismeri fel, hogy a megnyitott
+   *  profil a sajátja-e (akkor a fizetés jog nélkül is látszik). */
+  viewerEmail?: string | null
 }
 
 /** A staff-avatar VAGY (ha nincs) a személy saját profilképe email-egyezéssel. */
@@ -131,6 +137,8 @@ export default function StaffManager({
   ownerUserId,
   avatarUrlByEmail,
   canManage = false,
+  canViewOthersSalary = false,
+  viewerEmail = null,
 }: Props) {
   const router = useRouter()
 
@@ -946,7 +954,8 @@ export default function StaffManager({
         salonId={salonId}
         openCalendar={openCalendar}
         canManage={canManage}
-        canEditSalary={canManage}
+        canEditSalary={canViewOthersSalary}
+        viewerEmail={viewerEmail}
         onProfileChange={(id, patch) =>
           setEmpList(prev => prev.map(e => e.id === id ? { ...e, ...patch, hr: { ...e.hr, ...(patch.hr ?? {}) } } : e))
         }

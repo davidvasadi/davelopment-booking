@@ -1,30 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Toggle } from './SettingsToggle'
 
-type CategoryKey = 'bookings' | 'system' | 'staff' | 'schedule' | 'digest' | 'email_not_opened'
+export type CategoryKey = 'bookings' | 'schedule' | 'digest' | 'email_not_opened' | 'bookings_email' | 'schedule_email'
 
 const CATS: { key: CategoryKey; label: string; sub: string }[] = [
   { key: 'bookings',  label: 'Foglalás',          sub: 'Új foglalás, lemondás, módosítás' },
-  { key: 'system',   label: 'Rendszer',           sub: 'Rendszer-, fiók- és díjértesítők' },
-  { key: 'staff',    label: 'Munkatársak',        sub: 'Csapattagokhoz kapcsolódó események' },
   { key: 'schedule', label: 'Beosztás',           sub: 'Heti beosztás elkészülte és változása' },
   { key: 'digest',   label: 'Napi összefoglaló',  sub: 'Reggeli és esti forgalom-összefoglaló' },
   { key: 'email_not_opened', label: 'Meg nem nyitott email', sub: 'Ha a vendég 24, majd 12 órával a foglalás előtt sem nyitotta meg a visszaigazolást' },
 ]
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <button type="button" role="switch" aria-checked={checked} onClick={onChange}
-      className={`relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors ${checked ? 'bg-ink-dark' : 'bg-[#DAD5C6]'}`}>
-      <span className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${checked ? 'right-[3px] bg-white' : 'left-[3px] bg-white'}`} />
-    </button>
-  )
-}
+const DEFAULT_PREFS: Record<CategoryKey, boolean> = { bookings: true, schedule: true, digest: true, email_not_opened: true, bookings_email: false, schedule_email: false }
+const DEFAULT_ALLOWED: Record<CategoryKey, boolean> = { bookings: true, schedule: true, digest: false, email_not_opened: false, bookings_email: true, schedule_email: true }
 
-function useNotifPrefs() {
-  const [prefs, setPrefs] = useState<Record<CategoryKey, boolean>>({ bookings: true, system: true, staff: true, schedule: true, digest: true, email_not_opened: true })
-  const [allowed, setAllowed] = useState<Record<CategoryKey, boolean>>({ bookings: true, system: true, staff: true, schedule: true, digest: false, email_not_opened: false })
+export function useNotifPrefs() {
+  const [prefs, setPrefs] = useState<Record<CategoryKey, boolean>>(DEFAULT_PREFS)
+  const [allowed, setAllowed] = useState<Record<CategoryKey, boolean>>(DEFAULT_ALLOWED)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {

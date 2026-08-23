@@ -19,6 +19,8 @@ import {
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
+import { getPayloadClient } from './payload'
+import { isInternalEmailAllowed } from './emailNotifPrefs'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -144,6 +146,10 @@ export async function sendReservationNotification(data: ReservationEmailData, fa
   // Az üzlet kapcsolati e-mailje, vagy ha üres, a megadott tartalék (pl. a tulaj fiók-emailje).
   const to = restaurant.email || fallbackTo
   if (!to) return
+  // Az "Új foglalás" belső email SAJÁT, alapból KIKAPCSOLT preferencia mögött van
+  // (Users.personal_notif_prefs.bookings_email) — az app/push a fő csatorna, ez csak opt-in.
+  const payload = await getPayloadClient()
+  if (!(await isInternalEmailAllowed(payload, to, 'bookings_email'))) return
   const resend = getResend()
   if (!resend) return
   const subjectTpl = (restaurant.notify_email_subject ?? '').trim()
@@ -218,7 +224,6 @@ export async function sendFeedbackRequestEmail(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend || !reservation.customer_email) return
-  if (!(restaurant.feature_modules?.google_review_url ?? '').trim()) return
   const subjectTpl = (restaurant.feedback_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, emailVars(data))
@@ -558,10 +563,9 @@ function reminderHtml(data: ReservationEmailData, cancelUrl: string | null): str
 
 function feedbackHtml(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
-  const googleUrl = (restaurant.feature_modules?.google_review_url ?? '').trim()
-  if (!googleUrl) return ''
-  const reviewUrl = googleUrl
-  const reviewCta = 'Értékelj minket a Google-on'
+  const cancelToken = (reservation as { cancel_token?: string }).cancel_token
+  const reviewUrl = `${APP_URL}/review/${cancelToken}`
+  const reviewCta = 'Értékelés'
   const rows = [
     infoRow('calendar', 'Dátum', reservation.date),
     infoRow('people', 'Fő', `${reservation.pax} fő`),

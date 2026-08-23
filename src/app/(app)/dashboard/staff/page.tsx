@@ -9,7 +9,7 @@ import { getTeamRoster } from '@/lib/teamRoster'
 import { fixMediaUrl } from '@/lib/utils'
 
 export default async function StaffPage() {
-  const { salon, capabilities } = await getOwnedSalon()
+  const { salon, capabilities, userEmail } = await getOwnedSalon()
   requireAnyCapability(capabilities, ['staff.view', 'staff.manage'], '/dashboard')
   const payload = await getPayloadClient()
 
@@ -130,6 +130,8 @@ export default async function StaffPage() {
         invitedEmails={invitedEmails}
         salonRoles={salonRoles}
         canManage={can(capabilities, 'staff.manage')}
+        canViewOthersSalary={can(capabilities, 'staff.salary')}
+        viewerEmail={userEmail}
       />
     </div>
   )

@@ -447,15 +447,11 @@ export interface Role {
         | 'catalog.manage'
         | 'staff.view'
         | 'staff.manage'
+        | 'staff.salary'
+        | 'roles.view'
         | 'tables.view'
         | 'tables.manage'
         | 'analytics.view'
-        | 'notifications.view'
-        | 'notifications.manage'
-        | 'notifications.bookings'
-        | 'notifications.system'
-        | 'notifications.staff'
-        | 'notifications.schedule'
         | 'settings.profile'
         | 'settings.own_profile'
         | 'team.view'
@@ -471,6 +467,7 @@ export interface Role {
     staff?: boolean | null
     schedule?: boolean | null
   } | null
+  booking_notify_level?: ('off' | 'own' | 'all') | null
   createdAt: string
   updatedAt: string
 }
@@ -510,7 +507,7 @@ export interface Membership {
   birthday?: string | null
   address?: string | null
   tax_id?: string | null
-  emergency_contact?: string | null
+  tax_number?: string | null
   join_date?: string | null
   weekly_hours?: number | null
   pay_type?: ('daily' | 'hourly') | null
@@ -638,6 +635,7 @@ export interface User {
   join_date?: string | null
   address?: string | null
   tax_id?: string | null
+  tax_number?: string | null
   emergency_contact?: string | null
   weekly_hours?: number | null
   bio?: string | null
@@ -657,6 +655,8 @@ export interface User {
     schedule?: boolean | null
     digest?: boolean | null
     email_not_opened?: boolean | null
+    bookings_email?: boolean | null
+    schedule_email?: boolean | null
   } | null
   createdAt: string
   updatedAt: string
@@ -817,7 +817,7 @@ export interface StaffMember {
   email?: string | null
   address?: string | null
   tax_id?: string | null
-  emergency_contact?: string | null
+  tax_number?: string | null
   documents?: { label?: string | null; file?: string | Media | null; id?: string | null }[] | null
   createdAt: string
   updatedAt: string

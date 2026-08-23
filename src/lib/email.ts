@@ -19,6 +19,8 @@ import {
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
+import { getPayloadClient } from './payload'
+import { filterAllowedEmails, isBookingNotifyLevelOff } from './emailNotifPrefs'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -158,9 +160,15 @@ export async function sendNewBookingNotification(data: BookingEmailData, fallbac
   // hasonló .ics-melléklettel, amit egy koppintással felvehet a telefon-naptárába.
   const businessTo = salon.email || fallbackTo
   const staffEmail = staff && typeof staff === 'object' ? staff.email : null
-  const recipients = [...new Set(
-    [businessTo, staffEmail].filter((e): e is string => !!e && /^\S+@\S+\.\S+$/.test(e)),
-  )]
+  // Az "Új foglalás" belső email SAJÁT, alapból KIKAPCSOLT preferencia mögött van
+  // (Users.personal_notif_prefs.bookings_email) — az app/push a fő csatorna, ez csak opt-in.
+  const payload = await getPayloadClient()
+  let recipients = await filterAllowedEmails(payload, [businessTo, staffEmail], 'bookings_email')
+  // A szerep-szintű „Foglalás-értesítés: Kikapcsolva" felülírja a szakember SAJÁT bookings_email
+  // opt-in-jét — ha a tulaj tudatosan letiltotta neki, akkor sem megy ki, ha ő maga bekapcsolta.
+  if (staffEmail && recipients.includes(staffEmail) && await isBookingNotifyLevelOff(payload, salon.id, staffEmail)) {
+    recipients = recipients.filter((r) => r !== staffEmail)
+  }
   if (recipients.length === 0) return
   const resend = getResend()
   if (!resend) return
@@ -243,7 +251,7 @@ export async function sendFeedbackRequestEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
-  if (!(salon.feature_modules?.google_review_url ?? '').trim()) return
+  if (!booking.customer_email) return
   const subjectTpl = (salon.feedback_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, emailVars(data))
@@ -623,10 +631,9 @@ function reminderHtml(data: BookingEmailData, cancelUrl: string | null): string 
 
 function feedbackHtml(data: BookingEmailData): string {
   const { booking, salon, service } = data
-  const googleUrl = (salon.feature_modules?.google_review_url ?? '').trim()
-  if (!googleUrl) return ''
-  const reviewUrl = googleUrl
-  const reviewCta = 'Értékelj minket a Google-on'
+  const cancellationToken = (booking as { cancellation_token?: string }).cancellation_token
+  const reviewUrl = `${APP_URL}/review/${cancellationToken}`
+  const reviewCta = 'Értékelés'
   const rows = [
     infoRow('scissors', 'Szolgáltatás', service.name),
     infoRow('calendar', 'Dátum', booking.date),

@@ -17,7 +17,7 @@ import { getPricing } from '@/lib/pricing'
 import { can } from '@/lib/permissions'
 import { createHmac } from 'crypto'
 import type { AccountBilling } from '@/lib/accountBilling'
-import type { Restaurant, Invoice } from '@/payload/payload-types'
+import type { Restaurant, Invoice, Role } from '@/payload/payload-types'
 import type { CustomQuestionType } from '@/components/settings/CustomQuestionsEditor'
 
 const EMPTY_ACCOUNT_BILLING: AccountBilling = {
@@ -43,7 +43,7 @@ function planName(sub: { plan?: string | null; status?: string | null } | null):
 }
 
 export default async function RestaurantSettingsPage() {
-  const { restaurant, businessCount, userId, capabilities } = await getOwnedRestaurant()
+  const { restaurant, businessCount, userId, capabilities, role } = await getOwnedRestaurant()
   requireAnyCapability(capabilities, ['settings.profile', 'settings.own_profile'], '/restaurant')
   const payload = await getPayloadClient()
   const r = restaurant as Restaurant
@@ -56,12 +56,28 @@ export default async function RestaurantSettingsPage() {
   // ── Csapat & jogok — VALÓS tulajdonos + membershipök. A teljes névsor (email) csak
   // `team.view`/`team.manage` jogú tagnak megy ki a szerverről.
   const canSeeTeam = can(capabilities, 'team.view') || can(capabilities, 'team.manage')
+  // FONTOS: a tulaj-sor a VALÓS `r.owner` relációból jön (depth:1, tehát objektum) — nem a
+  // jelenleg bejelentkezett nézőből. Korábbi hiba: `user` (a bejelentkezett tag, pl. egy
+  // üzletvezető) neve/e-mailje ment "Tulajdonos"-ként, ami a nézőt tulajként jelölte meg és a
+  // valós tulajdonos teljesen eltűnt a listáról.
+  const restOwner = typeof r.owner === 'object' ? r.owner : null
   const team: TeamMember[] = canSeeTeam
-    ? await getTeamForBusiness({ type: 'restaurant', businessId: r.id, ownerName: user.name || r.name, ownerEmail: (user.email || r.email) ?? '', ownerAvatarUrl: user.avatar_url })
+    ? await getTeamForBusiness({
+        type: 'restaurant',
+        businessId: r.id,
+        ownerName: restOwner?.name || r.name,
+        ownerEmail: restOwner?.email || r.email || '',
+        ownerAvatarUrl: restOwner?.avatar_url,
+      })
     : []
 
-  // ── Egyedi szerepek (2. fázis) — az üzlet custom szerepei a RolesManager panelhez.
-  const rolesRes = await payload.find({ collection: 'roles', where: { restaurant: { equals: r.id } }, sort: 'name', limit: 100, overrideAccess: true })
+  // ── Egyedi szerepek (2. fázis) — az üzlet custom szerepei a RolesManager panelhez. Önálló
+  // `roles.view` joggal is látható, a `team.view`/`team.manage`-től FÜGGETLENÜL — a szerkesztés
+  // ettől függetlenül továbbra is owner-only (`assertOwner` a szerveren, `isOwner` a kliensen).
+  const canSeeRoles = canSeeTeam || can(capabilities, 'roles.view')
+  const rolesRes = canSeeRoles
+    ? await payload.find({ collection: 'roles', where: { restaurant: { equals: r.id } }, sort: 'name', limit: 100, overrideAccess: true })
+    : { docs: [] as Role[] }
 
   // ── Audit-napló — VALÓS legutóbbi bejegyzések (az étteremre szűrve), csak `audit.view`-val.
   const auditLog = can(capabilities, 'audit.view')
@@ -253,8 +269,9 @@ export default async function RestaurantSettingsPage() {
             key="roles-panel"
             variant="restaurant"
             businessId={String(restaurant.id)}
-            initialRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name, capabilities: r.capabilities ?? null }))}
+            initialRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name, capabilities: r.capabilities ?? null, booking_notify_level: r.booking_notify_level ?? null }))}
             myCapabilities={capabilities}
+            isOwner={role === 'owner'}
           />
         }
         profilePanel={

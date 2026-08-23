@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useId } from 'react'
 import { motion, AnimatePresence, animate, type Variants } from 'framer-motion'
 import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock, CalendarDays, Loader2, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
@@ -31,7 +31,7 @@ function printProfileNow() {
 
 type EditForm = {
   name: string; position: string; phone: string; birthday: string; address: string
-  tax_id: string; emergency_contact: string; join_date: string; weekly_hours: string
+  tax_id: string; tax_number: string; join_date: string; weekly_hours: string
   pay_type: 'daily' | 'hourly'; pay_rate: string; tip_eligible: boolean; bio: string
 }
 type HistEntry = { position: string; changed_at: string }
@@ -92,7 +92,7 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
             className={ic}
           />
         </div>
-        <div><label className={lc}>Vészhelyzeti kontakt</label><input value={f.emergency_contact} onChange={set('emergency_contact')} className={ic} /></div>
+        <div><label className={lc}>Adószám</label><input value={f.tax_number} onChange={set('tax_number')} placeholder="12345678-1-42" className={ic} /></div>
         {canEditSalary && !isOwner && (
           <div className="sm:col-span-2">
             <label className={lc}>Bér <Lock className="inline h-3 w-3 align-[-1px]" strokeWidth={1.8} /> (a fizetés a naptárból számolódik)</label>
@@ -184,7 +184,7 @@ export interface Employee {
     birthday?: string | null
     address?: string | null
     tax_id?: string | null
-    emergency_contact?: string | null
+    tax_number?: string | null
     weekly_hours?: number | null
     join_date?: string | null
     salary?: number | null
@@ -366,7 +366,7 @@ function RadialGauge({ value, label }: { value: number; label: string }) {
   const r = 52
   const c = 2 * Math.PI * r
   return (
-    <div className="relative h-[150px] w-[150px] shrink-0">
+    <div className="relative h-[85px] w-[85px] shrink-0 sm:h-[150px] sm:w-[150px]">
       <svg viewBox="0 0 130 130" className="h-full w-full -rotate-90">
         <circle cx="65" cy="65" r={r} fill="none" stroke="rgba(120,110,70,.14)" strokeWidth="14" />
         <motion.circle
@@ -377,8 +377,8 @@ function RadialGauge({ value, label }: { value: number; label: string }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[34px] font-light leading-none tracking-[-0.02em] text-ink"><CountUp to={value} /><span className="text-[18px]">%</span></span>
-        <span className="mt-1 text-[11px] font-medium text-ink-soft">{label}</span>
+        <span className="text-[18px] font-light leading-none tracking-[-0.02em] text-ink sm:text-[34px]"><CountUp to={value} /><span className="text-[10px] sm:text-[18px]">%</span></span>
+        <span className="mt-1 text-[8px] font-medium text-ink-soft sm:text-[11px]">{label}</span>
       </div>
     </div>
   )
@@ -450,6 +450,12 @@ function Spark({ data, stroke = '#1D1C19' }: { data: number[]; stroke?: string }
 /* ── Munkaidő diagram: AKTUÁLIS hét vs ELŐZŐ hét (napi órák, min 0) — animált (terület + rajz + pontok) ── */
 function WorkChart({ recent, previous, labels = WEEK }: { recent: number[]; previous: number[]; labels?: string[] }) {
   const w = 620, h = 200, pad = 10
+  // Clip-path alapú "kirajzolódás" a framer-motion `pathLength` helyett — az korábban bizonyos
+  // hullámzóbb adatalakoknál (pl. fel-le-fel váltakozó heti bontás) nem futott végig, a vonal a
+  // végén megszakadni tűnt, holott a `d` maga mindig teljes volt. Egy sima, balról-jobbra táguló
+  // maszkkal a TELJES, statikus path fedődik fel — nem múlik a path alakján/hosszán, mindig a
+  // valódi végéig ér.
+  const clipId = useId()
   const maxVal = Math.max(...recent)
   const top = Math.max(2, Math.ceil(Math.max(...recent, ...previous, 1)))
   const xy = (arr: number[]) => arr.map((v, i) => {
@@ -490,6 +496,11 @@ function WorkChart({ recent, previous, labels = WEEK }: { recent: number[]; prev
         onMouseLeave={() => setHoverIdx(null)}
       >
           <svg viewBox={`0 0 ${w} ${h}`} className="hv-chart-h h-[200px] w-full" preserveAspectRatio="none">
+            <defs>
+              <clipPath id={clipId}>
+                <motion.rect x={0} y={0} width={0} height={h} initial={{ width: 0 }} animate={{ width: w }} transition={{ duration: 1.8, delay: 0.15, ease: EASE }} />
+              </clipPath>
+            </defs>
             {/* halvány rács */}
             {gridYs.map((y, i) => (
               <motion.line key={i} x1={pad} y1={y} x2={w - pad} y2={y} stroke="rgba(120,110,70,.10)" strokeWidth="1" vectorEffect="non-scaling-stroke"
@@ -498,13 +509,15 @@ function WorkChart({ recent, previous, labels = WEEK }: { recent: number[]; prev
             {/* előző hét — sima, szaggatott (referencia: #c7c3b6, 2px, 5-5) */}
             <motion.path d={line(previous)} fill="none" stroke="#C7C3B6" strokeWidth="2" strokeDasharray="5 5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.3 }} />
-            {/* aktuális hét — kirajzolódó SIMA vonal (referencia: arany, 2.6px) */}
-            <motion.path d={line(recent)} fill="none" stroke="var(--dav-accent)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"
-              initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1.1, ease: EASE }} />
+            {/* aktuális hét — arany, 2.6px. A TELJES, statikus path egy balról-jobbra táguló
+                clip-path maszkkal fedődik fel ("kirajzolódás"-hatás) — NEM a framer-motion
+                `pathLength`-jével, ami bizonyos adatalakoknál nem futott végig a vonal végéig. */}
+            <path d={line(recent)} fill="none" stroke="var(--dav-accent)" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke"
+              clipPath={`url(#${clipId})`} />
             {/* csúcsnap függőleges jelölő (csak ha van adat) */}
             {showPeak && (
               <motion.line x1={hi[0]} y1={hi[1]} x2={hi[0]} y2={h - pad} stroke="#1D1C19" strokeWidth="1.2" strokeDasharray="3 3" vectorEffect="non-scaling-stroke"
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.0, duration: 0.3 }} />
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1.75, duration: 0.3 }} />
             )}
           </svg>
 
@@ -515,7 +528,7 @@ function WorkChart({ recent, previous, labels = WEEK }: { recent: number[]; prev
               style={{ ...posOf(hi), width: 11, height: 11, background: 'var(--dav-accent)', border: '2px solid #1D1C19' }}
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
-              transition={{ delay: 1.05, type: 'spring', stiffness: 440, damping: 18 }}
+              transition={{ delay: 1.8, type: 'spring', stiffness: 440, damping: 18 }}
             />
           )}
 
@@ -526,7 +539,7 @@ function WorkChart({ recent, previous, labels = WEEK }: { recent: number[]; prev
             const below = topPct < 20
             return (
               <motion.div className="pointer-events-none absolute -translate-x-1/2" style={{ left: `${leftPct}%`, top: `${topPct}%`, marginTop: below ? 14 : -34 }}
-                initial={{ opacity: 0, y: below ? -6 : 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.1, duration: 0.25 }}>
+                initial={{ opacity: 0, y: below ? -6 : 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 1.85, duration: 0.25 }}>
                 <span className="whitespace-nowrap rounded-full bg-ink-dark px-2.5 py-1 text-[11px] font-semibold text-white">{recent[peakIdx].toLocaleString('hu-HU')} óra</span>
               </motion.div>
             )
@@ -649,7 +662,14 @@ function pageWindow(current: number, total: number): (number | '…')[] {
   return [1, '…', current - 1, current, current + 1, '…', total]
 }
 
-export function HiringView({ variant, employees, positionOptions = [], currentUser = null, canManage = false, canEditSalary = false, statusById, onStatusChange, onProfileChange, onOpenEdit, onCalendarRequest, onClose, initialIndex = 0, salonId, openCalendar }: { variant: Variant; employees?: Employee[]; positionOptions?: { label: string; level: 'lead' | 'staff' }[]; currentUser?: CurrentUser | null; canManage?: boolean; canEditSalary?: boolean; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onOpenEdit?: (id: string) => void; onCalendarRequest?: (id: string) => void; onClose?: () => void; initialIndex?: number; salonId?: string; openCalendar?: boolean }) {
+/** A HiringOverlay saját scroll-konténere (`.hv-scroll`, `HiringOverlay.tsx`) — más embert
+ *  választva visszagörgetünk a tetejére, hogy az új adatlap fejléce azonnal látszódjon (ne
+ *  maradjunk lent, ahol az előző emberre kattintottunk). */
+function scrollPanelToTop() {
+  document.querySelector('.hv-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+export function HiringView({ variant, employees, positionOptions = [], currentUser = null, canManage = false, canEditSalary = false, viewerEmail = null, statusById, onStatusChange, onProfileChange, onOpenEdit, onCalendarRequest, onClose, initialIndex = 0, salonId, openCalendar }: { variant: Variant; employees?: Employee[]; positionOptions?: { label: string; level: 'lead' | 'staff' }[]; currentUser?: CurrentUser | null; canManage?: boolean; canEditSalary?: boolean; viewerEmail?: string | null; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onOpenEdit?: (id: string) => void; onCalendarRequest?: (id: string) => void; onClose?: () => void; initialIndex?: number; salonId?: string; openCalendar?: boolean }) {
   // Valós adat, ha kaptunk (akár üres listát is tiszteletben tartunk); különben mock-fallback.
   const data = employees ?? mockData(variant)
   const startId = data.length ? (data[Math.min(Math.max(initialIndex, 0), data.length - 1)]?.id ?? data[0].id) : ''
@@ -730,6 +750,11 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   // Profil-szerkesztés: a mentett override AZONNAL látszik az overlayen (nem kell reload).
   const savedP = savedOverride[sel.id]
   const eff: Employee = savedP ? { ...sel, ...savedP, hr: { ...sel.hr, ...savedP.hr } } : sel
+  // A SAJÁT fizetését jogosultság NÉLKÜL is látja mindenki — csak a MÁSOKÉ van a `canEditSalary`
+  // (staff.salary / tulaj) joghoz kötve. `canEditSalary` marad a SZERKESZTÉS gate-je (az EditForm
+  // pay-rate mezője), a `canViewSalary` a CSAK OLVASHATÓ "Fizetés" kártya megjelenítéséhez.
+  const isSelf = !!viewerEmail && !!eff.email && viewerEmail.trim().toLowerCase() === eff.email.trim().toLowerCase()
+  const canViewSalary = canEditSalary || isSelf
   // Fizetés a NAPTÁRBÓL: napidíj → (ledolgozott + fiz. szabadság napok) × rate; órabér → (órák + szabadság×8) × rate.
   const payType: 'daily' | 'hourly' = eff.hr?.pay_type ?? 'daily'
   const payRate = eff.hr?.pay_rate ?? 0
@@ -756,7 +781,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             join_date: form.join_date || null,
             address: form.address,
             tax_id: form.tax_id,
-            emergency_contact: form.emergency_contact,
+            tax_number: form.tax_number,
             weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
             bio: form.bio,
             ...(variant === 'salon' ? { role_title: form.position.trim() || null } : {}),
@@ -774,7 +799,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             join_date: form.join_date || null,
             address: form.address,
             tax_id: form.tax_id,
-            emergency_contact: form.emergency_contact,
+            tax_number: form.tax_number,
             weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
           },
         }
@@ -797,7 +822,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             join_date: form.join_date || null,
             address: form.address || null,
             tax_id: form.tax_id || null,
-            emergency_contact: form.emergency_contact || null,
+            tax_number: form.tax_number || null,
             weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
             bio: form.bio || null,
             role_title: form.position.trim() || null,
@@ -816,7 +841,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             join_date: form.join_date || null,
             address: form.address || null,
             tax_id: form.tax_id || null,
-            emergency_contact: form.emergency_contact || null,
+            tax_number: form.tax_number || null,
             weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
             ...(canEditSalary ? { salary: form.pay_rate === '' ? null : Number(form.pay_rate), pay_rate: form.pay_rate === '' ? null : Number(form.pay_rate) } : {}),
           },
@@ -840,7 +865,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
         join_date: form.join_date || null,
         address: form.address,
         tax_id: form.tax_id,
-        emergency_contact: form.emergency_contact,
+        tax_number: form.tax_number,
         weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
         bio: form.bio,
         position_history: history,
@@ -865,7 +890,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
           join_date: form.join_date || null,
           address: form.address,
           tax_id: form.tax_id,
-          emergency_contact: form.emergency_contact,
+          tax_number: form.tax_number,
           weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
           pay_type: canEditSalary ? form.pay_type : eff.hr?.pay_type,
           pay_rate: canEditSalary ? (form.pay_rate === '' ? null : Number(form.pay_rate)) : eff.hr?.pay_rate,
@@ -1014,8 +1039,15 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
 
   return (
     <div>
+      {/* Bezárás — mobilon a panel jobb felső sarkában (a kereső/szűrő sorral összezsúfolódott
+          volna); lg+ felett a fenti header-sorban marad. */}
+      {onClose && (
+        <button onClick={onClose} aria-label="Bezárás" className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink-soft shadow-dav-card transition-colors hover:border-line-strong hover:text-ink lg:hidden print:hidden">
+          <X className="h-[17px] w-[17px]" strokeWidth={1.8} />
+        </button>
+      )}
       {/* HEADER: cím + kereső + szűrő + (overlay) bezárás */}
-      <motion.div variants={popItem} className="mb-6 flex flex-wrap items-center justify-between gap-3 print:hidden">
+      <motion.div variants={popItem} className="mb-6 flex flex-wrap items-center justify-between gap-3 pr-14 print:hidden lg:pr-0">
         <div>
           <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-ink-soft">{variant === 'restaurant' ? 'Éttermi csapat' : 'Szalon csapat'}</p>
           <h1 className="text-[26px] font-light tracking-[-0.02em] text-ink lg:text-[34px]">Munkavállalók</h1>
@@ -1061,7 +1093,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             </AnimatePresence>
           </div>
           {onClose && (
-            <button onClick={onClose} aria-label="Bezárás" className="flex h-11 w-11 items-center justify-center rounded-full border border-line bg-white text-ink-soft transition-colors hover:border-line-strong hover:text-ink">
+            <button onClick={onClose} aria-label="Bezárás" className="hidden h-11 w-11 items-center justify-center rounded-full border border-line bg-white text-ink-soft transition-colors hover:border-line-strong hover:text-ink lg:flex">
               <X className="h-[18px] w-[18px]" strokeWidth={1.8} />
             </button>
           )}
@@ -1076,13 +1108,16 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             {paged.map((c) => {
               const active = c.id === selId
               return (
-                <motion.button
+                <motion.div
                   key={c.id}
+                  role="button"
+                  tabIndex={0}
                   variants={listItem}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.99 }}
-                  onClick={() => { setSelId(c.id); setEditing(false) }}
-                  className={`w-full rounded-[22px] p-4 text-left transition-colors ${active ? 'bg-white shadow-dav-card ring-1 ring-line' : 'bg-[var(--dav-glass)] hover:bg-white'}`}
+                  onClick={() => { setSelId(c.id); setEditing(false); scrollPanelToTop() }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelId(c.id); setEditing(false); scrollPanelToTop() } }}
+                  className={`w-full cursor-pointer rounded-[22px] p-4 text-left transition-colors ${active ? 'bg-white shadow-dav-card ring-1 ring-line' : 'bg-[var(--dav-glass)] hover:bg-white'}`}
                 >
                   <div className="flex items-center gap-3">
                     {c.avatarUrl ? (
@@ -1110,10 +1145,36 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                           initial={{ width: 0 }} animate={{ width: `${c.attendance}%` }} transition={{ duration: 0.8, ease: EASE, delay: 0.1 }} />
                       </div>
                     </div>
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-dav-card"><MessageCircle className="h-[15px] w-[15px] text-ink-soft" strokeWidth={1.7} /></span>
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-white shadow-dav-card"><Phone className="h-[15px] w-[15px] text-ink-soft" strokeWidth={1.7} /></span>
+                    {c.phone ? (
+                      <a
+                        href={`sms:${c.phone.replace(/\s+/g, '')}`}
+                        title={`SMS — ${c.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink-soft shadow-dav-card transition-colors hover:text-ink"
+                      >
+                        <MessageCircle className="h-[15px] w-[15px]" strokeWidth={1.7} />
+                      </a>
+                    ) : (
+                      <span title="Nincs telefonszám" aria-disabled className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-full bg-white/60 text-ink-soft2 opacity-50 shadow-dav-card">
+                        <MessageCircle className="h-[15px] w-[15px]" strokeWidth={1.7} />
+                      </span>
+                    )}
+                    {c.phone ? (
+                      <a
+                        href={`tel:${c.phone.replace(/\s+/g, '')}`}
+                        title={`Hívás — ${c.phone}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink-soft shadow-dav-card transition-colors hover:text-ink"
+                      >
+                        <Phone className="h-[15px] w-[15px]" strokeWidth={1.7} />
+                      </a>
+                    ) : (
+                      <span title="Nincs telefonszám" aria-disabled className="flex h-8 w-8 cursor-not-allowed items-center justify-center rounded-full bg-white/60 text-ink-soft2 opacity-50 shadow-dav-card">
+                        <Phone className="h-[15px] w-[15px]" strokeWidth={1.7} />
+                      </span>
+                    )}
                   </div>
-                </motion.button>
+                </motion.div>
               )
             })}
           </motion.div>
@@ -1142,15 +1203,16 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             variants={{ hidden: {}, show: { transition: { staggerChildren: 0.09, delayChildren: 0.02 } } }}
             className="hv-detail-grid flex flex-col gap-6 lg:flex-row lg:gap-8"
           >
-            {/* Bal belső: fotó + naptár + szerkesztő */}
+            {/* Bal belső: fotó + naptár + szerkesztő — mobilon a JOBB (adatlap) oszlop UTÁN jön
+                (order-2), hogy a név/kontakt/gauge legyen elöl; deszktopon (lg+) marad balra elöl. */}
             <motion.div
               layout
               variants={detailCol}
-              className="hv-left-col space-y-5"
+              className="hv-left-col order-2 space-y-5 lg:order-1"
               data-wide={calSelDay && calEditState && variant === 'salon' && salonId ? 'true' : 'false'}
               transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
             >
-              <motion.div variants={detailItem} className="relative h-[240px] overflow-hidden rounded-[22px]" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+              <motion.div variants={detailItem} className="relative hidden h-[240px] overflow-hidden rounded-[22px] lg:block" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                 {headAvatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={headAvatar} alt={headName ?? ''} className="h-full w-full object-cover object-top" />
@@ -1236,7 +1298,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             </motion.div>
 
             {/* Jobb belső: fejléc + szerep + állomások + megjegyzés + jelenlét, alul stat-ok + chart */}
-            <motion.div layout variants={detailCol} className="hv-right-col" transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}>
+            <motion.div layout variants={detailCol} className="hv-right-col order-1 lg:order-2" transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}>
               {editing ? (
                 <ProfileEditForm
                   initial={{
@@ -1246,7 +1308,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                     birthday: (eff.hr?.birthday ?? '').slice(0, 10),
                     address: eff.hr?.address ?? '',
                     tax_id: eff.hr?.tax_id ?? '',
-                    emergency_contact: eff.hr?.emergency_contact ?? '',
+                    tax_number: eff.hr?.tax_number ?? '',
                     join_date: (eff.hr?.join_date ?? '').slice(0, 10),
                     weekly_hours: eff.hr?.weekly_hours != null ? String(eff.hr.weekly_hours) : '',
                     pay_type: (eff.hr?.pay_type ?? 'daily') as 'daily' | 'hourly',
@@ -1267,11 +1329,28 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
               <>
               <motion.div variants={detailItem} className="hv-profile-block">
                 <div className="min-w-0">
+                  {/* Mobilon/tableten (lg alatt) a kép a fejléc (név/státusz/pozíció) FÖLÖTT —
+                      lg+ felett a hero-fotó (hv-left-col) veszi át a szerepet, ez ott elrejtve.
+                      A jelenlét-gyűrű NEM ide, hanem a sarokba kerül (lásd .hv-profile-gauge lent). */}
+                  <div className="mb-4 h-[110px] w-[110px] overflow-hidden rounded-[22px] lg:hidden" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                    {headAvatar ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={headAvatar} alt={headName ?? ''} className="h-full w-full object-cover object-top" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        <UserRound className="h-10 w-10 text-white/30" strokeWidth={1.2} />
+                      </div>
+                    )}
+                  </div>
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
                         <h2 className="text-[28px] font-semibold leading-tight text-ink">{headName}</h2>
-                        {(() => { const sp = STATUS_PILL[effStatus]; return <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ background: sp.bg, color: sp.color }}>{sp.label}</span> })()}
+                        {/* A statikus pill csak akkor kell, ha NINCS szerkeszthető (kattintható,
+                            lenyíló) státusz-gomb — különben ugyanaz az infó duplán jelenne meg
+                            (ez a duplikáció az étteremnél volt látható, mert csak ott van
+                            `canEditStatus`). */}
+                        {!canEditStatus && (() => { const sp = STATUS_PILL[effStatus]; return <span className="rounded-full px-3 py-1 text-[12px] font-semibold" style={{ background: sp.bg, color: sp.color }}>{sp.label}</span> })()}
                         {eff.onVacation && (
                           <span className="inline-flex items-center gap-1.5 rounded-full bg-[#D9EAD3] px-3 py-1 text-[12px] font-semibold text-[#3B6B4B]"><span className="h-2 w-2 rounded-full bg-[#4F9E6A]" />Szabadságon</span>
                         )}
@@ -1355,35 +1434,49 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       </div>
                     </div>
                   )}
-                  {canEditSalary && payRate > 0 && (
-                    <div data-print-card className="mt-4 rounded-[16px] border border-line bg-[#EFEFEC] p-4">
-                      <p className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">Fizetés — e hó <Lock className="h-3 w-3" strokeWidth={1.8} /></p>
-                      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[13px] text-ink-soft">
-                        {payType === 'daily' ? (
-                          <>
-                            <span>Ledolgozott: <b className="text-ink">{eff.daysWorked} nap</b></span>
-                            <span>Fiz. szabadság: <b className="text-ink">{eff.vacationDays} nap</b></span>
-                            <span>Napidíj: <b className="text-ink">{payRate.toLocaleString('hu-HU')} Ft</b></span>
-                          </>
+                  {/* Fizetés + borravaló EGY kártyában, a borravaló a napidíj/órabér MELLETT
+                      egy sorban, és az Összesen a kettő EGYÜTT — a borravaló-sor csak akkor
+                      jelenik meg, ha ténylegesen van havi borravaló (nem ír ki "0 Ft"-ot). */}
+                  {(() => {
+                    const hasSalary = canViewSalary && payRate > 0
+                    const tip = eff.tipsThisMonth ?? 0
+                    const hasTip = variant === 'restaurant' && !!eff.hr?.tip_eligible && tip > 0
+                    if (!hasSalary && !hasTip) return null
+                    // A fizetés (payTotal) CSAK akkor kerülhet az Összesenbe, ha a nézőnek ténylegesen
+                    // van jogosultsága látni (hasSalary) — különben a borravaló melletti "Összesen"
+                    // észrevétlenül kiszivárogtatná a bér összegét egy salary-jog nélküli nézőnek is.
+                    const total = (hasSalary ? payTotal : 0) + (hasTip ? tip : 0)
+                    return (
+                      <div data-print-card className="mt-4 rounded-[16px] border border-line bg-white p-4">
+                        <p className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">
+                          {hasSalary ? 'Fizetés — e hó' : 'Borravaló — e hó'} {hasSalary && !isSelf && <Lock className="h-3 w-3" strokeWidth={1.8} />}
+                        </p>
+                        {hasSalary && (
+                          <div className="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-1 text-[13px] text-ink-soft">
+                            {payType === 'daily' ? (
+                              <>
+                                <span>Ledolgozott: <b className="text-ink">{eff.daysWorked} nap</b></span>
+                                <span>Fiz. szabadság: <b className="text-ink">{eff.vacationDays} nap</b></span>
+                                <span>Napidíj: <b className="text-ink">{payRate.toLocaleString('hu-HU')} Ft</b></span>
+                              </>
+                            ) : (
+                              <>
+                                <span>Ledolgozott: <b className="text-ink">{eff.hoursThisMonth} ó</b></span>
+                                <span>Fiz. szabadság: <b className="text-ink">{payVacHours} ó</b></span>
+                                <span>Órabér: <b className="text-ink">{payRate.toLocaleString('hu-HU')} Ft</b></span>
+                              </>
+                            )}
+                            {hasTip && <span>Borravaló: <b className="text-ink">{tip.toLocaleString('hu-HU')} Ft</b></span>}
+                          </div>
+                        )}
+                        {hasSalary ? (
+                          <p className="mt-2 text-[19px] font-semibold text-ink">Összesen: {total.toLocaleString('hu-HU')} Ft</p>
                         ) : (
-                          <>
-                            <span>Ledolgozott: <b className="text-ink">{eff.hoursThisMonth} ó</b></span>
-                            <span>Fiz. szabadság: <b className="text-ink">{payVacHours} ó</b></span>
-                            <span>Órabér: <b className="text-ink">{payRate.toLocaleString('hu-HU')} Ft</b></span>
-                          </>
+                          <p className="mt-1 text-[19px] font-semibold text-ink">{total.toLocaleString('hu-HU')} Ft</p>
                         )}
                       </div>
-                      <p className="mt-2 text-[19px] font-semibold text-ink">Összesen: {payTotal.toLocaleString('hu-HU')} Ft</p>
-                    </div>
-                  )}
-                  {/* Havi borravaló — csak étteremnél (szalonnál nincs napi tip-bevitel). */}
-                  {variant === 'restaurant' && eff.hr?.tip_eligible && (
-                    <div data-print-card className="mt-4 rounded-[16px] border border-line bg-[#EFEFEC] p-4">
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">Havi borravaló</p>
-                      <p className="mt-1 text-[19px] font-semibold text-ink">{(eff.tipsThisMonth ?? 0).toLocaleString('hu-HU')} Ft</p>
-                      <p className="mt-1 text-[11.5px] text-ink-soft2">A napi borravalót a Naptárban adod meg; az aznap dolgozó jogosultak közt elosztva.</p>
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
                 <div className="hv-profile-gauge">
                   <RadialGauge value={sel.attendance} label="Jelenlét (hó)" />
@@ -1429,7 +1522,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                     <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#C7C3B6]" />Előző hónap</span>
                   </div>
                 </div>
-                <WorkChart recent={eff.monthWeeks ?? eff.recent} previous={eff.prevMonthWeeks ?? eff.previous} labels={['1–7', '8–14', '15–21', '22–28', '29+']} />
+                <WorkChart key={sel.id} recent={eff.monthWeeks ?? eff.recent} previous={eff.prevMonthWeeks ?? eff.previous} labels={['1–7', '8–14', '15–21', '22–28', '29+']} />
               </motion.div>
               </>
               )}

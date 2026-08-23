@@ -164,6 +164,7 @@ export const Users: CollectionConfig = {
     { name: 'join_date', type: 'date', label: 'Belépés / alapítás', admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } } },
     { name: 'address', type: 'text', label: 'Cím' },
     { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
+    { name: 'tax_number', type: 'text', label: 'Adószám' },
     { name: 'emergency_contact', type: 'text', label: 'Vészhelyzeti kontakt' },
     { name: 'weekly_hours', type: 'number', label: 'Heti óraszám' },
     { name: 'bio', type: 'textarea', label: 'Megjegyzés / bemutatkozás' },
@@ -175,12 +176,22 @@ export const Users: CollectionConfig = {
       label: 'Személyes értesítési preferenciák',
       admin: { description: 'Milyen típusú értesítéseket kér a felhasználó.' },
       fields: [
-        { name: 'bookings',  type: 'checkbox', defaultValue: true,  label: 'Foglalás értesítések' },
+        { name: 'bookings',  type: 'checkbox', defaultValue: true,  label: 'Foglalás értesítések (app/push)' },
         { name: 'system',    type: 'checkbox', defaultValue: true,  label: 'Rendszer értesítések' },
         { name: 'staff',     type: 'checkbox', defaultValue: true,  label: 'Munkatársak értesítések' },
-        { name: 'schedule',  type: 'checkbox', defaultValue: true,  label: 'Beosztás értesítések' },
+        { name: 'schedule',  type: 'checkbox', defaultValue: true,  label: 'Beosztás értesítések (app/push)' },
         { name: 'digest',    type: 'checkbox', defaultValue: true,  label: 'Napi összefoglaló értesítés' },
         { name: 'email_not_opened', type: 'checkbox', defaultValue: true, label: 'Meg nem nyitott visszaigazoló email riasztás' },
+        {
+          name: 'bookings_email', type: 'checkbox', defaultValue: false,
+          label: 'Új foglalás — email is',
+          admin: { description: 'Az appon belüli/push értesítés mellett emailt is kapjon-e minden új foglalásról. Alapból kikapcsolva — az app a fő csatorna.' },
+        },
+        {
+          name: 'schedule_email', type: 'checkbox', defaultValue: false,
+          label: 'Beosztás változás — email is',
+          admin: { description: 'Az appon belüli/push értesítés mellett emailt is kapjon-e, ha a beosztása változik. Alapból kikapcsolva — az app a fő csatorna.' },
+        },
       ],
     },
     {

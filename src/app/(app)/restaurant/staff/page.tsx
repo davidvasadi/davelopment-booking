@@ -21,7 +21,7 @@ function mediaUrl(m: unknown): string | null {
  * Meghívás/szerep/eltávolítás a MEGLÉVŐ /api/team flow-n. SMS sehol.
  */
 export default async function RestaurantStaffPage() {
-  const { restaurant, userId, capabilities } = await getOwnedRestaurant()
+  const { restaurant, userId, userEmail, capabilities } = await getOwnedRestaurant()
   requireAnyCapability(capabilities, ['staff.view', 'staff.manage'], '/restaurant')
   const payload = await getPayloadClient()
 
@@ -93,6 +93,7 @@ export default async function RestaurantStaffPage() {
         initialTeam={[ownerCard, ...memberCards]}
         canManage={can(capabilities, 'staff.manage')}
         canEditSalary={isOwner}
+        viewerEmail={userEmail}
         employees={roster}
         customRoles={customRoles}
       />

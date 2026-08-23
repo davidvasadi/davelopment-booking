@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-import { assertCapability, capabilitiesForBusiness } from '@/lib/apiCapability'
+import { assertOwner, capabilitiesForBusiness } from '@/lib/apiCapability'
 import { can, ALL_CAPABILITIES, type Capability } from '@/lib/permissions'
 import type { Role } from '@/payload/payload-types'
 
 function cleanCaps(input: unknown): Capability[] {
   if (!Array.isArray(input)) return []
   return input.filter((c): c is Capability => ALL_CAPABILITIES.includes(c as Capability))
+}
+
+type BookingNotifyLevel = 'off' | 'own' | 'all'
+function cleanBookingNotifyLevel(input: unknown): BookingNotifyLevel {
+  return input === 'own' || input === 'all' ? input : 'off'
 }
 
 /** A szerep + az üzlete (a capability-guardhoz). */
@@ -29,10 +34,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const loaded = await loadRole(id)
   if (!loaded) return NextResponse.json({ error: 'A szerep nem található' }, { status: 404 })
-  const denied = await assertCapability(user.id, loaded.type, loaded.bizId, 'team.manage')
+  // Szerep SZERKESZTÉSE (meglévő is) szándékosan owner-only — lásd `assertOwner` kommentjét.
+  const denied = await assertOwner(user.id, loaded.type, loaded.bizId)
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
-  let body: { name?: unknown; capabilities?: unknown }
+  let body: { name?: unknown; capabilities?: unknown; booking_notify_level?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -48,6 +54,12 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ('capabilities' in body) {
     const mine = await capabilitiesForBusiness(user.id, loaded.type, loaded.bizId)
     data.capabilities = cleanCaps(body.capabilities).filter((c) => can(mine, c))
+  }
+  if ('booking_notify_level' in body) {
+    let level = cleanBookingNotifyLevel(body.booking_notify_level)
+    // "Csak a sajátja" csak szalonnál értelmezhető — étteremnél nincs mit "sajátra" szűkíteni.
+    if (loaded.type === 'restaurant' && level === 'own') level = 'off'
+    data.booking_notify_level = level
   }
 
   const payload = await getPayloadClient()
@@ -67,7 +79,8 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
 
   const loaded = await loadRole(id)
   if (!loaded) return NextResponse.json({ error: 'A szerep nem található' }, { status: 404 })
-  const denied = await assertCapability(user.id, loaded.type, loaded.bizId, 'team.manage')
+  // Szerep TÖRLÉSE is owner-only, ugyanazért.
+  const denied = await assertOwner(user.id, loaded.type, loaded.bizId)
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const payload = await getPayloadClient()

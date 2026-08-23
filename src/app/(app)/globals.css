@@ -178,18 +178,20 @@ html {
   .hv-left-col[data-wide="true"] { width: 420px; }
 }
 
-/* ── RadialGauge: abszolút jobb felső sarok a profil-kártyán.
-   A .hv-profile-block position:relative; a padding-right helyet hagy.
+/* ── RadialGauge: abszolút jobb felső sarok a profil-kártyán — MINDEN nézetben (a gauge
+   korábban mobilon el volt rejtve, ezt kérte a user visszaállítani "a sarokba, ahol volt").
+   A .hv-profile-block position:relative; a padding-right helyet hagy a gauge-nek — mobilon
+   a gauge kisebb (RadialGauge saját reszponzív mérete: 85px < 640px), ezért a fenntartott hely
+   is kisebb, különben a fejléc-szöveg feleslegesen összeszorulna.
    Ha a naptárszerkesztő nyitva van (data-wide="true"): gauge elrejt + padding törlés,
    hogy a fejléc-gomboknak teljes szélesség maradjon. */
-.hv-right-col .hv-profile-block { position: relative; padding-right: 170px; }
+.hv-right-col .hv-profile-block { position: relative; padding-right: 100px; }
+@media (min-width: 640px) {
+  .hv-right-col .hv-profile-block { padding-right: 170px; }
+}
 .hv-right-col .hv-profile-gauge { position: absolute; right: 0; top: 0; }
 .hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-block { padding-right: 0; }
 .hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-gauge { display: none; }
-@media (max-width: 1023px) {
-  .hv-right-col .hv-profile-block { padding-right: 0; }
-  .hv-right-col .hv-profile-gauge { display: none; }
-}
 
 /* ── Nyomtatás ──
    A `print:hidden` (Tailwind) mindenhonnan kiszedi a keresőt/szűrőt/akció-gombokat.

@@ -19,6 +19,7 @@ import { createPortal } from 'react-dom'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { EASE, DUR, sheetSpring } from '@/lib/motion'
 import { toast } from 'sonner'
 import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext'
 import {
@@ -29,10 +30,11 @@ import {
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
 import { GoogleSettingsPanel } from './GoogleSettingsPanel'
+import { Toggle } from './SettingsToggle'
 import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData, type VoucherSettingsData, type ConsentSettingsData } from './PaymentsSettingsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
-import { PersonalNotifPrefsCard } from './PersonalNotifPrefsCard'
+import { PersonalNotifPrefsCard, useNotifPrefs } from './PersonalNotifPrefsCard'
 import { BillingPortalButton } from '@/components/dashboard/BillingPortalButton'
 import { PricingCards } from '@/components/dashboard/PricingCards'
 import { StripeCheckoutButton } from '@/components/dashboard/StripeCheckoutButton'
@@ -56,27 +58,6 @@ export type BookingRulesToggles = {
   auto_confirm: boolean
 }
 
-/* ── davelopment gold-knob kapcsoló (46×27 sín) ─────────────────────────── */
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onChange}
-      className={`relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors ${
-        checked ? 'bg-ink-dark' : 'bg-[#DAD5C6]'
-      }`}
-    >
-      <span
-        className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${
-          checked ? 'right-[3px] bg-white' : 'left-[3px] bg-white'
-        }`}
-      />
-    </button>
-  )
-}
-
 /* ── Fehér kártya — a Nyitvatartás/Foglalások kártya-mintája (bordered, dav árnyék) ── */
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -89,9 +70,9 @@ function Card({ children, className = '' }: { children: ReactNode; className?: s
 /* ── Előfizetés-státusz badge ────────────────────────────────────────────── */
 function StatusBadge({ status }: { status: BillingData['subscriptionStatus'] }) {
   const cfg: Record<string, { label: string; cls: string }> = {
-    trialing:  { label: 'Próbaidőszak',   cls: 'bg-[#FDF3CF] text-[#8A6D12]' },
-    active:    { label: 'Aktív',          cls: 'bg-[#E3F0D8] text-[#4A7A2A]' },
-    past_due:  { label: 'Lejárt fizetés', cls: 'bg-[#FDE2DD] text-[#C0564A]' },
+    trialing:  { label: 'Próbaidőszak',   cls: 'bg-warn-bg text-warn' },
+    active:    { label: 'Aktív',          cls: 'bg-ok-bg text-ok' },
+    past_due:  { label: 'Lejárt fizetés', cls: 'bg-bad-bg text-bad' },
     canceled:  { label: 'Lemondva',       cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' },
     paused:    { label: 'Szüneteltetve',  cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' },
   }
@@ -507,6 +488,11 @@ export function SettingsHub({
   }
   const resetRules = () => setRuleToggles(rulesBaseline)
 
+  // ── Belső (nem-vendég) email-preferenciák — a bejelentkezett user SAJÁT
+  //    `personal_notif_prefs.bookings_email`/`schedule_email`-je (owner VAGY staff nézetben is).
+  //    Külön a lenti `notif`-tól, ami az ÜZLET vendég-emailjeit (notification_prefs) kezeli.
+  const internalEmailPrefs = useNotifPrefs()
+
   // ── Értesítések — tranzakciós emailek + digest. Az emlékeztető és a visszajelzés-kérés
   //    a Funkciók oldal gazdája (`feature_modules`). VALÓS `notification_prefs` group.
   const [notif, setNotif] = useState({
@@ -789,6 +775,16 @@ export function SettingsHub({
   const canDanger = !myCapabilities || can(myCapabilities, 'danger')
   // `settings.own_profile` jogú tag: csak a Saját profil + Dokumentumok tab látszik.
   const canFullSettings = !myCapabilities || can(myCapabilities, 'settings.profile')
+  // Csapat-KEZELÉS (meghívás, szerep-váltás, eltávolítás) — a `team.view`-jogú (vagy csak
+  // `settings.profile`-os) tag CSAK OLVASSA a listát, nem szerkesztheti. Korábban ez a kliensen
+  // egyáltalán nem volt leellenőrizve — bárki, aki a Csapat fület elérte, meghívhatott/
+  // eltávolíthatott/szerepet válthatott (a szerver 403-at adott volna, de a UI ezt nem jelezte).
+  const canTeamManage = !myCapabilities || can(myCapabilities, 'team.manage')
+  // A "Csapat & jogok" fület `settings.profile` NÉLKÜL is elérje, akinek van team.view/
+  // team.manage/roles.view joga — különben pl. egy csak `roles.view`-t kapott tag sosem
+  // jutna el a fülhöz, hiába lenne jogosult a szerep-lista megtekintésére.
+  const canSeeTeamTab = canFullSettings
+    || !!myCapabilities && (can(myCapabilities, 'team.view') || can(myCapabilities, 'team.manage') || can(myCapabilities, 'roles.view'))
   const navGroups: { group: string; items: NavItem[] }[] = canFullSettings
     ? [
         { group: 'Üzlet', items: [
@@ -827,13 +823,18 @@ export function SettingsHub({
         { group: 'Fiók', items: [
           { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
         ] },
+        ...(canSeeTeamTab
+          ? [{ group: 'Csapat', items: [{ kind: 'btn' as const, id: 'team' as RailId, icon: Users, label: 'Csapat & jogok' }] }]
+          : []),
       ]
   const activeBtn = navGroups.flatMap((g) => g.items).find((it) => it.kind === 'btn' && it.id === active) as
     | Extract<NavItem, { kind: 'btn' }> | undefined
   const ActiveIcon = activeBtn?.icon ?? (active === 'danger' ? Trash2 : Home)
 
   return (
-    <div className="space-y-5">
+    // font-onest ITT, egyszer — minden alá ágyazott panel (BookingFeatures, GoogleSettingsPanel,
+    // RolesManager, stb.) örökli, nem kell mindegyiknek külön emlékeznie rá.
+    <div className="space-y-5 font-onest">
       {/* Fejléc — a mentés innen kikerült a KÖZÖS lebegő sávba (lásd lentebb). */}
       <div>
         <h1 className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[42px]">
@@ -851,7 +852,7 @@ export function SettingsHub({
         {isMounted && createPortal(
           <AnimatePresence>
             {mobileNavOpen && (
-              <div className="fixed inset-0 z-[160] lg:hidden">
+              <div className="fixed inset-0 z-[160] font-onest lg:hidden">
                 <motion.div
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
@@ -864,7 +865,7 @@ export function SettingsHub({
                   initial={{ y: '100%' }}
                   animate={{ y: 0 }}
                   exit={{ y: '100%' }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }}
+                  transition={sheetSpring.transition}
                   data-lenis-prevent
                   className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
                 >
@@ -895,7 +896,7 @@ export function SettingsHub({
                               <span
                                 key={it.kind === 'btn' ? it.id : it.href}
                                 aria-disabled
-                                className="flex cursor-not-allowed items-center gap-3 rounded-[14px] px-3 py-3 text-[14.5px] font-medium text-[#3a352a]/35"
+                                className="flex cursor-not-allowed items-center gap-3 rounded-dav-chip px-3 py-3 text-[14.5px] font-medium text-ink/35"
                               >
                                 <Icon className="h-[18px] w-[18px]" strokeWidth={1.5} />
                                 {it.label}
@@ -914,7 +915,7 @@ export function SettingsHub({
                               <Icon className={`h-[18px] w-[18px] ${active === it.id ? 'text-gold' : 'text-ink-soft2'}`} strokeWidth={1.5} />
                               {it.label}
                               {it.badge && !it.soon && (
-                                <span className="ml-auto rounded-full bg-[#FFD85F] px-2 py-0.5 text-[11px] font-semibold leading-none text-[#3a352a]">{it.badge}</span>
+                                <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-[11px] font-semibold leading-none text-ink-dark">{it.badge}</span>
                               )}
                               {it.soon && (
                                 <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${active === it.id ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>Hamarosan</span>
@@ -943,9 +944,9 @@ export function SettingsHub({
                         id={active === 'danger' ? 'settings-nav-active-item' : undefined}
                         type="button"
                         onClick={() => { setActive('danger'); setMobileNavOpen(false) }}
-                        className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-[14.5px] font-medium ${active === 'danger' ? 'bg-ink-dark text-white' : 'text-[#C0453F]'}`}
+                        className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-[14.5px] font-medium ${active === 'danger' ? 'bg-ink-dark text-white' : 'text-bad'}`}
                       >
-                        <Trash2 className={`h-[18px] w-[18px] ${active === 'danger' ? 'text-gold' : 'text-[#C0453F]'}`} strokeWidth={1.5} />
+                        <Trash2 className={`h-[18px] w-[18px] ${active === 'danger' ? 'text-gold' : 'text-bad'}`} strokeWidth={1.5} />
                         Fiók törlése
                         {active === 'danger' && <Check className="ml-auto h-4 w-4 text-gold" strokeWidth={2.5} />}
                       </button>
@@ -978,7 +979,7 @@ export function SettingsHub({
                       key={it.href}
                       aria-disabled
                       title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
-                      className="flex cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-[#3a352a]/35"
+                      className="flex cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink/35"
                     >
                       <Icon className="h-[17px] w-[17px]" strokeWidth={1.5} />
                       {it.label}
@@ -1011,7 +1012,7 @@ export function SettingsHub({
           <div className="hidden lg:mb-5 lg:flex lg:items-center lg:justify-between">
             <h2 className="text-[22px] font-medium tracking-[-0.01em] text-ink">{RAIL_LABELS[active]}</h2>
             {active === 'billing' && trialBadge && (
-              <span className="rounded-full bg-[#FFD85F] px-3 py-1 text-[13px] font-semibold leading-none text-[#3a352a]">
+              <span className="rounded-full bg-gold px-3 py-1 text-[13px] font-semibold leading-none text-ink-dark">
                 {trialBadge}
               </span>
             )}
@@ -1099,7 +1100,7 @@ export function SettingsHub({
             key={active}
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.16, ease: EASE }}
           >
 
           {active === 'payments' && (
@@ -1157,7 +1158,7 @@ export function SettingsHub({
                   </div>
                 ))}
                 {/* Napi digest email */}
-                <div className="grid grid-cols-[1fr_84px] items-center gap-2 py-4">
+                <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                   <div className="min-w-0">
                     <div className="text-[14px] font-semibold text-ink">Napi digest email</div>
                     <div className="mt-0.5 text-[12px] text-ink-soft">
@@ -1170,6 +1171,32 @@ export function SettingsHub({
                     <Toggle checked={digestEmailOn} onChange={toggleDigestEmail} />
                   </div>
                 </div>
+
+                {/* Belső emailek — SAJÁT (owner VAGY staff) email-opt-in, alapból kikapcsolva,
+                    mert az app/push a fő csatorna. A guest-emailektől eltérően EZEK azonnal
+                    mentődnek kattintásra (nincs Mentés-gomb, ugyanaz a minta, mint az App oszlop). */}
+                {internalEmailPrefs.loaded && internalEmailPrefs.allowed.bookings_email && (
+                  <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4 last:border-0">
+                    <div className="min-w-0">
+                      <div className="text-[14px] font-semibold text-ink">Új foglalás</div>
+                      <div className="mt-0.5 text-[12px] text-ink-soft">Neked · amikor új foglalás érkezik (a push/app mellett)</div>
+                    </div>
+                    <div className="flex justify-center">
+                      <Toggle checked={internalEmailPrefs.prefs.bookings_email} onChange={() => internalEmailPrefs.toggle('bookings_email')} />
+                    </div>
+                  </div>
+                )}
+                {internalEmailPrefs.loaded && internalEmailPrefs.allowed.schedule_email && (
+                  <div className="grid grid-cols-[1fr_84px] items-center gap-2 py-4 last:border-0">
+                    <div className="min-w-0">
+                      <div className="text-[14px] font-semibold text-ink">Beosztás változás</div>
+                      <div className="mt-0.5 text-[12px] text-ink-soft">Neked · ha a műszakod létrejön, módosul vagy törlődik (a push/app mellett)</div>
+                    </div>
+                    <div className="flex justify-center">
+                      <Toggle checked={internalEmailPrefs.prefs.schedule_email} onChange={() => internalEmailPrefs.toggle('schedule_email')} />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Sötét PRO kártya */}
@@ -1230,17 +1257,19 @@ export function SettingsHub({
                   {team.filter((m) => !m.pending).length} tag
                   {team.some((m) => m.pending) && ` · ${team.filter((m) => m.pending).length} függő meghívó`}
                 </p>
-                <button
-                  type="button"
-                  onClick={() => setInviteOpen((v) => !v)}
-                  className="inline-flex items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white"
-                >
-                  {inviteOpen ? <X className="h-[15px] w-[15px] text-gold" strokeWidth={2} /> : <Plus className="h-[15px] w-[15px] text-gold" strokeWidth={1.8} />}
-                  {inviteOpen ? 'Mégse' : 'Tag meghívása'}
-                </button>
+                {canTeamManage && (
+                  <button
+                    type="button"
+                    onClick={() => setInviteOpen((v) => !v)}
+                    className="inline-flex items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white"
+                  >
+                    {inviteOpen ? <X className="h-[15px] w-[15px] text-gold" strokeWidth={2} /> : <Plus className="h-[15px] w-[15px] text-gold" strokeWidth={1.8} />}
+                    {inviteOpen ? 'Mégse' : 'Tag meghívása'}
+                  </button>
+                )}
               </div>
 
-              {inviteOpen && (
+              {canTeamManage && inviteOpen && (
                 <Card>
                   <div className="text-[15px] font-medium text-ink">Új tag meghívása</div>
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -1298,7 +1327,16 @@ export function SettingsHub({
                     {/* Státusz-LENYÍLÓ — a Munkatárs-adatlap (HiringView) státusz-menüjével AZONOS:
                         pill + ChevronDown, kattintásra „Aktív / Felfüggesztett" opciók (pipa a jelenlegin).
                         A route a staff.is_active-ot is szinkronizálja. Csak valódi tagnál (nem tulaj/meghívó). */}
-                    {!m.pending && m.id && m.roleTone !== 'owner' && (
+                    {!m.pending && m.id && m.roleTone !== 'owner' && !canTeamManage && (
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold"
+                        style={m.suspended ? { background: '#F1EEE6', color: '#86826F', border: '1px solid var(--dav-line)' } : { background: '#E7F1E9', color: '#3B6B4B' }}
+                      >
+                        <span className="h-2 w-2 rounded-full" style={{ background: m.suspended ? '#B7B2A4' : '#4F9E6A' }} />
+                        {m.suspended ? 'Felfüggesztett' : 'Aktív'}
+                      </span>
+                    )}
+                    {!m.pending && m.id && m.roleTone !== 'owner' && canTeamManage && (
                       <div className="relative">
                         <button
                           type="button"
@@ -1339,8 +1377,10 @@ export function SettingsHub({
                         )}
                       </div>
                     )}
-                    {/* A tulajdonos-sor (nincs id) csak badge; a tagoknál szerep-váltó + eltávolítás. */}
-                    {m.roleTone === 'owner' || !m.id ? (
+                    {/* A tulajdonos-sor (nincs id) csak badge; team.manage NÉLKÜL a többi tag is
+                        csak olvasható badge (nem szerkeszthet mást) — team.manage-dzsel a
+                        tagoknál szerep-váltó + eltávolítás. */}
+                    {m.roleTone === 'owner' || !m.id || !canTeamManage ? (
                       <RoleBadge role={m.role} tone={m.roleTone} pending={m.pending} />
                     ) : (
                       <div className="flex items-center gap-2">
@@ -1348,7 +1388,7 @@ export function SettingsHub({
                           value={m.customRoleId ? `c:${m.customRoleId}` : ''}
                           disabled={rowBusy === m.id || liveRoles.length === 0}
                           onChange={(e) => changeRole(m.id!, e.target.value)}
-                          className="rounded-[12px] border border-line-strong bg-white px-3 py-1.5 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-gold/60 disabled:opacity-40"
+                          className="rounded-full border border-line-strong bg-white px-3 py-1 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-gold/60 disabled:opacity-40"
                         >
                           {!m.customRoleId && <option value="" disabled>{m.role} (beépített)</option>}
                           {liveRoles.map((r) => (
@@ -1360,7 +1400,7 @@ export function SettingsHub({
                           onClick={() => removeMember(m.id!)}
                           disabled={rowBusy === m.id}
                           title="Eltávolítás"
-                          className="rounded-[12px] border border-[rgba(192,57,43,.3)] p-2 text-[#C0392B] transition-opacity disabled:opacity-40"
+                          className="rounded-[12px] border border-bad/30 p-2 text-bad transition-opacity disabled:opacity-40"
                         >
                           {rowBusy === m.id ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.7} />}
                         </button>
@@ -1610,7 +1650,7 @@ export function SettingsHub({
                 </div>
 
                 {billing.subscriptionStatus === 'past_due' && (
-                  <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-bad/30 bg-[#FEF2F1] px-4 py-3.5">
+                  <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-bad/30 bg-bad-bg px-4 py-3.5">
                     <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-bad" strokeWidth={1.8} />
                     <p className="text-[13px] text-bad">
                       A fizetés nem sikerült. Kérjük frissítsd a bankkártyád, hogy az előfizetés aktív maradjon.
@@ -1618,7 +1658,7 @@ export function SettingsHub({
                   </div>
                 )}
                 {billing.subscriptionStatus === 'canceled' && (
-                  <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-bad/30 bg-[#FEF2F1] px-4 py-3.5">
+                  <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-bad/30 bg-bad-bg px-4 py-3.5">
                     <X className="mt-0.5 h-4 w-4 shrink-0 text-bad" strokeWidth={1.8} />
                     <p className="text-[13px] text-bad">
                       Az előfizetés le van mondva. Új előfizetés indításával az összes Pro funkció ismét elérhető.
@@ -2031,7 +2071,7 @@ function UnsavedBar({
             initial={{ y: 22, opacity: 0, scale: 0.96 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 22, opacity: 0, scale: 0.96 }}
-            transition={{ type: 'spring', stiffness: 460, damping: 34, mass: 0.9 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
             className="pointer-events-auto flex items-center gap-3 rounded-[18px] border border-line bg-white/85 py-2.5 pl-4 pr-2.5 shadow-[0_18px_40px_-20px_rgba(40,35,15,.45)] backdrop-blur-xl"
           >
             {saved ? (
@@ -2077,9 +2117,9 @@ const AUDIT_FILTERS: { id: 'all' | 'create' | 'update' | 'delete'; label: string
   { id: 'delete', label: 'Törlés' },
 ]
 const AUDIT_ACTION_COLOR: Record<'create' | 'update' | 'delete', string> = {
-  create: '#3FB871',
-  update: '#E0A21B',
-  delete: '#C0392B',
+  create: 'var(--dav-ok)',
+  update: 'var(--dav-warn)',
+  delete: 'var(--dav-bad)',
 }
 const AUDIT_ACTION_LABEL: Record<'create' | 'update' | 'delete', string> = {
   create: 'létrehozott egy elemet',
@@ -2165,7 +2205,7 @@ function RailBtn({
       <span
         aria-disabled
         title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
-        className="flex shrink-0 cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-[#3a352a]/35"
+        className="flex shrink-0 cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink/35"
       >
         <Icon className="h-[17px] w-[17px]" strokeWidth={1.5} />
         {label}
@@ -2181,14 +2221,14 @@ function RailBtn({
         isActive
           ? 'bg-ink-dark font-semibold text-white'
           : danger
-            ? 'font-medium text-[#C0453F] hover:bg-[#FBE3E3] hover:text-[#C0453F]'
+            ? 'font-medium text-bad hover:bg-bad-bg hover:text-bad'
             : 'font-medium text-ink-soft hover:bg-[#F0EDE6] hover:text-ink'
       }`}
     >
-      <Icon className={`h-[17px] w-[17px] ${isActive ? 'text-gold' : danger ? 'text-[#C0453F]' : 'text-ink-soft2'}`} strokeWidth={1.5} />
+      <Icon className={`h-[17px] w-[17px] ${isActive ? 'text-gold' : danger ? 'text-bad' : 'text-ink-soft2'}`} strokeWidth={1.5} />
       {label}
       {badge && !soon && (
-        <span className="ml-auto shrink-0 rounded-full bg-[#FFD85F] px-2 py-0.5 text-[11px] font-semibold leading-none text-[#3a352a]">
+        <span className="ml-auto shrink-0 rounded-full bg-gold px-2 py-0.5 text-[11px] font-semibold leading-none text-ink-dark">
           {badge}
         </span>
       )}
