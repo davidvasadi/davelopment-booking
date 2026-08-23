@@ -2,6 +2,7 @@ import { CollectionConfig } from 'payload'
 import type { SelectFieldSingleValidation, Where } from 'payload'
 import { BRAND_NAME } from '@/lib/brand'
 import { emailLayout, COLORS } from '@/lib/emailLayout'
+import { generateVerifyEmailSubject, generateVerifyEmailHTML } from '@/lib/verifyEmailTemplate'
 
 export const Users: CollectionConfig = {
   slug: 'users',
@@ -66,6 +67,21 @@ export const Users: CollectionConfig = {
     // biztonságot ez adja (a támadót célozza), nem a rövid session.
     maxLoginAttempts: 5,
     lockTime: 10 * 60 * 1000,
+    // Email-tulajdonlás igazolása: jelszavas regisztrációnál bárki beírhatna egy IDEGEN
+    // domainű email-t (pl. valaki@davelopment.hu), és a fiók a link megerősítése nélkül is
+    // azonnal használható lenne — ez lehetővé tenné, hogy valaki egy másik cég domainjével
+    // hiteles-kinézetű, de valójában nem-hozzá-tartozó fiókot hozzon létre. A `verify: true`
+    // ezt zárja be: bejelentkezés csak a linkre kattintás UTÁN engedélyezett. Google-bejelent-
+    // kezésnél nem kell (a Google már igazolta az emailt) — lásd auth.ts `_verified: true`.
+    // A regisztrációs wizard (`/api/auth/register`) NEM erre a Payload-automatikára támaszkodik
+    // (`disableVerificationEmail: true`-val hoz létre) — egy Resend-hiba (rossz cím, rate-limit)
+    // ott nem vihetné el a teljes user-létrehozást. Ez a config csak a fallback/dokumentáció:
+    // ha valaha máshonnan (pl. admin) jönne létre auth-usert Payload sima create-jével
+    // verify-email-lel, ugyanezt a sablont kapja — lásd src/lib/verifyEmailTemplate.ts.
+    verify: {
+      generateEmailSubject: () => generateVerifyEmailSubject(),
+      generateEmailHTML: (args?: { token?: string }) => generateVerifyEmailHTML(args?.token ?? ''),
+    },
     forgotPassword: {
       generateEmailSubject: () => `Jelszó visszaállítás — ${BRAND_NAME}`,
       generateEmailHTML: (args?: { token?: string }) => {
@@ -148,20 +164,34 @@ export const Users: CollectionConfig = {
     { name: 'join_date', type: 'date', label: 'Belépés / alapítás', admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } } },
     { name: 'address', type: 'text', label: 'Cím' },
     { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
+    { name: 'tax_number', type: 'text', label: 'Adószám' },
     { name: 'emergency_contact', type: 'text', label: 'Vészhelyzeti kontakt' },
     { name: 'weekly_hours', type: 'number', label: 'Heti óraszám' },
     { name: 'bio', type: 'textarea', label: 'Megjegyzés / bemutatkozás' },
+    // Szalon-tulajdonos saját pozíciója (pl. "Tulajdonos, Fodrász") — a munkatársak oldalon jelenik meg.
+    { name: 'role_title', type: 'text', label: 'Pozíció (munkakör)' },
     {
       name: 'personal_notif_prefs',
       type: 'group',
       label: 'Személyes értesítési preferenciák',
       admin: { description: 'Milyen típusú értesítéseket kér a felhasználó.' },
       fields: [
-        { name: 'bookings',  type: 'checkbox', defaultValue: true,  label: 'Foglalás értesítések' },
+        { name: 'bookings',  type: 'checkbox', defaultValue: true,  label: 'Foglalás értesítések (app/push)' },
         { name: 'system',    type: 'checkbox', defaultValue: true,  label: 'Rendszer értesítések' },
         { name: 'staff',     type: 'checkbox', defaultValue: true,  label: 'Munkatársak értesítések' },
-        { name: 'schedule',  type: 'checkbox', defaultValue: true,  label: 'Beosztás értesítések' },
+        { name: 'schedule',  type: 'checkbox', defaultValue: true,  label: 'Beosztás értesítések (app/push)' },
         { name: 'digest',    type: 'checkbox', defaultValue: true,  label: 'Napi összefoglaló értesítés' },
+        { name: 'email_not_opened', type: 'checkbox', defaultValue: true, label: 'Meg nem nyitott visszaigazoló email riasztás' },
+        {
+          name: 'bookings_email', type: 'checkbox', defaultValue: false,
+          label: 'Új foglalás — email is',
+          admin: { description: 'Az appon belüli/push értesítés mellett emailt is kapjon-e minden új foglalásról. Alapból kikapcsolva — az app a fő csatorna.' },
+        },
+        {
+          name: 'schedule_email', type: 'checkbox', defaultValue: false,
+          label: 'Beosztás változás — email is',
+          admin: { description: 'Az appon belüli/push értesítés mellett emailt is kapjon-e, ha a beosztása változik. Alapból kikapcsolva — az app a fő csatorna.' },
+        },
       ],
     },
     {

@@ -8,23 +8,25 @@ import { LangSwitcher } from '@/components/booking/LangSwitcher'
 import { BrandLogo } from '@/components/BrandLogo'
 import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
 import { RestaurantCard } from '@/components/restaurant/RestaurantCard'
+import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
 import { placeJsonLd } from '@/lib/publicSeo'
 import type { Media, Restaurant } from '@/payload/payload-types'
 import { t, resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import { hasActivePackage } from '@/lib/newsletterLimits'
 
 /**
  * Renders an active restaurant's public landing page.
  * Returns null when no active restaurant matches the slug, so callers
  * (the shared [slug] route) can fall through to notFound().
  */
-export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: string; requested?: Locale }) {
+export async function RestaurantPublicView({ slug, requested = 'hu', embed = false }: { slug: string; requested?: Locale; embed?: boolean }) {
   const base = await getPublicRestaurant(slug, 'hu')
   if (!base) return null
 
   const available = resolveAvailableLocales(base.restaurant.supported_locales)
   const locale = available.includes(requested) ? requested : 'hu'
   const data = locale === 'hu' ? base : (await getPublicRestaurant(slug, locale)) ?? base
-  const { restaurant } = data
+  const { restaurant, voucherTypes } = data
 
   const [reviews, maxPax] = await Promise.all([
     getReviewSummary('restaurant', restaurant.id),
@@ -58,8 +60,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
 
   return (
     <div
-      className="font-onest min-h-[100dvh] relative overflow-hidden"
-      style={hasCover ? { background: '#111' } : {
+      className={`font-onest relative overflow-hidden ${embed ? 'min-h-[640px]' : 'min-h-[100dvh]'}`}
+      style={embed ? { background: '#fff' } : hasCover ? { background: '#111' } : {
         background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)',
       }}
     >
@@ -67,9 +69,10 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(restaurant, 'restaurant')) }}
       />
+      <MarketingTrackingScripts ga4Id={restaurant.marketing_tracking?.ga4_measurement_id} facebookPixelId={restaurant.marketing_tracking?.facebook_pixel_id} />
 
-      {/* Borítókép + overlay rétegek */}
-      {hasCover && (
+      {/* Borítókép + overlay rétegek — embed módban nem jelenik meg. */}
+      {!embed && hasCover && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={coverUrl} alt="" aria-hidden className="absolute inset-0 z-0 h-full w-full object-cover" />
@@ -77,58 +80,67 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
           />
+          {/* Dedikált felső árnyék — a navbar mindig olvasható maradjon */}
+          <div
+            className="pointer-events-none absolute top-0 left-0 right-0 z-[2]"
+            style={{ height: '22%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
+          />
           <div
             className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2]"
-            style={{ height: '55%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.72) 100%)' }}
+            style={{ height: '62%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)' }}
           />
         </>
       )}
 
-      {/* Navbar */}
-      <nav className="relative z-50 flex items-center justify-between px-5 py-5 lg:px-8 lg:py-6">
-        <div className="flex items-center gap-3">
-          <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6 lg:h-7" />
-          {logoUrl && <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
-          {logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={logoUrl} alt={restaurant.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
-          )}
-        </div>
-        {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
-      </nav>
+      {!embed && (
+        <>
+          {/* Navbar */}
+          <nav className="relative z-50 flex items-center justify-between px-5 py-5 lg:px-8 lg:py-6">
+            <div className="flex items-center gap-3">
+              <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6 lg:h-7" />
+              {logoUrl && <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
+              {logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoUrl} alt={restaurant.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
+              )}
+            </div>
+            {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
+          </nav>
 
-      {/* Étterem neve + cím — mobil hero */}
-      <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
-        <h1 className={`text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
-          {restaurant.name}
-        </h1>
-        {(restaurant.address || restaurant.city) && (
-          <p className={`mt-1 flex items-center gap-1.5 text-sm ${heroSub}`}>
-            <MapPin className="h-3.5 w-3.5 shrink-0" />
-            {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
-          </p>
-        )}
-        {reviews.count > 0 && (
-          <div className="mt-2">
-            <RatingStars rating={reviews.average} count={reviews.count} />
+          {/* Étterem neve + cím — mobil hero */}
+          <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
+            <h1 className={`text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
+              {restaurant.name}
+            </h1>
+            {(restaurant.address || restaurant.city) && (
+              <p className={`mt-1 flex items-center gap-1.5 text-sm ${heroSub}`}>
+                <MapPin className="h-3.5 w-3.5 shrink-0" />
+                {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
+              </p>
+            )}
+            {reviews.count > 0 && (
+              <div className="mt-2">
+                <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Étterem neve + cím — desktop bal alul */}
-      <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
-        <h1 className={`text-[3rem] font-light leading-none tracking-[-0.02em] mb-2 ${heroText}`}>
-          {restaurant.name}
-        </h1>
-        {(restaurant.address || restaurant.city) && (
-          <p className={`flex items-center gap-1.5 text-sm mb-4 ${heroSub}`}>
-            <MapPin className="h-3.5 w-3.5" />
-            {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
-          </p>
-        )}
-        {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-4" />}
-        <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
-      </div>
+          {/* Étterem neve + cím — desktop bal alul */}
+          <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
+            <h1 className={`text-[3rem] font-light leading-none tracking-[-0.02em] mb-2 ${heroText}`}>
+              {restaurant.name}
+            </h1>
+            {(restaurant.address || restaurant.city) && (
+              <p className={`flex items-center gap-1.5 text-sm mb-4 ${heroSub}`}>
+                <MapPin className="h-3.5 w-3.5" />
+                {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
+              </p>
+            )}
+            {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-4" dark={hasCover} />}
+            <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
+          </div>
+        </>
+      )}
 
       {/* Interaktív étterem-kártya */}
       <RestaurantCard
@@ -158,6 +170,15 @@ export async function RestaurantPublicView({ slug, requested = 'hu' }: { slug: s
           email: restaurant.email,
           phone: restaurant.phone,
         }}
+        depositEnabled={!!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded}
+        voucherEnabled={!!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0}
+        voucherTypes={voucherTypes}
+        newsletterEnabled={hasActivePackage(restaurant.newsletter_settings?.package)}
+        consentEnabled={!!restaurant.consent_settings?.enabled && !!restaurant.consent_settings?.template_text?.trim()}
+        consentTitle={restaurant.consent_settings?.title}
+        consentText={restaurant.consent_settings?.template_text}
+        customQuestions={restaurant.custom_questions}
+        embed={embed}
       />
     </div>
   )

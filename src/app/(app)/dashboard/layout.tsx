@@ -31,8 +31,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
     overrideAccess: true,
   })) as Salon
 
-  // Fiók-szintű előfizetés: a lock-státusz a FIÓK (owner) egyetlen előfizetéséből jön.
-  let subscription: Subscription | null = await findAccountSubscription({ payload }, user.id)
+  // Fiók-szintű előfizetés: a lock-státusz a FIÓK (owner) egyetlen előfizetéséből jön — az
+  // ÜZLET tulajdonosáé, NEM a bejelentkezett useré. Enélkül egy meghívott csapattagnak (akinek
+  // sosincs saját subscription-rekordja) sosem lenne lockedStatus-a, akkor sem, ha a tulaj
+  // előfizetése lejárt — teljesen megkerülné a zárat.
+  const ownerId = typeof salon.owner === 'object' && salon.owner ? salon.owner.id : salon.owner
+  let subscription: Subscription | null = ownerId ? await findAccountSubscription({ payload }, ownerId) : null
   subscription = await expireOneTrial(subscription)
 
   autoCompleteBookings(salon.id).catch(() => null)
@@ -62,6 +66,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
       businesses={businesses}
       activeBusinessKey={`${active.type}:${active.id}`}
       capabilities={active.capabilities}
+      voucherEnabled={!!salon.voucher_settings?.enabled}
+      newsletterEnabled={salon.newsletter_settings?.package !== 'none'}
     >
       <LiveRefreshProvider businessKey={`${active.type}:${active.id}`} />
       <PageTransition>{children}</PageTransition>

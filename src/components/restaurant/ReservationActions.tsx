@@ -8,34 +8,31 @@ import { Button } from '@/components/ui/button'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, AlertTriangle, Loader2 } from 'lucide-react'
+import { MoreHorizontal, AlertTriangle, Loader2, FileSignature } from 'lucide-react'
+import { markLocalMutation } from '@/lib/localMutationTracker'
 
-// Lehetséges állapotváltások az étteremben
-const nextActions: Record<string, { label: string; status: string }[]> = {
-  pending: [
-    { label: 'Megerősítés', status: 'confirmed' },
-    { label: 'Lemondás', status: 'cancelled' },
-  ],
-  confirmed: [
-    { label: 'Leültetve', status: 'seated' },
-    { label: 'Nem jött meg', status: 'no_show' },
-    { label: 'Lemondás', status: 'cancelled' },
-  ],
-  seated: [
-    { label: 'Befejezés', status: 'completed' },
-  ],
-  completed: [],
-  no_show: [],
-  cancelled: [],
-}
+// Ugyanaz az 5 (nem "függő") státusz, mint a teljes szerkesztő <select>-jében
+// (ReservationEditSheet) — a gyors menü ne legyen szűkebb annál. A "megerősítésre vár" csak
+// akkor kerül vissza opcióként, ha a foglalás JELENLEG is az (online forrásból), különben nem
+// választható — lásd ReservationEditSheet ugyanerre a szabályra.
+const statusOptions: { label: string; status: string }[] = [
+  { label: 'Visszaállítás függőre', status: 'pending' },
+  { label: 'Megerősítés', status: 'confirmed' },
+  { label: 'Leültetve', status: 'seated' },
+  { label: 'Befejezés', status: 'completed' },
+  { label: 'Nem jött meg', status: 'no_show' },
+  { label: 'Lemondás', status: 'cancelled' },
+]
 
-export function ReservationActions({ reservationId, status }: { reservationId: number | string; status: string }) {
+export function ReservationActions({
+  reservationId, status, consentEnabled = false, consentAccepted = false,
+}: { reservationId: number | string; status: string; consentEnabled?: boolean; consentAccepted?: boolean }) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [confirmCancel, setConfirmCancel] = useState(false)
-  const available = nextActions[status] ?? []
+  const available = statusOptions.filter((o) => o.status !== status && (o.status !== 'pending' || status === 'pending'))
 
-  if (available.length === 0) return null
+  if (available.length === 0 && !(consentEnabled && !consentAccepted)) return null
 
   const updateStatus = async (newStatus: string) => {
     setLoading(true)
@@ -49,6 +46,7 @@ export function ReservationActions({ reservationId, status }: { reservationId: n
       })
       if (!res.ok) throw new Error()
       toast.success('Státusz frissítve')
+      markLocalMutation()
       router.refresh()
     } catch {
       toast.error('Hiba történt')
@@ -75,6 +73,11 @@ export function ReservationActions({ reservationId, status }: { reservationId: n
               {label}
             </DropdownMenuItem>
           ))}
+          {consentEnabled && !consentAccepted && (
+            <DropdownMenuItem onClick={() => router.push(`/restaurant/bookings/consent/${reservationId}`)}>
+              <FileSignature className="mr-2 h-4 w-4" /> Nyilatkozat aláíratása helyszínen
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 

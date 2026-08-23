@@ -3,6 +3,7 @@
 import { Printer } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { hu } from 'date-fns/locale'
+import { HoverButton } from '@/components/shared/HoverButton'
 import type { Reservation } from '@/payload/payload-types'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -90,11 +91,11 @@ export function PrintDayButton({
       </table>
       </body></html>`
 
-    // Blob URL-es iframe: nem deprecated (szemben a document.write-tal), és a
-    // nyomtatás az aktuális ablakon belül történik, ami mobil böngészőkön
-    // megbízhatóbb, mint egy felugró ablak.
-    const blob = new Blob([html], { type: 'text/html' })
-    const url = URL.createObjectURL(blob)
+    // Iframe-en belüli nyomtatás: az aktuális ablakon belül történik, ami mobil
+    // böngészőkön megbízhatóbb, mint egy felugró ablak. FONTOS: Safari-n a blob: URL +
+    // iframe.src kombináció megbízhatatlan — az onload gyakran a tényleges renderelés
+    // ELŐTT fut le, és a nyomtatási előnézet üres lapot mutat. srcdoc-kal + egy röpke
+    // késleltetéssel ez Safari-n is konzisztensen működik.
     const iframe = document.createElement('iframe')
     iframe.style.position = 'fixed'
     iframe.style.right = '0'
@@ -102,28 +103,26 @@ export function PrintDayButton({
     iframe.style.width = '0'
     iframe.style.height = '0'
     iframe.style.border = '0'
-    iframe.src = url
     iframe.onload = () => {
-      iframe.contentWindow?.focus()
-      iframe.contentWindow?.print()
-      // Takarítás a nyomtatás párbeszéd lezárása után.
       setTimeout(() => {
-        URL.revokeObjectURL(url)
-        iframe.remove()
-      }, 1000)
+        iframe.contentWindow?.focus()
+        iframe.contentWindow?.print()
+        setTimeout(() => iframe.remove(), 1000)
+      }, 150)
     }
+    iframe.srcdoc = html
     document.body.appendChild(iframe)
   }
 
   return (
-    <button
+    <HoverButton
       onClick={handlePrint}
-      aria-label="Napi lista nyomtatása"
+      ariaLabel="Napi lista nyomtatása"
       title="Napi lista nyomtatása"
-      className="flex items-center justify-center gap-1.5 h-10 w-10 sm:w-auto sm:px-4 rounded-dav-pill border border-line bg-[var(--dav-glass)] text-xs font-semibold text-ink hover:bg-white/60 transition-colors"
+      className="flex shrink-0 items-center justify-center gap-1.5 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill border border-line bg-[var(--dav-glass)] text-xs font-semibold text-ink hover:bg-white/60 transition-colors"
     >
-      <Printer className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+      <Printer className="h-4 w-4 shrink-0" />
       <span className="hidden sm:inline">Napi lista nyomtatása</span>
-    </button>
+    </HoverButton>
   )
 }

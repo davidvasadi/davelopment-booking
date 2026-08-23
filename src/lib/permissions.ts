@@ -27,21 +27,26 @@ export type Capability =
   | 'catalog.manage'       // szalon: szolgáltatások kezelése
   | 'tables.view'          // étterem: asztalok megtekintése
   | 'tables.manage'        // étterem: asztalok kezelése
+  | 'availability.view'    // nyitvatartás megtekintése
+  | 'availability.manage'  // nyitvatartás kezelése
+  | 'vouchers.view'        // ajándékutalványok megtekintése
+  | 'vouchers.manage'      // ajándékutalványok kezelése
+  | 'marketing.view'       // hírlevél/marketing megtekintése
+  | 'marketing.manage'     // hírlevél/marketing kezelése (kampány-küldés)
   | 'staff.view'
   | 'staff.manage'
+  | 'staff.salary'         // MÁSOK fizetésének megtekintése/kezelése — a saját fizetését jog nélkül mindenki látja
+  | 'roles.view'           // szerep-DEFINÍCIÓK (jogosultság-listák) megtekintése — a csapat-lista jogtól (team.view) független, szerkesztés marad owner-only
   | 'analytics.view'
+  | 'analytics.view.own'   // saját (nem cégszintű) statisztika — szalon: saját foglalás/bevétel, étterem: saját beosztás
   | 'tips.view'
-  | 'notifications.view'
-  | 'notifications.manage'
-  | 'notifications.bookings'
-  | 'notifications.system'
-  | 'notifications.staff'
-  | 'notifications.schedule'
+  | 'tips.manage'          // tippek gyors-javításainak alkalmazása (PATCH a beállításokon)
   | 'settings.own_profile'
   | 'settings.profile'
   | 'team.view'
   | 'team.manage'
   | 'billing.manage'
+  | 'payments.manage'
   | 'danger'
   | 'audit.view'
 
@@ -64,23 +69,31 @@ export const CAPABILITY_META: {
   { value: 'catalog.manage',       label: 'Szolgáltatások kezelése',             group: 'Szolgáltatások', variant: 'salon' },
   { value: 'tables.view',          label: 'Asztalok megtekintése',               group: 'Asztalok',       variant: 'restaurant' },
   { value: 'tables.manage',        label: 'Asztalok kezelése',                   group: 'Asztalok',       variant: 'restaurant' },
+  { value: 'availability.view',    label: 'Nyitvatartás megtekintése',           group: 'Nyitvatartás' },
+  { value: 'availability.manage',  label: 'Nyitvatartás kezelése',               group: 'Nyitvatartás' },
+  { value: 'vouchers.view',        label: 'Utalványok megtekintése',             group: 'Utalványok' },
+  { value: 'vouchers.manage',      label: 'Utalványok kezelése',                 group: 'Utalványok' },
+  { value: 'marketing.view',       label: 'Marketing megtekintése',              group: 'Marketing' },
+  { value: 'marketing.manage',     label: 'Marketing kezelése (kampány-küldés)', group: 'Marketing' },
   { value: 'staff.view',           label: 'Munkatársak megtekintése',            group: 'Munkatársak' },
   { value: 'staff.manage',         label: 'Munkatársak kezelése',                group: 'Munkatársak' },
-  { value: 'analytics.view',        label: 'Statisztikák megtekintése',          group: 'Statisztika' },
-  { value: 'tips.view',             label: 'Tippek és javaslatok',               group: 'Statisztika' },
-  { value: 'notifications.view',     label: 'Értesítések fogadása',               group: 'Értesítések' },
-  { value: 'notifications.manage',  label: 'Értesítési beállítások kezelése',    group: 'Értesítések' },
-  { value: 'notifications.bookings', label: 'Foglalás értesítések',              group: 'Értesítések' },
-  { value: 'notifications.system',   label: 'Rendszer értesítések',              group: 'Értesítések' },
-  { value: 'notifications.staff',    label: 'Munkatársak értesítések',           group: 'Értesítések' },
-  { value: 'notifications.schedule', label: 'Beosztás értesítések',              group: 'Értesítések' },
+  { value: 'staff.salary',         label: 'Mások fizetésének megtekintése',      group: 'Munkatársak' },
+  { value: 'analytics.view',        label: 'Statisztikák megtekintése (teljes cég)', group: 'Statisztika' },
+  { value: 'analytics.view.own',    label: 'Saját statisztika megtekintése',     group: 'Statisztika' },
+  { value: 'tips.view',             label: 'Tippek megtekintése',                group: 'Statisztika' },
+  { value: 'tips.manage',           label: 'Tippek alkalmazása (gyors-javítások)', group: 'Statisztika' },
   { value: 'settings.own_profile', label: 'Saját profil szerkesztése',           group: 'Beállítások' },
   { value: 'settings.profile',     label: 'Üzleti beállítások (szabály / funkció)', group: 'Beállítások' },
+  { value: 'roles.view',           label: 'Jogosultságok megtekintése',          group: 'Beállítások' },
   { value: 'team.view',            label: 'Csapat megtekintése',                 group: 'Csapat' },
   { value: 'team.manage',          label: 'Csapat kezelése (meghívás / szerep)', group: 'Csapat' },
   { value: 'billing.manage',       label: 'Számlázás / előfizetés',              group: 'Számlázás' },
-  { value: 'danger',               label: 'Veszélyzóna (üzlet törlése)',         group: 'Veszélyzóna' },
+  // Külön a billing.manage-től: ki láthatja a bevételt (billing) vs. ki köthet be egy
+  // bankszámla-kapcsolt Stripe Connect fizetési fiókot (payments) — két eltérő bizalmi szint.
+  { value: 'payments.manage',      label: 'Vendég-előleg / Stripe Connect kezelése', group: 'Számlázás' },
   { value: 'audit.view',           label: 'Audit-napló',                         group: 'Audit' },
+  // Veszélyzóna szándékosan a lista LEGVÉGÉN — ez adja a legérzékenyebb jogot (üzlet törlése).
+  { value: 'danger',               label: 'Veszélyzóna (üzlet törlése)',         group: 'Veszélyzóna' },
 ]
 
 export const ALL_CAPABILITIES: Capability[] = CAPABILITY_META.map((c) => c.value)

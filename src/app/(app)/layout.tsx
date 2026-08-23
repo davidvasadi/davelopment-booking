@@ -42,7 +42,7 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="hu" suppressHydrationWarning>
+    <html lang="hu" suppressHydrationWarning data-scroll-behavior="smooth">
       <body suppressHydrationWarning className={`${inter.className} ${geist.variable} ${martianMono.variable} ${onest.variable}`}>
         <ThemeProvider>
           <MotionProvider>

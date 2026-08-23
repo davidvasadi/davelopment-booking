@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 
 export async function POST(request: NextRequest) {
   const user = await authOrUnauthorized()
@@ -15,8 +16,8 @@ export async function POST(request: NextRequest) {
   if (!salonId) return NextResponse.json({ error: 'salon kötelező' }, { status: 400 })
 
   const payload = await getPayloadClient()
-  if (!await ownsThisSalon(payload, user, salonId))
-    return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, 'salon', salonId as string, 'catalog.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     const doc = await payload.create({ collection: 'services', data: body as never, overrideAccess: true })

@@ -7,6 +7,7 @@ import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { PageHeader } from '@/components/ui/page-header'
 import { roleLabel } from '@/lib/permissions'
+import { fixMediaUrl } from '@/lib/utils'
 import type { Membership, Shift, User, Role, OpeningHoursException } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,7 @@ function toYmd(iso: string): string {
   return iso.slice(0, 10)
 }
 function mediaUrl(m: unknown): string | null {
-  return m && typeof m === 'object' && 'url' in m && typeof (m as { url?: unknown }).url === 'string' ? (m as { url: string }).url : null
+  return m && typeof m === 'object' && 'url' in m && typeof (m as { url?: unknown }).url === 'string' ? fixMediaUrl((m as { url: string }).url) : null
 }
 
 /**
@@ -86,13 +87,14 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
       id: String(m.id),
       name,
       ini: initials(name),
-      avatarUrl: mediaUrl(m.avatar) ?? (u?.avatar_url ?? null),
+      avatarUrl: mediaUrl(m.avatar) ?? fixMediaUrl(u?.avatar_url),
       role: (custom?.name || m.position || roleLabel(m.role)) + (m.status !== 'active' ? ' · meghívva' : ''),
       birthday: m.birthday ? toYmd(m.birthday) : null,
       join_date: m.join_date ? toYmd(m.join_date) : m.createdAt ? toYmd(m.createdAt) : null,
       weekly_hours: typeof m.weekly_hours === 'number' ? m.weekly_hours : null,
       phone: m.phone ?? null,
       documents: [],
+      pending: m.status !== 'active',
     }
   })
 
@@ -100,7 +102,7 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
   const ownerId = restaurant.owner && typeof restaurant.owner === 'object' ? (restaurant.owner as User).id : restaurant.owner
   const ownerUser = ownerId ? ((await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true }).catch(() => null)) as User | null) : null
   const ownerName = ownerUser?.name || ownerUser?.email || 'Tulajdonos'
-  const ownerStaff: StaffVM = { id: 'owner', name: ownerName, ini: initials(ownerName), avatarUrl: ownerUser?.avatar_url ?? null, role: 'Tulajdonos', birthday: ownerUser?.birthday ? toYmd(ownerUser.birthday) : null, join_date: ownerUser?.join_date ? toYmd(ownerUser.join_date) : null, weekly_hours: ownerUser?.weekly_hours ?? null, phone: ownerUser?.phone ?? null, documents: [] }
+  const ownerStaff: StaffVM = { id: 'owner', name: ownerName, ini: initials(ownerName), avatarUrl: fixMediaUrl(ownerUser?.avatar_url), role: 'Tulajdonos', birthday: ownerUser?.birthday ? toYmd(ownerUser.birthday) : null, join_date: ownerUser?.join_date ? toYmd(ownerUser.join_date) : null, weekly_hours: ownerUser?.weekly_hours ?? null, phone: ownerUser?.phone ?? null, documents: [] }
   const staff: StaffVM[] = [ownerStaff, ...members]
 
   const shifts: ShiftVM[] = (shiftsRes.docs as Shift[]).map((sh) => ({

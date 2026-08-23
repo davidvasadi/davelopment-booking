@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useEffect, type ReactNode } from 'react'
+import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 import {
-  Upload, Link2, Webhook, MapPin, Share2, Calendar,
-  ChevronDown, ChevronRight, Check, Copy, Loader2, ExternalLink,
+  Upload, Link2, Webhook, Share2, Calendar, Code2, BarChart3, KeyRound,
+  ChevronRight,
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { ImportPanel } from './ImportPanel'
+import { IntegCard, UrlRow, SnippetBox, Steps } from './IntegCardKit'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -15,8 +15,18 @@ interface Props {
   variant: 'salon' | 'restaurant'
   bookingUrl: string
   icalUrl: string
+  embedUrl: string
+  /** Kész `<div>` + `<script src=".../embed.js">` snippet — automatikus magasság-igazítással. */
+  embedSmartSnippet: string
   apiBase: string
   webhookUrl?: string | null
+  ga4Id?: string | null
+  facebookPixelId?: string | null
+  /** A Webhook + Marketing-követés kártyák összevont mentetlen-állapota — a hub közös lebegő
+   *  sávjának. (A többi kártya nem tartalmaz szerkeszthető, mentendő mezőt.) */
+  onDirtyChange?: (dirty: boolean) => void
+  /** A hub ezen regisztrálja a mentés/elvetés műveletet. */
+  registerApi?: (api: { save: () => Promise<boolean>; discard: () => void }) => void
 }
 
 // ── iCal CTA — platform-érzékeny ──────────────────────────────────────────
@@ -40,7 +50,7 @@ function ICalCta({ icalUrl }: { icalUrl: string }) {
     return (
       <a
         href={webcalUrl}
-        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
+        className="flex w-full items-center justify-center gap-2 rounded-dav-chip bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
       >
         <Calendar className="h-4 w-4" />
         Hozzáadás a naptáramhoz
@@ -54,7 +64,7 @@ function ICalCta({ icalUrl }: { icalUrl: string }) {
         href={googleUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
+        className="flex w-full items-center justify-center gap-2 rounded-dav-chip bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
       >
         <Calendar className="h-4 w-4" />
         Megnyitás Google Naptárban
@@ -64,147 +74,16 @@ function ICalCta({ icalUrl }: { icalUrl: string }) {
 
   // Windows / egyéb — csak a linket kínáljuk másolásra
   return (
-    <div className="rounded-[12px] border border-line bg-[#FBF9F2] px-4 py-3 space-y-1.5">
+    <div className="rounded-dav-sm border border-line bg-[#FBF9F2] px-4 py-3 space-y-1.5">
       <p className="text-[12px] font-medium text-ink">Naptár feliratkozási link</p>
       <p className="text-[11.5px] text-ink-soft">Másold be Outlookba vagy más naptár alkalmazásba</p>
     </div>
   )
 }
 
-// ── Copy button ────────────────────────────────────────────────────────────
+// ── Webhook config — kontrollált (a mentés a hub közös lebegő sávjából) ────
 
-function CopyBtn({ value, label = 'Másolás' }: { value: string; label?: string }) {
-  const [copied, setCopied] = useState(false)
-  const copy = async () => {
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
-  }
-  return (
-    <button
-      type="button"
-      onClick={copy}
-      className="inline-flex items-center gap-1.5 rounded-[10px] border border-line bg-white px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink shrink-0"
-    >
-      {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
-      {copied ? 'Másolva' : label}
-    </button>
-  )
-}
-
-// ── URL display row ────────────────────────────────────────────────────────
-
-function UrlRow({ url }: { url: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-[12px] border border-line bg-[#FBF9F2] px-3 py-2.5">
-      <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink-soft">{url}</span>
-      <CopyBtn value={url} />
-    </div>
-  )
-}
-
-// ── Step list ──────────────────────────────────────────────────────────────
-
-function Steps({ steps }: { steps: (string | ReactNode)[] }) {
-  return (
-    <ol className="space-y-2">
-      {steps.map((step, i) => (
-        <li key={i} className="flex gap-3 text-[13px] text-ink-soft leading-relaxed">
-          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink-dark text-[10px] font-bold text-white">
-            {i + 1}
-          </span>
-          <span>{step}</span>
-        </li>
-      ))}
-    </ol>
-  )
-}
-
-// ── Integration card ───────────────────────────────────────────────────────
-
-type CardStatus = 'active' | 'setup' | 'soon'
-
-function IntegCard({
-  icon: Icon,
-  title,
-  description,
-  status,
-  children,
-  defaultOpen = false,
-}: {
-  icon: typeof Upload
-  title: string
-  description: string
-  status: CardStatus
-  children?: ReactNode
-  defaultOpen?: boolean
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  const statusCfg: Record<CardStatus, { label: string; cls: string }> = {
-    active:  { label: 'Aktív',       cls: 'bg-[#E3F0D8] text-[#4A7A2A]' },
-    setup:   { label: 'Beállítható', cls: 'bg-[#FDF3CF] text-[#8A6D12]' },
-    soon:    { label: 'Hamarosan',   cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' },
-  }
-  const { label, cls } = statusCfg[status]
-
-  return (
-    <div className="rounded-[20px] dav-card-glass overflow-hidden">
-      <button
-        type="button"
-        onClick={() => status !== 'soon' && setOpen((o) => !o)}
-        className={cn(
-          'flex w-full items-center gap-4 px-5 py-4 text-left transition-colors',
-          status !== 'soon' ? 'hover:bg-black/[0.02] cursor-pointer' : 'cursor-default',
-        )}
-      >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#FBF9F2]">
-          <Icon className="h-5 w-5 text-ink-soft2" strokeWidth={1.5} />
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[15px] font-semibold text-ink">{title}</span>
-            <span className={`rounded-[8px] px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{label}</span>
-          </div>
-          <p className="mt-0.5 text-[13px] text-ink-soft">{description}</p>
-        </div>
-        {status !== 'soon' && (
-          <ChevronDown className={cn('h-4 w-4 shrink-0 text-ink-soft2 transition-transform', open && 'rotate-180')} />
-        )}
-      </button>
-
-      {open && children && (
-        <div className="border-t border-line px-5 pb-5 pt-4 space-y-4">
-          {children}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Webhook save ───────────────────────────────────────────────────────────
-
-function WebhookConfig({ apiBase, initialUrl }: { apiBase: string; initialUrl: string }) {
-  const [url, setUrl] = useState(initialUrl)
-  const [saving, setSaving] = useState(false)
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      const res = await fetch(apiBase, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ webhook_url: url.trim() || null }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Webhook URL mentve')
-    } catch {
-      toast.error('Nem sikerült menteni')
-    } finally {
-      setSaving(false)
-    }
-  }
-
+function WebhookConfig({ url, onChange }: { url: string; onChange: (url: string) => void }) {
   return (
     <div className="space-y-3">
       <div>
@@ -212,22 +91,52 @@ function WebhookConfig({ apiBase, initialUrl }: { apiBase: string; initialUrl: s
         <p className="text-[12.5px] text-ink-soft mb-3">
           Hozz létre egy Zap-et a Zapier-en „Catch Hook" triggerrel, másold be az ott generált URL-t, és mentsd el. Minden új foglalásnál automatikusan POST-ot küldünk erre a végpontra.
         </p>
-        <div className="flex gap-2">
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://hooks.zapier.com/hooks/catch/..."
-            className="flex-1 rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
-          />
-          <button
-            type="button"
-            onClick={save}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-[12px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mentés'}
-          </button>
-        </div>
+        <input
+          value={url}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="https://hooks.zapier.com/hooks/catch/..."
+          className="w-full rounded-dav-sm border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+        />
+      </div>
+    </div>
+  )
+}
+
+// ── Marketing-követés — kontrollált (a mentés a hub közös lebegő sávjából) ─
+
+function MarketingTrackingConfig({
+  ga4Id,
+  pixelId,
+  onGa4Change,
+  onPixelChange,
+}: {
+  ga4Id: string
+  pixelId: string
+  onGa4Change: (v: string) => void
+  onPixelChange: (v: string) => void
+}) {
+  return (
+    <div className="space-y-4">
+      <p className="text-[12.5px] text-ink-soft">
+        Csak akkor jelenik meg bármelyik követő-kód a publikus foglaló oldalon, ha kitöltöd az azonosítóját. Foglalás sikeres létrejöttekor egy anonim eseményt küldünk — a vendég neve, telefonja vagy e-mail címe SOHA nem kerül bele.
+      </p>
+      <div>
+        <p className="text-[13px] font-medium text-ink mb-1.5">Google Analytics 4 mérési azonosító</p>
+        <input
+          value={ga4Id}
+          onChange={(e) => onGa4Change(e.target.value)}
+          placeholder="G-XXXXXXXXXX"
+          className="w-full rounded-dav-sm border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+        />
+      </div>
+      <div>
+        <p className="text-[13px] font-medium text-ink mb-1.5">Facebook (Meta) Pixel ID</p>
+        <input
+          value={pixelId}
+          onChange={(e) => onPixelChange(e.target.value)}
+          placeholder="123456789012345"
+          className="w-full rounded-dav-sm border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+        />
       </div>
     </div>
   )
@@ -235,7 +144,48 @@ function WebhookConfig({ apiBase, initialUrl }: { apiBase: string; initialUrl: s
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function IntegrationsPanel({ variant, bookingUrl, icalUrl, apiBase, webhookUrl }: Props) {
+export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embedSmartSnippet, apiBase, webhookUrl, ga4Id, facebookPixelId, onDirtyChange, registerApi }: Props) {
+  const embedSnippet = `<iframe src="${embedUrl}" width="100%" height="700" style="border:0"></iframe>`
+
+  const [webhook, setWebhook] = useState(webhookUrl ?? '')
+  const [ga4, setGa4] = useState(ga4Id ?? '')
+  const [pixel, setPixel] = useState(facebookPixelId ?? '')
+
+  const dirty = webhook !== (webhookUrl ?? '') || ga4 !== (ga4Id ?? '') || pixel !== (facebookPixelId ?? '')
+  useEffect(() => { onDirtyChange?.(dirty) }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    registerApi?.({
+      save: async () => {
+        try {
+          const res = await fetch(apiBase, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              webhook_url: webhook.trim() || null,
+              marketing_tracking: {
+                ga4_measurement_id: ga4.trim() || null,
+                facebook_pixel_id: pixel.trim() || null,
+              },
+            }),
+          })
+          if (!res.ok) throw new Error()
+          return true
+        } catch {
+          toast.error('Nem sikerült menteni')
+          return false
+        }
+      },
+      discard: () => {
+        setWebhook(webhookUrl ?? '')
+        setGa4(ga4Id ?? '')
+        setPixel(facebookPixelId ?? '')
+      },
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [webhook, ga4, pixel, webhookUrl, ga4Id, facebookPixelId])
+
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-ink-soft">
@@ -319,36 +269,6 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, apiBase, webho
         </div>
       </IntegCard>
 
-      {/* ── Google Cégem ── */}
-      <IntegCard
-        icon={MapPin}
-        title={'Google Cégem — „Foglalj most”'}
-        description={'„Foglalj most" gomb a Google keresési találatokban és Google Maps-en'}
-        status="setup"
-      >
-        <div className="space-y-4">
-          <div>
-            <p className="text-[13px] font-medium text-ink mb-1.5">A foglalási link, amit be kell illesztened</p>
-            <UrlRow url={bookingUrl} />
-          </div>
-          <Steps steps={[
-            <>Nyisd meg a <a href="https://business.google.com" target="_blank" rel="noopener" className="text-gold underline underline-offset-2">business.google.com</a> oldalt és jelentkezz be a céges Google-fiókoddal</>,
-            'Válaszd ki a vállalkozásod a listából',
-            <>A bal menüben kattints: <strong>Foglalások</strong> (vagy <em>Booking</em>)<br /><span className="text-[12px] text-ink-soft">Ha nem látod, keresd a „Foglalás gomb" menüpontot</span></>,
-            <>Válaszd ki a szolgáltatót: <strong>„Saját webhely link"</strong> vagy <strong>„Egyedi link"</strong>, majd illeszd be a fenti URL-t</>,
-            <>Mentsd el — a <strong>„Foglalj most"</strong> gomb néhány órán belül megjelenik a Google listingeden</>,
-          ]} />
-          <a
-            href="https://support.google.com/business/answer/9308244"
-            target="_blank"
-            rel="noopener"
-            className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-soft underline underline-offset-2 hover:text-ink"
-          >
-            <ExternalLink className="h-3.5 w-3.5" /> Google súgó: Foglalás gomb beállítása
-          </a>
-        </div>
-      </IntegCard>
-
       {/* ── Meta (Facebook/Instagram) ── */}
       <IntegCard
         icon={Share2}
@@ -407,7 +327,7 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, apiBase, webho
         status="setup"
       >
         <div className="space-y-4">
-          <WebhookConfig apiBase={apiBase} initialUrl={webhookUrl ?? ''} />
+          <WebhookConfig url={webhook} onChange={setWebhook} />
 
           <div className="space-y-3">
             <p className="text-[13px] font-semibold text-ink">Beállítás lépései (Zapier)</p>
@@ -439,11 +359,47 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, apiBase, webho
         </div>
       </IntegCard>
 
-      {/* ── Google Calendar OAuth ── */}
+      {/* ── Marketing-követés (GA4, Facebook Pixel) ── */}
       <IntegCard
-        icon={Calendar}
-        title="Google Calendar kétirányú szinkron"
-        description="Foglalások ↔ Google Naptár valós idejű szinkronizálása — elfoglaltságok automatikus blokkolása"
+        icon={BarChart3}
+        title="Marketing-követés"
+        description="Mérd a saját Google/Facebook hirdetéseid megtérülését — Google Analytics 4 és Facebook Pixel"
+        status={ga4Id || facebookPixelId ? 'active' : 'setup'}
+      >
+        <MarketingTrackingConfig ga4Id={ga4} pixelId={pixel} onGa4Change={setGa4} onPixelChange={setPixel} />
+      </IntegCard>
+
+      {/* ── Weboldalba/Facebook oldalba ágyazás ── */}
+      <IntegCard
+        icon={Code2}
+        title="Beágyazás weboldalba"
+        description="Illeszd be a foglalót közvetlenül a saját weboldaladba"
+        status="active"
+      >
+        <div className="space-y-5">
+          <div>
+            <p className="text-[13px] font-medium text-ink mb-1.5">Ajánlott — automatikus méretezés</p>
+            <p className="text-[12.5px] text-ink-soft mb-2">
+              A foglaló mindig pontosan akkora helyet foglal el, amennyi a tartalmához kell — nincs felesleges üres hely vagy görgetés.
+            </p>
+            <SnippetBox code={embedSmartSnippet} />
+          </div>
+
+          <div>
+            <p className="text-[13px] font-medium text-ink mb-1.5">Kézi (fix méretű iframe)</p>
+            <p className="text-[12.5px] text-ink-soft mb-2">
+              Akkor használd, ha a weboldal-szerkesztőd nem enged `&lt;script&gt;` kódot beilleszteni. A `height` értéket nyugodtan módosítsd — ha a tartalom nem fér el, a böngésző automatikusan görgethetővé teszi.
+            </p>
+            <SnippetBox code={embedSnippet} />
+          </div>
+        </div>
+      </IntegCard>
+
+      {/* ── Saját API & webhookok — ŐSZINTE „Hamarosan" üres állapot (nincs hamis kulcs/webhook). ── */}
+      <IntegCard
+        icon={KeyRound}
+        title="API & webhookok"
+        description="Nyilvános REST API-kulcsok és esemény-webhookok saját alkalmazásfejlesztéshez"
         status="soon"
       />
     </div>

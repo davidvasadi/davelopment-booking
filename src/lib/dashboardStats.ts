@@ -32,6 +32,7 @@ export interface HourStat {
   bookings: number
 }
 
+
 export interface DashboardStats {
   period: number
   revenueToday: number
@@ -60,6 +61,23 @@ export interface DashboardStats {
   byHour: HourStat[]
   bestDay: string | null
   bestHour: string | null
+  /** Visszatérő vs új vendég (customer_email alapján, a TELJES előzményből, nem csak a
+   *  lekérdezett tartományból) — csak az email-lel rendelkező foglalások közt értelmezett. */
+  newGuestCount: number
+  returningGuestCount: number
+  returningGuestPct: number
+  returningGuestPctDiff: number
+  newGuestTrend: { label: string; value: number }[]
+  returningGuestTrend: { label: string; value: number }[]
+  /** Foglalási előreidő (nap) — a foglalás létrehozása (createdAt) és az időpont (date) közti táv. */
+  avgLeadDays: number
+  avgLeadDaysDiff: number
+  leadTrend: { label: string; value: number }[]
+  leadBuckets: { label: string; value: number }[]
+  /** Ma befizetett vendég-előlegek összege (csak payment_status:'paid' foglalások). */
+  depositsToday: number
+  /** Ma sikertelen fizetéssel végződött foglalás-kísérletek száma. */
+  failedPaymentsToday: number
 }
 
 function getPrice(b: Booking): number {
@@ -83,6 +101,10 @@ export async function getDashboardStats(
   salonId: string | number,
   days = 30,
   range?: { dateFrom?: string; dateTo?: string },
+  /** Ha meg van adva, a statisztika KIZÁRÓLAG erre a szakemberre szűkül (saját-nézet,
+   *  `analytics.view.own`) — minden lenti aggregáció (bevétel, trend, visszatérő vendég stb.)
+   *  automatikusan ebből a már-szűkített halmazból számol. */
+  staffId?: string | number,
 ): Promise<DashboardStats> {
   const payload = await getPayloadClient()
 
@@ -104,6 +126,8 @@ export async function getDashboardStats(
   // Query from the earliest needed date
   const queryFrom = [prevPeriodStartStr, lastMonthStartStr].sort()[0]
 
+  const staffFilter = staffId != null ? [{ staff: { equals: staffId } }] : []
+
   const [revenueBookings, allBookingsPeriod] = await Promise.all([
     payload.find({
       collection: 'bookings',
@@ -112,6 +136,7 @@ export async function getDashboardStats(
           { salon: { equals: salonId } },
           { date: { greater_than_equal: queryFrom } },
           { status: { not_equals: 'cancelled' } },
+          ...staffFilter,
         ],
       },
       depth: 2,
@@ -124,6 +149,7 @@ export async function getDashboardStats(
           { salon: { equals: salonId } },
           // Az előző időszakot is lefedi, hogy a lemondás-diff is számolható legyen.
           { date: { greater_than_equal: prevPeriodStartStr } },
+          ...staffFilter,
         ],
       },
       depth: 0,
@@ -239,6 +265,95 @@ export async function getDashboardStats(
     return { label: dayLabel(d, rangeDays), value: allPeriodDocs.filter(b => b.date === d && b.status === 'cancelled').length }
   })
 
+  // ── Visszatérő vs új vendég — customer_email alapján, a TELJES előzményből (nem csak a
+  //    lekérdezett tartományból), ezért külön, célzott lekérdezés kell a korábbi foglalásokra. ──
+  const periodEmails = [...new Set(periodDocs.map((b) => b.customer_email).filter(Boolean))]
+  const prevPeriodEmails = [...new Set(prevPeriodDocs.map((b) => b.customer_email).filter(Boolean))]
+  const allGuestEmails = [...new Set([...periodEmails, ...prevPeriodEmails])]
+  const priorDatesByEmail: Record<string, string[]> = {}
+  if (allGuestEmails.length > 0) {
+    const priorRes = await payload.find({
+      collection: 'bookings',
+      where: {
+        and: [
+          { salon: { equals: salonId } },
+          { customer_email: { in: allGuestEmails } },
+          { date: { less_than: periodStartStr } },
+          ...staffFilter,
+        ],
+      },
+      depth: 0,
+      limit: 5000,
+      select: { customer_email: true, date: true },
+    })
+    for (const d of priorRes.docs as { customer_email?: string; date?: string }[]) {
+      if (!d.customer_email || !d.date) continue
+      ;(priorDatesByEmail[d.customer_email] ??= []).push(d.date)
+    }
+  }
+  const hadPriorBefore = (email: string | undefined | null, cutoff: string) =>
+    !!email && (priorDatesByEmail[email]?.some((d) => d < cutoff) ?? false)
+
+  const returningGuestCount = periodDocs.filter((b) => hadPriorBefore(b.customer_email, periodStartStr)).length
+  const newGuestCount = periodDocs.filter((b) => b.customer_email && !hadPriorBefore(b.customer_email, periodStartStr)).length
+  const knownGuestCount = returningGuestCount + newGuestCount
+  const returningGuestPct = knownGuestCount > 0 ? Math.round((returningGuestCount / knownGuestCount) * 100) : 0
+
+  const prevReturningCount = prevPeriodDocs.filter((b) => hadPriorBefore(b.customer_email, prevPeriodStartStr)).length
+  const prevNewCount = prevPeriodDocs.filter((b) => b.customer_email && !hadPriorBefore(b.customer_email, prevPeriodStartStr)).length
+  const prevKnownCount = prevReturningCount + prevNewCount
+  const prevReturningGuestPct = prevKnownCount > 0 ? Math.round((prevReturningCount / prevKnownCount) * 100) : 0
+  const returningGuestPctDiff = pctDiff(returningGuestPct, prevReturningGuestPct)
+
+  const newGuestTrend = Array.from({ length: rangeDays }, (_, i) => {
+    const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
+    const dayDocs = docs.filter((b) => b.date === d)
+    return { label: dayLabel(d, days), value: dayDocs.filter((b) => b.customer_email && !hadPriorBefore(b.customer_email, periodStartStr)).length }
+  })
+  const returningGuestTrend = Array.from({ length: rangeDays }, (_, i) => {
+    const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
+    const dayDocs = docs.filter((b) => b.date === d)
+    return { label: dayLabel(d, days), value: dayDocs.filter((b) => hadPriorBefore(b.customer_email, periodStartStr)).length }
+  })
+
+  // ── Foglalási előreidő — a foglalás létrehozása (createdAt) és a kiszolgálás napja (date) közti táv. ──
+  const leadDaysOf = (b: Booking): number | null => {
+    if (!b.createdAt) return null
+    const created = new Date(b.createdAt)
+    const createdMidnight = new Date(created.getFullYear(), created.getMonth(), created.getDate())
+    const appt = new Date(b.date + 'T00:00:00')
+    return Math.max(0, Math.round((appt.getTime() - createdMidnight.getTime()) / 86400000))
+  }
+  const periodLeadDays = periodDocs.map(leadDaysOf).filter((n): n is number => n !== null)
+  // Egész napra kerekítve — tizedes nap (pl. "3,2 nap") csak összezavarna, nincs
+  // gyakorlati jelentése ennél a metrikánál.
+  const avgLeadDays = periodLeadDays.length > 0
+    ? Math.round(periodLeadDays.reduce((s, n) => s + n, 0) / periodLeadDays.length)
+    : 0
+  const prevLeadDaysArr = prevPeriodDocs.map(leadDaysOf).filter((n): n is number => n !== null)
+  const prevAvgLeadDays = prevLeadDaysArr.length > 0
+    ? Math.round(prevLeadDaysArr.reduce((s, n) => s + n, 0) / prevLeadDaysArr.length)
+    : 0
+  const avgLeadDaysDiff = pctDiff(avgLeadDays, prevAvgLeadDays)
+
+  const leadTrend = Array.from({ length: rangeDays }, (_, i) => {
+    const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
+    const dayLeads = docs.filter((b) => b.date === d).map(leadDaysOf).filter((n): n is number => n !== null)
+    const avg = dayLeads.length > 0 ? Math.round(dayLeads.reduce((s, n) => s + n, 0) / dayLeads.length) : 0
+    return { label: dayLabel(d, days), value: avg }
+  })
+  const LEAD_BUCKETS: { label: string; test: (n: number) => boolean }[] = [
+    { label: 'Aznap', test: (n) => n === 0 },
+    { label: '1-3 nap', test: (n) => n >= 1 && n <= 3 },
+    { label: '4-7 nap', test: (n) => n >= 4 && n <= 7 },
+    { label: '1-2 hét', test: (n) => n >= 8 && n <= 14 },
+    { label: '2+ hét', test: (n) => n > 14 },
+  ]
+  const leadBuckets = LEAD_BUCKETS.map((b) => ({ label: b.label, value: periodLeadDays.filter(b.test).length }))
+
+  const depositsToday = todayDocs.reduce((s, b) => s + (b.payment_status === 'paid' ? (b.deposit_amount_huf ?? 0) : 0), 0)
+  const failedPaymentsToday = todayDocs.filter((b) => b.payment_status === 'failed').length
+
   return {
     period: rangeDays,
     revenueToday,
@@ -267,5 +382,17 @@ export async function getDashboardStats(
     byHour,
     bestDay,
     bestHour,
+    newGuestCount,
+    returningGuestCount,
+    returningGuestPct,
+    returningGuestPctDiff,
+    newGuestTrend,
+    returningGuestTrend,
+    avgLeadDays,
+    avgLeadDaysDiff,
+    leadTrend,
+    leadBuckets,
+    depositsToday,
+    failedPaymentsToday,
   }
 }

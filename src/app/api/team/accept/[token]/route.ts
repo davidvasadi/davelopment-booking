@@ -78,13 +78,27 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       const salonRel = /^\d+$/.test(String(salonId)) ? Number(salonId) : salonId
 
       if (existingStaff.docs.length > 0) {
-        // Már van staff ehhez az emailhez → csak biztosítjuk, hogy aktív (nem duplikálunk).
+        // Már van staff ehhez az emailhez (jellemzően a meghíváskor létrehozott inaktív
+        // placeholder, lásd `team/invite/route.ts`) → aktiváljuk ÉS szinkronizáljuk a
+        // membership-en időközben beállított HR-mezőket (pozíció/telefon/belépés dátuma/heti
+        // óraszám) — enélkül ezek a meghívás elfogadása után is üresen maradtak a Munkatársak
+        // listában, holott a membershipen már megvoltak.
         await payload.update({
           collection: 'staff',
           id: existingStaff.docs[0].id,
           overrideAccess: true,
           user,
-          data: { is_active: true },
+          data: {
+            is_active: true,
+            // A `user` reláció köti össze megbízhatóan a staff-rekordot a bejelentkezett
+            // fiókkal (a "Saját munka" statisztika + munkavállalói foglalás-szűrés ezt nézi
+            // elsődlegesen, nem az email-egyeztetést — lásd `lib/myStaffLink.ts`).
+            user: user.id,
+            role_title: membership.position || undefined,
+            phone: membership.phone || undefined,
+            join_date: membership.join_date || undefined,
+            weekly_hours: membership.weekly_hours ?? undefined,
+          },
         })
       } else {
         await payload.create({
@@ -93,6 +107,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
           user,
           data: {
             salon: salonRel,
+            user: user.id,
             name: user.name || membership.name || email,
             email: email || undefined,
             is_active: true,

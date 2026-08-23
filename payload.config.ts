@@ -23,7 +23,10 @@ import { OpeningHours } from './src/payload/collections/OpeningHours'
 import { OpeningHoursExceptions } from './src/payload/collections/OpeningHoursExceptions'
 import { Reservations } from './src/payload/collections/Reservations'
 import { Waitlist } from './src/payload/collections/Waitlist'
+import { GiftVouchers } from './src/payload/collections/GiftVouchers'
+import { GiftVoucherTypes } from './src/payload/collections/GiftVoucherTypes'
 import { Customers } from './src/payload/collections/Customers'
+import { MarketingCampaigns } from './src/payload/collections/MarketingCampaigns'
 import { Notifications } from './src/payload/collections/Notifications'
 import { Reviews } from './src/payload/collections/Reviews'
 import { Memberships } from './src/payload/collections/Memberships'
@@ -33,6 +36,7 @@ import { AuditLog } from './src/payload/collections/AuditLog'
 import { EmailLog } from './src/payload/collections/EmailLog'
 import { Tasks } from './src/payload/collections/Tasks'
 import { Invoices } from './src/payload/collections/Invoices'
+import { TrialLedger } from './src/payload/collections/TrialLedger'
 
 // Globals
 import { PricingSettings } from './src/payload/globals/PricingSettings'
@@ -81,7 +85,10 @@ export default buildConfig({
     OpeningHoursExceptions,
     Reservations,
     Waitlist,
+    GiftVouchers,
+    GiftVoucherTypes,
     Customers,
+    MarketingCampaigns,
     Notifications,
     Reviews,
     Memberships,
@@ -91,6 +98,7 @@ export default buildConfig({
     EmailLog,
     Tasks,
     Invoices,
+    TrialLedger,
   ],
   globals: [PricingSettings],
   // Többnyelvű publikus foglaló: a tulaj-content (szolgáltatás/kategória nevek, leírások, „jó tudni",

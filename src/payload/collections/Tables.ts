@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/restaurantAccess'
+import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const Tables: CollectionConfig = {
@@ -17,9 +17,9 @@ export const Tables: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: canCreateForOwnRestaurant,
-    update: isRestaurantOwnerOrAdmin,
-    delete: isRestaurantOwnerOrAdmin,
+    create: capabilityCreate('restaurant', 'restaurant', 'tables.manage'),
+    update: capabilityScoped('restaurant', 'restaurant', 'tables.manage'),
+    delete: capabilityScoped('restaurant', 'restaurant', 'tables.manage'),
   },
   fields: [
     {

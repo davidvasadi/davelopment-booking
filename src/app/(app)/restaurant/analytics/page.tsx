@@ -1,11 +1,18 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
+import { getPayloadClient } from '@/lib/payload'
 import { getRestaurantStats } from '@/lib/restaurantStats'
+import { getMyShiftStats } from '@/lib/myShiftStats'
+import { getReviewSummary } from '@/lib/reviews'
+import { daypartBuckets } from '@/lib/daypartBuckets'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
 import { ReservationTrendChart, DowChart, HourChart, DaypartChart } from '@/components/dashboard/DashboardCharts'
 import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
 import { DwellCard } from '@/components/restaurant/DwellCard'
 import { NationalityCard } from '@/components/restaurant/NationalityCard'
+import { StaffShiftStatsView } from '@/components/restaurant/StaffShiftStatsView'
+import { WeekMiniBars, WeekDayLabels, type WeekBar } from '@/components/shared/OverviewCharts'
 import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
 import { PageHeader } from '@/components/ui/page-header'
 import { DashboardCard } from '@/components/ui/dashboard-card'
@@ -30,8 +37,8 @@ export default async function RestaurantAnalyticsPage({
   searchParams: Promise<{ period?: string; from?: string; to?: string }>
 }) {
   const { period: periodParam, from: fromParam, to: toParam } = await searchParams
-  const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'analytics.view', '/restaurant')
+  const { restaurant, capabilities, userId } = await getOwnedRestaurant()
+  requireAnyCapability(capabilities, ['analytics.view', 'analytics.view.own'], '/restaurant')
 
   let days = VALID_PERIODS.includes(Number(periodParam)) ? Number(periodParam) : 30
   let range: { dateFrom: string; dateTo: string } | undefined
@@ -40,7 +47,35 @@ export default async function RestaurantAnalyticsPage({
     range = { dateFrom: fromParam, dateTo: toParam > today ? today : toParam }
   }
 
+  // `analytics.view` hiányában (csak `.own`) a foglalás nincs felszolgálóhoz rendelve az
+  // étteremben, ezért a "saját nézet" a beosztás (ledolgozott órák) — SAJÁT, önálló
+  // komponensben (`StaffShiftStatsView`), NEM a céges `AnalyticsOverview`-ban.
+  //
+  // Nincs Üzlet↔Saját munka váltó itt (a szalonnal ellentétben): a tulaj/üzletvezető
+  // saját beosztása membership-rekordhoz kötődne, de a TULAJNAK nincs is membership-je a saját
+  // éttermében (a Restaurant.owner relációval jogosult, nem meghívással) — a váltó náluk mindig
+  // üres/nulla adatot mutatott volna, ezért inkább kikerült.
+  if (!can(capabilities, 'analytics.view')) {
+    const payload = await getPayloadClient()
+    const mem = await payload.find({
+      collection: 'memberships',
+      where: { and: [{ user: { equals: userId } }, { restaurant: { equals: restaurant.id } }] },
+      limit: 1, depth: 0, overrideAccess: true,
+    })
+    const memberId = mem.docs[0]?.id
+    const shiftStats = memberId
+      ? await getMyShiftStats(restaurant.id, memberId, days, range)
+      : {
+          period: days, periodHours: 0, periodHoursDiff: 0, workedDays: 0, workedDaysDiff: 0,
+          prevWorkedDays: 0, prevPeriodHours: 0,
+          avgShiftHours: 0, sickDays: 0, leaveDays: 0, upcomingShiftsCount: 0, upcomingShifts: [], trend: [], byDayOfWeek: [],
+          heatmap: { grid: [], dates: [], columnLabels: [] }, tipHuf: null, wageHuf: null, payLabel: null,
+        }
+    return <StaffShiftStatsView stats={shiftStats} filter={<DateRangeFilter basePath="/restaurant/analytics" />} />
+  }
+
   const stats = await getRestaurantStats(restaurant.id, days, range)
+  const reviewSummary = await getReviewSummary('restaurant', restaurant.id)
   const label = periodLabel(days)
 
   // ── Crextio „stat bars" — teljesítés / lemondás+no-show / hátralévő arány ──
@@ -82,6 +117,20 @@ export default async function RestaurantAnalyticsPage({
     { label: 'Beeső', value: `${pctOf(stats.walkInCount)}%`, pct: pctOf(stats.walkInCount), variant: 'striped' as const },
     { label: 'No-show', value: `${pctOf(stats.noShowCount)}%`, pct: pctOf(stats.noShowCount), variant: 'outline' as const },
   ]
+
+  const reviewMetric: OverviewMetric = {
+    id: 'reviews', label: 'Értékelések', value: reviewSummary.count > 0 ? reviewSummary.average.toFixed(1) : '—', unit: '★',
+    color: '#B89530', icon: 'reviews', series: [],
+    views: reviewSummary.count > 0
+      ? [
+          {
+            id: 'distribution', label: `Csillag-eloszlás · ${reviewSummary.count} értékelés`, icon: 'reviews',
+            series: [1, 2, 3, 4, 5].map((n) => ({ label: `${n}★`, value: reviewSummary.distribution[n - 1] })),
+            value: `${reviewSummary.count} értékelés`,
+          },
+        ]
+      : [],
+  }
 
   // 5 csoport-metrika; a részlet-nézetek a lenti grafikonokra ugranak (sec-*).
   const metrics: OverviewMetric[] = [
@@ -125,6 +174,22 @@ export default async function RestaurantAnalyticsPage({
         { id: 'noshow', label: `No-show · ${stats.noShowCount} fő`, icon: 'noshow', series: noShowSeries, value: `${stats.noShowCount} fő` },
       ],
     },
+    {
+      id: 'returning', label: 'Visszatérő vendégek', value: `${stats.returningGuestPct}%`, unit: '%',
+      color: '#1D9D63', icon: 'returning', series: stats.returningGuestTrend, deltaPct: stats.returningGuestPctDiff,
+      views: [
+        { id: 'new', label: `Új vendégek · ${stats.newGuestCount} fő`, icon: 'newguest', series: stats.newGuestTrend, value: `${stats.newGuestCount} fő` },
+        { id: 'returning', label: `Visszatérő · ${stats.returningGuestCount} fő`, icon: 'returning', series: stats.returningGuestTrend, value: `${stats.returningGuestCount} fő` },
+      ],
+    },
+    {
+      id: 'leadtime', label: 'Átlagos előrefoglalás', value: `${stats.avgLeadDays} nap előre`, unit: 'nap',
+      color: '#B89530', icon: 'leadtime', series: stats.leadTrend, deltaPct: stats.avgLeadDaysDiff,
+      views: [
+        { id: 'buckets', label: 'Mikor foglalnak', icon: 'dow', series: stats.leadBuckets, value: `${stats.periodReservations} foglalás` },
+      ],
+    },
+    reviewMetric,
   ]
 
   // A részlet-nézetek kész grafikonjai (a kinézetük változatlan) — az áttekintő
@@ -141,10 +206,40 @@ export default async function RestaurantAnalyticsPage({
     dow: days > 1 ? <DowChart key="dow" data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} moneyless embedded /> : null,
   }
 
-  // A col2 tetejére 2 grafikon-kártya: óránkénti + heti ÁLLÓ OSZLOP (napi bontás kihagyva).
+  // A col2 tetejére 2 grafikon-kártya: óránkénti + heti ÁLLÓ OSZLOP (napi bontás kihagyva). A
+  // kompakt kártya-nézet ugyanazt a pont+szaggatott-vonal stílust kapja, mint az Áttekintésen
+  // (a teljes recharts-verzió a `dow`/`hour` detailCharts alatt marad, a sidebar-részletnézethez).
+  const DOW_SHORT3: Record<string, string> = {
+    'Hétfő': 'Hét', 'Kedd': 'Ked', 'Szerda': 'Sze', 'Csütörtök': 'Csü', 'Péntek': 'Pén', 'Szombat': 'Szo', 'Vasárnap': 'Vas',
+  }
+  const dowBarsRaw: WeekBar[] = stats.byDayOfWeek.map((d) => ({ label: DOW_SHORT3[d.day] ?? d.day, value: d.bookings }))
+  const dowMax = Math.max(1, ...dowBarsRaw.map((b) => b.value))
+  const dowBars = dowBarsRaw.map((b) => ({ ...b, peak: b.value === dowMax && b.value > 0 }))
+
+  const daypartRows = daypartBuckets(stats.byHour)
+  const daypartBarsRaw: WeekBar[] = daypartRows.map((p) => ({ label: p.label, value: p.bookings }))
+  const daypartMax = Math.max(1, ...daypartBarsRaw.map((b) => b.value))
+  const daypartBars = daypartBarsRaw.map((b) => ({ ...b, peak: b.value === daypartMax && b.value > 0 }))
+
   const chartCards = [
-    { title: 'Heti eloszlás', node: <DowChart key="cc-dow" data={stats.byDayOfWeek} period={stats.period} rawDays={stats.trend} moneyless embedded /> },
-    { title: 'Napszakok', node: <DaypartChart key="cc-daypart" data={stats.byHour} embedded /> },
+    {
+      title: 'Heti eloszlás',
+      node: (
+        <div className="flex h-full flex-1 flex-col justify-end">
+          <WeekMiniBars bars={dowBars} weekMax={dowMax} unit="foglalás" />
+          <WeekDayLabels bars={dowBars} />
+        </div>
+      ),
+    },
+    {
+      title: 'Napszakok',
+      node: (
+        <div className="flex h-full flex-1 flex-col justify-end">
+          <WeekMiniBars bars={daypartBars} weekMax={daypartMax} unit="foglalás" />
+          <WeekDayLabels bars={daypartBars} />
+        </div>
+      ),
+    },
   ]
 
   return (

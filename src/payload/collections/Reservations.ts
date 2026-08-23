@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { isRestaurantOwnerOrAdmin } from '../access/restaurantAccess'
+import { capabilityScoped } from '../access/capabilityAccess'
 import { notifyOnBooking } from '../hooks/notifyOnBooking'
 import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
 import { revalidateOnReservationChange, revalidateOnReservationDelete } from '../hooks/revalidateRestaurant'
@@ -19,10 +19,10 @@ export const Reservations: CollectionConfig = {
     // mint az update/delete). Korábban () => true volt → BÁRKI lekérhette az összes
     // étterem összes asztalfoglalását (vendégnév, telefon) bejelentkezés nélkül.
     // A vendég-foglalási flow nem ezen át olvas (overrideAccess), a create marad nyilvános.
-    read: isRestaurantOwnerOrAdmin,
+    read: capabilityScoped('restaurant', 'restaurant', ['bookings.view', 'bookings.manage']),
     create: () => true,
-    update: isRestaurantOwnerOrAdmin,
-    delete: isRestaurantOwnerOrAdmin,
+    update: capabilityScoped('restaurant', 'restaurant', 'bookings.manage'),
+    delete: capabilityScoped('restaurant', 'restaurant', 'bookings.manage'),
   },
   fields: [
     {
@@ -51,6 +51,7 @@ export const Reservations: CollectionConfig = {
     { name: 'customer_email', type: 'email', label: 'Email' },
     { name: 'customer_phone', type: 'text', label: 'Telefon' },
     { name: 'customer_city', type: 'text', label: 'Város', admin: { description: 'Opcionális — a vendég a foglalónál adja meg (vendég-analitika / térkép).' } },
+    { name: 'customer_address', type: 'text', label: 'Cím (utca, házszám)', admin: { description: 'Csak előleg-fizetéskor kötelező a vendégnek (a Számlázz.hu/Billingo bizonylathoz kell).' } },
     { name: 'country', type: 'text', label: 'Ország (ISO kód, pl. HU)', admin: { description: 'A foglaló országa a telefon-előhívó választóból (statisztikához).' } },
     { name: 'notes', type: 'textarea', label: 'Megjegyzés (vendégtől)' },
     { name: 'internal_notes', type: 'textarea', label: 'Belső megjegyzés' },
@@ -97,6 +98,20 @@ export const Reservations: CollectionConfig = {
       admin: { position: 'sidebar', readOnly: true },
     },
     {
+      // Idempotencia: a cron állítja true-ra, miután megnézte, hogy a visszaigazoló email
+      // meg lett-e nyitva a foglalás előtti 24/12 órás ellenőrzési ponton.
+      name: 'email_open_check_24h',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'email_open_check_12h',
+      type: 'checkbox',
+      defaultValue: false,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
       // Ismétlődő foglalás-sorozat közös azonosítója (opcionális). Egyszeri foglalásnál üres.
       name: 'series_id',
       type: 'text',
@@ -126,6 +141,76 @@ export const Reservations: CollectionConfig = {
       ],
       admin: { position: 'sidebar' },
     },
+    {
+      name: 'cancelled_at',
+      type: 'date',
+      admin: { readOnly: true, position: 'sidebar' },
+    },
+    {
+      name: 'payment_gateway',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'Stripe', value: 'stripe' },
+        { label: 'SimplePay', value: 'simplepay' },
+        { label: 'Nincs', value: 'none' },
+      ],
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
+      name: 'payment_status',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'Nincs előleg', value: 'none' },
+        { label: 'Függőben', value: 'pending' },
+        { label: 'Befizetve', value: 'paid' },
+        { label: 'Visszatérítve', value: 'refunded' },
+        { label: 'Sikertelen', value: 'failed' },
+      ],
+      admin: { position: 'sidebar' },
+    },
+    { name: 'deposit_amount_huf', type: 'number', label: 'Előleg összege (Ft)', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'deposit_paid', type: 'checkbox', defaultValue: false, admin: { position: 'sidebar', readOnly: true } },
+    { name: 'deposit_refunded', type: 'checkbox', defaultValue: false, admin: { position: 'sidebar', readOnly: true } },
+    {
+      name: 'payment_intent_id',
+      type: 'text',
+      index: true,
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    { name: 'invoice_number', type: 'text', label: 'Számlaszám', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'invoice_pdf_url', type: 'text', label: 'Számla PDF', admin: { position: 'sidebar', readOnly: true } },
+    {
+      name: 'invoice_status',
+      type: 'select',
+      defaultValue: 'none',
+      options: [
+        { label: 'Nincs', value: 'none' },
+        { label: 'Kiállítva', value: 'issued' },
+        { label: 'Sikertelen', value: 'failed' },
+      ],
+      admin: { position: 'sidebar' },
+    },
+    { name: 'voucher_code', type: 'text', label: 'Beváltott utalvány-kód', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'voucher_discount_huf', type: 'number', label: 'Utalvánnyal fedezett összeg (Ft)', admin: { position: 'sidebar', readOnly: true } },
+    // Digitális beleegyező nyilatkozat elfogadása — per-foglalás (nem a Customers-en, mert
+    // ez per-látogatás dolog, nem tartós preferencia). A szöveg-snapshot és az IP a szervertől
+    // jön (a kliens sose adja meg közvetlenül), hogy ne legyen manipulálható bizonyíték.
+    { name: 'consent_accepted', type: 'checkbox', defaultValue: false, label: 'Nyilatkozat elfogadva', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'consent_accepted_at', type: 'date', admin: { position: 'sidebar', readOnly: true } },
+    {
+      name: 'consent_accepted_via',
+      type: 'select',
+      options: [
+        { label: 'Online (foglaláskor)', value: 'online' },
+        { label: 'Helyszínen', value: 'onsite' },
+      ],
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    { name: 'consent_text_snapshot', type: 'textarea', label: 'Elfogadott szöveg-verzió', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'consent_accepted_ip', type: 'text', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'custom_answers', type: 'json', label: 'Egyedi kérdések válaszai', admin: { position: 'sidebar', readOnly: true } },
   ],
   hooks: {
     beforeChange: [

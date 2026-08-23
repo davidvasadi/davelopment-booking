@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers'
 import { getPayloadClient } from './payload'
 import { resolveTier, type Tier } from './tier'
+import { fixMediaUrl } from './utils'
 import { effectiveCapabilities, ALL_CAPABILITIES, type TeamRole, type Capability } from './permissions'
 import type { User, Salon, Restaurant, Media, Membership, Role } from '@/payload/payload-types'
 
@@ -31,6 +32,8 @@ export interface Business {
   createdAt: string
   /** Az üzlet csomagja (Start/Pro), feloldva — a régi null tier Pro-ként jön. */
   tier: Tier
+  /** Egyedi csomag tényleges, megegyezés szerinti havidíja (Ft) — csak `tier === 'egyedi'`-nél számít. */
+  customMonthlyFeeHuf: number | null
   /** A bejelentkezett user szerepe EBBEN az üzletben: 'owner' (tulaj-mező) vagy a tagság szerepe. */
   role: TeamRole
   /** A megjelenített szerep-NÉV: 'Tulajdonos', vagy a tag egyedi szerepének neve (Felszolgáló…), különben 'Nincs szerep'. */
@@ -40,7 +43,7 @@ export interface Business {
 }
 
 const logoUrlOf = (logo: string | Media | null | undefined): string | null =>
-  typeof logo === 'object' && logo?.url ? logo.url : null
+  typeof logo === 'object' && logo?.url ? fixMediaUrl(logo.url) : null
 
 /** A felhasználó összes üzlete (étterem + szalon), createdAt szerint növekvőn. */
 export async function getUserBusinesses(userId: string | number): Promise<Business[]> {
@@ -62,12 +65,14 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       overrideAccess: true,
     }),
     // Tagként (membership) elért üzletek — hogy a MEGHÍVOTT+elfogadott tag is lássa a dashboardot,
-    // ne csak a tulaj. Csak az AKTÍV tagságok számítanak.
+    // ne csak a tulaj. Csak az AKTÍV tagságok számítanak. `depth: 2` KELL (nem 1) — a `depth:1` a
+    // `membership.salon`-t oldja fel objektummá, de az ABBAN beágyazott `salon.logo`-t már nem
+    // (raw ID marad), ezért egy taggal elért üzlet logója sosem jelent meg, csak a sajátunké.
     payload.find({
       collection: 'memberships',
       where: { and: [{ user: { equals: userId } }, { status: { equals: 'active' } }] },
       limit: 100,
-      depth: 1,
+      depth: 2,
       overrideAccess: true,
     }),
   ])
@@ -81,6 +86,7 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       logoUrl: logoUrlOf(s.logo),
       createdAt: s.createdAt,
       tier: resolveTier(s.tier),
+      customMonthlyFeeHuf: s.custom_monthly_fee_huf ?? null,
       role: 'owner' as const,
       roleName: 'Tulajdonos',
       capabilities: ALL_CAPABILITIES,
@@ -93,6 +99,7 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       logoUrl: logoUrlOf(r.logo),
       createdAt: r.createdAt,
       tier: resolveTier(r.tier),
+      customMonthlyFeeHuf: r.custom_monthly_fee_huf ?? null,
       role: 'owner' as const,
       roleName: 'Tulajdonos',
       capabilities: ALL_CAPABILITIES,
@@ -111,11 +118,11 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
     const memName = memRole === 'owner' ? 'Tulajdonos' : memCustomRole?.name ?? 'Nincs szerep'
     if (s && !seen.has(`salon:${s.id}`)) {
       seen.add(`salon:${s.id}`)
-      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: logoUrlOf(s.logo), createdAt: s.createdAt, tier: resolveTier(s.tier), role: memRole, roleName: memName, capabilities: memCaps })
+      list.push({ type: 'salon', id: String(s.id), name: s.name, slug: s.slug, logoUrl: logoUrlOf(s.logo), createdAt: s.createdAt, tier: resolveTier(s.tier), customMonthlyFeeHuf: s.custom_monthly_fee_huf ?? null, role: memRole, roleName: memName, capabilities: memCaps })
     }
     if (r && !seen.has(`restaurant:${r.id}`)) {
       seen.add(`restaurant:${r.id}`)
-      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: logoUrlOf(r.logo), createdAt: r.createdAt, tier: resolveTier(r.tier), role: memRole, roleName: memName, capabilities: memCaps })
+      list.push({ type: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, logoUrl: logoUrlOf(r.logo), createdAt: r.createdAt, tier: resolveTier(r.tier), customMonthlyFeeHuf: r.custom_monthly_fee_huf ?? null, role: memRole, roleName: memName, capabilities: memCaps })
     }
   }
 

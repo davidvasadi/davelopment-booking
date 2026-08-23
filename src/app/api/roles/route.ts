@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-import { assertCapability, capabilitiesForBusiness } from '@/lib/apiCapability'
+import { assertCapability, assertOwner, capabilitiesForBusiness } from '@/lib/apiCapability'
 import { can, ALL_CAPABILITIES, type Capability } from '@/lib/permissions'
 
 /**
@@ -14,6 +14,11 @@ const num = (v: unknown) => (/^\d+$/.test(String(v)) ? Number(v) : v)
 function cleanCaps(input: unknown): Capability[] {
   if (!Array.isArray(input)) return []
   return input.filter((c): c is Capability => ALL_CAPABILITIES.includes(c as Capability))
+}
+
+type BookingNotifyLevel = 'off' | 'own' | 'all'
+function cleanBookingNotifyLevel(input: unknown): BookingNotifyLevel {
+  return input === 'own' || input === 'all' ? input : 'off'
 }
 
 // GET /api/roles?type=salon|restaurant&id=... → az üzlet egyedi szerepei
@@ -44,7 +49,7 @@ export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  let body: { type?: string; id?: string; name?: string; capabilities?: unknown }
+  let body: { type?: string; id?: string; name?: string; capabilities?: unknown; booking_notify_level?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -54,7 +59,8 @@ export async function POST(request: NextRequest) {
   const id = body.id
   if ((type !== 'salon' && type !== 'restaurant') || !id) return NextResponse.json({ error: 'Hibás kérés' }, { status: 400 })
 
-  const denied = await assertCapability(user.id, type, id, 'team.manage')
+  // Szerep LÉTREHOZÁSA szándékosan owner-only — lásd `assertOwner` kommentjét.
+  const denied = await assertOwner(user.id, type, id)
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const name = String(body.name ?? '').trim()
@@ -63,12 +69,16 @@ export async function POST(request: NextRequest) {
   // Anti-eszkaláció: csak olyan jogot adhat a szerepnek, amivel maga is rendelkezik.
   const mine = await capabilitiesForBusiness(user.id, type, id)
   const caps = cleanCaps(body.capabilities).filter((c) => can(mine, c))
+  // "Csak a sajátja" csak szalonnál értelmezhető (a foglalás ott van szakemberhez kötve) —
+  // étteremnél nincs mit "sajátra" szűkíteni, konzervatívan kikapcsolva marad.
+  let bookingNotifyLevel = cleanBookingNotifyLevel(body.booking_notify_level)
+  if (type === 'restaurant' && bookingNotifyLevel === 'own') bookingNotifyLevel = 'off'
 
   const payload = await getPayloadClient()
   try {
     const doc = await payload.create({
       collection: 'roles',
-      data: { name, capabilities: caps, [type]: num(id) } as never,
+      data: { name, capabilities: caps, booking_notify_level: bookingNotifyLevel, [type]: num(id) } as never,
       overrideAccess: true,
       user,
     })

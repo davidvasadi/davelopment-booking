@@ -31,6 +31,13 @@ export function formatDate(date: string | Date): string {
   return format(d, 'yyyy. MMMM d.', { locale: hu })
 }
 
+/** Rövid dátum-badge-hez: "Péntek, aug. 7." (nap + rövid hónap, év nélkül). */
+export function formatDayBadge(date: string | Date): string {
+  const d = typeof date === 'string' ? parseISO(date) : date
+  const s = format(d, 'EEEE, MMM d.', { locale: hu })
+  return s.charAt(0).toUpperCase() + s.slice(1)
+}
+
 /** Lokális idő szerinti YYYY-MM-DD (nem UTC — a `toISOString().slice(0,10)` időzóna-eltolna). */
 export function ymdLocal(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -47,6 +54,22 @@ export function minutesToHHMM(minutes: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
 }
 
+/** Záróraként tárolt "00:00" a NAP VÉGÉT jelenti (éjfélig nyitva) — kijelzéskor "24:00"-ként
+ *  olvashatóbb, mint a nap-eleji "00:00" (a tárolt érték nem változik, csak a megjelenítés). */
+export function displayCloseTime(t: string): string {
+  return t === '00:00' ? '24:00' : t
+}
+
+/**
+ * Óra-tengely (idővonal) jelölő-felirathoz: a `closeMin` éjfél utáni normalizálása miatt egy
+ * hourMark perc-érték elérheti/meghaladhatja az 1440-et (pl. 1440 = "24:00", 1470 = "24:30") —
+ * a TENGELY POZÍCIÓJÁHOZ ez kell (a geometria innen számol), de FELIRATKÉNT a megszokott
+ * 00–23 órás formátum olvashatóbb, ezért itt 24 órával "visszacsavarjuk" a kijelzéshez.
+ */
+export function minutesToHHMMWrapped(minutes: number): string {
+  return minutesToHHMM(((minutes % 1440) + 1440) % 1440)
+}
+
 /** Éjfél-átfordulásra biztos időtartam percben (a nevező sose 0 vagy negatív). */
 export function durationMinutes(startMin: number, endMin: number): number {
   const d = endMin >= startMin ? endMin - startMin : 1440 - startMin + endMin
@@ -56,4 +79,17 @@ export function durationMinutes(startMin: number, endMin: number): number {
 export function getDayName(date: Date): string {
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   return days[date.getDay()]
+}
+
+/**
+ * Payload a feltöltés pillanatában érvényes szerver-URL-t menti az adatbázisba (pl. localhost:3000).
+ * Ha azóta portot váltottunk, a tárolt URL nem egyezik a futó szerverrel → normalizálni kell.
+ */
+export function fixMediaUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  if (process.env.NODE_ENV === 'development' && /^http:\/\/localhost:\d+/.test(url)) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+    return url.replace(/^http:\/\/localhost:\d+/, appUrl)
+  }
+  return url
 }

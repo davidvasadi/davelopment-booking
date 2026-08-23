@@ -14,11 +14,16 @@ export async function POST(req: NextRequest) {
   // Csak érvényes, nem-negatív egészeket fogadunk el. Az árak + próbanapok bármekkorák lehetnek,
   // az éves kedvezmény (%) 0–100 közé szorítva.
   const keys = [
+    'salon_starter_huf',
     'salon_pro_huf',
     'salon_extra_staff_huf',
+    'restaurant_starter_huf',
     'restaurant_pro_huf',
     'annual_discount_pct',
     'trial_days',
+    'starter_email_cap',
+    'pro_email_cap',
+    'egyedi_email_cap',
   ] as const
   for (const key of keys) {
     const v = Number(body[key])

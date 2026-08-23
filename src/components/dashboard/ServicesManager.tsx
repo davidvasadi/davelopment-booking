@@ -5,7 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, fixMediaUrl } from '@/lib/utils'
 import type { Service, ServiceCategory, StaffMember, Media } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,7 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Scissors, Layers, Tag } from 'lucide-react'
+import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Scissors, Layers, Tag, Lock } from 'lucide-react'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
@@ -53,6 +53,20 @@ interface Props {
   supportedLocales?: (Locale | string)[] | null
   /** Idei bevétel kategóriánként (kategória-ID → Ft; a besorolatlan kulcsa '__none__'). */
   revenueByCategory?: Record<string, number>
+  /** email (kisbetűs) → a személy SAJÁT (Users.avatar_url) profilképe — fallback, ha a
+   *  staff-rekordnak nincs külön avatarja (ugyanaz a minta, mint a Munkatársak oldalon). */
+  avatarUrlByEmail?: Record<string, string>
+  /** Azok az email-ek (kisbetűs), akiknek van függőben lévő meghívójuk — amíg nem fogadják el,
+   *  nem rendelhetők szolgáltatáshoz (lakat + UX infó). */
+  invitedEmails?: Set<string>
+  canManage?: boolean
+}
+
+/** A staff-avatar VAGY (ha nincs) a személy saját profilképe email-egyezéssel. */
+function staffAvatarUrl(m: StaffMember, avatarUrlByEmail?: Record<string, string>): string | null {
+  if (m.avatar && typeof m.avatar === 'object') return fixMediaUrl((m.avatar as Media).url) ?? null
+  const email = (m.email ?? '').toLowerCase()
+  return email ? (avatarUrlByEmail?.[email] ?? null) : null
 }
 
 function serviceImageUrl(s: Service): string | null {
@@ -87,7 +101,7 @@ function compactFt(n: number): string {
 }
 
 
-export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory }: Props) {
+export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory, avatarUrlByEmail, invitedEmails, canManage = false }: Props) {
   const [services, setServices] = useState(initialServices)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
@@ -484,8 +498,6 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
   const catName = (id: string): string => (id === '__none__' ? 'Egyéb' : catById.get(id)?.name ?? 'Egyéb')
 
   const catCount = new Set(services.map(s => relId(s.category) ?? '__none__')).size
-  const avgPrice = services.length ? Math.round(services.reduce((sum, s) => sum + (s.price || 0), 0) / services.length) : 0
-  const heroCurrency = services[0]?.currency ?? 'HUF'
 
   const revByCat = revenueByCategory ?? {}
   const totalRevenue = Object.values(revByCat).reduce((a, b) => a + b, 0)
@@ -507,13 +519,15 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
         title="Szolgáltatások"
         description="Aktív kínálat, árak és időtartamok kategóriánként"
         action={
-          <button
-            onClick={openAdd}
-            aria-label="Új szolgáltatás"
-            className="flex h-11 items-center gap-2 rounded-dav-pill bg-ink-dark px-3.5 text-sm font-semibold text-white transition-colors hover:bg-ink sm:px-5"
-          >
-            <Plus className="h-4 w-4" /><span className="hidden sm:inline">Új szolgáltatás</span>
-          </button>
+          canManage && (
+            <button
+              onClick={openAdd}
+              aria-label="Új szolgáltatás"
+              className="flex h-11 items-center gap-2 rounded-dav-pill bg-ink-dark px-3.5 text-sm font-semibold text-white transition-colors hover:bg-ink sm:px-5"
+            >
+              <Plus className="h-4 w-4" /><span className="hidden sm:inline">Új szolgáltatás</span>
+            </button>
+          )
         }
         className="mb-6"
       />
@@ -537,7 +551,6 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
         <div className="flex flex-wrap items-start gap-8 lg:gap-10">
           <CountUpKpi icon="scissors" value={services.length} label="Szolgáltatás" />
           <CountUpKpi icon="layers" value={catCount} label="Kategória" />
-          <CountUpKpi icon="tag" value={avgPrice} label="Átlagár" suffix={heroCurrency === 'EUR' ? ' €' : ' Ft'} group />
         </div>
       </div>
 
@@ -576,7 +589,7 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
                       </p>
                     </div>
                   </div>
-                  {catRecord && (
+                  {catRecord && canManage && (
                     <button
                       onClick={() => openCatEdit(categoryId)}
                       className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper"
@@ -597,7 +610,7 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
                         key={s.id}
                         className="group flex items-center gap-3 rounded-[16px] px-1 py-3 transition-colors hover:bg-[var(--dav-glass)] sm:gap-4 sm:px-2"
                       >
-                        <button onClick={() => openEdit(s)} className="flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4">
+                        <button onClick={() => canManage && openEdit(s)} className={`flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4 ${canManage ? '' : 'cursor-default'}`}>
                           <span
                             className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px]"
                             style={imgUrl ? undefined : { background: tint.grad }}
@@ -614,11 +627,19 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
                               ) : staffMembers.length > 0 ? (
                                 <>
                                   <div className="flex shrink-0">
-                                    {staffMembers.slice(0, 4).map((m, mi) => (
-                                      <span key={m.id} className={`flex h-[22px] w-[22px] items-center justify-center rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
-                                        {m.name.slice(0, 1).toUpperCase()}
-                                      </span>
-                                    ))}
+                                    {staffMembers.slice(0, 4).map((m, mi) => {
+                                      const url = staffAvatarUrl(m, avatarUrlByEmail)
+                                      return (
+                                        <span key={m.id} className={`flex h-[22px] w-[22px] items-center justify-center overflow-hidden rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
+                                          {url ? (
+                                            // eslint-disable-next-line @next/next/no-img-element
+                                            <img src={url} alt={m.name} className="h-full w-full object-cover object-top" />
+                                          ) : (
+                                            m.name.slice(0, 1).toUpperCase()
+                                          )}
+                                        </span>
+                                      )
+                                    })}
                                   </div>
                                   <span className="truncate text-[12px] text-ink-soft">{staffMembers.map(m => m.name).join(', ')}</span>
                                 </>
@@ -632,9 +653,13 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
                           <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
                         </span>
                         <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{formatPrice(s.price, s.currency)}</span>
-                        <Switch checked={active} onChange={() => toggleActive(s)} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
-                        <button onClick={() => openEdit(s)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
-                        <button onClick={() => deleteService(String(s.id))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
+                        {canManage && (
+                          <>
+                            <Switch checked={active} onChange={() => toggleActive(s)} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
+                            <button onClick={() => openEdit(s)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
+                            <button onClick={() => deleteService(String(s.id))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
+                          </>
+                        )}
                       </div>
                     )
                   })}
@@ -776,32 +801,32 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
                 <div className="flex flex-wrap gap-1.5">
                   {staffList.map(m => {
                     const sel = selectedStaffIds.includes(String(m.id))
+                    const pending = !!invitedEmails?.has((m.email ?? '').toLowerCase())
                     return (
                       <button
                         key={m.id}
                         type="button"
-                        onClick={() => setSelectedStaffIds(prev =>
+                        disabled={pending}
+                        title={pending ? 'Még nem fogadta el a meghívást — addig nem rendelhető szolgáltatáshoz' : undefined}
+                        onClick={() => { if (pending) return; setSelectedStaffIds(prev =>
                           sel ? prev.filter(id => id !== String(m.id)) : [...prev, String(m.id)]
-                        )}
-                        className="inline-flex h-8 items-center rounded-full px-3 text-[12px] font-medium transition-all"
+                        ) }}
+                        className={`inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-[12px] font-medium transition-all ${pending ? 'cursor-not-allowed opacity-60' : ''}`}
                         style={{
                           background: sel ? '#1D1C19' : 'transparent',
                           color: sel ? '#fff' : '#57564f',
                           border: `1px solid ${sel ? '#1D1C19' : '#d9d4c5'}`,
                         }}
                       >
+                        {pending && <Lock className="h-3 w-3 shrink-0" strokeWidth={2} />}
                         {m.name}
                       </button>
                     )
                   })}
                 </div>
-                <p className="text-[11px] text-ink-soft2">Ha nincs kiválasztva, az összes aktív szakember foglalható</p>
+                <p className="text-[11px] text-ink-soft2">Csak a kiválasztott szakemberek foglalhatók erre a szolgáltatásra — ha senkit nem választasz, egyelőre senki nem foglalható rá.</p>
               </div>
             )}
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="active" className="h-4 w-4 rounded" {...register('is_active')} />
-              <Label htmlFor="active" className="text-sm">Aktív (foglalható)</Label>
-            </div>
             </>
             )}
             <button

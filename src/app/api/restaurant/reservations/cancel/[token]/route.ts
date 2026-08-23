@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { sendReservationCancellation } from '@/lib/restaurantEmail'
 import { promoteWaitlistOnCancel } from '@/lib/waitlistPromote'
+import { refundDepositIfEligible } from '@/lib/depositRefund'
 import type { Reservation, Restaurant } from '@/payload/payload-types'
 
 export async function POST(_request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
@@ -30,7 +31,7 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
     await payload.update({
       collection: 'reservations',
       id: reservation.id,
-      data: { status: 'cancelled' },
+      data: { status: 'cancelled', cancelled_at: new Date().toISOString() },
       overrideAccess: true,
       context: { auditActor: 'Vendég (lemondás)' },
     })
@@ -51,6 +52,15 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
       })
     }
 
+    if (restaurant && typeof restaurant === 'object') {
+      void refundDepositIfEligible({
+        collection: 'reservations',
+        doc: { id: reservation.id, date: reservation.date, start_time: reservation.start_time },
+        connectAccountId: restaurant.stripe_connect_account_id,
+        refundHoursBefore: restaurant.deposit_settings?.refund_hours_before ?? 24,
+      })
+    }
+
     // Sorozat-lemondás: a series_id-hez tartozó JÖVŐBELI, nem lemondott/befejezett alkalmakat
     // is lemondjuk. Csak explicit ?scope=series-re.
     if (cancelSeries && reservation.series_id) {
@@ -68,12 +78,18 @@ export async function POST(_request: NextRequest, { params }: { params: Promise<
         overrideAccess: true,
       })
       for (const sib of siblings.docs as Reservation[]) {
-        await payload.update({ collection: 'reservations', id: sib.id, data: { status: 'cancelled' }, overrideAccess: true, context: { auditActor: 'Vendég (lemondás)' } })
+        await payload.update({ collection: 'reservations', id: sib.id, data: { status: 'cancelled', cancelled_at: new Date().toISOString() }, overrideAccess: true, context: { auditActor: 'Vendég (lemondás)' } })
         if (restaurant && typeof restaurant === 'object' && restaurant.notification_prefs?.cancel_email !== false) {
           void sendReservationCancellation({ reservation: { ...sib, status: 'cancelled' }, restaurant })
         }
         if (restaurant && typeof restaurant === 'object') {
           void promoteWaitlistOnCancel({ kind: 'restaurant', business: restaurant, date: sib.date, time: sib.start_time, pax: sib.pax })
+          void refundDepositIfEligible({
+            collection: 'reservations',
+            doc: { id: sib.id, date: sib.date, start_time: sib.start_time },
+            connectAccountId: restaurant.stripe_connect_account_id,
+            refundHoursBefore: restaurant.deposit_settings?.refund_hours_before ?? 24,
+          })
         }
       }
     }

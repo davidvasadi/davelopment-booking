@@ -1,6 +1,6 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
-import { settingsExtensionFields, businessTierField, emailTemplateFields } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, customMonthlyFeeField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields, marketingTrackingFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
@@ -44,6 +44,33 @@ export const Salons: CollectionConfig = {
           })
         } catch (err) {
           req.payload.logger.error(`admin új-szalon értesítés hiba: ${String(err)}`)
+        }
+        // A tulaj automatikus staff-rekordja: mivel aki regisztrál, az a szalon tulajdonosa,
+        // és egy kis vállalkozásnál a tulaj szinte mindig maga is dolgozik szakemberként —
+        // ettől fogva EGYBŐL kap egy valódi (foglalható) staff-rekordot, `Staff.user`-rel a
+        // fiókjához kötve. Így sosem kell külön linkelni/felvennie saját magát a Munkatársakon
+        // ahhoz, hogy a szolgáltatásoknál kiválasztható, a Naptáron ütemezhető, a "Saját munka"
+        // statisztikában megtalálható legyen.
+        try {
+          if (doc.owner) {
+            const owner = await req.payload.findByID({ collection: 'users', id: doc.owner, depth: 0, overrideAccess: true }).catch(() => null)
+            if (owner) {
+              await req.payload.create({
+                collection: 'staff',
+                overrideAccess: true,
+                req,
+                data: {
+                  salon: doc.id,
+                  user: doc.owner,
+                  name: owner.name || 'Tulajdonos',
+                  email: owner.email || undefined,
+                  is_active: true,
+                },
+              })
+            }
+          }
+        } catch (err) {
+          req.payload.logger.error(`tulaj automatikus staff-rekord hiba: ${String(err)}`)
         }
       },
     ],
@@ -193,7 +220,15 @@ export const Salons: CollectionConfig = {
               admin: { description: 'Ha be van kapcsolva, a tulajdonos értesítést kap új foglalásról és lemondásról az alkalmazáson belül.' },
             },
             businessTierField,
+            customMonthlyFeeField,
             ...settingsExtensionFields,
+            ...depositSettingsFields,
+            ...voucherSettingsFields,
+            ...newsletterSettingsFields,
+            ...consentSettingsFields,
+            ...marketingTrackingFields,
+            ...stripeConnectFields,
+            ...invoiceSettingsFields,
             {
               name: 'booking_email_subject',
               type: 'text',
@@ -276,6 +311,34 @@ export const Salons: CollectionConfig = {
                 { name: 'icon', type: 'text', label: 'Ikon kulcs', defaultValue: 'info' },
                 { name: 'title', type: 'text', localized: true, label: 'Pont címe' },
                 { name: 'body', type: 'textarea', localized: true, label: 'Pont szövege' },
+              ],
+            },
+            {
+              name: 'custom_questions',
+              type: 'array',
+              label: 'Egyedi kérdések a foglaláskor',
+              admin: { description: 'Saját kérdések, amiket a vendégnek fel kell tenni foglaláskor (pl. „Allergiás vagy valamire?").' },
+              fields: [
+                { name: 'label', type: 'text', required: true, localized: true, label: 'Kérdés szövege' },
+                {
+                  name: 'type',
+                  type: 'select',
+                  defaultValue: 'text',
+                  label: 'Típus',
+                  options: [
+                    { label: 'Szöveges válasz', value: 'text' },
+                    { label: 'Igen / Nem', value: 'yesno' },
+                    { label: 'Választható lista', value: 'select' },
+                  ],
+                },
+                {
+                  name: 'options',
+                  type: 'array',
+                  label: 'Választható opciók',
+                  admin: { description: 'Csak „Választható lista" típusnál használt.' },
+                  fields: [{ name: 'value', type: 'text', localized: true, label: 'Opció szövege' }],
+                },
+                { name: 'required', type: 'checkbox', defaultValue: false, label: 'Kötelező' },
               ],
             },
             {

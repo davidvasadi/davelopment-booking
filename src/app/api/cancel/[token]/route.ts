@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { sendCancellationEmail } from '@/lib/email'
 import { promoteWaitlistOnCancel } from '@/lib/waitlistPromote'
+import { refundDepositIfEligible } from '@/lib/depositRefund'
 import type { Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
 export async function GET(
@@ -41,7 +42,7 @@ export async function GET(
     await payload.update({
       collection: 'bookings',
       id: booking.id,
-      data: { status: 'cancelled' },
+      data: { status: 'cancelled', cancelled_at: new Date().toISOString() },
       overrideAccess: true,
       context: { auditActor: 'Vendég (lemondás)' },
     })
@@ -58,6 +59,15 @@ export async function GET(
 
     // Auto-promote: a felszabaduló időpontra egyező várólista-bejegyzés értesítése (ha be van kapcsolva).
     void promoteWaitlistOnCancel({ kind: 'salon', business: salon, date: booking.date, time: booking.start_time })
+
+    // Előleg visszatérítése, ha a lemondás az időablakon belül történt (best-effort, nem
+    // blokkolja a redirectet).
+    void refundDepositIfEligible({
+      collection: 'bookings',
+      doc: { id: booking.id, date: booking.date, start_time: booking.start_time },
+      connectAccountId: salon.stripe_connect_account_id,
+      refundHoursBefore: salon.deposit_settings?.refund_hours_before ?? 24,
+    })
 
     // Sorozat-lemondás: a token foglalás series_id-jéhez tartozó JÖVŐBELI (a mai naptól),
     // még nem lemondott/befejezett alkalmakat is lemondjuk. Csak explicit ?scope=series-re.
@@ -76,11 +86,20 @@ export async function GET(
         overrideAccess: true,
       })
       for (const sib of siblings.docs as Booking[]) {
-        await payload.update({ collection: 'bookings', id: sib.id, data: { status: 'cancelled' }, overrideAccess: true, context: { auditActor: 'Vendég (lemondás)' } })
+        await payload.update({ collection: 'bookings', id: sib.id, data: { status: 'cancelled', cancelled_at: new Date().toISOString() }, overrideAccess: true, context: { auditActor: 'Vendég (lemondás)' } })
         if (salon.notification_prefs?.cancel_email !== false) {
           void sendCancellationEmail({ booking: { ...sib, status: 'cancelled' }, salon, service, staff })
         }
         void promoteWaitlistOnCancel({ kind: 'salon', business: salon, date: sib.date, time: sib.start_time })
+        // FÁZIS 1-ben a sorozat többi tagja sose kap előleget (csak az első alkalom), tehát
+        // ez itt no-op ma — de defenzíven megírva, hogy jövőbeli sorozat-előleg esetén is
+        // helyesen működjön a lemondás-visszatérítés.
+        void refundDepositIfEligible({
+          collection: 'bookings',
+          doc: { id: sib.id, date: sib.date, start_time: sib.start_time },
+          connectAccountId: salon.stripe_connect_account_id,
+          refundHoursBefore: salon.deposit_settings?.refund_hours_before ?? 24,
+        })
       }
     }
 

@@ -31,6 +31,9 @@ export type PendingRegistration = {
   placeName: string // salon name vagy restaurant name
   city?: string
   phone?: string
+  /** A landing árazás-kártyáján kiválasztott csomag (?tier= a /register-en) — a Google-flow ezt
+   *  a cookie-n át viszi át a `complete-registration` route-ig, ami a szalont/éttermet létrehozza. */
+  tier?: 'starter' | 'pro'
 }
 
 function getKey(): Uint8Array {
@@ -69,6 +72,7 @@ export async function readPendingRegistration(): Promise<PendingRegistration | n
       placeName: String(payload.placeName ?? ''),
       city: payload.city ? String(payload.city) : undefined,
       phone: payload.phone ? String(payload.phone) : undefined,
+      tier: payload.tier === 'starter' ? 'starter' : undefined,
     }
   } catch {
     return null

@@ -92,6 +92,10 @@ async function findOrCreatePayloadUser(
       email: emailLc,
       name: name || emailLc.split('@')[0],
       password,
+      // A Google OAuth már igazolta az email-tulajdonlást — nem kell még egy saját
+      // megerősítő-linkes kört futtatnunk (a `verify: true` a Users collection-ön a
+      // jelszavas regisztrációt védi, ez itt annak a bypass-a Google-belépésnél).
+      _verified: true,
       ...(image ? { avatar_url: image } : {}),
     },
     overrideAccess: true,

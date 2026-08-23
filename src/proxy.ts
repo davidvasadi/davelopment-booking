@@ -45,6 +45,16 @@ const RULES: Rule[] = [
     windowMs: 60_000,
     bucket: 'read',
   },
+  // Hírlevél-kampány küldése: nagyon szigorú — egy hívás akár SZÁZAS nagyságrendű emailt
+  // indíthat el (a havi plafonig), az `/api/marketing/send` saját atomi zárja + havi-keret
+  // ellenőrzése mellett ez a réteg egy kompromittált/script-elt fiók IP-szintű hentergetése
+  // ellen véd (ne tudja perceken belül sokszor újrapróbálni a küldést).
+  {
+    test: (p) => p.startsWith('/api/marketing/send'),
+    limit: 5,
+    windowMs: 60_000,
+    bucket: 'marketing-send',
+  },
 ]
 
 function applyRateLimit(req: NextRequest, pathname: string): NextResponse | null {

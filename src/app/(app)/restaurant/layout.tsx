@@ -31,8 +31,10 @@ export default async function RestaurantLayout({ children }: { children: React.R
     overrideAccess: true,
   })) as Restaurant
 
-  // Fiók-szintű előfizetés: a lock-státusz a FIÓK (owner) egyetlen előfizetéséből jön.
-  let subscription: Subscription | null = await findAccountSubscription({ payload }, user.id)
+  // Fiók-szintű előfizetés: a lock-státusz a FIÓK (owner) egyetlen előfizetéséből jön — az
+  // ÜZLET tulajdonosáé, NEM a bejelentkezett useré (lásd dashboard/layout.tsx azonos indoklása).
+  const ownerId = typeof restaurant.owner === 'object' && restaurant.owner ? restaurant.owner.id : restaurant.owner
+  let subscription: Subscription | null = ownerId ? await findAccountSubscription({ payload }, ownerId) : null
   subscription = await expireOneTrial(subscription)
 
   const sub = subscription
@@ -64,6 +66,8 @@ export default async function RestaurantLayout({ children }: { children: React.R
         businesses={businesses}
         activeBusinessKey={`${active.type}:${active.id}`}
         capabilities={active.capabilities}
+        voucherEnabled={!!restaurant.voucher_settings?.enabled}
+        newsletterEnabled={restaurant.newsletter_settings?.package !== 'none'}
       >
         <LiveRefreshProvider businessKey={`${active.type}:${active.id}`} />
         <PageTransition>{children}</PageTransition>

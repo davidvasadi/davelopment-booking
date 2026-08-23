@@ -1,18 +1,20 @@
 'use client'
 
-import { useState, useEffect, useRef, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
-import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, UserRound } from 'lucide-react'
+import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal, fixMediaUrl } from '@/lib/utils'
+import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, CalendarRange, CalendarClock, UserRound, Banknote } from 'lucide-react'
+import type { BookingsRange } from './DateFilter'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import BookingActions from '@/components/dashboard/BookingActions'
 import { SalonOfflineBanner } from '@/components/dashboard/SalonOfflineBanner'
 import { BookingEditSheet, type EditTarget } from '@/components/dashboard/BookingEditSheet'
 import { getDrafts, subscribeDrafts, type SalonBookingDraft } from '@/lib/salonBookingDrafts'
+import { MobileOptionSheet } from '@/components/ui/MobileOptionSheet'
+import { HoverButton } from '@/components/shared/HoverButton'
 import type { Booking, Service, StaffMember, Media } from '@/payload/payload-types'
 
 type ViewMode = 'list' | 'timeline'
@@ -22,20 +24,33 @@ const statusLabel: Record<string, string> = {
   pending: 'Megerősítésre vár', confirmed: 'Megerősítve',
   completed: 'Befejezett', cancelled: 'Lemondva',
 }
+// A hatch-mintás (szaggatott "börtön") hátterek NEM Tailwind bg-[...] arbitrary osztályként
+// mennek — Safariban (és mobil WebKiten) a bonyolult repeating-linear-gradient bracket-szintaxis
+// nem mindig alkalmazódott (üresen/fehéren maradt a kártya), csak Chrome-on volt jó. Sima
+// `style`-lal adjuk, mint az üres-sáv placeholdereknél — az garantáltan minden böngészőben fut.
+// Fedő (nem áttetsző) színek — korábban rgba(...) volt, ami a krém oldal-háttéren szépen
+// nézett ki, DE egy kártya-verem elé kerülve átütött rajta a mögötte lévő elem színe.
+const HATCH_COMPLETED = 'repeating-linear-gradient(115deg,#FAF8F3 0 7px,#E5E0CD 7px 14px)'
+function statusBg(status: string): { background: string } | undefined {
+  if (status === 'completed') return { background: HATCH_COMPLETED }
+  return undefined
+}
 // Tömör blokk-színek a davelopment-kánon szerint (a szalon 4 státusza):
-// confirmed=sötét (alap), pending=gold (függő), completed=zöld (kész), cancelled=szaggatott áthúzott.
+// confirmed=sötét (alap), pending=gold (függő), completed=szaggatott hatch (kész, mint az
+// étteremnél és az Áttekintés-oldalon) — a háttér a statusBg()-ből jön (style), cancelled=
+// szaggatott áthúzott.
 const statusBlock: Record<string, string> = {
   pending: 'bg-[#F1CE45] text-ink-dark border-[#F1CE45]',
   confirmed: 'bg-[#1D1C19] text-white border-[#1D1C19]',
-  completed: 'bg-[#1D9D63] text-white border-[#1D9D63]',
-  cancelled:
-    'text-ink-soft2 border border-dashed border-[#A0A096]/60 line-through bg-[repeating-linear-gradient(115deg,rgba(200,195,180,.5)_0_6px,rgba(225,220,206,.5)_6px_12px)]',
+  completed: 'text-ink-soft2 border border-[#c9c2ae]',
+  cancelled: 'bg-[#C0564A] text-white border-[#C0564A]',
 }
 const statusDot: Record<string, string> = {
-  pending: 'bg-gold', confirmed: 'bg-ink-dark', completed: 'bg-[#1D9D63]', cancelled: 'bg-[#D8D2C2]',
+  pending: 'bg-gold', confirmed: 'bg-ink-dark', completed: 'bg-[#C9C2AE]', cancelled: 'bg-[#C0564A]',
 }
-const ACTIVE = new Set(['pending', 'confirmed', 'completed'])
-const STATUS_DARK_BG = new Set(['confirmed', 'completed'])
+const CANCEL_RED = '#C0564A'
+export const ACTIVE = new Set(['pending', 'confirmed', 'completed', 'cancelled'])
+const STATUS_DARK_BG = new Set(['confirmed', 'cancelled'])
 
 /** Élő, percenként frissülő aktuális idő (perc éjféltől). null, ha a megtekintett nap nem ma van. */
 function useNowMinutes(date: string): number | null {
@@ -65,20 +80,25 @@ function urgencyOf(b: Booking, nowMin: number | null): { label: string; cls: str
 }
 
 // ── segéd-getterek (a reláció lehet id vagy kifejtett objektum) ──
-const idOf = (v: unknown): string =>
+export const idOf = (v: unknown): string =>
   v && typeof v === 'object' ? String((v as { id: string | number }).id) : String(v ?? '')
 const serviceOf = (b: Booking): Service | null => (typeof b.service === 'object' ? b.service : null)
 const staffOf = (b: Booking): StaffMember | null => (typeof b.staff === 'object' ? b.staff : null)
 const durationOf = (b: Booking): number => Math.max(0, hhmmToMinutes(b.end_time) - hhmmToMinutes(b.start_time))
-const avatarUrlOf = (s: StaffMember | null): string | null => {
+// Egy "extra" (kinyíló) verem tényleges pixel-magassága — a Framer `height: 'auto'` animáció
+// CSS grid-cellában nem mindig méri fel helyesen (láthatatlan maradt a tartalom), ezért itt
+// EXPLICIT pixel-célértéket adunk az animate-nek: minden elem fix 72px + 8px rés köztük + 8px
+// felső padding (space-y-2 pt-2), pontosan a HatchBand/kártya-magassággal megegyezően.
+export const extraStackHeightPx = (count: number): number => (count > 0 ? 8 + count * 72 + (count - 1) * 8 : 0)
+export const avatarUrlOf = (s: StaffMember | null): string | null => {
   const a = s?.avatar
-  return a && typeof a === 'object' ? ((a as Media).url ?? null) : null
+  return a && typeof a === 'object' ? fixMediaUrl((a as Media).url) : null
 }
 const initialsOf = (name: string): string =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '·'
 
 /** Kis avatar-kör (profilkép vagy UserRound fallback) — a szakember-sáv címkéjéhez. */
-function Ava({ url, className }: { url?: string | null; ini?: string; className: string }) {
+export function Ava({ url, className }: { url?: string | null; ini?: string; className: string }) {
   if (url) return <img src={url} alt="" className={`${className} object-cover object-top`} />
   return (
     <span className={`${className} flex items-center justify-center`} style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
@@ -92,7 +112,7 @@ type DraftBooking = Booking & { __draft: true; draftId: string }
 export function isDraft(b: Booking): b is DraftBooking {
   return (b as DraftBooking).__draft === true
 }
-function draftToBooking(d: SalonBookingDraft): DraftBooking {
+export function draftToBooking(d: SalonBookingDraft): DraftBooking {
   const end = d.end_time || d.start_time
   return {
     id: d.draftId as unknown as string,
@@ -113,25 +133,36 @@ function draftToBooking(d: SalonBookingDraft): DraftBooking {
 
 export interface SalonDailyViewProps {
   date: string
+  /** A jelenlegi időszak-nézet (Nap/Hét/Hónap) — a mobil nézet-választó sheet-be ágyazott
+   *  Nap/Hét/Hónap váltóhoz kell (ld. dateFilter komment). Ezen az oldalon mindig 'day'. */
+  range: BookingsRange
   salonId: string
   bookings: Booking[]
   staff: StaffMember[]
   services: Service[]
   openMin: number
   closeMin: number
+  /** Azok az email-ek (kisbetűs), akiknek van függőben lévő meghívójuk — amíg nem fogadják el,
+   *  nem oszthatók be foglalásra (lakat + UX infó, ld. BookingEditSheet). */
+  invitedEmails?: Set<string>
   /** Értesítésből érkezve ezt a foglalást nyitjuk meg automatikusan. */
   openBookingId?: string
   /** A toolbar-ba ágyazott dátum-navigátor (server komponensből). */
   dateFilter: React.ReactNode
+  /** A toolbar-ba ágyazott nap-nyomtatás gomb (server komponensből). */
+  printButton?: React.ReactNode
   /** Ha false, csak olvasható nézet — az Új foglalás gomb, szerkesztés és drag rejtve. */
   canManage?: boolean
+  /** A szalon beleegyező nyilatkozat funkciója be van-e kapcsolva. */
+  consentEnabled?: boolean
 }
 
 export function SalonDailyView(props: SalonDailyViewProps) {
-  const { date, salonId, staff, services, openMin, closeMin, openBookingId, dateFilter, canManage = false } = props
+  const { date, range, salonId, staff, services, openMin, closeMin, invitedEmails, openBookingId, dateFilter, printButton, canManage = false, consentEnabled = false } = props
   const [view, setView] = useState<ViewMode>('timeline')
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<SalonBookingDraft[]>([])
+  const [mobileViewOpen, setMobileViewOpen] = useState(false)
   const router = useRouter()
 
   // Lokális vázlatok betöltése + élő követése.
@@ -144,6 +175,14 @@ export function SalonDailyView(props: SalonDailyViewProps) {
     const saved = localStorage.getItem(STORAGE_KEY) as ViewMode | null
     if (saved === 'list' || saved === 'timeline') setView(saved)
   }, [])
+
+  // Mobilon a nézet-váltó a fejléc csengő melletti ikonjából nyílik (DashboardNav dispatch-eli).
+  useEffect(() => {
+    const handler = () => setMobileViewOpen(true)
+    window.addEventListener('davelopment:open-bookings-view', handler)
+    return () => window.removeEventListener('davelopment:open-bookings-view', handler)
+  }, [])
+
   const pick = (v: ViewMode) => {
     setView(v)
     localStorage.setItem(STORAGE_KEY, v)
@@ -212,10 +251,24 @@ export function SalonDailyView(props: SalonDailyViewProps) {
     { mode: 'list', icon: List, label: 'Lista' },
   ]
 
+  // Nap/Hét/Hónap — mobilon a nézet-választó sheet MÁSODIK csoportjaként jelenik meg (a
+  // desktop pill ilyenkor rejtve, ld. DateFilter `hideRangeOnMobile`).
+  const rangeButtons: { mode: BookingsRange; icon: typeof List; label: string }[] = [
+    { mode: 'day', icon: CalendarDays, label: 'Nap' },
+    { mode: 'week', icon: CalendarRange, label: 'Hét' },
+    { mode: 'month', icon: CalendarClock, label: 'Hónap' },
+  ]
+  const pickRange = (v: BookingsRange) => router.push(`/dashboard/bookings?date=${date}&range=${v}`)
+
   // KPI-számok a nap valós adataiból (vázlatokkal együtt).
+  const nowMin = useNowMinutes(date)
   const totalB = bookings.length || 1
-  const confirmedCount = bookings.filter((b) => b.status === 'confirmed' || b.status === 'completed').length
-  const pendingCount = bookings.filter((b) => b.status === 'pending').length
+  // A csík első (sötét) sávja a MÁR LEZÁRULT (Befejezett) foglalásokat méri, a második (arany)
+  // a MÉG AKTÍV, megerősített (nem befejezett, nem lemondott) foglalásokat — így a három sáv
+  // ténylegesen a nap valós lefolyását tükrözi, nem csak egy statikus "megerősítve" halmazt.
+  const activeConfirmedCount = bookings.filter((b) => b.status === 'confirmed').length
+  // A Kezelendő KPI-szám (lejárt idősávú, még nem lezárt foglalás) külön, a pilltől függetlenül.
+  const pendingCount = bookings.filter((b) => needsHandling(b, nowMin)).length
   const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length
   const activeCount = bookings.filter((b) => b.status !== 'cancelled').length
   const completedCount = bookings.filter((b) => b.status === 'completed').length
@@ -238,15 +291,17 @@ export function SalonDailyView(props: SalonDailyViewProps) {
             Foglalások
           </h1>
           <p className="mt-1.5 text-sm font-medium text-ink-soft2">
-            Napi idősáv · {activeStaff.length} szakember
+            Napi idősáv · {minutesToHHMM(openMin)}–{minutesToHHMM(closeMin)} · {activeStaff.length} szakember
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {dateFilter}
-          <div className="inline-flex gap-0.5 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1">
+          {/* Nézet-váltó — desktopon inline pill; mobilon a fejléc-ikon (csengő mellett)
+              nyitja alulról felcsúszó választóként (ld. MobileOptionSheet lent). */}
+          <div className="hidden h-[42px] items-center gap-0.5 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1 lg:inline-flex">
             {viewButtons.map(({ mode, icon: Icon, label }) => (
-              <button
+              <HoverButton
                 key={mode}
                 onClick={() => pick(mode)}
                 title={label}
@@ -255,17 +310,18 @@ export function SalonDailyView(props: SalonDailyViewProps) {
                 }`}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">{label}</span>
-              </button>
+              </HoverButton>
             ))}
           </div>
+          {printButton}
           {canManage && (
-            <button
+            <HoverButton
               onClick={() => openCreate()}
-              className="inline-flex items-center gap-2 h-[42px] px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
+              className="inline-flex items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
             >
               <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
               <span className="hidden sm:inline">Új foglalás</span>
-            </button>
+            </HoverButton>
           )}
         </div>
       </div>
@@ -277,8 +333,8 @@ export function SalonDailyView(props: SalonDailyViewProps) {
             eager
             className="flex-1 lg:max-w-[760px]"
             segments={[
-              { label: 'Megerősített', pct: Math.round((confirmedCount / totalB) * 100), background: '#1D1C19', color: '#fff' },
-              { label: 'Függő', pct: Math.round((pendingCount / totalB) * 100), background: '#F1CE45', color: '#1D1C19' },
+              { label: 'Befejezett', pct: Math.round((completedCount / totalB) * 100), background: '#1D1C19', color: '#fff' },
+              { label: 'Megerősített', pct: Math.round((activeConfirmedCount / totalB) * 100), background: '#F1CE45', color: '#1D1C19' },
               { label: 'Lemondva', pct: Math.round((cancelledCount / totalB) * 100), background: HATCH, color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
             ]}
           />
@@ -291,7 +347,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
         </div>
       )}
 
-      {view === 'list' && <ListView date={date} bookings={bookings} onEdit={openEdit} />}
+      {view === 'list' && <ListView date={date} bookings={bookings} onEdit={openEdit} consentEnabled={consentEnabled} />}
       {view === 'timeline' && (
         <TimelineView
           date={date}
@@ -316,13 +372,27 @@ export function SalonDailyView(props: SalonDailyViewProps) {
         staff={staff}
         openMin={openMin}
         closeMin={closeMin}
+        invitedEmails={invitedEmails}
+      />
+
+      <MobileOptionSheet
+        open={mobileViewOpen}
+        onClose={() => setMobileViewOpen(false)}
+        title="Nézet"
+        options={viewButtons}
+        value={view}
+        onChange={pick}
+        secondaryTitle="Időszak"
+        secondaryOptions={rangeButtons}
+        secondaryValue={range}
+        secondaryOnChange={pickRange}
       />
     </div>
   )
 }
 
 /* ---------- Lista nézet (egynapos) ---------- */
-function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[]; onEdit: (b: Booking) => void }) {
+function ListView({ date, bookings, onEdit, consentEnabled }: { date: string; bookings: Booking[]; onEdit: (b: Booking) => void; consentEnabled?: boolean }) {
   const card = 'rounded-[26px] dav-card-glass'
   const nowMin = useNowMinutes(date)
   const nowRef = useRef<HTMLDivElement>(null)
@@ -344,10 +414,6 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
   return (
     <div className={`${card} divide-y divide-line overflow-hidden`}>
       {sorted.map((b, i) => {
-        const svc = serviceOf(b)
-        const st = staffOf(b)
-        const draft = isDraft(b)
-        const urgency = draft ? null : urgencyOf(b, nowMin)
         const showNow = i === nowIndex
         return (
           <div key={String(b.id)}>
@@ -358,49 +424,94 @@ function ListView({ date, bookings, onEdit }: { date: string; bookings: Booking[
                 <span className="h-px flex-1 bg-red-500/40" />
               </div>
             )}
-            <div className={`relative flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 transition-colors hover:bg-[var(--dav-glass)] ${draft ? 'border-l-2 border-dashed border-gold bg-gold/[0.08]' : ''}`}>
-              {urgency && (
-                <span className={`absolute right-2 top-2 z-10 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${urgency.cls}`}>
-                  {urgency.label}
-                </span>
-              )}
-              <button onClick={() => onEdit(b)} className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 text-left">
-                <div className="w-11 sm:w-12 shrink-0">
-                  <div className="text-sm sm:text-base font-semibold text-ink tabular-nums leading-tight">{b.start_time}</div>
-                  <div className="text-[11px] text-ink-soft2 tabular-nums">{b.end_time}</div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`h-2 w-2 shrink-0 rounded-full sm:hidden ${statusDot[b.status] ?? 'bg-line-strong'}`} />
-                    <span className="font-medium text-ink truncate">{b.customer_name}</span>
-                    {draft && (
-                      <span className="shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-dark">Vázlat</span>
-                    )}
-                    {b.series_id && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
-                        <Repeat className="h-3 w-3" /> Sorozat
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-sm text-ink-soft truncate">
-                    {svc?.name ?? '—'}{st?.name ? ` · ${st.name}` : ''}{b.customer_phone ? ` · ${b.customer_phone}` : ''}
-                  </div>
-                  {b.notes && <div className="text-xs text-ink-soft2 mt-0.5 truncate">„{b.notes}”</div>}
-                </div>
-              </button>
-              <div className="flex items-center shrink-0">
-                <span className="hidden sm:flex items-center gap-2 w-32 shrink-0">
-                  <span className={`h-2 w-2 shrink-0 rounded-full ${statusDot[b.status] ?? 'bg-line-strong'}`} />
-                  <span className="text-xs text-ink-soft truncate">{statusLabel[b.status] ?? b.status}</span>
-                </span>
-                <div className="flex items-center justify-end w-10 shrink-0">
-                  {!draft && <BookingActions bookingId={String(b.id)} status={b.status} />}
-                </div>
-              </div>
-            </div>
+            <BookingRow b={b} onEdit={onEdit} nowMin={nowMin} consentEnabled={consentEnabled} />
           </div>
         )
       })}
+    </div>
+  )
+}
+
+/** Egy kompakt foglalás-sor (idő/ügyfél/badge-ek/státusz) — a Lista-nézet ÉS a Heti nézet közös
+ *  sor-renderelője, hogy a két nézet vizuálisan egyezzen és ne duplikálódjon a JSX. */
+export function BookingRow({ b, onEdit, nowMin, consentEnabled }: { b: Booking; onEdit: (b: Booking) => void; nowMin: number | null; consentEnabled?: boolean }) {
+  const svc = serviceOf(b)
+  const st = staffOf(b)
+  const draft = isDraft(b)
+  const urgency = draft ? null : urgencyOf(b, nowMin)
+  const overdue = !draft && needsHandling(b, nowMin)
+  return (
+    <div
+      className={`relative flex items-center gap-2.5 sm:gap-3 px-3 sm:px-4 py-2.5 transition-colors hover:bg-[var(--dav-glass)] ${draft ? 'bg-gold/[0.08]' : overdue ? 'bg-[#F1CE45]/[0.12]' : ''}`}
+      style={
+        draft || overdue
+          ? undefined
+          // Safari-bug: a bg-[#hex]/[opacity] Tailwind arbitrary-szintaxis a lemondott
+          // piros háttérnél nem alkalmazódott (ugyanaz a hiba-osztály, mint a hatch-
+          // mintáknál) — sima style-lal garantáltan minden böngészőben fut.
+          : b.status === 'cancelled'
+            ? { background: 'rgba(192,86,74,0.10)' }
+            : statusBg(b.status)
+      }
+    >
+      {urgency && (
+        <span className={`absolute right-2 top-2 z-10 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide shadow-sm ${urgency.cls}`}>
+          {urgency.label}
+        </span>
+      )}
+      <button onClick={() => onEdit(b)} className="flex items-center gap-2.5 sm:gap-3 flex-1 min-w-0 text-left">
+        <div className="w-11 sm:w-12 shrink-0">
+          <div className="text-sm sm:text-base font-semibold text-ink tabular-nums leading-tight">{b.start_time}</div>
+          <div className="text-[11px] text-ink-soft2 tabular-nums">{b.end_time}</div>
+        </div>
+        <div className="hidden shrink-0 sm:block">
+          <Ava url={avatarUrlOf(st)} className="h-8 w-8 rounded-full overflow-hidden" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`h-2 w-2 shrink-0 rounded-full sm:hidden ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
+            <span className="font-medium text-ink truncate">{b.customer_name}</span>
+            {draft && (
+              <span className="shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-dark">Vázlat</span>
+            )}
+            {b.series_id && (
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
+                <Repeat className="h-3 w-3" /> Sorozat
+              </span>
+            )}
+            {b.payment_status === 'paid' && (
+              <span title={b.invoice_status === 'issued' ? `Előleg befizetve · Számla: ${b.invoice_number}` : 'Előleg befizetve'} className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#DCF3E2] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#1D7A3C]">
+                <Banknote className="h-3 w-3" /> Előleg
+              </span>
+            )}
+            {b.payment_status === 'failed' && (
+              <span title="Az előleg-fizetés sikertelen volt" className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#FBE1DE] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#B3261E]">
+                <Banknote className="h-3 w-3" /> Sikertelen fizetés
+              </span>
+            )}
+          </div>
+          <div className="text-sm text-ink-soft truncate">
+            {svc?.name ?? '—'}{st?.name ? ` · ${st.name}` : ''}{b.customer_phone ? ` · ${b.customer_phone}` : ''}
+          </div>
+          {b.notes && <div className="text-xs text-ink-soft2 mt-0.5 truncate">„{b.notes}”</div>}
+        </div>
+      </button>
+      <div className="flex items-center shrink-0">
+        <span className="hidden sm:flex items-center gap-2 w-32 shrink-0">
+          <span className={`h-2 w-2 shrink-0 rounded-full ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
+          <span className="text-xs text-ink-soft truncate">{overdue ? 'Kezelendő' : (statusLabel[b.status] ?? b.status)}</span>
+        </span>
+        <div className="flex items-center justify-end w-10 shrink-0">
+          {!draft && (
+            <BookingActions
+              bookingId={String(b.id)}
+              status={b.status}
+              consentEnabled={consentEnabled}
+              consentAccepted={!!b.consent_accepted}
+            />
+          )}
+        </div>
+      </div>
     </div>
   )
 }
@@ -424,61 +535,230 @@ function TimelineView({ date, bookings, staff, openMin, closeMin, onEdit, onCrea
   const nowVisible = nowMin != null && nowMin >= openMin && nowMin <= closeMin
   const card = 'rounded-[26px] dav-card-glass'
 
+  // Ha a nyitás nem kerek órakor van, a nyitás saját időpontja is kap jelölést — különben a
+  // tengely csak a következő kerek órától indult, és a nyitás utáni első szakasz jelöletlen/
+  // "levágottnak" tűnt.
   const hourMarks: number[] = []
+  if (openMin % 60 !== 0) hourMarks.push(openMin)
   for (let m = Math.ceil(openMin / 60) * 60; m < closeMin; m += 60) hourMarks.push(m)
 
   const active = bookings.filter((b) => ACTIVE.has(b.status))
+  // 6+ szakembernél a szakember-oszlopos rács már szűk képernyőn sem fér el kényelmesen (a
+  // reszponzív oszlop-keskenyítés is elfogy) — ilyenkor desktopon is a mobil (egy közös,
+  // óránkénti) elrendezést kapja, ne csak a kis képernyőnél váltson.
+  const forceMobile = staff.length >= 6
 
   return (
     <>
-      <div className="lg:hidden">
+      <div className={forceMobile ? '' : 'lg:hidden'}>
         <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
       </div>
-      <div className="hidden lg:block">
-        <StaffGrid {...{ staff, active, hourMarks, openMin, closeMin, totalMin, nowMin, nowVisible, card, onEdit, onCreate, onMove, canManage }} />
-      </div>
+      {!forceMobile && (
+        <div className="hidden lg:block">
+          <StaffColumnsTimeline {...{ staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit }} />
+        </div>
+      )}
     </>
   )
 }
 
 // A kinyíló extra foglalás-kártyák „staggered spring" belépője (etalon: a UserMenu popover).
-const TL_EXTRA_ITEM = {
+export const TL_EXTRA_ITEM = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
 }
 
-function renderBookingCard(b: Booking, onEdit: (b: Booking) => void) {
-  const svc = serviceOf(b)
-  const st = staffOf(b)
-  const block = statusBlock[b.status] ?? 'bg-white border border-line text-ink'
-  const dark = STATUS_DARK_BG.has(b.status)
+/** Megerősítve maradt, de a kezdés ideje már elmúlt, senki nem vezette át (befejezve/lemondva)
+ *  — ez utólagos KEZELÉST igényel, ezért a "Függő" (arany) színt kapja a kártyán, nem a rendes
+ *  sötét "megerősítve" színt (a piros "Késik" jelvény önmagában kevés volt). */
+export function needsHandling(b: Booking, nowMin: number | null): boolean {
+  return nowMin != null && b.status === 'confirmed' && nowMin > hhmmToMinutes(b.start_time)
+}
+
+/** Egy idősáv-cella tartalma: vagy egyetlen foglalás, vagy egy [aktív, lemondott] pár, amikor
+ *  ugyanarra az időre lemondtak egy foglalást, majd újra lefoglalták — ekkor a kettő egy
+ *  kártya-veremben jelenik meg (a lemondott pirosan kandikál ki mögüle, kattintásra cserélnek). */
+export type CellItem = Booking | [Booking, Booking]
+
+export function cellKey(item: CellItem): string {
+  return Array.isArray(item) ? `${item[0].id}-${item[1].id}` : String(item.id)
+}
+
+/** Az órás sávon belüli foglalásokat csoportosítja: az időben átfedő lemondott+aktív párok egy
+ *  verembe kerülnek, a többi (magában álló, akár lemondott is) sima elem marad — időrendben. */
+export function groupOverlaps(rows: Booking[]): CellItem[] {
+  const cancelled = rows.filter((b) => b.status === 'cancelled')
+  const activeOnes = rows.filter((b) => b.status !== 'cancelled')
+  const usedIds = new Set<string>()
+  const pairs: [Booking, Booking][] = []
+  for (const c of cancelled) {
+    const cs = hhmmToMinutes(c.start_time)
+    const ce = hhmmToMinutes(c.end_time)
+    const partner = activeOnes.find((o) => {
+      if (usedIds.has(String(o.id)) || idOf(o.staff) !== idOf(c.staff)) return false
+      const os = hhmmToMinutes(o.start_time)
+      const oe = hhmmToMinutes(o.end_time)
+      return cs < oe && ce > os
+    })
+    if (partner) {
+      usedIds.add(String(partner.id))
+      usedIds.add(String(c.id))
+      pairs.push([partner, c])
+    }
+  }
+  // Ami emellett is átfedésben marad (pl. két lemondás ugyanarra a szakemberre/időre, aktív pár
+  // nélkül) — ezeket ÁLTALÁNOSAN, egymás közt is összepárosítjuk, nehogy külön-külön, összevissza
+  // jelenjenek meg.
+  const leftover = rows
+    .filter((b) => !usedIds.has(String(b.id)))
+    .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
+  for (let i = 0; i < leftover.length; i++) {
+    const a = leftover[i]
+    if (usedIds.has(String(a.id))) continue
+    const as = hhmmToMinutes(a.start_time)
+    const ae = hhmmToMinutes(a.end_time)
+    for (let j = i + 1; j < leftover.length; j++) {
+      const b = leftover[j]
+      if (usedIds.has(String(b.id)) || idOf(a.staff) !== idOf(b.staff)) continue
+      const bs = hhmmToMinutes(b.start_time)
+      const be = hhmmToMinutes(b.end_time)
+      if (as < be && ae > bs) {
+        usedIds.add(String(a.id))
+        usedIds.add(String(b.id))
+        pairs.push([a, b])
+        break
+      }
+    }
+  }
+  const singles = rows.filter((b) => !usedIds.has(String(b.id)))
+  const items: { sortKey: number; node: CellItem }[] = [
+    ...singles.map((b) => ({ sortKey: hhmmToMinutes(b.start_time), node: b as CellItem })),
+    ...pairs.map((p) => ({
+      sortKey: Math.min(hhmmToMinutes(p[0].start_time), hhmmToMinutes(p[1].start_time)),
+      node: p as CellItem,
+    })),
+  ]
+  items.sort((a, b) => a.sortKey - b.sortKey)
+  return items.map((x) => x.node)
+}
+
+const STACK_PEEK_BG: Record<string, string> = {
+  pending: '#F1CE45', confirmed: '#1D1C19', completed: '#c9c2ae', cancelled: CANCEL_RED,
+}
+
+/** Kártya-pár: ugyanarra az időre esik egy aktív ÉS egy lemondott foglalás (pl. lemondás után
+ *  újra lefoglalták). EGYMÁS MELLETT állnak (nem egymáson — nincs átfedés/réteg, így semmi nem
+ *  takarhat ki semmit), az aktuálisan "elöl" lévő a teljes kártyát kapja, a másik egy kis
+ *  csíkra tolódik — kattintásra a szélességük FLIP-anmiálva cserél (mint a StatusPills sávjai). */
+function BookingCardStack({
+  items, onEdit, showAvatar, nowMin,
+}: { items: [Booking, Booking]; onEdit: (b: Booking) => void; showAvatar: boolean; nowMin: number | null }) {
+  // Két FÜGGETLEN szabály: a POZÍCIÓ (bal/jobb) mindig a lemondotté balra — ez fix, nem változik
+  // kattintásra, hogy sose legyen megtévesztő, melyik időponthoz tartozik. Az ÁLLAPOT (melyik van
+  // nyitva/nagyban) viszont a frissebb (később létrehozott, jellemzően az aktív) legyen alapból.
+  const ordered = [...items].sort((a, b) => (a.status === 'cancelled' ? -1 : b.status === 'cancelled' ? 1 : 0))
+  const freshestId = String([...items].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0].id)
+  const [frontId, setFrontId] = useState<string>(freshestId)
   return (
-    <button
-      type="button"
-      onClick={() => onEdit(b)}
-      className={`flex h-[62px] w-full flex-col justify-center rounded-[18px] border px-4 text-left shadow-dav-card transition-transform active:scale-[0.99] ${block}`}
-    >
-      <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate text-sm font-semibold">
-          {b.customer_name}{svc?.name ? ` · ${svc.name}` : ''}
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5">
-          {b.series_id && (
-            <span className="inline-flex items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
-              <Repeat className="h-3 w-3" /> Sorozat
-            </span>
-          )}
-          <span className={`h-2 w-2 rounded-full ${statusDot[b.status] ?? 'bg-line-strong'}`} />
-        </span>
-      </div>
-      <div className={`mt-0.5 truncate text-xs ${dark ? 'text-white/70' : 'text-ink-soft'}`}>
-        {b.start_time}–{b.end_time}{st?.name ? ` · ${st.name}` : ''}
-      </div>
-    </button>
+    <div className="flex h-[72px] items-stretch gap-1.5">
+      {ordered.map((b) => {
+        const id = String(b.id)
+        const isFront = id === frontId
+        return (
+          <div
+            key={id}
+            onClick={isFront ? undefined : (e) => { e.stopPropagation(); setFrontId(id) }}
+            role={isFront ? undefined : 'button'}
+            tabIndex={isFront ? undefined : 0}
+            aria-label={isFront ? undefined : `Előzmény megtekintése: ${b.customer_name} (${statusLabel[b.status] ?? b.status})`}
+            className={`h-full overflow-hidden ${isFront ? 'min-w-0' : 'shrink-0 cursor-pointer rounded-[16px] shadow-dav-card'}`}
+            style={{
+              // Valódi flex-bázis átmenet (nem transform-alapú FLIP) — így a két testvér
+              // MINDEN köztes képkockán is valódi, nem-átfedő flexbox-elrendezésben marad,
+              // nem lóg bele egyik a másikba animáció közben.
+              flexGrow: isFront ? 1 : 0,
+              flexShrink: isFront ? 1 : 0,
+              flexBasis: isFront ? '100%' : 24,
+              transition: 'flex-grow 320ms cubic-bezier(0.22,1,0.36,1), flex-basis 320ms cubic-bezier(0.22,1,0.36,1)',
+              background: !isFront ? (STACK_PEEK_BG[b.status] ?? '#c9c2ae') : undefined,
+            }}
+          >
+            <AnimatePresence initial={false}>
+              {isFront && (
+                <motion.div
+                  key="content"
+                  className="h-full"
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                >
+                  {renderBookingCard(b, onEdit, showAvatar, nowMin)}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )
+      })}
+    </div>
   )
 }
 
-function MobileTimeline({
+/** Egy cella-elem (sima foglalás, magában álló lemondott, vagy kártya-verem) kirajzolása. */
+export function renderCellItem(item: CellItem, onEdit: (b: Booking) => void, showAvatar: boolean, nowMin: number | null) {
+  if (Array.isArray(item)) return <BookingCardStack items={item} onEdit={onEdit} showAvatar={showAvatar} nowMin={nowMin} />
+  return renderBookingCard(item, onEdit, showAvatar, nowMin)
+}
+
+export function renderBookingCard(b: Booking, onEdit: (b: Booking) => void, showAvatar = true, nowMin: number | null = null) {
+  const svc = serviceOf(b)
+  const st = staffOf(b)
+  const overdue = needsHandling(b, nowMin)
+  const block = overdue ? statusBlock.pending : (statusBlock[b.status] ?? 'bg-white border border-line text-ink')
+  const dark = !overdue && STATUS_DARK_BG.has(b.status)
+  return (
+    <HoverButton
+      onClick={() => onEdit(b)}
+      className={`flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border px-4 text-left shadow-dav-card ${block}`}
+      style={overdue ? undefined : statusBg(b.status)}
+    >
+      {/* Szakember avatarja — gyors azonosítás, kihez van a foglalás. Csak mobilon/vegyes
+          nézetben kell, ahol nincs külön szakember-oszlop — desktopon (szakember-oszlopok)
+          felesleges, azt showAvatar=false-szal kapcsoljuk le. */}
+      {showAvatar && (
+        <Ava url={avatarUrlOf(st)} className={`h-8 w-8 shrink-0 rounded-full overflow-hidden ring-1 ${dark ? 'ring-white/20' : 'ring-black/5'}`} />
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="min-w-0 truncate text-sm font-semibold">
+            {b.customer_name}{svc?.name ? ` · ${svc.name}` : ''}
+          </span>
+          <span className="flex shrink-0 items-center gap-1.5">
+            {b.series_id && (
+              <span className="inline-flex items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
+                <Repeat className="h-3 w-3" /> Sorozat
+              </span>
+            )}
+            {b.payment_status === 'paid' && (
+              <span title="Előleg befizetve" className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#DCF3E2] text-[#1D7A3C]">
+                <Banknote className="h-2.5 w-2.5" />
+              </span>
+            )}
+            <span className={`h-2 w-2 rounded-full ${overdue ? 'bg-gold' : (statusDot[b.status] ?? 'bg-line-strong')}`} />
+          </span>
+        </div>
+        <div className={`mt-0.5 truncate text-xs ${dark ? 'text-white/70' : 'text-ink-soft'}`}>
+          {b.start_time}–{b.end_time}{st?.name ? ` · ${st.name}` : ''}
+        </div>
+      </div>
+    </HoverButton>
+  )
+}
+
+/** Óránkénti lista — a mobil idővonal "törzse" (idő-pill + foglalás-kártya/üres rés),
+ *  a kártya-wrapper NÉLKÜL, hogy desktopon szakemberenként egymás mellé lehessen tenni
+ *  (ld. StaffColumnsTimeline) — ÍGY garantáltan ugyanúgy néz ki, mint mobilon. */
+export function HourList({
   hourMarks, active, openMin, closeMin, nowMin, onEdit,
 }: {
   hourMarks: number[]; active: Booking[]; openMin: number; closeMin: number; nowMin: number | null; onEdit: (b: Booking) => void
@@ -488,15 +768,21 @@ function MobileTimeline({
     setExpanded((prev) => { const n = new Set(prev); n.has(m) ? n.delete(m) : n.add(m); return n })
 
   return (
-    <div className="rounded-[26px] p-4 dav-card-glass">
-      <div className="mb-3 text-[17px] font-medium text-ink">Napi időbeosztás</div>
-      <div>
+    <div>
         {hourMarks.map((m, i) => {
           const lo = i === 0 ? openMin : m
           const hi = i < hourMarks.length - 1 ? hourMarks[i + 1] : closeMin + 1
-          const inHour = active
+          const inHourRaw = active
             .filter((b) => { const s = hhmmToMinutes(b.start_time); return s >= lo && s < hi })
             .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
+          const inHour = groupOverlaps(inHourRaw)
+          // Korábbi órában induló, de a szolgáltatás hossza miatt ide is átnyúló foglalások —
+          // enélkül egy 4 órás foglalás a kezdő-óráján túl üresnek tűnt volna.
+          const continuing = active.filter((b) => {
+            const s = hhmmToMinutes(b.start_time)
+            const e = hhmmToMinutes(b.end_time)
+            return s < lo && e > lo
+          })
           const isNow = nowMin != null && nowMin >= m && nowMin < (hourMarks[i + 1] ?? closeMin + 1)
           const isOpen = expanded.has(m)
           const pillCls = isNow ? 'bg-ink-dark text-white' : inHour.length > 0 ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
@@ -505,7 +791,7 @@ function MobileTimeline({
             <div key={m} className="flex gap-3">
               <div className="flex w-[62px] shrink-0 flex-col items-center">
                 <span className={`flex h-9 w-full items-center justify-center rounded-full px-3 text-[13px] font-semibold tabular-nums ${pillCls}`}>
-                  {minutesToHHMM(m)}
+                  {minutesToHHMMWrapped(m)}
                 </span>
                 {!last && (
                   <div className="relative flex min-h-[30px] flex-1 items-center justify-center py-1.5">
@@ -514,10 +800,10 @@ function MobileTimeline({
                       <button
                         type="button"
                         onClick={() => toggle(m)}
-                        aria-label={`${inHour.length} foglalás ${minutesToHHMM(m)}-kor`}
+                        aria-label={`még ${inHour.length - 1} foglalás ${minutesToHHMMWrapped(m)}-kor`}
                         className={`relative z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
                       >
-                        {inHour.length}
+                        +{inHour.length - 1}
                       </button>
                     )}
                   </div>
@@ -526,7 +812,7 @@ function MobileTimeline({
               <div className="min-w-0 flex-1 pb-3">
                 {inHour.length > 0 ? (
                   <div>
-                    {renderBookingCard(inHour[0], onEdit)}
+                    {renderCellItem(inHour[0], onEdit, true, nowMin)}
                     <AnimatePresence initial={false}>
                       {isOpen && inHour.length > 1 && (
                         <motion.div
@@ -543,20 +829,33 @@ function MobileTimeline({
                             animate="show"
                             variants={{ hidden: {}, show: { transition: { staggerChildren: 0.045, delayChildren: 0.02 } } }}
                           >
-                            {inHour.slice(1).map((b) => (
-                              <motion.div key={String(b.id)} variants={TL_EXTRA_ITEM}>
-                                {renderBookingCard(b, onEdit)}
+                            {inHour.slice(1).map((item) => (
+                              <motion.div key={cellKey(item)} variants={TL_EXTRA_ITEM}>
+                                {renderCellItem(item, onEdit, true, nowMin)}
                               </motion.div>
                             ))}
                           </motion.div>
                         </motion.div>
                       )}
                     </AnimatePresence>
+                    {continuing.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        {continuing.map((b) => (
+                          <div key={`cont-${b.id}`}>{renderBookingCard(b, onEdit, true, nowMin)}</div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : continuing.length > 0 ? (
+                  <div className="space-y-2">
+                    {continuing.map((b) => (
+                      <div key={`cont-${b.id}`}>{renderBookingCard(b, onEdit, true, nowMin)}</div>
+                    ))}
                   </div>
                 ) : (
                   <div
                     aria-hidden
-                    className="h-[40px] rounded-[16px] border border-[rgba(120,110,70,.10)]"
+                    className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
                     style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
                   />
                 )}
@@ -564,263 +863,341 @@ function MobileTimeline({
             </div>
           )
         })}
-      </div>
     </div>
   )
 }
 
-/** Szakember × idő rács (desktop, fit mód: a teljes nap egy nézetbe fér százalékos pozícióval). */
-function StaffGrid({
-  staff, active, hourMarks, openMin, closeMin, totalMin, nowMin, nowVisible, card, onEdit, onCreate, onMove, canManage = false,
+/** Mobil idővonal — kártya-keret + cím + a közös HourList (minden szakember foglalása vegyítve). */
+function MobileTimeline({
+  hourMarks, active, openMin, closeMin, nowMin, onEdit,
 }: {
-  staff: StaffMember[]; active: Booking[]; hourMarks: number[]; openMin: number; closeMin: number; totalMin: number
-  nowMin: number | null; nowVisible: boolean; card: string
-  onEdit: (b: Booking) => void
-  onCreate: (start?: string, staffId?: string | number | null) => void
-  onMove: (b: Booking, newStart: string, newStaffId: string | number) => void
-  canManage?: boolean
+  hourMarks: number[]; active: Booking[]; openMin: number; closeMin: number; nowMin: number | null; onEdit: (b: Booking) => void
 }) {
-  const labelW = 'w-[150px] sm:w-[180px]'
-  const left = (min: number) => `${((min - openMin) / totalMin) * 100}%`
-  const span = (min: number) => `${(min / totalMin) * 100}%`
+  return (
+    <div className="rounded-[26px] p-4 dav-card-glass">
+      <div className="mb-3 text-[17px] font-medium text-ink">Napi időbeosztás</div>
+      <HourList {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
+    </div>
+  )
+}
 
-  // ── Drag & drop: foglalás-blokk áthelyezése (időpont + szakember) ──
-  type DragState = {
-    b: Booking; dur: number; previewMin: number; staffId: string | number
-    cx: number; cy: number; grabDx: number; widthPx: number
-  }
-  const [drag, setDrag] = useState<DragState | null>(null)
-  const dragRef = useRef<DragState | null>(null)
-  const gridRef = useRef<HTMLDivElement>(null)
-  const pendingRef = useRef<{ b: Booking; init: DragState; startX: number; startY: number } | null>(null)
-  const DRAG_THRESHOLD = 5
+/** Idő × szakember (desktop) — pontosan a mobil idővonal kártya-stílusa, csak az idő-tengely
+ *  EGYETLEN KÖZÖS oszlop balra (nem duplikálva szakemberenként), a szakemberek pedig a saját
+ *  oszlopukban kapják a kártyáikat, ugyanahhoz a közös óra-sorhoz igazítva (CSS grid — minden
+ *  sor automatikusan a legmagasabb cellájához igazodik, így a tengely és az oszlopok mindig
+ *  egy vonalban maradnak, még ha az egyik oszlopban ki is nyílik egy "+N" extra foglalás). */
+function StaffColumnsTimeline({
+  staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit,
+}: {
+  staff: StaffMember[]; active: Booking[]; hourMarks: number[]; openMin: number; closeMin: number
+  nowMin: number | null; card: string
+  onEdit: (b: Booking) => void
+}) {
+  // Óránként EGY közös nyitó-gomb (a bal tengelyen, az idő alatt — mint mobilon), nem
+  // szakemberenként külön — kattintásra az adott óra MINDEN oszlopában megjelennek az extrák.
+  const [expandedHours, setExpandedHours] = useState<Set<number>>(() => new Set())
+  const toggleHour = (m: number) =>
+    setExpandedHours((prev) => { const n = new Set(prev); n.has(m) ? n.delete(m) : n.add(m); return n })
 
-  const xToMin = (clientX: number, rowEl: HTMLElement): number => {
-    const rect = rowEl.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    return Math.round((openMin + ratio * totalMin) / 15) * 15
-  }
+  // Szakemberenként/óránként előre kiszámolt foglalás-lista — ez adja a tartalom-cellákat ÉS
+  // az összevont üres szakaszok határait is.
+  const perStaffHourBookings = useMemo(
+    () =>
+      staff.map((t) =>
+        hourMarks.map((m, i) => {
+          const lo = i === 0 ? openMin : m
+          const hi = i < hourMarks.length - 1 ? hourMarks[i + 1] : closeMin + 1
+          const rows = active
+            .filter((b) => {
+              if (idOf(b.staff) !== String(t.id)) return false
+              const s = hhmmToMinutes(b.start_time)
+              return s >= lo && s < hi
+            })
+            .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
+          return groupOverlaps(rows)
+        }),
+      ),
+    [staff, active, hourMarks, openMin, closeMin],
+  )
 
-  useEffect(() => {
-    const onPendingMove = (e: PointerEvent) => {
-      const p = pendingRef.current
-      if (!p || dragRef.current) return
-      if (Math.abs(e.clientX - p.startX) >= DRAG_THRESHOLD || Math.abs(e.clientY - p.startY) >= DRAG_THRESHOLD) {
-        dragRef.current = p.init
-        setDrag(p.init)
-        pendingRef.current = null
-      }
-    }
-    const onPendingUp = () => {
-      const p = pendingRef.current
-      pendingRef.current = null
-      if (p && !dragRef.current) onEdit(p.b)
-    }
-    window.addEventListener('pointermove', onPendingMove)
-    window.addEventListener('pointerup', onPendingUp)
-    return () => {
-      window.removeEventListener('pointermove', onPendingMove)
-      window.removeEventListener('pointerup', onPendingUp)
-    }
-  }, [onEdit])
-
-  useEffect(() => {
-    if (!drag) return
-    const onMoveEvt = (e: PointerEvent) => {
-      const cur = dragRef.current
-      if (!cur) return
-      const el = document.elementFromPoint(e.clientX, e.clientY)
-      const axis = el?.closest<HTMLElement>('[data-axis-staff]')
-      const staffId = axis?.dataset.axisStaff ?? cur.staffId
-      const rowAxis = axis ?? gridRef.current?.querySelector<HTMLElement>(`[data-axis-staff="${cur.staffId}"]`)
-      let previewMin = cur.previewMin
-      if (rowAxis) {
-        previewMin = xToMin(e.clientX - cur.grabDx, rowAxis)
-        previewMin = Math.max(openMin, Math.min(previewMin, closeMin - cur.dur))
-      }
-      const next = { ...cur, previewMin, staffId, cx: e.clientX, cy: e.clientY }
-      dragRef.current = next
-      setDrag(next)
-    }
-    const onUp = () => {
-      const cur = dragRef.current
-      dragRef.current = null
-      setDrag(null)
-      if (!cur) return
-      const newStart = minutesToHHMM(cur.previewMin)
-      const changed = newStart !== cur.b.start_time || String(cur.staffId) !== idOf(cur.b.staff)
-      if (changed) onMove(cur.b, newStart, cur.staffId)
-    }
-    window.addEventListener('pointermove', onMoveEvt)
-    window.addEventListener('pointerup', onUp)
-    return () => {
-      window.removeEventListener('pointermove', onMoveEvt)
-      window.removeEventListener('pointerup', onUp)
-    }
-  }, [drag, openMin, closeMin, totalMin, onMove])
-
-  const beginPointer = (b: Booking, e: React.PointerEvent) => {
-    if (isDraft(b)) return
-    const s = hhmmToMinutes(b.start_time)
-    const dur = hhmmToMinutes(b.end_time) - s
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-    pendingRef.current = {
-      b, startX: e.clientX, startY: e.clientY,
-      init: { b, dur, previewMin: s, staffId: idOf(b.staff), cx: e.clientX, cy: e.clientY, grabDx: e.clientX - rect.left, widthPx: rect.width },
-    }
-  }
+  // Egy korábbi óra-sávban INDULÓ, de a szolgáltatás hossza miatt ebbe az óra-sávba is átnyúló
+  // foglalás — ha van ilyen, ebben a cellában (ahol maga nem indul semmi új) is ki kell rajzolni
+  // ugyanazt a kártyát, hogy a több órás foglalás vizuálisan minden érintett órában megjelenjen,
+  // ne csak a kezdő-sávjában (ld. felhasználói visszajelzés: pl. egy 10:00–14:40-es Balayage
+  // korábban csak a 10:00-s sorban látszott, 11–14 között üresnek tűnt, pedig foglalt volt).
+  const perStaffHourContinuation = useMemo(
+    () =>
+      staff.map((t) =>
+        hourMarks.map((m, i) => {
+          const lo = i === 0 ? openMin : m
+          return (
+            active.find((b) => {
+              if (idOf(b.staff) !== String(t.id)) return false
+              const s = hhmmToMinutes(b.start_time)
+              const e = hhmmToMinutes(b.end_time)
+              return s < lo && e > lo
+            }) ?? null
+          )
+        }),
+      ),
+    [staff, active, hourMarks, openMin],
+  )
 
   return (
-    <>
-      <div className={`${card} p-[18px] sm:p-[20px_22px_22px]`}>
-        <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
-          <div className="text-[17px] font-medium text-ink">Napi időbeosztás</div>
-          <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-            {[
-              { c: '#1D1C19', l: 'Megerősített' },
-              { c: '#F1CE45', l: 'Függő' },
-              { c: '#1D9D63', l: 'Befejezett' },
-            ].map((x) => (
-              <div key={x.l} className="flex items-center gap-[7px]">
-                <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
-                <span className="text-xs font-medium text-ink-soft2">{x.l}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {staff.length === 0 ? (
-          <div className="py-10 text-center text-[13px] text-ink-soft">Nincs aktív szakember. Vegyél fel szakembert a foglalások idővonalához.</div>
-        ) : (
-          <div ref={gridRef}>
-            {/* idő-tengely (vonalzó) */}
-            <div className="flex">
-              <div className={`${labelW} shrink-0`} />
-              <div className="relative flex-1 min-w-0 h-5">
-                {hourMarks.map((m) => (
-                  <span key={m} className="absolute top-0 text-[11px] font-medium tabular-nums text-[#A8A496]" style={{ left: left(m) }}>
-                    {minutesToHHMM(m)}
-                  </span>
-                ))}
-                {nowVisible && (
-                  <span className="absolute -top-1 -translate-x-1/2 rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm" style={{ left: left(nowMin!) }}>
-                    {minutesToHHMM(nowMin!)}
-                  </span>
-                )}
-              </div>
+    <div className={`${card} p-[18px] sm:p-[20px_22px_22px]`}>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
+        <div className="text-[17px] font-medium text-ink">Napi időbeosztás</div>
+        <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
+          {[
+            { c: '#1D1C19', l: 'Megerősített' },
+            { c: '#F1CE45', l: 'Függő' },
+            { c: 'repeating-linear-gradient(115deg,#f3efe4 0 3px,#e8e4d8 3px 5px)', l: 'Befejezett' },
+            { c: CANCEL_RED, l: 'Lemondva' },
+          ].map((x) => (
+            <div key={x.l} className="flex items-center gap-[7px]">
+              <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
+              <span className="text-xs font-medium text-ink-soft2">{x.l}</span>
             </div>
+          ))}
+        </div>
+      </div>
 
-            {staff.map((t) => {
-              const rows = active.filter((b) => idOf(b.staff) === String(t.id))
-              const sortedRows = [...rows].sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
-              // Üres idősávok (szabad rések) — Crextio szaggatott hatch-pillek.
-              const freeGaps: Array<[number, number]> = []
-              let gapCursor = openMin
-              for (const b of sortedRows) {
-                const gs = hhmmToMinutes(b.start_time)
-                const ge = hhmmToMinutes(b.end_time)
-                if (gs - gapCursor >= 15) freeGaps.push([gapCursor, gs])
-                gapCursor = Math.max(gapCursor, ge)
-              }
-              if (closeMin - gapCursor >= 15) freeGaps.push([gapCursor, closeMin])
-              const isDropTarget = drag && String(drag.staffId) === String(t.id)
-              const dragging = !!drag
-              const url = avatarUrlOf(t)
+      {staff.length === 0 ? (
+        <div className="py-10 text-center text-[13px] text-ink-soft">Nincs aktív szakember. Vegyél fel szakembert a foglalások idővonalához.</div>
+      ) : (
+        // UGYANAZ a minta, mint a vízszintesen görgetett bal oszlopnál (lásd étterem DailyView):
+        // a fejléc-sor egy KÜLÖN, saját fa — NEM a görgő konténer gyereke —, ezért nem kell
+        // sticky-vel/háttérszín-egyeztetéssel bajlódni, egyszerűen nem tud alá csúszni semmi.
+        // A vízszintes görgetés az egészet (fejléc+tartalom) EGYÜTT mozgatja (közös `overflow-x-
+        // auto`), a függőleges görgetés viszont KIZÁRÓLAG a tartalom-rácsra vonatkozik.
+        <div className="overflow-x-auto">
+          {(() => {
+            // 4 szakemberig kényelmes 220px oszlop; afölött fokozatosan keskenyedik (de 160px
+            // alá sosem megy, hogy az avatar+név+idő tartalom még olvasható maradjon) — így a
+            // rács nem nő korlátlanul szélesre, amikor sok szakember dolgozik egyszerre.
+            const colMin = staff.length <= 4 ? 220 : Math.max(160, Math.round(880 / staff.length))
+            const gridTemplateColumns = `62px repeat(${staff.length}, minmax(${colMin}px, 1fr))`
+            const minWidth = 62 + staff.length * colMin
+            return (
+              <div style={{ minWidth }}>
+                {/* Fejléc-sor: üres bal sarok (a tengely fölött) + szakember-fejlécek — saját,
+                    NEM görgő rács, mindig látszik. */}
+                <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
+                  <div />
+                  {staff.map((t, ci) => {
+                    const url = avatarUrlOf(t)
+                    return (
+                      <div
+                        key={String(t.id)}
+                        style={{ gridColumn: ci + 2 }}
+                        className="flex items-center gap-2.5 border-b border-line pb-3"
+                      >
+                        <Ava url={url} className="h-9 w-9 shrink-0 rounded-full overflow-hidden" />
+                        <div className="min-w-0">
+                          <span className="block text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
+                          {t.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{t.role_title}</span>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Tartalom: KÜLÖN, függőlegesen görgő konténer a fejléc alatt — hosszú
+                    nyitvatartásnál (sok óra-sor) ez görgethető belül, nem az egész oldal nő meg. */}
+                <div className="max-h-[65vh] overflow-y-auto pt-1">
+                  <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
+            {/* Bal tengely — EGY időpont-pill óránként, alatta (mint mobilon) a nyitó "+" gomb,
+                ha ANY szakembernél van extra foglalás abban az órában; kattintásra minden
+                érintett oszlopban egyszerre nyílnak ki az extrák. */}
+            {hourMarks.map((m, i) => {
+              const isNow = nowMin != null && nowMin >= m && nowMin < (hourMarks[i + 1] ?? closeMin + 1)
+              const last = i === hourMarks.length - 1
+              const anyInHour = perStaffHourBookings.some((rows) => rows[i].length > 0)
+              const extraTotal = perStaffHourBookings.reduce((sum, rows) => sum + Math.max(0, rows[i].length - 1), 0)
+              const isOpen = expandedHours.has(m)
+              const pillCls = isNow ? 'bg-ink-dark text-white' : anyInHour ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
               return (
                 <div
-                  key={String(t.id)}
-                  className={`flex items-stretch border-t border-line transition-colors ${
-                    isDropTarget ? 'bg-gold/[0.16]' : 'hover:bg-[var(--dav-glass)]'
-                  }`}
+                  key={m}
+                  style={{ gridColumn: 1, gridRow: i + 1 }}
+                  className="flex flex-col items-center"
                 >
-                  <div className={`${labelW} shrink-0 flex items-center gap-2.5 py-2 pr-2`}>
-                    <Ava url={url} className="h-9 w-9 shrink-0 rounded-full overflow-hidden" />
-                    <div className="min-w-0">
-                      <span className="block text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
-                      {t.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{t.role_title}</span>}
-                    </div>
-                  </div>
-                  <div data-axis-staff={t.id} className="relative flex-1 min-w-0 h-[64px]">
-                    {hourMarks.map((m) => (
-                      <span key={m} className="absolute inset-y-0 w-px bg-[rgba(120,110,70,.09)]" style={{ left: left(m) }} />
-                    ))}
-                    {!dragging && freeGaps.map(([gs, ge], i) => (
-                      <span
-                        key={`gap-${i}`}
-                        aria-hidden
-                        className="pointer-events-none absolute top-[7px] bottom-[7px] rounded-[11px] border border-[rgba(120,110,70,.10)]"
-                        style={{
-                          left: `calc(${left(gs)} + 2px)`,
-                          width: `calc(${span(ge - gs)} - 4px)`,
-                          background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)',
-                        }}
-                      />
-                    ))}
-                    {nowVisible && (
-                      <span className="pointer-events-none absolute inset-y-0 z-10 w-0.5 bg-red-500/80" style={{ left: left(nowMin!) }} />
-                    )}
-                    {rows.map((b) => {
-                      const s = hhmmToMinutes(b.start_time)
-                      const e = hhmmToMinutes(b.end_time)
-                      const dur = e - s
-                      const draft = isDraft(b)
-                      const urgency = draft ? null : urgencyOf(b, nowMin)
-                      const svc = serviceOf(b)
-                      const wide = dur >= 90
-                      const tiny = dur <= 20
-                      const isDragging = drag?.b.id === b.id
-                      const durLabel = `${(dur / 60).toFixed(dur % 60 === 0 ? 0 : 1).replace('.', ',')}ó`
-                      return (
+                  <span className={`flex h-9 w-full items-center justify-center rounded-full px-2 text-[13px] font-semibold tabular-nums ${pillCls}`}>
+                    {minutesToHHMMWrapped(m)}
+                  </span>
+                  {!last ? (
+                    <div className="relative min-h-[16px] flex-1 py-1">
+                      {/* A szaggatott vonal folytonosan fut a konténer teljes magasságában — a +
+                          gomb ráülő "gyöngyként" fedi, nem szakítja meg. */}
+                      <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 border-l-2 border-dotted border-line-strong" />
+                      {extraTotal > 0 && (
                         <button
-                          key={String(b.id)}
-                          onPointerDown={(ev) => { if (!draft && canManage) { ev.stopPropagation(); beginPointer(b, ev) } }}
-                          title={`${draft ? 'VÁZLAT — ' : canManage ? 'Kattints a szerkesztéshez, vagy húzd át · ' : ''}${b.customer_name} · ${svc?.name ?? ''} · ${b.start_time}–${b.end_time} · ${urgency ? urgency.label : statusLabel[b.status]}`}
-                          className={`absolute top-[7px] bottom-[7px] rounded-[11px] border px-[11px] text-xs font-medium overflow-hidden text-left flex flex-col justify-center gap-0.5 transition-all ${draft ? 'border-2 border-dashed border-gold bg-gold/[0.18] text-ink-dark cursor-default' : `${statusBlock[b.status]} ${canManage ? 'cursor-grab active:cursor-grabbing hover:brightness-[1.06]' : 'cursor-default'}`} ${isDragging ? 'opacity-30 pointer-events-none' : ''}`}
-                          style={{ left: `calc(${left(s)} + 2px)`, width: `calc(${span(dur)} - 4px)`, touchAction: 'none' }}
+                          type="button"
+                          onClick={() => toggleHour(m)}
+                          aria-label={`még ${extraTotal} foglalás ${minutesToHHMMWrapped(m)}-kor`}
+                          className={`absolute left-1/2 top-1 z-10 flex h-5 w-5 -translate-x-1/2 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
                         >
-                          {tiny ? (
-                            <span className="w-full min-w-0 truncate text-[11px] font-semibold leading-tight">{draft ? '✎ ' : ''}{b.customer_name}</span>
-                          ) : wide ? (
-                            <>
-                              <span className="flex min-w-0 items-center gap-1.5">
-                                <span className="min-w-0 flex-1 truncate font-semibold leading-tight">{draft ? '✎ ' : ''}{b.customer_name}</span>
-                                {urgency && <span className={`shrink-0 truncate rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase leading-none ${urgency.cls}`}>{urgency.label}</span>}
-                              </span>
-                              <span className="flex min-w-0 items-center gap-2">
-                                <span className="truncate text-[10px] opacity-80 leading-tight">{svc?.name ?? ''}</span>
-                                <span className="ml-auto shrink-0 tabular-nums text-[10px] opacity-75 leading-tight">{b.start_time}–{b.end_time}</span>
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <span className="w-full min-w-0 truncate font-semibold leading-tight">{draft ? '✎ ' : ''}{b.customer_name}</span>
-                              <span className="flex shrink-0 items-center gap-1 text-[10px] opacity-75 leading-tight">
-                                <Clock className="h-2.5 w-2.5 shrink-0" />{durLabel}
-                              </span>
-                            </>
-                          )}
+                          +{extraTotal}
                         </button>
-                      )
-                    })}
-                  </div>
+                      )}
+                    </div>
+                  ) : (
+                    extraTotal > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => toggleHour(m)}
+                        aria-label={`még ${extraTotal} foglalás ${minutesToHHMMWrapped(m)}-kor`}
+                        className={`relative z-10 mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
+                      >
+                        +{extraTotal}
+                      </button>
+                    )
+                  )}
                 </div>
               )
             })}
-          </div>
-        )}
-      </div>
 
-      {/* Húzott blokk — fixed overlay, követi a kurzort (pointer-events:none). */}
-      {drag && typeof document !== 'undefined' && createPortal(
-        <div
-          className="pointer-events-none fixed z-[200] rounded-[11px] border border-black/10 bg-gold px-2.5 py-1.5 text-xs font-bold text-ink-dark shadow-2xl ring-2 ring-gold"
-          style={{ left: drag.cx - drag.grabDx, top: drag.cy - 18, width: drag.widthPx, opacity: 0.95 }}
-        >
-          <div className="truncate">{drag.b.customer_name}</div>
-          <div className="tabular-nums opacity-80">{minutesToHHMM(drag.previewMin)}–{minutesToHHMM(drag.previewMin + drag.dur)}</div>
-        </div>,
-        document.body,
+            {/* Tartalom-cellák óránként — minden órának KÜLÖN sávja van (nincs függőleges
+                összevonás a szomszédos órák közt). Amelyik órában több EGYMÁS MELLETTI
+                szakember-oszlop is üres, azok VÍZSZINTESEN olvadnak egy folytonos,
+                szegély/rés nélküli sraffozott sávvá. A grid `items-start`-tal fut (ld. fent) —
+                így ha egy oszlop kinyílva magasabb lesz, a SZOMSZÉD (üres/foglalt) cellák NEM
+                nyúlnak meg vele, a saját természetes magasságukban maradnak a sor tetején. */}
+            {hourMarks.flatMap((m, i) => {
+              const cells: React.ReactNode[] = []
+              const isOpen = expandedHours.has(m)
+              // A legtöbb extra (2., 3., ... foglalás) sorszáma, ami BÁRMELYIK szakembernél
+              // előfordul ebben az órában — ennyi üres/foglalt extra sávnak kell megjelennie
+              // MINDEN oszlopban kinyitáskor, hogy a sorok egy vonalban maradjanak.
+              const maxExtra = Math.max(0, ...staff.map((_, ci) => perStaffHourBookings[ci][i].length - 1))
+              const HatchBand = () => (
+                <div
+                  aria-hidden
+                  className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
+                  style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
+                />
+              )
+              let ci = 0
+              while (ci < staff.length) {
+                const rows = perStaffHourBookings[ci][i]
+                if (rows.length > 0) {
+                  const t = staff[ci]
+                  const hatchNeeded = maxExtra - (rows.length - 1)
+                  cells.push(
+                    <div key={`${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
+                      {renderCellItem(rows[0], onEdit, false, nowMin)}
+                      <AnimatePresence initial={false}>
+                        {isOpen && maxExtra > 0 && (
+                          <motion.div
+                            key="extra"
+                            className="overflow-hidden"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
+                          >
+                            <div className="space-y-2 pt-2">
+                              {rows.slice(1).map((item) => (
+                                <div key={cellKey(item)}>{renderCellItem(item, onEdit, false, nowMin)}</div>
+                              ))}
+                              {/* Nincs több valódi extra ebben az oszlopban, DE a saját (rows[0])
+                                  foglalása még mindig tart — az ismétlése tölti ki a maradék
+                                  helyet, hogy egyértelmű legyen: ez nem szabad idő. */}
+                              {Array.from({ length: hatchNeeded }).map((_, hi) => (
+                                <div key={`repeat-${hi}`} className="relative">
+                                  <span aria-hidden className="absolute -top-2 left-1/2 h-2 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
+                                  {renderCellItem(rows[0], onEdit, false, nowMin)}
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>,
+                  )
+                  ci += 1
+                } else if (perStaffHourContinuation[ci][i]) {
+                  // Korábbi órában induló, ide is átnyúló foglalás — ugyanaz a kártya jelenik
+                  // meg itt is, a fölötte lévő sorral szaggatott vonallal vizuálisan összekötve.
+                  const t = staff[ci]
+                  const continuing = perStaffHourContinuation[ci][i]!
+                  cells.push(
+                    <div key={`cont-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="relative pb-3">
+                      <span aria-hidden className="absolute -top-3 left-1/2 h-3 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
+                      {renderBookingCard(continuing, onEdit, false, nowMin)}
+                      {/* Ha ez az óra ki van nyitva (mert EGY MÁSIK oszlopnál extra foglalás van),
+                          ez az oszlop is kapjon ugyanannyi hatch-töltőt, hogy a sor magassága
+                          minden oszlopban egyezzen — különben "lyuk" marad a folytatás alatt. */}
+                      <AnimatePresence initial={false}>
+                        {isOpen && maxExtra > 0 && (
+                          <motion.div
+                            key="extra"
+                            className="overflow-hidden"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
+                          >
+                            <div className="space-y-2 pt-2">
+                              {/* A folytatódó foglalás ismétlése tölti ki a helyet — nem szabad
+                                  idő, ezért nem hatch-mintás, hanem maga a kártya. */}
+                              {Array.from({ length: maxExtra }).map((_, hi) => (
+                                <div key={`repeat-${hi}`} className="relative">
+                                  <span aria-hidden className="absolute -top-2 left-1/2 h-2 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
+                                  {renderBookingCard(continuing, onEdit, false, nowMin)}
+                                </div>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>,
+                  )
+                  ci += 1
+                } else {
+                  const start = ci
+                  while (ci < staff.length && perStaffHourBookings[ci][i].length === 0 && !perStaffHourContinuation[ci][i]) ci += 1
+                  const span = ci - start
+                  cells.push(
+                    <div
+                      key={`gap-${m}-${start}`}
+                      style={{ gridColumn: `${start + 2} / span ${span}`, gridRow: i + 1 }}
+                      className="pb-3"
+                    >
+                      <HatchBand />
+                      <AnimatePresence initial={false}>
+                        {isOpen && maxExtra > 0 && (
+                          <motion.div
+                            key="extra"
+                            className="overflow-hidden"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
+                          >
+                            <div className="space-y-2 pt-2">
+                              {/* Itt tényleg nincs semmi — marad a szokásos "szabad" hatch-minta. */}
+                              {Array.from({ length: maxExtra }).map((_, hi) => (
+                                <HatchBand key={`hatch-${hi}`} />
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>,
+                  )
+                }
+              }
+              return cells
+            })}
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+        </div>
       )}
-    </>
+    </div>
   )
 }
+

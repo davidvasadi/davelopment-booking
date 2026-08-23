@@ -8,9 +8,10 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { MoreHorizontal, Bell, LogOut, CreditCard, Settings, X, ExternalLink, Check, Loader2, ArrowRight, Users, CalendarDays, ChevronDown, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { buttonHover } from '@/lib/motion'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notifDate, notificationVisual, type Notification, type DigestMetadata } from '@/lib/useNotifications'
-import { DigestSheet } from './DigestSheet'
+import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
 import type { SwitcherBusiness } from './StoreSwitcher'
 import type { Capability } from '@/lib/permissions'
 
@@ -139,38 +140,50 @@ export function UserMenu({
       {collapsed ? (
         <>
           {/* Csengő — kör gomb, gold pötty az olvasatlan értesítéshez (Crextio: bell + user). */}
-          <button
+          <motion.button
             type="button"
             onClick={() => openMenu('notifications')}
             aria-label="Értesítések"
             aria-expanded={open}
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
             className="relative flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none backdrop-blur-lg transition-colors hover:bg-white/70"
           >
             <Bell className="h-[19px] w-[19px]" strokeWidth={2} />
             {unread > 0 && (
               <span className="absolute right-[13px] top-[13px] h-[8px] w-[8px] rounded-full bg-gold ring-2 ring-white" />
             )}
-          </button>
+          </motion.button>
 
           {/* Avatar — kör, kattintásra nyílik a fiók-popover. */}
-          <button
+          <motion.button
             type="button"
             onClick={() => openMenu('account')}
             aria-label="Fiók"
             aria-expanded={open}
-            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-transform hover:scale-[1.03]"
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
+            className="flex h-[52px] w-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none"
           >
             <UserAvatar name={name} src={avatarUrl} size={52} />
-          </button>
+          </motion.button>
         </>
       ) : (
         <>
           {/* Avatar + név — kattintásra nyílik a fiók-popover. */}
-          <button
+          <motion.button
             type="button"
             onClick={() => openMenu('account')}
             aria-label="Fiók"
             aria-expanded={open}
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
             className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-zinc-100 dark:hover:bg-white/[0.06]"
           >
             <UserAvatar name={name} src={avatarUrl} size={34} />
@@ -178,21 +191,25 @@ export function UserMenu({
               <span className="block truncate text-[13px] font-semibold leading-tight text-zinc-900 dark:text-white">{name ?? 'Fiók'}</span>
               {email && <span className="block truncate text-[11px] leading-tight text-zinc-400 dark:text-white/30">{email}</span>}
             </span>
-          </button>
+          </motion.button>
 
           {/* „⋯" gomb — a fiók-popovert nyitja; piros pötty jelzi az olvasatlan értesítést. */}
-          <button
+          <motion.button
             type="button"
             onClick={() => openMenu('notifications')}
             aria-label="Fiók és értesítések"
             aria-expanded={open}
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
             className="relative shrink-0 flex items-center justify-center h-9 w-9 rounded-lg text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
           >
             <MoreHorizontal className="h-[18px] w-[18px]" />
             {unread > 0 && (
               <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white dark:ring-black" />
             )}
-          </button>
+          </motion.button>
         </>
       )}
 
@@ -315,7 +332,7 @@ export function UserMenu({
                   >
                     {active.logoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={active.logoUrl} alt={active.name} className="h-[30px] w-[30px] shrink-0 rounded-[8px] object-cover" />
+                      <img src={active.logoUrl} alt={active.name} className="h-[30px] w-[30px] shrink-0 rounded-[8px] bg-[#f5f5f4] object-contain p-[3px]" />
                     ) : (
                       <span className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-[8px] bg-[#1d1c19] text-[12px] font-bold text-[#ffd85f]">{activeMono}</span>
                     )}
@@ -357,7 +374,7 @@ export function UserMenu({
                               >
                                 {b.logoUrl ? (
                                   // eslint-disable-next-line @next/next/no-img-element
-                                  <img src={b.logoUrl} alt={b.name} className="h-[26px] w-[26px] shrink-0 rounded-[7px] object-cover" />
+                                  <img src={b.logoUrl} alt={b.name} className="h-[26px] w-[26px] shrink-0 rounded-[7px] bg-[#f5f5f4] object-contain p-[2px]" />
                                 ) : (
                                   <span className={cn('flex h-[26px] w-[26px] shrink-0 items-center justify-center rounded-[7px] text-[11px] font-bold', isActive ? 'bg-[#1d1c19] text-[#ffd85f]' : 'bg-[#e8e7e2] text-[#5a5549]')}>{mono}</span>
                                 )}
@@ -510,51 +527,47 @@ function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () 
   )
 }
 
-/** Digest értesítés kártya — kattintásra DigestSheet nyílik, nem navigál. */
+/** Digest értesítés kártya — kattintásra a KÖZPONTI `DigestAutoPopup`-mount nyitja meg a
+ *  sheetet (esemény-alapú, nem saját, beágyazott portál — ld. `DigestAutoPopup.tsx`). */
 function DigestCard({ n, onMarkRead, onRemove }: { n: Notification; onMarkRead: () => void; onRemove: () => void }) {
   const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   const meta = n.metadata as DigestMetadata | null
-  const [sheetOpen, setSheetOpen] = useState(false)
 
   function openSheet() {
     if (!n.read) onMarkRead()
-    setSheetOpen(true)
+    window.dispatchEvent(new CustomEvent(OPEN_DIGEST_EVENT, { detail: n }))
   }
 
   return (
-    <>
-      <div className={cn('group relative mb-1.5 rounded-[18px] border border-black/[0.04] cursor-pointer', bg)} onClick={openSheet}>
-        <div className="flex items-start gap-2.5 p-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/70">
-            <Icon className={cn('h-[16px] w-[16px]', color)} strokeWidth={2.2} />
+    <div className={cn('group relative mb-1.5 rounded-[18px] border border-black/[0.04] cursor-pointer', bg)} onClick={openSheet}>
+      <div className="flex items-start gap-2.5 p-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/70">
+          <Icon className={cn('h-[16px] w-[16px]', color)} strokeWidth={2.2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold leading-tight text-[#2a2620]">{n.title}</p>
+          <p className="text-[11px] text-[#b0ac9e] mt-0.5">{notifDate(n.createdAt)}</p>
+          {meta && (
+            <p className="mt-1.5 text-[11px] text-[#5a5549]">
+              {meta.bookings} foglalás · {meta.guests} fő
+              {meta.team_count ? ` · ${meta.team_count} munkatárs` : ''}
+            </p>
+          )}
+        </div>
+        <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
+          {!n.read && (
+            <span className="absolute h-[7px] w-[7px] rounded-full bg-[#ffd85f] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
+          )}
+          <span
+            role="button"
+            aria-label="Értesítés törlése"
+            onClick={(e) => { e.stopPropagation(); onRemove() }}
+            className="absolute inset-0 flex items-center justify-center rounded-full text-[#b0ac9e] opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-black/[0.08] hover:text-[#3a352a] group-hover:opacity-100 group-hover:scale-100 cursor-pointer"
+          >
+            <X className="h-3.5 w-3.5" />
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold leading-tight text-[#2a2620]">{n.title}</p>
-            <p className="text-[11px] text-[#b0ac9e] mt-0.5">{notifDate(n.createdAt)}</p>
-            {meta && (
-              <p className="mt-1.5 text-[11px] text-[#5a5549]">
-                {meta.bookings} foglalás · {meta.guests} fő
-                {meta.team_count ? ` · ${meta.team_count} munkatárs` : ''}
-              </p>
-            )}
-          </div>
-          <div className="relative flex h-6 w-6 shrink-0 items-center justify-center">
-            {!n.read && (
-              <span className="absolute h-[7px] w-[7px] rounded-full bg-[#ffd85f] transition-all duration-150 ease-out group-hover:scale-50 group-hover:opacity-0" />
-            )}
-            <span
-              role="button"
-              aria-label="Értesítés törlése"
-              onClick={(e) => { e.stopPropagation(); onRemove() }}
-              className="absolute inset-0 flex items-center justify-center rounded-full text-[#b0ac9e] opacity-0 scale-75 transition-all duration-150 ease-out hover:bg-black/[0.08] hover:text-[#3a352a] group-hover:opacity-100 group-hover:scale-100 cursor-pointer"
-            >
-              <X className="h-3.5 w-3.5" />
-            </span>
-          </div>
         </div>
       </div>
-
-      <DigestSheet n={n} open={sheetOpen} onClose={() => setSheetOpen(false)} />
-    </>
+    </div>
   )
 }

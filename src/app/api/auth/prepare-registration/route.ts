@@ -22,6 +22,7 @@ const schema = z.object({
   placeName: z.string().min(2, 'Add meg a cég nevét'),
   city: z.string().optional(),
   phone: z.string().optional(),
+  tier: z.enum(['starter', 'pro']).optional(),
 })
 
 export async function POST(req: NextRequest) {

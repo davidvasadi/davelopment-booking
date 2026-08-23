@@ -1,20 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell,
 } from 'recharts'
+import { buttonHover } from '@/lib/motion'
 
 /** Lazán tipizált recharts-tooltip payload (verzió-független). */
 type TipEntry = { dataKey?: string | number; name?: string; value?: number; payload?: Record<string, unknown> }
 type TipProps = { active?: boolean; payload?: TipEntry[]; label?: string | number }
 import {
-  Download, ChevronDown, ChevronRight,
+  Download, ChevronDown, ChevronLeft, ChevronRight, HelpCircle,
   CalendarCheck, Users, CheckCircle2, Megaphone, CalendarX,
   Clock, CalendarRange, CalendarDays, Timer, Globe, DoorOpen, Phone, UserX,
-  Wallet, Receipt, Scissors, TrendingUp,
+  Wallet, Receipt, Scissors, TrendingUp, UserPlus, Repeat, Hourglass, Star,
   type LucideIcon,
 } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -25,6 +26,9 @@ const ICONS: Record<string, LucideIcon> = {
   online: Globe, walkin: DoorOpen, phone: Phone, noshow: UserX, done: CheckCircle2,
   // Szalon
   revenue: Wallet, bookings: CalendarCheck, avg: Receipt, service: Scissors, staff: Users, trend: TrendingUp,
+  // Új metrikák (mindkét oldal): visszatérő/új vendég, foglalási előreidő, népszerű szolgáltatás
+  newguest: UserPlus, returning: Repeat, leadtime: Hourglass, popular: Star,
+  reviews: Star,
 }
 
 /* davelopment / Crextio chart-paletta. */
@@ -122,18 +126,22 @@ function MiniSparkline({ series, color }: { series: OverviewSeriesPoint[]; color
 /** Crextio kör-nyíl fejléc gomb (kártya jobb-felső sarok). */
 function HeaderArrow({ onClick, label = 'Részletek', dark = false }: { onClick?: () => void; label?: string; dark?: boolean }) {
   return (
-    <button
+    <motion.button
       type="button"
       onClick={onClick}
       aria-label={label}
-      className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-full transition-transform hover:scale-105 active:scale-95 ${
+      variants={buttonHover}
+      initial="rest"
+      whileHover="hover"
+      whileTap="hover"
+      className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-full ${
         dark ? 'bg-[#33322e] text-white' : 'bg-[#f1f0ed] text-ink'
       }`}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
         <line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" />
       </svg>
-    </button>
+    </motion.button>
   )
 }
 
@@ -205,7 +213,10 @@ function HiringChart({
   }
   const hasPrev = deltaPct !== undefined && Number.isFinite(deltaPct)
   const prevScale = hasPrev ? 1 / (1 + (deltaPct as number) / 100) : 1
-  const cur = bucketSeries(series)
+  // Kevesebb, de értelmesebben elkülönülő pont — sűrű (napi) adatnál a sok pont "tördelt"
+  // görbét ad; 12-re ritkítva simább, olvashatóbb ívet kapunk (a munkavállalói nézet heti
+  // bontású trendjéhez hasonló stílus), a `bucketSeries` átlagolása miatt torzítás nélkül.
+  const cur = bucketSeries(series, 12)
   const data = cur.map((p) => ({
     label: p.label,
     cur: p.value,
@@ -215,8 +226,8 @@ function HiringChart({
   const xInterval = Math.max(0, Math.round(n / 8) - 1)
 
   return (
-    <ResponsiveContainer width="100%" height="100%" debounce={50}>
-      <LineChart data={data} margin={{ top: 8, right: 6, left: -18, bottom: 0 }}>
+    <ResponsiveContainer width="100%" height="100%" debounce={50} initialDimension={{ width: 300, height: 200 }}>
+      <LineChart data={data} margin={{ top: 8, right: 6, left: -6, bottom: 14 }}>
         <CartesianGrid vertical={false} stroke="#efebdf" />
         <XAxis
           dataKey="label" tickLine={false} axisLine={false}
@@ -224,7 +235,7 @@ function HiringChart({
           interval={xInterval} minTickGap={12}
         />
         <YAxis
-          width={30} tickLine={false} axisLine={false}
+          width={42} domain={[0, 'auto']} tickLine={false} axisLine={false}
           tick={{ fontSize: 11, fill: '#A8A496', fontWeight: 500 }}
           tickFormatter={(v: number) => `${v}${unit === '%' ? '%' : ''}`}
           allowDecimals={false}
@@ -247,6 +258,60 @@ function HiringChart({
           isAnimationActive animationDuration={900}
         />
       </LineChart>
+    </ResponsiveContainer>
+  )
+}
+
+/** Sötét pill-tooltip a `MiniBarChart`-hoz (egy érték + felirat). */
+function BarTip({ active, payload, label, unit }: TipProps & { unit?: string }) {
+  if (!active || !payload?.length) return null
+  const suffix = unit === '%' ? '%' : ''
+  return (
+    <div className="rounded-[12px] bg-[#1D1C19] px-3 py-2 text-xs text-white shadow-dav-card">
+      <p className="mb-1 text-white/55">{label}</p>
+      <p className="flex items-center gap-1.5 font-semibold">
+        <span className="h-2 w-2 rounded-full" style={{ background: C.accent }} />
+        {Math.round(Number(payload[0].value ?? 0))}{suffix}
+      </p>
+    </div>
+  )
+}
+
+/**
+ * OSZLOP-változat a sidebar al-bontásaihoz — vékony, lekerekített oszlopok (csúcs GOLD,
+ * a többi ink), hogy a deep-dive sidebar ne csupa egyforma gold-vonalas `HiringChart`-ból
+ * álljon. A sub-view-k FELVÁLTVA kapják ezt vagy a vonal-chartot (ld. `sheetMetric.views.map`).
+ */
+function MiniBarChart({ unit, series }: { unit: string; series: OverviewSeriesPoint[] }) {
+  if (series.length < 2) {
+    return <div className="h-full flex items-center justify-center text-sm text-ink-soft">Nincs elég adat a diagramhoz ezen az időszakon.</div>
+  }
+  const data = bucketSeries(series, 20)
+  const max = Math.max(...data.map((d) => d.value))
+  const peakIdx = data.reduce((mi, d, i, a) => (d.value > (a[mi]?.value ?? -1) ? i : mi), 0)
+  const n = data.length
+  const xInterval = Math.max(0, Math.round(n / 6) - 1)
+
+  return (
+    <ResponsiveContainer width="100%" height="100%" debounce={50} initialDimension={{ width: 300, height: 200 }}>
+      <BarChart data={data} margin={{ top: 8, right: 6, left: 0, bottom: 0 }} barCategoryGap="30%">
+        <CartesianGrid vertical={false} stroke="#efebdf" />
+        <XAxis
+          dataKey="label" tickLine={false} axisLine={false}
+          tick={{ fontSize: 11, fill: '#A8A496', fontWeight: 500 }}
+          interval={xInterval} minTickGap={12}
+        />
+        <YAxis
+          width={34} tickLine={false} axisLine={false}
+          tick={{ fontSize: 11, fill: '#A8A496', fontWeight: 500 }}
+          tickFormatter={(v: number) => `${v}${unit === '%' ? '%' : ''}`}
+          allowDecimals={false}
+        />
+        <Tooltip content={<BarTip unit={unit} />} cursor={{ fill: '#f1efe6' }} />
+        <Bar dataKey="value" radius={[5, 5, 5, 5]} isAnimationActive animationDuration={800} animationEasing="ease-out">
+          {data.map((_, i) => <Cell key={i} fill={i === peakIdx && max > 0 ? C.accent : C.ink} />)}
+        </Bar>
+      </BarChart>
     </ResponsiveContainer>
   )
 }
@@ -300,7 +365,7 @@ function CompositionDonut({ metric, onOpen }: { metric: OverviewMetric; onOpen?:
       </div>
       <div className="flex-1 flex flex-col items-center justify-center">
         <div className="relative my-3 h-[150px] w-[170px]">
-          <ResponsiveContainer width="100%" height="100%" debounce={50}>
+          <ResponsiveContainer width="100%" height="100%" debounce={50} initialDimension={{ width: 170, height: 150 }}>
             <PieChart>
               <Pie
                 data={pieData} dataKey="pct" nameKey="name"
@@ -346,7 +411,10 @@ function DonutTip({ active, payload }: TipProps) {
         <span className="h-2 w-2 rounded-full" style={{ background: color }} />
         {p.name}{extra ? ` · ${extra}` : ''}
       </p>
-      {typeof p.value === 'number' && <p className="mt-0.5 text-white/70">{Math.round(p.value)}%</p>}
+      {/* A második sor csak akkor kell, ha az `extra` NEM már ugyanazt a %-ot mutatja (a
+          "Foglalási arány" donutnál a `value` mező már "%"-formázott, ott a második sor
+          duplázná ugyanazt a számot). */}
+      {!extra && typeof p.value === 'number' && <p className="mt-0.5 text-white/70">{Math.round(p.value)}%</p>}
     </div>
   )
 }
@@ -383,7 +451,7 @@ function heatColor(t: number): string {
  * RÉSZLETES „Foglaltsági jelentés" hőtérkép (dark). Fent nagy szám + zöld/narancs
  * nyilak, alatta NAP×ÓRA pötty-rács 3 intenzitás-szinttel, lábléc: csúcs + legenda.
  */
-function HeatmapCard({ metric, heatmap }: { metric: OverviewMetric; heatmap?: OverviewHeatmap }) {
+function HeatmapCard({ metric, heatmap, onOpen }: { metric: OverviewMetric; heatmap?: OverviewHeatmap; onOpen?: () => void }) {
   const hm = heatmap ?? approximateHeatmap(metric)
   const flat = hm.grid.flat()
   const max = Math.max(1, ...flat)
@@ -403,12 +471,13 @@ function HeatmapCard({ metric, heatmap }: { metric: OverviewMetric; heatmap?: Ov
     <div className="rounded-[26px] bg-ink-dark p-5 lg:p-6 flex flex-col">
       <div className="flex items-start justify-between mb-4">
         <span
-          className="text-[15px] font-medium text-white cursor-help"
+          className="flex items-center gap-1.5 text-[15px] font-medium text-white cursor-help"
           title="Melyik napszakban a legforgalmasabb. Minden pötty egy nap+óra cella: minél sárgább (a jobb alsó jelmagyarázat szerint), annál több a foglalás. Vidd az egeret egy pöttyre a pontos számért."
         >
           Foglaltsági jelentés
+          <HelpCircle className="h-[13px] w-[13px] text-white/40" strokeWidth={2} />
         </span>
-        <HeaderArrow label="Foglaltsági jelentés" dark />
+        <HeaderArrow label="Foglaltsági jelentés" dark onClick={onOpen} />
       </div>
 
       <div className="flex items-center gap-5 mb-5">
@@ -441,7 +510,7 @@ function HeatmapCard({ metric, heatmap }: { metric: OverviewMetric; heatmap?: Ov
               return (
                 <span
                   key={hi}
-                  className="flex-1 aspect-square rounded-full cursor-help transition-transform duration-150 hover:scale-[1.55] hover:ring-2 hover:ring-white/60"
+                  className="flex-1 aspect-square rounded-full cursor-default transition-transform duration-150 hover:scale-[1.55] hover:ring-2 hover:ring-white/60"
                   style={{ background: heatColor(t) }}
                   title={`${DOW_FULL[di]} ${String(hour).padStart(2, '0')}:00 · ${raw} foglalás`}
                 />
@@ -567,6 +636,26 @@ export function AnalyticsOverview({
   // A deep-dive sidebar egy FŐ metrikára nyílik; benne az al-nézetek + grafikonjaik.
   const [sheetMetricId, setSheetMetricId] = useState<string | null>(null)
   const sheetMetric = metrics.find((m) => m.id === sheetMetricId) ?? metrics[0]
+  // Ha egy KONKRÉT al-nézetre kattintottak (Bontások → sor → al-nézet), a sidebar megnyílva
+  // rögtön oda görgessen, ne a tetejéről kelljen megkeresni. `viewId` nélkül (fejléc-nyilak,
+  // kártya-kattintás) a sidebar a tetején nyílik, mint eddig.
+  const [scrollToViewId, setScrollToViewId] = useState<string | null>(null)
+  function openSheet(metricId: string, viewId: string | null = null) {
+    setSheetMetricId(metricId)
+    setScrollToViewId(viewId)
+  }
+
+  // A sidebar (Radix Dialog) beúszó animációval nyílik — a görgetést egy tick-kel a
+  // megnyitás UTÁN indítjuk, hogy a cél-kártya már a végleges helyén legyen a DOM-ban.
+  useEffect(() => {
+    if (!sheetMetricId || !scrollToViewId) return
+    const id = requestAnimationFrame(() => {
+      setTimeout(() => {
+        document.getElementById(`av-view-${scrollToViewId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 200)
+    })
+    return () => cancelAnimationFrame(id)
+  }, [sheetMetricId, scrollToViewId])
 
   if (!primary || !selected) return null
 
@@ -576,18 +665,33 @@ export function AnalyticsOverview({
   const srcA = sources?.slice(0, 2) ?? []
   const srcB = sources?.slice(2) ?? []
 
+  // A "Bontások" lista nem ismétli meg a "Teljesítés"-t — annak saját donut-kártyája van
+  // (lásd `CompositionDonut`), a nyíl-gombja ugyanoda (a metrika sidebar-jába) navigál.
+  const bontasMetrics = metrics.filter((m) => m.id !== 'completion')
+  // A trend-kártya szélén lévő 2 nyíl helyben lépteti a kiválasztott mutatót, ugyanúgy, mint a
+  // Bontások sorra kattintás — nem kell a listáig görgetni.
+  function stepSelected(dir: 1 | -1) {
+    const i = bontasMetrics.findIndex((m) => m.id === selectedId)
+    const next = bontasMetrics[(i + dir + bontasMetrics.length) % bontasMetrics.length]
+    if (next) setSelectedId(next.id)
+  }
+
   return (
     <section className="font-onest space-y-4">
       {/* Fejléc-cím NINCS (a page-ben már „Statisztikák") — csak időszak + CSV, jobbra */}
       <div className="flex items-center justify-end gap-2">
         {filter}
         {csvHref && (
-          <a
+          <motion.a
             href={csvHref}
-            className="flex items-center gap-1.5 h-9 px-3.5 rounded-[12px] border border-line bg-[var(--dav-glass-strong)] text-sm font-semibold text-ink-soft2 hover:text-ink transition-colors"
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
+            className="flex items-center gap-1.5 h-11 lg:h-9 px-3.5 rounded-[12px] border border-line bg-[var(--dav-glass-strong)] text-sm font-semibold text-ink-soft2 hover:text-ink transition-colors"
           >
             <Download className="h-4 w-4" /> CSV
-          </a>
+          </motion.a>
         )}
       </div>
 
@@ -604,52 +708,67 @@ export function AnalyticsOverview({
           <div className="order-1 lg:order-none flex flex-col rounded-[26px] bg-ink-dark p-6 text-white shadow-dav-card">
             <div className="flex items-start justify-between gap-2">
               <div className="text-xs font-medium text-white/55">Foglalási arány</div>
-              <HeaderArrow dark label="Foglalási arány" onClick={() => setSheetMetricId(metrics.find((m) => m.id === 'source')?.id ?? primary.id)} />
+              <HeaderArrow dark label="Foglalási arány" onClick={() => openSheet(metrics.find((m) => m.id === 'source')?.id ?? primary.id)} />
             </div>
-            <div className="mt-4 flex items-center justify-between gap-5">
-              {/* Legenda */}
-              <div className="flex min-w-0 flex-1 flex-col gap-2.5">
-                {donutSegs.map((seg) => (
-                  <div key={seg.label} className="flex items-center gap-2.5">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: seg.color }} />
-                    <span className="truncate text-[13px] text-white/80">{seg.label}</span>
-                    <span className="ml-auto text-[13px] font-semibold tabular-nums">{seg.value}</span>
-                  </div>
-                ))}
-              </div>
-              {/* Több-szegmenses donut (recharts: animál + hover, ívelt szegmens-végek) */}
-              <div className="h-[104px] w-[104px] shrink-0">
-                <ResponsiveContainer width="100%" height="100%" debounce={50}>
-                  <PieChart>
-                    <Pie
-                      data={donutSegs} dataKey="pct" nameKey="label"
-                      cx="50%" cy="50%" innerRadius={30} outerRadius={50}
-                      startAngle={90} endAngle={-270} paddingAngle={2} cornerRadius={6} stroke="none"
-                      isAnimationActive animationDuration={800}
-                    >
-                      {donutSegs.map((seg, i) => <Cell key={i} fill={seg.color} />)}
-                    </Pie>
-                    <Tooltip content={<DonutTip />} wrapperStyle={{ zIndex: 60, opacity: 1 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
+            {/* Donut felül középen + legenda ALATTA, saját sorban (nem a donut mellett szorítva) —
+                a korábbi oldalt-egymás-mellett elrendezésben a keskeny (280px) kártyán a hosszabb
+                forrás-nevek ("Online foglalás" stb.) levágódtak, nem lehetett elolvasni őket. */}
+            <div className="mx-auto mt-4 h-[104px] w-[104px] shrink-0">
+              <ResponsiveContainer width="100%" height="100%" debounce={50} initialDimension={{ width: 104, height: 104 }}>
+                <PieChart>
+                  <Pie
+                    data={donutSegs} dataKey="pct" nameKey="label"
+                    cx="50%" cy="50%" innerRadius={30} outerRadius={50}
+                    startAngle={90} endAngle={-270} paddingAngle={2} cornerRadius={6} stroke="none"
+                    isAnimationActive animationDuration={800}
+                  >
+                    {donutSegs.map((seg, i) => <Cell key={i} fill={seg.color} />)}
+                  </Pie>
+                  <Tooltip content={<DonutTip />} wrapperStyle={{ zIndex: 60, opacity: 1 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Az oszlopszám a TÉNYLEGES szegmensszámhoz igazodik (szalon: 3, étterem: 4) — fix
+                grid-cols-3 mellett a 4. elem (étterem) mindig új sorra tördelt volna, mobilon is. */}
+            <div
+              className="mt-5 grid gap-x-1.5 gap-y-3"
+              style={{ gridTemplateColumns: `repeat(${Math.max(1, donutSegs.length)}, minmax(0, 1fr))` }}
+            >
+              {donutSegs.map((seg) => (
+                <div key={seg.label} className="flex flex-col items-center gap-1 text-center">
+                  <span className="flex min-w-0 items-center gap-1">
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: seg.color }} />
+                    <span className="truncate text-[10px] text-white/80">{seg.label}</span>
+                  </span>
+                  <span className="text-[13px] font-semibold tabular-nums">{seg.value}</span>
+                </div>
+              ))}
             </div>
           </div>
 
-          {/* Bontások accordion — kinyíló sorok (mobilon LEGALUL) */}
-          <div className="order-6 lg:order-none flex flex-1 flex-col rounded-[26px] dav-card-glass p-4 lg:p-5">
+          {/* Bontások accordion — kinyíló sorok (mobilon LEGALUL). A lista MAGASSÁGA fix
+              felső korláttal + belső görgetéssel — enélkül egy sor kinyitása megnövelte a
+              KÜLSŐ kártyát, ami a CSS grid során keresztül a szomszédos kártyákat (trend-chart,
+              donut) is odébb tolta/átméretezte ("ugrált" a teljes bento). */}
+          <div className="order-6 lg:order-none flex flex-col rounded-[26px] dav-card-glass p-4 lg:p-5">
             <div className="mb-3 text-[19px] font-medium text-[#22221e]">Bontások</div>
-            <div className="flex flex-1 flex-col">
-              {metrics.map((m, mi) => {
+            <div className="flex max-h-[420px] flex-col overflow-y-auto" data-lenis-prevent>
+              {/* A "Teljesítés" saját, önálló grafikonnal (Teljesítés · összetétel donut, lásd
+                  lent) — a Bontások lista alatt csak felesleges duplikáció lenne. */}
+              {bontasMetrics.map((m, mi) => {
                 const open = openId === m.id
                 return (
                   <div
                     key={m.id}
-                    className={`flex flex-col ${open ? '' : 'flex-1 justify-center'} ${mi < metrics.length - 1 ? 'border-b border-[#efebdf]' : ''}`}
+                    className={`flex flex-col ${open ? '' : 'flex-1 justify-center'} ${mi < bontasMetrics.length - 1 ? 'border-b border-[#efebdf]' : ''}`}
                   >
-                    <button
+                    <motion.button
                       type="button"
-                      onClick={() => setOpenId(open ? null : m.id)}
+                      onClick={() => { setOpenId(open ? null : m.id); setSelectedId(m.id) }}
+                      variants={buttonHover}
+                      initial="rest"
+                      whileHover="hover"
+                      whileTap="hover"
                       className="flex w-full items-center justify-between gap-2 py-3.5 text-left"
                     >
                       <span className="min-w-0 truncate text-[15px] font-medium text-[#3a352a]">{m.label}</span>
@@ -657,7 +776,7 @@ export function AnalyticsOverview({
                         <span className="text-sm font-medium text-ink-soft tabular-nums">{m.value}</span>
                         <ChevronDown className={`h-[18px] w-[18px] text-[#6a6354] transition-transform ${open ? 'rotate-180' : ''}`} />
                       </span>
-                    </button>
+                    </motion.button>
                     <AnimatePresence initial={false}>
                       {open && (
                         <motion.div
@@ -669,15 +788,19 @@ export function AnalyticsOverview({
                         >
                           <div className="flex flex-col pb-3">
                             {m.views.map((v) => (
-                              <button
+                              <motion.button
                                 key={v.id}
                                 type="button"
-                                onClick={() => setSheetMetricId(m.id)}
+                                onClick={() => openSheet(m.id, v.id)}
+                                variants={buttonHover}
+                                initial="rest"
+                                whileHover="hover"
+                                whileTap="hover"
                                 className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-2 text-left text-[14px] text-ink-soft transition-colors hover:bg-[var(--dav-glass)] hover:text-ink"
                               >
                                 <span className="truncate">{v.label}</span>
                                 <ChevronRight className="h-4 w-4 shrink-0 text-ink-soft" />
-                              </button>
+                              </motion.button>
                             ))}
                             {m.deltaPct !== undefined && (
                               <div className="px-2.5 py-1.5 text-[13px] text-ink-soft">
@@ -699,7 +822,7 @@ export function AnalyticsOverview({
         {chartCards && chartCards.length > 0 ? (
           <div className="order-3 lg:order-none grid grid-cols-1 gap-[5px] sm:grid-cols-2">
             {chartCards.slice(0, 2).map((c, i) => (
-              <ChartCard key={i} title={c.title} onOpen={() => setSheetMetricId(selected.id)}>{c.node}</ChartCard>
+              <ChartCard key={i} title={c.title} onOpen={() => openSheet(selected.id)}>{c.node}</ChartCard>
             ))}
           </div>
         ) : sources && sources.length > 0 ? (
@@ -711,11 +834,14 @@ export function AnalyticsOverview({
 
         {/* col3 · sor1 — sötét részletes hőtérkép (mobilon order-4) */}
         <div className="order-4 lg:order-none lg:contents">
-          <HeatmapCard metric={primary} heatmap={heatmap} />
+          <HeatmapCard metric={primary} heatmap={heatmap} onOpen={() => openSheet(primary.id)} />
         </div>
 
         {/* col2 · sor2 — trend-chart (detail) — mobilon a donut UTÁN: order-2 */}
-        <div onClick={() => setSheetMetricId(selected.id)} className="order-2 lg:order-none min-w-0 flex flex-col rounded-[26px] dav-card-glass p-4 lg:p-5 cursor-pointer transition-colors hover:border-line-strong">
+        <div
+          onClick={() => openSheet(selected.id)}
+          className="order-2 lg:order-none min-w-0 flex flex-col rounded-[26px] dav-card-glass p-4 lg:p-5 cursor-pointer transition-colors hover:border-line-strong"
+        >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -727,9 +853,36 @@ export function AnalyticsOverview({
                 {selected.deltaPct !== undefined && <DeltaText pct={selected.deltaPct} />}
               </div>
             </div>
-            <HeaderArrow onClick={() => setSheetMetricId(selected.id)} />
+            {/* 2 nyíl a kártya szélén — helyben lépteti a kiválasztott mutatót (ugyanaz, mint a
+                Bontások sorra kattintás), a `stopPropagation` nélkül a kártya saját onClick-je
+                (sidebar-nyitás) is lefutna. */}
+            <div className="flex shrink-0 items-center gap-1.5">
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); stepSelected(-1) }}
+                aria-label="Előző mutató"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink transition-colors hover:bg-[#e7e3d6]"
+              >
+                <ChevronLeft className="h-4 w-4" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); stepSelected(1) }}
+                aria-label="Következő mutató"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink transition-colors hover:bg-[#e7e3d6]"
+              >
+                <ChevronRight className="h-4 w-4" strokeWidth={2} />
+              </button>
+              {/* A sidebar-nyitó környíl mobilon a 2 váltó-nyíl mellett túl zsúfolt — csak desktopon marad. */}
+              <div className="hidden lg:block">
+                <HeaderArrow onClick={() => openSheet(selected.id)} />
+              </div>
+            </div>
           </div>
-          <div key={selected.id} className="mt-3 min-w-0 flex-1 h-48 lg:h-[208px]">
+          {/* `flex-1` NÉLKÜL, explicit magassággal — flex-kontextusban a `flex-1` mobilon 0-ra
+              eshet a recharts ResponsiveContainer méret-mérése előtt, ami örökre láthatatlanná
+              teszi a grafikont (ugyanez a fix, ami a munkavállalói nézetnél is bevált). */}
+          <div key={selected.id} className="relative mt-3 w-full" style={{ height: 208 }}>
             <HiringChart unit={selected.unit} series={selected.series} deltaPct={selected.deltaPct} />
           </div>
         </div>
@@ -738,14 +891,14 @@ export function AnalyticsOverview({
         <div className="order-5 lg:order-none lg:contents">
           <CompositionDonut
             metric={composition}
-            onOpen={() => setSheetMetricId(composition.id)}
+            onOpen={() => openSheet(composition.id)}
           />
         </div>
       </div>
 
 
       {/* Részletek-sidebar (deep-dive) — a kör-nyílra kattintva, a FŐ metrikára */}
-      <Sheet open={!!sheetMetricId} onOpenChange={(v) => { if (!v) setSheetMetricId(null) }}>
+      <Sheet open={!!sheetMetricId} onOpenChange={(v) => { if (!v) { setSheetMetricId(null); setScrollToViewId(null) } }}>
         <SheetContent className="font-onest w-full sm:max-w-lg overflow-y-auto bg-white">
           <SheetHeader className="mb-5">
             <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft mb-0.5">Részletek</p>
@@ -769,15 +922,17 @@ export function AnalyticsOverview({
             />
           </div>
 
-          {/* Al-bontások + azok grafikonjai (méretezett konténerben) */}
+          {/* Al-bontások + azok grafikonjai (méretezett konténerben). A saját idősorral
+              rendelkező (target NÉLKÜLI) al-nézetek felváltva kapnak vonal- és oszlop-chartot,
+              hogy a sidebar ne csupa egyforma gold-vonalas kártyából álljon. */}
           <div className="space-y-5">
-            {sheetMetric.views.map((v) => {
+            {sheetMetric.views.map((v, vi) => {
               const chart = v.target ? detailCharts[v.target] : undefined
               const headValue = v.value ?? sheetMetric.value
               const ownSeries = v.series && v.series.length >= 2 ? v.series : null
               const Icon = ICONS[v.icon] ?? CalendarDays
               return (
-                <div key={v.id} className="rounded-[18px] border border-line p-4">
+                <div key={v.id} id={`av-view-${v.id}`} className="scroll-mt-5 rounded-[18px] border border-line p-4">
                   <div className="flex items-center justify-between gap-2 mb-3">
                     <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
                       <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--dav-glass-strong)] border border-line">
@@ -789,7 +944,9 @@ export function AnalyticsOverview({
                   </div>
                   {/* MÉRETEZETT konténer — a ResponsiveContainer alapú grafikonok itt látszódnak */}
                   <div className="h-64 w-full">
-                    {chart ? chart : (
+                    {chart ? chart : vi % 2 === 1 ? (
+                      <MiniBarChart unit="" series={ownSeries ?? sheetMetric.series} />
+                    ) : (
                       <HiringChart
                         unit=""
                         series={ownSeries ?? sheetMetric.series}

@@ -1,12 +1,14 @@
 import type { Field } from 'payload'
 
 /**
- * Üzlet-csomag — PER ÜZLET. Két érték: `pro` (a normál, önkiszolgáló csomag — minden funkció
- * elérhető) és `egyedi` (testreszabott, kapcsolatfelvétellel egyeztetett deal). A fiók-díj az
- * üzletek díjából áll össze (lásd src/lib/accountSubscription.ts).
+ * Üzlet-csomag — PER ÜZLET. Három érték: `starter` (belépő szint, kisebb email-keret), `pro`
+ * (a normál, önkiszolgáló csomag — minden funkció elérhető, nincs funkció-zár) és `egyedi`
+ * (testreszabott, kapcsolatfelvétellel egyeztetett deal). A hírlevél-küldés BEÉPÍTVE jár minden
+ * csomaghoz (a keret a csomag szerint dől el, lásd `monthlyEmailCapForTier` a `src/lib/tier.ts`-
+ * ben). A fiók-díj az üzletek díjából áll össze (lásd src/lib/accountSubscription.ts).
  *
- * ⚠️ BIZTONSÁG: a tulaj NEM írhatja (field-szintű update = admin-only). Az `egyedi`-t admin
- * állítja (a megrendelővel egyeztetve). Grandfathering: a régi (null) csomag `pro`-ként olvasandó.
+ * ⚠️ BIZTONSÁG: a tulaj NEM írhatja (field-szintű update = admin-only). Grandfathering: a régi
+ * (null) csomag `pro`-ként olvasandó, tehát a meglévő ügyfelek NEM esnek vissza Starterre.
  */
 export const businessTierField: Field = {
   name: 'tier',
@@ -15,6 +17,7 @@ export const businessTierField: Field = {
   defaultValue: 'pro',
   label: 'Csomag',
   options: [
+    { label: 'Starter', value: 'starter' },
     { label: 'Pro (normál)', value: 'pro' },
     { label: 'Egyedi', value: 'egyedi' },
   ],
@@ -23,6 +26,27 @@ export const businessTierField: Field = {
   },
   admin: {
     description: 'Az üzlet csomagja. A normál a „Pro"; az „Egyedi" a testreszabott (admin állítja, a megrendelővel egyeztetve).',
+  },
+}
+
+/**
+ * Az „Egyedi" (Enterprise) csomag TÉNYLEGES, megegyezés szerinti havidíja — mivel az Egyedi
+ * csomagnak nincs fix listaára, ez a mező adja a valódi számlázási alapot, amíg `tier ===
+ * 'egyedi'`. `null` esetén (még nincs megegyezés) a díjszámítás a Pro-árra esik vissza
+ * (lásd `businessMonthlyFee` a `src/lib/tier.ts`-ben) — ez csak egy ideiglenes becslés-alap,
+ * NEM tényleges ajánlat. Admin-only, mint a `tier` mező.
+ */
+export const customMonthlyFeeField: Field = {
+  name: 'custom_monthly_fee_huf',
+  type: 'number',
+  min: 0,
+  label: 'Egyedi havidíj (Ft)',
+  access: {
+    update: ({ req }) => req.user?.role === 'admin',
+  },
+  admin: {
+    description: 'Csak Egyedi csomagnál számít: a megrendelővel egyeztetett tényleges havidíj. Üresen a Pro-ár a becslés-alap.',
+    condition: (data) => data?.tier === 'egyedi',
   },
 }
 
@@ -89,8 +113,263 @@ export const settingsExtensionFields: Field[] = [
         name: 'review_delay_hours',
         type: 'number',
         label: 'Értékelés-kérés késleltetése (óra)',
-        defaultValue: 2,
+        defaultValue: 1,
         admin: { description: '1 = 1 órával kezelés után, 2 = 2 órával, 24 = másnap.' },
+      },
+    ],
+  },
+]
+
+/**
+ * Vendég-előleg beállítások — PER ÜZLET, owner-írható (nincs field-szintű access, a
+ * collection-szintű owner-or-admin öröklődik). A `type` opciók listája szándékosan tartalmaz
+ * olyat is (`percent` szalonnál, `per_pax` étteremnél), amit a Settings UI a saját oldalán
+ * elrejt — a séma közös, csak a UI szűri, hogy melyik opció értelmes az adott üzlettípusnál
+ * (a szalonnak van `service.price`, az étteremnek nincs ár-mezője a foglaláson, csak fejenkénti
+ * összeg adható meg értelmesen).
+ */
+export const depositSettingsFields: Field[] = [
+  {
+    name: 'deposit_settings',
+    type: 'group',
+    label: 'Előleg-beállítások',
+    fields: [
+      { name: 'enabled', type: 'checkbox', defaultValue: false, label: 'Előleg bekapcsolva' },
+      {
+        name: 'type',
+        type: 'select',
+        defaultValue: 'fixed',
+        label: 'Előleg típusa',
+        options: [
+          { label: 'Fix összeg (Ft)', value: 'fixed' },
+          { label: 'Százalék', value: 'percent' },
+          { label: 'Fejenként (Ft)', value: 'per_pax' },
+        ],
+      },
+      { name: 'fixed_amount_huf', type: 'number', min: 0, label: 'Fix előleg (Ft)' },
+      { name: 'percent_value', type: 'number', min: 1, max: 100, label: 'Előleg (%)' },
+      { name: 'per_pax_amount_huf', type: 'number', min: 0, label: 'Előleg / fő (Ft)' },
+      {
+        name: 'refund_hours_before',
+        type: 'number',
+        defaultValue: 24,
+        label: 'Ingyenes lemondás határideje (óra)',
+        admin: { description: 'Ennyi órával a foglalás előtt még teljes visszatérítés jár. Ezután nem jár vissza.' },
+      },
+      {
+        name: 'payment_gateway',
+        type: 'select',
+        defaultValue: 'none',
+        label: 'Fizetési szolgáltató',
+        options: [
+          { label: 'Stripe', value: 'stripe' },
+          { label: 'SimplePay (hamarosan)', value: 'simplepay' },
+          { label: 'Nincs', value: 'none' },
+        ],
+        admin: { description: 'Jelenleg csak a Stripe aktív — a SimplePay a jövőbeli integráció helye.' },
+      },
+    ],
+  },
+]
+
+/**
+ * Ajándékutalvány beállítások — PER ÜZLET. Ugyanazt a Stripe Connect-fiókot használja, mint az
+ * előleg (`stripeConnectFields` lent) — nincs második Connect-integráció. A vásárló szabadon
+ * beírt összeggel vásárol (nincs preset-lista), a min/max csak visszaélés elleni szerver-oldali
+ * korlát.
+ */
+export const voucherSettingsFields: Field[] = [
+  {
+    name: 'voucher_settings',
+    type: 'group',
+    label: 'Ajándékutalvány-beállítások',
+    fields: [
+      { name: 'enabled', type: 'checkbox', defaultValue: false, label: 'Ajándékutalvány bekapcsolva' },
+      { name: 'min_amount_huf', type: 'number', min: 0, defaultValue: 2000, label: 'Minimum összeg (Ft)' },
+      { name: 'max_amount_huf', type: 'number', min: 0, defaultValue: 100000, label: 'Maximum összeg (Ft)' },
+      {
+        name: 'validity_months',
+        type: 'number',
+        min: 1,
+        defaultValue: 12,
+        label: 'Érvényesség (hónap)',
+        admin: { description: 'A vásárlástól számítva ennyi hónapig váltható be az utalvány.' },
+      },
+    ],
+  },
+]
+
+/**
+ * Hírlevél/marketing-kampány beállítások — PER ÜZLET. Fizetős kiegészítő (nem sima be/ki
+ * kapcsoló, mint a deposit/voucher) — a `package` a fiók havidíjába (`accountSubscription.ts`
+ * → `computeAccountFee`) is beleszámít. A csomagválasztás a dashboard "Marketing" oldaláról
+ * történik (nem itt, a Beállításokban — ott csak a mező LÉTEZIK, a UI máshol van).
+ */
+export const newsletterSettingsFields: Field[] = [
+  {
+    name: 'newsletter_settings',
+    type: 'group',
+    label: 'Hírlevél-beállítások',
+    fields: [
+      {
+        // FONTOS: a `defaultValue` itt csak ÚJ szalonokra hat — meglévőknél a mentett DB-érték
+        // számít. A hírlevél az árazás-átálláskor (start-tier-plan) minden csomagba BEÉPÍTVE
+        // került, nincs önálló hírlevél-fizetés/választás többé — a mezőt csak visszafelé-
+        // kompatibilitásból (`!== 'none'` = "engedélyezve" kapcsoló, ld. AppShell nav-rejtés)
+        // tartjuk meg, a UI-n (PaymentsSettingsPanel) nincs is választó hozzá, csak infó-kártya.
+        name: 'package',
+        type: 'select',
+        defaultValue: 'ingyenes',
+        label: 'Hírlevél-csomag',
+        options: [
+          { label: 'Kikapcsolva', value: 'none' },
+          { label: 'Ingyenes', value: 'ingyenes' },
+          { label: 'Alap', value: 'alap' },
+          { label: 'Prémium', value: 'premium' },
+        ],
+      },
+      {
+        // Belső "küldés folyamatban" zár — a `/api/marketing/send` route ATOMIKUSAN próbálja
+        // false→true-ra állítani (egyetlen SQL UPDATE...WHERE), mielőtt a havi email-plafont
+        // ellenőrizné. Ha a where nem talál (mert már true), a route elutasítja a kérést —
+        // ez zárja be a versenyhelyzetet, amikor ugyanaz az üzlet két kampányt indítana szinte
+        // egyszerre, és mindkettő a plafon alatti "már elküldve" számot látná ellenőrzéskor
+        // (enélkül összesen túlléphetnék a Resend-keretet). NEM admin-szerkeszthető mező.
+        name: 'sending',
+        type: 'checkbox',
+        defaultValue: false,
+        label: 'Kampány-küldés folyamatban (belső zár)',
+        admin: { hidden: true },
+      },
+    ],
+  },
+]
+
+/**
+ * Digitális beleegyező nyilatkozat — kezelés/szolgáltatás előtti hozzájárulás (pl. allergia-
+ * vagy egészségügyi nyilatkozat). Egyszerű be/ki kapcsoló + egy sablon-szöveg (sima textarea,
+ * nincs rich-text a projektben, ld. `TermsSectionsEditor.tsx`). A tényleges elfogadás
+ * per-foglalás történik és a `Bookings`/`Reservations` rekordon tárolódik (ld. ott), NEM itt —
+ * ez a group csak a sablont és a be/ki kapcsolót tartja.
+ */
+export const consentSettingsFields: Field[] = [
+  {
+    name: 'consent_settings',
+    type: 'group',
+    label: 'Beleegyező nyilatkozat',
+    fields: [
+      { name: 'enabled', type: 'checkbox', defaultValue: false, label: 'Beleegyező nyilatkozat bekapcsolva' },
+      {
+        name: 'title',
+        type: 'text',
+        localized: true,
+        label: 'Nyilatkozat címe',
+        admin: { description: 'A vendég ezt a címet látja a lépés/oldal tetején (üresen hagyva: „Beleegyező nyilatkozat").' },
+      },
+      {
+        name: 'template_text',
+        type: 'textarea',
+        localized: true,
+        label: 'Nyilatkozat szövege',
+        admin: { description: 'Ezt a szöveget látja a vendég elfogadásra a foglalás során, vagy helyszíni check-inkor.' },
+      },
+    ],
+  },
+]
+
+/**
+ * Marketing-követés a publikus foglaló oldalon — csak konkrét, névvel felsorolt szolgáltatás
+ * (Google Analytics 4 + Facebook Pixel), NEM teljes Google Tag Manager, mert a GTM utólag
+ * tetszőleges más szkriptet is engedélyezne a saját felületén keresztül, ami a szigorú CSP-t
+ * (`next.config.ts`) érdemben tágra nyitná. A sikeres foglaláskor kimenő esemény mindig anonim
+ * (nincs név/telefon/email), ld. `ProfileCard.tsx`/`RestaurantBookingWizard.tsx`.
+ */
+export const marketingTrackingFields: Field[] = [
+  {
+    name: 'marketing_tracking',
+    type: 'group',
+    label: 'Marketing-követés',
+    fields: [
+      {
+        name: 'ga4_measurement_id',
+        type: 'text',
+        label: 'Google Analytics 4 mérési azonosító',
+        admin: { description: 'Pl. G-XXXXXXXXXX' },
+      },
+      {
+        name: 'facebook_pixel_id',
+        type: 'text',
+        label: 'Facebook (Meta) Pixel ID',
+        admin: { description: 'Csak számjegyek, a Meta Események Kezelőjéből.' },
+      },
+    ],
+  },
+]
+
+/**
+ * Stripe Connect állapot-mezők — ROOT-SZINTEN (nem a `deposit_settings` group-ban) és
+ * admin-only `access.update`-tel, mert a Salon/Restaurant Settings PATCH route
+ * (`src/app/api/salon|restaurant/settings/route.ts`) `overrideAccess: true`-val ment, ami a
+ * mező-szintű `access`-t megkerülné — a route SAJÁT `FORBIDDEN_KEYS` listája védi ezt a két
+ * mezőt ténylegesen (a `field.access` itt csak a nyers Payload admin/API felől ad védelmet).
+ * Az értéküket KIZÁRÓLAG szerver-oldali kód írhatja (Connect onboarding callback / webhook) —
+ * sosem a tulaj felőli settings-form.
+ */
+export const stripeConnectFields: Field[] = [
+  {
+    name: 'stripe_connect_account_id',
+    type: 'text',
+    label: 'Stripe Connect fiók azonosító',
+    access: { update: ({ req }) => req.user?.role === 'admin' },
+    admin: { position: 'sidebar', readOnly: true, description: 'A Stripe onboarding állítja — nem szerkeszthető.' },
+  },
+  {
+    name: 'stripe_connect_onboarded',
+    type: 'checkbox',
+    defaultValue: false,
+    label: 'Stripe onboarding kész',
+    access: { update: ({ req }) => req.user?.role === 'admin' },
+    admin: { position: 'sidebar', readOnly: true },
+  },
+]
+
+/**
+ * Számlázás-beállítások az előleg-fizetés után kiállított bizonylathoz — az üzlet SAJÁT
+ * Számlázz.hu/Billingo fiókjával, nem a platforméval. A kulcs-mezők (`*_key_enc`) TITKOSÍTVA
+ * tárolódnak (`src/lib/encryption.ts`), és `access.read: () => false`-szal ki vannak zárva
+ * minden API-válaszból — a kliens sosem kapja vissza a nyers értéket, csak azt tudja, hogy be
+ * van-e állítva (a Settings UI ezt maszkolt placeholderként jeleníti meg).
+ */
+export const invoiceSettingsFields: Field[] = [
+  {
+    name: 'invoice_settings',
+    type: 'group',
+    label: 'Számlázási beállítások',
+    fields: [
+      {
+        name: 'invoice_provider',
+        type: 'select',
+        defaultValue: 'none',
+        label: 'Számlázó',
+        options: [
+          { label: 'Számlázz.hu', value: 'szamlazz' },
+          { label: 'Billingo', value: 'billingo' },
+          { label: 'Nincs (csak fizetés, bizonylat nélkül)', value: 'none' },
+        ],
+      },
+      {
+        name: 'szamlazz_agent_key_enc',
+        type: 'text',
+        label: 'Számlázz.hu Agent kulcs',
+        access: { read: () => false },
+        admin: { position: 'sidebar', description: 'Titkosítva tárolva — a mentés után nem jelenik meg újra.' },
+      },
+      {
+        name: 'billingo_api_key_enc',
+        type: 'text',
+        label: 'Billingo API kulcs',
+        access: { read: () => false },
+        admin: { position: 'sidebar', description: 'Titkosítva tárolva — a mentés után nem jelenik meg újra.' },
       },
     ],
   },

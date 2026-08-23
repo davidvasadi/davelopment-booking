@@ -11,7 +11,7 @@ import { useMemo, useState, useEffect, useRef, useCallback, type CSSProperties }
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal, BarChart3, Bell, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal, BarChart3, Bell, Loader2, Lock } from 'lucide-react'
 
 export type ShiftType = 'shift' | 'leave' | 'sick' | 'vacation'
 
@@ -40,6 +40,8 @@ export interface StaffVM {
   weekly_hours: number | null
   phone: string | null
   documents: { label: string; sizeLabel: string }[]
+  /** Van függőben lévő meghívója (még nem fogadta el) — addig nem osztható be műszakra. */
+  pending?: boolean
 }
 
 interface Props {
@@ -725,8 +727,15 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                           style={active ? { background: '#F1CE45', color: '#1D1C19' } : { background: '#EDE7D7', color: '#86826F' }}
                         />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-[14px] font-semibold text-ink">{st.name}</div>
-                          <div className="truncate text-[12px] font-medium text-ink-soft">{st.role || 'Munkatárs'}</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="truncate text-[14px] font-semibold text-ink">{st.name}</span>
+                            {st.pending && (
+                              <span title="Meghívó függőben — még nem osztható be">
+                                <Lock className="h-3 w-3 shrink-0 text-ink-soft2" strokeWidth={2} />
+                              </span>
+                            )}
+                          </div>
+                          <div className="truncate text-[12px] font-medium text-ink-soft">{st.pending ? 'Meghívó függőben' : (st.role || 'Munkatárs')}</div>
                           <div className="mt-2 h-[6px] overflow-hidden rounded-[3px] bg-[#EAE5D6]">
                             <div className="h-full rounded-[3px]" style={{ width: `${util}%`, background: util >= 55 ? '#F1CE45' : '#1D1C19' }} />
                           </div>
@@ -1103,7 +1112,13 @@ function DayEditor({
   // #2 — a hozzáadásnál CSAK a még be nem osztott munkatársak választhatók.
   const scheduledIds = new Set(dayShifts.map((s) => s.staffId))
   const available = staff.filter((st) => !scheduledIds.has(st.id))
-  const effStaffId = editingId ? staffId : available.some((s) => s.id === staffId) ? staffId : available[0]?.id ?? ''
+  // A meghívóra váró (még nem elfogadott) munkatárs megjelenik a listában (ne tűnjön el
+  // nyomtalanul), de nem választható ki alapértelmezettként — ld. a <select> disabled option-jét lent.
+  const effStaffId = editingId
+    ? staffId
+    : available.some((s) => s.id === staffId && !s.pending)
+      ? staffId
+      : available.find((s) => !s.pending)?.id ?? ''
   const editingStaff = editingId ? staffById.get(staffId) : null
 
   // Módosításkor görgessük a szerkesztő-formot a nézetbe (egységes UX).
@@ -1213,10 +1228,17 @@ function DayEditor({
               {!editingId && (
                 <div className="relative mb-2.5">
                   <select value={effStaffId} onChange={(e) => setStaffId(e.target.value)} className="w-full cursor-pointer appearance-none rounded-[13px] border border-line bg-white px-3 py-2.5 pr-9 text-[13.5px] font-medium text-ink focus:outline-none">
-                    {available.map((st) => (<option key={st.id} value={st.id}>{st.name}</option>))}
+                    {available.map((st) => (
+                      <option key={st.id} value={st.id} disabled={st.pending}>
+                        {st.pending ? `🔒 ${st.name} — meghívó függőben` : st.name}
+                      </option>
+                    ))}
                   </select>
                   <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft2" strokeWidth={1.8} />
                 </div>
+              )}
+              {!editingId && available.every((st) => st.pending) === false && available.some((st) => st.pending) && (
+                <p className="mb-2.5 -mt-1 text-[11px] text-ink-soft2">A 🔒 jelöltek még nem fogadták el a meghívást, addig nem oszthatók be.</p>
               )}
               <div className="mb-2.5 grid grid-cols-2 gap-2">
                 {(['shift', 'vacation', 'sick', 'leave'] as ShiftType[]).map((t) => (

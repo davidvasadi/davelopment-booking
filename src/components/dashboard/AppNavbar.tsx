@@ -4,13 +4,16 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, ChevronDown } from 'lucide-react'
+import { Settings, ChevronDown, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
 import type { SwitcherBusiness } from './StoreSwitcher'
+import { buttonHover } from '@/lib/motion'
+
+const MotionLink = motion.create(Link)
 
 // A „staggered spring" belépő (etalon: a UserMenu popover) — a „Több" legördülő is ezt kapja:
 // a panel a triggerből kinőve rugósan pattan ki, az elemek egymás után úsznak be.
@@ -53,6 +56,7 @@ export function AppNavbar({
   userAvatarUrl = null,
   businesses = [],
   activeBusinessKey = null,
+  hiddenHrefs = [],
 }: {
   variant: DashboardVariant
   capabilities?: Capability[]
@@ -63,9 +67,11 @@ export function AppNavbar({
   userAvatarUrl?: string | null
   businesses?: SwitcherBusiness[]
   activeBusinessKey?: string | null
+  /** Nav-hrefek, amiket egy kikapcsolt funkció miatt el kell rejteni (pl. utalványok). */
+  hiddenHrefs?: string[]
 }) {
   const { publicUrlPrefix, settingsHref, subscriptionHref, notificationsHref } = getNavConfig(variant)
-  const items = navItemsForCapabilities(variant, capabilities)
+  const items = navItemsForCapabilities(variant, capabilities, hiddenHrefs)
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
@@ -111,15 +117,34 @@ export function AppNavbar({
       <nav className="flex items-center gap-1.5 rounded-[40px] bg-[var(--dav-glass-strong)] p-[6px] shadow-[0_2px_10px_rgba(0,0,0,.05)] backdrop-blur-lg">
         {pillItems.map(({ href, label, exact }) => {
           const active = isActive(href, exact)
-          const dim = isLocked
+          // Lejárt/megszűnt/szüneteltetett előfizetésnél a nav-elemek NEM navigálhatók —
+          // csak lakat-ikonnal jelzett, inaktív pill marad belőlük (a "Beállítások" gomb és
+          // az azon belüli Előfizetés/Fiók-törlés fülek maradnak elérhetők).
+          if (isLocked) {
+            return (
+              <span
+                key={href}
+                aria-disabled
+                title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
+                className="relative flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-[30px] px-[18px] py-[11px] text-sm font-medium text-[#55524a]/40"
+              >
+                <Lock className="h-3.5 w-3.5" strokeWidth={1.8} />
+                {label}
+              </span>
+            )
+          }
           return (
-            <Link
+            <MotionLink
               key={href}
               href={href}
               data-tour={href}
+              variants={buttonHover}
+              initial="rest"
+              whileHover="hover"
+              whileTap="hover"
               className={cn(
                 'relative rounded-[30px] py-[11px] text-sm transition-colors whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ink/10',
-                active ? 'px-[22px] text-white font-semibold' : dim ? 'px-[18px] text-[#55524a]/50' : 'px-[18px] font-medium text-[#55524a] hover:text-ink',
+                active ? 'px-[22px] text-white font-semibold' : 'px-[18px] font-medium text-[#55524a] hover:text-ink',
               )}
             >
               {active && (
@@ -130,17 +155,21 @@ export function AppNavbar({
                 />
               )}
               <span className="relative z-10">{label}</span>
-            </Link>
+            </MotionLink>
           )
         })}
 
         {/* „Több" legördülő a másodlagos elemekre — így a nav nem lóg ki */}
         {overflowItems.length > 0 && (
           <div className="relative">
-            <button
+            <motion.button
               type="button"
               onClick={() => setMoreOpen((o) => !o)}
               onBlur={() => setTimeout(() => setMoreOpen(false), 150)}
+              variants={buttonHover}
+              initial="rest"
+              whileHover="hover"
+              whileTap="hover"
               className={cn(
                 'relative flex items-center gap-1 rounded-[30px] py-[11px] text-sm transition-colors whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ink/10',
                 overflowActive ? 'px-[22px] text-white font-semibold' : 'px-[18px] font-medium text-[#55524a] hover:text-ink',
@@ -149,7 +178,7 @@ export function AppNavbar({
               {overflowActive && <span className="absolute inset-0 -z-0 rounded-[30px] bg-ink-dark" />}
               <span className="relative z-10">Több</span>
               <ChevronDown className={cn('relative z-10 h-4 w-4 transition-transform', moreOpen && 'rotate-180')} />
-            </button>
+            </motion.button>
             <AnimatePresence>
               {moreOpen && (
                 <motion.div
@@ -162,11 +191,29 @@ export function AppNavbar({
                 >
                   {overflowItems.map(({ href, label, exact, icon: Icon }) => {
                     const active = isActive(href, exact)
+                    if (isLocked) {
+                      return (
+                        <motion.div key={href} variants={POP_ITEM}>
+                          <span
+                            aria-disabled
+                            title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
+                            className="flex cursor-not-allowed items-center gap-2.5 rounded-[13px] px-3 py-2.5 text-sm font-medium text-[#3a352a]/35"
+                          >
+                            <Lock className="h-[15px] w-[15px]" strokeWidth={1.8} />
+                            {label}
+                          </span>
+                        </motion.div>
+                      )
+                    }
                     return (
                       <motion.div key={href} variants={POP_ITEM}>
-                        <Link
+                        <MotionLink
                           href={href}
                           onClick={() => setMoreOpen(false)}
+                          variants={buttonHover}
+                          initial="rest"
+                          whileHover="hover"
+                          whileTap="hover"
                           className={cn(
                             'flex items-center gap-2.5 rounded-[13px] px-3 py-2.5 text-sm transition-colors',
                             active ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-[#3a352a] hover:bg-[#f4f4f5] hover:text-ink',
@@ -174,7 +221,7 @@ export function AppNavbar({
                         >
                           <Icon className={cn('h-[17px] w-[17px]', !active && 'text-[#8a8779]')} />
                           {label}
-                        </Link>
+                        </MotionLink>
                       </motion.div>
                     )
                   })}
@@ -188,11 +235,15 @@ export function AppNavbar({
       {/* Jobb: Beállítás (Crextio: fehér pill ikon+felirat) + csengő + avatar */}
       <div className="flex items-center gap-2.5 shrink-0">
         {showSettings && (
-          <Link
+          <MotionLink
             href={settingsHref}
             data-tour={settingsHref}
             aria-label="Beállítások"
             title="Beállítások"
+            variants={buttonHover}
+            initial="rest"
+            whileHover="hover"
+            whileTap="hover"
             className={cn(
               'flex h-[52px] shrink-0 items-center gap-2 rounded-[30px] px-[22px] text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors backdrop-blur-lg',
               settingsActive ? 'bg-ink-dark text-white' : 'bg-[var(--dav-glass-strong)] text-ink hover:bg-white/70',
@@ -200,7 +251,7 @@ export function AppNavbar({
           >
             <Settings className="h-[16px] w-[16px]" strokeWidth={2} />
             Beállítások
-          </Link>
+          </MotionLink>
         )}
 
         <UserMenu

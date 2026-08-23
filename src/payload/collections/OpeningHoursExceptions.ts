@@ -1,5 +1,5 @@
 import type { CollectionConfig } from 'payload'
-import { isRestaurantOwnerOrAdmin, canCreateForOwnRestaurant } from '../access/restaurantAccess'
+import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 
 const isYmd = (v: unknown) =>
   typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)
@@ -21,9 +21,9 @@ export const OpeningHoursExceptions: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: canCreateForOwnRestaurant,
-    update: isRestaurantOwnerOrAdmin,
-    delete: isRestaurantOwnerOrAdmin,
+    create: capabilityCreate('restaurant', 'restaurant', 'availability.manage'),
+    update: capabilityScoped('restaurant', 'restaurant', 'availability.manage'),
+    delete: capabilityScoped('restaurant', 'restaurant', 'availability.manage'),
   },
   fields: [
     {

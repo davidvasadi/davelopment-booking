@@ -65,7 +65,11 @@ const SheetContent = React.forwardRef<
       {...props}
     >
       {children}
-      <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+      {/* fixed (nem absolute) — a SheetContent maga a görgethető konténer (overflow-y-auto),
+          egy absolute gomb a tartalommal együtt görgetne el a képernyő tetejéről. Explicit
+          text-ink szín kell, mert `currentColor` (a lucide-ikon alapja) öröklés nélkül fehérré
+          válhat a Portal-lal body-ra rendereltt gombon — láthatatlan X-et adva fehér háttéren. */}
+      <SheetPrimitive.Close className="fixed right-4 top-4 z-10 rounded-full bg-white/90 p-1.5 text-ink opacity-90 shadow-[0_1px_4px_rgba(0,0,0,.12)] ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
         <X className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </SheetPrimitive.Close>

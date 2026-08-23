@@ -1,15 +1,18 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import RestaurantTeamManager, { type TeamCard } from '@/components/restaurant/RestaurantTeamManager'
 import { getTeamRoster } from '@/lib/teamRoster'
+import { fixMediaUrl } from '@/lib/utils'
 import type { Membership, User, Role } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
 function mediaUrl(m: unknown): string | null {
-  return m && typeof m === 'object' && 'url' in m && typeof (m as { url?: unknown }).url === 'string' ? (m as { url: string }).url : null
+  return m && typeof m === 'object' && 'url' in m && typeof (m as { url?: unknown }).url === 'string'
+    ? fixMediaUrl((m as { url: string }).url)
+    : null
 }
 
 /**
@@ -18,8 +21,8 @@ function mediaUrl(m: unknown): string | null {
  * Meghívás/szerep/eltávolítás a MEGLÉVŐ /api/team flow-n. SMS sehol.
  */
 export default async function RestaurantStaffPage() {
-  const { restaurant, userId, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'staff.view', '/restaurant')
+  const { restaurant, userId, userEmail, capabilities } = await getOwnedRestaurant()
+  requireAnyCapability(capabilities, ['staff.view', 'staff.manage'], '/restaurant')
   const payload = await getPayloadClient()
 
   const ownerRelId = restaurant.owner && typeof restaurant.owner === 'object'
@@ -44,7 +47,7 @@ export default async function RestaurantStaffPage() {
     id: null,
     name: owner?.name || owner?.email || 'Tulajdonos',
     email: owner?.email ?? '',
-    avatarUrl: owner?.avatar_url ?? null,
+    avatarUrl: fixMediaUrl(owner?.avatar_url) ?? null,
     roleTone: 'owner',
     pending: false,
     status: 'active',
@@ -57,7 +60,8 @@ export default async function RestaurantStaffPage() {
   if (memberEmails.length > 0) {
     const userRes = await payload.find({ collection: 'users', where: { email: { in: memberEmails } }, depth: 0, limit: 500, overrideAccess: true })
     for (const u of userRes.docs as User[]) {
-      if (u.email && u.avatar_url) userAvatarByEmail[u.email] = u.avatar_url
+      const fixed = fixMediaUrl(u.avatar_url)
+      if (u.email && fixed) userAvatarByEmail[u.email] = fixed
     }
   }
 
@@ -68,7 +72,7 @@ export default async function RestaurantStaffPage() {
       id: String(m.id),
       name: m.name || u?.name || m.email,
       email: m.email,
-      avatarUrl: mediaUrl(m.avatar) ?? (u?.avatar_url ?? null) ?? (m.email ? (userAvatarByEmail[m.email] ?? null) : null),
+      avatarUrl: mediaUrl(m.avatar) ?? fixMediaUrl(u?.avatar_url) ?? (m.email ? (userAvatarByEmail[m.email] ?? null) : null),
       roleTone: (m.role === 'manager' ? 'manager' : 'staff') as 'manager' | 'staff',
       roleName: custom ? custom.name : null,
       pending: m.status === 'invited',
@@ -89,6 +93,7 @@ export default async function RestaurantStaffPage() {
         initialTeam={[ownerCard, ...memberCards]}
         canManage={can(capabilities, 'staff.manage')}
         canEditSalary={isOwner}
+        viewerEmail={userEmail}
         employees={roster}
         customRoles={customRoles}
       />

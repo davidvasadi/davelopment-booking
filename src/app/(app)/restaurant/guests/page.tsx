@@ -1,17 +1,18 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
 import { aggregateGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
-import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit } from '@/lib/guestsView'
+import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit, reviewRowValue } from '@/lib/guestsView'
+import { getGuestReviewMap } from '@/lib/reviews'
 import type { Reservation, Customer } from '@/payload/payload-types'
 
 const DAYS = ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat']
 
 export default async function RestaurantGuestsPage() {
   const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'guests.view', '/restaurant')
+  requireAnyCapability(capabilities, ['guests.view', 'guests.manage'], '/restaurant')
   const payload = await getPayloadClient()
 
   const res = await payload.find({
@@ -43,7 +44,15 @@ export default async function RestaurantGuestsPage() {
       .filter((v): v is string => !!v)
 
   // Forrás + eredeti időpont/pax/jegyzet/alkalom/asztalok megőrzése a részletekhez.
-  type Src = GuestSource & { time?: string; occasion?: string | null; occasionIcon?: string | null; note?: string | null; internal?: string | null; tables?: string[] }
+  type Src = GuestSource & {
+    time?: string
+    occasion?: string | null
+    occasionIcon?: string | null
+    note?: string | null
+    internal?: string | null
+    tables?: string[]
+    customAnswers?: Record<string, { question: string; answer: string }> | null
+  }
   const sources: Src[] = docs.map((r) => ({
     name: r.customer_name,
     email: r.customer_email,
@@ -59,6 +68,7 @@ export default async function RestaurantGuestsPage() {
     note: r.notes,
     internal: r.internal_notes,
     tables: tablesOf(r.tables),
+    customAnswers: r.custom_answers ?? null,
   }))
 
   const latestNote = (own: GuestSource[], pick: (s: Src) => string | null | undefined): string | null => {
@@ -101,6 +111,8 @@ export default async function RestaurantGuestsPage() {
     }
   }
 
+  const reviewMap = await getGuestReviewMap('restaurant', restaurant.id)
+
   const guests = aggregateGuests(sources)
   const buckets = bucketByCountry(sources)
   const total = guests.length
@@ -121,20 +133,37 @@ export default async function RestaurantGuestsPage() {
     return best >= 0 ? DAYS[best] : '—'
   }
 
+  // Egyedi kérdések TÖRTÉNETE a vendég profilján — kérdés-SZÖVEGENKÉNT (nem id-nkánt, mert a
+  // sablon időközben módosulhat/törölhető) a legutóbbi (legfrissebb dátumú) nem-üres választ
+  // tartjuk meg. NEM külön tárolt mezőből jön, hanem a foglalás-történetből levezetve.
+  const latestCustomAnswers = (own: GuestSource[]): { label: string; value: string }[] => {
+    const byQuestion = new Map<string, string>()
+    for (const s of [...own].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))) {
+      const answers = (s as Src).customAnswers
+      if (!answers) continue
+      for (const qa of Object.values(answers)) byQuestion.set(qa.question, qa.answer)
+    }
+    return Array.from(byQuestion.entries()).map(([label, value]) => ({ label, value }))
+  }
+
   const guestVMs = buildGuestVMs(guests, sources, {
     labelFor: (s) => `${s.pax ?? 0} fő foglalás`,
     amountFor: () => null,
     favFor: (_g, own) => favDay(own),
-    rowsFor: (_g, { past, upcoming }) => {
+    rowsFor: (g, { past, upcoming }) => {
       const upPax = upcoming.reduce((a, s) => a + (s.pax ?? 0), 0)
       const tables = Array.from(new Set([...past, ...upcoming].flatMap((s) => (s as Src).tables ?? [])))
       const note = latestNote([...past, ...upcoming], (s) => s.note)
+      const review = reviewMap.get(g.key)
       return [
         { label: 'Látogatás', value: String(past.length) },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} · ${upPax} fő` : '—' },
         { label: 'Asztalok', value: tables.length > 0 ? tables.join(', ') : '—' },
         { label: 'Kedvenc nap', value: favDay([...past, ...upcoming]) },
+        ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
+        ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),
+        ...latestCustomAnswers([...past, ...upcoming]),
       ]
     },
     birthdayDateFor: (own) => {

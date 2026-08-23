@@ -13,10 +13,14 @@ import {
   formatBookingDate,
   bottomSpacer,
   renderSubject,
+  escapeHtml,
   COLORS,
 } from './emailLayout'
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
+import { formatPrice } from './utils'
+import { getPayloadClient } from './payload'
+import { isInternalEmailAllowed } from './emailNotifPrefs'
 
 let _resend: Resend | null = null
 let _warnedNoKey = false
@@ -35,8 +39,12 @@ function getResend(): Resend | null {
 }
 
 const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
-const FROM_NAME = process.env.RESEND_FROM_NAME ?? 'davelopment booking'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
+
+/** RFC 5322 "From" fejléc az üzlet nevével megjelenítési névként (idézőjelezve, hogy a névben lévő speciális karakter — vessző, idézőjel — ne törje el a fejlécet). */
+function fromHeader(name: string): string {
+  return `"${name.replace(/"/g, '\\"')}" <${FROM}>`
+}
 
 export interface ReservationEmailData {
   reservation: Reservation
@@ -118,17 +126,18 @@ export async function sendReservationConfirmation(data: ReservationEmailData) {
     ? renderSubject(subjectTpl, vars)
     : t(locale, 'email.confirm.subjectFallback', { place: restaurant.name })
   try {
-    await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: confirmationHtml(data, cancelUrl),
       attachments: [{ filename: 'foglalas.ics', content: Buffer.from(generateICS(data)) }],
     })
-    await logEmail('booking_confirmation', reservation.customer_email, subject, true)
+    await logEmail('booking_confirmation', reservation.customer_email, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
   } catch (err) {
     console.error('[RestaurantEmail] Confirmation failed:', err)
-    await logEmail('booking_confirmation', reservation.customer_email, subject, false, String(err))
+    await logEmail('booking_confirmation', reservation.customer_email, subject, false, String(err), { reservationId: reservation.id })
   }
 }
 
@@ -137,6 +146,10 @@ export async function sendReservationNotification(data: ReservationEmailData, fa
   // Az üzlet kapcsolati e-mailje, vagy ha üres, a megadott tartalék (pl. a tulaj fiók-emailje).
   const to = restaurant.email || fallbackTo
   if (!to) return
+  // Az "Új foglalás" belső email SAJÁT, alapból KIKAPCSOLT preferencia mögött van
+  // (Users.personal_notif_prefs.bookings_email) — az app/push a fő csatorna, ez csak opt-in.
+  const payload = await getPayloadClient()
+  if (!(await isInternalEmailAllowed(payload, to, 'bookings_email'))) return
   const resend = getResend()
   if (!resend) return
   const subjectTpl = (restaurant.notify_email_subject ?? '').trim()
@@ -144,16 +157,16 @@ export async function sendReservationNotification(data: ReservationEmailData, fa
     ? renderSubject(subjectTpl, emailVars(data))
     : `Új asztalfoglalás: ${data.reservation.customer_name} — ${data.reservation.date} ${data.reservation.start_time}`
   try {
-    await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(restaurant.name),
       to,
       subject,
       html: notificationHtml(data),
     })
-    await logEmail('new_booking', to, subject, true)
+    await logEmail('new_booking', to, subject, true, undefined, { resendId: sendResult?.id, reservationId: data.reservation.id })
   } catch (err) {
     console.error('[RestaurantEmail] Notification failed:', err)
-    await logEmail('new_booking', to, subject, false, String(err))
+    await logEmail('new_booking', to, subject, false, String(err), { reservationId: data.reservation.id })
   }
 }
 
@@ -167,16 +180,17 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
     ? renderSubject(subjectTpl, emailVars(data))
     : t(locale, 'email.cancel.subjectFallback', { place: restaurant.name })
   try {
-    await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: cancellationHtml(data),
     })
-    await logEmail('cancellation', reservation.customer_email, subject, true)
+    await logEmail('cancellation', reservation.customer_email, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
   } catch (err) {
     console.error('[RestaurantEmail] Cancellation failed:', err)
-    await logEmail('cancellation', reservation.customer_email, subject, false, String(err))
+    await logEmail('cancellation', reservation.customer_email, subject, false, String(err), { reservationId: reservation.id })
   }
 }
 
@@ -184,21 +198,25 @@ export async function sendReminderEmail(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend || !reservation.customer_email) return
+  const cancelUrl = reservation.cancel_token
+    ? `${APP_URL}/${restaurant.slug}/cancel/${reservation.cancel_token}`
+    : null
   const subjectTpl = (restaurant.reminder_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, emailVars(data))
     : `Emlékeztető: közeleg a foglalásod – ${restaurant.name}`
   try {
-    await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
-      html: reminderHtml(data),
+      html: reminderHtml(data, cancelUrl),
     })
-    await logEmail('reminder', reservation.customer_email, subject, true)
+    await logEmail('reminder', reservation.customer_email, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
   } catch (err) {
     console.error('[RestaurantEmail] Reminder failed:', err)
-    await logEmail('reminder', reservation.customer_email, subject, false, String(err))
+    await logEmail('reminder', reservation.customer_email, subject, false, String(err), { reservationId: reservation.id })
   }
 }
 
@@ -206,22 +224,22 @@ export async function sendFeedbackRequestEmail(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
   if (!resend || !reservation.customer_email) return
-  if (!(restaurant.feature_modules?.google_review_url ?? '').trim()) return
   const subjectTpl = (restaurant.feedback_email_subject ?? '').trim()
   const subject = subjectTpl
     ? renderSubject(subjectTpl, emailVars(data))
     : `Milyen volt nálunk? Értékeld a látogatásod – ${restaurant.name}`
   try {
-    await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: feedbackHtml(data),
     })
-    await logEmail('feedback', reservation.customer_email, subject, true)
+    await logEmail('feedback', reservation.customer_email, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
   } catch (err) {
     console.error('[RestaurantEmail] Feedback request failed:', err)
-    await logEmail('feedback', reservation.customer_email, subject, false, String(err))
+    await logEmail('feedback', reservation.customer_email, subject, false, String(err), { reservationId: reservation.id })
   }
 }
 
@@ -244,8 +262,9 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
   if (!resend) return
   const subject = `Felkerültél a várólistára – ${data.restaurant.name}`
   try {
-    await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(data.restaurant.name),
+      reply_to: data.restaurant.email || undefined,
       to: data.customer_email,
       subject,
       html: wrap(data.restaurant, `
@@ -262,7 +281,7 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
         ${bottomSpacer()}
       `),
     })
-    await logEmail('waitlist_signup', data.customer_email, subject, true)
+    await logEmail('waitlist_signup', data.customer_email, subject, true, undefined, { resendId: sendResult?.id })
   } catch (err) {
     console.error('[RestaurantEmail] Waitlist signup failed:', err)
     await logEmail('waitlist_signup', data.customer_email, subject, false, String(err))
@@ -276,8 +295,9 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
   const bookUrl = data.bookUrl ?? `${APP_URL}/${data.restaurant.slug}`
   const subject = `Felszabadult egy asztal – ${data.restaurant.name}`
   try {
-    await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(data.restaurant.name),
+      reply_to: data.restaurant.email || undefined,
       to: data.customer_email,
       subject,
       html: wrap(data.restaurant, `
@@ -299,10 +319,122 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
         ${bottomSpacer()}
       `),
     })
-    await logEmail('waitlist_opening', data.customer_email, subject, true)
+    await logEmail('waitlist_opening', data.customer_email, subject, true, undefined, { resendId: sendResult?.id })
   } catch (err) {
     console.error('[RestaurantEmail] Waitlist opening failed:', err)
     await logEmail('waitlist_opening', data.customer_email, subject, false, String(err))
+  }
+}
+
+// ── Ajándékutalvány ────────────────────────────────────────────────────────────
+
+export interface VoucherEmailData {
+  restaurant: Restaurant
+  code: string
+  amountHuf: number
+  qrCodeDataUrl: string
+  purchaserName: string
+  purchaserEmail: string
+  recipientName?: string | null
+  recipientEmail?: string | null
+  message?: string | null
+}
+
+function voucherHtml(data: VoucherEmailData, forRecipient: boolean): string {
+  const subtitle = forRecipient
+    ? `${data.purchaserName} ajándékutalvánnyal lepett meg — ${data.restaurant.name}-nél váltható be.`
+    : `Köszönjük a vásárlást — az utalvány kódját alább, illetve a mellékelt QR-kóddal is átadhatod.`
+  return wrap(data.restaurant, `
+    ${heroBlock({
+      icon: 'success',
+      title: forRecipient ? 'Ajándékutalványt kaptál!' : 'Ajándékutalvány megvásárolva',
+      subtitle,
+    })}
+    ${detailsCard([
+      infoRow('sparkle', 'Kód', data.code),
+      infoRow('note', 'Összeg', formatPrice(data.amountHuf, 'HUF')),
+      ...(data.message ? [infoRow('mail', 'Üzenet', escapeHtml(data.message))] : []),
+    ].join(''))}
+    <tr>
+      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <img src="${data.qrCodeDataUrl}" width="180" height="180" alt="QR-kód a beváltáshoz" style="display:inline-block;border-radius:12px" />
+      </td>
+    </tr>
+    ${bottomSpacer()}
+  `)
+}
+
+/** Vásárlás-visszaigazolás a vásárlónak (mindig kimegy). */
+export async function sendVoucherPurchaseEmail(data: VoucherEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  const subject = `Ajándékutalvány megvásárolva – ${data.restaurant.name}`
+  try {
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(data.restaurant.name),
+      reply_to: data.restaurant.email || undefined,
+      to: data.purchaserEmail,
+      subject,
+      html: voucherHtml(data, false),
+    })
+    await logEmail('voucher_purchase', data.purchaserEmail, subject, true, undefined, { resendId: sendResult?.id })
+  } catch (err) {
+    console.error('[RestaurantEmail] Voucher purchase failed:', err)
+    await logEmail('voucher_purchase', data.purchaserEmail, subject, false, String(err))
+  }
+}
+
+/** Maga az ajándék a megajándékozottnak — csak akkor hívjuk, ha `recipient_email` van megadva. */
+export async function sendVoucherGiftEmail(data: VoucherEmailData) {
+  const resend = getResend()
+  if (!resend || !data.recipientEmail) return
+  const subject = `Ajándékutalványt kaptál – ${data.restaurant.name}`
+  try {
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(data.restaurant.name),
+      reply_to: data.restaurant.email || undefined,
+      to: data.recipientEmail,
+      subject,
+      html: voucherHtml(data, true),
+    })
+    await logEmail('voucher_purchase', data.recipientEmail, subject, true, undefined, { resendId: sendResult?.id })
+  } catch (err) {
+    console.error('[RestaurantEmail] Voucher gift failed:', err)
+    await logEmail('voucher_purchase', data.recipientEmail, subject, false, String(err))
+  }
+}
+
+/** A dashboardból (személyzet) kiállított fizetési link elküldése a vásárlónak emailben — a
+ *  vendég a linkről fizet, a kód/QR csak sikeres fizetés után, KÜLÖN emailben megy (lásd fent). */
+export async function sendVoucherPaymentLinkEmail(data: { restaurant: Restaurant; purchaserName: string; purchaserEmail: string; amountHuf: number; typeName?: string | null; url: string }) {
+  const resend = getResend()
+  if (!resend) return
+  const subject = `Fizetési link – ajándékutalvány – ${data.restaurant.name}`
+  const html = wrap(data.restaurant, `
+    ${heroBlock({
+      icon: 'success',
+      title: 'Ajándékutalvány fizetése',
+      subtitle: `${data.restaurant.name} elküldte a fizetési linket${data.typeName ? ` (${escapeHtml(data.typeName)})` : ''} — ${formatPrice(data.amountHuf, 'HUF')}.`,
+    })}
+    <tr>
+      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <a href="${data.url}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:999px;letter-spacing:-0.1px">Fizetés</a>
+      </td>
+    </tr>
+    ${bottomSpacer()}
+  `)
+  try {
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(data.restaurant.name),
+      reply_to: data.restaurant.email || undefined,
+      to: data.purchaserEmail,
+      subject,
+      html,
+    })
+    await logEmail('voucher_purchase', data.purchaserEmail, subject, true, undefined, { resendId: sendResult?.id })
+  } catch (err) {
+    console.error('[RestaurantEmail] Voucher payment link failed:', err)
+    await logEmail('voucher_purchase', data.purchaserEmail, subject, false, String(err))
   }
 }
 
@@ -400,7 +532,7 @@ function notificationHtml(data: ReservationEmailData): string {
   `)
 }
 
-function reminderHtml(data: ReservationEmailData): string {
+function reminderHtml(data: ReservationEmailData, cancelUrl: string | null): string {
   const { reservation, restaurant } = data
   const locale = normalizeLocale((reservation as { locale?: string }).locale)
   return wrap(restaurant, `
@@ -422,17 +554,18 @@ function reminderHtml(data: ReservationEmailData): string {
       icsUrl: reservation.cancel_token
         ? `${APP_URL}/api/ics/reservation/${reservation.cancel_token}`
         : null,
+      directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
     })}
+    ${cancelBlock(cancelUrl, locale)}
     ${bottomSpacer()}
   `)
 }
 
 function feedbackHtml(data: ReservationEmailData): string {
   const { reservation, restaurant } = data
-  const googleUrl = (restaurant.feature_modules?.google_review_url ?? '').trim()
-  if (!googleUrl) return ''
-  const reviewUrl = googleUrl
-  const reviewCta = 'Értékelj minket a Google-on'
+  const cancelToken = (reservation as { cancel_token?: string }).cancel_token
+  const reviewUrl = `${APP_URL}/review/${cancelToken}`
+  const reviewCta = 'Értékelés'
   const rows = [
     infoRow('calendar', 'Dátum', reservation.date),
     infoRow('people', 'Fő', `${reservation.pax} fő`),
@@ -510,15 +643,16 @@ export async function sendReservationModification(data: ReservationEmailData) {
   if (!resend) return
   const subject = `Foglalásod módosítva – ${restaurant.name}`
   try {
-    await resend.emails.send({
-      from: `${FROM_NAME} <${FROM}>`,
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(restaurant.name),
+      reply_to: restaurant.email || undefined,
       to: reservation.customer_email,
       subject,
       html: modificationHtml(data),
     })
-    await logEmail('modification', reservation.customer_email, subject, true)
+    await logEmail('modification', reservation.customer_email, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
   } catch (err) {
     console.error('[RestaurantEmail] Modification email failed:', err)
-    await logEmail('modification', reservation.customer_email, subject, false, String(err))
+    await logEmail('modification', reservation.customer_email, subject, false, String(err), { reservationId: reservation.id })
   }
 }

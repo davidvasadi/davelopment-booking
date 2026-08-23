@@ -130,7 +130,11 @@ export async function POST(request: NextRequest) {
           email,
           name: invitedName || position || email.split('@')[0],
           is_active: false,
-          ...(customRoleName ? { role_title: customRoleName } : {}),
+          // A szabadszavas "pozíció" mező elsőbbséget élvez (ez az, amit a tulaj ténylegesen
+          // beírt a meghívó-űrlapon) — az egyedi szerep NEVE csak akkor, ha nincs külön pozíció
+          // megadva. Korábban EZ HIÁNYZOTT: csak a customRoleName mentődött, a `position` sosem
+          // került a placeholder staff rekordra, ezért a Munkatársak listában üres maradt.
+          ...(position || customRoleName ? { role_title: position || customRoleName || undefined } : {}),
         },
       })
     }

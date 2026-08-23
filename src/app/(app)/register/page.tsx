@@ -1,4 +1,5 @@
 import type { Viewport } from 'next'
+import { Suspense } from 'react'
 import { RegisterWizard } from '@/components/auth/RegisterWizard'
 
 export const metadata = {
@@ -15,5 +16,9 @@ export const metadata = {
 export const viewport: Viewport = { themeColor: '#1D1C19' }
 
 export default function RegisterPage() {
-  return <RegisterWizard />
+  return (
+    <Suspense fallback={null}>
+      <RegisterWizard />
+    </Suspense>
+  )
 }

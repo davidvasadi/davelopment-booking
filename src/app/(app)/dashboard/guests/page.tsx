@@ -1,15 +1,16 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
 import { aggregateGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
-import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit } from '@/lib/guestsView'
+import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit, reviewRowValue } from '@/lib/guestsView'
+import { getGuestReviewMap } from '@/lib/reviews'
 import type { Booking, Service, Customer } from '@/payload/payload-types'
 
 export default async function SalonGuestsPage() {
   const { salon, capabilities } = await getOwnedSalon()
-  requireCapability(capabilities, 'guests.view', '/dashboard')
+  requireAnyCapability(capabilities, ['guests.view', 'guests.manage'], '/dashboard')
   const payload = await getPayloadClient()
 
   const res = await payload.find({
@@ -34,7 +35,13 @@ export default async function SalonGuestsPage() {
   }
 
   // A szalon bookings-ban nincs `country` → a térkép a telefon-előhívóból töltődik.
-  type Src = GuestSource & { time?: string; svcName?: string; price?: number | null; note?: string | null }
+  type Src = GuestSource & {
+    time?: string
+    svcName?: string
+    price?: number | null
+    note?: string | null
+    customAnswers?: Record<string, { question: string; answer: string }> | null
+  }
   const sources: Src[] = docs.map((b) => ({
     name: b.customer_name,
     email: b.customer_email,
@@ -46,6 +53,7 @@ export default async function SalonGuestsPage() {
     svcName: serviceName(b.service),
     price: servicePrice(b.service),
     note: (b as { notes?: string | null }).notes ?? null,
+    customAnswers: b.custom_answers ?? null,
   }))
 
   const latestNote = (own: GuestSource[]): string | null => {
@@ -85,6 +93,8 @@ export default async function SalonGuestsPage() {
     }
   }
 
+  const reviewMap = await getGuestReviewMap('salon', salon.id)
+
   const guests = aggregateGuests(sources)
   const buckets = bucketByCountry(sources)
   const total = guests.length
@@ -106,6 +116,19 @@ export default async function SalonGuestsPage() {
     return best || '—'
   }
 
+  // Egyedi kérdések TÖRTÉNETE a vendég profilján — kérdés-SZÖVEGENKÉNT (nem id-nkánt, mert a
+  // sablon időközben módosulhat/törölhető) a legutóbbi (legfrissebb dátumú) nem-üres választ
+  // tartjuk meg. NEM külön tárolt mezőből jön, hanem a foglalás-történetből levezetve.
+  const latestCustomAnswers = (own: GuestSource[]): { label: string; value: string }[] => {
+    const byQuestion = new Map<string, string>()
+    for (const s of [...own].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))) {
+      const answers = (s as Src).customAnswers
+      if (!answers) continue
+      for (const qa of Object.values(answers)) byQuestion.set(qa.question, qa.answer)
+    }
+    return Array.from(byQuestion.entries()).map(([label, value]) => ({ label, value }))
+  }
+
   const guestVMs = buildGuestVMs(guests, sources, {
     salon: true,
     labelFor: (s) => (s as { svcName?: string }).svcName || 'Foglalás',
@@ -114,15 +137,19 @@ export default async function SalonGuestsPage() {
       return typeof p === 'number' ? fmtHuf(p) : null
     },
     favFor: (_g, own) => favService(own),
-    rowsFor: (_g, { past, upcoming }) => {
+    rowsFor: (g, { past, upcoming }) => {
       const pastSpend = past.reduce((a, s) => a + priceOf(s), 0)
       const note = latestNote([...past, ...upcoming])
+      const review = reviewMap.get(g.key)
       return [
         { label: 'Látogatás', value: String(past.length) },
         { label: 'Összes költés eddig', value: pastSpend > 0 ? fmtHuf(pastSpend) : '—' },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} foglalás` : '—' },
         { label: 'Kedvenc', value: favService([...past, ...upcoming]) },
+        ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
+        ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),
+        ...latestCustomAnswers([...past, ...upcoming]),
       ]
     },
     noteFor: (own) => ({ guest: latestNote(own), internal: null }),

@@ -14,8 +14,15 @@ import {
 import { RolesManager } from '@/components/settings/RolesManager'
 import { getAccountBilling } from '@/lib/accountBilling'
 import { getPricing } from '@/lib/pricing'
+import { can } from '@/lib/permissions'
 import { createHmac } from 'crypto'
-import type { Restaurant, Invoice } from '@/payload/payload-types'
+import type { AccountBilling } from '@/lib/accountBilling'
+import type { Restaurant, Invoice, Role } from '@/payload/payload-types'
+import type { CustomQuestionType } from '@/components/settings/CustomQuestionsEditor'
+
+const EMPTY_ACCOUNT_BILLING: AccountBilling = {
+  items: [], totalMonthlyHuf: 0, listMonthlyHuf: 0, cycle: 'monthly', annualDiscountPct: 0, count: 0, accountStatus: null,
+}
 
 function icalUrl(type: string, id: string | number) {
   const secret = process.env.PAYLOAD_SECRET ?? 'dev-secret'
@@ -36,7 +43,7 @@ function planName(sub: { plan?: string | null; status?: string | null } | null):
 }
 
 export default async function RestaurantSettingsPage() {
-  const { restaurant, businessCount, userId, capabilities } = await getOwnedRestaurant()
+  const { restaurant, businessCount, userId, capabilities, role } = await getOwnedRestaurant()
   requireAnyCapability(capabilities, ['settings.profile', 'settings.own_profile'], '/restaurant')
   const payload = await getPayloadClient()
   const r = restaurant as Restaurant
@@ -46,19 +53,36 @@ export default async function RestaurantSettingsPage() {
   const subtitle = `${r.name} · ${plan}`
   const user = await requireAuth()
 
-  // ── Csapat & jogok — VALÓS tulajdonos + membershipök (aktív tagok + függő meghívók).
-  const team: TeamMember[] = await getTeamForBusiness({
-    type: 'restaurant',
-    businessId: r.id,
-    ownerName: user.name || r.name,
-    ownerEmail: (user.email || r.email) ?? '',
-  })
+  // ── Csapat & jogok — VALÓS tulajdonos + membershipök. A teljes névsor (email) csak
+  // `team.view`/`team.manage` jogú tagnak megy ki a szerverről.
+  const canSeeTeam = can(capabilities, 'team.view') || can(capabilities, 'team.manage')
+  // FONTOS: a tulaj-sor a VALÓS `r.owner` relációból jön (depth:1, tehát objektum) — nem a
+  // jelenleg bejelentkezett nézőből. Korábbi hiba: `user` (a bejelentkezett tag, pl. egy
+  // üzletvezető) neve/e-mailje ment "Tulajdonos"-ként, ami a nézőt tulajként jelölte meg és a
+  // valós tulajdonos teljesen eltűnt a listáról.
+  const restOwner = typeof r.owner === 'object' ? r.owner : null
+  const team: TeamMember[] = canSeeTeam
+    ? await getTeamForBusiness({
+        type: 'restaurant',
+        businessId: r.id,
+        ownerName: restOwner?.name || r.name,
+        ownerEmail: restOwner?.email || r.email || '',
+        ownerAvatarUrl: restOwner?.avatar_url,
+      })
+    : []
 
-  // ── Egyedi szerepek (2. fázis) — az üzlet custom szerepei a RolesManager panelhez.
-  const rolesRes = await payload.find({ collection: 'roles', where: { restaurant: { equals: r.id } }, sort: 'name', limit: 100, overrideAccess: true })
+  // ── Egyedi szerepek (2. fázis) — az üzlet custom szerepei a RolesManager panelhez. Önálló
+  // `roles.view` joggal is látható, a `team.view`/`team.manage`-től FÜGGETLENÜL — a szerkesztés
+  // ettől függetlenül továbbra is owner-only (`assertOwner` a szerveren, `isOwner` a kliensen).
+  const canSeeRoles = canSeeTeam || can(capabilities, 'roles.view')
+  const rolesRes = canSeeRoles
+    ? await payload.find({ collection: 'roles', where: { restaurant: { equals: r.id } }, sort: 'name', limit: 100, overrideAccess: true })
+    : { docs: [] as Role[] }
 
-  // ── Audit-napló — VALÓS legutóbbi bejegyzések (az étteremre szűrve).
-  const auditLog = await getAuditLogForBusiness({ type: 'restaurant', businessId: r.id })
+  // ── Audit-napló — VALÓS legutóbbi bejegyzések (az étteremre szűrve), csak `audit.view`-val.
+  const auditLog = can(capabilities, 'audit.view')
+    ? await getAuditLogForBusiness({ type: 'restaurant', businessId: r.id })
+    : []
 
   // ── Telephelyek — VALÓS fiók-üzletek. Az aktuális üzlethez a betöltött étterem címét mutatjuk.
   const { businesses } = await getActiveBusiness(user)
@@ -73,9 +97,10 @@ export default async function RestaurantSettingsPage() {
       initials: initialsOf(b.name),
       name: b.name,
       meta: meta || plan,
-      role: 'Tulajdonos',
+      role: b.roleName,
       current,
       gold: !current && i > 0,
+      logoUrl: b.logoUrl,
     }
   })
 
@@ -88,9 +113,11 @@ export default async function RestaurantSettingsPage() {
     windowDays: r.booking_window_days ?? null,
   }
 
-  // ── Számlázás — VALÓS fiók-előfizetés + üzlet-díjak + globális árazás.
+  // ── Számlázás — VALÓS fiók-előfizetés + üzlet-díjak + globális árazás. A teljes bontás
+  // (adószám, cégnév, számlák) csak `billing.manage` jogú tagnak megy ki a szerverről.
+  const canSeeBilling = can(capabilities, 'billing.manage')
   const [billingAccount, pricing] = await Promise.all([
-    getAccountBilling(userId),
+    canSeeBilling ? getAccountBilling(userId) : Promise.resolve(EMPTY_ACCOUNT_BILLING),
     getPricing(),
   ])
 
@@ -100,7 +127,7 @@ export default async function RestaurantSettingsPage() {
     ? new Date(sub.trial_ends_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
     : null
 
-  const invoicesRes = sub ? await payload.find({
+  const invoicesRes = sub && canSeeBilling ? await payload.find({
     collection: 'invoices',
     where: { subscription: { equals: sub.id } },
     sort: '-issued_at',
@@ -111,20 +138,22 @@ export default async function RestaurantSettingsPage() {
 
   const billing: BillingData = {
     planLabel: planName(sub),
+    // Státusz/ciklus/próbaidő MINDENKINEK látszik (pl. a nav trial-badge-hez) — csak a
+    // ténylegesen érzékeny (adószám, cím, számlák, terhelendő összeg) mezők vannak lakat mögött.
     subscriptionStatus: sub?.status ?? null,
     billingCycle: sub?.billing_cycle === 'annual' ? 'annual' : 'monthly',
     cancelAtPeriodEnd: sub?.cancel_at_period_end ?? false,
     trialEndsAt: sub?.trial_ends_at ?? null,
-    nextChargeDate,
-    nextChargeAmount: HUF(sub?.amount_huf ?? 0),
+    nextChargeDate: canSeeBilling ? nextChargeDate : null,
+    nextChargeAmount: canSeeBilling ? HUF(sub?.amount_huf ?? 0) : '',
     hasStripeCustomer: !!sub?.stripe_customer_id,
-    legalName: r.legal_name ?? '',
-    taxNumber: r.tax_number ?? '',
-    companyRegNumber: r.company_reg_number ?? '',
-    billingEmail: r.billing_email ?? '',
-    billingPostalCode: r.billing_postal_code ?? '',
-    billingCity: r.billing_city ?? '',
-    billingStreet: r.billing_street ?? '',
+    legalName: canSeeBilling ? r.legal_name ?? '' : '',
+    taxNumber: canSeeBilling ? r.tax_number ?? '' : '',
+    companyRegNumber: canSeeBilling ? r.company_reg_number ?? '' : '',
+    billingEmail: canSeeBilling ? r.billing_email ?? '' : '',
+    billingPostalCode: canSeeBilling ? r.billing_postal_code ?? '' : '',
+    billingCity: canSeeBilling ? r.billing_city ?? '' : '',
+    billingStreet: canSeeBilling ? r.billing_street ?? '' : '',
     invoices: (invoicesRes?.docs ?? [] as Invoice[]).map((inv) => ({
       id: String(inv.id),
       invoice_number: inv.invoice_number,
@@ -133,8 +162,8 @@ export default async function RestaurantSettingsPage() {
       issued_at: inv.issued_at ?? null,
       test: inv.test ?? null,
     })),
-    lastInvoiceNumber: sub?.last_invoice_number ?? null,
-    lastInvoiceUrl: sub?.last_invoice_url ?? null,
+    lastInvoiceNumber: canSeeBilling ? sub?.last_invoice_number ?? null : null,
+    lastInvoiceUrl: canSeeBilling ? sub?.last_invoice_url ?? null : null,
   }
 
   const senderLabel = `${r.name}${r.email ? ` <${r.email}>` : ''}`
@@ -147,7 +176,6 @@ export default async function RestaurantSettingsPage() {
     <div className="p-5 lg:p-0">
       <SettingsHub
         variant="restaurant"
-        businessName={r.name}
         subtitle={subtitle}
         availabilityHref="/restaurant/availability"
         selfProfile={
@@ -185,12 +213,39 @@ export default async function RestaurantSettingsPage() {
           recurring_on: fm.recurring_on ?? false,
           reviews_on: fm.reviews_on ?? false,
           google_review_url: fm.google_review_url ?? null,
-          review_delay_hours: fm.review_delay_hours ?? 2,
+          review_delay_hours: fm.review_delay_hours ?? 1,
         }}
+        depositSettings={{
+          enabled: r.deposit_settings?.enabled ?? false,
+          type: (r.deposit_settings?.type as 'fixed' | 'percent' | 'per_pax') ?? 'fixed',
+          fixedAmountHuf: r.deposit_settings?.fixed_amount_huf ?? null,
+          percentValue: r.deposit_settings?.percent_value ?? null,
+          perPaxAmountHuf: r.deposit_settings?.per_pax_amount_huf ?? null,
+          refundHoursBefore: r.deposit_settings?.refund_hours_before ?? 24,
+        }}
+        invoiceSettings={{
+          provider: (r.invoice_settings?.invoice_provider as 'szamlazz' | 'billingo' | 'none') ?? 'none',
+          hasSzamlazzKey: !!r.invoice_settings?.szamlazz_agent_key_enc,
+          hasBillingoKey: !!r.invoice_settings?.billingo_api_key_enc,
+        }}
+        voucherSettings={{
+          enabled: r.voucher_settings?.enabled ?? false,
+          minAmountHuf: r.voucher_settings?.min_amount_huf ?? 2000,
+          maxAmountHuf: r.voucher_settings?.max_amount_huf ?? 100000,
+          validityMonths: r.voucher_settings?.validity_months ?? 12,
+        }}
+        consentSettings={{
+          enabled: r.consent_settings?.enabled ?? false,
+          title: r.consent_settings?.title ?? '',
+          templateText: r.consent_settings?.template_text ?? '',
+        }}
+        stripeConnectAccountId={r.stripe_connect_account_id ?? null}
+        stripeConnectOnboarded={!!r.stripe_connect_onboarded}
+        businessTier={r.tier ?? null}
+        supportedLocales={r.supported_locales}
         rules={rules}
         senderLabel={senderLabel}
         billing={billing}
-        sub={sub}
         billingAccount={billingAccount}
         pricing={pricing}
         activeBusinessId={String(r.id)}
@@ -204,14 +259,19 @@ export default async function RestaurantSettingsPage() {
         customRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name }))}
         icalUrl={icalUrl('restaurant', r.id)}
         bookingUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/${(r as Restaurant & { slug?: string }).slug ?? r.id}/book`}
+        embedUrl={`${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/${(r as Restaurant & { slug?: string }).slug ?? r.id}?embed=1`}
+        embedSmartSnippet={`<div class="davelopment-embed" data-slug="${(r as Restaurant & { slug?: string }).slug ?? r.id}"></div>\n<script src="${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'}/embed.js" async></script>`}
         webhookUrl={(r as Restaurant & { webhook_url?: string | null }).webhook_url ?? null}
+        ga4Id={r.marketing_tracking?.ga4_measurement_id ?? null}
+        facebookPixelId={r.marketing_tracking?.facebook_pixel_id ?? null}
         rolesSection={
           <RolesManager
             key="roles-panel"
             variant="restaurant"
             businessId={String(restaurant.id)}
-            initialRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name, capabilities: r.capabilities ?? null }))}
+            initialRoles={rolesRes.docs.map((r) => ({ id: String(r.id), name: r.name, capabilities: r.capabilities ?? null, booking_notify_level: r.booking_notify_level ?? null }))}
             myCapabilities={capabilities}
+            isOwner={role === 'owner'}
           />
         }
         profilePanel={
@@ -261,6 +321,12 @@ export default async function RestaurantSettingsPage() {
               terms_sections: (r.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
               good_to_know: (r.good_to_know ?? []).map((s) => ({ icon: s.icon ?? 'info', title: s.title ?? '', body: s.body ?? '' })),
               event_types: (r.event_types ?? []).map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
+              custom_questions: (r.custom_questions ?? []).map((q) => ({
+                label: q.label ?? '',
+                type: (q.type ?? 'text') as CustomQuestionType,
+                options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),
+                required: q.required ?? false,
+              })),
             }}
           />
         }

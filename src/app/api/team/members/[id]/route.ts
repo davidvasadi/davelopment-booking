@@ -142,7 +142,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // PROFIL (HR-adatok) — tulaj VAGY vezető. A BÉR csak a tulajé (vezetőtől figyelmen kívül hagyjuk).
   const stored = loaded.membership
   const data: Record<string, unknown> = {}
-  const textFields = ['name', 'position', 'phone', 'birthday', 'address', 'tax_id', 'emergency_contact', 'join_date', 'bio']
+  const textFields = ['name', 'position', 'phone', 'birthday', 'address', 'tax_id', 'tax_number', 'join_date', 'bio']
   for (const k of textFields) if (k in body) data[k] = body[k] === '' ? null : body[k]
   if ('weekly_hours' in body) data.weekly_hours = body.weekly_hours === '' || body.weekly_hours == null ? null : Number(body.weekly_hours)
   if ('salary' in body && loaded.isOwner) data.salary = body.salary === '' || body.salary == null ? null : Number(body.salary)

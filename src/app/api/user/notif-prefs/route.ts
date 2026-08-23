@@ -1,19 +1,25 @@
 /**
  * GET  /api/user/notif-prefs — személyes értesítési prefs + szerepkör-szintű engedélyezett kategóriák
- * PATCH /api/user/notif-prefs — saját prefs frissítése (bookings / system / staff / schedule)
+ * PATCH /api/user/notif-prefs — saját prefs frissítése (bookings / schedule / digest / email_not_opened / bookings_email / schedule_email)
+ *
+ * A `system`/`staff` kategóriák (korábban itt éltek) töröltek — semmilyen tényleges
+ * értesítést nem gate-eltek soha (halott UI volt), a mezők a DB-sémában maradtak
+ * (migráció nélkül), csak innen, a felületről tűntek el.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
-type CategoryKey = 'bookings' | 'system' | 'staff' | 'schedule' | 'digest'
-const CATS: CategoryKey[] = ['bookings', 'system', 'staff', 'schedule', 'digest']
-const CAP_KEY: Record<CategoryKey, string> = {
-  bookings: 'notifications.bookings',
-  system:   'notifications.system',
-  staff:    'notifications.staff',
-  schedule: 'notifications.schedule',
-  digest:   'notifications.digest',
-}
+
+/** Push/app-kategóriák — alapból BEKAPCSOLVA (`!== false`), az app a fő csatorna. */
+type PushCategoryKey = 'bookings' | 'schedule' | 'digest' | 'email_not_opened'
+const PUSH_CATS: PushCategoryKey[] = ['bookings', 'schedule', 'digest', 'email_not_opened']
+
+/** Belső EMAIL-kategóriák — alapból KIKAPCSOLVA (`=== true`), csak opt-in a push mellé. */
+type EmailCategoryKey = 'bookings_email' | 'schedule_email'
+const EMAIL_CATS: EmailCategoryKey[] = ['bookings_email', 'schedule_email']
+
+type CategoryKey = PushCategoryKey | EmailCategoryKey
+const CATS: CategoryKey[] = [...PUSH_CATS, ...EMAIL_CATS]
 
 export async function GET() {
   const user = await getCurrentUser()
@@ -26,20 +32,24 @@ export async function GET() {
   const prefs = (fullUser?.personal_notif_prefs as Record<string, boolean | null> | null | undefined) ?? {}
   const currentPrefs: Record<CategoryKey, boolean> = {
     bookings: prefs.bookings !== false,
-    system:   prefs.system   !== false,
-    staff:    prefs.staff    !== false,
     schedule: prefs.schedule !== false,
     digest:   prefs.digest   !== false,
+    email_not_opened: prefs.email_not_opened !== false,
+    bookings_email: prefs.bookings_email === true,
+    schedule_email: prefs.schedule_email === true,
   }
 
-  // Engedélyezett kategóriák: tulaj = minden; member = a custom_role.notification_prefs uniója
+  // Engedélyezett kategóriák: tulaj = minden. Tagnál a `bookings` a szerepe
+  // `booking_notify_level`-jéből jön (lásd `roles.booking_notify_level`, RolesManager
+  // „Foglalás-értesítés" választója) — 'off' = a tag nem is látja/kapcsolhatja ezt a sort,
+  // 'own'/'all' = igen. A `schedule` (beosztás-értesítés) sosem volt szerephez kötve — az mindig
+  // mindenkinek elérhető, csak a lenti `prefs`-ben SAJÁT maga kapcsolja.
   const isOwner = user.role === 'salon_owner' || user.role === 'restaurant_owner' || user.role === 'admin'
 
-  // digest: csak tulajdonosnak releváns (összefoglaló az üzlet forgalmáról)
-  let allowed: Record<CategoryKey, boolean> = { bookings: true, system: true, staff: true, schedule: true, digest: isOwner }
+  // digest / email_not_opened: csak tulajdonosnak releváns (az üzlet forgalmáról/vendégeiről szól)
+  let allowedPush: Record<PushCategoryKey, boolean> = { bookings: true, schedule: true, digest: isOwner, email_not_opened: isOwner }
 
   if (!isOwner) {
-    // Aktív tagságok custom_role.capabilities-ének uniója alapján
     const memberships = await payload.find({
       collection: 'memberships',
       where: { and: [{ user: { equals: user.id } }, { status: { equals: 'active' } }] },
@@ -48,19 +58,19 @@ export async function GET() {
       overrideAccess: true,
     })
 
-    const union: Record<CategoryKey, boolean> = { bookings: false, system: false, staff: false, schedule: false, digest: false }
-    for (const m of memberships.docs) {
-      const caps = (m.custom_role as { capabilities?: string[] } | null | undefined)?.capabilities ?? []
-      if (caps.length === 0) {
-        // Nincs egyedi szerep → alapból minden engedélyezett
-        for (const cat of CATS) union[cat] = true
-      } else {
-        for (const cat of CATS) {
-          if (caps.includes(CAP_KEY[cat])) union[cat] = true
-        }
-      }
-    }
-    allowed = union
+    // Uniózva: ha a felhasználónak több aktív tagsága is van (több üzletben dolgozik), elég
+    // EGY olyan szerep, aminek 'own'/'all' a szintje, hogy a sor egyáltalán megjelenjen nála.
+    const bookingsAllowed = memberships.docs.some((m) => {
+      const level = (m.custom_role as { booking_notify_level?: string | null } | null | undefined)?.booking_notify_level
+      return level === 'own' || level === 'all'
+    })
+    allowedPush = { bookings: bookingsAllowed, schedule: true, digest: false, email_not_opened: false }
+  }
+
+  const allowed: Record<CategoryKey, boolean> = {
+    ...allowedPush,
+    bookings_email: allowedPush.bookings,
+    schedule_email: allowedPush.schedule,
   }
 
   return NextResponse.json({ prefs: currentPrefs, allowed })
@@ -85,10 +95,11 @@ export async function PATCH(req: NextRequest) {
     const existing = (fullUser?.personal_notif_prefs as Record<string, boolean | null> | null | undefined) ?? {}
     const merged: Record<CategoryKey, boolean> = {
       bookings: existing.bookings !== false,
-      system:   existing.system   !== false,
-      staff:    existing.staff    !== false,
       schedule: existing.schedule !== false,
       digest:   existing.digest   !== false,
+      email_not_opened: existing.email_not_opened !== false,
+      bookings_email: existing.bookings_email === true,
+      schedule_email: existing.schedule_email === true,
     }
     for (const cat of CATS) {
       if (cat in body) merged[cat] = Boolean(body[cat])

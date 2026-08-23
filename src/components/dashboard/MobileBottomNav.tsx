@@ -26,6 +26,7 @@ export default function MobileBottomNav({
   userName = null,
   userEmail = null,
   userAvatarUrl = null,
+  hiddenHrefs = [],
 }: {
   subscription?: SubInfo
   variant?: DashboardVariant
@@ -33,9 +34,11 @@ export default function MobileBottomNav({
   userName?: string | null
   userEmail?: string | null
   userAvatarUrl?: string | null
+  /** Nav-hrefek, amiket egy kikapcsolt funkció miatt el kell rejteni (pl. utalványok). */
+  hiddenHrefs?: string[]
 }) {
   const { settingsHref, subscriptionHref } = getNavConfig(variant)
-  const navItems = navItemsForCapabilities(variant, capabilities)
+  const navItems = navItemsForCapabilities(variant, capabilities, hiddenHrefs)
   const canBilling = !capabilities || capabilities.includes('billing.manage')
   const pathname = usePathname()
   const router = useRouter()
@@ -117,19 +120,13 @@ const [moreOpen, setMoreOpen] = useState(false)
         {primaryNav.map(({ href, label, icon: Icon, exact }) => {
           const active = isActive(href, exact)
           const dim = isLocked && !isAllowedWhenLocked(href)
-          return (
-            <Link
-              key={href}
-              href={href}
-              aria-label={label}
-              data-tour={href}
-              className="relative flex items-center justify-center"
-            >
+          const inner = (
+            <>
               <div className={cn(
                 'h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-300 ease-out',
                 active
                   ? 'bg-[#1d1c19] shadow-md shadow-black/20'
-                  : 'hover:bg-black/[0.06]'
+                  : dim ? '' : 'hover:bg-black/[0.06]'
               )}>
                 <Icon className={cn(
                   'transition-all duration-300 ease-out',
@@ -143,6 +140,18 @@ const [moreOpen, setMoreOpen] = useState(false)
               {dim && (
                 <Lock className="absolute -top-0.5 -right-0.5 h-3 w-3 text-zinc-400 dark:text-white/30 bg-white dark:bg-zinc-900 rounded-full p-0.5 box-content" />
               )}
+            </>
+          )
+          if (dim) {
+            return (
+              <span key={href} aria-disabled aria-label={label} className="relative flex cursor-not-allowed items-center justify-center">
+                {inner}
+              </span>
+            )
+          }
+          return (
+            <Link key={href} href={href} aria-label={label} data-tour={href} className="relative flex items-center justify-center">
+              {inner}
             </Link>
           )
         })}
@@ -235,6 +244,19 @@ const [moreOpen, setMoreOpen] = useState(false)
             <div className="px-3 py-2">
               {secondaryNav.map(({ href, label, icon: Icon, exact }) => {
                 const dim = isLocked && !isAllowedWhenLocked(href)
+                if (dim) {
+                  return (
+                    <span
+                      key={href}
+                      aria-disabled
+                      className="flex cursor-not-allowed items-center gap-3 rounded-[14px] px-3 py-3.5 text-[15px] font-medium text-[#c8c4b8]"
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span className="flex-1">{label}</span>
+                      <Lock className="h-3.5 w-3.5 shrink-0" />
+                    </span>
+                  )
+                }
                 return (
                   <Link
                     key={href}
@@ -242,16 +264,11 @@ const [moreOpen, setMoreOpen] = useState(false)
                     onClick={() => setMoreOpen(false)}
                     className={cn(
                       'flex items-center gap-3 px-3 py-3.5 rounded-[14px] text-[15px] font-medium transition-colors',
-                      isActive(href, exact)
-                        ? 'bg-[#1d1c19] text-white'
-                        : dim
-                          ? 'text-[#c8c4b8]'
-                          : 'text-[#3a352a] hover:bg-[#f4f1eb]'
+                      isActive(href, exact) ? 'bg-[#1d1c19] text-white' : 'text-[#3a352a] hover:bg-[#f4f1eb]'
                     )}
                   >
                     <Icon className="h-5 w-5" />
                     <span className="flex-1">{label}</span>
-                    {dim && <Lock className="h-3.5 w-3.5 shrink-0" />}
                   </Link>
                 )
               })}

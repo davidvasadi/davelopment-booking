@@ -168,13 +168,29 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
 
     const ownerRel = (salonRes as { owner?: unknown } | null)?.owner
     const owner = ownerRel && typeof ownerRel === 'object' ? (ownerRel as User) : null
+    const ownerUserId = owner?.id != null ? String(owner.id) : null
+    // A tulaj VALÓDI, linkelt staff-rekordja (`Staff.user`) — ha van (a Salons `afterChange`
+    // hookja mostantól mindig létrehozza regisztrációkor, régi fiókoknál backfillelve), AZT a
+    // rekordot mutatjuk "Tulajdonos"-ként, nem egy külön szintetikus sort. A korábbi email-
+    // egyeztetéses dedup ("s.email === owner.email") megbízhatatlan volt — pont az ÚJONNAN
+    // linkelt tulaj-staff rekordot szűrte ki hibásan a listából (index-eltolódás → rossz
+    // adatlap nyílt meg kattintásra), miközben a `salonStaff`/`filtered` (Munkatársak lista)
+    // MÁR a `.user` relációt nézi, nem az emailt — a két lista szétcsúszott.
+    const linkedOwnerStaff = ownerUserId
+      ? salonStaff.find((s) => s.user != null && (typeof s.user === 'object' ? String((s.user as { id: string | number }).id) : String(s.user)) === ownerUserId)
+      : null
     const ownerShifts = (shiftsRes.docs as Shift[]).filter((sh) => sh.owner_shift)
     const ownerJoinDate = (owner as unknown as { join_date?: string | null; createdAt?: string | null } | null)?.join_date ?? (owner as unknown as { createdAt?: string | null } | null)?.createdAt ?? null
-    const ownerEmp: Employee = {
+    const ownerExtraPosition = ((owner as unknown as { role_title?: string | null } | null)?.role_title || '').trim()
+    // A szintetikus "owner" sor CSAK akkor kell, ha a tulajnak MÉG NINCS valódi linkelt staff-
+    // rekordja — ha van (`linkedOwnerStaff`), ő MAGA jelenik meg lent a listában, "Tulajdonos"
+    // jelöléssel, nem duplikáljuk.
+    const ownerEmp: Employee | null = linkedOwnerStaff ? null : {
       id: 'owner',
       name: owner?.name || owner?.email || 'Tulajdonos',
       avatarUrl: owner?.avatar_url ?? null,
-      position: 'Tulajdonos',
+      position: ownerExtraPosition ? `Tulajdonos · ${ownerExtraPosition}` : 'Tulajdonos',
+      extraPosition: ownerExtraPosition,
       roleTone: 'owner',
       email: owner?.email || '',
       phone: owner?.phone || '',
@@ -188,7 +204,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
         birthday: owner?.birthday ?? null,
         address: owner?.address ?? null,
         tax_id: owner?.tax_id ?? null,
-        emergency_contact: owner?.emergency_contact ?? null,
+        tax_number: owner?.tax_number ?? null,
         weekly_hours: owner?.weekly_hours ?? null,
         join_date: ownerJoinDate,
         salary: null,
@@ -201,16 +217,21 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
       ...computeShiftStats(ownerShifts, now),
     }
 
-    const ownerEmail = (owner?.email ?? '').toLowerCase()
-    const staffEmps = salonStaff.filter(s => !ownerEmail || (s.email ?? '').toLowerCase() !== ownerEmail).map((s): Employee => {
+    // FONTOS: itt NEM szűrünk email alapján (a korábbi `s.email === owner.email` heurisztika
+    // pont az újonnan linkelt tulaj-staff rekordot dobta ki hibásan a listából, szétcsúsztatva
+    // ezt a sorrendet a Munkatársak oldal saját, szűretlen listájától — lásd a fenti kommentet).
+    const staffEmps = salonStaff.map((s): Employee => {
       const id = String(s.id)
       const st = computeShiftStats(shiftsByPerson[id] ?? [], now)
+      const isOwner = !!linkedOwnerStaff && String(s.id) === String(linkedOwnerStaff.id)
       return {
         id,
         name: s.name,
         avatarUrl: mediaUrl(s.avatar) ?? (s.email ? (userAvatarByEmail[s.email] ?? null) : null),
-        position: s.role_title || s.department || '',
-        roleTone: 'staff',
+        position: isOwner
+          ? (s.role_title ? `Tulajdonos · ${s.role_title}` : 'Tulajdonos')
+          : (s.role_title || s.department || ''),
+        roleTone: isOwner ? 'owner' : 'staff',
         email: s.email || '',
         phone: s.phone || '',
         since: fmtMonth(s.join_date ?? (s as unknown as { createdAt?: string }).createdAt),
@@ -223,7 +244,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
           join_date: s.join_date ?? (s as unknown as { createdAt?: string }).createdAt ?? null,
           address: s.address ?? null,
           tax_id: s.tax_id ?? null,
-          emergency_contact: s.emergency_contact ?? null,
+          tax_number: s.tax_number ?? null,
           weekly_hours: s.weekly_hours ?? null,
           salary: s.salary ?? null,
           pay_type: 'daily' as const,
@@ -234,7 +255,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
       }
     })
 
-    return [ownerEmp, ...staffEmps]
+    return ownerEmp ? [ownerEmp, ...staffEmps] : staffEmps
   }
 
   // ── Étterem: [tulaj-sor] + memberships. A LISTÁVAL AZONOS sorrend (tulaj elöl, majd a
@@ -304,7 +325,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
       birthday: owner?.birthday ?? null,
       address: owner?.address ?? null,
       tax_id: owner?.tax_id ?? null,
-      emergency_contact: owner?.emergency_contact ?? null,
+      tax_number: owner?.tax_number ?? null,
       weekly_hours: owner?.weekly_hours ?? null,
       join_date: ownerJoinDate,
       salary: null,
@@ -341,7 +362,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
           birthday: m.birthday ?? null,
           address: m.address ?? null,
           tax_id: m.tax_id ?? null,
-          emergency_contact: m.emergency_contact ?? null,
+          tax_number: m.tax_number ?? null,
           weekly_hours: m.weekly_hours ?? null,
           join_date: m.join_date ?? m.createdAt ?? null,
           salary: m.salary ?? null,

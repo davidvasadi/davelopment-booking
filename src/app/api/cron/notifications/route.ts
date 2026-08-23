@@ -42,7 +42,9 @@ function reminderEnabled(biz: Salon | Restaurant): boolean {
 }
 
 function feedbackEnabled(biz: Salon | Restaurant): boolean {
-  return !!biz.feature_modules?.reviews_on && !!(biz.feature_modules?.google_review_url ?? '').trim()
+  // A Google-link már nem feltétel: a visszajelzés-email a saját /review/[token] oldalunkra
+  // visz, a Google-átirányítás csak egy feltételes, utólagos lépés jó értékelésnél.
+  return !!biz.feature_modules?.reviews_on
 }
 
 /** Budapest jelenlegi órája + mai dátuma (YYYY-MM-DD) + hét napja angolul. */
@@ -54,6 +56,17 @@ function getBudapestInfo(): { hour: number; dateStr: string; dow: string } {
   const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
   const dow = days[new Date(`${dateStr}T12:00:00`).getDay()]
   return { hour, dateStr, dow }
+}
+
+/** A tulaj bekapcsolva hagyta-e a "meg nem nyitott visszaigazoló email" riasztást (alapból igen). */
+async function ownerWantsEmailOpenAlert(
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  ownerId: string | null,
+): Promise<boolean> {
+  if (!ownerId) return false
+  const ownerDoc = await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true })
+  const prefs = (ownerDoc?.personal_notif_prefs as Record<string, boolean | null> | null) ?? {}
+  return prefs.email_not_opened !== false
 }
 
 async function digestAlreadySent(
@@ -95,7 +108,7 @@ async function handle(request: NextRequest) {
     : null
 
   const now = Date.now()
-  const summary = { reminders: 0, feedback: 0, digest: 0, errors: 0 }
+  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, notificationsCleaned: 0, errors: 0 }
 
   try {
     const payload = await getPayloadClient()
@@ -222,6 +235,142 @@ async function handle(request: NextRequest) {
       }
     }
 
+    // ── SALON: meg nem nyitott visszaigazoló email riasztás (24h, majd 12h a foglalás előtt) ──
+    for (const hours of [24, 12] as const) {
+      const checkField = hours === 24 ? 'email_open_check_24h' : 'email_open_check_12h'
+      const candidates = await payload.find({
+        collection: 'bookings',
+        where: { [checkField]: { not_equals: true }, status: { not_in: ['cancelled', 'completed'] } },
+        depth: 0, limit: 500, overrideAccess: true,
+      })
+
+      for (const doc of candidates.docs as Booking[]) {
+        try {
+          const start = toMinutes(doc.date, doc.start_time)
+          if (now < start - hours * 3600_000 || now >= start) continue
+
+          const salonId = relId(doc.salon)
+          if (!salonId) continue
+          const salon = (await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })) as Salon
+          const ownerId = relId(salon.owner)
+
+          const emailLogRes = await payload.find({
+            collection: 'email-log',
+            where: { and: [{ type: { equals: 'booking_confirmation' } }, { booking: { equals: doc.id } }] },
+            sort: '-createdAt', limit: 1, depth: 0, overrideAccess: true,
+          })
+          const log = emailLogRes.docs[0] as { ok?: boolean; status?: string } | undefined
+          // Csak akkor riasztunk, ha az email tényleg elment (nem sikertelen — az más, már látható probléma) ÉS
+          // még nem lett megnyitva/rákattintva.
+          const stillUnopened = !!log?.ok && !['opened', 'clicked', 'failed', 'bounced', 'complained'].includes(log.status ?? '')
+
+          if (stillUnopened && (await ownerWantsEmailOpenAlert(payload, ownerId))) {
+            await payload.create({
+              collection: 'notifications',
+              overrideAccess: true,
+              data: {
+                salon: Number(salonId),
+                audience: 'owner',
+                type: 'email_not_opened',
+                title: `Nem nyitotta meg a visszaigazolást – ${doc.customer_name}`,
+                body: `${hours} órával a foglalás előtt (${doc.date} ${doc.start_time}) a vendég még nem nyitotta meg az emailt.`,
+                read: false,
+                booking: Number(doc.id),
+                metadata: { hours, date: doc.date, start_time: doc.start_time },
+              },
+            })
+            if (ownerId) {
+              try {
+                await sendPushToUsers(payload, [ownerId], {
+                  title: `Nem nyitott email – ${salon.name}`,
+                  body: `${doc.customer_name}: ${hours} órával a foglalás előtt még nem nyitotta meg a visszaigazolást.`,
+                  url: '/dashboard/bookings',
+                  tag: `email-open-${doc.id}-${hours}`,
+                })
+              } catch (pushErr) {
+                console.error('[Cron] Salon email-open push failed', pushErr)
+              }
+            }
+            summary.emailOpenAlerts++
+          }
+
+          await payload.update({ collection: 'bookings', id: doc.id, data: { [checkField]: true }, overrideAccess: true })
+        } catch (err) {
+          summary.errors++
+          console.error('[Cron] Salon email-open check failed for booking', doc.id, err)
+        }
+      }
+    }
+
+    // ── RESTAURANT: meg nem nyitott visszaigazoló email riasztás (24h, majd 12h a foglalás előtt) ──
+    for (const hours of [24, 12] as const) {
+      const checkField = hours === 24 ? 'email_open_check_24h' : 'email_open_check_12h'
+      const candidates = await payload.find({
+        collection: 'reservations',
+        where: { [checkField]: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'no_show'] } },
+        depth: 0, limit: 500, overrideAccess: true,
+      })
+
+      for (const doc of candidates.docs as Reservation[]) {
+        try {
+          if (!doc.customer_email) { // nincs kinek — csak jelöljük ellenőrzöttnek, ne kérdezzük újra
+            await payload.update({ collection: 'reservations', id: doc.id, data: { [checkField]: true }, overrideAccess: true })
+            continue
+          }
+          const start = toMinutes(doc.date, doc.start_time)
+          if (now < start - hours * 3600_000 || now >= start) continue
+
+          const restId = relId(doc.restaurant)
+          if (!restId) continue
+          const restaurant = (await payload.findByID({ collection: 'restaurants', id: restId, depth: 0, overrideAccess: true })) as Restaurant
+          const ownerId = relId(restaurant.owner)
+
+          const emailLogRes = await payload.find({
+            collection: 'email-log',
+            where: { and: [{ type: { equals: 'booking_confirmation' } }, { reservation: { equals: doc.id } }] },
+            sort: '-createdAt', limit: 1, depth: 0, overrideAccess: true,
+          })
+          const log = emailLogRes.docs[0] as { ok?: boolean; status?: string } | undefined
+          const stillUnopened = !!log?.ok && !['opened', 'clicked', 'failed', 'bounced', 'complained'].includes(log.status ?? '')
+
+          if (stillUnopened && (await ownerWantsEmailOpenAlert(payload, ownerId))) {
+            await payload.create({
+              collection: 'notifications',
+              overrideAccess: true,
+              data: {
+                restaurant: Number(restId),
+                audience: 'owner',
+                type: 'email_not_opened',
+                title: `Nem nyitotta meg a visszaigazolást – ${doc.customer_name}`,
+                body: `${hours} órával a foglalás előtt (${doc.date} ${doc.start_time}) a vendég még nem nyitotta meg az emailt.`,
+                read: false,
+                reservation: Number(doc.id),
+                metadata: { hours, date: doc.date, start_time: doc.start_time },
+              },
+            })
+            if (ownerId) {
+              try {
+                await sendPushToUsers(payload, [ownerId], {
+                  title: `Nem nyitott email – ${restaurant.name}`,
+                  body: `${doc.customer_name}: ${hours} órával a foglalás előtt még nem nyitotta meg a visszaigazolást.`,
+                  url: '/restaurant/bookings',
+                  tag: `email-open-${doc.id}-${hours}`,
+                })
+              } catch (pushErr) {
+                console.error('[Cron] Restaurant email-open push failed', pushErr)
+              }
+            }
+            summary.emailOpenAlerts++
+          }
+
+          await payload.update({ collection: 'reservations', id: doc.id, data: { [checkField]: true }, overrideAccess: true })
+        } catch (err) {
+          summary.errors++
+          console.error('[Cron] Restaurant email-open check failed for reservation', doc.id, err)
+        }
+      }
+    }
+
     // ── DIGEST összefoglalók (üzletenként a saját nyitás/zárás idejéhez igazítva) ──
     const { hour, dateStr, dow } = getBudapestInfo()
 
@@ -331,6 +480,75 @@ async function handle(request: NextRequest) {
           .sort((a, b) => b.count - a.count)
           .map((e) => ({ name: e.name, bookings: e.count }))
 
+        // Bevétel — ma beszedett előleg (a `deposit_paid` foglalásokból).
+        const revenueHuf = (todayBookings.docs as Booking[]).reduce(
+          (sum, b) => sum + (b.deposit_paid ? (b.deposit_amount_huf ?? 0) : 0),
+          0,
+        )
+
+        // Top szolgáltatások — a mai foglalások szolgáltatás-bontása, ugyanaz a minta,
+        // mint a fenti per-staff bontás.
+        const serviceCountMap = new Map<string, { name: string; count: number }>()
+        for (const b of todayBookings.docs as Booking[]) {
+          const svcId = typeof b.service === 'object' ? String((b.service as Service).id) : String(b.service)
+          if (!serviceCountMap.has(svcId)) serviceCountMap.set(svcId, { name: svcId, count: 0 })
+          serviceCountMap.get(svcId)!.count++
+        }
+        if (serviceCountMap.size > 0) {
+          const serviceDocs = await payload.find({
+            collection: 'services',
+            where: { id: { in: [...serviceCountMap.keys()].map(Number) } },
+            depth: 0, limit: 100, overrideAccess: true,
+          })
+          for (const s of serviceDocs.docs as Service[]) {
+            const e = serviceCountMap.get(String(s.id))
+            if (e) e.name = s.name
+          }
+        }
+        const topServices = [...serviceCountMap.values()]
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 3)
+          .map((e) => ({ name: e.name, bookings: e.count }))
+
+        // Új vs visszatérő vendég — a mai egyedi vendégek közül hánynak volt a mai nap ELŐTT
+        // bármilyen nem-lemondott foglalása ennél az üzletnél (telefon VAGY email alapján).
+        const todayCustomers = new Map<string, { phone?: string | null; email?: string | null }>()
+        for (const b of todayBookings.docs as Booking[]) {
+          const key = b.customer_phone ? `p:${b.customer_phone}` : b.customer_email ? `e:${b.customer_email}` : `n:${b.customer_name}`
+          if (!todayCustomers.has(key)) todayCustomers.set(key, { phone: b.customer_phone, email: b.customer_email })
+        }
+        const todayPhones = [...new Set([...todayCustomers.values()].map((c) => c.phone).filter(Boolean))] as string[]
+        const todayEmails = [...new Set([...todayCustomers.values()].map((c) => c.email).filter(Boolean))] as string[]
+        const returningKeys = new Set<string>()
+        if (todayPhones.length || todayEmails.length) {
+          const priorBookings = await payload.find({
+            collection: 'bookings',
+            where: {
+              and: [
+                { salon: { equals: salonId } },
+                { date: { less_than: dateStr } },
+                { status: { not_equals: 'cancelled' } },
+                { or: [
+                  ...(todayPhones.length ? [{ customer_phone: { in: todayPhones } }] : []),
+                  ...(todayEmails.length ? [{ customer_email: { in: todayEmails } }] : []),
+                ] },
+              ],
+            },
+            depth: 0, limit: 500, overrideAccess: true,
+          })
+          for (const b of priorBookings.docs as Booking[]) {
+            if (b.customer_phone) returningKeys.add(`p:${b.customer_phone}`)
+            if (b.customer_email) returningKeys.add(`e:${b.customer_email}`)
+          }
+        }
+        let newGuestCount = 0
+        let returningGuestCount = 0
+        for (const c of todayCustomers.values()) {
+          const isReturning = (c.phone && returningKeys.has(`p:${c.phone}`)) || (c.email && returningKeys.has(`e:${c.email}`))
+          if (isReturning) returningGuestCount++
+          else newGuestCount++
+        }
+
         const statusCounts = isEvening
           ? (todayBookings.docs as Booking[]).reduce(
               (acc, b) => {
@@ -371,6 +589,10 @@ async function handle(request: NextRequest) {
                 shift_manager: shiftManager,
                 staff_breakdown: staffBreakdown,
                 status: statusCounts,
+                revenue_huf: revenueHuf > 0 ? revenueHuf : undefined,
+                top_services: topServices.length > 0 ? topServices : undefined,
+                new_guests: newGuestCount,
+                returning_guests: returningGuestCount,
               },
             },
           })
@@ -423,6 +645,10 @@ async function handle(request: NextRequest) {
               guestCount: bookingCount,
               shiftManager,
               status: statusCounts,
+              revenueHuf: revenueHuf > 0 ? revenueHuf : undefined,
+              topServices: topServices.length > 0 ? topServices : undefined,
+              newGuests: newGuestCount,
+              returningGuests: returningGuestCount,
             })
           }
         }
@@ -518,9 +744,64 @@ async function handle(request: NextRequest) {
         const docs = todayReservations.docs as Reservation[]
         const guestCount = docs.reduce((s, r) => s + (r.pax ?? 1), 0)
 
-        const occasions: Record<string, number> = {}
+        // Az ikon-kulcsot is megőrizzük (`occasion_icon` — a foglaló saját esemény-típus
+        // választójából jön, ld. `EVENT_TYPE_ICONS`), hogy a digestben ikonnal jelenhessen meg.
+        const occasions: Record<string, { count: number; icon?: string | null }> = {}
         for (const r of docs) {
-          if (r.occasion) occasions[r.occasion] = (occasions[r.occasion] ?? 0) + 1
+          if (r.occasion) {
+            const entry = occasions[r.occasion] ?? { count: 0, icon: r.occasion_icon }
+            entry.count++
+            occasions[r.occasion] = entry
+          }
+        }
+
+        // Bevétel — ma beszedett előleg (a `deposit_paid` foglalásokból).
+        const revenueHuf = docs.reduce((sum, r) => sum + (r.deposit_paid ? (r.deposit_amount_huf ?? 0) : 0), 0)
+
+        // Ország-bontás — a `country` mező (ISO kód, a telefon-előhívóból) MÁR MEGLÉVŐ adat,
+        // eddig sehol nem volt összesítve.
+        const countries: Record<string, number> = {}
+        for (const r of docs) {
+          const c = (r as { country?: string | null }).country
+          if (c) countries[c] = (countries[c] ?? 0) + 1
+        }
+
+        // Új vs visszatérő vendég — ugyanaz a minta, mint a szalon-digestnél.
+        const todayCustomers = new Map<string, { phone?: string | null; email?: string | null }>()
+        for (const r of docs) {
+          const key = r.customer_phone ? `p:${r.customer_phone}` : r.customer_email ? `e:${r.customer_email}` : `n:${r.customer_name}`
+          if (!todayCustomers.has(key)) todayCustomers.set(key, { phone: r.customer_phone, email: r.customer_email })
+        }
+        const todayPhones = [...new Set([...todayCustomers.values()].map((c) => c.phone).filter(Boolean))] as string[]
+        const todayEmails = [...new Set([...todayCustomers.values()].map((c) => c.email).filter(Boolean))] as string[]
+        const returningKeys = new Set<string>()
+        if (todayPhones.length || todayEmails.length) {
+          const priorReservations = await payload.find({
+            collection: 'reservations',
+            where: {
+              and: [
+                { restaurant: { equals: restId } },
+                { date: { less_than: dateStr } },
+                { status: { not_equals: 'cancelled' } },
+                { or: [
+                  ...(todayPhones.length ? [{ customer_phone: { in: todayPhones } }] : []),
+                  ...(todayEmails.length ? [{ customer_email: { in: todayEmails } }] : []),
+                ] },
+              ],
+            },
+            depth: 0, limit: 500, overrideAccess: true,
+          })
+          for (const r of priorReservations.docs as Reservation[]) {
+            if (r.customer_phone) returningKeys.add(`p:${r.customer_phone}`)
+            if (r.customer_email) returningKeys.add(`e:${r.customer_email}`)
+          }
+        }
+        let newGuestCount = 0
+        let returningGuestCount = 0
+        for (const c of todayCustomers.values()) {
+          const isReturning = (c.phone && returningKeys.has(`p:${c.phone}`)) || (c.email && returningKeys.has(`e:${c.email}`))
+          if (isReturning) returningGuestCount++
+          else newGuestCount++
         }
 
         const source = isEvening
@@ -596,6 +877,10 @@ async function handle(request: NextRequest) {
                 shift_manager: shiftManager,
                 source,
                 status,
+                revenue_huf: revenueHuf > 0 ? revenueHuf : undefined,
+                countries: Object.keys(countries).length > 0 ? countries : undefined,
+                new_guests: newGuestCount,
+                returning_guests: returningGuestCount,
               },
             },
           })
@@ -629,6 +914,22 @@ async function handle(request: NextRequest) {
         summary.errors++
         console.error('[Cron] Restaurant digest failed for', restaurant.id, err)
       }
+    }
+
+    // ── Takarítás: az app-on belüli értesítések (harang-ikon) 90 napnál régebbi
+    //    példányai törlődnek — ez CSAK a `notifications` kollekciót érinti, a foglalás/
+    //    vendég-adatokat (bookings/reservations) és a számlázási bizonylatokat soha.
+    //    Best-effort: nem szabad emiatt elszállnia a cronnak.
+    try {
+      const cutoff = new Date(now - 90 * 24 * 3600_000).toISOString()
+      const deleted = await payload.delete({
+        collection: 'notifications',
+        where: { createdAt: { less_than: cutoff } },
+        overrideAccess: true,
+      })
+      summary.notificationsCleaned = Array.isArray(deleted.docs) ? deleted.docs.length : 0
+    } catch (err) {
+      console.error('[Cron] Notifications cleanup failed', err)
     }
 
     return NextResponse.json({ ok: true, ...summary })

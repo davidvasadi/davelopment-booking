@@ -49,10 +49,16 @@
     --dav-warn: #8A6D12;    --dav-warn-bg: #FDF3CF;
     --dav-bad: #C0564A;     --dav-bad-bg: #FDE2DD;
 
+    /* Inaktív vezérlő-sín (toggle/chip OFF állapot háttere) — korábban ~6 fájlban nyers
+       #DAD5C6-ként volt lehorgonyozva, egyenként. */
+    --dav-track-off: #DAD5C6;
+
     /* Lekerekítés */
     --dav-r-container: 34px;
     --dav-r-lg: 26px;
     --dav-r-md: 18px;
+    --dav-r-chip: 14px;   /* kis vezérlők (chip, mező, kis gomb) — ez hiányzott, ezért találta ki mindenki a sajátját 10-16px közt */
+    --dav-r-sm: 12px;     /* legkisebb kerekítés (ikon-doboz, badge) */
     --dav-r-pill: 30px;
 
     /* Árnyék */
@@ -115,6 +121,18 @@ html {
   scrollbar-width: none;
 }
 
+/* Hibás mező-remegés — érvénytelen kötelező mezőknél (voucher-formok), a mező az érvénytelenné
+   válás PILLANATÁBAN fut le egyszer (a hívó a `key`-t váltja, hogy remount-tal újrainduljon). */
+@keyframes shake {
+  10%, 90% { transform: translateX(-1px); }
+  20%, 80% { transform: translateX(2px); }
+  30%, 50%, 70% { transform: translateX(-4px); }
+  40%, 60% { transform: translateX(4px); }
+}
+.animate-shake {
+  animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+}
+
 @keyframes shimmer {
   from { background-position: -200% 0; }
   to   { background-position:  200% 0; }
@@ -160,18 +178,20 @@ html {
   .hv-left-col[data-wide="true"] { width: 420px; }
 }
 
-/* ── RadialGauge: abszolút jobb felső sarok a profil-kártyán.
-   A .hv-profile-block position:relative; a padding-right helyet hagy.
+/* ── RadialGauge: abszolút jobb felső sarok a profil-kártyán — MINDEN nézetben (a gauge
+   korábban mobilon el volt rejtve, ezt kérte a user visszaállítani "a sarokba, ahol volt").
+   A .hv-profile-block position:relative; a padding-right helyet hagy a gauge-nek — mobilon
+   a gauge kisebb (RadialGauge saját reszponzív mérete: 85px < 640px), ezért a fenntartott hely
+   is kisebb, különben a fejléc-szöveg feleslegesen összeszorulna.
    Ha a naptárszerkesztő nyitva van (data-wide="true"): gauge elrejt + padding törlés,
    hogy a fejléc-gomboknak teljes szélesség maradjon. */
-.hv-right-col .hv-profile-block { position: relative; padding-right: 170px; }
+.hv-right-col .hv-profile-block { position: relative; padding-right: 100px; }
+@media (min-width: 640px) {
+  .hv-right-col .hv-profile-block { padding-right: 170px; }
+}
 .hv-right-col .hv-profile-gauge { position: absolute; right: 0; top: 0; }
 .hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-block { padding-right: 0; }
 .hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-gauge { display: none; }
-@media (max-width: 1023px) {
-  .hv-right-col .hv-profile-block { padding-right: 0; }
-  .hv-right-col .hv-profile-gauge { display: none; }
-}
 
 /* ── Nyomtatás ──
    A `print:hidden` (Tailwind) mindenhonnan kiszedi a keresőt/szűrőt/akció-gombokat.
@@ -339,4 +359,40 @@ html {
   background: #fff;
   border: 1px solid var(--dav-line);
   color: #8A8779;
+}
+
+/* ===== Áttekintés bento (szalon + étterem) — mobilon avatar → charts → tasks → accordion
+   sorrendben egymás alatt, lg-től a klasszikus 3-oszlopos elrendezés (avatar+accordion a bal
+   300px oszlopban egymás alatt, charts/tasks teljes magasságban átfogja mindkét sort).
+   SZÁNDÉKOSAN sima CSS, nem Tailwind arbitrary-property osztály: a Tailwind escape-elt
+   `[grid-template-areas:'a'_'b']` szelektor Safariban (asztali + mobil) törve/egymásra
+   csúszva renderelt, Chrome-ban viszont jó volt — ez egy WebKit-specifikus parse-hiba a
+   backslash-escape-elt arbitrary-value szelektorral, sima class-szal nem jelentkezik. */
+.dav-overview-bento {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
+  grid-template-areas: "avatar" "charts" "tasks" "accordion";
+}
+@media (min-width: 1024px) {
+  .dav-overview-bento {
+    grid-template-columns: 300px minmax(0, 1.6fr) minmax(300px, 0.95fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "avatar charts tasks"
+      "accordion charts tasks";
+  }
+}
+
+/* ===== Auth mezők — Chrome mentett jelszó/email javaslatnál kék/lila autofill-hátteret
+   kényszerít a user-agent stílusból, ami felülírja a bg-white-ot. A böngésző csak
+   box-shadow-inset trükkel írható felül (background-color-t nem enged), a szín-átmenetet
+   pedig egy irreálisan hosszú transition-nal némítjuk le. */
+.dav-auth-input-light:-webkit-autofill,
+.dav-auth-input-light:-webkit-autofill:hover,
+.dav-auth-input-light:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--dav-text);
+  -webkit-box-shadow: 0 0 0px 1000px #fff inset;
+  box-shadow: 0 0 0px 1000px #fff inset;
+  transition: background-color 9999s ease-in-out 0s;
 }

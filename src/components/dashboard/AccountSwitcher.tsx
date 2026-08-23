@@ -105,7 +105,7 @@ export function AccountSwitcher({
                 >
                   {b.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={b.logoUrl} alt={b.name} className="h-9 w-9 rounded-full bg-paper object-cover" />
+                    <img src={b.logoUrl} alt={b.name} className="h-9 w-9 rounded-full bg-paper object-contain p-1" />
                   ) : (
                     <span className="flex h-9 w-9 items-center justify-center rounded-full bg-ink-dark text-sm font-bold text-white">{monogram(b.name)}</span>
                   )}

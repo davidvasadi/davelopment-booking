@@ -11,6 +11,7 @@ import * as migration_20260730_160000_add_roles_notification_prefs from './20260
 import * as migration_20260730_170000_add_users_personal_notif_prefs from './20260730_170000_add_users_personal_notif_prefs';
 import * as migration_20260731_000000_add_users_digest_notif_pref from './20260731_000000_add_users_digest_notif_pref';
 import * as migration_20260731_100000_add_review_feature_columns from './20260731_100000_add_review_feature_columns';
+import * as migration_20260823_014350_sync_pre_launch_schema from './20260823_014350_sync_pre_launch_schema';
 
 export const migrations = [
   {
@@ -77,5 +78,10 @@ export const migrations = [
     up: migration_20260731_100000_add_review_feature_columns.up,
     down: migration_20260731_100000_add_review_feature_columns.down,
     name: '20260731_100000_add_review_feature_columns',
+  },
+  {
+    up: migration_20260823_014350_sync_pre_launch_schema.up,
+    down: migration_20260823_014350_sync_pre_launch_schema.down,
+    name: '20260823_014350_sync_pre_launch_schema'
   },
 ];

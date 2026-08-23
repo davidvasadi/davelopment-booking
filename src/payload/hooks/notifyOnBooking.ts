@@ -1,5 +1,6 @@
 import type { CollectionAfterChangeHook } from 'payload'
 import { sendPushToUsers } from '../../lib/webPush'
+import { findMyStaffId } from '../../lib/myStaffLink'
 
 function relId(val: unknown): string {
   if (!val) return ''
@@ -120,9 +121,15 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
         }
       }
 
-      // ── WEB PUSH: a tulaj + az aktív tagok opt-in eszközeire (role notification_prefs szerint).
+      // ── WEB PUSH: a tulaj mindig, a tagok a szerepük „Foglalás-értesítés" szintje szerint —
+      //    korábban EZ HIÁNYZOTT: minden aktív tag push-ot kapott MINDEN foglalásról, függetlenül
+      //    attól, kihez van rendelve. Most: `roles.booking_notify_level` dönt — 'off' = semmi,
+      //    'own' = csak a hozzá rendelt foglalások (KIZÁRÓLAG szalonnál értelmezhető, mert csak ott
+      //    van a foglalás szakemberhez kötve), 'all' = minden. Szerep nélküli tag = 'off' (biztonságos
+      //    alapértelmezés — az app a fő csatorna, explicit be kell kapcsolni a szerepén).
       try {
         const ownerId = relId((place as { owner?: unknown }).owner)
+        const assignedStaffId = kind === 'salon' ? relId(doc.staff) : ''
         const members = await req.payload.find({
           collection: 'memberships',
           where: { and: [{ [kind]: { equals: placeId } }, { status: { equals: 'active' } }] },
@@ -131,14 +138,22 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
           overrideAccess: true,
           req,
         })
-        const eligibleMemberIds = members.docs
-          .filter((m) => {
-            // Értesítés megy KIVÉVE ha a personal_notif_prefs.bookings explicit false
-            const user = m.user as { personal_notif_prefs?: Record<string, boolean | null> } | null | undefined
-            if (typeof user === 'object' && user?.personal_notif_prefs?.bookings === false) return false
-            return true
-          })
-          .map((m) => m.user).filter(Boolean) as (string | number)[]
+        const eligibleMemberIds = (await Promise.all(members.docs.map(async (m) => {
+          // Személyes preferencia: explicit kikapcsolás mindig felülír mindent.
+          const user = m.user as { id?: string | number; email?: string | null; personal_notif_prefs?: Record<string, boolean | null> } | null | undefined
+          if (typeof user !== 'object' || !user) return null
+          if (user.personal_notif_prefs?.bookings === false) return null
+
+          const level = (m.custom_role as { booking_notify_level?: 'off' | 'own' | 'all' | null } | null | undefined)?.booking_notify_level ?? 'off'
+          if (level === 'off') return null
+          if (level === 'all') return relId(user.id)
+          // level === 'own' — csak szalonnál értelmezhető; ha valahogy mégis étteremnél áll be
+          // (védelemből, bár az API már 'off'-ra kényszeríti), essen vissza 'off'-ra.
+          if (kind !== 'salon') return null
+          if (!assignedStaffId || !user.id) return null
+          const myStaffId = await findMyStaffId(placeId, user.id, user.email)
+          return myStaffId != null && String(myStaffId) === assignedStaffId ? relId(user.id) : null
+        }))).filter((id): id is string => !!id)
         const url =
           kind === 'restaurant'
             ? `/restaurant/bookings?reservation=${doc.id}`

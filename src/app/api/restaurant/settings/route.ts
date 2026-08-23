@@ -3,9 +3,12 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { can } from '@/lib/permissions'
+import { encryptInvoiceKeysInBody } from '@/lib/encryption'
 
 // Ezeket NEM szabad patch-elni ezen a végponton (owner/tier csak admin módosíthatja).
-const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt'])
+// `stripe_connect_*`: KIZÁRÓLAG szerver-oldali Connect onboarding/webhook írhatja — lásd a
+// salon/settings route azonos megjegyzését.
+const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt', 'stripe_connect_account_id', 'stripe_connect_onboarded'])
 
 function stripPayloadInternals(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(stripPayloadInternals)
@@ -17,6 +20,27 @@ function stripPayloadInternals(obj: unknown): unknown {
     )
   }
   return obj
+}
+
+// A dashboard fordítás-szerkesztőinek (pl. beleegyező nyilatkozat) kell egy `?locale=`-es
+// olvasás is, hogy a nyelvváltáskor a MÁR mentett idegen-nyelvi tartalmat töltsék be — ugyanaz
+// a minta, mint a services/[id] GET-nél.
+export async function GET(request: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { active } = await getActiveBusiness(user)
+  if (!active || active.type !== 'restaurant') {
+    return NextResponse.json({ error: 'Nincs aktív étterem' }, { status: 400 })
+  }
+  if (!can(active.capabilities, 'settings.profile')) {
+    return NextResponse.json({ error: 'Nincs jogosultsága' }, { status: 403 })
+  }
+
+  const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr') || undefined
+  const payload = await getPayloadClient()
+  const doc = await payload.findByID({ collection: 'restaurants', id: active.id, depth: 0, locale, overrideAccess: true })
+  return NextResponse.json({ consent_settings: doc.consent_settings })
 }
 
 export async function PATCH(request: NextRequest) {
@@ -43,11 +67,17 @@ export async function PATCH(request: NextRequest) {
     ),
   ) as Record<string, unknown>
 
+  // A Számlázz.hu/Billingo kulcsokat a kliens nyersen küldi (böngészőben nem lehet titkosítani)
+  // — itt, mentés előtt titkosítjuk, hogy sose kerüljön nyers szöveg a DB-be.
+  encryptInvoiceKeysInBody(safeBody)
+
+  const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr') || undefined
   const payload = await getPayloadClient()
   const doUpdate = () => payload.update({
     collection: 'restaurants',
     id: active.id,
     data: safeBody,
+    locale,
     overrideAccess: true,
     user,
   })

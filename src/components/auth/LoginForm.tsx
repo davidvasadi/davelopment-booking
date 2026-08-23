@@ -14,8 +14,9 @@ import { motion, MotionConfig } from 'framer-motion'
 import { listStagger } from '@/lib/motion'
 import { BrandLogo } from '@/components/BrandLogo'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
-import { authInputBase, authLabelBase, authPillBtn, authInputDark, authLabelDark, authPillBtnLight, authGhostBtnDark, authDividerDark, authErrorText, authErrorTextDark, authDivider, BRAND_COPYRIGHT } from '@/components/auth/authStyles'
+import { authInputBase, authLabelBase, authInputDark, authLabelDark, authPillBtnLight, authGhostBtnDark, authDividerDark, authErrorText, authErrorTextDark, authDivider, BRAND_COPYRIGHT } from '@/components/auth/authStyles'
 import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
+import { AuthPillButton } from '@/components/auth/AuthPillButton'
 
 const schema = z.object({
   email: z.string().email(),
@@ -57,7 +58,16 @@ export function LoginForm() {
         body: JSON.stringify(data),
         credentials: 'include',
       })
-      if (!res.ok) throw new Error((await res.json()).message ?? 'Hibás adatok')
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}))
+        const rawMsg: string = errBody?.message ?? errBody?.errors?.[0]?.message ?? ''
+        // A Payload `verify: true` unverified usernél angol, "verif" szót tartalmazó hibát ad
+        // vissza (a pontos szöveg verzió-függő) — ezt fordítjuk le, a többit változatlanul hagyjuk.
+        if (rawMsg.toLowerCase().includes('verif')) {
+          throw new Error('Erősítsd meg az email-címed a regisztrációkor kapott linkkel, mielőtt bejelentkezel.')
+        }
+        throw new Error(rawMsg || 'Hibás adatok')
+      }
       const json = await res.json()
       const role = json?.user?.role
       if (role === 'admin') {
@@ -199,32 +209,33 @@ export function LoginForm() {
 
       {/* ── DESKTOP ────────────────────────────────────────────────── */}
       {isDesktop && (
-      <div className="flex min-h-dvh font-onest">
-        {/* Left panel */}
-        <div className="relative w-[45%] bg-ink-dark flex flex-col p-14 select-none">
-          <AuthVideoBg />
-          <div className="relative z-10 flex flex-col justify-between flex-1">
-            <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-              <BrandLogo variant="dark" className="h-8" />
-            </Link>
-            <div>
-              <h1 className="text-white font-light text-[3.5rem] uppercase leading-[1.05] tracking-[-0.02em]">
-                KEZELD<br />OKOSAN <br />A SZALONOD.
-              </h1>
-              <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">
-                Modern időpontfoglaló kis vállalkozásoknak. Egyszerű beállítás, azonnali eredmény.
-              </p>
+      <div className="min-h-dvh bg-[#f7f7f7] p-5 font-onest">
+        <div className="flex h-[calc(100dvh-40px)] gap-5">
+          {/* Left panel */}
+          <div className="relative w-[45%] overflow-hidden rounded-[30px] bg-ink-dark flex flex-col p-14 select-none">
+            <AuthVideoBg />
+            <div className="relative z-10 flex flex-col justify-between flex-1">
+              <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
+                <BrandLogo variant="dark" className="h-8" />
+              </Link>
+              <div>
+                <h1 className="text-white font-light text-[3.5rem] uppercase leading-[1.05] tracking-[-0.02em]">
+                  KEZELD<br />OKOSAN <br />A SZALONOD.
+                </h1>
+                <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">
+                  Modern időpontfoglaló kis vállalkozásoknak. Egyszerű beállítás, azonnali eredmény.
+                </p>
+              </div>
+              <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="text-white/30 text-xs hover:text-white/50 transition-colors">{BRAND_COPYRIGHT}</a>
             </div>
-            <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="text-white/30 text-xs hover:text-white/50 transition-colors">{BRAND_COPYRIGHT}</a>
           </div>
-        </div>
 
-        {/* Right form panel */}
-        <div className="flex-1 flex items-center justify-center px-6 py-16 bg-white [color-scheme:light]">
-          <motion.div variants={listStagger.container} initial="hidden" animate="show" className="w-full max-w-sm">
+          {/* Right form panel */}
+          <div className="flex-1 flex items-center justify-center overflow-y-auto rounded-[30px] bg-white px-6 py-16 [color-scheme:light]">
+            <motion.div variants={listStagger.container} initial="hidden" animate="show" className="w-full max-w-md">
             <motion.div variants={listStagger.item} className="mb-8">
-              <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Üdv újra!</h2>
-              <p className="text-ink-soft text-sm mt-1">Jelentkezz be a fiókodba</p>
+              <h2 className="text-[44px] font-light leading-[1.1] tracking-[-0.02em] text-ink">Üdv újra!</h2>
+              <p className="text-ink-soft text-base mt-2">Jelentkezz be a fiókodba.</p>
             </motion.div>
             <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
               <div className="space-y-1.5">
@@ -270,23 +281,16 @@ export function LoginForm() {
                 </div>
                 {errors.password && <p id="login-d-pw-err" role="alert" className={authErrorText}>Minimum 6 karakter</p>}
               </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className={cn(authPillBtn, 'mt-2')}
-              >
-                {loading
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <>Bejelentkezés <ArrowRight className="h-4 w-4" /></>
-                }
-              </button>
+              <AuthPillButton type="submit" loading={loading} className="mt-2">
+                Bejelentkezés
+              </AuthPillButton>
             </motion.form>
             {/* Google-bejelentkezés a form ALATT — VAGY elválasztó + széles social-pill. */}
             <motion.div variants={listStagger.item} className={`${authDivider} mt-6`}>
               <span className="h-px flex-1 bg-line" />vagy<span className="h-px flex-1 bg-line" />
             </motion.div>
             <motion.div variants={listStagger.item} className="mt-3">
-              <GoogleSignInButton variant="light" callbackUrl="/" label="Bejelentkezés Google-lel" />
+              <GoogleSignInButton variant="light" spread callbackUrl="/" label="Bejelentkezés Google-lel" />
             </motion.div>
             <motion.p variants={listStagger.item} className="mt-8 text-center text-sm text-ink-soft">
               Nincs még fiókod?{' '}
@@ -294,7 +298,8 @@ export function LoginForm() {
                 Regisztráció
               </Link>
             </motion.p>
-          </motion.div>
+            </motion.div>
+          </div>
         </div>
       </div>
       )}

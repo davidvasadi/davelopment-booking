@@ -8,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import type { Salon, Media } from '@/payload/payload-types'
+import { fixMediaUrl } from '@/lib/utils'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -19,6 +20,7 @@ import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor } from '@/components/settings/TermsSectionsEditor'
 import { GoodToKnowEditor } from '@/components/settings/GoodToKnowEditor'
+import { CustomQuestionsEditor, type CustomQuestionType } from '@/components/settings/CustomQuestionsEditor'
 import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
@@ -145,7 +147,7 @@ function Section({ title, children, full, id }: { title: string; children: React
 
 function mediaUrl(field: string | Media | null | undefined): string | null {
   if (!field) return null
-  if (typeof field === 'object') return (field as Media).url ?? null
+  if (typeof field === 'object') return fixMediaUrl((field as Media).url)
   return null
 }
 
@@ -240,6 +242,12 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
       good_to_know: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
       event_types: [], // szalon-only: nincs esemény-típus (étterem-funkció)
+      custom_questions: (salon.custom_questions ?? []).map((q) => ({
+        label: q.label ?? '',
+        type: (q.type ?? 'text') as CustomQuestionType,
+        options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),
+        required: q.required ?? false,
+      })),
     },
   })
 
@@ -275,7 +283,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     documents: [],
   }
   // Mely fülön van localizált tartalom (a `loc.dirty` is számít a fül „mentetlen" jelzésénél).
-  const LOC_TABS = new Set(['general', 'email', 'documents'])
+  const LOC_TABS = new Set(['general', 'booking', 'email', 'documents'])
   const [internalTab, setActiveTab] = useState('general')
   // Vezérelt mód: ha a Beállítások-hub Providere körénk renderel, a context/prop dönt a fülről
   // ÉS elrejtjük a saját vízszintes fül-sort; különben a belső állapot + saját fülsor.
@@ -350,6 +358,10 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     }
     if (tab === 'general') { setLogoModified(false); setCoverModified(false) }
     if (tab === 'languages') setSupportedExtras(savedSupported)
+    // A localizált mezőket (jó tudni, feltételek, email-sablonok, egyedi kérdések) a `loc` hook
+    // KÜLÖN cache-eli — enélkül a „Mégse" ezeket sose állította volna vissza, csak a sima
+    // react-hook-form mezőket, ami úgy nézett ki, mintha a gomb nem csinálna semmit.
+    if (LOC_TABS.has(tab)) loc.discardLocale()
   }
 
   const requestTab = (id: string) => {
@@ -699,6 +711,14 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
             <p className="text-xs text-ink-soft">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
           </div>
         </div>
+      </Section>
+
+      <Section id="custom-questions" title="Egyedi kérdések a foglaláskor" full>
+        <p className="text-xs text-ink-soft -mt-1">
+          Saját kérdések, amiket a vendégnek fel kell tenni a foglaló-wizard adatlap lépésében (pl. „Allergiás vagy valamire?").
+        </p>
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
+        <CustomQuestionsEditor value={loc.current.custom_questions} onChange={(v) => loc.setField('custom_questions', v)} />
       </Section>
 
       {!embedded && <SaveBar dirty={tabDirty('booking')} submitting={submitting} onSave={() => saveTab('booking')} />}

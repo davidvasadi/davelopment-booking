@@ -1,73 +1,136 @@
 'use client'
 
-import { useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
+import { HoverButton } from '@/components/shared/HoverButton'
+import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 
 const HU_MONTHS = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
+const HU_MONTHS_FULL = [
+  'január', 'február', 'március', 'április', 'május', 'június',
+  'július', 'augusztus', 'szeptember', 'október', 'november', 'december',
+]
 
-function formatHu(dateStr: string) {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return `${y}. ${HU_MONTHS[m - 1]} ${d}.`
-}
+export type BookingsRange = 'day' | 'week' | 'month'
+const RANGE_OPTIONS: { value: BookingsRange; label: string }[] = [
+  { value: 'day', label: 'Nap' },
+  { value: 'week', label: 'Hét' },
+  { value: 'month', label: 'Hónap' },
+]
 
 // YYYY-MM-DD lokális időzóna szerint (nincs UTC-csúszás, lásd PROJECT_STATUS bugfix)
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-export function ReservationDateFilter({ currentDate }: { currentDate: string }) {
+function toDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+/** A `dateStr`-t tartalmazó hét hétfője. */
+function mondayOf(dateStr: string): Date {
+  const d = toDate(dateStr)
+  const dow = (d.getDay() + 6) % 7 // hétfő = 0
+  d.setDate(d.getDate() - dow)
+  return d
+}
+
+function formatHu(dateStr: string) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return `${y}. ${HU_MONTHS[m - 1]} ${d}.`
+}
+
+function formatWeekLabel(dateStr: string) {
+  const mon = mondayOf(dateStr)
+  const sun = new Date(mon)
+  sun.setDate(sun.getDate() + 6)
+  if (mon.getMonth() === sun.getMonth()) return `${HU_MONTHS[mon.getMonth()]} ${mon.getDate()}–${sun.getDate()}.`
+  return `${HU_MONTHS[mon.getMonth()]} ${mon.getDate()}. – ${HU_MONTHS[sun.getMonth()]} ${sun.getDate()}.`
+}
+
+function formatMonthLabel(dateStr: string) {
+  const [y, m] = dateStr.split('-').map(Number)
+  return `${y}. ${HU_MONTHS_FULL[m - 1]}`
+}
+
+export function ReservationDateFilter({
+  currentDate,
+  range = 'day',
+  hideRangeOnMobile = false,
+}: {
+  currentDate: string
+  range?: BookingsRange
+  /** Napi nézetnél a Nap/Hét/Hónap pill mobilon a fejléc-ikon nézet-választó sheet-jébe kerül
+   *  (ld. DailyView), itt nem kell duplán, külön sorban megjelenítenünk. Heti/havi nézetnél
+   *  (ahol ilyen sheet nincs) marad látható, hogy mobilon is legyen visszaút Napra. */
+  hideRangeOnMobile?: boolean
+}) {
   const router = useRouter()
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const go = (offset: number) => {
-    const [y, m, d] = currentDate.split('-').map(Number)
-    const date = new Date(y, m - 1, d)
-    date.setDate(date.getDate() + offset)
-    router.push(`/restaurant/bookings?date=${ymd(date)}`)
+    const date = toDate(currentDate)
+    if (range === 'day') date.setDate(date.getDate() + offset)
+    else if (range === 'week') date.setDate(date.getDate() + offset * 7)
+    else date.setMonth(date.getMonth() + offset)
+    router.push(`/restaurant/bookings?date=${ymd(date)}&range=${range}`)
   }
 
-  const isToday = currentDate === ymd(new Date())
+  const today = ymd(new Date())
+  const isToday = currentDate === today
+  const label = range === 'day' ? formatHu(currentDate) : range === 'week' ? formatWeekLabel(currentDate) : formatMonthLabel(currentDate)
 
   return (
-    <div className="flex items-center gap-1 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1">
-      <button
-        onClick={() => go(-1)}
-        className="h-8 w-8 rounded-full flex items-center justify-center text-ink hover:bg-white/60 transition-colors"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
+    <div className="flex flex-wrap items-center gap-2">
+      {/* Nap/Hét/Hónap — napi nézetnél mobilon rejtve (a fejléc-ikon nyitja a DailyView
+          nézet-választó sheet-jébe ágyazva); heti/havi nézetnél mobilon is látható marad. */}
+      <div className={`${hideRangeOnMobile ? 'hidden lg:inline-flex' : 'inline-flex'} h-[42px] items-center gap-0.5 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1`}>
+        {RANGE_OPTIONS.map(({ value, label: rangeLabel }) => (
+          <HoverButton
+            key={value}
+            onClick={() => router.push(`/restaurant/bookings?date=${currentDate}&range=${value}`)}
+            className={`rounded-[15px] px-2.5 sm:px-3 py-1.5 text-[13px] font-semibold transition-colors ${
+              range === value ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink'
+            }`}
+          >
+            {rangeLabel}
+          </HoverButton>
+        ))}
+      </div>
 
-      <button
-        onClick={() => inputRef.current?.showPicker?.()}
-        className="relative h-8 px-2 rounded-full text-sm font-semibold text-ink hover:bg-white/60 transition-colors flex items-center gap-2"
-      >
-        <CalendarDays className="h-3.5 w-3.5 text-ink-soft" />
-        {formatHu(currentDate)}
-        <input
-          ref={inputRef}
-          type="date"
-          value={currentDate}
-          onChange={(e) => e.target.value && router.push(`/restaurant/bookings?date=${e.target.value}`)}
-          className="absolute inset-0 opacity-0 w-full cursor-pointer"
-          tabIndex={-1}
-        />
-      </button>
-
-      <button
-        onClick={() => go(1)}
-        className="h-8 w-8 rounded-full flex items-center justify-center text-ink hover:bg-white/60 transition-colors"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
-      {!isToday && (
-        <button
-          onClick={() => router.push(`/restaurant/bookings?date=${ymd(new Date())}`)}
-          className="h-8 px-3 rounded-full bg-ink-dark text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+      <div className="flex h-[42px] items-center gap-1 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1">
+        <HoverButton
+          onClick={() => go(-1)}
+          className="h-8 w-8 rounded-full flex items-center justify-center text-ink hover:bg-white/60 transition-colors"
         >
-          Ma
-        </button>
-      )}
+          <ChevronLeft className="h-4 w-4" />
+        </HoverButton>
+
+        <DatePickerPopover
+          value={currentDate}
+          onChange={(d) => router.push(`/restaurant/bookings?date=${d}&range=day`)}
+          loadEndpoint="/api/restaurant/day-load"
+          triggerClassName="h-8 px-2 rounded-full text-sm font-semibold text-ink hover:bg-white/60 transition-colors flex items-center gap-2"
+        >
+          <CalendarDays className="h-3.5 w-3.5 text-ink-soft" />
+          {label}
+        </DatePickerPopover>
+
+        <HoverButton
+          onClick={() => go(1)}
+          className="h-8 w-8 rounded-full flex items-center justify-center text-ink hover:bg-white/60 transition-colors"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </HoverButton>
+        {!isToday && (
+          <HoverButton
+            onClick={() => router.push(`/restaurant/bookings?date=${today}&range=${range}`)}
+            className="h-8 px-3 rounded-full bg-ink-dark text-white text-xs font-semibold hover:opacity-90 transition-opacity"
+          >
+            Ma
+          </HoverButton>
+        )}
+      </div>
     </div>
   )
 }

@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import type { CustomQuestion, CustomQuestionType } from './CustomQuestionsEditor'
 
 /** A dashboardról szerkeszthető localizált mezők egy üzletön (salon/restaurant). */
 export interface LocalizedValues {
@@ -21,6 +22,7 @@ export interface LocalizedValues {
   good_to_know: { icon: string; title: string; body: string }[]
   /** Étterem-only: esemény-típusok (alkalmak). A `label` localizált, az icon/enabled globális. */
   event_types: { icon: string; label: string; enabled: boolean }[]
+  custom_questions: CustomQuestion[]
 }
 
 const EMPTY: LocalizedValues = {
@@ -37,6 +39,7 @@ const EMPTY: LocalizedValues = {
   terms_sections: [],
   good_to_know: [],
   event_types: [],
+  custom_questions: [],
 }
 
 /** A nyers (Payload) rekordból a localizált mezők kinyerése egy adott nyelven betöltve. */
@@ -44,6 +47,7 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
   const terms = Array.isArray(doc.terms_sections) ? doc.terms_sections : []
   const gtk = Array.isArray(doc.good_to_know) ? doc.good_to_know : []
   const evt = Array.isArray(doc.event_types) ? doc.event_types : []
+  const cq = Array.isArray(doc.custom_questions) ? doc.custom_questions : []
   return {
     booking_email_subject: (doc.booking_email_subject as string) ?? '',
     booking_email_intro: (doc.booking_email_intro as string) ?? '',
@@ -68,6 +72,14 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
       icon: (e.icon as string) ?? 'party',
       label: (e.label as string) ?? '',
       enabled: (e.enabled as boolean) ?? true,
+    })),
+    custom_questions: cq.map((q: Record<string, unknown>) => ({
+      label: (q.label as string) ?? '',
+      type: ((q.type as string) ?? 'text') as CustomQuestionType,
+      options: Array.isArray(q.options)
+        ? (q.options as Record<string, unknown>[]).map((o) => ({ value: (o.value as string) ?? '' }))
+        : [],
+      required: (q.required as boolean) ?? false,
     })),
   }
 }
@@ -100,6 +112,10 @@ export function useLocalizedFields(opts: {
 
   // Per-nyelv értékcache. A magyar a baseline-ból indul; a többit lustán töltjük.
   const cacheRef = useRef<Partial<Record<Locale, LocalizedValues>>>({ hu: huValues })
+  // A LEGUTÓBB betöltött/mentett, MÉG NEM szerkesztett érték nyelvenként — ebből áll vissza a
+  // „Mégse" (`discardLocale`). A `cacheRef` a `setField`-del folyamatosan MUTÁLÓDIK, ezért
+  // önmagából nem tudná visszaadni az eredetit — ezért kell egy külön, érintetlen másolat.
+  const pristineRef = useRef<Partial<Record<Locale, LocalizedValues>>>({})
   // Trigger a re-renderhez, amikor a cache vagy az aktív nyelv értéke változik.
   const [, force] = useState(0)
   const rerender = () => force((n) => n + 1)
@@ -127,7 +143,9 @@ export function useLocalizedFields(opts: {
         )
         if (!res.ok) throw new Error()
         const doc = await res.json()
-        cacheRef.current[loc] = fromDoc(doc)
+        const loaded = fromDoc(doc)
+        cacheRef.current[loc] = loaded
+        pristineRef.current[loc] = loaded
         setEditLocale(loc)
       } catch {
         toast.error('A nyelv betöltése nem sikerült')
@@ -168,11 +186,15 @@ export function useLocalizedFields(opts: {
           feedback_email_intro: values.feedback_email_intro,
           terms_sections: values.terms_sections,
           good_to_know: values.good_to_know,
+          custom_questions: values.custom_questions,
           // Az esemény-típusok étterem-only mező — a szalon PATCH-be ne kerüljön bele.
           ...(collection === 'restaurants' ? { event_types: values.event_types } : {}),
         }),
       })
       if (!res.ok) throw new Error()
+      // A sikeresen mentett állapot a mostantól „érintetlen" baseline — így egy KÉSŐBBI
+      // szerkesztés+Mégse ide áll vissza, nem az eredeti, session-eleji értékre.
+      pristineRef.current[editLocale] = values
       setDirty(false)
       return true
     } catch {
@@ -181,5 +203,14 @@ export function useLocalizedFields(opts: {
     }
   }, [collection, id, editLocale])
 
-  return { available, editLocale, current, loading, dirty, selectLocale, setField, saveLocale }
+  /** Az aktív nyelv mentetlen szerkesztéseinek elvetése — a legutóbb betöltött/mentett,
+   *  ÉRINTETLEN értékre áll vissza (nem a session-eleji állapotra, ha közben már mentettünk). */
+  const discardLocale = useCallback(() => {
+    const base = editLocale === 'hu' ? huValues : pristineRef.current[editLocale]
+    if (base) cacheRef.current[editLocale] = base
+    setDirty(false)
+    rerender()
+  }, [editLocale, huValues])
+
+  return { available, editLocale, current, loading, dirty, selectLocale, setField, saveLocale, discardLocale }
 }

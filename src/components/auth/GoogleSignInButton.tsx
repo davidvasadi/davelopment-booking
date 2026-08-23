@@ -2,7 +2,9 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
+import { motion } from 'framer-motion'
 import { Loader2 } from 'lucide-react'
+import { buttonHover } from '@/lib/motion'
 
 /** Google „G" logó — a hivatalos alak, de egyszínű (currentColor), így a gomb szöveg-
  *  színét veszi fel (sötét hátteren világos, világos hátteren sötét). */
@@ -35,12 +37,16 @@ function GoogleIcon({ className = 'h-5 w-5' }: { className?: string }) {
  */
 export function GoogleSignInButton({
   variant = 'light',
+  spread = false,
   callbackUrl = '/',
   label = 'Folytatás Google-lel',
   className = '',
   onClick,
 }: {
   variant?: 'light' | 'dark'
+  /** Figma-pontos elrendezés (login desktop): szöveg balra, ikon jobbra, lapos szürke
+   *  kitöltés, keret nélkül — a klasszikus, ikon-balra social-pill helyett. */
+  spread?: boolean
   callbackUrl?: string
   label?: string
   className?: string
@@ -49,17 +55,21 @@ export function GoogleSignInButton({
   onClick?: () => void | Promise<void>
 }) {
   const [loading, setLoading] = useState(false)
-  // Klasszikus social-pill: teljes szélességű, ikon balra, szöveg középen-balra. Crextio pill.
-  const base =
-    'w-full inline-flex h-12 items-center justify-center gap-3 rounded-dav-pill font-semibold text-sm transition-colors disabled:opacity-60'
-  const styles =
-    variant === 'dark'
+  const base = spread
+    ? 'w-full inline-flex items-center justify-between gap-3 rounded-dav-pill p-[10px] pl-5 font-medium text-base transition-colors disabled:opacity-60'
+    // Klasszikus social-pill: teljes szélességű, ikon balra, szöveg középen-balra. Crextio pill.
+    : 'w-full inline-flex h-12 items-center justify-center gap-3 rounded-dav-pill font-semibold text-sm transition-colors disabled:opacity-60'
+  const styles = spread
+    ? 'bg-[#f7f7f7] text-ink hover:bg-[#efefef]'
+    : variant === 'dark'
       // Sötét (ink-dark) panelen: világos szegély, fehér szöveg
       ? 'border border-white/15 bg-transparent text-white hover:bg-white/5 backdrop-blur-[10px]'
       // Világos hátteren: fehér háttér, meleg szegély, ink szöveg (Crextio social-pill)
       : 'border border-line-strong bg-white text-ink hover:bg-paper shadow-dav-card'
+  const Comp = spread ? motion.button : 'button'
+  const hoverProps = spread ? { variants: buttonHover, initial: 'rest', whileHover: loading ? undefined : 'hover' } : {}
   return (
-    <button
+    <Comp
       type="button"
       disabled={loading}
       onClick={async () => {
@@ -71,9 +81,18 @@ export function GoogleSignInButton({
         }
       }}
       className={`${base} ${styles} ${className}`}
+      {...hoverProps}
     >
-      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4 shrink-0" />}
-      <span>{label}</span>
-    </button>
+      {spread
+        ? <>
+            <span>{loading ? 'Kapcsolódás…' : label}</span>
+            {loading ? <Loader2 className="h-[22px] w-[22px] shrink-0 animate-spin" /> : <GoogleIcon className="h-[22px] w-[22px] shrink-0" />}
+          </>
+        : <>
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon className="h-4 w-4 shrink-0" />}
+            <span>{label}</span>
+          </>
+      }
+    </Comp>
   )
 }

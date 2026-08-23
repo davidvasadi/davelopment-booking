@@ -38,6 +38,7 @@ const config: Config = {
         ok: { DEFAULT: 'var(--dav-ok)', bg: 'var(--dav-ok-bg)' },
         warn: { DEFAULT: 'var(--dav-warn)', bg: 'var(--dav-warn-bg)' },
         bad: { DEFAULT: 'var(--dav-bad)', bg: 'var(--dav-bad-bg)' },
+        'track-off': 'var(--dav-track-off)',
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -80,6 +81,8 @@ const config: Config = {
         'dav-container': 'var(--dav-r-container)', // 34px külső konténer
         'dav-lg': 'var(--dav-r-lg)',               // 26px nagy kártya
         'dav-md': 'var(--dav-r-md)',               // 18px közepes
+        'dav-chip': 'var(--dav-r-chip)',           // 14px kis vezérlő (chip, mező, kis gomb)
+        'dav-sm': 'var(--dav-r-sm)',                // 12px legkisebb (ikon-doboz, badge)
         'dav-pill': 'var(--dav-r-pill)',           // 30px pill/chip
       },
       boxShadow: {

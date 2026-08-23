@@ -73,8 +73,8 @@ const DETAIL_ICONS: Record<DetailIcon, string> = {
   sparkle:  '<path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/>',
 }
 
-type HeroIcon = 'success' | 'cancel' | 'bell'
-const HERO_ICONS: Record<HeroIcon, { color: string; bg: string; path: string }> = {
+type HeroIcon = 'success' | 'cancel' | 'bell' | 'logo'
+const HERO_ICONS: Record<Exclude<HeroIcon, 'logo'>, { color: string; bg: string; path: string }> = {
   success: {
     color: '#3B3B3B',
     bg:    'rgba(255,216,95,0.32)',
@@ -172,9 +172,13 @@ export function brandHeroBlock(opts: {
   time?: string | null
 }): string {
   const { brandName, brandLogoUrl, brandCoverUrl, icon, title, subtitle, formattedDate, time } = opts
-  const def = HERO_ICONS[icon]
-  const iconSvg = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${def.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">${def.path}</svg>`
+  const def = HERO_ICONS[icon === 'logo' ? 'bell' : icon]
   const alt = escapeHtml(brandName)
+  // A hírlevélnél nem egy állapot-ikon (harang/pipa) kell a badge-be, hanem az üzlet SAJÁT
+  // logója — ha nincs feltöltött logó, visszaesik a harang-glifre.
+  const iconSvg = icon === 'logo' && brandLogoUrl
+    ? `<img src="${brandLogoUrl}" alt="${alt}" width="30" height="30" style="width:30px;height:30px;object-fit:contain;display:block;border:0;border-radius:6px" />`
+    : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="${def.color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">${def.path}</svg>`
 
   // 1–2. Borító + logó egyben (a logó a KÉPEN ül, a kép látszik mögötte).
   const brandTop = brandTopRow(brandCoverUrl, brandLogoUrl, alt)
@@ -192,16 +196,21 @@ export function brandHeroBlock(opts: {
       </table>`
     : ''
 
-  // 4. Fehér hero szekció
-  const heroSection = `<tr>
-    <td style="background:${COLORS.surface};padding:32px 32px 28px;text-align:center">
-      <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 16px">
+  // A badge-kör csak állapot-ikonoknál (success/cancel/bell) kell — a logó a brandTopRow-ban
+  // MÁR megjelent egyszer, egy második, sárga körbe zsugorított másolat csak felesleges
+  // ismétlés (és kis/nem-négyzetes logóknál csúnyán néz ki a kényszerített kör-háttérben).
+  const iconBadge = icon === 'logo' ? '' : `<table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:0 auto 16px">
         <tr>
           <td style="width:56px;height:56px;border-radius:18px;background:${def.bg};text-align:center;vertical-align:middle">
             ${iconSvg}
           </td>
         </tr>
-      </table>
+      </table>`
+
+  // 4. Fehér hero szekció
+  const heroSection = `<tr>
+    <td style="background:${COLORS.surface};padding:32px 32px 28px;text-align:center">
+      ${iconBadge}
       <h1 style="margin:0 0 7px;font-size:27px;font-weight:300;color:${COLORS.text};letter-spacing:-0.6px;line-height:1.1">${escapeHtml(title)}</h1>
       <p style="margin:0 auto;max-width:320px;color:${COLORS.textFaint};font-size:14px;line-height:1.55">${escapeHtml(subtitle)}</p>
       ${datePill}
@@ -222,7 +231,7 @@ function brandHeader(opts: {
   return brandTopRow(brandCoverUrl, brandLogoUrl, escapeHtml(brandName))
 }
 
-export function heroBlock(opts: { icon: HeroIcon; title: string; subtitle: string }): string {
+export function heroBlock(opts: { icon: Exclude<HeroIcon, 'logo'>; title: string; subtitle: string }): string {
   const def = HERO_ICONS[opts.icon]
   const svg = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="${def.color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">${def.path}</svg>`
   return `<tr>
@@ -245,6 +254,21 @@ export function introBlock(intro: string | null | undefined, vars: Record<string
   return `<tr>
     <td style="background:${COLORS.surface};padding:22px 28px 0">
       <p style="margin:0;color:${COLORS.text};font-size:14px;line-height:1.65">${html}</p>
+    </td>
+  </tr>`
+}
+
+/**
+ * A `introBlock`-tól eltérően NEM escape-el — a hívó SAJÁT, szerkesztőből (contentEditable)
+ * jövő, már-HTML tartalmat ad át (pl. hírlevél-törzs, kép/lista/link formázással). A tartalom
+ * forrása mindig az üzlet tulajdonosa saját maga — nem külső/vendég input.
+ */
+export function richContentBlock(html: string | null | undefined): string {
+  const trimmed = html?.trim()
+  if (!trimmed) return ''
+  return `<tr>
+    <td style="background:${COLORS.surface};padding:22px 28px 0">
+      <div style="color:${COLORS.text};font-size:14px;line-height:1.65">${trimmed}</div>
     </td>
   </tr>`
 }
@@ -421,7 +445,7 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
 <body style="margin:0;padding:0;background:#EFEFEF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EFEFEF" style="background:#EFEFEF;background-image:radial-gradient(130% 90% at 96% -6%, rgba(255,216,95,0.52) 0%, rgba(255,216,95,0) 50%),linear-gradient(160deg,#FBFBFB 0%,#EDEDED 55%,#E0E0E0 100%);min-height:100vh;padding:44px 16px">
     <tr><td align="center" style="padding:0">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;border-radius:30px;overflow:hidden;border:1px solid rgba(255,255,255,0.6);box-shadow:0 30px 60px -30px rgba(40,40,40,0.30),0 2px 8px rgba(40,40,40,0.06)">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;table-layout:fixed;border-radius:30px;overflow:hidden;border:1px solid rgba(255,255,255,0.6);box-shadow:0 30px 60px -30px rgba(40,40,40,0.30),0 2px 8px rgba(40,40,40,0.06)">
 
         ${headerHtml}
 

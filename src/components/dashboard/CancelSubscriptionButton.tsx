@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { X, Undo2, AlertTriangle, Loader2 } from 'lucide-react'
 
 type Props = {
@@ -15,11 +16,19 @@ export function CancelSubscriptionButton({ cancelScheduled, periodEndLabel }: Pr
   const [pending, startTransition] = useTransition()
 
   async function submit(undo: boolean) {
-    await fetch('/api/subscription/cancel', {
+    // KORÁBBAN a válasz státuszát nem ellenőriztük — ha a Stripe-hívás a szerveren elbukott
+    // (pl. hiányzó stripe_subscription_id, rossz kulcs), a route 502-t adott, de a modal ettől
+    // még "sikeresen" bezárt, mintha a lemondás megtörtént volna, holott semmi nem változott.
+    const res = await fetch('/api/subscription/cancel', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ undo }),
     })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      toast.error(err?.error ?? 'A művelet nem sikerült. Próbáld újra.')
+      return
+    }
     startTransition(() => {
       setOpen(false)
       router.refresh()

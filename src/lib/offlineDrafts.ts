@@ -21,6 +21,7 @@ export interface DraftPayload {
   pax: number
   tableIds: (string | number)[] | null
   customer_name: string
+  customer_city: string
   customer_phone: string
   customer_email: string
   notes: string

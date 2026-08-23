@@ -1,7 +1,8 @@
 import type { Payload, PayloadRequest } from 'payload'
 import type { Subscription } from '@/payload/payload-types'
 import type { Pricing } from './pricing'
-import { businessMonthlyFee, applyCycle, resolveCycle } from './tier'
+import { businessMonthlyFee, applyCycle, resolveCycle, resolveTier } from './tier'
+import { getStripe, hufToStripeMinor } from './stripe'
 
 const MS_PER_DAY = 86_400_000
 
@@ -33,9 +34,14 @@ export interface AccountFee {
 async function readPricing(payload: Payload, req?: PayloadRequest): Promise<Pricing> {
   const g = (await payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true, req })) as Pricing
   return {
+    salon_starter_huf: g.salon_starter_huf,
     salon_pro_huf: g.salon_pro_huf,
     salon_extra_staff_huf: g.salon_extra_staff_huf,
+    restaurant_starter_huf: g.restaurant_starter_huf,
     restaurant_pro_huf: g.restaurant_pro_huf,
+    starter_email_cap: g.starter_email_cap,
+    pro_email_cap: g.pro_email_cap,
+    egyedi_email_cap: g.egyedi_email_cap,
     annual_discount_pct: g.annual_discount_pct,
     trial_days: g.trial_days,
   }
@@ -80,15 +86,19 @@ export async function computeAccountFee({ payload, req }: Ctx, userId: string | 
     payload.find({ collection: 'restaurants', where: { owner: { equals: userId } }, limit: 200, depth: 0, overrideAccess: true, req }),
     readPricing(payload, req),
   ])
-  const salonDocs = salons.docs as Array<{ id: string | number }>
+  const salonDocs = salons.docs as Array<{ id: string | number; tier?: string | null; custom_monthly_fee_huf?: number | null }>
+  const restaurantDocs = restaurants.docs as Array<{ tier?: string | null; custom_monthly_fee_huf?: number | null }>
   const salonCount = salons.totalDocs
   const restaurantCount = restaurants.totalDocs
 
-  // Szalon per-fő: aktív munkatársak száma szalononként → díj = alap + (fő − benne foglalt) × extra.
+  // Szalon per-fő: aktív munkatársak száma szalononként → díj = alap (csomag szerint) +
+  // (fő − benne foglalt) × extra. A hírlevél-keret BEÉPÍTVE jár a csomagba, nincs külön felár.
+  // Egyedi csomagnál a `custom_monthly_fee_huf` (ha be van állítva) felülírja a teljes díjat.
   const staffBySalon = await countActiveStaffBySalon(payload, salonDocs.map((s) => s.id), req)
   const salonSum = salonDocs.reduce(
-    (sum, s) => sum + businessMonthlyFee(pricing, 'salon', staffBySalon.get(String(s.id)) ?? 0), 0)
-  const restaurantSum = restaurantCount * businessMonthlyFee(pricing, 'restaurant')
+    (sum, s) => sum + businessMonthlyFee(pricing, 'salon', staffBySalon.get(String(s.id)) ?? 0, resolveTier(s.tier), s.custom_monthly_fee_huf), 0)
+  const restaurantSum = restaurantDocs.reduce(
+    (sum, r) => sum + businessMonthlyFee(pricing, 'restaurant', 0, resolveTier(r.tier), r.custom_monthly_fee_huf), 0)
   const amountHuf = salonSum + restaurantSum
 
   const parts: string[] = []
@@ -113,8 +123,40 @@ export async function findAccountSubscription({ payload, req }: Ctx, userId: str
 }
 
 /**
+ * Már használt-e ez az email valaha ingyenes próbaidőt — a `trial-ledger` FÜGGETLEN a
+ * `Users`/`Subscriptions` törlésétől (lásd a collection dokumentációját), tehát törölt-majd-
+ * újraregisztrált fiókoknál is helyesen "igen"-t ad.
+ */
+async function hasUsedTrialBefore(payload: Payload, email: string): Promise<boolean> {
+  const res = await payload.find({
+    collection: 'trial-ledger',
+    where: { email: { equals: email.trim().toLowerCase() } },
+    limit: 1,
+    depth: 0,
+    overrideAccess: true,
+  })
+  return res.totalDocs > 0
+}
+
+/** Az email felvétele a próbaidő-nyilvántartásba — csak ÚJ trial indításakor hívjuk, egyszer. */
+async function recordTrialEmail(payload: Payload, email: string): Promise<void> {
+  await payload.create({
+    collection: 'trial-ledger',
+    overrideAccess: true,
+    data: { email: email.trim().toLowerCase(), first_seen_at: new Date().toISOString() },
+    // Ha valamiért versenyhelyzetben duplán próbálná felvenni (egyedi index ütközés), nem
+    // fatális — a lényeg, hogy a sor létezzen utána, nem hogy ez a hívás dobjon-e hibát.
+  }).catch(() => null)
+}
+
+/**
  * A user fiók-előfizetését adja vissza; ha még nincs, létrehozza próbaidővel. A díjat és a
  * count-okat az aktuális üzletek alapján állítja be.
+ *
+ * Csalás-védelem: ha az email már szerepel a `trial-ledger`-ben (korábban már kapott
+ * próbaidőt — akár egy azóta törölt fiókon), NEM kap új próbaidőt: a subscription rögtön
+ * `past_due` státusszal, lejárt `trial_ends_at`-tal jön létre, tehát azonnal a fizetési zárral
+ * találkozik. Ha nem szerepel, normál trial indul, és az email felkerül a listára.
  */
 export async function getOrCreateAccountSubscription({ payload, req }: Ctx, userId: string | number): Promise<Subscription> {
   const existing = await findAccountSubscription({ payload, req }, userId)
@@ -122,8 +164,14 @@ export async function getOrCreateAccountSubscription({ payload, req }: Ctx, user
 
   const fee = await computeAccountFee({ payload, req }, userId)
   const pricing = await readPricing(payload, req)
-  const trialEnd = new Date()
-  trialEnd.setDate(trialEnd.getDate() + pricing.trial_days)
+
+  const user = await payload.findByID({ collection: 'users', id: userId, depth: 0, overrideAccess: true, req }).catch(() => null) as { email?: string } | null
+  const email = user?.email
+  const repeatTrial = email ? await hasUsedTrialBefore(payload, email) : false
+
+  const now = new Date()
+  const trialEnd = repeatTrial ? now : new Date(now.getTime() + pricing.trial_days * 86_400_000)
+  if (!repeatTrial && email) await recordTrialEmail(payload, email)
 
   // Az owner reláció a DB-ben int FK — numerikus stringet számmá alakítunk, hogy a Payload
   // reláció-validáció megtalálja a usert (különben „Tulajdonos érvénytelen").
@@ -136,7 +184,7 @@ export async function getOrCreateAccountSubscription({ payload, req }: Ctx, user
     data: {
       owner: ownerVal,
       plan: 'trial',
-      status: 'trialing',
+      status: repeatTrial ? 'past_due' : 'trialing',
       trial_ends_at: trialEnd.toISOString(),
       salon_count: fee.salonCount,
       restaurant_count: fee.restaurantCount,
@@ -148,9 +196,15 @@ export async function getOrCreateAccountSubscription({ payload, req }: Ctx, user
 }
 
 /**
- * Újraszámolja a fiók-előfizetés üzlet-összetételét és díját (üzlet hozzáadás/törlés után hívandó).
- * Ha nincs még fiók-sub, létrehozza (trial). A státuszt NEM bántja — csak a count/díj/breakdown
- * frissül, így a fizető fiók díja azonnal nő/csökken az üzletek számával.
+ * Újraszámolja a fiók-előfizetés üzlet-összetételét és díját (üzlet hozzáadás/törlés, vagy
+ * bármi más díj-befolyásoló változás — pl. hírlevél-csomag váltás — után hívandó). Ha nincs még
+ * fiók-sub, létrehozza (trial). A státuszt NEM bántja — csak a count/díj/breakdown frissül.
+ *
+ * Ha a fiók már FIZETŐ (élő Stripe-előfizetéssel), az új összeget a Stripe-nál is érvényesíti
+ * (`stripe.subscriptions.update` price_data-val, azonnali arányos számlával) — különben a
+ * DB-ben számolt díj elszakadna a ténylegesen terhelt összegtől. A Stripe-hívás best-effort:
+ * hibája NEM dobja tovább (a hívók egy része, pl. a Salons afterChange hook, catch nélkül
+ * awaitolja ezt a függvényt — egy Stripe-hiba nem törheti el az üzlet létrehozását).
  */
 export async function syncAccountSubscription({ payload, req }: Ctx, userId: string | number): Promise<void> {
   const fee = await computeAccountFee({ payload, req }, userId)
@@ -167,6 +221,7 @@ export async function syncAccountSubscription({ payload, req }: Ctx, userId: str
   const pricing = await readPricing(payload, req)
   const cycle = resolveCycle(existing.billing_cycle)
   const effectiveAmount = applyCycle(fee.amountHuf, cycle, pricing.annual_discount_pct)
+  const previousAmount = existing.amount_huf ?? 0
 
   await payload.update({
     collection: 'subscriptions',
@@ -180,6 +235,35 @@ export async function syncAccountSubscription({ payload, req }: Ctx, userId: str
       breakdown: fee.breakdown,
     },
   })
+
+  if (existing.status === 'active' && existing.stripe_subscription_id && effectiveAmount !== previousAmount) {
+    const stripe = getStripe()
+    if (stripe) {
+      try {
+        const stripeSub = await stripe.subscriptions.retrieve(existing.stripe_subscription_id)
+        const item = stripeSub.items.data[0]
+        if (item) {
+          const unitForint = cycle === 'annual' ? effectiveAmount * 12 : effectiveAmount
+          const interval: 'month' | 'year' = cycle === 'annual' ? 'year' : 'month'
+          const productId = typeof item.price.product === 'string' ? item.price.product : item.price.product.id
+          await stripe.subscriptions.update(existing.stripe_subscription_id, {
+            proration_behavior: 'always_invoice',
+            items: [{
+              id: item.id,
+              price_data: {
+                currency: 'huf',
+                unit_amount: hufToStripeMinor(unitForint),
+                recurring: { interval },
+                product: productId,
+              },
+            }],
+          })
+        }
+      } catch (err) {
+        payload.logger.error(`[accountSubscription] Stripe ár-szinkron hiba: ${String(err)}`)
+      }
+    }
+  }
 }
 
 /** Aktívan FUTÓ a próbaidő? (trialing + jövőbeli lejárat) */

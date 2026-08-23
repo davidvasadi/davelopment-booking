@@ -74,7 +74,7 @@ export async function POST(req: Request) {
         },
       },
     ],
-    success_url: `${APP_URL}${returnPath}${returnPath.includes('?') ? '&' : '?'}checkout=success`,
+    success_url: `${APP_URL}${returnPath}${returnPath.includes('?') ? '&' : '?'}checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${APP_URL}${returnPath}${returnPath.includes('?') ? '&' : '?'}checkout=cancel`,
     metadata: { userId: String(user.id), subscriptionId: String(sub.id), cycle },
     subscription_data: { metadata: { userId: String(user.id), subscriptionId: String(sub.id), cycle } },

@@ -1,6 +1,8 @@
 'use client'
 
-import { Plus, Trash2, ChevronUp, ChevronDown, Sparkles, Info } from 'lucide-react'
+import { useRef } from 'react'
+import { Reorder, useDragControls } from 'framer-motion'
+import { Plus, Trash2, GripVertical, Sparkles, Info } from 'lucide-react'
 import type { Locale } from '@/lib/i18n'
 import { termsTemplate } from './contentTemplates'
 
@@ -68,12 +70,16 @@ export function TermsSectionsEditor({
     onChange(value.map((s, idx) => (idx === i ? { ...s, ...patch } : s)))
   const add = () => onChange([...value, { title: '', body: '' }])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
-  const move = (i: number, dir: -1 | 1) => {
-    const j = i + dir
-    if (j < 0 || j >= value.length) return
-    const next = [...value]
-    ;[next[i], next[j]] = [next[j], next[i]]
-    onChange(next)
+
+  // A `Reorder.Item`/React `key` stabil azonosítót igényel — a `TermsSection` objektumoknak
+  // nincs saját id-jük (a Payload-mezőben sincs), ezért objektum-referenciánként generálunk
+  // egyet lustán (a szerkesztés a legtöbb sor referenciáját érintetlenül hagyja).
+  const keysRef = useRef(new WeakMap<TermsSection, number>())
+  const nextKeyRef = useRef(0)
+  const keyFor = (s: TermsSection) => {
+    let k = keysRef.current.get(s)
+    if (k === undefined) { k = nextKeyRef.current++; keysRef.current.set(s, k) }
+    return k
   }
 
   return (
@@ -101,39 +107,17 @@ export function TermsSectionsEditor({
         </div>
       )}
 
-      {value.map((s, i) => (
-        <div key={i} className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card">
-          <div className="flex items-center gap-2">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-paper text-xs font-bold text-ink-soft2">
-              {i + 1}
-            </span>
-            <input
-              value={s.title}
-              onChange={(e) => update(i, { title: e.target.value })}
-              placeholder="Szakasz címe (pl. Lemondás)"
-              className={`${inputClass} font-semibold`}
-            />
-            <div className="flex shrink-0 items-center">
-              <button type="button" onClick={() => move(i, -1)} disabled={i === 0} title="Fel" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
-                <ChevronUp className="h-4 w-4" />
-              </button>
-              <button type="button" onClick={() => move(i, 1)} disabled={i === value.length - 1} title="Le" className="p-1.5 text-ink-soft2 transition-colors hover:text-ink disabled:opacity-30">
-                <ChevronDown className="h-4 w-4" />
-              </button>
-              <button type="button" onClick={() => remove(i)} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-bad">
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-          <textarea
-            value={s.body}
-            onChange={(e) => update(i, { body: e.target.value })}
-            rows={4}
-            placeholder="A szakasz szövege…"
-            className="w-full resize-y rounded-[12px] border border-line-strong bg-white px-4 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-soft2/60 transition-colors focus:border-gold/60 focus:outline-none focus:ring-2 focus:ring-gold/25"
+      <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
+        {value.map((s, i) => (
+          <SectionRow
+            key={keyFor(s)}
+            section={s}
+            index={i}
+            onChange={(patch) => update(i, patch)}
+            onRemove={() => remove(i)}
           />
-        </div>
-      ))}
+        ))}
+      </Reorder.Group>
 
       {value.length > 0 && (
         <button
@@ -146,5 +130,61 @@ export function TermsSectionsEditor({
         </button>
       )}
     </div>
+  )
+}
+
+/** Egy szakasz-kártya `Reorder.Item`-ként — a húzást csak a bal széli fogópont indítja
+ *  (`dragListener={false}`), hogy a cím/szöveg mező kattintás/kijelölés viselkedése ne sérüljön. */
+function SectionRow({
+  section: s,
+  index,
+  onChange,
+  onRemove,
+}: {
+  section: TermsSection
+  index: number
+  onChange: (patch: Partial<TermsSection>) => void
+  onRemove: () => void
+}) {
+  const dragControls = useDragControls()
+  return (
+    <Reorder.Item
+      as="div"
+      value={s}
+      dragListener={false}
+      dragControls={dragControls}
+      className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card"
+    >
+      <div className="flex items-center gap-2">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-paper text-xs font-bold text-ink-soft2">
+          {index + 1}
+        </span>
+        <input
+          value={s.title}
+          onChange={(e) => onChange({ title: e.target.value })}
+          placeholder="Szakasz címe (pl. Lemondás)"
+          className={`${inputClass} font-semibold`}
+        />
+        <div className="flex shrink-0 items-center">
+          <div
+            onPointerDown={(e) => dragControls.start(e)}
+            className="flex h-8 w-7 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+            title="Húzd az átrendezéshez"
+          >
+            <GripVertical className="h-4 w-4" />
+          </div>
+          <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-bad">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+      <textarea
+        value={s.body}
+        onChange={(e) => onChange({ body: e.target.value })}
+        rows={4}
+        placeholder="A szakasz szövege…"
+        className="w-full resize-y rounded-[12px] border border-line-strong bg-white px-4 py-2.5 text-sm leading-relaxed text-ink placeholder:text-ink-soft2/60 transition-colors focus:border-gold/60 focus:outline-none focus:ring-2 focus:ring-gold/25"
+      />
+    </Reorder.Item>
   )
 }

@@ -65,9 +65,8 @@ function WelcomePreview({ r }: PrevProps) {
         animate={r ? { opacity: 1 } : { opacity: [0.88, 1, 0.88] }}
         transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
       >
-        <BrandLogo variant="light" className="h-9 w-auto" />
+        <BrandLogo variant="light" className="h-14 w-auto" />
       </motion.div>
-      <p className="relative z-10 text-[10.5px] font-medium" style={{ color: MUTED }}>foglalási rendszer</p>
     </div>
   )
 }

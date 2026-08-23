@@ -125,6 +125,15 @@ function currentIsoWeek(): number {
   return getISOWeek(new Date())
 }
 
+/** Determinisztikus, heti forgás egy variáns-tömbön belül — ugyanaz a mechanizmus, mint a
+ *  `pickWeekly()`-é, csak nem a kártya KIVÁLASZTÁSÁRA, hanem egy adott kártya SZÖVEGÉRE
+ *  alkalmazva. Így az örökké "nyitott" (sose kész) marketing-kártyák (utalvány hirdetése,
+ *  kampányküldés) nem ugyanazt a mondatot mutatják hétről hétre, hanem valódi tartalmi
+ *  változatok közt váltanak. */
+function rotate<T>(variants: readonly T[]): T {
+  return variants[currentIsoWeek() % variants.length]
+}
+
 /* ────────────────────────── SetupFlags ────────────────────────── */
 
 export type SetupFlags = {
@@ -136,6 +145,8 @@ export type SetupFlags = {
   scheduleFilledAhead?: boolean
   /** Van-e megerősítetlen (pending) foglalás (bookings.manage gate). */
   hasPendingBookings?: boolean
+  /** Küldött-e már valaha hírlevél-kampányt (marketing.manage gate). */
+  hasSentCampaign?: boolean
 }
 
 type Weighted = { item: ChecklistItem; weight: number }
@@ -285,7 +296,7 @@ function buildFeatureCards(b: Salon | Restaurant, variant: 'salon' | 'restaurant
     impact: d.impact,
     state: d.on ? ('enabled' as const) : ('apply' as const),
     action: d.on
-      ? ({ kind: 'nav', href: `${settingsBase}/settings?tab=features` } as TipAction)
+      ? ({ kind: 'nav', href: `${settingsBase}/settings?tab=booking` } as TipAction)
       : ({ kind: 'patch', body: enableFeatureBody(b.feature_modules, d.changes), toast: d.toast } as TipAction),
   }))
 }
@@ -396,6 +407,123 @@ function buildGuestCards(base: string, caps: Capability[]): TipCard[] {
   return cards
 }
 
+/* ────────────────────────── Bevétel-lehetőségek (meglévő, kihasználatlan funkciók) ──────────────────────────
+   Egyik sem PATCH-akció (nem egyszerű be/ki kapcsoló) — a Stripe-bekötés, a Google-link megadása
+   és egy kampány tényleges megírása mind valódi beállítást/tartalmat igényel, ezért mind egyenesen
+   a megfelelő beállítás-fülre/oldalra navigál, nem próbál egy mezőt "elfélbehagyva" menteni. */
+
+// Az utalvány már BEKAPCSOLT állapotában nincs "kész" állapota — a hirdetése folyamatos,
+// visszatérő feladat. Több valódi szöveg-variáns közt forgunk hetente (`rotate()`), nem egy
+// darab, örökre ugyanazt ismétlő mondat közt.
+const VOUCHER_ON_VARIANTS: { title: string; desc: string }[] = [
+  {
+    title: 'Hirdesd meg az ajándékutalványt',
+    desc: 'Oszd meg a linket a közösségi médiában és a helyszínen is, különösen ünnepek előtt — visszatérő, ismétlődő bevételi lehetőség.',
+  },
+  {
+    title: 'Ajánld fel a pultnál/telefonon',
+    desc: 'Sok vendég nem is tudja, hogy nálad ajándékutalvány is kapható — egy mondat a foglaláskor vagy fizetésnél új bevételt hozhat.',
+  },
+  {
+    title: 'Ajánld céges ajándékként',
+    desc: 'A visszatérő céges vendégeidnek küldj egy rövid ajánlatot — utalvány csapat-juttatásként is népszerű.',
+  },
+  {
+    title: 'Időzítsd az ünnepekhez',
+    desc: 'Karácsony, Valentin-nap, anyák napja — ezek előtt pár nappal egy emlékeztető a követőidnek felpörgeti az eladást.',
+  },
+]
+
+// A kampányküldés eleve ismétlődő tevékenység, nincs "kész" állapota — heti rotációval más és
+// más konkrét kampány-ötletet ajánlunk, nem ugyanazt az egy mondatot a végtelenségig.
+const CAMPAIGN_VARIANTS: { title: string; desc: string }[] = [
+  {
+    title: 'Szólíts meg egy alvó vendégkört',
+    desc: 'Küldj hírlevelet azoknak, akik 60+ napja nem jártak nálad — egy rövid emlékeztető sokakat visszahoz.',
+  },
+  {
+    title: 'Hirdesd meg egy szezonális ajánlatot',
+    desc: 'Egy időszakos akció vagy szezonális ajánlat jó apropó egy kampányra.',
+  },
+  {
+    title: 'Mutasd be, mi újult meg nálad',
+    desc: 'Új szolgáltatás, felújított tér, bővült csapat — egy rövid hírlevél a meglévő vendégeidnek azonnal új foglalásokat hozhat.',
+  },
+  {
+    title: 'Kérj értékelést a hírlevélben',
+    desc: 'Linkeld az értékelő-oldaladat egy kampányban — több vélemény, jobb Google-találhatóság.',
+  },
+]
+
+function buildGrowthCards(
+  b: Salon | Restaurant,
+  variant: 'salon' | 'restaurant',
+  caps: Capability[],
+  hasSentCampaign: boolean | undefined,
+): TipCard[] {
+  const base = variant === 'salon' ? '/dashboard' : '/restaurant'
+  const cards: TipCard[] = []
+
+  if (can(caps, 'settings.profile')) {
+    // A voucher-KAPCSOLÓ maga egyszeri beállítás, DE az utalvány "eladása" folyamatos, ismétlődő
+    // marketing-feladat — ezért a kártya bekapcsolás UTÁN sem áll be véglegesen "kész" állapotba,
+    // hanem a hangsúly a hirdetésre/megosztásra vált, és hetente más szöveg-variánst mutat.
+    const voucherOn = b.voucher_settings?.enabled === true
+    const voucherVariant = voucherOn ? rotate(VOUCHER_ON_VARIANTS) : null
+    cards.push({
+      id: 'growth-vouchers',
+      category: 'marketing',
+      title: voucherVariant ? voucherVariant.title : 'Kapcsold be az ajándékutalványt',
+      desc: voucherVariant
+        ? voucherVariant.desc
+        : 'A vendégeid ajándékba is vehetnek nálad időpontot/asztalt — extra bevétel szezonon kívül is.',
+      impact: 'extra bevételi csatorna',
+      state: 'apply',
+      action: { kind: 'nav', href: `${base}/settings?tab=booking` },
+    })
+
+    const reviewOn = !!b.feature_modules?.reviews_on && !!(b.feature_modules?.google_review_url ?? '').trim()
+    cards.push({
+      id: 'growth-reviews',
+      category: 'vendegelmeny',
+      title: 'Kösd be a Google-értékelést',
+      desc: 'A 4-5 csillagot adó vendégek egyenesen a Google-ra kerülnek — ez hosszú távon új vendégeket hoz.',
+      impact: 'jobb Google-találhatóság',
+      state: reviewOn ? 'enabled' : 'apply',
+      action: { kind: 'nav', href: `${base}/settings?tab=google` },
+    })
+
+    const depositOn = b.deposit_settings?.enabled === true
+    cards.push({
+      id: 'growth-deposit',
+      category: 'foglalas',
+      title: 'Kérj előleget a foglaláskor',
+      desc: 'Egy előre bekért, akár csak jelképes előleg drasztikusan csökkenti a meg nem jelenést — és biztos bevétel, még lemondás esetén is.',
+      impact: 'kevesebb no-show',
+      state: depositOn ? 'enabled' : 'apply',
+      action: { kind: 'nav', href: `${base}/settings?tab=payments` },
+    })
+  }
+
+  if (can(caps, 'marketing.manage')) {
+    // A hírlevél-küldés eleve ismétlődő tevékenység — nincs "kész" állapota, ezért ez a kártya
+    // sose vált statikus "Bekapcsolva"-ra: hetente más konkrét kampány-ötletet mutat, és — ha még
+    // sosem küldött kampányt — kiegészül azzal, hogy ez ingyenes, benne van az előfizetésében.
+    const campaignVariant = rotate(CAMPAIGN_VARIANTS)
+    cards.push({
+      id: 'growth-campaign',
+      category: 'marketing',
+      title: campaignVariant.title,
+      desc: hasSentCampaign ? campaignVariant.desc : `${campaignVariant.desc} Ingyenes, benne van az előfizetésedben.`,
+      impact: 'visszatérő bevétel',
+      state: 'apply',
+      action: { kind: 'nav', href: `${base}/marketing` },
+    })
+  }
+
+  return cards
+}
+
 /* ────────────────────────── Összegzés ────────────────────────── */
 
 function assemble(
@@ -424,12 +552,29 @@ function assemble(
 
 /* ────────────────────────── E heti tipp ────────────────────────── */
 
-type Candidate = WeeklyTip & { priority: number; requiredCap?: Capability | Capability[] }
+type Candidate = WeeklyTip & {
+  priority: number
+  requiredCap?: Capability | Capability[]
+  /** Igaz = valódi, "el nem végzett" teendő (pl. nincs bekötve a Google-értékelés) — ezek
+   *  MINDIG megelőzik a sima megfigyelés-jellegű tippeket (pl. "X a legerősebb napod"), amiknek
+   *  nincs "kész" állapotuk, és különben örökre kiszoríthatnák a valódi, nyitott teendőket a
+   *  kiemelt helyről. Hiányzó/false = megfigyelés, csak akkor kerül elő, ha nincs több teendő. */
+  actionable?: boolean
+}
 
 function pickWeekly(candidates: Candidate[]): WeeklyTip | null {
   if (candidates.length === 0) return null
-  const sorted = [...candidates].sort((a, b) => b.priority - a.priority)
-  const topN = sorted.slice(0, Math.min(3, sorted.length))
+  // Ha van valódi, el nem végzett teendő (actionable), a forgás KIZÁRÓLAG azok között történik —
+  // egy sima megfigyelés (pl. "X a legerősebb napod") sose szoríthat ki egy nyitott teendőt, még
+  // akkor sem, ha a topN vegyes szeletben többségben lenne. Csak akkor forgunk a megfigyelések
+  // közt, ha ténylegesen nincs több nyitott teendő.
+  const actionable = candidates.filter((c) => c.actionable)
+  const pool = actionable.length > 0 ? actionable : candidates
+  const sorted = [...pool].sort((a, b) => b.priority - a.priority)
+  // Korábban csak a top-3 forgott — a 4. helytől lejjebb eső, valós jelöltek SOSE kerültek elő
+  // a kiemelt helyen, akárhány hét telt el. Nagyobb (top-6) forgó-készlettel idővel minden
+  // magas-prioritású tipp sorra kerül, nem ragad be örökre ugyanaz a 3.
+  const topN = sorted.slice(0, Math.min(6, sorted.length))
   const pick = topN[currentIsoWeek() % topN.length]
   const { priority: _p, requiredCap: _r, ...tip } = pick
   return tip
@@ -445,7 +590,8 @@ export function buildSalonAdvisor(salon: Salon, setup: SetupFlags, stats: Dashbo
   const scheduleCards = buildScheduleCards(setup, base, caps)
   const bookingCards = buildBookingCards(setup, base, caps)
   const guestCards = buildGuestCards(base, caps)
-  const recommendations = [...configCards, ...featureCards, ...phoneCards, ...scheduleCards, ...bookingCards, ...guestCards]
+  const growthCards = buildGrowthCards(salon, 'salon', caps, setup.hasSentCampaign)
+  const recommendations = [...configCards, ...featureCards, ...phoneCards, ...scheduleCards, ...bookingCards, ...guestCards, ...growthCards]
 
   const candidates: Candidate[] = []
   const enoughData = stats.periodBookings >= 5
@@ -460,6 +606,7 @@ export function buildSalonAdvisor(salon: Salon, setup: SetupFlags, stats: Dashbo
       action: { kind: 'nav', href: `${base}/schedule` },
       priority: 80,
       requiredCap: 'schedule.manage',
+      actionable: true,
     })
   }
 
@@ -489,9 +636,10 @@ export function buildSalonAdvisor(salon: Salon, setup: SetupFlags, stats: Dashbo
       actionLabel: off ? 'Emlékeztető bekapcsolása' : 'Beállítások',
       action: off
         ? { kind: 'patch', body: enableFeatureBody(salon.feature_modules, { reminders_on: true, reminder_ch_email: true, reminder_t_24h: true }), toast: 'Emlékeztetők bekapcsolva' }
-        : { kind: 'nav', href: `${base}/settings?tab=features` },
+        : { kind: 'nav', href: `${base}/settings?tab=booking` },
       priority: 60 + (80 - stats.completionRate),
       requiredCap: 'settings.profile',
+      actionable: true,
     })
   }
 
@@ -505,6 +653,35 @@ export function buildSalonAdvisor(salon: Salon, setup: SetupFlags, stats: Dashbo
       action: { kind: 'nav', href: `${base}/services` },
       priority: 30,
       requiredCap: ['catalog.view', 'catalog.manage'],
+    })
+  }
+
+  // Google-értékelés nincs bekötve — a natív értékelő-oldal a jó értékeléseket egyenesen a
+  // Google-ra tereli, enélkül ez a vendégszerző-csatorna kihasználatlan marad.
+  if (!salon.feature_modules?.reviews_on || !(salon.feature_modules?.google_review_url ?? '').trim()) {
+    candidates.push({
+      id: 'setup-google-review',
+      title: 'Kösd be a Google-értékelést',
+      body: 'A jó értékelést adó vendégek egyenesen a Google-ra kerülnek — ez az egyik leggyorsabb módja, hogy új vendégeket hozz a Google-találatokból.',
+      actionLabel: 'Google beállítások',
+      action: { kind: 'nav', href: `${base}/settings?tab=google` },
+      priority: 45,
+      requiredCap: 'settings.profile',
+      actionable: true,
+    })
+  }
+
+  // Vendég-előleg nincs bekapcsolva — a legdirektebb no-show elleni + bevétel-védő lépés.
+  if (salon.deposit_settings?.enabled !== true) {
+    candidates.push({
+      id: 'setup-deposit',
+      title: 'Kérj előleget a foglaláskor',
+      body: 'Egy előre bekért, akár jelképes előleg drasztikusan csökkenti a meg nem jelenést — és lemondás esetén is bevétel marad.',
+      actionLabel: 'Fizetési beállítások',
+      action: { kind: 'nav', href: `${base}/settings?tab=payments` },
+      priority: 35,
+      requiredCap: 'settings.profile',
+      actionable: true,
     })
   }
 
@@ -528,6 +705,7 @@ export function buildSalonAdvisor(salon: Salon, setup: SetupFlags, stats: Dashbo
       actionLabel: 'Beállítás',
       action: { kind: 'nav', href: firstMissing.item.href },
       priority: 10,
+      actionable: true,
     })
   }
 
@@ -551,7 +729,8 @@ export function buildRestaurantAdvisor(
   const scheduleCards = buildScheduleCards(setup, base, caps)
   const bookingCards = buildBookingCards(setup, base, caps)
   const guestCards = buildGuestCards(base, caps)
-  const recommendations = [...configCards, ...featureCards, ...phoneCards, ...scheduleCards, ...bookingCards, ...guestCards]
+  const growthCards = buildGrowthCards(restaurant, 'restaurant', caps, setup.hasSentCampaign)
+  const recommendations = [...configCards, ...featureCards, ...phoneCards, ...scheduleCards, ...bookingCards, ...guestCards, ...growthCards]
 
   const candidates: Candidate[] = []
   const enoughData = stats.periodReservations >= 5
@@ -565,6 +744,7 @@ export function buildRestaurantAdvisor(
       action: { kind: 'nav', href: `${base}/schedule` },
       priority: 80,
       requiredCap: 'schedule.manage',
+      actionable: true,
     })
   }
 
@@ -597,6 +777,7 @@ export function buildRestaurantAdvisor(
         : { kind: 'patch', body: enableFeatureBody(restaurant.feature_modules, { reminders_on: true, reminder_ch_email: true, reminder_t_24h: true }), toast: 'Emlékeztetők bekapcsolva' },
       priority: 70 + stats.noShowRate,
       requiredCap: 'settings.profile',
+      actionable: true,
     })
   }
 
@@ -614,6 +795,35 @@ export function buildRestaurantAdvisor(
         requiredCap: 'settings.profile',
       })
     }
+  }
+
+  // Google-értékelés nincs bekötve — a natív értékelő-oldal a jó értékeléseket egyenesen a
+  // Google-ra tereli, enélkül ez a vendégszerző-csatorna kihasználatlan marad.
+  if (!restaurant.feature_modules?.reviews_on || !(restaurant.feature_modules?.google_review_url ?? '').trim()) {
+    candidates.push({
+      id: 'setup-google-review',
+      title: 'Kösd be a Google-értékelést',
+      body: 'A jó értékelést adó vendégek egyenesen a Google-ra kerülnek — ez az egyik leggyorsabb módja, hogy új vendégeket hozz a Google-találatokból.',
+      actionLabel: 'Google beállítások',
+      action: { kind: 'nav', href: `${base}/settings?tab=google` },
+      priority: 45,
+      requiredCap: 'settings.profile',
+      actionable: true,
+    })
+  }
+
+  // Vendég-előleg nincs bekapcsolva — a legdirektebb no-show elleni + bevétel-védő lépés.
+  if (restaurant.deposit_settings?.enabled !== true) {
+    candidates.push({
+      id: 'setup-deposit',
+      title: 'Kérj előleget a foglaláskor',
+      body: 'Egy előre bekért, akár jelképes előleg drasztikusan csökkenti a meg nem jelenést — és lemondás esetén is bevétel marad.',
+      actionLabel: 'Fizetési beállítások',
+      action: { kind: 'nav', href: `${base}/settings?tab=payments` },
+      priority: 35,
+      requiredCap: 'settings.profile',
+      actionable: true,
+    })
   }
 
   candidates.push({
@@ -635,6 +845,7 @@ export function buildRestaurantAdvisor(
       actionLabel: 'Beállítás',
       action: { kind: 'nav', href: firstMissing.item.href },
       priority: 10,
+      actionable: true,
     })
   }
 

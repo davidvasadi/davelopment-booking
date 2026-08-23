@@ -31,8 +31,20 @@ export async function autoCompleteBookings(salonId: string | number) {
 
   if (result.docs.length === 0) return
 
+  // Csak azokat zárjuk automatikusan "befejezett"-re, amikhez a tulaj a LEJÁRATUK ÓTA nem
+  // nyúlt hozzá. Ha valaki a lejárat UTÁN explicit átállította (pl. vissza "megerősítve"-re),
+  // az egy tudatos döntés — az automatika ezt eddig minden oldalbetöltésnél felülírta, ami
+  // lehetetlenné tette a kézi javítást (a mentés utáni router.refresh() újra lefuttatta ezt
+  // a függvényt, ami rögtön visszaállította).
+  const toComplete = result.docs.filter((b) => {
+    const endAt = new Date(`${b.date}T${b.end_time}:00`)
+    const updatedAt = new Date(b.updatedAt)
+    return updatedAt <= endAt
+  })
+  if (toComplete.length === 0) return
+
   await Promise.all(
-    result.docs.map(b =>
+    toComplete.map(b =>
       payload.update({
         collection: 'bookings',
         id: b.id,

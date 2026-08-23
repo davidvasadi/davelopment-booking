@@ -1,10 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, Settings2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { DigestSheet } from './DigestSheet'
+import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
 import { listStagger, pageTransition, sheetSpring } from '@/lib/motion'
 import {
   useNotifications,
@@ -19,6 +20,17 @@ import { PersonalNotifPrefsCard } from '@/components/settings/PersonalNotifPrefs
 export function NotificationsPage() {
   const { groups, items, remove, markRead, clearAll, openItem } = useNotifications()
   const [tab, setTab] = useState<'inbox' | 'settings'>('inbox')
+  // MOBIL: a Beérkező úgyis végig látszik alattuk — a Beállítások egy alulról felcsúszó bottom
+  // sheetben jelenik meg fölötte (ua. minta, mint a Beállítások oldal nav-jánál), nem egy külön tab.
+  const [settingsSheetOpen, setSettingsSheetOpen] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => { setIsMounted(true) }, [])
+  // A mobil fejléc SlidersHorizontal ikonja (DashboardNav) ezt az eventet dispatch-eli.
+  useEffect(() => {
+    const handler = () => setSettingsSheetOpen(true)
+    window.addEventListener('davelopment:open-notifications-tabs', handler)
+    return () => window.removeEventListener('davelopment:open-notifications-tabs', handler)
+  }, [])
 
   return (
     <motion.div
@@ -62,8 +74,8 @@ export function NotificationsPage() {
         </AnimatePresence>
       </div>
 
-      {/* Tab-váltó */}
-      <div className="mb-6 flex gap-2">
+      {/* Tab-váltó — DESKTOP: inline pillek. MOBIL: a fejléc SlidersHorizontal ikonja közvetlenül átvált (nincs extra picker, a Beérkező úgyis végig látszik). */}
+      <div className="mb-6 hidden gap-2 lg:flex">
         <button
           type="button"
           onClick={() => setTab('inbox')}
@@ -87,6 +99,54 @@ export function NotificationsPage() {
           Beállítások
         </button>
       </div>
+
+      {/* MOBIL: Beállítások bottom sheet (portálon keresztül, a fejléc ikonja nyitja — ua. minta, mint a Beállítások oldal nav-jánál). */}
+      {isMounted && createPortal(
+        <AnimatePresence>
+          {settingsSheetOpen && (
+            <div className="fixed inset-0 z-[160] lg:hidden">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm"
+                onClick={() => setSettingsSheetOpen(false)}
+              />
+              <motion.div
+                initial={{ y: '100%' }}
+                animate={{ y: 0 }}
+                exit={{ y: '100%' }}
+                transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }}
+                data-lenis-prevent
+                className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
+              >
+                <div className="sticky top-0 z-10 bg-white px-4 pb-3 pt-3">
+                  <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+                  <div className="flex items-center justify-between">
+                    <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Értesítési preferenciák</span>
+                    <button
+                      type="button"
+                      onClick={() => setSettingsSheetOpen(false)}
+                      aria-label="Bezárás"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
+                    >
+                      <X className="h-4 w-4" strokeWidth={2} />
+                    </button>
+                  </div>
+                </div>
+                <div className="px-4 pb-5">
+                  <p className="mb-4 text-[12.5px] text-ink-soft2">
+                    Válaszd ki, milyen típusú értesítéseket kívánsz kapni.
+                  </p>
+                  <PersonalNotifPrefsCard />
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
 
       <AnimatePresence mode="wait">
 
@@ -234,15 +294,13 @@ function FullDigestCard({ n, onMarkRead, onRemove }: {
   const meta = n.metadata as DigestMetadata | null
   const isEvening = n.type === 'digest_evening'
   const isUnread = !n.read
-  const [sheetOpen, setSheetOpen] = useState(false)
 
   function openSheet() {
     if (isUnread) onMarkRead()
-    setSheetOpen(true)
+    window.dispatchEvent(new CustomEvent(OPEN_DIGEST_EVENT, { detail: n }))
   }
 
   return (
-    <>
       <div
         role="button"
         tabIndex={0}
@@ -305,8 +363,5 @@ function FullDigestCard({ n, onMarkRead, onRemove }: {
           Kattints a részletekért →
         </p>
       </div>
-
-      <DigestSheet n={n} open={sheetOpen} onClose={() => setSheetOpen(false)} />
-    </>
   )
 }

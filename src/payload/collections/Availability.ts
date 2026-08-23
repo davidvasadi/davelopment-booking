@@ -1,5 +1,5 @@
 import { CollectionConfig } from 'payload'
-import { userOwnsSalon, canCreateForOwnSalon } from '../lib/salonOwnerAccess'
+import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 
 export const Availability: CollectionConfig = {
   slug: 'availability',
@@ -12,21 +12,9 @@ export const Availability: CollectionConfig = {
   },
   access: {
     read: () => true,
-    create: canCreateForOwnSalon,
-    update: async ({ req, id, data }) => {
-      if (req.user?.role === 'admin') return true
-      if (id) {
-        const doc = await req.payload.findByID({ collection: 'availability', id, depth: 0, overrideAccess: true, req }).catch(() => null)
-        return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
-      }
-      return userOwnsSalon(req, data?.salon as number | string | undefined)
-    },
-    delete: async ({ req, id }) => {
-      if (req.user?.role === 'admin') return true
-      if (!id) return false
-      const doc = await req.payload.findByID({ collection: 'availability', id, depth: 0, overrideAccess: true, req }).catch(() => null)
-      return userOwnsSalon(req, (doc as { salon?: number | string })?.salon)
-    },
+    create: capabilityCreate('salon', 'salon', 'availability.manage'),
+    update: capabilityScoped('salon', 'salon', 'availability.manage'),
+    delete: capabilityScoped('salon', 'salon', 'availability.manage'),
   },
   fields: [
     {

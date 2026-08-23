@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { deleteStaleTasks } from '@/lib/taskCleanup'
 
 /**
  * Napi teendők API a hely áttekintő-kártyájához. A tulajdonos a SAJÁT helyéhez (étterem
@@ -46,6 +47,7 @@ export async function GET(req: Request) {
   if (!(await canAccessPlace(user.id, type, id))) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
 
   const payload = await getPayloadClient()
+  await deleteStaleTasks(payload, type, id)
   const list = await payload.find({
     collection: 'tasks',
     where: { [type]: { equals: id } },

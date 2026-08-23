@@ -79,8 +79,11 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
   }
 
   // Meghívott: fiók létrehozása (a meghívott emaillel) → bejelentkezés → meghívó elfogadása.
+  // A `/api/team/register` a sima `/api/users`-től eltérően `_verified: true`-val hozza létre
+  // a usert (a meghívó-token maga igazolja az email-tulajdonlást) — enélkül a rögtöni
+  // bejelentkezés MINDIG `UnverifiedEmail`-lel bukott volna (lásd a route doc-kommentjét).
   // Ha a meghívottnak MÁR van fiókja (pl. másik üzlet tulaja/tagja ugyanezzel az emaillel),
-  // a create 400-zal elbukik ("már regisztrált email"). Ilyenkor NEM hiba: a beírt jelszóval
+  // a create 409-cel elbukik ("már regisztrált email"). Ilyenkor NEM hiba: a beírt jelszóval
   // megpróbálunk bejelentkezni, és a meglévő fiókhoz kötjük a meghívót. Így egy email
   // több üzlethez is tartozhat, és nem ragad be a regisztrációs képernyőn.
   const register = async () => {
@@ -88,13 +91,12 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
     if (!info.email) { setRegError('Hiányzó email.'); return }
     setRegBusy(true); setRegError('')
     try {
-      const role = info.type === 'restaurant' ? 'restaurant_owner' : 'salon_owner'
-      const cRes = await fetch('/api/users', {
+      const cRes = await fetch('/api/team/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ name: regName.trim() || info.email, email: info.email, password: regPassword, role }),
+        body: JSON.stringify({ token, name: regName.trim() || info.email, password: regPassword }),
       })
       // A már létező email nem végzetes: ilyenkor bejelentkezéssel folytatjuk (lásd lentebb).
-      const alreadyExists = !cRes.ok && cRes.status === 400
+      const alreadyExists = !cRes.ok && cRes.status === 409
 
       const lRes = await fetch('/api/users/login', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
@@ -105,7 +107,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
         // bukott meg — a meglévő fiókhoz nem stimmelt a jelszó.
         if (!cRes.ok && !alreadyExists) {
           const j = await cRes.json().catch(() => ({}))
-          throw new Error(j?.errors?.[0]?.message || 'A fiók létrehozása sikertelen.')
+          throw new Error(j?.error || 'A fiók létrehozása sikertelen.')
         }
         throw new Error(
           alreadyExists

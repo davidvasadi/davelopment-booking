@@ -58,6 +58,32 @@ async function syncMembershipStatus(
   }
 }
 
+/**
+ * A Munkatársak "Pozíció" mezőjének (role_title) tükrözése a párosított membershipre
+ * (`Membership.position`) — a Csapat & jogok EZT a mezőt mutatja, nem a staff.role_title-t,
+ * enélkül a Munkatársakon beírt pozíció sosem jelent meg a Csapat & jogok panelen.
+ */
+async function syncMembershipPosition(
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  salonId: string | number,
+  email: string | null | undefined,
+  position: string,
+): Promise<void> {
+  const mail = (email ?? '').trim().toLowerCase()
+  if (!mail) return
+  const res = await payload.find({
+    collection: 'memberships',
+    where: { and: [{ salon: { equals: salonId } }, { email: { equals: mail } }] },
+    limit: 10,
+    depth: 0,
+    overrideAccess: true,
+  })
+  for (const m of res.docs) {
+    if (m.position === position) continue
+    await payload.update({ collection: 'memberships', id: m.id, data: { position }, overrideAccess: true })
+  }
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const user = await getCurrentUser()
@@ -118,6 +144,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         console.error('[api/staff PATCH] membership-státusz szinkron sikertelen', e)
       }
     }
+    // Pozíció-szinkron: a Csapat & jogok a membership.position-t mutatja, nem a staff.role_title-t.
+    if (typeof body.role_title === 'string' && body.role_title.trim()) {
+      try {
+        const email = typeof (doc as { email?: string | null }).email === 'string' ? (doc as { email?: string | null }).email : loaded.staff?.email
+        await syncMembershipPosition(loaded.payload, loaded.salonId, email, body.role_title.trim())
+      } catch (e) {
+        console.error('[api/staff PATCH] membership-pozíció szinkron sikertelen', e)
+      }
+    }
 
     emitBookingChange({ kind: 'salon', businessId: String(loaded.salonId), op: 'update' })
     return NextResponse.json(doc)
@@ -139,7 +174,34 @@ export async function DELETE(_request: NextRequest, { params }: { params: Promis
   // Salon ID-t mindig számra coerce-öljük a membership query előtt (Payload Postgres int-ként tárolja)
   const salonNum = /^\d+$/.test(String(loaded.salonId)) ? Number(loaded.salonId) : loaded.salonId
 
-  await loaded.payload.delete({ collection: 'staff', id, overrideAccess: true, user })
+  // Csak JÖVŐBELI, még aktív foglalás tiltja a törlést — a puszta `pending`/`confirmed` státusz
+  // nem elég, mert egy régi foglalás sosem lett automatikusan lezárva (`autoCompleteBookings`
+  // csak akkor zár, ha a lejárat óta senki nem nyúlt hozzá) még simán ezekben a státuszokban
+  // ragadhat, pedig a dátuma már rég elmúlt. A `bookings.staff` (nem kötelező mező) NULL-ra
+  // állítja a Payload a törléskor egy lezárt/lemondott/MÚLTBELI foglaláson, a rekord megmarad.
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const bookingCheck = await loaded.payload.find({
+    collection: 'bookings',
+    where: { and: [
+      { staff: { equals: id } },
+      { status: { in: ['pending', 'confirmed'] } },
+      { date: { greater_than_equal: todayStr } },
+    ] },
+    limit: 1, depth: 0, overrideAccess: true,
+  })
+  if (bookingCheck.totalDocs > 0) {
+    return NextResponse.json(
+      { error: 'Ennek a munkatársnak jövőbeli foglalásai vannak, ezért nem törölhető. Függeszd fel helyette (Aktív kikapcsolása).' },
+      { status: 409 },
+    )
+  }
+
+  try {
+    await loaded.payload.delete({ collection: 'staff', id, overrideAccess: true, user })
+  } catch (e) {
+    console.error('[api/staff DELETE] delete failed', e)
+    return NextResponse.json({ error: 'A munkatárs törlése sikertelen' }, { status: 500 })
+  }
 
   // SZINKRON: a párosított membership (Csapat és jogok) is törlődik.
   if (email) {

@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
-import { ownsThisSalon, authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { authOrUnauthorized } from '@/lib/salonRouteAuth'
+import { assertCapability } from '@/lib/apiCapability'
 
 type Ctx = { params: Promise<{ id: string }> }
 
 export async function GET(request: NextRequest, { params }: Ctx) {
   const { id } = await params
-  const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en') ?? undefined
+  const sp = request.nextUrl.searchParams
+  const locale = (sp.get('locale') as 'hu' | 'en') ?? undefined
+  const fallbackParam = sp.get('fallback-locale')
+  const fallbackLocale = fallbackParam === 'null' || fallbackParam === 'false' ? false : undefined
   const payload = await getPayloadClient()
   try {
     const doc = await payload.findByID({
@@ -14,6 +18,7 @@ export async function GET(request: NextRequest, { params }: Ctx) {
       id,
       depth: 0,
       locale,
+      fallbackLocale,
       overrideAccess: true,
     })
     return NextResponse.json(doc)
@@ -41,8 +46,8 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   const existing = await payload.findByID({ collection: 'service-categories', id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  const owns = await ownsThisSalon(payload, user, existing.salon)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, 'salon', existing.salon, 'catalog.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   try {
     const doc = await payload.update({
@@ -69,8 +74,8 @@ export async function DELETE(request: NextRequest, { params }: Ctx) {
   const existing = await payload.findByID({ collection: 'service-categories', id, depth: 0, overrideAccess: true }).catch(() => null)
   if (!existing) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  const owns = await ownsThisSalon(payload, user, existing.salon)
-  if (!owns) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  const denied = await assertCapability(user.id, 'salon', existing.salon, 'catalog.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   // Ellenőrzés: van-e a kategóriához rendelt szolgáltatás? (NOT NULL FK miatt nem törölhető ha igen)
   const servicesInCat = await payload.find({

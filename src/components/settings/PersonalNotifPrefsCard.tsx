@@ -1,29 +1,23 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { Toggle } from './SettingsToggle'
 
-type CategoryKey = 'bookings' | 'system' | 'staff' | 'schedule' | 'digest'
+export type CategoryKey = 'bookings' | 'schedule' | 'digest' | 'email_not_opened' | 'bookings_email' | 'schedule_email'
 
 const CATS: { key: CategoryKey; label: string; sub: string }[] = [
   { key: 'bookings',  label: 'Foglalás',          sub: 'Új foglalás, lemondás, módosítás' },
-  { key: 'system',   label: 'Rendszer',           sub: 'Rendszer-, fiók- és díjértesítők' },
-  { key: 'staff',    label: 'Munkatársak',        sub: 'Csapattagokhoz kapcsolódó események' },
   { key: 'schedule', label: 'Beosztás',           sub: 'Heti beosztás elkészülte és változása' },
   { key: 'digest',   label: 'Napi összefoglaló',  sub: 'Reggeli és esti forgalom-összefoglaló' },
+  { key: 'email_not_opened', label: 'Meg nem nyitott email', sub: 'Ha a vendég 24, majd 12 órával a foglalás előtt sem nyitotta meg a visszaigazolást' },
 ]
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <button type="button" role="switch" aria-checked={checked} onClick={onChange}
-      className={`relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors ${checked ? 'bg-ink-dark' : 'bg-[#DAD5C6]'}`}>
-      <span className={`absolute top-[3px] h-[21px] w-[21px] rounded-full shadow-sm transition-all ${checked ? 'right-[3px] bg-white' : 'left-[3px] bg-white'}`} />
-    </button>
-  )
-}
+const DEFAULT_PREFS: Record<CategoryKey, boolean> = { bookings: true, schedule: true, digest: true, email_not_opened: true, bookings_email: false, schedule_email: false }
+const DEFAULT_ALLOWED: Record<CategoryKey, boolean> = { bookings: true, schedule: true, digest: false, email_not_opened: false, bookings_email: true, schedule_email: true }
 
-function useNotifPrefs() {
-  const [prefs, setPrefs] = useState<Record<CategoryKey, boolean>>({ bookings: true, system: true, staff: true, schedule: true, digest: true })
-  const [allowed, setAllowed] = useState<Record<CategoryKey, boolean>>({ bookings: true, system: true, staff: true, schedule: true, digest: false })
+export function useNotifPrefs() {
+  const [prefs, setPrefs] = useState<Record<CategoryKey, boolean>>(DEFAULT_PREFS)
+  const [allowed, setAllowed] = useState<Record<CategoryKey, boolean>>(DEFAULT_ALLOWED)
   const [loaded, setLoaded] = useState(false)
 
   useEffect(() => {
@@ -48,7 +42,21 @@ function useNotifPrefs() {
     }).catch(() => setPrefs(prefs))
   }
 
-  return { prefs, allowed, loaded, toggle }
+  /** Az összes LÁTHATÓ (jogosultság szerint engedett) kategóriát egyszerre kapcsolja — egy
+   *  összevont PATCH-hívással, nem kategóriánként külön. */
+  async function setAll(visibleKeys: CategoryKey[], value: boolean) {
+    const patch = Object.fromEntries(visibleKeys.map((k) => [k, value])) as Partial<Record<CategoryKey, boolean>>
+    const previous = prefs
+    setPrefs((p) => ({ ...p, ...patch }))
+    await fetch('/api/user/notif-prefs', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(patch),
+    }).catch(() => setPrefs(previous))
+  }
+
+  return { prefs, allowed, loaded, toggle, setAll }
 }
 
 /**
@@ -56,8 +64,11 @@ function useNotifPrefs() {
  * compact=false → önálló kártyás megjelenés (NotificationsPage)
  */
 export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean }) {
-  const { prefs, allowed, loaded, toggle } = useNotifPrefs()
+  const { prefs, allowed, loaded, toggle, setAll } = useNotifPrefs()
   const visible = CATS.filter((c) => allowed[c.key])
+  const visibleKeys = visible.map((c) => c.key)
+  const allOn = visible.length > 0 && visible.every((c) => prefs[c.key])
+  const allOff = visible.length > 0 && visible.every((c) => !prefs[c.key])
 
   if (!loaded) {
     return (
@@ -71,9 +82,33 @@ export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean 
 
   if (visible.length === 0) return null
 
+  // Összefogó parancs — csak akkor van értelme, ha legalább 2 kapcsoló van egymás mellett.
+  const bulkControls = visible.length > 1 && (
+    <div className="mb-2 flex items-center justify-end gap-3">
+      <button
+        type="button"
+        onClick={() => setAll(visibleKeys, true)}
+        disabled={allOn}
+        className="text-[12px] font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:cursor-default disabled:text-ink-soft2/50 disabled:no-underline"
+      >
+        Mindet bekapcsolom
+      </button>
+      <span className="text-ink-soft2/40">·</span>
+      <button
+        type="button"
+        onClick={() => setAll(visibleKeys, false)}
+        disabled={allOff}
+        className="text-[12px] font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:cursor-default disabled:text-ink-soft2/50 disabled:no-underline"
+      >
+        Mindet kikapcsolom
+      </button>
+    </div>
+  )
+
   if (compact) {
     return (
       <>
+        {bulkControls}
         {visible.map((cat) => (
           <div key={cat.key} className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4 last:border-0">
             <div className="min-w-0">
@@ -91,6 +126,7 @@ export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean 
 
   return (
     <div className="space-y-2">
+      {bulkControls}
       {visible.map((cat) => (
         <div key={cat.key} className="flex items-center justify-between gap-3 rounded-[13px] border border-line bg-white px-4 py-3">
           <div>

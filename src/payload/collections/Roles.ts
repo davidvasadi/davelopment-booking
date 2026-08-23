@@ -57,13 +57,29 @@ export const Roles: CollectionConfig = {
       name: 'notification_prefs',
       type: 'group',
       label: 'Értesítési kategória-jogosultságok',
-      admin: { description: 'Milyen értesítési típusokat állíthat be ez a szerep.' },
+      admin: { description: 'Milyen értesítési típusokat állíthat be ez a szerep.', hidden: true },
       fields: [
         { name: 'bookings',  type: 'checkbox', defaultValue: true,  label: 'Foglalás értesítések' },
         { name: 'system',    type: 'checkbox', defaultValue: false, label: 'Rendszer értesítések' },
         { name: 'staff',     type: 'checkbox', defaultValue: false, label: 'Munkatársak értesítések' },
         { name: 'schedule',  type: 'checkbox', defaultValue: false, label: 'Beosztás értesítések' },
       ],
+    },
+    {
+      name: 'booking_notify_level',
+      type: 'select',
+      defaultValue: 'off',
+      label: 'Foglalás-értesítés szintje',
+      options: [
+        { label: 'Kikapcsolva', value: 'off' },
+        { label: 'Csak a sajátja', value: 'own' },
+        { label: 'Az összes', value: 'all' },
+      ],
+      admin: {
+        description:
+          'Ez a szerep push/email értesítést kapjon-e új/módosult/lemondott foglalásról — és ha igen, ' +
+          'csak a hozzá rendelt foglalásokról (szalon-only, „Csak a sajátja"), vagy az üzlet összesről.',
+      },
     },
   ],
   timestamps: true,

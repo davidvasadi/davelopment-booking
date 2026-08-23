@@ -32,6 +32,7 @@ interface Body {
   pax: number
   tableIds?: (string | number)[] | null
   customer_name?: string
+  customer_city?: string
   customer_phone?: string
   customer_email?: string
   country?: string
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
     tables: validation.tableIds.map(Number) as unknown as Reservation['tables'],
   }
   if (body.customer_name !== undefined) data.customer_name = body.customer_name
+  if (body.customer_city !== undefined) data.customer_city = body.customer_city.trim() || null
   if (body.customer_phone !== undefined) data.customer_phone = body.customer_phone
   if (body.country !== undefined) data.country = body.country
   // Üres email-t ne küldjünk: a Payload 'email' mezője az üres stringet is validálja → hiba.
@@ -128,9 +130,10 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       user,
     })
-    // Módosítás email a vendégnek (ha be van kapcsolva és van megadott email).
+    // Módosítás email a vendégnek — alapból KIKAPCSOLVA (a mezők defaultValue-ja is false),
+    // csak ha a tulaj kifejezetten bekapcsolta a Beállításokban.
     const updatedRes = updated as unknown as Reservation
-    if (restaurant.notification_prefs?.modification_email !== false && updatedRes.customer_email) {
+    if (restaurant.notification_prefs?.modification_email === true && updatedRes.customer_email) {
       void sendReservationModification({ reservation: updatedRes, restaurant })
     }
     return NextResponse.json({ ok: true, reservation: updated })

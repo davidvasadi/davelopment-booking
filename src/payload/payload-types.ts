@@ -20,7 +20,10 @@ export interface Config {
     'opening-hours-exceptions': OpeningHoursException
     reservations: Reservation
     waitlist: Waitlist
+    'gift-vouchers': GiftVoucher
+    'gift-voucher-types': GiftVoucherType
     customers: Customer
+    'marketing-campaigns': MarketingCampaign
     notifications: Notification
     reviews: Review
     memberships: Membership
@@ -29,6 +32,7 @@ export interface Config {
     'audit-log': AuditLogEntry
     'email-log': EmailLogEntry
     tasks: Task
+    'trial-ledger': TrialLedgerEntry
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
@@ -39,11 +43,19 @@ export interface Config {
 
 export interface PricingSetting {
   id: string
-  /** Szalon alapdíj (a normál csomag; + per-fő). Slug maradt `salon_pro_huf`. */
+  /** Szalon — Starter havidíj. */
+  salon_starter_huf: number
+  /** Szalon alapdíj (a Pro csomag; + per-fő). Slug maradt `salon_pro_huf`. */
   salon_pro_huf: number
   salon_extra_staff_huf: number
-  /** Étterem fix havidíj (a normál csomag). Slug maradt `restaurant_pro_huf`. */
+  /** Étterem — Starter fix havidíj. */
+  restaurant_starter_huf: number
+  /** Étterem fix havidíj (a Pro csomag). Slug maradt `restaurant_pro_huf`. */
   restaurant_pro_huf: number
+  /** Csomagonként beépítve járó havi hírlevél-küldési keret — nincs önálló hírlevél-fizetés. */
+  starter_email_cap: number
+  pro_email_cap: number
+  egyedi_email_cap: number
   annual_discount_pct: number
   trial_days: number
   updatedAt?: string | null
@@ -99,8 +111,10 @@ export interface Restaurant {
   booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
-  /** Üzlet-csomag (pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
-  tier?: ('pro' | 'egyedi') | null
+  /** Üzlet-csomag (starter / pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
+  tier?: ('starter' | 'pro' | 'egyedi') | null
+  /** Egyedi csomag tényleges havidíja (Ft) — csak `tier === 'egyedi'`-nél számít. */
+  custom_monthly_fee_huf?: number | null
   notification_prefs?: {
     confirm_email?: boolean | null
     reminder_email?: boolean | null
@@ -130,6 +144,42 @@ export interface Restaurant {
     google_review_url?: string | null
     review_delay_hours?: number | null
   } | null
+  deposit_settings?: {
+    enabled?: boolean | null
+    type?: ('fixed' | 'percent' | 'per_pax') | null
+    fixed_amount_huf?: number | null
+    percent_value?: number | null
+    per_pax_amount_huf?: number | null
+    refund_hours_before?: number | null
+    payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  } | null
+  voucher_settings?: {
+    enabled?: boolean | null
+    min_amount_huf?: number | null
+    max_amount_huf?: number | null
+    validity_months?: number | null
+  } | null
+  newsletter_settings?: {
+    package?: ('none' | 'ingyenes' | 'alap' | 'premium') | null
+    /** Belső "küldés folyamatban" zár — nem admin-szerkeszthető. */
+    sending?: boolean | null
+  } | null
+  consent_settings?: {
+    enabled?: boolean | null
+    title?: string | null
+    template_text?: string | null
+  } | null
+  marketing_tracking?: {
+    ga4_measurement_id?: string | null
+    facebook_pixel_id?: string | null
+  } | null
+  stripe_connect_account_id?: string | null
+  stripe_connect_onboarded?: boolean | null
+  invoice_settings?: {
+    invoice_provider?: ('szamlazz' | 'billingo' | 'none') | null
+    szamlazz_agent_key_enc?: string | null
+    billingo_api_key_enc?: string | null
+  } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
   cancel_email_subject?: string | null
@@ -156,6 +206,13 @@ export interface Restaurant {
   billing_street?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
+  custom_questions?: {
+    label: string
+    type?: ('text' | 'yesno' | 'select') | null
+    options?: { value?: string | null; id?: string | null }[] | null
+    required?: boolean | null
+    id?: string | null
+  }[] | null
   event_types?: { icon?: string | null; label?: string | null; enabled?: boolean | null; id?: string | null }[] | null
   supported_locales?: Locale[] | null
   is_active?: boolean | null
@@ -227,6 +284,7 @@ export interface Reservation {
   customer_email: string
   customer_phone?: string | null
   customer_city?: string | null
+  customer_address?: string | null
   country?: string | null
   notes?: string | null
   internal_notes?: string | null
@@ -236,9 +294,29 @@ export interface Reservation {
   source: 'online' | 'walk_in' | 'phone'
   reminder_sent?: boolean | null
   feedback_sent?: boolean | null
+  email_open_check_24h?: boolean | null
+  email_open_check_12h?: boolean | null
   cancel_token?: string | null
   series_id?: string | null
   locale?: 'hu' | 'en' | null
+  cancelled_at?: string | null
+  payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  payment_status?: ('none' | 'pending' | 'paid' | 'refunded' | 'failed') | null
+  deposit_amount_huf?: number | null
+  deposit_paid?: boolean | null
+  deposit_refunded?: boolean | null
+  payment_intent_id?: string | null
+  invoice_number?: string | null
+  invoice_pdf_url?: string | null
+  invoice_status?: ('none' | 'issued' | 'failed') | null
+  voucher_code?: string | null
+  voucher_discount_huf?: number | null
+  consent_accepted?: boolean | null
+  consent_accepted_at?: string | null
+  consent_accepted_via?: ('online' | 'onsite') | null
+  consent_text_snapshot?: string | null
+  consent_accepted_ip?: string | null
+  custom_answers?: Record<string, { question: string; answer: string }> | null
   createdAt: string
   updatedAt: string
 }
@@ -260,6 +338,48 @@ export interface Waitlist {
   updatedAt: string
 }
 
+export interface GiftVoucherType {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  name: string
+  amount_huf: number
+  image?: string | Media | null
+  description?: string | null
+  active?: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface GiftVoucher {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  voucher_type?: string | GiftVoucherType | null
+  type_name?: string | null
+  code: string
+  amount_huf: number
+  image?: string | Media | null
+  qr_code_url?: string | null
+  purchaser_name: string
+  purchaser_email: string
+  recipient_name?: string | null
+  recipient_email?: string | null
+  message?: string | null
+  status: 'active' | 'redeemed' | 'expired' | 'refunded'
+  payment_intent_id: string
+  expires_at: string
+  redeemed_at?: string | null
+  redeemed_booking?: string | Booking | null
+  redeemed_reservation?: string | Reservation | null
+  invoice_number?: string | null
+  invoice_pdf_url?: string | null
+  invoice_status?: 'none' | 'issued' | 'failed' | null
+  locale?: 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr' | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface Customer {
   id: string
   restaurant?: string | Restaurant | null
@@ -267,11 +387,30 @@ export interface Customer {
   customer_name?: string | null
   customer_email?: string | null
   customer_phone?: string | null
+  customer_city?: string | null
+  customer_country?: string | null
   notes?: string | null
   match_index?: string | null
   blocked?: boolean | null
   block_reason?: string | null
   blocked_at?: string | null
+  marketing_consent?: boolean | null
+  marketing_consent_at?: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MarketingCampaign {
+  id: string
+  restaurant?: string | Restaurant | null
+  salon?: string | Salon | null
+  subject: string
+  body_text?: string | null
+  recipient_count?: number | null
+  package?: string | null
+  status: 'sent' | 'draft'
+  blocks_json?: unknown
+  target_customer_ids?: unknown
   createdAt: string
   updatedAt: string
 }
@@ -308,15 +447,11 @@ export interface Role {
         | 'catalog.manage'
         | 'staff.view'
         | 'staff.manage'
+        | 'staff.salary'
+        | 'roles.view'
         | 'tables.view'
         | 'tables.manage'
         | 'analytics.view'
-        | 'notifications.view'
-        | 'notifications.manage'
-        | 'notifications.bookings'
-        | 'notifications.system'
-        | 'notifications.staff'
-        | 'notifications.schedule'
         | 'settings.profile'
         | 'settings.own_profile'
         | 'team.view'
@@ -332,6 +467,15 @@ export interface Role {
     staff?: boolean | null
     schedule?: boolean | null
   } | null
+  booking_notify_level?: ('off' | 'own' | 'all') | null
+  createdAt: string
+  updatedAt: string
+}
+/** Örökre megmaradó email-lista arról, ki használt már ingyenes próbaidőt (a fiók-törléstől független). */
+export interface TrialLedgerEntry {
+  id: string
+  email: string
+  first_seen_at: string
   createdAt: string
   updatedAt: string
 }
@@ -363,7 +507,7 @@ export interface Membership {
   birthday?: string | null
   address?: string | null
   tax_id?: string | null
-  emergency_contact?: string | null
+  tax_number?: string | null
   join_date?: string | null
   weekly_hours?: number | null
   pay_type?: ('daily' | 'hourly') | null
@@ -421,6 +565,8 @@ export interface EmailLogEntry {
     | 'digest_evening'
     | 'waitlist_signup'
     | 'waitlist_opening'
+    | 'voucher_purchase'
+    | 'marketing_broadcast'
     | 'team_invite'
     | 'password_reset'
     | 'schedule_change'
@@ -429,6 +575,15 @@ export interface EmailLogEntry {
   subject?: string | null
   ok?: boolean | null
   error?: string | null
+  resend_id?: string | null
+  status?: 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'complained' | 'failed' | null
+  delivered_at?: string | null
+  opened_at?: string | null
+  booking?: (string | null) | Booking
+  reservation?: (string | null) | Reservation
+  salon?: (string | null) | Salon
+  restaurant?: (string | null) | Restaurant
+  campaign?: (string | null) | MarketingCampaign
   createdAt: string
   updatedAt: string
 }
@@ -445,13 +600,14 @@ export interface Notification {
   salon?: string | Salon | null
   user?: string | User | null
   audience: 'owner' | 'member' | 'admin'
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'voucher_purchase'
   title: string
   body?: string | null
   read?: boolean | null
   metadata?: Record<string, unknown> | null
   reservation?: string | Reservation | null
   booking?: string | Booking | null
+  voucher?: string | GiftVoucher | null
   createdAt: string
   updatedAt: string
 }
@@ -479,9 +635,11 @@ export interface User {
   join_date?: string | null
   address?: string | null
   tax_id?: string | null
+  tax_number?: string | null
   emergency_contact?: string | null
   weekly_hours?: number | null
   bio?: string | null
+  role_title?: string | null
   role: 'admin' | 'salon_owner' | 'restaurant_owner'
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null
@@ -495,6 +653,10 @@ export interface User {
     system?: boolean | null
     staff?: boolean | null
     schedule?: boolean | null
+    digest?: boolean | null
+    email_not_opened?: boolean | null
+    bookings_email?: boolean | null
+    schedule_email?: boolean | null
   } | null
   createdAt: string
   updatedAt: string
@@ -527,8 +689,10 @@ export interface Salon {
   booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
-  /** Üzlet-csomag (pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
-  tier?: ('pro' | 'egyedi') | null
+  /** Üzlet-csomag (starter / pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
+  tier?: ('starter' | 'pro' | 'egyedi') | null
+  /** Egyedi csomag tényleges havidíja (Ft) — csak `tier === 'egyedi'`-nél számít. */
+  custom_monthly_fee_huf?: number | null
   notification_prefs?: {
     confirm_email?: boolean | null
     reminder_email?: boolean | null
@@ -558,6 +722,42 @@ export interface Salon {
     google_review_url?: string | null
     review_delay_hours?: number | null
   } | null
+  deposit_settings?: {
+    enabled?: boolean | null
+    type?: ('fixed' | 'percent' | 'per_pax') | null
+    fixed_amount_huf?: number | null
+    percent_value?: number | null
+    per_pax_amount_huf?: number | null
+    refund_hours_before?: number | null
+    payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  } | null
+  voucher_settings?: {
+    enabled?: boolean | null
+    min_amount_huf?: number | null
+    max_amount_huf?: number | null
+    validity_months?: number | null
+  } | null
+  newsletter_settings?: {
+    package?: ('none' | 'ingyenes' | 'alap' | 'premium') | null
+    /** Belső "küldés folyamatban" zár — nem admin-szerkeszthető. */
+    sending?: boolean | null
+  } | null
+  consent_settings?: {
+    enabled?: boolean | null
+    title?: string | null
+    template_text?: string | null
+  } | null
+  marketing_tracking?: {
+    ga4_measurement_id?: string | null
+    facebook_pixel_id?: string | null
+  } | null
+  stripe_connect_account_id?: string | null
+  stripe_connect_onboarded?: boolean | null
+  invoice_settings?: {
+    invoice_provider?: ('szamlazz' | 'billingo' | 'none') | null
+    szamlazz_agent_key_enc?: string | null
+    billingo_api_key_enc?: string | null
+  } | null
   booking_email_subject?: string | null
   booking_email_intro?: string | null
   cancel_email_subject?: string | null
@@ -584,6 +784,13 @@ export interface Salon {
   billing_street?: string | null
   terms_sections?: { title?: string | null; body?: string | null; id?: string | null }[] | null
   good_to_know?: { icon?: string | null; title?: string | null; body?: string | null; id?: string | null }[] | null
+  custom_questions?: {
+    label: string
+    type?: ('text' | 'yesno' | 'select') | null
+    options?: { value?: string | null; id?: string | null }[] | null
+    required?: boolean | null
+    id?: string | null
+  }[] | null
   supported_locales?: Locale[] | null
   is_active?: boolean | null
   admin_notes?: string | null
@@ -596,6 +803,8 @@ export interface StaffMember {
   name: string
   bio?: string | null
   salon: string | Salon
+  /** Ha ez a szakember EGYBEN egy bejelentkezett fiók is (pl. a tulajdonos, aki maga is dolgozik). */
+  user?: string | User | null
   avatar?: string | Media | null
   is_active?: boolean | null
   role_title?: string | null
@@ -608,7 +817,7 @@ export interface StaffMember {
   email?: string | null
   address?: string | null
   tax_id?: string | null
-  emergency_contact?: string | null
+  tax_number?: string | null
   documents?: { label?: string | null; file?: string | Media | null; id?: string | null }[] | null
   createdAt: string
   updatedAt: string
@@ -672,6 +881,7 @@ export interface Booking {
   customer_email: string
   customer_phone?: string | null
   customer_city?: string | null
+  customer_address?: string | null
   date: string
   start_time: string
   end_time: string
@@ -679,9 +889,29 @@ export interface Booking {
   notes?: string | null
   reminder_sent?: boolean | null
   feedback_sent?: boolean | null
+  email_open_check_24h?: boolean | null
+  email_open_check_12h?: boolean | null
   cancellation_token?: string | null
   series_id?: string | null
   locale?: 'hu' | 'en' | null
+  cancelled_at?: string | null
+  payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
+  payment_status?: ('none' | 'pending' | 'paid' | 'refunded' | 'failed') | null
+  deposit_amount_huf?: number | null
+  deposit_paid?: boolean | null
+  deposit_refunded?: boolean | null
+  payment_intent_id?: string | null
+  invoice_number?: string | null
+  invoice_pdf_url?: string | null
+  invoice_status?: ('none' | 'issued' | 'failed') | null
+  voucher_code?: string | null
+  voucher_discount_huf?: number | null
+  consent_accepted?: boolean | null
+  consent_accepted_at?: string | null
+  consent_accepted_via?: ('online' | 'onsite') | null
+  consent_text_snapshot?: string | null
+  consent_accepted_ip?: string | null
+  custom_answers?: Record<string, { question: string; answer: string }> | null
   createdAt: string
   updatedAt: string
 }

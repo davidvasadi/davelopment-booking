@@ -10,7 +10,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { WheelTimePicker } from '@/components/ui/wheel-time-picker'
 import { TimeSelect } from '@/components/ui/time-select'
 import { SalonAvailabilityExceptions, type SalonException } from '@/components/dashboard/SalonAvailabilityExceptions'
-import { cn } from '@/lib/utils'
+import { cn, displayCloseTime } from '@/lib/utils'
 
 const DAY_ABBR: Record<DayOfWeek, string> = {
   monday: 'Hé', tuesday: 'Ke', wednesday: 'Sze', thursday: 'Csü', friday: 'Pé', saturday: 'Szo', sunday: 'Va',
@@ -55,6 +55,7 @@ export function SalonAvailabilityView({
   heat,
   heatTotal,
   heatStartHour,
+  canManage = false,
 }: {
   salonId: number | string
   days: DayRow[]
@@ -64,6 +65,7 @@ export function SalonAvailabilityView({
   heat: number[][]
   heatTotal: number
   heatStartHour: number
+  canManage?: boolean
 }) {
   const router = useRouter()
   const [days, setDays] = useState<DayRow[]>(initialDays)
@@ -152,15 +154,17 @@ export function SalonAvailabilityView({
             <Clock className="h-[15px] w-[15px]" strokeWidth={1.7} />
             Időzóna: Budapest
           </span>
-          <button
-            type="button"
-            onClick={saveHeader}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-dav-pill bg-ink-dark px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-          >
-            <Check className="h-[15px] w-[15px] text-gold" strokeWidth={1.8} />
-            {saving ? 'Mentés...' : 'Mentés'}
-          </button>
+          {canManage && (
+            <button
+              type="button"
+              onClick={saveHeader}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-dav-pill bg-ink-dark px-4 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+            >
+              <Check className="h-[15px] w-[15px] text-gold" strokeWidth={1.8} />
+              {saving ? 'Mentés...' : 'Mentés'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -199,8 +203,8 @@ export function SalonAvailabilityView({
                 <button
                   key={d.day_of_week}
                   type="button"
-                  onClick={() => setEditIdx(idx)}
-                  className="flex w-full items-center gap-3 rounded-[13px] px-1.5 py-2.5 text-left transition-colors hover:bg-paper/50 sm:gap-3.5"
+                  onClick={() => canManage && setEditIdx(idx)}
+                  className={cn('flex w-full items-center gap-3 rounded-[13px] px-1.5 py-2.5 text-left transition-colors sm:gap-3.5', canManage ? 'hover:bg-paper/50' : 'cursor-default')}
                   style={isToday ? { background: 'linear-gradient(90deg, rgba(241,206,69,.16), rgba(241,206,69,0))' } : undefined}
                 >
                   <div className="flex w-[104px] shrink-0 items-center gap-1.5">
@@ -220,7 +224,7 @@ export function SalonAvailabilityView({
                         className="absolute bottom-1 top-1 flex items-center justify-center rounded-[7px] text-[10px] font-semibold text-white/90"
                         style={{ left: `${geo.left.toFixed(2)}%`, width: `${geo.width.toFixed(2)}%`, background: '#26231F', boxShadow: '0 2px 6px rgba(40,35,15,.14)' }}
                       >
-                        {showLabel ? `${d.start_time} – ${d.end_time}` : ''}
+                        {showLabel ? `${d.start_time} – ${displayCloseTime(d.end_time)}` : ''}
                       </div>
                     ) : (
                       <div className="absolute inset-0 flex items-center pl-3 text-xs font-medium italic text-[#C2BDAD]">
@@ -255,7 +259,7 @@ export function SalonAvailabilityView({
         {/* JOBB OSZLOP */}
         <div className="flex flex-col gap-[5px]">
           <HeatmapPanel heat={heat} heatTotal={heatTotal} startHour={heatStartHour} />
-          <SalonAvailabilityExceptions salonId={salonId} initial={exceptions} weeklyHours={weeklyHours} />
+          <SalonAvailabilityExceptions salonId={salonId} initial={exceptions} weeklyHours={weeklyHours} canManage={canManage} />
         </div>
       </div>
 
@@ -294,7 +298,7 @@ export function SalonAvailabilityView({
                   <div className="mb-6 flex items-center gap-3 lg:hidden">
                     <button type="button" onClick={() => setPicker('open')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{days[editIdx].start_time}</button>
                     <span className="text-sm text-ink-soft2">–</span>
-                    <button type="button" onClick={() => setPicker('close')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{days[editIdx].end_time}</button>
+                    <button type="button" onClick={() => setPicker('close')} className="h-12 flex-1 rounded-2xl bg-paper text-lg font-semibold tabular-nums text-ink">{displayCloseTime(days[editIdx].end_time)}</button>
                   </div>
                 </>
               ) : (

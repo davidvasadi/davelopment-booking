@@ -26,7 +26,7 @@ export type StatusSeg = {
 const DURATION = 850 // ~ a recharts animationDuration
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
 
-export function StatusPills({ segments, className = '', eager = false, size = 'md' }: { segments: StatusSeg[]; className?: string; eager?: boolean; size?: 'sm' | 'md' }) {
+export function StatusPills({ segments, className = '', eager = false, size = 'md', minSegmentWidth = 64 }: { segments: StatusSeg[]; className?: string; eager?: boolean; size?: 'sm' | 'md'; minSegmentWidth?: number }) {
   const [p, setP] = useState(0) // 0 → 1 haladás
   const raf = useRef(0)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -81,7 +81,7 @@ export function StatusPills({ segments, className = '', eager = false, size = 'm
             // az első képkockán a végleges értékre ugrott. A flex-basis-t tesszük p-arányossá.
             flexGrow: 0,
             flexBasis: `${(Math.max(s.pct, 1) / totalGrow) * 100 * p}%`,
-            minWidth: 64 * p,
+            minWidth: minSegmentWidth * p,
           }}
         >
           <p className={`truncate text-xs font-medium text-ink-soft ${size === 'sm' ? 'mb-1' : 'mb-2'}`} style={{ opacity: p }}>{s.label}</p>

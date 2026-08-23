@@ -1,5 +1,6 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { requireCapability } from '@/lib/requireCapability'
+import { requireAnyCapability } from '@/lib/requireCapability'
+import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { TablesManager } from '@/components/restaurant/TablesManager'
 import type { Room, Table } from '@/payload/payload-types'
@@ -7,7 +8,7 @@ import { PageHeader } from '@/components/ui/page-header'
 
 export default async function RestaurantTablesPage() {
   const { restaurant, capabilities } = await getOwnedRestaurant()
-  requireCapability(capabilities, 'tables.view', '/restaurant')
+  requireAnyCapability(capabilities, ['tables.view', 'tables.manage'], '/restaurant')
   const payload = await getPayloadClient()
 
   const [roomsRes, tablesRes] = await Promise.all([
@@ -54,6 +55,7 @@ export default async function RestaurantTablesPage() {
           sort_order: t.sort_order ?? 0,
           combinable_with: (t.combinable_with ?? []).map((c) => (typeof c === 'object' && c ? c.id : c)),
         }))}
+        canManage={can(capabilities, 'tables.manage')}
       />
     </div>
   )
