@@ -6,7 +6,7 @@ import { MigrateUpArgs, MigrateDownArgs, sql } from '@payloadcms/db-postgres'
  * megbízhatónak hitt db:push-sal) néhány táblát MÁR megkapott, a kód viszont azóta jóval többet
  * fejlődött (RBAC, ajándékutalvány, vendég-előleg, natív értékelés, egyedi kérdések, hírlevél,
  * beleegyező nyilatkozat, stb.) migráció nélkül. Ez a fájl NEM a snapshothoz, hanem az ÉLES DB
- * tényleges, séma-only pg_dump-ból visszaállított másolatához (`schedulio_prod_mirror` lokálisan)
+ * tényleges, séma-only pg_dump-ból visszaállított helyi másolatához
  * viszonyítva lett kiszámolva a Payload/drizzle `pushSchema` motorjával (`hasDataLoss:false`,
  * 0 figyelmeztetés) — így NEM próbál újra létrehozni már élő táblát/oszlopot.
  *
