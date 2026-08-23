@@ -58,13 +58,21 @@ if git diff "$ROLLBACK_HASH" HEAD -- package.json | grep -q .; then
   npm install --cache "$DEPLOY_DIR/.npm-cache"
 fi
 
-# ── 3. Build (a régi verzió még fut közben!) ─────────────────────────────────
-echo "→ Build..."
-NODE_OPTIONS="--max-old-space-size=3072" npm run build
-
-# ── 4. Migráció ───────────────────────────────────────────────────────────────
+# ── 3. Migráció (a build ELŐTT!) ──────────────────────────────────────────────
+# A `next build` statikus/SSG oldalai már az ÚJ kód elvárásai szerint kérdezik le a DB-t
+# (pl. új mezők a főoldalon) — ha a séma még a régi, a build hibázik, pedig a migráció
+# maga hibátlan lenne. Ezért a migráció megelőzi a buildet, nem fordítva.
+# FONTOS a migrációkat író/generáló oldalon: amíg ez fut, a RÉGI kód még kiszolgál
+# forgalmat — egy migráció, ami egy még AKTÍVAN használt oszlopot DROP-ol, ronthatja a
+# régi verziót ez alatt a pár perc alatt. Új mezőt/táblát mindig bátran adj hozzá; egy
+# már kivezetett mező tényleges DROP-ját inkább egy KÉSŐBBI, külön migrációba tedd, csak
+# miután az őt már nem használó kód biztosan él éles környezetben (expand-contract minta).
 echo "→ Migrációk..."
 npx tsx scripts/migrate.ts
+
+# ── 4. Build (a régi verzió még fut közben!) ─────────────────────────────────
+echo "→ Build..."
+NODE_OPTIONS="--max-old-space-size=3072" npm run build
 
 # ── 5. Graceful reload (régi process az új start után áll csak le) ────────────
 echo "→ Reload..."

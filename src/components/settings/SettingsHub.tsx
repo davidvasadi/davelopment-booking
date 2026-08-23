@@ -484,8 +484,17 @@ export function SettingsHub({
   const [rulesSaved, setRulesSaved] = useState(false)
   const saveRules = async () => {
     const ok = await patchGroup({ booking_rules: { auto_confirm: ruleToggles.autoConfirm } })
-    if (ok) { setRulesSaved(true); setTimeout(() => setRulesSaved(false), 1800) }
+    if (ok) setRulesSaved(true)
   }
+  // Lásd a Google fülnél lentebb lévő megjegyzést — ugyanaz a "ne villanjon vissza
+  // Mentetlenre" minta: a "Mentve" jelzést csak azután rejtjük el, hogy a `router.refresh()`
+  // tényleg landolt és a `dirty` valóban hamisra váltott.
+  useEffect(() => {
+    if (rulesSaved && !rulesDirty) {
+      const t = setTimeout(() => setRulesSaved(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [rulesSaved, rulesDirty])
   const resetRules = () => setRuleToggles(rulesBaseline)
 
   // ── Belső (nem-vendég) email-preferenciák — a bejelentkezett user SAJÁT
@@ -521,8 +530,14 @@ export function SettingsHub({
         digest_evening_email: notif.digest_evening.email,
       },
     })
-    if (ok) { setNotifSaved(true); setTimeout(() => setNotifSaved(false), 1800) }
+    if (ok) setNotifSaved(true)
   }
+  useEffect(() => {
+    if (notifSaved && !notifDirty) {
+      const t = setTimeout(() => setNotifSaved(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [notifSaved, notifDirty])
   const resetNotif = () => setNotif(notifBaseline)
 
   // A reggeli + esti digest email egyszerre kapcsolódik (1 toggle vezérli mindkettőt).
@@ -665,16 +680,26 @@ export function SettingsHub({
   // Egyetlen mentés-hely az egész oldalra.
   const saveForm = useCallback(async () => {
     const ok = await formApiRef.current?.save()
-    if (ok) { setFormSaved(true); setTimeout(() => setFormSaved(false), 1800) }
-  }, [])
+    if (ok) { router.refresh(); setFormSaved(true) }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // A „Foglalás" fül a profil-form saját booking-fülét, az auto-megerősítés szabályt ÉS a
   // Foglalási funkciókat (BookingFeatures) is mutatja — a mentés-sáv mindhármat lefedi.
   const saveBookingTab = useCallback(async () => {
     if (rulesDirty) await saveRules()
     if (featuresPanel.dirty) await featuresPanel.apiRef.current?.save()
     const ok = await formApiRef.current?.save()
-    if (ok) { setFormSaved(true); setTimeout(() => setFormSaved(false), 1800) }
+    if (ok) { router.refresh(); setFormSaved(true) }
   }, [rulesDirty, featuresPanel.dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Az összevont sáv (mindhárom lehetséges forrásból: profil-form/szabály/funkciók) csak akkor
+  // rejti el a "Mentve"-t, ha VALAMENNYI érintett `dirty` ténylegesen hamisra váltott — a
+  // `router.refresh()` aszinkron, enélkül a sáv visszavillanna "Mentetlen változások"-ra, amíg a
+  // frissített szerver-props meg nem érkeznek (ez okozta a jelentett hibát).
+  useEffect(() => {
+    if (formSaved && !formDirty && !rulesDirty && !featuresPanel.dirty) {
+      const t = setTimeout(() => setFormSaved(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [formSaved, formDirty, rulesDirty, featuresPanel.dirty])
 
   // A „Dokumentumok & jogi" fül a profil-form saját dokumentumok-fülét (ÁSZF-szakaszok) ÉS a
   // beleegyező nyilatkozat kártyát (PaymentsSettingsPanel `sections={['consent']}`) mutatja.
@@ -682,15 +707,30 @@ export function SettingsHub({
   const saveDocumentsTab = useCallback(async () => {
     await documentsPanel.apiRef.current?.save()
     const ok = await formApiRef.current?.save()
-    if (ok) { setDocumentsSaved(true); setTimeout(() => setDocumentsSaved(false), 1800) }
+    if (ok) { router.refresh(); setDocumentsSaved(true) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (documentsSaved && !documentsPanel.dirty && !formDirty) {
+      const t = setTimeout(() => setDocumentsSaved(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [documentsSaved, documentsPanel.dirty, formDirty])
 
   // A „Fizetés" fül egyetlen forrásból menti (Stripe/Előleg/Ajándékutalvány kártyák).
   const [paymentsTabSaved, setPaymentsTabSaved] = useState(false)
   const savePaymentsTab = useCallback(async () => {
     const ok = await paymentsTabPanel.apiRef.current?.save()
-    if (ok) { setPaymentsTabSaved(true); setTimeout(() => setPaymentsTabSaved(false), 1800) }
+    if (ok) { router.refresh(); setPaymentsTabSaved(true) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  // Ez a `router.refresh()` hiánya okozta konkrétan azt is, hogy egy funkció (pl. utalvány)
+  // bekapcsolása után a nav-elem (AppShell `hiddenHrefs`) csak kézi újratöltésre jelent meg —
+  // a szerver-props (amikből a nav láthatósága számol) csak most, mentés után frissül automatikusan.
+  useEffect(() => {
+    if (paymentsTabSaved && !paymentsTabPanel.dirty) {
+      const t = setTimeout(() => setPaymentsTabSaved(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [paymentsTabSaved, paymentsTabPanel.dirty])
 
   // Az „API & Integrációk" fül két panelt mutat egyszerre (Webhook/Marketing-követés +
   // Hírlevél/Számlázás) — mindkettő mentése egyetlen sávból.
@@ -698,8 +738,14 @@ export function SettingsHub({
   const saveIntegrationsTab = useCallback(async () => {
     const okA = await integPanel.apiRef.current?.save()
     const okB = await integPaymentsPanel.apiRef.current?.save()
-    if (okA !== false && okB !== false) { setIntegSaved(true); setTimeout(() => setIntegSaved(false), 1800) }
+    if (okA !== false && okB !== false) { router.refresh(); setIntegSaved(true) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (integSaved && !integPanel.dirty && !integPaymentsPanel.dirty) {
+      const t = setTimeout(() => setIntegSaved(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [integSaved, integPanel.dirty, integPaymentsPanel.dirty])
 
   // A „Google" fül (értékelés-kérés + Google Cégem/Calendar kártyák) egyetlen panelből ment.
   // A `router.refresh()` KELL a sikeres mentés után — a panel `baseline`-ja a szerverről kapott
