@@ -236,6 +236,10 @@ export function RegisterRestaurantWizard() {
               <button onClick={() => setStep(1)} className="flex items-center gap-1.5 text-white/45 text-sm hover:text-white/80 transition-colors">
                 <ChevronLeft className="h-4 w-4" /> Vissza
               </button>
+            ) : step === 3 ? (
+              <button onClick={() => setStep(2)} className="flex items-center gap-1.5 text-white/45 text-sm hover:text-white/80 transition-colors">
+                <ChevronLeft className="h-4 w-4" /> Vissza
+              </button>
             ) : (
               <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
                 <BrandLogo variant="dark" className="h-8" />
@@ -403,7 +407,7 @@ export function RegisterRestaurantWizard() {
                 </h2>
                 <div className="space-y-3">
                   {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Már csak az email-cím megerősítése van hátra'].map(item => (
-                    <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.04] border border-white/10 rounded-xl">
+                    <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.04] border border-white/10 rounded-xl backdrop-blur-[10px]">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
                         <Check className="h-3 w-3 text-ink-dark" />
                       </div>
@@ -588,6 +592,9 @@ export function RegisterRestaurantWizard() {
             {step === 3 && (
               <>
                 <div className="mb-8">
+                  <button onClick={() => setStep(2)} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
+                    <ChevronLeft className="h-3 w-3" /> Vissza
+                  </button>
                   <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">3 / 4</p>
                   <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Importáld az adataid</h2>
                   <p className="text-ink-soft text-sm mt-1">Ha más rendszerből váltasz — kihagyható, bármikor elvégezhető.</p>

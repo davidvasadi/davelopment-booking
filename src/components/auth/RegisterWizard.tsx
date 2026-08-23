@@ -480,8 +480,17 @@ export function RegisterWizard() {
               >
                 <ChevronLeft className="h-4 w-4" /> Vissza
               </button>
+            ) : step === 4 ? (
+              <button
+                onClick={() => setStep(2)}
+                className="flex items-center gap-1.5 text-white/45 text-sm hover:text-white/80 transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" /> Vissza
+              </button>
             ) : (
-              <Link href="/" aria-label="davelopment booking" className="text-white font-light text-xl tracking-[-0.01em] hover:opacity-70 transition-opacity">davelopment booking</Link>
+              <Link href="/" aria-label="davelopment booking" className="hover:opacity-80 transition-opacity">
+                <BrandLogo variant="dark" className="h-7" />
+              </Link>
             )}
             <div className="flex gap-1.5">
               {([1, 2, 3, 4] as const).map(s => (
@@ -489,7 +498,9 @@ export function RegisterWizard() {
                   key={s}
                   className={cn(
                     'h-1.5 rounded-full transition-all duration-300',
-                    s === step ? 'bg-gold w-4' : s < step ? 'w-1.5 bg-white/40' : 'w-1.5 bg-white/10'
+                    // A 3. lépés (munkatárs) kikerült — a nyers `step` (1,2,4,5) helyett a
+                    // folytonos `progressStep`-hez (1..4) viszonyítunk, lásd fentebb.
+                    s === progressStep ? 'bg-gold w-4' : s < progressStep ? 'w-1.5 bg-white/40' : 'w-1.5 bg-white/10'
                   )}
                 />
               ))}
@@ -643,7 +654,7 @@ export function RegisterWizard() {
                     'Foglalási oldal elérhető',
                     'Már csak az email-cím megerősítése van hátra',
                   ].map(item => (
-                    <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.03] border border-white/10 rounded-xl">
+                    <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.03] border border-white/10 rounded-xl backdrop-blur-[10px]">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
                         <Check className="h-3 w-3 text-ink-dark" />
                       </div>
@@ -811,6 +822,9 @@ export function RegisterWizard() {
             {step === 4 && (
               <motion.div key={4} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
                 <div className="mb-8">
+                  <button onClick={() => setStep(2)} className="flex items-center gap-1.5 text-ink-soft text-xs mb-4 hover:text-ink transition-colors">
+                    <ChevronLeft className="h-3 w-3" /> Vissza
+                  </button>
                   <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">3 / 4</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Importáld az adataid</h2>
                   <p className="text-ink-soft text-sm mt-1">Ha más rendszerből váltasz — kihagyható, bármikor elvégezhető.</p>
