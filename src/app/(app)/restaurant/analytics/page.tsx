@@ -4,6 +4,7 @@ import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { getMyShiftStats } from '@/lib/myShiftStats'
+import { getReviewSummary } from '@/lib/reviews'
 import { daypartBuckets } from '@/lib/daypartBuckets'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
 import { ReservationTrendChart, DowChart, HourChart, DaypartChart } from '@/components/dashboard/DashboardCharts'
@@ -74,6 +75,7 @@ export default async function RestaurantAnalyticsPage({
   }
 
   const stats = await getRestaurantStats(restaurant.id, days, range)
+  const reviewSummary = await getReviewSummary('restaurant', restaurant.id)
   const label = periodLabel(days)
 
   // ── Crextio „stat bars" — teljesítés / lemondás+no-show / hátralévő arány ──
@@ -115,6 +117,20 @@ export default async function RestaurantAnalyticsPage({
     { label: 'Beeső', value: `${pctOf(stats.walkInCount)}%`, pct: pctOf(stats.walkInCount), variant: 'striped' as const },
     { label: 'No-show', value: `${pctOf(stats.noShowCount)}%`, pct: pctOf(stats.noShowCount), variant: 'outline' as const },
   ]
+
+  const reviewMetric: OverviewMetric = {
+    id: 'reviews', label: 'Értékelések', value: reviewSummary.count > 0 ? reviewSummary.average.toFixed(1) : '—', unit: '★',
+    color: '#B89530', icon: 'reviews', series: [],
+    views: reviewSummary.count > 0
+      ? [
+          {
+            id: 'distribution', label: `Csillag-eloszlás · ${reviewSummary.count} értékelés`, icon: 'reviews',
+            series: [1, 2, 3, 4, 5].map((n) => ({ label: `${n}★`, value: reviewSummary.distribution[n - 1] })),
+            value: `${reviewSummary.count} értékelés`,
+          },
+        ]
+      : [],
+  }
 
   // 5 csoport-metrika; a részlet-nézetek a lenti grafikonokra ugranak (sec-*).
   const metrics: OverviewMetric[] = [
@@ -173,6 +189,7 @@ export default async function RestaurantAnalyticsPage({
         { id: 'buckets', label: 'Mikor foglalnak', icon: 'dow', series: stats.leadBuckets, value: `${stats.periodReservations} foglalás` },
       ],
     },
+    reviewMetric,
   ]
 
   // A részlet-nézetek kész grafikonjai (a kinézetük változatlan) — az áttekintő

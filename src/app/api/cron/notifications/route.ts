@@ -42,7 +42,9 @@ function reminderEnabled(biz: Salon | Restaurant): boolean {
 }
 
 function feedbackEnabled(biz: Salon | Restaurant): boolean {
-  return !!biz.feature_modules?.reviews_on && !!(biz.feature_modules?.google_review_url ?? '').trim()
+  // A Google-link már nem feltétel: a visszajelzés-email a saját /review/[token] oldalunkra
+  // visz, a Google-átirányítás csak egy feltételes, utólagos lépés jó értékelésnél.
+  return !!biz.feature_modules?.reviews_on
 }
 
 /** Budapest jelenlegi órája + mai dátuma (YYYY-MM-DD) + hét napja angolul. */

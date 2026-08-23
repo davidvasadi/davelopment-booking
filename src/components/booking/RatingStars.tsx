@@ -1,9 +1,9 @@
 import { Star } from 'lucide-react'
 
 /**
- * Google-értékelés csillag-sor: kitöltött / rész-kitöltött / üres csillagok + a szám és
- * (opcionálisan) az értékelők száma. A `rating` 0–5, `count` az értékelők száma.
- * Jelenleg placeholder-adattal hívjuk; a Google Places API bekötésekor valós adatot kap.
+ * Értékelés csillag-sor: kitöltött / rész-kitöltött / üres csillagok + a szám és (opcionálisan)
+ * az értékelők száma. A `rating` 0–5, `count` az értékelők száma — saját, natív értékelés-adat
+ * (`getReviewSummary()`), nem Google-ből.
  * A design az Áttekintés hangulata: arany csillag, ink szám, ink-soft másodlagos szöveg —
  * `dark` esetén (pl. sötét/borítóképes publikus hero) fehér szám + fehér/áttetsző üres csillag,
  * hogy sötét háttéren is olvasható maradjon (világos ink-szín ott gyakorlatilag láthatatlan volt).
@@ -11,7 +11,7 @@ import { Star } from 'lucide-react'
 export function RatingStars({
   rating,
   count,
-  source = 'Google',
+  source = 'értékelés',
   className = '',
   dark = false,
 }: {

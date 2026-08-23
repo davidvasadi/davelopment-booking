@@ -6,7 +6,7 @@ import { Star, Check, Loader2, AlertCircle } from 'lucide-react'
 import { makeT } from '@/lib/i18n'
 import { useClientLocale } from '@/lib/i18n/client'
 
-type Phase = 'loading' | 'form' | 'submitting' | 'done' | 'already' | 'invalid' | 'error'
+type Phase = 'loading' | 'form' | 'submitting' | 'done' | 'redirecting' | 'already' | 'invalid' | 'error'
 
 export default function ReviewPage({
   params,
@@ -22,6 +22,7 @@ export default function ReviewPage({
   const [rating, setRating] = useState(0)
   const [hover, setHover] = useState(0)
   const [comment, setComment] = useState('')
+  const [googleUrl, setGoogleUrl] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
@@ -33,6 +34,7 @@ export default function ReviewPage({
         if (!res.ok || data.found === false) return setPhase('invalid')
         if (data.already) return setPhase('already')
         setName(data.customer_name ?? null)
+        setGoogleUrl(data.google_review_url ?? null)
         setPhase('form')
       } catch {
         if (alive) setPhase('error')
@@ -55,7 +57,15 @@ export default function ReviewPage({
       const data = await res.json().catch(() => ({}))
       if (res.status === 409 || data.already) return setPhase('already')
       if (!res.ok) return setPhase('form')
-      setPhase('done')
+
+      if (rating >= 4 && googleUrl) {
+        setPhase('redirecting')
+        setTimeout(() => {
+          window.location.href = googleUrl
+        }, 1200)
+      } else {
+        setPhase('done')
+      }
     } catch {
       setPhase('form')
     }
@@ -77,6 +87,13 @@ export default function ReviewPage({
             </div>
             <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">{tt('public.review.doneTitle')}</h1>
             <p className="text-zinc-500 dark:text-white/50">{tt('public.review.done')}</p>
+          </>
+        )}
+
+        {phase === 'redirecting' && (
+          <>
+            <Loader2 className="h-8 w-8 animate-spin text-zinc-300 dark:text-white/30 mx-auto mb-6" />
+            <p className="text-zinc-500 dark:text-white/50">{tt('public.review.redirecting')}</p>
           </>
         )}
 

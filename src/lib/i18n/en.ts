@@ -208,6 +208,7 @@ export const en: Record<string, string> = {
   'public.review.invalidTitle': 'Invalid link',
   'public.review.invalid': 'This review link is not valid or has expired.',
   'public.review.failed': 'Could not submit your review. Please try again.',
+  'public.review.redirecting': 'Thanks! Taking you to Google…',
 
   // ── Email skeleton (owner text comes on top of this) ──
   'email.greeting': 'Dear {{name}},',

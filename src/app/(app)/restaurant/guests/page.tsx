@@ -4,7 +4,8 @@ import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
 import { aggregateGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
-import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit } from '@/lib/guestsView'
+import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit, reviewRowValue } from '@/lib/guestsView'
+import { getGuestReviewMap } from '@/lib/reviews'
 import type { Reservation, Customer } from '@/payload/payload-types'
 
 const DAYS = ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat']
@@ -110,6 +111,8 @@ export default async function RestaurantGuestsPage() {
     }
   }
 
+  const reviewMap = await getGuestReviewMap('restaurant', restaurant.id)
+
   const guests = aggregateGuests(sources)
   const buckets = bucketByCountry(sources)
   const total = guests.length
@@ -147,16 +150,19 @@ export default async function RestaurantGuestsPage() {
     labelFor: (s) => `${s.pax ?? 0} fő foglalás`,
     amountFor: () => null,
     favFor: (_g, own) => favDay(own),
-    rowsFor: (_g, { past, upcoming }) => {
+    rowsFor: (g, { past, upcoming }) => {
       const upPax = upcoming.reduce((a, s) => a + (s.pax ?? 0), 0)
       const tables = Array.from(new Set([...past, ...upcoming].flatMap((s) => (s as Src).tables ?? [])))
       const note = latestNote([...past, ...upcoming], (s) => s.note)
+      const review = reviewMap.get(g.key)
       return [
         { label: 'Látogatás', value: String(past.length) },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} · ${upPax} fő` : '—' },
         { label: 'Asztalok', value: tables.length > 0 ? tables.join(', ') : '—' },
         { label: 'Kedvenc nap', value: favDay([...past, ...upcoming]) },
+        ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
+        ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),
         ...latestCustomAnswers([...past, ...upcoming]),
       ]
     },

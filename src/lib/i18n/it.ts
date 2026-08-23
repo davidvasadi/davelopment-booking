@@ -191,6 +191,23 @@ export const it: Record<string, string> = {
   'public.cancel.doneBody': 'Hai annullato la prenotazione con successo.',
   'public.back': 'Indietro',
 
+  // ── Pagina pubblica di recensione ──
+  'public.review.title': "Com'è andata la tua visita?",
+  'public.review.subtitle': 'Ciao {{name}}, raccontaci la tua esperienza!',
+  'public.review.subtitleGeneric': 'Raccontaci la tua esperienza!',
+  'public.review.commentPlaceholder': 'Descrivi la tua esperienza (facoltativo)…',
+  'public.review.submit': 'Invia recensione',
+  'public.review.submitting': 'Invio…',
+  'public.review.pickRating': 'Scegli una valutazione',
+  'public.review.doneTitle': 'Grazie per la tua recensione!',
+  'public.review.done': 'Il tuo feedback ci aiuta a migliorare ancora di più.',
+  'public.review.alreadyTitle': 'Hai già recensito',
+  'public.review.already': 'È già stata inviata una recensione per questa prenotazione. Grazie!',
+  'public.review.invalidTitle': 'Link non valido',
+  'public.review.invalid': 'Questo link di recensione non è valido o è scaduto.',
+  'public.review.failed': 'Non è stato possibile inviare la recensione. Riprova.',
+  'public.review.redirecting': 'Grazie! Ti stiamo reindirizzando a Google…',
+
   // ── Struttura email (il testo del titolare va in aggiunta) ──
   'email.greeting': 'Ciao {{name}},',
   'email.confirm.title': 'Prenotazione confermata',

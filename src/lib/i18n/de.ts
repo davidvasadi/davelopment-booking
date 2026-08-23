@@ -191,6 +191,23 @@ export const de: Record<string, string> = {
   'public.cancel.doneBody': 'Sie haben Ihre Buchung erfolgreich storniert.',
   'public.back': 'Zurück',
 
+  // ── Öffentliche Bewertungsseite ──
+  'public.review.title': 'Wie war es bei uns?',
+  'public.review.subtitle': 'Hallo {{name}}, teile uns deine Erfahrung mit!',
+  'public.review.subtitleGeneric': 'Teile uns deine Erfahrung mit!',
+  'public.review.commentPlaceholder': 'Erzähl uns von deiner Erfahrung (optional)…',
+  'public.review.submit': 'Bewertung abschicken',
+  'public.review.submitting': 'Wird gesendet…',
+  'public.review.pickRating': 'Bewertung auswählen',
+  'public.review.doneTitle': 'Danke für deine Bewertung!',
+  'public.review.done': 'Dein Feedback hilft uns, noch besser zu werden.',
+  'public.review.alreadyTitle': 'Bereits bewertet',
+  'public.review.already': 'Für diese Buchung wurde bereits eine Bewertung abgegeben. Vielen Dank!',
+  'public.review.invalidTitle': 'Ungültiger Link',
+  'public.review.invalid': 'Dieser Bewertungslink ist ungültig oder abgelaufen.',
+  'public.review.failed': 'Deine Bewertung konnte nicht gesendet werden. Bitte versuche es erneut.',
+  'public.review.redirecting': 'Danke! Du wirst zu Google weitergeleitet…',
+
   // ── E-Mail-Gerüst (der Text des Inhabers kommt zusätzlich) ──
   'email.greeting': 'Hallo {{name}},',
   'email.confirm.title': 'Buchung bestätigt',

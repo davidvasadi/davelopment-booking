@@ -3,6 +3,7 @@ import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { findMyStaffId } from '@/lib/myStaffLink'
 import { getDashboardStats } from '@/lib/dashboardStats'
+import { getReviewSummary } from '@/lib/reviews'
 import { daypartBuckets } from '@/lib/daypartBuckets'
 import { formatPrice } from '@/lib/utils'
 import { TrendChart, DowChart, ServiceChart, StaffChart, HourChart, DaypartChart, PopularServicesChart } from '@/components/dashboard/DashboardCharts'
@@ -57,6 +58,9 @@ export default async function AnalyticsPage({
   const staffId = isOwnScope ? (await findMyStaffId(salon.id, userId, userEmail)) ?? 0 : undefined
 
   const stats = await getDashboardStats(salon.id, days, range, staffId)
+  // A review-mérőszám csak a TELJES cégnézetben jelenik meg — nincs megbízható mód arra, hogy
+  // egy adott szakemberhez kössünk egy értékelést, ezért a saját (own-scope) nézetben kihagyjuk.
+  const reviewSummary = isOwnScope ? null : await getReviewSummary('salon', salon.id)
 
   // ── Statisztika-specifikus, ELEMZŐ jobb-oldali KPI-k — szándékosan MÁST mérnek,
   //    mint az áttekintő (az napi Foglalás/Bevétel/Teljesítés): havi átlagos bevétel
@@ -90,6 +94,22 @@ export default async function AnalyticsPage({
     { label: 'Lemondva', value: `${cancelledPct}%`, pct: cancelledPct, variant: 'gold' as const },
     { label: 'Nyitott', value: `${openPct}%`, pct: openPct, variant: 'striped' as const },
   ]
+
+  const reviewMetric: OverviewMetric | null = reviewSummary
+    ? {
+        id: 'reviews', label: 'Értékelések', value: reviewSummary.count > 0 ? reviewSummary.average.toFixed(1) : '—', unit: '★',
+        color: '#B89530', icon: 'reviews', series: [],
+        views: reviewSummary.count > 0
+          ? [
+              {
+                id: 'distribution', label: `Csillag-eloszlás · ${reviewSummary.count} értékelés`, icon: 'reviews',
+                series: [1, 2, 3, 4, 5].map((n) => ({ label: `${n}★`, value: reviewSummary.distribution[n - 1] })),
+                value: `${reviewSummary.count} értékelés`,
+              },
+            ]
+          : [],
+      }
+    : null
 
   const metrics: OverviewMetric[] = [
     {
@@ -149,6 +169,7 @@ export default async function AnalyticsPage({
         { id: 'buckets', label: 'Mikor foglalnak', icon: 'dow', series: stats.leadBuckets, value: `${stats.periodBookings} foglalás` },
       ],
     },
+    ...(reviewMetric ? [reviewMetric] : []),
   ]
 
   const detailCharts: Record<string, React.ReactNode> = {

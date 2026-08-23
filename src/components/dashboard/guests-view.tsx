@@ -185,6 +185,16 @@ export function GuestsView({
   const [deleteTarget, setDeleteTarget] = useState<GuestVM | null>(null)
   const [blockReason, setBlockReason] = useState('')
   const detailRef = useRef<HTMLDivElement>(null)
+  const profileRef = useRef<HTMLDivElement>(null)
+  const [isMobile, setIsMobile] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const update = () => setIsMobile(mq.matches)
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
+  const [guestsExpanded, setGuestsExpanded] = useState(false)
   const router = useRouter()
 
   // Vendég-rekord upsert (tiltás/feloldás vagy kézi szerkesztés), majd frissítés.
@@ -252,7 +262,9 @@ export function GuestsView({
     setSelKey(key)
     if (opts.iso !== undefined) setFocusIso(opts.iso)
     if (opts.scroll) {
-      detailRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      // Deszktopon a lista+profil egymás mellett látszik — csak mobilon (egy oszlopba
+      // rendezve, a profil a lista ALATT) van értelme automatikusan odagörgetni.
+      requestAnimationFrame(() => profileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     }
   }
 
@@ -280,6 +292,12 @@ export function GuestsView({
   }, [guests, query, monthKey, statusFilter])
 
   const sel = useMemo(() => guests.find((g) => g.key === selKey) ?? guests[0], [guests, selKey])
+
+  // Mobilon a lista-konténer nincs magasság-korlátozva (a deszktopos `lg:h-[560px]` csak lg+
+  // felett aktív) — korlát nélkül az EGÉSZ oldal egy hosszú, végtelen vendég-scrollá vált volna.
+  // Ezért mobilon csak az első 5-öt töltjük be, "Továbbiak" gombbal bővíthetően.
+  useEffect(() => setGuestsExpanded(false), [monthKey, query, statusFilter])
+  const visibleGuests = isMobile && !guestsExpanded ? listFiltered.slice(0, 5) : listFiltered
 
   // Élő „most" (HH:MM) — mount után áll be (nincs SSR-hydration ütközés), percenként frissül.
   const [nowHHMM, setNowHHMM] = useState('')
@@ -496,13 +514,13 @@ export function GuestsView({
             {listFiltered.length === 0 ? (
               <div className="px-4 py-10 text-center text-[13px] text-ink-soft">Ebben a hónapban nincs vendég.</div>
             ) : (
-              listFiltered.map((g) => {
+              visibleGuests.map((g) => {
                 const active = sel?.key === g.key
                 return (
                   <button
                     type="button"
                     key={g.key}
-                    onClick={() => setSelKey(g.key)}
+                    onClick={() => selectGuest(g.key, { scroll: isMobile })}
                     className={`flex items-center gap-[13px] rounded-[20px] p-[13px] text-left transition-colors ${active ? 'bg-ink-dark' : 'hover:bg-white/60'}`}
                   >
                     <Avatar url={g.avatarUrl} ini={g.ini} bg={g.av} fg={g.avText} size={46} text={15} />
@@ -533,12 +551,22 @@ export function GuestsView({
                 )
               })
             )}
+            {isMobile && !guestsExpanded && listFiltered.length > 5 && (
+              <button
+                type="button"
+                onClick={() => setGuestsExpanded(true)}
+                className="mt-1 flex items-center justify-center gap-1.5 rounded-[14px] py-2.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-white/60"
+              >
+                További {listFiltered.length - 5} vendég
+                <ChevronDown className="h-4 w-4" strokeWidth={2} />
+              </button>
+            )}
           </div>
         </div>
 
             {/* PROFIL */}
             {sel ? (
-              <div className="flex flex-col overflow-y-auto rounded-[22px] border border-white/55 bg-[var(--dav-glass-strong)] backdrop-blur-[14px] p-5 lg:h-[560px] lg:p-6" data-lenis-prevent>
+              <div ref={profileRef} className="flex flex-col overflow-y-auto rounded-[22px] border border-white/55 bg-[var(--dav-glass-strong)] backdrop-blur-[14px] p-5 lg:h-[560px] lg:p-6 scroll-mt-6" data-lenis-prevent>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-[18px]">
               <div className="min-w-0 flex-1">
                 <div className="flex items-start gap-4 sm:gap-[18px]">
@@ -667,7 +695,7 @@ export function GuestsView({
             {/* Adatsorok (Törzsvendég-pont gyűrű nélkül) */}
             <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
               {sel.rows.map((r) => (
-                r.label === 'Megjegyzés' ? (
+                r.label === 'Megjegyzés' || r.label === 'Vendég értékelése' ? (
                   <div key={r.label} className="rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3 sm:col-span-2">
                     <div className="mb-0.5 text-[13px] font-medium text-ink-soft">{r.label}</div>
                     <div className="text-[14px] font-medium leading-[1.5] text-ink">{r.value}</div>

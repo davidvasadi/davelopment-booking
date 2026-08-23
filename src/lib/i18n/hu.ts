@@ -212,6 +212,7 @@ export const hu: Record<string, string> = {
   'public.review.invalidTitle': 'Érvénytelen link',
   'public.review.invalid': 'Ez az értékelő-link nem érvényes vagy már lejárt.',
   'public.review.failed': 'Az értékelés elküldése nem sikerült. Kérjük próbáld újra.',
+  'public.review.redirecting': 'Köszönjük! Irányítunk a Google-ra…',
 
   // ── Email-váz (a tulaj-szöveg ezen felül jön) ──
   'email.greeting': 'Kedves {{name}}!',

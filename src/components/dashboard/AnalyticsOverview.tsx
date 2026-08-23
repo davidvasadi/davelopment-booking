@@ -28,6 +28,7 @@ const ICONS: Record<string, LucideIcon> = {
   revenue: Wallet, bookings: CalendarCheck, avg: Receipt, service: Scissors, staff: Users, trend: TrendingUp,
   // Új metrikák (mindkét oldal): visszatérő/új vendég, foglalási előreidő, népszerű szolgáltatás
   newguest: UserPlus, returning: Repeat, leadtime: Hourglass, popular: Star,
+  reviews: Star,
 }
 
 /* davelopment / Crextio chart-paletta. */

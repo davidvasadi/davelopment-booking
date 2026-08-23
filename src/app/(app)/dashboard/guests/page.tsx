@@ -4,7 +4,8 @@ import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
 import { aggregateGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
-import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit } from '@/lib/guestsView'
+import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit, reviewRowValue } from '@/lib/guestsView'
+import { getGuestReviewMap } from '@/lib/reviews'
 import type { Booking, Service, Customer } from '@/payload/payload-types'
 
 export default async function SalonGuestsPage() {
@@ -92,6 +93,8 @@ export default async function SalonGuestsPage() {
     }
   }
 
+  const reviewMap = await getGuestReviewMap('salon', salon.id)
+
   const guests = aggregateGuests(sources)
   const buckets = bucketByCountry(sources)
   const total = guests.length
@@ -134,15 +137,18 @@ export default async function SalonGuestsPage() {
       return typeof p === 'number' ? fmtHuf(p) : null
     },
     favFor: (_g, own) => favService(own),
-    rowsFor: (_g, { past, upcoming }) => {
+    rowsFor: (g, { past, upcoming }) => {
       const pastSpend = past.reduce((a, s) => a + priceOf(s), 0)
       const note = latestNote([...past, ...upcoming])
+      const review = reviewMap.get(g.key)
       return [
         { label: 'Látogatás', value: String(past.length) },
         { label: 'Összes költés eddig', value: pastSpend > 0 ? fmtHuf(pastSpend) : '—' },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} foglalás` : '—' },
         { label: 'Kedvenc', value: favService([...past, ...upcoming]) },
+        ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
+        ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),
         ...latestCustomAnswers([...past, ...upcoming]),
       ]
     },

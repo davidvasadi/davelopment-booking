@@ -191,6 +191,23 @@ export const fr: Record<string, string> = {
   'public.cancel.doneBody': 'Vous avez annulé votre réservation avec succès.',
   'public.back': 'Retour',
 
+  // ── Page publique d'avis ──
+  'public.review.title': "Comment s'est passée votre visite ?",
+  'public.review.subtitle': 'Bonjour {{name}}, partagez votre avis avec nous !',
+  'public.review.subtitleGeneric': 'Partagez votre avis avec nous !',
+  'public.review.commentPlaceholder': 'Décrivez votre expérience (facultatif)…',
+  'public.review.submit': "Envoyer l'avis",
+  'public.review.submitting': 'Envoi…',
+  'public.review.pickRating': 'Choisissez une note',
+  'public.review.doneTitle': 'Merci pour votre avis !',
+  'public.review.done': 'Votre avis nous aide à nous améliorer encore.',
+  'public.review.alreadyTitle': 'Déjà noté',
+  'public.review.already': 'Un avis a déjà été envoyé pour cette réservation. Merci !',
+  'public.review.invalidTitle': 'Lien invalide',
+  'public.review.invalid': "Ce lien d'avis n'est pas valide ou a expiré.",
+  'public.review.failed': "Impossible d'envoyer votre avis. Veuillez réessayer.",
+  'public.review.redirecting': 'Merci ! Redirection vers Google…',
+
   // ── Structure de l'e-mail (le texte du propriétaire vient en plus) ──
   'email.greeting': 'Bonjour {{name}},',
   'email.confirm.title': 'Réservation confirmée',

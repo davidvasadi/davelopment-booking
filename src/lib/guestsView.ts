@@ -318,6 +318,13 @@ export function tierSegments(guests: Guest[]): StatusSeg[] {
   ]
 }
 
+/** "★★★★☆ 4.2 (3)" formátumú megjelenítés a vendég-profil "Értékelés" sorához. */
+export function reviewRowValue(average: number, count: number): string {
+  const full = Math.round(average)
+  const stars = '★'.repeat(full) + '☆'.repeat(5 - full)
+  return `${stars} ${average.toFixed(1)} (${count})`
+}
+
 export function returningPct(guests: Guest[]): number {
   if (guests.length === 0) return 0
   return Math.round((guests.filter((g) => g.returning).length / guests.length) * 100)

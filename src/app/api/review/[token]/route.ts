@@ -3,6 +3,22 @@ import { getPayloadClient } from '@/lib/payload'
 import type { Reservation, Booking } from '@/payload/payload-types'
 
 /**
+ * Csak akkor irányítjuk oda a jó értékelést adó vendéget, ha a beállított link ténylegesen
+ * egy jól formázott http(s) URL — a mező szabad szöveg (nincs validáció mentéskor), így egy
+ * elgépelt/hibás érték itt akadna el, nem a vendég böngészőjében egy törött átirányításnál.
+ */
+function validGoogleUrl(raw: string | null | undefined): string | null {
+  const v = raw?.trim()
+  if (!v || !/^https?:\/\//i.test(v)) return null
+  try {
+    new URL(v)
+    return v
+  } catch {
+    return null
+  }
+}
+
+/**
  * Publikus értékelés-beküldő. A token azonosítja a foglalást (reservation.cancel_token
  * VAGY booking.cancellation_token) — nem lehet tetszőleges beküldés. Foglalásonként
  * CSAK EGYSZER lehet értékelni. rating 1–5 kötelező.
@@ -148,10 +164,26 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       overrideAccess: true,
     })
 
+    let googleReviewUrl: string | null = null
+    try {
+      if (reservation) {
+        const restaurantId = typeof reservation.restaurant === 'object' ? reservation.restaurant.id : reservation.restaurant
+        const restaurant = await payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 0, overrideAccess: true })
+        googleReviewUrl = validGoogleUrl(restaurant?.feature_modules?.google_review_url)
+      } else if (booking) {
+        const salonId = typeof booking.salon === 'object' ? booking.salon.id : booking.salon
+        const salon = await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })
+        googleReviewUrl = validGoogleUrl(salon?.feature_modules?.google_review_url)
+      }
+    } catch {
+      googleReviewUrl = null
+    }
+
     return NextResponse.json({
       found: true,
       already: existing.docs.length > 0,
       customer_name: reservation?.customer_name ?? booking?.customer_name ?? null,
+      google_review_url: googleReviewUrl,
     })
   } catch (err) {
     console.error('[Review API GET]', err)
