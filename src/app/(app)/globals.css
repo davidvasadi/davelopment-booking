@@ -49,10 +49,16 @@
     --dav-warn: #8A6D12;    --dav-warn-bg: #FDF3CF;
     --dav-bad: #C0564A;     --dav-bad-bg: #FDE2DD;
 
+    /* Inaktív vezérlő-sín (toggle/chip OFF állapot háttere) — korábban ~6 fájlban nyers
+       #DAD5C6-ként volt lehorgonyozva, egyenként. */
+    --dav-track-off: #DAD5C6;
+
     /* Lekerekítés */
     --dav-r-container: 34px;
     --dav-r-lg: 26px;
     --dav-r-md: 18px;
+    --dav-r-chip: 14px;   /* kis vezérlők (chip, mező, kis gomb) — ez hiányzott, ezért találta ki mindenki a sajátját 10-16px közt */
+    --dav-r-sm: 12px;     /* legkisebb kerekítés (ikon-doboz, badge) */
     --dav-r-pill: 30px;
 
     /* Árnyék */
