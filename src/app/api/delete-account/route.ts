@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
 import { getActiveBusiness, ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
+import { cascadeDeleteUserBusinesses } from '@/lib/cascadeDeleteUserBusinesses'
+import { anonymizeSelfDeletedUser } from '@/lib/anonymizeSelfDeletedUser'
 import { cookies } from 'next/headers'
 
 /**
@@ -12,7 +14,10 @@ import { cookies } from 'next/headers'
  *    foglalásokkal/munkatársakkal/előfizetéssel — a collection beforeDelete hookja kaszkádol).
  *    A fiók és a többi üzlet megmarad; az aktív cookie-t töröljük, a feloldás a következő
  *    üzletre esik.
- *  - Ha ez az UTOLSÓ üzlet → a teljes fiókot (usert) töröljük (a Users hook mindent visz).
+ *  - Ha ez az UTOLSÓ üzlet → a fiók ANONYMIZÁLÓDIK, NEM törlődik ténylegesen (lásd
+ *    `anonymizeSelfDeletedUser`) — ez SZÁNDÉKOSAN eltér a backstage admin "végleges törlés"-től
+ *    (`/api/backstage/accounts/[ownerId]` DELETE, ami tényleg töröl): a self-delete-nél
+ *    csalás/próbaidő-visszaélés ellen kell maradjon nyom az adatbázisban.
  *
  * (A role-t NEM nézzük — a több-üzlet modellben a nézet/művelet az aktív üzlethez kötött.)
  */
@@ -34,9 +39,10 @@ export async function DELETE() {
     return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: false })
   }
 
-  // Utolsó üzlet → teljes fiók-törlés (a Users beforeDelete hook mindent kaszkádol).
-  // id alapján töröljük (nem where-rel) — csak az előbbi megbízhatóan triggereli a beforeDelete hookot.
-  await payload.delete({ collection: 'users', id: Number(user.id), overrideAccess: true })
+  // Utolsó üzlet → az üzletek/előfizetés ténylegesen törlődnek, a user-sor viszont
+  // anonymizálva MARAD (lásd fenti indoklás).
+  await cascadeDeleteUserBusinesses(payload, user.id)
+  await anonymizeSelfDeletedUser(payload, user.id)
   cookieStore.delete('payload-token')
   cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
   return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: true })

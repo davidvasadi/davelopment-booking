@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import crypto from 'crypto'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
+import { REG_SETUP_COOKIE, verifyRegistrationSetupToken } from '@/lib/registrationSetupToken'
 import type { Service, StaffMember } from '@/payload/payload-types'
 
 // ── Helpers ─────────────────────────────────────────────────────────────
@@ -192,10 +194,23 @@ const ALIASES_BY_TYPE: Record<string, Record<string, string>> = {
 
 export async function POST(req: NextRequest) {
   try {
-    const user = await getCurrentUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
     const payload = await getPayloadClient()
+
+    let user = await getCurrentUser()
+    if (!user) {
+      // Nincs normál (megerősített, bejelentkezett) session — próbáljuk a szűkre szabott
+      // regisztráció-folytatás tokent (a wizard 2. lépése után kiállítva, MÉG az email-
+      // megerősítés előtt). Csak EZ a route fogadja el — a dashboard/minden más útvonal
+      // változatlanul a valódi bejelentkezést követeli. Lásd `registrationSetupToken.ts`.
+      const setupTokenValue = (await cookies()).get(REG_SETUP_COOKIE)?.value
+      const setup = setupTokenValue ? await verifyRegistrationSetupToken(setupTokenValue) : null
+      if (setup) {
+        user = (await payload
+          .findByID({ collection: 'users', id: setup.userId, overrideAccess: true })
+          .catch(() => null)) as unknown as typeof user
+      }
+    }
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
     const body = (await req.json()) as {
       headers: string[]

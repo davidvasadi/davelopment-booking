@@ -52,6 +52,7 @@ export function RegisterRestaurantWizard() {
   const [loading, setLoading] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [restaurantId, setRestaurantId] = useState<string | number | null>(null)
+  const [registeredEmail, setRegisteredEmail] = useState('')
 
   // Két különálló useForm példány a mobil + desktop form-hoz (lásd RegisterWizard magyarázat)
   const mobileForm = useForm<Step2Data>({ resolver: zodResolver(step2Schema) })
@@ -135,7 +136,12 @@ export function RegisterRestaurantWizard() {
         throw new Error('Regisztráció sikertelen. Ellenőrizd az adatokat.')
       }
 
-      router.push(`/register/check-email?email=${encodeURIComponent(email)}`)
+      const created = await res.json().catch(() => ({}))
+      // A fiók már létrejött, de a megerősítő email KÉSZAKARVA még nem ment ki — a wizard
+      // a hátralévő (import) lépésen is végigvisz, a levél csak a finish()-nél megy ki.
+      setRegisteredEmail(email)
+      setRestaurantId(created?.businessId ?? null)
+      setStep(3)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Hiba történt')
     } finally {
@@ -144,17 +150,14 @@ export function RegisterRestaurantWizard() {
   }
 
   const finish = async () => {
-    // Az aktív üzletet a friss étteremre állítjuk (cookie + DB), mielőtt navigálunk — így egy
-    // vegyes fiók (aki máshol alkalmazott) a saját friss éttermén köt ki, ne a régi munkahelyén.
-    if (restaurantId) {
-      await fetch('/api/business/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ type: 'restaurant', id: restaurantId }),
-      }).catch(() => null)
+    // A megerősítő email csak MOST megy ki — lásd `onStep2` megjegyzését, és a RegisterWizard
+    // (salon) azonos indoklását a `reg-setup-token`-ről.
+    try {
+      await fetch('/api/auth/finish-registration', { method: 'POST', credentials: 'include' })
+    } catch {
+      // nem blokkoló — a check-email oldal mindenképp a helyes útmutatást adja
     }
-    router.push('/restaurant')
+    router.push(`/register/check-email?email=${encodeURIComponent(registeredEmail)}`)
   }
 
   const templateCards = (isDark: boolean) => (
@@ -399,7 +402,7 @@ export function RegisterRestaurantWizard() {
                   KÉSZEN<br />VAGYOK.
                 </h2>
                 <div className="space-y-3">
-                  {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Dashboard hozzáférés aktív'].map(item => (
+                  {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Már csak az email-cím megerősítése van hátra'].map(item => (
                     <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.04] border border-white/10 rounded-xl">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
                         <Check className="h-3 w-3 text-ink-dark" />
@@ -410,7 +413,7 @@ export function RegisterRestaurantWizard() {
                 </div>
               </div>
               <button onClick={finish} className={authPillBtnLight}>
-                Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
+                Megerősítő email kiküldése <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           )}
@@ -601,7 +604,7 @@ export function RegisterRestaurantWizard() {
                   <p className="text-ink-soft text-sm mt-1">Az éttermed sikeresen létrejött.</p>
                 </div>
                 <div className="space-y-3">
-                  {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Dashboard hozzáférés aktív'].map(item => (
+                  {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Már csak az email-cím megerősítése van hátra'].map(item => (
                     <div key={item} className="flex items-center gap-3 p-3.5 bg-paper rounded-xl">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
                         <Check className="h-3 w-3 text-ink-dark" />
@@ -611,7 +614,7 @@ export function RegisterRestaurantWizard() {
                   ))}
                 </div>
                 <button onClick={finish} className={cn(authPillBtn, 'mt-6')}>
-                  Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
+                  Megerősítő email kiküldése <ChevronRight className="h-4 w-4" />
                 </button>
               </>
             )}

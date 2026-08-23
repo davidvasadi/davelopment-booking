@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { seedSalonTemplates, seedRestaurantTemplate } from '@/lib/seedTemplates'
-import { generateVerifyEmailSubject, generateVerifyEmailHTML } from '@/lib/verifyEmailTemplate'
+import { issueRegistrationSetupToken, REG_SETUP_COOKIE, REG_SETUP_TTL_SECONDS } from '@/lib/registrationSetupToken'
 
 /**
  * POST /api/auth/register — jelszavas regisztráció, SERVER-OLDALON, egyetlen kérésben:
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   // Resend-hibaüzenet miatt a user létre sem jött). A fiók-létrehozás kritikus útja nem függhet
   // egy 3rd-party email API pillanatnyi állapotától — ezért mi küldjük a levelet, KÜLÖN,
   // try/catch mögött, a már sikeresen létrehozott user után.
-  let user: { id: number | string; _verificationToken?: string | null }
+  let user: { id: number | string }
   try {
     user = await payload.create({
       collection: 'users',
@@ -84,21 +84,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'create_failed' }, { status: 500 })
   }
 
-  const verifyToken = user._verificationToken ?? ''
-  try {
-    await payload.sendEmail({
-      to: email,
-      subject: generateVerifyEmailSubject(),
-      html: generateVerifyEmailHTML(verifyToken),
-    })
-  } catch (e) {
-    // NEM buktatjuk a regisztrációt — a user + token már létezik, a linket konzolra írjuk,
-    // hogy fejlesztéskor (vagy egy átmeneti Resend-hiba esetén support-oldalról) pótolható
-    // legyen. Éles, sikeres küldésnél ez az ág nem fut le.
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
-    console.error('[auth/register] verify email send failed:', e)
-    console.log(`[fallback] Email-megerősítő link (${email}): ${appUrl}/verify-email?token=${verifyToken}`)
-  }
+  // A megerősítő email KÉSZAKARVA nem itt megy ki — a wizard a fiók-létrehozás UTÁN még
+  // végigvisz a hátralévő lépésen (adatimport), és csak a legvégén (`/api/auth/finish-
+  // registration`) küldjük ki, hogy a user egy kattintással pontosan azután landoljon a
+  // postafiókjában, hogy tényleg végzett a beállítással — ne kelljen egy már elavult
+  // fülre visszaváltania. Lásd azt a route-ot a `_verificationToken`-nel kapcsolatos
+  // megjegyzésért (Payload `hidden: true` mezője, `showHiddenFields` kell hozzá).
 
   const baseSlug = generateSlug(placeName)
   let slug = baseSlug
@@ -173,5 +164,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true })
+  const res = NextResponse.json({ ok: true, kind, businessId: place?.id ?? null })
+
+  // Szűkre szabott, 30 perces "regisztráció-folytatás" cookie — KIZÁRÓLAG a wizard hátralévő
+  // lépéséhez (adatimport, `/api/import-csv`) ad hozzáférést EHHEZ az egy üzlethez, NEM egy
+  // általános bejelentkezés. Amíg a user nem kattint a megerősítő linkre, a dashboard/minden
+  // más útvonal továbbra is a valódi, `payload-token` alapú bejelentkezést követeli. Lásd
+  // `src/lib/registrationSetupToken.ts` a fenti biztonsági indoklásért.
+  if (place) {
+    const setupToken = await issueRegistrationSetupToken(user.id, kind, place.id)
+    res.cookies.set(REG_SETUP_COOKIE, setupToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: REG_SETUP_TTL_SECONDS,
+    })
+  }
+
+  return res
 }

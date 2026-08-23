@@ -3,57 +3,18 @@ import type { SelectFieldSingleValidation, Where } from 'payload'
 import { BRAND_NAME } from '@/lib/brand'
 import { emailLayout, COLORS } from '@/lib/emailLayout'
 import { generateVerifyEmailSubject, generateVerifyEmailHTML } from '@/lib/verifyEmailTemplate'
+import { cascadeDeleteUserBusinesses } from '@/lib/cascadeDeleteUserBusinesses'
 
 export const Users: CollectionConfig = {
   slug: 'users',
   hooks: {
+    // FONTOS: ez KIZÁRÓLAG a backstage admin "végleges törlés"-én fut le ténylegesen — a
+    // self-delete (`/api/delete-account`, `/api/restaurant/delete-account`) UTOLSÓ üzletnél
+    // szándékosan NEM `payload.delete`-et hív a user-re, hanem anonymizál (lásd ott a
+    // megjegyzést), hogy csalás/próbaidő-visszaélés ellen maradjon nyom az adatbázisban.
     beforeDelete: [
       async ({ req, id }) => {
-        // A salons/restaurants.owner_id NOT NULL + FK ON DELETE SET NULL → a user közvetlen
-        // törlése elbukna (null nem megengedett). Ezért előbb töröljük a user szalonjait és
-        // éttermeit; azok saját beforeDelete hookja kaszkádol az üzlet-adatokra
-        // (foglalások, szolgáltatások, asztalok stb.).
-        const salons = await req.payload.find({
-          collection: 'salons',
-          where: { owner: { equals: id } },
-          limit: 100,
-          overrideAccess: true,
-          req,
-        })
-        for (const salon of salons.docs) {
-          await req.payload.delete({ collection: 'salons', id: salon.id, overrideAccess: true, req })
-        }
-        const restaurants = await req.payload.find({
-          collection: 'restaurants',
-          where: { owner: { equals: id } },
-          limit: 100,
-          overrideAccess: true,
-          req,
-        })
-        for (const restaurant of restaurants.docs) {
-          await req.payload.delete({ collection: 'restaurants', id: restaurant.id, overrideAccess: true, req })
-        }
-        // FIÓK-szintű előfizetés: az account-subscription átállás óta a `subscriptions` rekord
-        // az USERHEZ tartozik (owner=userId), NEM az üzlethez. Ezért az üzlet-törlés NEM viszi
-        // el — kézzel kell törölni, különben árva subscription-rekord marad a DB-ben (és a
-        // törölt user újraregisztrációjakor összezavarhatja a fiók-előfizetést).
-        const subs = await req.payload.find({
-          collection: 'subscriptions',
-          where: { owner: { equals: id } },
-          limit: 100,
-          overrideAccess: true,
-          req,
-        })
-        for (const sub of subs.docs) {
-          // Invoices have subscription_id NOT NULL — delete them before the subscription
-          await req.payload.delete({
-            collection: 'invoices',
-            where: { subscription: { equals: sub.id } },
-            overrideAccess: true,
-            req,
-          })
-          await req.payload.delete({ collection: 'subscriptions', id: sub.id, overrideAccess: true, req })
-        }
+        await cascadeDeleteUserBusinesses(req.payload, id, req)
       },
     ],
   },
@@ -154,6 +115,19 @@ export const Users: CollectionConfig = {
       name: 'avatar_url',
       type: 'text',
       label: 'Profilkép URL',
+    },
+    {
+      // Self-delete (`/api/delete-account`, `/api/restaurant/delete-account`) UTOLSÓ üzletnél
+      // NEM töröl ténylegesen — anonymizál (név/telefon/email stb. törölve, jelszó
+      // véletlenszerűsítve) és ezt a mezőt tölti ki, hogy csalás/próbaidő-visszaélés ellen
+      // maradjon nyom az adatbázisban. A backstage admin "végleges törlés" ezzel szemben
+      // TÉNYLEGESEN töröl (Users.beforeDelete hook) — ez a mező arra sose kerül kitöltésre,
+      // a sor egyszerűen eltűnik.
+      name: 'deleted_at',
+      type: 'date',
+      label: 'Önmagát törölte ekkor',
+      index: true,
+      admin: { readOnly: true, position: 'sidebar' },
     },
     // ── Tulajdonos személyes adatlapja (fiók-szintű) — a tulajnak NINCS membershipje, ezért
     //    a saját adatai (telefon, szül.nap stb.) itt, a User-fiókon élnek. A HiringView adatlap

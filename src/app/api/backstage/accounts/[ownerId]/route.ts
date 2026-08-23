@@ -76,6 +76,11 @@ export async function DELETE(
   if (!id || isNaN(id)) return NextResponse.json({ error: 'Invalid id' }, { status: 400 })
 
   const payload = await getPayloadClient()
-  await payload.delete({ collection: 'users', id, overrideAccess: true })
+  try {
+    await payload.delete({ collection: 'users', id, overrideAccess: true })
+  } catch (e) {
+    console.error('[backstage/accounts DELETE] végleges törlés sikertelen:', e)
+    return NextResponse.json({ error: 'delete_failed' }, { status: 500 })
+  }
   return NextResponse.json({ ok: true })
 }

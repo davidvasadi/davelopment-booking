@@ -2,14 +2,18 @@ import { NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
 import { getActiveBusiness, ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
+import { cascadeDeleteUserBusinesses } from '@/lib/cascadeDeleteUserBusinesses'
+import { anonymizeSelfDeletedUser } from '@/lib/anonymizeSelfDeletedUser'
 import { cookies } from 'next/headers'
 
 /**
  * DELETE /api/restaurant/delete-account  (étterem-dashboard „Veszélyzóna")
  *
- * Azonos logika a szalon-megfelelőjével (lásd /api/delete-account):
+ * Azonos logika a szalon-megfelelőjével (lásd /api/delete-account, ott a részletes indoklás):
  *  - Több üzlet → CSAK az aktív (étterem) üzletet töröljük; a fiók + többi üzlet marad.
- *  - Utolsó üzlet → teljes fiók-törlés.
+ *  - Utolsó üzlet → az üzletek/előfizetés ténylegesen törlődnek, a user-sor ANONYMIZÁLVA marad
+ *    (nem tényleges törlés — csalás/próbaidő-visszaélés ellen). A backstage admin "végleges
+ *    törlés" ezzel szemben tényleg töröl.
  * A role-t NEM nézzük (több-üzlet modell: az aktív üzlet dönt).
  */
 export async function DELETE() {
@@ -29,7 +33,8 @@ export async function DELETE() {
     return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: false })
   }
 
-  await payload.delete({ collection: 'users', where: { id: { equals: user.id } }, overrideAccess: true })
+  await cascadeDeleteUserBusinesses(payload, user.id)
+  await anonymizeSelfDeletedUser(payload, user.id)
   cookieStore.delete('payload-token')
   cookieStore.delete(ACTIVE_BUSINESS_COOKIE)
   return NextResponse.json({ ok: true, deletedBusiness: true, accountDeleted: true })

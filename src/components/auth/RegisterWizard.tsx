@@ -66,10 +66,8 @@ export function RegisterWizard() {
   const [selectedCategory, setSelectedCategory] = useState<MainCategory | null>(null)
   const [selectedTypes, setSelectedTypes] = useState<BusinessType[]>([])
   const mobileCTARef = useRef<HTMLDivElement>(null)
-  const [userId, setUserId] = useState('')
   const [salonId, setSalonId] = useState('')
-  const [token, setToken] = useState('')
-  const [staffName, setStaffName] = useState('')
+  const [registeredEmail, setRegisteredEmail] = useState('')
 
   // Két különálló useForm példány a mobil + desktop form-hoz, hogy a react-hook-form
   // ne olvasson üres desktop-inputokból mobilon (és fordítva).
@@ -163,7 +161,12 @@ export function RegisterWizard() {
         throw new Error('Regisztráció sikertelen. Ellenőrizd az adatokat.')
       }
 
-      router.push(`/register/check-email?email=${encodeURIComponent(email)}`)
+      const created = await res.json().catch(() => ({}))
+      // A fiók már létrejött, de a megerősítő email KÉSZAKARVA még nem ment ki — a wizard
+      // a hátralévő (import) lépésen is végigvisz, a levél csak az 5. lépésnél (finish()) megy.
+      setRegisteredEmail(email)
+      setSalonId(created?.businessId ? String(created.businessId) : '')
+      setStep(4)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Hiba történt')
     } finally {
@@ -171,45 +174,25 @@ export function RegisterWizard() {
     }
   }
 
-  const onStep3 = async () => {
-    if (staffName.trim()) {
-      setLoading(true)
-      try {
-        await fetch('/api/staff', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `JWT ${token}` },
-          body: JSON.stringify({ name: staffName.trim(), salon: salonId, is_active: true }),
-        })
-      } catch {
-        // nem blokkoló
-      } finally {
-        setLoading(false)
-      }
-    }
-    setStep(4)
-  }
-
   const finish = async () => {
-    // Az aktív üzletet a friss szalonra állítjuk (cookie + DB), mielőtt a dashboardra
-    // navigálunk — így egy vegyes fiók (aki máshol alkalmazott) nem a régi munkahelyén
-    // köt ki. A switch tulajdonlás-ellenőrzött; ha bármiért hibázna, a /dashboard redirect
-    // fallbackje (last_active_business) akkor is a saját szalonra visz (fentebb beállítva).
-    if (salonId) {
-      await fetch('/api/business/switch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ type: 'salon', id: salonId }),
-      }).catch(() => null)
+    // A megerősítő email csak MOST megy ki — lásd `onStep2` megjegyzését. A `reg-setup-token`
+    // (amit a `/api/auth/register` állított ki) igazolja a szervernek, hogy tényleg erről a
+    // frissen létrehozott, még nem megerősített fiókról van szó.
+    try {
+      await fetch('/api/auth/finish-registration', { method: 'POST', credentials: 'include' })
+    } catch {
+      // nem blokkoló — a check-email oldal mindenképp a helyes útmutatást adja
     }
-    router.push('/dashboard')
+    router.push(`/register/check-email?email=${encodeURIComponent(registeredEmail)}`)
   }
 
   // A sikeres-képernyő (5.) nem számít bele — az csak visszaigazolás, nincs "hátralévő" rész,
   // ezért a Figma is 4 szegmenst mutat (node 350:1621). A korábbi folytonos sáv + a "3/5"-re
   // ugró felirat (miközben az 1-2. lépés "/4"-et írt ki) volt a felhasználó által jelzett hiba.
   const TOTAL_STEPS = 4
-  const progressStep = Math.min(step, TOTAL_STEPS)
+  // A 3. lépés (munkatárs-hívás) kikerült a folyamatból — a szám-sorrend emiatt ugrik
+  // (1, 2, 4, 5), a haladás-sávnak viszont folytonosnak (1..4) kell látszania.
+  const progressStep = Math.min(step <= 2 ? step : step - 1, TOTAL_STEPS)
 
   /** Figma-pontos, diszkrét szegmens-sáv (4 db pill) — mindegyik szegmens saját animált
    *  kitöltéssel (framer `scaleX`), nem csak egy néma CSS-színváltás. */
@@ -635,45 +618,6 @@ export function RegisterWizard() {
             </div>
           )}
 
-          {/* Step 3 — staff */}
-          {step === 3 && (
-            <div className="mt-12 flex-1 flex flex-col justify-between">
-              <div>
-                <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
-                  ADD HOZZÁ<br />A CSAPA<br />TODAT.
-                </h2>
-                <div className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className={authLabelDark}>Munkatárs neve</Label>
-                    <input
-                      autoComplete="name"
-                      placeholder="Pl. Kovács Péter"
-                      className={authInputDark}
-                      value={staffName}
-                      onChange={e => setStaffName(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4">
-                <button
-                  onClick={onStep3}
-                  disabled={loading}
-                  className={authPillBtnLight}
-                >
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStep(4)}
-                  className={authGhostBtnDark}
-                >
-                  Kihagyás
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* Step 4 — import (optional) */}
           {step === 4 && (
             <div className="mt-12 flex-1 flex flex-col">
@@ -697,7 +641,7 @@ export function RegisterWizard() {
                     'Szalon profil létrehozva',
                     'Alapszolgáltatások beállítva',
                     'Foglalási oldal elérhető',
-                    'Dashboard hozzáférés aktív',
+                    'Már csak az email-cím megerősítése van hátra',
                   ].map(item => (
                     <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.03] border border-white/10 rounded-xl">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
@@ -709,7 +653,7 @@ export function RegisterWizard() {
                 </div>
               </div>
               <button onClick={finish} className={authPillBtnLight}>
-                Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
+                Megerősítő email kiküldése <ChevronRight className="h-4 w-4" />
               </button>
             </div>
           )}
@@ -863,44 +807,11 @@ export function RegisterWizard() {
               </motion.div>
             )}
 
-            {/* Step 3 */}
-            {step === 3 && (
-              <motion.div key={3} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
-                <div className="mb-8">
-                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">3 / 4</p>
-                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Add hozzá az első munkatársat</h2>
-                  <p className="text-ink-soft text-sm mt-1">Kihagyható — később is hozzáadhatsz.</p>
-                </div>
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label className={authLabelBase}>Munkatárs neve</Label>
-                    <input
-                      autoComplete="name"
-                      placeholder="Pl. Kovács Péter"
-                      className={authInputBase}
-                      value={staffName}
-                      onChange={e => setStaffName(e.target.value)}
-                    />
-                  </div>
-                  <button onClick={onStep3} disabled={loading} className={authPillBtn}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <>Tovább <ChevronRight className="h-4 w-4" /></>}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setStep(4)}
-                    className="w-full h-12 rounded-dav-pill border border-line-strong text-sm text-ink-soft hover:text-ink hover:bg-paper transition-colors"
-                  >
-                    Kihagyás
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
             {/* Step 4 — import (optional) */}
             {step === 4 && (
               <motion.div key={4} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
                 <div className="mb-8">
-                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">4 / 4</p>
+                  <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">3 / 4</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Importáld az adataid</h2>
                   <p className="text-ink-soft text-sm mt-1">Ha más rendszerből váltasz — kihagyható, bármikor elvégezhető.</p>
                 </div>
@@ -914,14 +825,14 @@ export function RegisterWizard() {
                 <div className="mb-8">
                   <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">Kész</p>
                   <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Készen vagy!</h2>
-                  <p className="text-ink-soft text-sm mt-1">A szalonod sikeresen létrejött.</p>
+                  <p className="text-ink-soft text-sm mt-1">A szalonod sikeresen létrejött — már csak egy kattintás van hátra.</p>
                 </div>
                 <div className="space-y-3">
                   {[
                     'Szalon profil létrehozva',
                     'Alapszolgáltatások beállítva',
                     'Foglalási oldal elérhető',
-                    'Dashboard hozzáférés aktív',
+                    'Már csak az email-cím megerősítése van hátra',
                   ].map(item => (
                     <div key={item} className="flex items-center gap-3 p-3.5 bg-paper rounded-xl">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
@@ -932,7 +843,7 @@ export function RegisterWizard() {
                   ))}
                 </div>
                 <button onClick={finish} className={cn(authPillBtn, 'mt-6')}>
-                  Ugrás a dashboardra <ChevronRight className="h-4 w-4" />
+                  Megerősítő email kiküldése <ChevronRight className="h-4 w-4" />
                 </button>
               </motion.div>
             )}
