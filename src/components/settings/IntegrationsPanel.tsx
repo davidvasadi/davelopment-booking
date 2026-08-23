@@ -50,7 +50,7 @@ function ICalCta({ icalUrl }: { icalUrl: string }) {
     return (
       <a
         href={webcalUrl}
-        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
+        className="flex w-full items-center justify-center gap-2 rounded-dav-chip bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
       >
         <Calendar className="h-4 w-4" />
         Hozzáadás a naptáramhoz
@@ -64,7 +64,7 @@ function ICalCta({ icalUrl }: { icalUrl: string }) {
         href={googleUrl}
         target="_blank"
         rel="noopener noreferrer"
-        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
+        className="flex w-full items-center justify-center gap-2 rounded-dav-chip bg-ink-dark px-4 py-3 text-[14px] font-semibold text-white transition-opacity hover:opacity-80"
       >
         <Calendar className="h-4 w-4" />
         Megnyitás Google Naptárban
@@ -74,7 +74,7 @@ function ICalCta({ icalUrl }: { icalUrl: string }) {
 
   // Windows / egyéb — csak a linket kínáljuk másolásra
   return (
-    <div className="rounded-[12px] border border-line bg-[#FBF9F2] px-4 py-3 space-y-1.5">
+    <div className="rounded-dav-sm border border-line bg-[#FBF9F2] px-4 py-3 space-y-1.5">
       <p className="text-[12px] font-medium text-ink">Naptár feliratkozási link</p>
       <p className="text-[11.5px] text-ink-soft">Másold be Outlookba vagy más naptár alkalmazásba</p>
     </div>
@@ -95,7 +95,7 @@ function WebhookConfig({ url, onChange }: { url: string; onChange: (url: string)
           value={url}
           onChange={(e) => onChange(e.target.value)}
           placeholder="https://hooks.zapier.com/hooks/catch/..."
-          className="w-full rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+          className="w-full rounded-dav-sm border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
         />
       </div>
     </div>
@@ -126,7 +126,7 @@ function MarketingTrackingConfig({
           value={ga4Id}
           onChange={(e) => onGa4Change(e.target.value)}
           placeholder="G-XXXXXXXXXX"
-          className="w-full rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+          className="w-full rounded-dav-sm border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
         />
       </div>
       <div>
@@ -135,7 +135,7 @@ function MarketingTrackingConfig({
           value={pixelId}
           onChange={(e) => onPixelChange(e.target.value)}
           placeholder="123456789012345"
-          className="w-full rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
+          className="w-full rounded-dav-sm border border-line bg-white px-3.5 py-2.5 text-[13px] text-ink placeholder:text-ink-soft2 focus:border-gold focus:outline-none"
         />
       </div>
     </div>

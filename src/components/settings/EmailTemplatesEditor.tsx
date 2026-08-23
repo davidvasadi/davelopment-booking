@@ -14,7 +14,7 @@ type Loc = ReturnType<typeof useLocalizedFields>
 
 // Crextio/Apple mező (egységes a formokéval): tiszta fehér + meleg keret + arany fókusz.
 const inputClass =
-  'h-[50px] w-full rounded-[14px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
+  'h-[50px] w-full rounded-dav-chip bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
 const labelClass = 'text-[12.5px] font-medium text-ink-soft'
 
 /** A szerkeszthető vendég-emailek — mindegyik tárgya + bevezetője nyelvenként. A `state`
@@ -236,7 +236,7 @@ export function EmailTemplatesEditor({
         <button
           type="button"
           onClick={() => onPreview(sel.state, intro)}
-          className="inline-flex items-center gap-2 rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[13px] font-semibold text-ink transition-colors hover:bg-paper"
+          className="inline-flex items-center gap-2 rounded-dav-sm border-[1.5px] border-line-strong px-4 py-2 text-[13px] font-semibold text-ink transition-colors hover:bg-paper"
         >
           <Eye className="h-4 w-4" />
           {sel.label} előnézet

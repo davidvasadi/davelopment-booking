@@ -6,6 +6,7 @@ import { Loader2, Plus, Pencil, Trash2, ImagePlus, X } from 'lucide-react'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { compressImage } from '@/lib/compressImage'
 import { LocaleEditBar } from './LocaleEditBar'
+import { Toggle } from './SettingsToggle'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 
 /**
@@ -38,20 +39,6 @@ const HUF = (n: number) => `${n.toLocaleString('hu-HU')} Ft`
 function imageUrlOf(image: VoucherTypeData['image']): string | null {
   if (image && typeof image === 'object') return image.url ?? null
   return null
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onChange}
-      className={`relative h-[24px] w-[41px] shrink-0 rounded-full transition-colors ${checked ? 'bg-ink-dark' : 'bg-[#DAD5C6]'}`}
-    >
-      <span className={`absolute top-[3px] h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-all ${checked ? 'right-[3px]' : 'left-[3px]'}`} />
-    </button>
-  )
 }
 
 export function VoucherTypeManager({ variant, businessId, initialTypes, minAmountHuf, maxAmountHuf, supportedLocales }: Props) {

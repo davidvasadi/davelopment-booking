@@ -20,7 +20,7 @@ export function CopyBtn({ value, label = 'Másolás' }: { value: string; label?:
     <button
       type="button"
       onClick={copy}
-      className="inline-flex items-center gap-1.5 rounded-[10px] border border-line bg-white px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink shrink-0"
+      className="inline-flex items-center gap-1.5 rounded-dav-sm border border-line bg-white px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink shrink-0"
     >
       {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
       {copied ? 'Másolva' : label}
@@ -30,7 +30,7 @@ export function CopyBtn({ value, label = 'Másolás' }: { value: string; label?:
 
 export function UrlRow({ url }: { url: string }) {
   return (
-    <div className="flex items-center gap-2 rounded-[12px] border border-line bg-[#FBF9F2] px-3 py-2.5">
+    <div className="flex items-center gap-2 rounded-dav-sm border border-line bg-[#FBF9F2] px-3 py-2.5">
       <span className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink-soft">{url}</span>
       <CopyBtn value={url} />
     </div>
@@ -39,7 +39,7 @@ export function UrlRow({ url }: { url: string }) {
 
 export function SnippetBox({ code }: { code: string }) {
   return (
-    <div className="flex items-start gap-2 rounded-[12px] border border-line bg-[#FBF9F2] px-3 py-2.5">
+    <div className="flex items-start gap-2 rounded-dav-sm border border-line bg-[#FBF9F2] px-3 py-2.5">
       <pre className="min-w-0 flex-1 overflow-x-auto whitespace-pre-wrap break-all font-mono text-[12px] text-ink-soft">{code}</pre>
       <CopyBtn value={code} />
     </div>
@@ -78,14 +78,14 @@ export function IntegCard({
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const statusCfg: Record<CardStatus, { label: string; cls: string }> = {
-    active:  { label: 'Aktív',       cls: 'bg-[#E3F0D8] text-[#4A7A2A]' },
-    setup:   { label: 'Beállítható', cls: 'bg-[#FDF3CF] text-[#8A6D12]' },
+    active:  { label: 'Aktív',       cls: 'bg-ok-bg text-ok' },
+    setup:   { label: 'Beállítható', cls: 'bg-warn-bg text-warn' },
     soon:    { label: 'Hamarosan',   cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' },
   }
   const { label, cls } = statusCfg[status]
 
   return (
-    <div className="rounded-[20px] dav-card-glass overflow-hidden">
+    <div className="rounded-dav-lg dav-card-glass overflow-hidden">
       <button
         type="button"
         onClick={() => status !== 'soon' && setOpen((o) => !o)}
@@ -94,13 +94,13 @@ export function IntegCard({
           status !== 'soon' ? 'hover:bg-black/[0.02] cursor-pointer' : 'cursor-default',
         )}
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#FBF9F2]">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-dav-sm bg-[#FBF9F2]">
           <Icon className="h-5 w-5 text-ink-soft2" strokeWidth={1.5} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[15px] font-semibold text-ink">{title}</span>
-            <span className={`rounded-[8px] px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{label}</span>
+            <span className={`rounded-dav-sm px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{label}</span>
           </div>
           <p className="mt-0.5 text-[13px] text-ink-soft">{description}</p>
         </div>

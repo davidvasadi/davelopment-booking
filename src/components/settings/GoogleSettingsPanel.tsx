@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MapPin, Calendar, Star, ChevronDown, Check, ExternalLink } from 'lucide-react'
 import { IntegCard, UrlRow, Steps } from './IntegCardKit'
+import { Toggle } from './SettingsToggle'
+import { EASE, DUR } from '@/lib/motion'
 import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
 
 /**
@@ -20,10 +22,8 @@ import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
  * várólista, ismétlődés) — ugyanaz a buktató, amit a `BookingFeatures.tsx` is dokumentál.
  */
 
-const EASE = [0.22, 1, 0.36, 1] as const
-
 function GroupLabel({ children }: { children: React.ReactNode }) {
-  return <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#A29B82]">{children}</div>
+  return <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft2">{children}</div>
 }
 
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
@@ -32,7 +32,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={`rounded-[13px] border px-3.5 py-2 text-[12.5px] font-semibold transition-all active:scale-[0.97] ${
+      className={`rounded-dav-chip border px-3.5 py-2 text-[12.5px] font-semibold transition-all active:scale-[0.97] ${
         on
           ? 'border-transparent bg-ink-dark text-white'
           : 'border-line bg-white text-ink-soft2 hover:border-line-strong'
@@ -44,6 +44,18 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
 }
 
 type Reviews = { on: boolean; delay: 'h1' | 'h2' | 'next'; googleUrl: string }
+
+/** Ugyanaz a validáció, mint szerver-oldalon (`/api/review/[token]`) — csak jól formázott
+ *  http(s) URL-t fogadunk el, hogy a mentett link biztosan használható legyen átirányításra. */
+function isValidUrl(v: string): boolean {
+  if (!/^https?:\/\//i.test(v)) return false
+  try {
+    new URL(v)
+    return true
+  } catch {
+    return false
+  }
+}
 
 function reviewsFrom(fm: FeatureModules): Reviews {
   return {
@@ -77,6 +89,7 @@ export function GoogleSettingsPanel({
   const [googleUrlDraft, setGoogleUrlDraft] = useState(reviews.googleUrl)
   const [googleHelpOpen, setGoogleHelpOpen] = useState(false)
   const [urlError, setUrlError] = useState(false)
+  const [urlErrorKind, setUrlErrorKind] = useState<'required' | 'invalid'>('required')
   const looksLikeGoogleReview = /(g\.page\/r\/|\/local\/writereview|maps\.app\.goo\.gl|goo\.gl\/maps|google\.[a-z.]+\/(search|maps)|g\.co\/)/i.test(googleUrlDraft.trim())
 
   const dirty = JSON.stringify(reviews) !== JSON.stringify(baseline)
@@ -86,9 +99,22 @@ export function GoogleSettingsPanel({
 
   const reviewsRef = useRef(reviews)
   reviewsRef.current = reviews
+  const googleUrlDraftRef = useRef(googleUrlDraft)
+  googleUrlDraftRef.current = googleUrlDraft
   useEffect(() => {
     registerApi?.({
       save: async () => {
+        // A látható mezőben lévő, még el nem küldött (blur előtti) szöveget is ellenőrizzük —
+        // ne lehessen érvénytelen linket menteni azzal, hogy a Mentés gombra kattintunk anélkül,
+        // hogy a mező elhagyná a fókuszt.
+        const draft = googleUrlDraftRef.current.trim()
+        if (draft !== '' && !isValidUrl(draft)) {
+          setUrlErrorKind('invalid')
+          setUrlError(true)
+          setTimeout(() => setUrlError(false), 600)
+          toast.error('A Google értékelés-link formátuma nem érvényes.')
+          return false
+        }
         try {
           const r = reviewsRef.current
           const res = await fetch(apiBase, {
@@ -130,10 +156,10 @@ export function GoogleSettingsPanel({
       </p>
 
       {/* ── Értékelések — custom kártya (URL mindig látható, toggle csak URL után aktív) ── */}
-      <div className="rounded-[20px] dav-card-glass p-5">
+      <div className="rounded-dav-lg dav-card-glass p-5 lg:p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#F7F3E4] text-[#9A7B12]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-dav-sm bg-gold/15 text-ink-dark">
               <Star className="h-5 w-5" strokeWidth={1.6} />
             </span>
             <div>
@@ -143,39 +169,25 @@ export function GoogleSettingsPanel({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={reviews.on}
-            aria-label="Értékelések be/ki"
-            onClick={() => {
-              if (!hasUrl) {
-                setUrlError(true)
-                setTimeout(() => setUrlError(false), 600)
-                return
-              }
-              update((r) => ({ ...r, on: !r.on }))
-            }}
-            className="relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors duration-200"
-            style={{
-              background: !hasUrl ? '#DAD5C6' : reviews.on ? '#1D1C19' : '#DAD5C6',
-              cursor: !hasUrl ? 'not-allowed' : 'pointer',
-            }}
-            title={!hasUrl ? 'Előbb add meg a Google értékelés-linket' : undefined}
-          >
-            <span
-              className="absolute top-[3px] h-[21px] w-[21px] rounded-full transition-all duration-200"
-              style={{
-                left: reviews.on && hasUrl ? '22px' : '3px',
-                background: reviews.on && hasUrl ? '#F1CE45' : '#fff',
-                boxShadow: '0 1px 3px rgba(0,0,0,.25)',
+          <div title={!hasUrl ? 'Előbb add meg a Google értékelés-linket' : undefined}>
+            <Toggle
+              checked={reviews.on}
+              label="Értékelések be/ki"
+              onChange={() => {
+                if (!hasUrl) {
+                  setUrlErrorKind('required')
+                  setUrlError(true)
+                  setTimeout(() => setUrlError(false), 600)
+                  return
+                }
+                update((r) => ({ ...r, on: !r.on }))
               }}
             />
-          </button>
+          </div>
         </div>
 
         {/* Google URL mező — MINDIG látható (nem kell toggle a linkhez) */}
-        <div className="mt-5 border-t border-[#efebdf] pt-5 space-y-1.5">
+        <div className="mt-5 border-t border-line pt-5 space-y-1.5">
           <div className="flex items-center justify-between gap-2">
             <GroupLabel>Google értékelés link</GroupLabel>
             <button
@@ -200,12 +212,18 @@ export function GoogleSettingsPanel({
               onFocus={() => setUrlError(false)}
               onBlur={() => {
                 const v = googleUrlDraft.trim()
+                if (v !== '' && !isValidUrl(v)) {
+                  setUrlErrorKind('invalid')
+                  setUrlError(true)
+                  setTimeout(() => setUrlError(false), 600)
+                  return
+                }
                 if (v !== reviews.googleUrl) {
                   update((r) => ({ ...r, googleUrl: v, on: v ? r.on : false }))
                 }
               }}
               placeholder="https://g.page/r/…/review"
-              className="h-11 w-full rounded-[12px] border bg-white px-3.5 text-sm text-ink placeholder:text-ink-soft2/60 outline-none transition-colors"
+              className="h-11 w-full rounded-dav-sm border bg-white px-3.5 text-sm text-ink placeholder:text-ink-soft2/60 outline-none transition-colors"
               style={{
                 borderColor: urlError ? 'var(--dav-bad)' : undefined,
                 boxShadow: urlError ? '0 0 0 2px color-mix(in srgb, var(--dav-bad) 20%, transparent)' : undefined,
@@ -214,7 +232,11 @@ export function GoogleSettingsPanel({
           </motion.div>
 
           {urlError && (
-            <p className="text-[12px] font-medium text-bad">Add meg a Google értékelés-linket az aktiváláshoz.</p>
+            <p className="text-[12px] font-medium text-bad">
+              {urlErrorKind === 'invalid'
+                ? 'Ez nem érvényes link — http:// vagy https:// -sel kell kezdődnie.'
+                : 'Add meg a Google értékelés-linket az aktiváláshoz.'}
+            </p>
           )}
 
           {!urlError && googleUrlDraft.trim() !== '' && (
@@ -238,9 +260,9 @@ export function GoogleSettingsPanel({
                 transition={{ duration: 0.2 }}
                 className="overflow-hidden"
               >
-                <div className="mt-1 rounded-[14px] border border-line bg-paper/50 p-4">
+                <div className="mt-1 rounded-dav-chip border border-line bg-paper/50 p-4">
                   <ol className="space-y-2 text-[12.5px] leading-relaxed text-ink-soft">
-                    <li><b className="font-semibold text-ink">1.</b> <b className="font-semibold text-ink">Keresd rá az üzleted nevére a Google-ban.</b></li>
+                    <li><b className="font-semibold text-ink">1.</b> <b className="font-semibold text-ink">Keress rá az üzleted nevére a Google-ban.</b></li>
                     <li><b className="font-semibold text-ink">2.</b> A „Vélemények" résznél kattints a <b className="font-semibold text-ink">„+ Vélemény írása"</b> gombra.</li>
                     <li><b className="font-semibold text-ink">3.</b> Másold ki a böngésző <b className="font-semibold text-ink">címsorából a linket</b>, és illeszd be ide.</li>
                   </ol>
@@ -252,7 +274,7 @@ export function GoogleSettingsPanel({
                     href="https://support.google.com/business/answer/3474122"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-[10px] bg-ink-dark px-3.5 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-dav-sm bg-ink-dark px-3.5 py-2 text-[12px] font-semibold text-white transition-opacity hover:opacity-90"
                   >
                     Google súgó: értékelések kérése
                     <ExternalLink className="h-3.5 w-3.5 text-gold" strokeWidth={2} />
@@ -275,10 +297,10 @@ export function GoogleSettingsPanel({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.32, ease: EASE }}
+              transition={{ duration: DUR.base, ease: EASE }}
               className="overflow-hidden"
             >
-              <div className="mt-5 border-t border-[#efebdf] pt-5">
+              <div className="mt-5 border-t border-line pt-5">
                 <GroupLabel>Kérés a {visitWord} után</GroupLabel>
                 <div className="flex flex-wrap gap-2.5">
                   {([

@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, type LucideIcon } from 'lucide-react'
+import { Toggle } from '@/components/settings/SettingsToggle'
+import { EASE, DUR } from '@/lib/motion'
 
 /**
  * FOGLALÁSI FUNKCIÓK — kapcsolható modulok (Crextio design, 1:1 a
@@ -30,32 +32,6 @@ export type FeatureModules = {
   review_delay_hours?: number | null
 }
 
-const EASE = [0.22, 1, 0.36, 1] as const
-
-/* ── Crextio toggle: 46×27 sín, aktív=ink-dark + gold knob jobbra, inaktív=#DAD5C6 + fehér knob balra ── */
-function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={on}
-      aria-label={label}
-      onClick={onClick}
-      className="relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors duration-200"
-      style={{ background: on ? '#1D1C19' : '#DAD5C6' }}
-    >
-      <span
-        className="absolute top-[3px] h-[21px] w-[21px] rounded-full transition-all duration-200"
-        style={{
-          left: on ? '22px' : '3px',
-          background: on ? '#F1CE45' : '#fff',
-          boxShadow: '0 1px 3px rgba(0,0,0,.25)',
-        }}
-      />
-    </button>
-  )
-}
-
 /* ── Kis kapcsolható „chip" (pl. időzítés / csatorna) ── */
 function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
@@ -63,7 +39,7 @@ function Chip({ on, onClick, children }: { on: boolean; onClick: () => void; chi
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={`rounded-[13px] border px-3.5 py-2 text-[12.5px] font-semibold transition-all active:scale-[0.97] ${
+      className={`rounded-dav-chip border px-3.5 py-2 text-[12.5px] font-semibold transition-all active:scale-[0.97] ${
         on
           ? 'border-transparent bg-ink-dark text-white'
           : 'border-line bg-white text-ink-soft2 hover:border-line-strong'
@@ -93,10 +69,10 @@ function ModuleCard({
   children?: React.ReactNode
 }) {
   return (
-    <div className={`rounded-[26px] bg-white p-5 shadow-dav-card lg:p-6 ${disabled ? 'opacity-60' : ''}`}>
+    <div className={`rounded-dav-lg dav-card-glass p-5 lg:p-6 ${disabled ? 'opacity-60' : ''}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3.5">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#F7F3E4] text-[#9A7B12]">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-dav-sm bg-gold/15 text-ink-dark">
             <Icon className="h-5 w-5" strokeWidth={1.6} />
           </span>
           <div>
@@ -104,7 +80,7 @@ function ModuleCard({
             <p className="mt-0.5 text-[12.5px] leading-relaxed text-ink-soft">{desc}</p>
           </div>
         </div>
-        <Toggle on={on} onClick={disabled ? () => {} : onToggle} label={`${title} be/ki`} />
+        <Toggle checked={on} onChange={disabled ? () => {} : onToggle} label={`${title} be/ki`} disabled={disabled} />
       </div>
 
       <AnimatePresence initial={false}>
@@ -114,10 +90,10 @@ function ModuleCard({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.32, ease: EASE }}
+            transition={{ duration: DUR.base, ease: EASE }}
             className="overflow-hidden"
           >
-            <div className="mt-5 border-t border-[#efebdf] pt-5">{children}</div>
+            <div className="mt-5 border-t border-line pt-5">{children}</div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -126,7 +102,7 @@ function ModuleCard({
 }
 
 function GroupLabel({ children }: { children: React.ReactNode }) {
-  return <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#A29B82]">{children}</div>
+  return <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-ink-soft2">{children}</div>
 }
 
 
@@ -249,7 +225,7 @@ export function BookingFeatures({
     <div className={embedded ? 'space-y-4 font-onest' : 'space-y-6 p-5 font-onest lg:p-0'}>
       {/* ── Fejléc (csak önálló oldalon; beágyazva a HUB adja a címet) ── */}
       {!embedded && (
-        <div className="rounded-[26px] bg-white p-6 shadow-dav-card lg:p-7">
+        <div className="rounded-dav-lg dav-card-glass p-6 lg:p-7">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h1 className="text-[32px] font-light leading-[1.1] tracking-[-0.02em] text-ink lg:text-[42px]">

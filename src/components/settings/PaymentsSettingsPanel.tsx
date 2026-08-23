@@ -6,6 +6,7 @@ import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, File
 import { monthlyEmailCapForTier, resolveTier } from '@/lib/tier'
 import { resolveAvailableLocales, LOCALE_LABELS, type Locale } from '@/lib/i18n'
 import type { Pricing } from '@/lib/pricing'
+import { Toggle } from './SettingsToggle'
 
 /**
  * "Fizetések" panel — vendég-előleg (Stripe Connect Express), ajándékutalvány, beleegyező
@@ -74,20 +75,6 @@ interface Props {
   registerApi?: (api: { save: () => Promise<boolean>; discard: () => void }) => void
   /** A beleegyező nyilatkozat nyelvenkénti fordításához (a foglaló oldal is ennyi nyelven megy). */
   supportedLocales?: (string | null | undefined)[] | null
-}
-
-function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void }) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      onClick={onChange}
-      className={`relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors ${checked ? 'bg-ink-dark' : 'bg-[#DAD5C6]'}`}
-    >
-      <span className={`absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow-sm transition-all ${checked ? 'right-[3px]' : 'left-[3px]'}`} />
-    </button>
-  )
 }
 
 const ALL_SECTIONS: NonNullable<Props['sections']> = ['stripe', 'deposit', 'voucher', 'consent', 'newsletter', 'invoicing']
