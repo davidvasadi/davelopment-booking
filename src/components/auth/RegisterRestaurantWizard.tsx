@@ -443,7 +443,7 @@ export function RegisterRestaurantWizard() {
           </div>
         </div>
 
-        <div className="flex-1 flex overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
+        <div className="flex-1 min-h-0 flex overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]" data-lenis-prevent>
           <div className="w-full max-w-sm m-auto">
             {progressPills(step)}
 
