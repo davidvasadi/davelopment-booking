@@ -23,10 +23,18 @@ const tagFor = (kind: PlaceKind, slug: string) =>
 
 function revalidatePlace(kind: PlaceKind, slug: string | null | undefined) {
   if (!slug) return
-  // Next 16: a revalidateTag második argumentuma a cache-profil. A 'max' a
-  // beépített „korlátlanul cache-elt, csak explicit invalidációkor frissül"
-  // profil — pontosan az on-demand revalidáció szándéka.
-  revalidateTag(tagFor(kind, slug), 'max')
+  try {
+    // Next 16: a revalidateTag második argumentuma a cache-profil. A 'max' a
+    // beépített „korlátlanul cache-elt, csak explicit invalidációkor frissül"
+    // profil — pontosan az on-demand revalidáció szándéka.
+    revalidateTag(tagFor(kind, slug), 'max')
+  } catch {
+    // A cache-revalidáció best-effort: ha itt hibázik (pl. static generation
+    // store hiánya a hívási kontextusban), az NEM bukhatja el a mögötte futó
+    // collection-hookot — Payload a bulk delete-by-where hibáit per-dokumentumonként
+    // nyeli el (nem dob felfelé), ami néma, visszagördült törlést eredményezett
+    // gyermek-rekordoknál (pl. service-categories), és FK-hibát a szülő törlésekor.
+  }
 }
 
 /**

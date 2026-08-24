@@ -142,7 +142,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
                     <StatusBadge status={sub.status as never} icon={StatusIcon} />
                     {periodEndNode}
                     {invoiceNode}
-                    <SubscriptionStatusSelect subId={sub.id} currentStatus={sub.status} currentPlan={sub.plan} />
+                    <SubscriptionStatusSelect subId={sub.id} ownerId={ownerId} currentStatus={sub.status} currentPlan={sub.plan} />
                   </div>
 
                   {/* Mobile */}
@@ -152,7 +152,7 @@ export default async function SubscriptionsPage({ searchParams }: { searchParams
                       <StatusBadge status={sub.status as never} icon={StatusIcon} />
                       {periodEndNode}
                     </div>
-                    <SubscriptionStatusSelect subId={sub.id} currentStatus={sub.status} currentPlan={sub.plan} />
+                    <SubscriptionStatusSelect subId={sub.id} ownerId={ownerId} currentStatus={sub.status} currentPlan={sub.plan} />
                   </div>
                 </div>
               )

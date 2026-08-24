@@ -76,18 +76,25 @@ export const Salons: CollectionConfig = {
     ],
     beforeDelete: [
       async ({ req, id }) => {
-        // Sorrend fontos: először a staff-ra mutató FK-kat töröljük (shifts/bookings/availability),
-        // csak utána töröljük a staff-ot — különben a salon DELETE SET NULL cascade NOT NULL hibát dob.
-        await Promise.all([
-          req.payload.delete({ collection: 'shifts', where: { salon: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'bookings', where: { salon: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'availability', where: { salon: { equals: id } }, overrideAccess: true }),
-        ])
-        await Promise.all([
-          req.payload.delete({ collection: 'staff', where: { salon: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'services', where: { salon: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'service-categories', where: { salon: { equals: id } }, overrideAccess: true }),
-        ])
+        // EGYMÁS UTÁN, nem Promise.all-lal: a Payload bulk delete({where}) egyidejű,
+        // párhuzamos hívásai ugyanazon a megosztott `req`-en versenyeznek a belső
+        // tranzakció-állapotért, ami néma, részleges törlést eredményezett (a hiba
+        // per-dokumentumonként nyelődött el, sose jutott fel a hívóig) — ez okozta,
+        // hogy a fiók-törlés csak a MÁSODIK gombnyomásra sikerült (első körben a
+        // service-categories törlése elveszett a versenyben, a szalon törlése ezért
+        // FK-hibával hasalt el; második körben már nem volt mivel versenyeznie).
+        const results = []
+        results.push(await req.payload.delete({ collection: 'shifts', where: { salon: { equals: id } }, overrideAccess: true }))
+        results.push(await req.payload.delete({ collection: 'bookings', where: { salon: { equals: id } }, overrideAccess: true }))
+        results.push(await req.payload.delete({ collection: 'availability', where: { salon: { equals: id } }, overrideAccess: true }))
+        results.push(await req.payload.delete({ collection: 'staff', where: { salon: { equals: id } }, overrideAccess: true }))
+        results.push(await req.payload.delete({ collection: 'services', where: { salon: { equals: id } }, overrideAccess: true }))
+        results.push(await req.payload.delete({ collection: 'service-categories', where: { salon: { equals: id } }, overrideAccess: true }))
+        for (const r of results) {
+          if (r && 'errors' in r && Array.isArray(r.errors) && r.errors.length > 0) {
+            req.payload.logger.error(`[Salons.beforeDelete] gyerek-törlés hiba (salon ${id}): ${JSON.stringify(r.errors)}`)
+          }
+        }
       },
     ],
     afterDelete: [

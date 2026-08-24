@@ -48,12 +48,14 @@ export const Restaurants: CollectionConfig = {
       async ({ req, id }) => {
         // A kapcsolódó rekordok kaszkád-törlése. A fiók-előfizetést NEM töröljük (a userhez
         // tartozik); a díj újraszámolását az afterDelete intézi.
-        await Promise.all([
-          req.payload.delete({ collection: 'reservations', where: { restaurant: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'opening-hours', where: { restaurant: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'tables', where: { restaurant: { equals: id } }, overrideAccess: true }),
-          req.payload.delete({ collection: 'rooms', where: { restaurant: { equals: id } }, overrideAccess: true }),
-        ])
+        // EGYMÁS UTÁN, nem Promise.all-lal — lásd Salons.ts ugyanezen hookjának indoklását:
+        // párhuzamos bulk-delete hívások versenyeznek a megosztott `req`-en, néma részleges
+        // törlést okozva, ami csak a MÁSODIK törlés-kísérletre futott le hiba nélkül.
+        await req.payload.delete({ collection: 'reservations', where: { restaurant: { equals: id } }, overrideAccess: true })
+        await req.payload.delete({ collection: 'opening-hours', where: { restaurant: { equals: id } }, overrideAccess: true })
+        await req.payload.delete({ collection: 'opening-hours-exceptions', where: { restaurant: { equals: id } }, overrideAccess: true })
+        await req.payload.delete({ collection: 'tables', where: { restaurant: { equals: id } }, overrideAccess: true })
+        await req.payload.delete({ collection: 'rooms', where: { restaurant: { equals: id } }, overrideAccess: true })
       },
     ],
     afterDelete: [

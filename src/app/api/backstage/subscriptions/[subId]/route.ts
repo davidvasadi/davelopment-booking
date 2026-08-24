@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
 
+/**
+ * Fallback subId-alapú módosítás, csak árva előfizetéshez (nincs owner, tehát az
+ * owner-alapú /api/backstage/accounts/[ownerId] nem használható). A normál útvonal
+ * az accounts route — lásd SubscriptionStatusSelect.tsx.
+ */
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ subId: string }> }
@@ -20,6 +25,7 @@ export async function PATCH(
     id: subId,
     data,
     overrideAccess: true,
+    user,
   })
 
   return NextResponse.json({ ok: true })
