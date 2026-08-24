@@ -213,7 +213,7 @@ export function RegisterRestaurantWizard() {
     1: { headline: 'MILYEN\nÉTTERMET\nVEZETSZ?', sub: 'Válassz egy sablont — asztalokat és turnusokat állítunk be, te csak testreszabod.' },
     2: { headline: 'CSATLAKOZZ\nHOZZÁNK.', sub: 'Hozd létre a fiókodat és az éttermed pár perc alatt.' },
     3: { headline: 'IMPORTÁLD\nAZ ADATAID.', sub: 'Ha más rendszerből váltasz, töltsd fel az exportált fájlt — asztalok, vendégek, foglalások egyszerre.' },
-    4: { headline: 'KÉSZEN\nVAGYOK.', sub: 'Az éttermed elérhető az online foglaláshoz.' },
+    4: { headline: 'JÖHETNEK\nA VENDÉGEK.', sub: 'Az éttermed elérhető az online foglaláshoz.' },
   }
   const leftText = leftHeadlines[step]
 
@@ -403,10 +403,10 @@ export function RegisterRestaurantWizard() {
             <div className="mt-12 flex-1 flex flex-col justify-between">
               <div>
                 <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
-                  KÉSZEN<br />VAGYOK.
+                  JÖHETNEK<br />A VENDÉGEK.
                 </h2>
                 <div className="space-y-3">
-                  {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Már csak az email-cím megerősítése van hátra'].map(item => (
+                  {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Már csak egy kattintás választ el az első asztalfoglalásodtól'].map(item => (
                     <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.04] border border-white/10 rounded-xl backdrop-blur-[10px]">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
                         <Check className="h-3 w-3 text-ink-dark" />
@@ -443,8 +443,8 @@ export function RegisterRestaurantWizard() {
           </div>
         </div>
 
-        <div className="flex-1 flex items-center justify-center overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
-          <div className="w-full max-w-sm">
+        <div className="flex-1 flex overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
+          <div className="w-full max-w-sm m-auto">
             {progressPills(step)}
 
             {step === 1 && (
@@ -607,11 +607,11 @@ export function RegisterRestaurantWizard() {
               <>
                 <div className="mb-8">
                   <p className="text-xs font-semibold text-ink-soft uppercase tracking-widest mb-1">4 / 4</p>
-                  <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Készen vagy!</h2>
+                  <h2 className="text-[26px] font-light tracking-[-0.01em] text-ink">Jöhetnek a vendégek!</h2>
                   <p className="text-ink-soft text-sm mt-1">Az éttermed sikeresen létrejött.</p>
                 </div>
                 <div className="space-y-3">
-                  {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Már csak az email-cím megerősítése van hátra'].map(item => (
+                  {['Étterem profil létrehozva', 'Asztalok és turnusok beállítva', 'Foglalási oldal elérhető', 'Már csak egy kattintás választ el az első asztalfoglalásodtól'].map(item => (
                     <div key={item} className="flex items-center gap-3 p-3.5 bg-paper rounded-xl">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
                         <Check className="h-3 w-3 text-ink-dark" />

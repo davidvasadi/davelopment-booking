@@ -402,8 +402,8 @@ export function RegisterWizard() {
             </div>
           </div>
 
-          <div className="flex-1 flex items-center justify-center overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
-            <div className="w-full max-w-md">
+          <div className="flex-1 flex overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
+            <div className="w-full max-w-md m-auto">
               {progressPills(1)}
 
               <AnimatePresence mode="wait" initial={false}>
@@ -462,7 +462,7 @@ export function RegisterWizard() {
     2: { headline: 'CSATLAKOZZ\nHOZZÁNK.', sub: 'Hozd létre a fiókodat és szalonod pár perc alatt.' },
     3: { headline: 'ADD HOZZÁ\nA CSAPA\nTODAT.', sub: 'Munkatársaid nevével testreszabhatod az időpontfoglalást.' },
     4: { headline: 'IMPORTÁLD\nAZ ADATAID.', sub: 'Más rendszerből? Töltsd fel az exportált fájlt — asztalok, munkatársak, vendégek egyszerre.' },
-    5: { headline: 'KÉSZEN\nVAGYOK.', sub: 'A szalonod elérhető az ügyfelek számára.' },
+    5: { headline: 'JÖHETNEK\nA VENDÉGEK.', sub: 'A szalonod elérhető az ügyfelek számára.' },
   }
   const leftText = leftHeadlines[step]
 
@@ -645,14 +645,14 @@ export function RegisterWizard() {
             <div className="mt-12 flex-1 flex flex-col justify-between">
               <div>
                 <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
-                  KÉSZEN<br />VAGYOK.
+                  JÖHETNEK<br />A VENDÉGEK.
                 </h2>
                 <div className="space-y-3">
                   {[
                     'Szalon profil létrehozva',
                     'Alapszolgáltatások beállítva',
                     'Foglalási oldal elérhető',
-                    'Már csak az email-cím megerősítése van hátra',
+                    'Már csak egy kattintás választ el az első foglalásodtól',
                   ].map(item => (
                     <div key={item} className="flex items-center gap-3 p-3.5 bg-white/[0.03] border border-white/10 rounded-xl backdrop-blur-[10px]">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
@@ -692,8 +692,8 @@ export function RegisterWizard() {
         </div>
 
         {/* Right panel */}
-        <div className="flex-1 flex items-center justify-center overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
-          <div className="w-full max-w-sm">
+        <div className="flex-1 flex overflow-y-auto rounded-[30px] bg-white px-6 py-12 [color-scheme:light]">
+          <div className="w-full max-w-sm m-auto">
 
             {progressPills(progressStep)}
 
@@ -838,7 +838,7 @@ export function RegisterWizard() {
               <motion.div key={5} initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -16 }} transition={{ duration: 0.25, ease: EASE }}>
                 <div className="mb-8">
                   <p className="text-xs font-semibold text-ink-soft2 uppercase tracking-widest mb-1">Kész</p>
-                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Készen vagy!</h2>
+                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Jöhetnek a vendégek!</h2>
                   <p className="text-ink-soft text-sm mt-1">A szalonod sikeresen létrejött — már csak egy kattintás van hátra.</p>
                 </div>
                 <div className="space-y-3">
@@ -846,7 +846,7 @@ export function RegisterWizard() {
                     'Szalon profil létrehozva',
                     'Alapszolgáltatások beállítva',
                     'Foglalási oldal elérhető',
-                    'Már csak az email-cím megerősítése van hátra',
+                    'Már csak egy kattintás választ el az első foglalásodtól',
                   ].map(item => (
                     <div key={item} className="flex items-center gap-3 p-3.5 bg-paper rounded-xl">
                       <div className="h-5 w-5 rounded-full bg-gold flex items-center justify-center shrink-0">
