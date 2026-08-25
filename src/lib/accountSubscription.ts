@@ -1,5 +1,5 @@
 import type { Payload, PayloadRequest } from 'payload'
-import type { Subscription } from '@/payload/payload-types'
+import type { Subscription, TrialLedgerEntry } from '@/payload/payload-types'
 import type { Pricing } from './pricing'
 import { businessMonthlyFee, applyCycle, resolveCycle, resolveTier } from './tier'
 import { getStripe, hufToStripeMinor } from './stripe'
@@ -123,11 +123,11 @@ export async function findAccountSubscription({ payload, req }: Ctx, userId: str
 }
 
 /**
- * Már használt-e ez az email valaha ingyenes próbaidőt — a `trial-ledger` FÜGGETLEN a
- * `Users`/`Subscriptions` törlésétől (lásd a collection dokumentációját), tehát törölt-majd-
- * újraregisztrált fiókoknál is helyesen "igen"-t ad.
+ * Az email trial-ledger bejegyzése, ha valaha kapott már próbaidőt — a `trial-ledger`
+ * FÜGGETLEN a `Users`/`Subscriptions` törlésétől (lásd a collection dokumentációját), tehát
+ * törölt-majd-újraregisztrált fiókoknál is megtalálja az EREDETI kezdő időpontot.
  */
-async function hasUsedTrialBefore(payload: Payload, email: string): Promise<boolean> {
+async function findTrialLedgerEntry(payload: Payload, email: string): Promise<TrialLedgerEntry | null> {
   const res = await payload.find({
     collection: 'trial-ledger',
     where: { email: { equals: email.trim().toLowerCase() } },
@@ -135,7 +135,7 @@ async function hasUsedTrialBefore(payload: Payload, email: string): Promise<bool
     depth: 0,
     overrideAccess: true,
   })
-  return res.totalDocs > 0
+  return (res.docs[0] as TrialLedgerEntry | undefined) ?? null
 }
 
 /** Az email felvétele a próbaidő-nyilvántartásba — csak ÚJ trial indításakor hívjuk, egyszer. */
@@ -153,10 +153,13 @@ async function recordTrialEmail(payload: Payload, email: string): Promise<void> 
  * A user fiók-előfizetését adja vissza; ha még nincs, létrehozza próbaidővel. A díjat és a
  * count-okat az aktuális üzletek alapján állítja be.
  *
- * Csalás-védelem: ha az email már szerepel a `trial-ledger`-ben (korábban már kapott
- * próbaidőt — akár egy azóta törölt fiókon), NEM kap új próbaidőt: a subscription rögtön
- * `past_due` státusszal, lejárt `trial_ends_at`-tal jön létre, tehát azonnal a fizetési zárral
- * találkozik. Ha nem szerepel, normál trial indul, és az email felkerül a listára.
+ * Csalás-védelem + méltányosság: a próbaidő vége mindig az EREDETI, `trial-ledger`-ben tárolt
+ * kezdő időponthoz (`first_seen_at`) van kötve, nem egy új, nulláról induló időablakhoz — ha az
+ * email még sosem szerepelt a ledgerben, most kezdődik (és felkerül rá); ha már szerepel (akár
+ * egy azóta törölt/anonymizált fiókon), a próbaidő onnantól számít, ahonnan eredetileg elindult.
+ * Így aki a próbaidő KÖZEPÉN törli magát és újraregisztrál, a MARADÉK napjait kapja vissza
+ * (nem nulla, de nem is egy friss teljes próbaidőt) — aki már valóban túl van a teljes
+ * próbaidő-hosszon, azonnal `past_due`-ban landol, lejárt `trial_ends_at`-tal.
  */
 export async function getOrCreateAccountSubscription({ payload, req }: Ctx, userId: string | number): Promise<Subscription> {
   const existing = await findAccountSubscription({ payload, req }, userId)
@@ -167,11 +170,13 @@ export async function getOrCreateAccountSubscription({ payload, req }: Ctx, user
 
   const user = await payload.findByID({ collection: 'users', id: userId, depth: 0, overrideAccess: true, req }).catch(() => null) as { email?: string } | null
   const email = user?.email
-  const repeatTrial = email ? await hasUsedTrialBefore(payload, email) : false
+  const ledgerEntry = email ? await findTrialLedgerEntry(payload, email) : null
 
   const now = new Date()
-  const trialEnd = repeatTrial ? now : new Date(now.getTime() + pricing.trial_days * 86_400_000)
-  if (!repeatTrial && email) await recordTrialEmail(payload, email)
+  const firstSeen = ledgerEntry ? new Date(ledgerEntry.first_seen_at) : now
+  const trialEnd = new Date(firstSeen.getTime() + pricing.trial_days * MS_PER_DAY)
+  const stillTrialing = trialEnd.getTime() > now.getTime()
+  if (!ledgerEntry && email) await recordTrialEmail(payload, email)
 
   // Az owner reláció a DB-ben int FK — numerikus stringet számmá alakítunk, hogy a Payload
   // reláció-validáció megtalálja a usert (különben „Tulajdonos érvénytelen").
@@ -184,7 +189,7 @@ export async function getOrCreateAccountSubscription({ payload, req }: Ctx, user
     data: {
       owner: ownerVal,
       plan: 'trial',
-      status: repeatTrial ? 'past_due' : 'trialing',
+      status: stillTrialing ? 'trialing' : 'past_due',
       trial_ends_at: trialEnd.toISOString(),
       salon_count: fee.salonCount,
       restaurant_count: fee.restaurantCount,
