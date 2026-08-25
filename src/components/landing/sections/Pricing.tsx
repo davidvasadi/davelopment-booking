@@ -40,6 +40,11 @@ function segmentLadder(seg: Segment, pricing: LandingPricing) {
       'Ajándékutalvány-értékesítés a foglaló oldaladon',
       'Élő analitika + vendég-térkép — lásd, honnan jönnek',
       'Emlékeztetők, várólista, értékelés-kérés — automatikusan',
+      'Tiltólista — nemkívánt vendégek kizárása a foglalásból',
+      'Naptár-feed — szinkronizálható Google/Apple Naptárba',
+      'Digitális beleegyező nyilatkozat a foglalónál',
+      'Egyedi kérdések bekérése foglaláskor',
+      'CSV-exportálás — foglalások, bevétel',
     ]
     : [
       'Interaktív asztaltérkép, valós idejű kapacitással',
@@ -49,6 +54,11 @@ function segmentLadder(seg: Segment, pricing: LandingPricing) {
       'Ajándékutalvány-értékesítés a foglaló oldaladon',
       'Élő analitika + vendég-térkép — lásd, honnan jönnek',
       'Napi forgalom- és vendégjelentés',
+      'Tiltólista — nemkívánt vendégek kizárása a foglalásból',
+      'Naptár-feed — szinkronizálható Google/Apple Naptárba',
+      'Digitális beleegyező nyilatkozat a foglalónál',
+      'Egyedi kérdések bekérése foglaláskor',
+      'CSV-exportálás — foglalások, bevétel',
     ]
   const starterFeats = [
     ...baseFeats.map((label) => ({ label, included: true })),

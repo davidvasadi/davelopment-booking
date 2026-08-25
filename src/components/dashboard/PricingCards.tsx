@@ -160,6 +160,13 @@ export function PricingCards({
     { label: 'Emlékeztetők, várólista, értékelés-kérés — automatikusan', included: true },
     { label: 'Ajándékutalvány-értékesítés a foglaló oldaladon', included: true },
     { label: 'Előleg bekérése foglaláskor (bankkártyás)', included: true },
+    { label: 'Csapat-jogosultságkezelés — ki mit láthat és módosíthat', included: true },
+    { label: 'Automata számlázás a saját Számlázz.hu/Billingo fiókodból', included: true },
+    { label: 'Tiltólista — nemkívánt vendégek kizárása a foglalásból', included: true },
+    { label: 'Naptár-feed — szinkronizálható Google/Apple Naptárba', included: true },
+    { label: 'Digitális beleegyező nyilatkozat a foglalónál', included: true },
+    { label: 'Egyedi kérdések bekérése foglaláskor', included: true },
+    { label: 'CSV-exportálás — foglalások, bevétel', included: true },
   ]
   const starterFeats = [...baseFeats, { label: `Hírlevél-küldés — ${starterCap.toLocaleString('hu-HU')} email/hó`, included: true }]
   const proFeats = [...baseFeats, { label: `Hírlevél-küldés — ${proCap.toLocaleString('hu-HU')} email/hó`, included: true }]
