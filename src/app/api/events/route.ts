@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
-import { sseEmitter, type SseBookingEvent } from '@/lib/sseEmitter'
+import { sseEmitter, type SseBookingEvent, type SseNotificationEvent } from '@/lib/sseEmitter'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,10 +14,13 @@ export async function GET(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { active } = await getActiveBusiness(user)
-  if (!active) return NextResponse.json({ error: 'No active business' }, { status: 404 })
+  // Admin (backstage) nincs "aktív üzlethez" kötve — a foglalás-eseményeket nem kapja, de az
+  // admin-közönségű értesítéseket (pl. kapcsolatfelvétel) igen, lásd a notification-listenert lent.
+  const isAdmin = user.role === 'admin'
+  const { active } = isAdmin ? { active: null } : await getActiveBusiness(user)
+  if (!isAdmin && !active) return NextResponse.json({ error: 'No active business' }, { status: 404 })
 
-  const businessKey = `${active.type}:${active.id}`
+  const businessKey = active ? `${active.type}:${active.id}` : null
   const encoder = new TextEncoder()
 
   let heartbeatId: ReturnType<typeof setInterval>
@@ -40,16 +43,29 @@ export async function GET(request: NextRequest) {
       }, HEARTBEAT_MS)
 
       const listener = ({ kind, businessId, op }: SseBookingEvent) => {
-        if (`${kind}:${businessId}` === businessKey) {
+        if (businessKey && `${kind}:${businessId}` === businessKey) {
           enqueue(`data: ${JSON.stringify({ type: 'refresh', kind, op })}\n\n`)
         }
       }
-
       sseEmitter.on('booking-change', listener)
+
+      // Ugyanaz a szűrés-logika, mint az /api/notifications GET-jében (placeFilter): admin az
+      // admin-közönségű, tulaj az aktív üzletéhez tartozó owner-, bárki a saját user-célzott
+      // értesítését kapja meg azonnal — a kliens ekkor csak újra lekéri a listát, nem a teljes
+      // payload-ot küldjük át SSE-n.
+      const notifListener = (ev: SseNotificationEvent) => {
+        const matches = isAdmin
+          ? ev.audience === 'admin'
+          : (ev.audience === 'member' && String(ev.userId ?? '') === String(user.id))
+            || (ev.audience === 'owner' && active != null && String(active.id) === String(active.type === 'salon' ? ev.salonId : ev.restaurantId))
+        if (matches) enqueue(`data: ${JSON.stringify({ type: 'notification' })}\n\n`)
+      }
+      sseEmitter.on('notification-change', notifListener)
 
       request.signal.addEventListener('abort', () => {
         clearInterval(heartbeatId)
         sseEmitter.off('booking-change', listener)
+        sseEmitter.off('notification-change', notifListener)
         try { controller.close() } catch {}
       })
     },

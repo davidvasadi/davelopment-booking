@@ -34,6 +34,10 @@ export function LiveRefreshProvider({ businessKey }: Props) {
             router.refresh()
             window.dispatchEvent(new Event('booking-changed'))
           }, 400)
+        } else if (data.type === 'notification') {
+          // Új harang-értesítés (pl. kapcsolatfelvétel, új regisztráció) — a useNotifications
+          // hook erre azonnal újratölti a listát, nem kell a 60mp-es pollingra várni.
+          window.dispatchEvent(new Event('notification-changed'))
         }
       } catch {}
     }

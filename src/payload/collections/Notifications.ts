@@ -1,4 +1,5 @@
 import type { Access, CollectionConfig } from 'payload'
+import { emitNotificationCreated } from '../../lib/sseEmitter'
 
 // App-on belüli értesítések (e-mail nélkül). A tulajdonos a harang ikon alatt látja őket.
 // A rekordokat a Reservations / Bookings afterChange hook hozza létre.
@@ -10,6 +11,27 @@ export const Notifications: CollectionConfig = {
     defaultColumns: ['title', 'type', 'read', 'createdAt'],
     group: 'Rendszer',
     hidden: true,
+  },
+  hooks: {
+    afterChange: [
+      ({ doc, operation, req }) => {
+        // Új értesítés → a harang azonnal frissüljön SSE-n, ne kelljen a 60mp-es pollingra várni.
+        // Best-effort: ez SOSE buktathatja el a tényleges értesítés-létrehozást (ami mögött pl.
+        // egy foglalás visszaigazolása áll) — az EventEmitter.emit() szinkron újradobja a
+        // listener hibáját a hívóig, ha nincs elkapva.
+        if (operation !== 'create') return
+        try {
+          emitNotificationCreated({
+            audience: doc.audience,
+            userId: typeof doc.user === 'object' ? doc.user?.id : doc.user,
+            salonId: typeof doc.salon === 'object' ? doc.salon?.id : doc.salon,
+            restaurantId: typeof doc.restaurant === 'object' ? doc.restaurant?.id : doc.restaurant,
+          })
+        } catch (err) {
+          req.payload.logger.error(`notification SSE emit hiba: ${String(err)}`)
+        }
+      },
+    ],
   },
   access: {
     // Admin → admin-közönségű értesítések; user → saját üzlet owner-értesítései + user-célzott.
@@ -83,11 +105,20 @@ export const Notifications: CollectionConfig = {
         { label: 'Beosztás változás', value: 'schedule_change' },
         { label: 'Meg nem nyitott visszaigazoló email', value: 'email_not_opened' },
         { label: 'Ajándékutalvány vásárlás', value: 'voucher_purchase' },
+        { label: 'Kapcsolatfelvétel', value: 'contact_message' },
+        { label: 'Admin körüzenet', value: 'admin_broadcast' },
       ],
     },
     { name: 'title', type: 'text', required: true, label: 'Cím' },
     { name: 'body', type: 'text', label: 'Szöveg' },
     { name: 'metadata', type: 'json', label: 'Digest adatok (foglalások, fő, műszak vezető stb.)' },
+    {
+      name: 'campaign_id',
+      type: 'number',
+      index: true,
+      label: 'Kampány (broadcast-log id)',
+      admin: { description: 'Csak admin_broadcast típusnál — a broadcast-log rekordra mutat, ebből számol a backstage olvasottsági arányt.' },
+    },
     {
       name: 'read',
       type: 'checkbox',

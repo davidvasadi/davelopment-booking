@@ -17,3 +17,15 @@ export interface SseBookingEvent {
 export function emitBookingChange(event: SseBookingEvent): void {
   sseEmitter.emit('booking-change', event)
 }
+
+export interface SseNotificationEvent {
+  audience: 'owner' | 'member' | 'admin'
+  userId?: string | number | null
+  salonId?: string | number | null
+  restaurantId?: string | number | null
+}
+
+/** Bármelyik `notifications` rekord létrejöttekor — a harang azonnal frissül, nem kell rá várni a pollingra. */
+export function emitNotificationCreated(event: SseNotificationEvent): void {
+  sseEmitter.emit('notification-change', event)
+}

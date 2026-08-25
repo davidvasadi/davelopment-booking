@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, CalendarRange, MailWarning, type LucideIcon } from 'lucide-react'
+import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, CalendarRange, MailWarning, Mail, Megaphone, type LucideIcon } from 'lucide-react'
 
 export type Notification = {
   id: number | string
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'contact_message' | 'admin_broadcast'
   title: string
   body?: string | null
   read?: boolean | null
@@ -57,6 +57,8 @@ export function notificationVisual(type: Notification['type'], metadata?: Record
     case 'digest_morning':   return { Icon: Sunrise,       color: 'text-[#B45309]', bg: 'bg-[#FFFBEB]' }
     case 'digest_evening':   return { Icon: Sunset,        color: 'text-[#4B6CB7]', bg: 'bg-[#EEF2FC]' }
     case 'email_not_opened': return { Icon: MailWarning,   color: 'text-[#C2410C]', bg: 'bg-[#FFEDD5]' }
+    case 'contact_message':  return { Icon: Mail,          color: 'text-ink',       bg: 'bg-[#EDEBE3]' }
+    case 'admin_broadcast':  return { Icon: Megaphone,     color: 'text-[#8A6D12]', bg: 'bg-[#FBF1C9]' }
     default:                 return { Icon: CalendarPlus,  color: 'text-[#1D9D63]', bg: 'bg-[#E4F2E9]' }
   }
 }
@@ -121,11 +123,15 @@ export function useNotifications(onNavigate?: () => void) {
 
   useEffect(() => {
     load()
+    // A 60mp-es polling csak biztonsági háló — az SSE (LiveRefreshProvider →
+    // 'notification-changed') azonnal frissít, amint tényleg érkezik valami.
     const t = setInterval(load, 60_000)
     window.addEventListener('booking-changed', load)
+    window.addEventListener('notification-changed', load)
     return () => {
       clearInterval(t)
       window.removeEventListener('booking-changed', load)
+      window.removeEventListener('notification-changed', load)
     }
   }, [load])
 
@@ -185,7 +191,9 @@ export function useNotifications(onNavigate?: () => void) {
     } else if (n.type === 'new_signup') {
       router.push(`/backstage/salons?t=${t}`)
     } else if (n.type === 'new_subscriber') {
-      router.push(`/backstage/subscriptions?t=${t}`)
+      router.push(`/backstage/accounts?t=${t}`)
+    } else if (n.type === 'contact_message') {
+      router.push(`/backstage/contact?t=${t}`)
     }
   }, [onNavigate, remove, router])
 

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { AppShell } from '@/components/dashboard/AppShell'
 import { PageTransition } from '@/components/ui/page-transition'
+import { LiveRefreshProvider } from '@/components/LiveRefreshProvider'
 import { expireStaleTrials } from '@/lib/subscriptionSync'
 
 export default async function BackstageLayout({ children }: { children: React.ReactNode }) {
@@ -28,6 +29,9 @@ export default async function BackstageLayout({ children }: { children: React.Re
       userAvatarUrl={user.avatar_url ?? null}
     >
       <PageTransition>{children}</PageTransition>
+      {/* Adminnak nincs "aktív üzlete" — a businessKey itt csak a hook belső re-subscribe
+          dependency-je, a szerver a role alapján, nem eme kulcs alapján dönt admin-e. */}
+      <LiveRefreshProvider businessKey="admin" />
     </AppShell>
   )
 }
