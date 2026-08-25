@@ -389,8 +389,11 @@ export default async function RestaurantDashboardPage() {
             <Link href="/restaurant/settings?tab=self" aria-label="Saját profil" className="absolute inset-0 z-20" />
             <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-[14px]" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
               {profileImg ? (
+                // object-cover + object-top — ugyanaz a minta, mint a Csapat oldal avatarjainál:
+                // mindig kitölti a keretet (nincs üres háttér-sáv), a vágás FELÜLRŐL indul, mert
+                // egy portré-fotón az arc jellemzően a kép felső részén van.
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={profileImg} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                <img src={profileImg} alt="" className="absolute inset-0 h-full w-full object-cover object-top" />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center text-white/30">
                   <UserRound className="h-7 w-7" strokeWidth={1.4} />

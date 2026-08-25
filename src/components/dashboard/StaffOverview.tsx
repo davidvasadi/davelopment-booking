@@ -186,8 +186,11 @@ export function StaffOverview({
           <div className={`${CARD} group relative shrink-0 overflow-hidden p-0`} style={{ aspectRatio: '0.82', transform: 'translateZ(0)' }}>
             <Link href={settingsHref} aria-label="Saját profil" className="absolute inset-0 z-20" />
             {profileImg && !imgError ? (
+              // object-cover + object-top — ugyanaz a minta, mint a Csapat oldal avatarjainál:
+              // mindig kitölti a keretet, a vágás FELÜLRŐL indul (a portré-fotón az arc
+              // jellemzően felül van).
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={profileImg} alt="" className="absolute inset-0 h-full w-full object-cover" onError={() => setImgError(true)} />
+              <img src={profileImg} alt="" className="absolute inset-0 h-full w-full object-cover object-top" onError={() => setImgError(true)} />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center text-white/30" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(145deg, rgba(255,255,255,0.07) 0%, transparent 55%)' }} />
