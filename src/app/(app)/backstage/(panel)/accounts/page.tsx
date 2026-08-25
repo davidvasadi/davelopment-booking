@@ -1,9 +1,9 @@
 import { requireAuth } from '@/lib/auth'
 import { CreditCard, Users, Wallet } from 'lucide-react'
-import { loadBackstageData } from '@/lib/backstageMetrics'
+import { loadBackstageData, loadRegistrationFunnel } from '@/lib/backstageMetrics'
 import { getPayloadClient } from '@/lib/payload'
 import { BackstageHero } from '@/components/backstage/BackstageHero'
-import { formatHuf } from '@/components/backstage/BackstageUi'
+import { formatHuf, SectionPanel } from '@/components/backstage/BackstageUi'
 import AccountsClient, { type AccountRow, type Filter } from './AccountsClient'
 import OrphanSubscriptions, { type OrphanSub } from './OrphanSubscriptions'
 
@@ -16,6 +16,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const { status } = await searchParams
   const initialStatus = VALID_FILTERS.includes(status as Filter) ? (status as Filter) : undefined
   const d = await loadBackstageData()
+  const funnel = await loadRegistrationFunnel(d.accounts)
 
   // Árva előfizetések: owner nélküli subscription-sorok — a fő lista USEREKBŐL indul ki, ezért
   // ezeket sose látná (a Subscriptions oldal viszont raw subscription-lekérdezésből építkezett,
@@ -68,6 +69,36 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           { icon: Wallet, value: formatHuf(d.arpa), label: 'Átlag / fiók' },
         ]}
       />
+
+      {/* Regisztrációs tölcsér — a "látogatás" lépés hiányzik (nincs anonim analitika), a
+          teljesen regisztrált userekkel kezdünk. Cél: LÁTHATÓVÁ tenni, hol esnek ki a jelöltek
+          a saját hibájukon kívül (pl. egy törött regisztrációs lépés), nem csak a végállapotot. */}
+      <SectionPanel title="Regisztrációs tölcsér">
+        <div className="space-y-2.5 p-5">
+          {funnel.map((stage, i) => {
+            const first = funnel[0].count || 1
+            const widthPct = Math.max(4, Math.round((stage.count / first) * 100))
+            const prev = i > 0 ? funnel[i - 1].count : null
+            const dropPct = prev && prev > 0 ? Math.round(((prev - stage.count) / prev) * 100) : null
+            return (
+              <div key={stage.key}>
+                <div className="mb-1 flex items-center justify-between text-[12.5px]">
+                  <span className="font-medium text-ink">{stage.label}</span>
+                  <span className="flex items-center gap-2">
+                    {dropPct != null && dropPct > 0 && (
+                      <span className="text-[11px] font-semibold text-bad">−{dropPct}%</span>
+                    )}
+                    <span className="font-semibold text-ink-soft">{stage.count.toLocaleString('hu-HU')}</span>
+                  </span>
+                </div>
+                <div className="h-2.5 w-full overflow-hidden rounded-full bg-paper">
+                  <div className="h-full rounded-full bg-ink-dark transition-all" style={{ width: `${widthPct}%` }} />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </SectionPanel>
 
       <AccountsClient accounts={rows} initialStatus={initialStatus} />
       {orphans.length > 0 && <OrphanSubscriptions subs={orphans} />}

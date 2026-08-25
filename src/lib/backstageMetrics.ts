@@ -703,3 +703,40 @@ export async function loadEmailHealth(): Promise<EmailHealth> {
 
   return { total30d, failed30d, successRatePct, recentFailures }
 }
+
+/* ── Regisztrációs tölcsér (a /backstage/accounts oldal tetejére) ─────────────── */
+
+export type FunnelStage = { key: string; label: string; count: number }
+
+/**
+ * Hol esnek ki a jelöltek a signup → fizetőssé válás úton. A "látogatás" lépés szándékosan
+ * hiányzik — nincs anonim látogató-követés, csak a ténylegesen regisztrált userekből tudunk
+ * kiindulni. Az `accounts` a `loadBackstageData()` már betöltött listája (owner + üzlet-
+ * aggregátum) — nem kérdezzük le újra, csak a "regisztrált"/"emailt megerősítette" lépéshez
+ * kell egy KÜLÖN, üzlet nélküli users-lekérdezés (az `accounts` csak azokat tartalmazza, akiknek
+ * MÁR van legalább egy üzlete).
+ */
+export async function loadRegistrationFunnel(accounts: AccountSummary[]): Promise<FunnelStage[]> {
+  const payload = await getPayloadClient()
+  const usersRes = await payload.find({
+    collection: 'users',
+    where: { role: { in: ['salon_owner', 'restaurant_owner'] } },
+    limit: 5000,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const owners = usersRes.docs as User[]
+  const registered = owners.length
+  const verified = owners.filter((u) => (u as unknown as { _verified?: boolean })._verified).length
+  const hasBusiness = accounts.length
+  const hasBooking = accounts.filter((a) => a.totalBookings > 0).length
+  const paying = accounts.filter((a) => a.status === 'active').length
+
+  return [
+    { key: 'registered', label: 'Regisztráció elindítva', count: registered },
+    { key: 'verified', label: 'Email megerősítve', count: verified },
+    { key: 'business', label: 'Első üzlet létrehozva', count: hasBusiness },
+    { key: 'booking', label: 'Első foglalás beérkezett', count: hasBooking },
+    { key: 'paying', label: 'Fizetőssé vált', count: paying },
+  ]
+}

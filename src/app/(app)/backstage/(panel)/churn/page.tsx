@@ -4,6 +4,7 @@ import { AlertTriangle, Clock, CalendarX, Building2, UtensilsCrossed, Store, Arr
 import { loadBackstageData, daysUntil, type BackstagePlaceRisk, type AccountSummary } from '@/lib/backstageMetrics'
 import { BackstageHero } from '@/components/backstage/BackstageHero'
 import { SectionPanel } from '@/components/backstage/BackstageUi'
+import { HelpOutreachButton } from '@/components/backstage/HelpOutreachButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,7 +30,7 @@ function PlaceRiskRow({ p, badge }: { p: BackstagePlaceRisk; badge: { label: str
   )
 }
 
-function AccountRiskRow({ a, badge }: { a: AccountSummary; badge: { label: string; cls: string } }) {
+function AccountRiskRow({ a, badge, outreach }: { a: AccountSummary; badge: { label: string; cls: string }; outreach?: 'trial' | 'past_due' }) {
   return (
     <Link href={`/backstage/accounts/${a.ownerId}`} className="flex items-center gap-3 rounded-[18px] px-3 py-3 transition-colors hover:bg-white">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-dark text-[12px] font-bold text-white">
@@ -39,6 +40,7 @@ function AccountRiskRow({ a, badge }: { a: AccountSummary; badge: { label: strin
         <p className="truncate text-[13.5px] font-semibold text-ink">{a.owner.email}</p>
         <p className="truncate text-[12px] text-ink-soft">{a.placeCount} üzlet · {a.owner.name || '—'}</p>
       </div>
+      {outreach && <HelpOutreachButton ownerId={a.ownerId} ownerName={a.owner.name || a.owner.email || '—'} context={outreach} />}
       <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${badge.cls}`}>{badge.label}</span>
       <ArrowRight className="h-3.5 w-3.5 shrink-0 text-ink-soft2" />
     </Link>
@@ -87,7 +89,7 @@ export default async function ChurnPage() {
             ? <p className="px-5 py-6 text-[13.5px] text-ink-soft">{sections[0].empty}</p>
             : <div className="p-2">{d.expiringTrials.map(a => {
                 const days = daysUntil(a.sub?.trial_ends_at)
-                return <AccountRiskRow key={a.ownerId} a={a} badge={{ label: days != null ? `${days} nap` : 'Lejár', cls: 'bg-warn-bg text-warn' }} />
+                return <AccountRiskRow key={a.ownerId} a={a} badge={{ label: days != null ? `${days} nap` : 'Lejár', cls: 'bg-warn-bg text-warn' }} outreach="trial" />
               })}</div>}
         </SectionPanel>
 
@@ -95,7 +97,7 @@ export default async function ChurnPage() {
         <SectionPanel title={sections[1].title} icon={sections[1].icon} iconClass={sections[1].iconCls} count={sections[1].count}>
           {d.pastDueAccounts.length === 0
             ? <p className="px-5 py-6 text-[13.5px] text-ink-soft">{sections[1].empty}</p>
-            : <div className="p-2">{d.pastDueAccounts.map(a => <AccountRiskRow key={a.ownerId} a={a} badge={{ label: 'Lejárt', cls: 'bg-bad-bg text-bad' }} />)}</div>}
+            : <div className="p-2">{d.pastDueAccounts.map(a => <AccountRiskRow key={a.ownerId} a={a} badge={{ label: 'Lejárt', cls: 'bg-bad-bg text-bad' }} outreach="past_due" />)}</div>}
         </SectionPanel>
 
         {/* Hely-szintű: alvó */}
