@@ -17,6 +17,10 @@ import { getPayloadClient } from '@/lib/payload'
 import { sendReminderEmail as sendSalonReminder, sendFeedbackRequestEmail as sendSalonFeedback, sendSalonDigestEmail } from '@/lib/email'
 import { sendReminderEmail as sendRestaurantReminder, sendFeedbackRequestEmail as sendRestaurantFeedback } from '@/lib/restaurantEmail'
 import { sendPushToUsers } from '@/lib/webPush'
+import { buildSalonAdvisor, buildRestaurantAdvisor, type SetupFlags } from '@/lib/tipsAdvisor'
+import { getDashboardStats } from '@/lib/dashboardStats'
+import { getRestaurantStats } from '@/lib/restaurantStats'
+import { ALL_CAPABILITIES } from '@/lib/permissions'
 import type { Salon, Service, StaffMember, Booking, Restaurant, Reservation, User, Membership } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
@@ -92,6 +96,30 @@ async function digestAlreadySent(
   return existing.totalDocs > 0
 }
 
+/** Ugyanaz a minta, mint `digestAlreadySent` — a heti tipp csak hétfőn 1x fut, de a cron
+ *  percenként/óránként hívódik, ezért ugyanígy kell idempotensnek lennie aznapra. */
+async function weeklyTipAlreadySent(
+  payload: Awaited<ReturnType<typeof getPayloadClient>>,
+  field: 'salon' | 'restaurant',
+  placeId: string,
+  dateStr: string,
+): Promise<boolean> {
+  const todayMidnight = new Date(`${dateStr}T00:00:00`)
+  const existing = await payload.find({
+    collection: 'notifications',
+    where: {
+      and: [
+        { type: { equals: 'weekly_tip' } },
+        { [field]: { equals: placeId } },
+        { createdAt: { greater_than: todayMidnight.toISOString() } },
+      ],
+    },
+    limit: 1,
+    overrideAccess: true,
+  })
+  return existing.totalDocs > 0
+}
+
 export async function GET(request: NextRequest) { return handle(request) }
 export async function POST(request: NextRequest) { return handle(request) }
 
@@ -106,9 +134,11 @@ async function handle(request: NextRequest) {
   const forceDigest = process.env.NODE_ENV !== 'production'
     ? (request.nextUrl.searchParams.get('force') as 'morning' | 'evening' | null)
     : null
+  // Dev-only: ?forceTip=1 kihagyja a hétfő-8-óra időzítés-ellenőrzést a heti tipp blokknál.
+  const forceTip = process.env.NODE_ENV !== 'production' && request.nextUrl.searchParams.get('forceTip') === '1'
 
   const now = Date.now()
-  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, notificationsCleaned: 0, errors: 0 }
+  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, weeklyTips: 0, notificationsCleaned: 0, errors: 0 }
 
   try {
     const payload = await getPayloadClient()
@@ -913,6 +943,121 @@ async function handle(request: NextRequest) {
       } catch (err) {
         summary.errors++
         console.error('[Cron] Restaurant digest failed for', restaurant.id, err)
+      }
+    }
+
+    // ── Heti tipp (proaktív segítségnyújtás) ────────────────────────────────────
+    // A tipsAdvisor motor MÁR felismeri owner-oldalon a hasznos, kontextusfüggő tanácsokat
+    // (`weeklyTip`) — eddig csak akkor látta a tulaj, ha épp benyitott a Tippek oldalra. Itt
+    // a platform megy oda hozzá: hétfő reggelente, ha van aktuális tipp, egy in-app értesítés
+    // + push megy ki róla. Csak hétfőn 8-kor fut, napi idempotencia-védelemmel (mint a digest).
+    if (forceTip || (dow === 'monday' && hour === 8)) {
+      const in14 = new Date(`${dateStr}T00:00:00`)
+      in14.setDate(in14.getDate() + 14)
+      const in14Str = in14.toISOString().slice(0, 10)
+
+      const tipSalons = await payload.find({
+        collection: 'salons',
+        where: { is_active: { not_equals: false } },
+        depth: 0, limit: 200, overrideAccess: true,
+      })
+      for (const salon of tipSalons.docs as Salon[]) {
+        try {
+          const salonId = String(salon.id)
+          const ownerId = relId(salon.owner)
+          if (!ownerId) continue
+          if (!forceTip && await weeklyTipAlreadySent(payload, 'salon', salonId, dateStr)) continue
+
+          const ownerDoc = await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true })
+          const ownerPrefs = (ownerDoc?.personal_notif_prefs as Record<string, boolean | null> | null) ?? {}
+          // Külön "tipp" preferencia helyett a napi-összefoglaló kapcsolót osztja meg vele —
+          // mindkettő periodikus, nem kritikus, informatív app-értesítés.
+          if (ownerPrefs.digest === false) continue
+
+          const [stats, availRes, servicesRes, shiftsAheadRes, pendingBookRes, campaignRes] = await Promise.all([
+            getDashboardStats(salon.id, 30),
+            payload.find({ collection: 'availability', where: { and: [{ salon: { equals: salonId } }, { staff: { exists: false } }, { exception_date: { exists: false } }] }, limit: 1, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'services', where: { salon: { equals: salonId } }, limit: 1, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'shifts', where: { and: [{ salon: { equals: salonId } }, { date: { greater_than_equal: dateStr } }, { date: { less_than_equal: in14Str } }] }, limit: 1, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'bookings', where: { and: [{ salon: { equals: salonId } }, { status: { equals: 'pending' } }] }, limit: 1, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'marketing-campaigns', where: { salon: { equals: salonId } }, limit: 1, depth: 0, overrideAccess: true }),
+          ])
+          const setup: SetupFlags = {
+            openingHours: availRes.totalDocs > 0,
+            catalog: servicesRes.totalDocs > 0,
+            scheduleFilledAhead: shiftsAheadRes.totalDocs > 0,
+            hasPendingBookings: pendingBookRes.totalDocs > 0,
+            hasSentCampaign: campaignRes.totalDocs > 0,
+          }
+          const tip = buildSalonAdvisor(salon, setup, stats, ALL_CAPABILITIES).weeklyTip
+          if (!tip) continue
+
+          await payload.create({
+            collection: 'notifications',
+            overrideAccess: true,
+            data: { salon: Number(salonId), audience: 'owner', type: 'weekly_tip', title: tip.title, body: tip.body, read: false },
+          })
+          try {
+            await sendPushToUsers(payload, [ownerId], { title: tip.title, body: tip.body, url: '/dashboard/tips', tag: `weekly-tip-${salonId}-${dateStr}` })
+          } catch (pushErr) {
+            console.error('[Cron] Salon weekly tip push failed', pushErr)
+          }
+          summary.weeklyTips++
+        } catch (err) {
+          summary.errors++
+          console.error('[Cron] Salon weekly tip failed for', salon.id, err)
+        }
+      }
+
+      const tipRestaurants = await payload.find({
+        collection: 'restaurants',
+        where: { is_active: { not_equals: false } },
+        depth: 0, limit: 200, overrideAccess: true,
+      })
+      for (const restaurant of tipRestaurants.docs as Restaurant[]) {
+        try {
+          const restId = String(restaurant.id)
+          const ownerId = relId(restaurant.owner)
+          if (!ownerId) continue
+          if (!forceTip && await weeklyTipAlreadySent(payload, 'restaurant', restId, dateStr)) continue
+
+          const ownerDoc = await payload.findByID({ collection: 'users', id: ownerId, depth: 0, overrideAccess: true })
+          const ownerPrefs = (ownerDoc?.personal_notif_prefs as Record<string, boolean | null> | null) ?? {}
+          if (ownerPrefs.digest === false) continue
+
+          const [stats, hoursRes, tablesRes, shiftsAheadRes, pendingReservRes, campaignRes] = await Promise.all([
+            getRestaurantStats(restaurant.id, 30),
+            payload.find({ collection: 'opening-hours', where: { and: [{ restaurant: { equals: restId } }, { is_open: { equals: true } }] }, limit: 1, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'tables', where: { and: [{ restaurant: { equals: restId } }, { is_active: { equals: true } }] }, limit: 1, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'shifts', where: { and: [{ restaurant: { equals: restId } }, { date: { greater_than_equal: dateStr } }, { date: { less_than_equal: in14Str } }] }, limit: 1, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'reservations', where: { and: [{ restaurant: { equals: restId } }, { status: { equals: 'pending' } }] }, limit: 1, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'marketing-campaigns', where: { restaurant: { equals: restId } }, limit: 1, depth: 0, overrideAccess: true }),
+          ])
+          const setup: SetupFlags = {
+            openingHours: hoursRes.totalDocs > 0,
+            catalog: tablesRes.totalDocs > 0,
+            scheduleFilledAhead: shiftsAheadRes.totalDocs > 0,
+            hasPendingBookings: pendingReservRes.totalDocs > 0,
+            hasSentCampaign: campaignRes.totalDocs > 0,
+          }
+          const tip = buildRestaurantAdvisor(restaurant, setup, stats, ALL_CAPABILITIES).weeklyTip
+          if (!tip) continue
+
+          await payload.create({
+            collection: 'notifications',
+            overrideAccess: true,
+            data: { restaurant: Number(restId), audience: 'owner', type: 'weekly_tip', title: tip.title, body: tip.body, read: false },
+          })
+          try {
+            await sendPushToUsers(payload, [ownerId], { title: tip.title, body: tip.body, url: '/restaurant/tips', tag: `weekly-tip-${restId}-${dateStr}` })
+          } catch (pushErr) {
+            console.error('[Cron] Restaurant weekly tip push failed', pushErr)
+          }
+          summary.weeklyTips++
+        } catch (err) {
+          summary.errors++
+          console.error('[Cron] Restaurant weekly tip failed for', restaurant.id, err)
+        }
       }
     }
 

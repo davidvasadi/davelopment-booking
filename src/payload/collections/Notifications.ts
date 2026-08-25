@@ -107,6 +107,7 @@ export const Notifications: CollectionConfig = {
         { label: 'Ajándékutalvány vásárlás', value: 'voucher_purchase' },
         { label: 'Kapcsolatfelvétel', value: 'contact_message' },
         { label: 'Admin körüzenet', value: 'admin_broadcast' },
+        { label: 'Heti tipp', value: 'weekly_tip' },
       ],
     },
     { name: 'title', type: 'text', required: true, label: 'Cím' },

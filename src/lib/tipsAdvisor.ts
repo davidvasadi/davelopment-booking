@@ -53,6 +53,9 @@ export type AdvisorResult = {
   healthLabel: string
   checklist: ChecklistItem[]
   weeklyTip: WeeklyTip | null
+  /** A heti tipp + a mögötte álló tartalék jelöltek, `weeklyTip` elsőként — a "Később" gomb
+   *  ezek közt lép tovább a kliensen, ahelyett hogy csak elrejtené a kártyát. */
+  weeklyTipPool: WeeklyTip[]
   recommendations: TipCard[]
 }
 
@@ -529,7 +532,7 @@ function buildGrowthCards(
 function assemble(
   variant: 'salon' | 'restaurant',
   checks: Weighted[],
-  weeklyTip: WeeklyTip | null,
+  weekly: { picked: WeeklyTip | null; pool: WeeklyTip[] },
   recommendations: TipCard[],
 ): AdvisorResult {
   const totalWeight = checks.reduce((s, c) => s + c.weight, 0)
@@ -545,7 +548,8 @@ function assemble(
   return {
     variant, healthScore, healthStatus, healthLabel,
     checklist: checks.map((c) => c.item),
-    weeklyTip,
+    weeklyTip: weekly.picked,
+    weeklyTipPool: weekly.pool,
     recommendations: recs,
   }
 }
@@ -562,8 +566,13 @@ type Candidate = WeeklyTip & {
   actionable?: boolean
 }
 
-function pickWeekly(candidates: Candidate[]): WeeklyTip | null {
-  if (candidates.length === 0) return null
+/** A kiemelt heti tipp + a mögötte álló, ugyanabból a rangsorolt készletből jövő "tartalék"
+ *  jelöltek (a `pool`) — a "Később" gomb ezek közt lépked kattintásra, ahelyett hogy csak
+ *  elrejtené a kártyát. A `picked` MINDIG a `pool[0]` (a heti forgó választás), a többi a
+ *  megmaradó prioritási sorrend — így a push-értesítés (ami csak a `picked`-et használja)
+ *  változatlan marad, a UI viszont a teljes készletet kapja. */
+function pickWeekly(candidates: Candidate[]): { picked: WeeklyTip | null; pool: WeeklyTip[] } {
+  if (candidates.length === 0) return { picked: null, pool: [] }
   // Ha van valódi, el nem végzett teendő (actionable), a forgás KIZÁRÓLAG azok között történik —
   // egy sima megfigyelés (pl. "X a legerősebb napod") sose szoríthat ki egy nyitott teendőt, még
   // akkor sem, ha a topN vegyes szeletben többségben lenne. Csak akkor forgunk a megfigyelések
@@ -571,13 +580,16 @@ function pickWeekly(candidates: Candidate[]): WeeklyTip | null {
   const actionable = candidates.filter((c) => c.actionable)
   const pool = actionable.length > 0 ? actionable : candidates
   const sorted = [...pool].sort((a, b) => b.priority - a.priority)
-  // Korábban csak a top-3 forgott — a 4. helytől lejjebb eső, valós jelöltek SOSE kerültek elő
-  // a kiemelt helyen, akárhány hét telt el. Nagyobb (top-6) forgó-készlettel idővel minden
-  // magas-prioritású tipp sorra kerül, nem ragad be örökre ugyanaz a 3.
-  const topN = sorted.slice(0, Math.min(6, sorted.length))
-  const pick = topN[currentIsoWeek() % topN.length]
-  const { priority: _p, requiredCap: _r, ...tip } = pick
-  return tip
+  // A teljes rangsorolt készlet forog — korábban egy top-6 vágás korlátozta, ami a 7.
+  // jelölttől lejjebb esőket SOSE engedte volna elő, sem hetente a kiemelt helyen, sem a
+  // "Később" kattintásos lépegetésnél. Most minden alkalmazandó (actionable) jelölt sorra kerül.
+  const pickIndex = currentIsoWeek() % sorted.length
+  const ordered = [sorted[pickIndex], ...sorted.filter((_, i) => i !== pickIndex)]
+  const strip = (c: Candidate): WeeklyTip => {
+    const { priority: _p, requiredCap: _r, ...tip } = c
+    return tip
+  }
+  return { picked: strip(sorted[pickIndex]), pool: ordered.map(strip) }
 }
 
 /* ────────────────────────── SZALON advisor ────────────────────────── */

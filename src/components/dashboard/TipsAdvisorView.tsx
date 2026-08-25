@@ -83,7 +83,11 @@ export function TipsAdvisorView({
   const [filter, setFilter] = useState<'all' | TipCategory>('all')
   const [filterOpen, setFilterOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
-  const [dismissedWeekly, setDismissedWeekly] = useState(false)
+  // A "Később" gomb a `weeklyTipPool`-ban lép tovább (nem csak elrejti a kártyát) — a user
+  // explicit kérte, hogy inkább a következő rangsorolt tippet mutassa, mint hogy elakadjon.
+  const [weeklyIndex, setWeeklyIndex] = useState(0)
+  const currentWeeklyTip = data.weeklyTipPool[weeklyIndex] ?? null
+  const weeklyExhausted = data.weeklyTipPool.length > 0 && weeklyIndex >= data.weeklyTipPool.length
   const [busyId, setBusyId] = useState<string | null>(null)
 
   useEffect(() => { setIsMounted(true) }, [])
@@ -229,9 +233,9 @@ export function TipsAdvisorView({
           >
         {/* E heti tipp — sötét kártya */}
         <AnimatePresence mode="wait">
-          {data.weeklyTip && !dismissedWeekly ? (
+          {currentWeeklyTip ? (
             <motion.div
-              key={data.weeklyTip.id}
+              key={currentWeeklyTip.id}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.98 }}
@@ -242,43 +246,47 @@ export function TipsAdvisorView({
               <Zap className="pointer-events-none absolute -bottom-8 -right-6 h-52 w-52 text-[#F1CE45] opacity-[0.07]" fill="currentColor" strokeWidth={0} />
               <span className="relative inline-flex items-center gap-1.5 rounded-full bg-[#F1CE45]/[0.16] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.06em] text-[#F1CE45]">
                 <Zap className="h-3 w-3" fill="currentColor" strokeWidth={0} /> E heti tipp
+                {data.weeklyTipPool.length > 1 && (
+                  <span className="text-[#F1CE45]/60">· {weeklyIndex + 1}/{data.weeklyTipPool.length}</span>
+                )}
               </span>
               <h2 className="relative mt-4 max-w-xl text-[24px] font-light leading-[1.25] tracking-[-0.01em] lg:text-[28px]">
-                {data.weeklyTip.title}
+                {currentWeeklyTip.title}
               </h2>
               <p className="relative mt-3 max-w-lg text-[14px] leading-relaxed text-white/65 lg:text-[15px]">
-                {data.weeklyTip.body}
+                {currentWeeklyTip.body}
               </p>
-              {data.weeklyTip.metric && (
+              {currentWeeklyTip.metric && (
                 <span className="relative mt-3 inline-block text-[13px] font-semibold text-[#F1CE45]">
-                  {data.weeklyTip.metric}
+                  {currentWeeklyTip.metric}
                 </span>
               )}
               <div className="relative mt-6 flex flex-wrap gap-2.5">
-                {(data.weeklyTip.action.kind === 'nav' || canManage) && (
+                {(currentWeeklyTip.action.kind === 'nav' || canManage) && (
                   <button
                     type="button"
-                    onClick={() => runAction(data.weeklyTip!.id, data.weeklyTip!.action)}
-                    disabled={busyId === data.weeklyTip.id}
+                    onClick={() => runAction(currentWeeklyTip.id, currentWeeklyTip.action)}
+                    disabled={busyId === currentWeeklyTip.id}
                     className="inline-flex items-center gap-2 rounded-[20px] bg-[#F1CE45] px-5 py-3 text-[14px] font-semibold text-ink-dark transition-transform active:scale-[0.97] disabled:opacity-60"
                   >
-                    {busyId === data.weeklyTip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    {data.weeklyTip.actionLabel}
+                    {busyId === currentWeeklyTip.id ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    {currentWeeklyTip.actionLabel}
                   </button>
                 )}
                 <button
                   type="button"
-                  onClick={() => setDismissedWeekly(true)}
+                  onClick={() => setWeeklyIndex((i) => i + 1)}
                   className="rounded-[20px] border border-white/20 px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-white/5"
                 >
                   Később
                 </button>
               </div>
             </motion.div>
-          ) : dismissedWeekly ? (
-            // A user KÉZZEL dismissolta a heti tippet — ez NEM ugyanaz, mint amikor tényleg
-            // nincs javaslat (lásd alább), ezért nem állíthatjuk félrevezetően, hogy "nincs
-            // teendő" — inkább a lenti kártya-rácsra tereljük a figyelmet.
+          ) : weeklyExhausted ? (
+            // A user végignézte/dismissolta az ÖSSZES tartalék jelöltet is — ez NEM ugyanaz,
+            // mint amikor tényleg nincs javaslat (lásd alább), ezért nem állíthatjuk
+            // félrevezetően, hogy "nincs teendő" — inkább a lenti kártya-rácsra tereljük a
+            // figyelmet.
             <motion.div
               key="weekly-dismissed"
               initial={{ opacity: 0 }}
