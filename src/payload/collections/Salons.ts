@@ -11,7 +11,6 @@ import { auditAfterChange } from '../hooks/auditLog'
 // másik szalon szerkesztésekor 403). A where-filter biztosítja, hogy a user csak a SAJÁT
 // szalonjait érje el. (Az étterem-collection már így működik — egységesítve.)
 const isOwnerOrAdmin: Access = ({ req }) => {
-  console.error('[DEBUG isOwnerOrAdmin/salons]', { hasUser: !!req.user, userId: req.user?.id, role: req.user?.role })
   if (!req.user) return false
   if (req.user.role === 'admin') return true
   return { owner: { equals: req.user.id } }

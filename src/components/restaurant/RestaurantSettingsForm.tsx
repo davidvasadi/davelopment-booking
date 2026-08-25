@@ -241,7 +241,7 @@ export function RestaurantSettingsForm({
   const saveSupported = async (): Promise<boolean> => {
     setSubmitting(true)
     try {
-      const res = await fetch(`/api/restaurants/${restaurantId}`, {
+      const res = await fetch('/api/restaurant/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -394,7 +394,7 @@ export function RestaurantSettingsForm({
       for (const k of fields) body[k] = form[k]
       if (includeMedia && logoModified) body.logo = logoId ?? null
       if (includeMedia && coverModified) body.cover_image = coverId ?? null
-      const res = await fetch(`/api/restaurants/${restaurantId}`, {
+      const res = await fetch('/api/restaurant/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

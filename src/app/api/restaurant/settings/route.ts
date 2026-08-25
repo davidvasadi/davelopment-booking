@@ -38,9 +38,16 @@ export async function GET(request: NextRequest) {
   }
 
   const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr') || undefined
+  // `fallback-locale=null`: a dashboard nyelv-szerkesztőinek (pl. „jó tudni") ÜRESEN kell kapnia
+  // a még le nem fordított mezőket, nem a magyar tartalom automatikus visszaesésével.
+  const fallbackLocale = request.nextUrl.searchParams.get('fallback-locale') === 'null' ? false : undefined
   const payload = await getPayloadClient()
-  const doc = await payload.findByID({ collection: 'restaurants', id: active.id, depth: 0, locale, overrideAccess: true })
-  return NextResponse.json({ consent_settings: doc.consent_settings })
+  const doc = await payload.findByID({ collection: 'restaurants', id: active.id, depth: 0, locale, fallbackLocale, overrideAccess: true })
+  // A teljes dokumentumot adjuk vissza (nem csak a consent_settings-et) — a localizált
+  // mező-szerkesztő (`useLocalizedFields`) ugyanerről a végpontról tölti be a „jó tudni"/
+  // feltételek/email-sablon mezőket is nyelvváltáskor. A meglévő consent-fordítás olvasó
+  // (`PaymentsSettingsPanel`) csak a `.consent_settings`-et nézi, ez a bővítés nem érinti.
+  return NextResponse.json(doc)
 }
 
 export async function PATCH(request: NextRequest) {

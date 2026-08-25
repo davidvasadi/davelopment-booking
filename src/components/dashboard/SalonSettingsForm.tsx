@@ -254,7 +254,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
   const saveSupported = async (): Promise<boolean> => {
     setSubmitting(true)
     try {
-      const res = await fetch(`/api/salons/${salon.id}`, {
+      const res = await fetch('/api/salon/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -309,7 +309,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       for (const k of fields) body[k] = values[k]
       if (includeMedia && logoModified) body.logo = logoId ?? null
       if (includeMedia && coverModified) body.cover_image = coverId ?? null
-      const res = await fetch(`/api/salons/${salon.id}`, {
+      const res = await fetch('/api/salon/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',

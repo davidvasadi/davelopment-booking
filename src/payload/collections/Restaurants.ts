@@ -8,7 +8,6 @@ import { syncAccountSubscription } from '../../lib/accountSubscription'
 import { auditAfterChange } from '../hooks/auditLog'
 
 const isOwnerOrAdmin: Access = ({ req }) => {
-  console.error('[DEBUG isOwnerOrAdmin/restaurants]', { hasUser: !!req.user, userId: req.user?.id, role: req.user?.role })
   if (!req.user) return false
   if (req.user.role === 'admin') return true
   return { owner: { equals: req.user.id } }

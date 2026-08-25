@@ -103,8 +103,13 @@ export function useLocalizedFields(opts: {
   supported: Locale[] | null | undefined
   huValues: LocalizedValues
 }) {
-  const { collection, id, supported, huValues } = opts
+  const { collection, supported, huValues } = opts
   const available = useMemo(() => resolveAvailableLocales(supported), [supported])
+  // A Payload natív REST végpontja (`/api/${collection}/${id}`) nem ismeri fel megbízhatóan a
+  // böngésző `payload-token` cookie-ját (lásd `src/lib/auth.ts` megjegyzését) — ezért a saját,
+  // capability-ellenőrzött, `getCurrentUser()`-alapú settings-route-ot használjuk, mint minden
+  // más mentés ebben az appban (RBAC is csak ott érvényesül, a natív végpont csak owner-t enged).
+  const apiBase = collection === 'salons' ? '/api/salon/settings' : '/api/restaurant/settings'
 
   const [editLocale, setEditLocale] = useState<Locale>('hu')
   const [loading, setLoading] = useState(false)
@@ -138,7 +143,7 @@ export function useLocalizedFields(opts: {
       setLoading(true)
       try {
         const res = await fetch(
-          `/api/${collection}/${id}?locale=${loc}&fallback-locale=null&depth=0`,
+          `${apiBase}?locale=${loc}&fallback-locale=null`,
           { credentials: 'include' },
         )
         if (!res.ok) throw new Error()
@@ -153,7 +158,7 @@ export function useLocalizedFields(opts: {
         setLoading(false)
       }
     },
-    [collection, id, huValues, editLocale],
+    [apiBase, huValues, editLocale],
   )
 
   /** Az aktív nyelv egy mezőjének módosítása. */
@@ -171,7 +176,7 @@ export function useLocalizedFields(opts: {
   const saveLocale = useCallback(async (): Promise<boolean> => {
     const values = cacheRef.current[editLocale] ?? EMPTY
     try {
-      const res = await fetch(`/api/${collection}/${id}?locale=${editLocale}`, {
+      const res = await fetch(`${apiBase}?locale=${editLocale}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -201,7 +206,7 @@ export function useLocalizedFields(opts: {
       toast.error('Mentés sikertelen')
       return false
     }
-  }, [collection, id, editLocale])
+  }, [collection, apiBase, editLocale])
 
   /** Az aktív nyelv mentetlen szerkesztéseinek elvetése — a legutóbb betöltött/mentett,
    *  ÉRINTETLEN értékre áll vissza (nem a session-eleji állapotra, ha közben már mentettünk). */
