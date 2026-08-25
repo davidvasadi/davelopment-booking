@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, CalendarDays, CalendarClock, Briefcase, Users, Clock, Settings, BarChart2, Armchair, Lightbulb, HelpCircle, MapPin,
-  Store, CreditCard, TrendingUp, AlertTriangle, Activity, Building2, Gift, Megaphone,
+  Store, TrendingUp, AlertTriangle, Activity, Building2, Gift, Megaphone, Mail, Radio,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type Capability } from '@/lib/permissions'
@@ -75,13 +75,14 @@ const backstageNav: NavConfig = {
     { href: '/backstage/revenue', label: 'Bevétel', icon: TrendingUp },
     { href: '/backstage/churn', label: 'Kockázat', icon: AlertTriangle },
     { href: '/backstage/salons', label: 'Helyek', icon: Building2 },
-    { href: '/backstage/subscriptions', label: 'Előfizetések', icon: CreditCard },
     { href: '/backstage/activity', label: 'Aktivitás', icon: Activity },
+    { href: '/backstage/contact', label: 'Kapcsolat', icon: Mail },
+    { href: '/backstage/broadcast', label: 'Körüzenet', icon: Radio },
     { href: '/backstage/settings', label: 'Beállítások', icon: Settings },
   ],
   publicUrlPrefix: '',
   settingsHref: '/backstage/settings',
-  subscriptionHref: '/backstage/subscriptions',
+  subscriptionHref: '/backstage/accounts',
 }
 
 export function getNavConfig(variant: DashboardVariant): NavConfig {

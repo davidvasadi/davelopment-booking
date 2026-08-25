@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, Settings2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
+import { OPEN_BROADCAST_EVENT } from './BroadcastAutoPopup'
 import { listStagger, pageTransition, sheetSpring } from '@/lib/motion'
 import {
   useNotifications,
@@ -216,7 +217,9 @@ export function NotificationsPage() {
                         {i > 0 && <div className="mx-4 h-px bg-line/60" />}
                         {n.type === 'digest_morning' || n.type === 'digest_evening'
                           ? <FullDigestCard n={n} onMarkRead={() => markRead(n.id)} onRemove={() => remove(n.id)} />
-                          : <FullNotifRow n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} />}
+                          : n.type === 'admin_broadcast'
+                            ? <FullNotifRow n={n} onOpen={() => { if (!n.read) markRead(n.id); window.dispatchEvent(new CustomEvent(OPEN_BROADCAST_EVENT, { detail: n })) }} onRemove={() => remove(n.id)} />
+                            : <FullNotifRow n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} />}
                       </motion.div>
                     ))}
                   </AnimatePresence>

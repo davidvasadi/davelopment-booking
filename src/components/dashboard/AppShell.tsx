@@ -4,6 +4,7 @@ import MobileBottomNav from './MobileBottomNav'
 import { SubscriptionBanner } from './SubscriptionBanner'
 import { DashboardLockModal } from './DashboardLockModal'
 import { DigestAutoPopup } from './DigestAutoPopup'
+import { BroadcastAutoPopup } from './BroadcastAutoPopup'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
 import { BrandLogo } from '@/components/BrandLogo'
 import type { DashboardVariant } from './navConfig'
@@ -125,6 +126,7 @@ export function AppShell({
       {lockedStatus && <DashboardLockModal status={lockedStatus} />}
       {variant !== 'backstage' && <OnboardingTour variant={variant} userId={userId} />}
       {variant !== 'backstage' && <DigestAutoPopup />}
+      {variant !== 'backstage' && <BroadcastAutoPopup />}
     </div>
   )
 }

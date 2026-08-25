@@ -12,6 +12,7 @@ import { buttonHover } from '@/lib/motion'
 import { UserAvatar } from './UserAvatar'
 import { useNotifications, timeAgo, notifDate, notificationVisual, type Notification, type DigestMetadata } from '@/lib/useNotifications'
 import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
+import { OPEN_BROADCAST_EVENT } from './BroadcastAutoPopup'
 import type { SwitcherBusiness } from './StoreSwitcher'
 import type { Capability } from '@/lib/permissions'
 
@@ -475,7 +476,9 @@ export function UserMenu({
                   {rows.map((n) =>
                     n.type === 'digest_morning' || n.type === 'digest_evening'
                       ? <DigestCard key={n.id} n={n} onMarkRead={() => markRead(n.id)} onRemove={() => remove(n.id)} />
-                      : <NotificationRow key={n.id} n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} />
+                      : n.type === 'admin_broadcast'
+                        ? <NotificationRow key={n.id} n={n} onOpen={() => { if (!n.read) markRead(n.id); window.dispatchEvent(new CustomEvent(OPEN_BROADCAST_EVENT, { detail: n })) }} onRemove={() => remove(n.id)} />
+                        : <NotificationRow key={n.id} n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} />
                   )}
                 </div>
               ))
