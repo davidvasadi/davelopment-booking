@@ -84,15 +84,23 @@ export default async function ActivityPage() {
   }
   items.sort((a, b) => b.date.getTime() - a.date.getTime())
 
-  // Napok szerint csoportosítva
+  // A listák a valós hosszukat mutatják a badge-ben, de csak az első 10-et rajzolják ki —
+  // enélkül a lista korlátlanul nő és kifolyik az oldalból ("aktivitás-feed", nem kell hozzá
+  // teljes lapozás, csak egy ésszerű felső korlát a megjelenítésre).
+  const VISIBLE_LIMIT = 10
+  const visibleItems = items.slice(0, VISIBLE_LIMIT)
+
+  // Napok szerint csoportosítva (a levágott listából)
   const groups: Record<string, ActivityItem[]> = {}
-  for (const item of items) {
+  for (const item of visibleItems) {
     const key = item.date.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
     ;(groups[key] ??= []).push(item)
   }
 
-  const audit = auditResult.docs as { id: string | number; action: string; collection_name?: string; actor_label?: string; actor_email?: string; summary?: string; createdAt: string }[]
-  const notifs = notifResult.docs as { id: string | number; title: string; body?: string; read?: boolean; createdAt: string }[]
+  const audit = (auditResult.docs as { id: string | number; action: string; collection_name?: string; actor_label?: string; actor_email?: string; summary?: string; createdAt: string }[]).slice(0, VISIBLE_LIMIT)
+  const auditTotal = auditResult.docs.length
+  const notifs = (notifResult.docs as { id: string | number; title: string; body?: string; read?: boolean; createdAt: string }[]).slice(0, VISIBLE_LIMIT)
+  const notifsTotal = notifResult.docs.length
 
   // Hero-adatok: az események típus-megoszlása (regisztráció / előfizetés-esemény) + KPI-k.
   const regCount = items.filter(i => i.type === 'place_registered').length
@@ -110,8 +118,8 @@ export default async function ActivityPage() {
         ]}
         kpis={[
           { icon: ActivityIcon, value: String(items.length), label: 'Esemény (90 nap)' },
-          { icon: Bell, value: String(notifs.length), label: 'Admin értesítés' },
-          { icon: History, value: String(audit.length), label: 'Napló-bejegyzés' },
+          { icon: Bell, value: String(notifsTotal), label: 'Admin értesítés' },
+          { icon: History, value: String(auditTotal), label: 'Napló-bejegyzés' },
         ]}
       />
 
@@ -156,7 +164,7 @@ export default async function ActivityPage() {
 
         {/* Jobb: admin-értesítések + audit-napló */}
         <div className="flex flex-col gap-[5px]">
-          <SectionPanel title="Admin értesítések" icon={Bell} count={notifs.length}>
+          <SectionPanel title="Admin értesítések" icon={Bell} count={notifsTotal}>
             {notifs.length === 0 ? (
               <p className="px-5 py-6 text-[13.5px] text-ink-soft">Nincs admin-értesítés.</p>
             ) : (
@@ -175,7 +183,7 @@ export default async function ActivityPage() {
             )}
           </SectionPanel>
 
-          <SectionPanel title="Audit-napló" icon={History} count={audit.length}>
+          <SectionPanel title="Audit-napló" icon={History} count={auditTotal}>
             {audit.length === 0 ? (
               <p className="px-5 py-6 text-[13.5px] text-ink-soft">Még nincs naplózott módosítás.</p>
             ) : (
