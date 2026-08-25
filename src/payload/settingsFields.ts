@@ -8,13 +8,16 @@ import type { Field } from 'payload'
  * ben). A fiók-díj az üzletek díjából áll össze (lásd src/lib/accountSubscription.ts).
  *
  * ⚠️ BIZTONSÁG: a tulaj NEM írhatja (field-szintű update = admin-only). Grandfathering: a régi
- * (null) csomag `pro`-ként olvasandó, tehát a meglévő ügyfelek NEM esnek vissza Starterre.
+ * (null) csomag `pro`-ként olvasandó (lásd `resolveTier()` a `src/lib/tier.ts`-ben — ez a tényleges
+ * biztonsági háló a régi rekordokhoz), tehát a meglévő ügyfelek NEM esnek vissza Starterre. Az
+ * ÚJ regisztrációk alapértelmezése viszont Starter — a landing Pro-kártyájáról érkező regisztráció
+ * explicit `?tier=pro`-val írja felül, a wizard/API ezt már ténylegesen felismeri.
  */
 export const businessTierField: Field = {
   name: 'tier',
   type: 'select',
   required: true,
-  defaultValue: 'pro',
+  defaultValue: 'starter',
   label: 'Csomag',
   options: [
     { label: 'Starter', value: 'starter' },

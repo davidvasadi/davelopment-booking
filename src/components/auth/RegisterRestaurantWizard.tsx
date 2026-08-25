@@ -45,9 +45,10 @@ type Step2Data = z.infer<typeof step2Schema>
 
 export function RegisterRestaurantWizard() {
   const router = useRouter()
-  // A landing árazás-kártyáján kiválasztott csomag (?tier=starter) — lásd RegisterWizard azonos indoklása.
+  // A landing árazás-kártyáján kiválasztott csomag (?tier=starter|pro) — lásd RegisterWizard azonos indoklása.
   const searchParams = useSearchParams()
-  const selectedTier = searchParams.get('tier') === 'starter' ? 'starter' : undefined
+  const tierParam = searchParams.get('tier')
+  const selectedTier = tierParam === 'pro' ? 'pro' : tierParam === 'starter' ? 'starter' : undefined
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [loading, setLoading] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)

@@ -56,10 +56,12 @@ type Step2Data = z.infer<typeof step2Schema>
 
 export function RegisterWizard() {
   const router = useRouter()
-  // A landing árazás-kártyáján kiválasztott csomag (?tier=starter) — enélkül minden regisztráció
-  // csendben Pro-ra esett vissza, függetlenül attól, melyik kártyát nyomta meg a felhasználó.
+  // A landing árazás-kártyáján kiválasztott csomag (?tier=starter|pro) — mindkét értéket explicit
+  // felismerjük; ha valaki NEM az árazás-kártyáról érkezik (nincs paraméter), Starter az
+  // alapértelmezés (lásd businessTierField), nem csendben Pro, mint korábban.
   const searchParams = useSearchParams()
-  const selectedTier = searchParams.get('tier') === 'starter' ? 'starter' : undefined
+  const tierParam = searchParams.get('tier')
+  const selectedTier = tierParam === 'pro' ? 'pro' : tierParam === 'starter' ? 'starter' : undefined
   const [step, setStep] = useState<1 | 2 | 3 | 4 | 5>(1)
   const [subStep, setSubStep] = useState<'category' | 'types'>('category')
   const [loading, setLoading] = useState(false)

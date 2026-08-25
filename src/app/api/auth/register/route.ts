@@ -26,8 +26,8 @@ type Body = {
   phone?: string
   businessTypes?: string[]
   templateId?: string
-  /** A landing árazás-kártyáján kiválasztott csomag (?tier= a /register-en). Alap: 'pro'
-   *  (a `businessTierField` schema-defaultja is ez, tehát meg nem adva ugyanoda esne vissza). */
+  /** A landing árazás-kártyáján kiválasztott csomag (?tier= a /register-en). Meg nem adva a
+   *  `businessTierField` schema-defaultja (Starter) érvényesül. */
   tier?: 'starter' | 'pro'
 }
 
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   const payload = await getPayloadClient()
   const role = kind === 'restaurant' ? 'restaurant_owner' : 'salon_owner'
-  const tier: 'starter' | 'pro' | undefined = body.tier === 'starter' ? 'starter' : undefined
+  const tier: 'starter' | 'pro' | undefined = body.tier === 'pro' ? 'pro' : body.tier === 'starter' ? 'starter' : undefined
 
   // Duplikált email: ha már megerősített fiók, be kell jelentkeznie; ha még nem, a korábbi
   // (esetleg félbehagyott) regisztráció linkjét kell megkeresnie — nem hozunk létre másodikat.
