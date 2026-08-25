@@ -217,12 +217,12 @@ export function PricingCards({
   // tükrözze, "váltás havi/éves számlázásra" félrevezető volt (a ciklus-választó ELREJTVE,
   // lásd `ANNUAL_BILLING_UI_ENABLED`, jelenleg amúgy is mindig havi marad).
   const starterCtaLabel = needsCheckout
-    ? (onStarter ? 'Kiválasztva' : `Kiválasztom — ${isAnnual ? 'éves' : 'havi'}`)
+    ? (onStarter ? 'Kiválasztva' : 'Kiválasztom')
     : onStarter
       ? (isTrial ? 'Jelenlegi (próba)' : 'Jelenlegi csomag')
       : 'Váltás Starterre'
   const proCtaLabel = needsCheckout
-    ? (onPro ? 'Kiválasztva' : `Kiválasztom — ${isAnnual ? 'éves' : 'havi'}`)
+    ? (onPro ? 'Kiválasztva' : 'Kiválasztom')
     : onPro
       ? (isTrial ? 'Jelenlegi (próba)' : 'Jelenlegi csomag')
       : 'Váltás Pro-ra'
