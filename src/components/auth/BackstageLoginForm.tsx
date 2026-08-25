@@ -49,42 +49,41 @@ export function BackstageLoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center px-6">
+    <div className="min-h-screen bg-ink-dark flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="mb-10">
-            <BrandLogo variant="dark" className="h-8" />
-          
-          <p className="text-[11px] text-zinc-500 font-semibold uppercase tracking-widest mt-0.5">Backstage</p>
+          <BrandLogo variant="dark" className="h-8" />
+          <p className="text-[11px] text-gold font-semibold uppercase tracking-widest mt-2">Backstage</p>
         </div>
 
-        <h1 className="text-white font-black text-2xl tracking-tight mb-1">Belépés</h1>
-        <p className="text-zinc-500 text-sm mb-8">Operátori hozzáférés</p>
+        <h1 className="text-white font-light text-3xl tracking-[-0.02em] mb-1">Belépés</h1>
+        <p className="text-white/45 text-sm mb-8">Operátori hozzáférés</p>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
           <div className="space-y-1.5">
-            <Label className="text-zinc-400 text-sm">Email</Label>
+            <Label className="text-white/45 text-sm">Email</Label>
             <input
               type="email"
               placeholder="admin@pelda.hu"
-              className={`w-full h-11 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 text-sm focus:outline-none transition-colors ${errors.email ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-600'}`}
+              className={`w-full h-11 rounded-[14px] bg-white/[0.05] border text-white placeholder:text-white/30 px-4 text-sm focus:outline-none transition-colors ${errors.email ? 'border-red-500' : 'border-white/10 focus:border-gold/60'}`}
               {...register('email')}
             />
             {errors.email && <p className="text-xs text-red-400">Érvényes email szükséges</p>}
           </div>
 
           <div className="space-y-1.5">
-            <Label className="text-zinc-400 text-sm">Jelszó</Label>
+            <Label className="text-white/45 text-sm">Jelszó</Label>
             <div className="relative">
               <input
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
-                className={`w-full h-11 rounded-xl bg-zinc-900 border text-white placeholder:text-zinc-600 px-4 pr-11 text-sm focus:outline-none transition-colors ${errors.password ? 'border-red-500' : 'border-zinc-800 focus:border-zinc-600'}`}
+                className={`w-full h-11 rounded-[14px] bg-white/[0.05] border text-white placeholder:text-white/30 px-4 pr-11 text-sm focus:outline-none transition-colors ${errors.password ? 'border-red-500' : 'border-white/10 focus:border-gold/60'}`}
                 {...register('password')}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(p => !p)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70 transition-colors"
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
@@ -95,7 +94,7 @@ export function BackstageLoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-12 rounded-full bg-white text-zinc-950 font-bold text-sm flex items-center justify-center gap-2 mt-2 hover:bg-zinc-100 transition-colors disabled:opacity-50"
+            className="w-full h-12 rounded-full bg-gold text-ink-dark font-semibold text-sm flex items-center justify-center gap-2 mt-2 hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {loading
               ? <Loader2 className="h-4 w-4 animate-spin" />

@@ -1,9 +1,8 @@
 import { requireAuth } from '@/lib/auth'
-import { PageHeader } from '@/components/ui/page-header'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
-import { SectionPanel } from '@/components/backstage/BackstageUi'
+import { SectionPanel, BackstageHeader } from '@/components/backstage/BackstageUi'
 import { loadBackstageData, loadRevenueBreakdown } from '@/lib/backstageMetrics'
 import { StatusDonut, MrrLineChart } from '@/components/backstage/BackstageCharts'
 
@@ -52,9 +51,7 @@ export default async function RevenuePage() {
 
   return (
     <div className="space-y-6 p-5 lg:p-0">
-      <div className="hidden lg:block">
-        <PageHeader eyebrow="Platform-bevétel" title="Bevétel & kohorsz" />
-      </div>
+      <BackstageHeader title="Bevétel & kohorsz" subtitle="Platform-bevétel · szalon + étterem" />
 
       {/* Státusz-csík + 3 nagy KPI (mint a Statisztika hero) */}
       <div className="flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">

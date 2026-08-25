@@ -71,7 +71,7 @@ export function AppShell({
     ...(newsletterEnabled ? [] : [variant === 'restaurant' ? '/restaurant/marketing' : '/dashboard/marketing']),
   ]
   return (
-    <div className="font-onest min-h-screen bg-paper bg-dav-container lg:bg-none text-ink">
+    <div data-app-variant={variant} className="font-onest min-h-screen bg-paper bg-dav-container lg:bg-none text-ink">
       {/* Mobil fejléc + ⌘K (a desktop sidebart az új TopNav váltja) */}
       <DashboardNav
         mobileOnly

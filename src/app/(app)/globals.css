@@ -66,6 +66,19 @@
     --dav-shadow-container: 0 34px 70px -34px rgba(80,70,30,.20), 0 0 0 1px rgba(120,110,70,.06);
   }
 
+  /* Backstage admin-akcentus: a user 3 márkaszíne (davelopment ink/gold/fehér) itt
+     felülírja az alap (krémes) tokeneket — a teljes dav-card-glass/BackstageUi
+     rendszer VÁLTOZATLAN marad, csak a mögöttes színek térnek el, hogy a backstage
+     vizuálisan megkülönböztethető admin-felületnek hasson a user-dashboardtól. */
+  [data-app-variant="backstage"] {
+    --dav-ink: #3B3B3B;
+    --dav-accent: #FFD85F;
+    --dav-paper: #ffffff;
+    --dav-container-gradient:
+      radial-gradient(125% 80% at 100% -8%, rgba(255,216,95,.22) 0%, rgba(255,216,95,0) 42%),
+      linear-gradient(116deg, #ffffff 0%, #fbfbfb 50%, #f5f5f5 100%);
+  }
+
   .dark {
     --background: 0 0% 5%;
     --foreground: 0 0% 98%;
