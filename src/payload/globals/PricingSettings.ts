@@ -1,4 +1,5 @@
 import type { GlobalConfig } from 'payload'
+import { revalidatePath } from 'next/cache'
 
 /**
  * Globális árazás + próbaidő — EGY helyen szerkeszthető (a backstage `/backstage/settings`
@@ -16,6 +17,22 @@ export const PricingSettings: GlobalConfig = {
     // Olvasni bárki (a publikus árazáshoz is kell), írni csak admin.
     read: () => true,
     update: ({ req }) => req.user?.role === 'admin',
+  },
+  hooks: {
+    // A landing oldal (`/`) build-időben statikusan sül be (`getPricing()` a page.tsx-ben,
+    // nincs tag-alapú cache mögötte, mint a publikus szalon/étterem-oldalaknak) — enélkül egy
+    // ár-módosítás csak a KÖVETKEZŐ deploy-nál jelenne meg élesben (dev módban ez nem tűnik fel,
+    // mert ott minden kérés élesen renderel). `revalidatePath` best-effort, mint a többi
+    // revalidáció — ha itt hibázik, a mentés akkor se bukjon el emiatt.
+    afterChange: [
+      () => {
+        try {
+          revalidatePath('/')
+        } catch {
+          // no-op — lásd fenti megjegyzés
+        }
+      },
+    ],
   },
   fields: [
     {

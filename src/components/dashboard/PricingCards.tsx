@@ -129,22 +129,37 @@ export function PricingCards({
   const starterCap = monthlyEmailCapForTier(pricing, 'starter')
   const proCap = monthlyEmailCapForTier(pricing, 'pro')
 
+  // Átlátható bontás a kártyán: hány naptár aktív, ebből mennyi az árban, a többi mennyibe kerül.
+  // (`staffCount` a ténylegesen felvett, aktív `staff`-rekordok száma — a tulajdonos SAJÁT
+  // naptára nem külön rekord, tehát nem is számít bele; az 1 ingyenes hely emiatt a GYAKORLATBAN
+  // az első felvett munkatársra esik, nem kifejezetten a tulajdonoséra.)
+  const extraStaffCount = Math.max(0, staffCount - 1)
+  const staffBreakdown = staffCount === 0
+    ? 'nincs felvett munkatárs'
+    : extraStaffCount > 0
+      ? `${staffCount} naptár · 1 az árban + ${extraStaffCount}×${ft(extraPerStaff)}`
+      : `${staffCount} naptár · mind az árban`
+
   const billingNote = isAnnual
-    ? `évi ${ft(yearlyTotal)}${isSalon ? ` · ${staffCount} naptár` : ''}`
+    ? `évi ${ft(yearlyTotal)}${isSalon ? ` · ${staffBreakdown}` : ''}`
     : isSalon
-      ? `${staffCount} naptár · +${ft(extraPerStaff)}/további fő`
+      ? staffBreakdown
       : 'fix havidíj'
-  const starterNote = `${starterCap.toLocaleString('hu-HU')} email/hó${isSalon ? ` · ${staffCount} naptár` : ''}`
+  // Az email-keret a feat-listában (lásd lejjebb) már úgyis ki van írva — a cím alatti sub-sor
+  // ne ismételje meg, ugyanazt az info-t mutassa, mint a Pro kártyáé.
+  const starterNote = isSalon ? staffBreakdown : 'fix havidíj'
 
   // A Starter funkcionálisan MEGEGYEZIK a Próval — az egyetlen valós különbség a havi
   // hírlevél-email-keret, ezért a feat-lista is ugyanaz, csak az utolsó sor kerete tér el.
   const baseFeats = [
     { label: 'Saját foglaló oldal, ami éjjel-nappal hoz neked időpontot', included: true },
     { label: 'Automata email-visszaigazolás naptárfájllal (.ics)', included: true },
-    { label: isSalon ? 'Korlátlan munkatárs, csak a ténylegesen aktívakért fizetsz' : 'Korlátlan terem & asztal', included: true },
+    { label: isSalon ? `Korlátlan munkatárs felvehető — az első az árban, utána +${ft(pricing.salon_extra_staff_huf)}/aktív fő` : 'Korlátlan terem & asztal', included: true },
     { label: 'Élő analitika + vendég-térkép — lásd, honnan jönnek', included: true },
     { label: 'Többnyelvű foglaló + offline is működik (PWA)', included: true },
     { label: 'Emlékeztetők, várólista, értékelés-kérés — automatikusan', included: true },
+    { label: 'Ajándékutalvány-értékesítés a foglaló oldaladon', included: true },
+    { label: 'Előleg bekérése foglaláskor (bankkártyás)', included: true },
   ]
   const starterFeats = [...baseFeats, { label: `Hírlevél-küldés — ${starterCap.toLocaleString('hu-HU')} email/hó`, included: true }]
   const proFeats = [...baseFeats, { label: `Hírlevél-küldés — ${proCap.toLocaleString('hu-HU')} email/hó`, included: true }]
@@ -191,20 +206,23 @@ export function PricingCards({
   const currentTier = activeBusiness?.tier ?? 'pro'
   const onStarter = currentTier === 'starter' && sameCycle
   const onPro = currentTier !== 'starter' && currentTier !== 'egyedi' && sameCycle
+  // Ez a gomb a CSOMAGOT váltja (Starter ⇄ Pro), nem a számlázási ciklust — a felirat ezt kell
+  // tükrözze, "váltás havi/éves számlázásra" félrevezető volt (a ciklus-választó ELREJTVE,
+  // lásd `ANNUAL_BILLING_UI_ENABLED`, jelenleg amúgy is mindig havi marad).
   const starterCtaLabel = needsCheckout
     ? (onStarter ? 'Kiválasztva' : `Kiválasztom — ${isAnnual ? 'éves' : 'havi'}`)
     : onStarter
       ? (isTrial ? 'Jelenlegi (próba)' : 'Jelenlegi csomag')
-      : `Váltás ${isAnnual ? 'éves' : 'havi'} számlázásra`
+      : 'Váltás Starterre'
   const proCtaLabel = needsCheckout
     ? (onPro ? 'Kiválasztva' : `Kiválasztom — ${isAnnual ? 'éves' : 'havi'}`)
     : onPro
       ? (isTrial ? 'Jelenlegi (próba)' : 'Jelenlegi csomag')
-      : `Váltás ${isAnnual ? 'éves' : 'havi'} számlázásra`
+      : 'Váltás Pro-ra'
   const starterBadgeLabel = onStarter ? (isTrial ? 'Próba' : 'Aktív') : 'Belépő'
   const proBadgeLabel = onPro ? (isTrial ? 'Próba' : 'Aktív') : 'Népszerű'
   const onEgyedi = currentTier === 'egyedi'
-  const egyediBadgeLabel = onEgyedi ? 'Aktív' : 'Egyedi'
+  const egyediBadgeLabel = onEgyedi ? 'Aktív' : 'Vállalati'
 
   const cycleToggle = (
     <div className="inline-flex gap-1 rounded-dav-pill bg-white/10 p-1">
@@ -282,9 +300,9 @@ export function PricingCards({
           badgeLabel={egyediBadgeLabel}
           dotColor="#1D1C19"
           title="Egyedi"
-          priceMain="Egyedi"
-          priceUnit="ajánlat"
-          sub="a megrendelővel egyeztetve"
+          priceMain="Árajánlat"
+          priceUnit=""
+          sub="veled egyeztetve alakítjuk ki"
           feats={customFeats}
           cta={
             <PillCta

@@ -152,6 +152,11 @@ export function Pricing({ pricing }: { pricing: LandingPricing }) {
             priceMain={ftFmt(starterFee).replace(/\s*Ft$/, '')}
             priceUnit="Ft / hó"
             sub={active === 'salon' ? '1 munkatárs/naptár' : 'A legfontosabb alapok'}
+            extra={active === 'salon' ? (
+              <p className="text-[12px] font-medium text-ink-soft">
+                + {ftFmt(pricing.salon_extra_staff_huf)}/hó minden további munkatársért.
+              </p>
+            ) : undefined}
             feats={starterFeats}
             cta={<HeroButton href={`${REGISTER_HREF[active]}?tier=starter`} label="Kipróbálom ingyen" variant="dark" />}
           />
@@ -175,12 +180,12 @@ export function Pricing({ pricing }: { pricing: LandingPricing }) {
 
           <NotchedPricingCard
             featured={false}
-            badgeLabel="Egyedi"
+            badgeLabel="Vállalati"
             dotColor="#1D1C19"
             title="Egyedi"
-            priceMain="Egyedi"
-            priceUnit="ajánlat"
-            sub="a megrendelővel egyeztetve"
+            priceMain="Árajánlat"
+            priceUnit=""
+            sub="veled egyeztetve alakítjuk ki"
             feats={customFeats}
             cta={
               <HeroButton
