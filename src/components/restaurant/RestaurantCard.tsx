@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, MapPin, Phone, Mail, Globe, CheckCircle, Gift, Camera, X, ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatPrice, cn } from '@/lib/utils'
+import { BrandLogo } from '@/components/BrandLogo'
+import { APP_URL } from '@/lib/brand'
 import { t, type Locale } from '@/lib/i18n'
 import { RatingStars } from '@/components/booking/RatingStars'
 import { DepositStep } from '@/components/booking/DepositStep'
@@ -723,6 +725,17 @@ export function RestaurantCard({
               </motion.div>
             )}
           </AnimatePresence>
+          {/* Beágyazott (iframe) widgeten márkajelzés — ingyen marketing minden beágyazott oldalról. */}
+          {embed && (
+            <a
+              href={APP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex shrink-0 items-center justify-center gap-2 border-t border-white/10 py-3.5 text-[13px] text-white/45 transition-colors hover:text-white/70"
+            >
+              Powered by <BrandLogo variant="dark" className="h-5" />
+            </a>
+          )}
         </motion.div>
       </div>
     </>

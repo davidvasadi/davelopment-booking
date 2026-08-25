@@ -61,10 +61,13 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
   return (
     <div
       className={`font-onest relative overflow-hidden ${embed ? 'min-h-[640px]' : 'min-h-[100dvh]'}`}
-      style={embed ? { background: '#fff' } : hasCover ? { background: '#111' } : {
+      style={embed ? { background: 'transparent' } : hasCover ? { background: '#111' } : {
         background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)',
       }}
     >
+      {/* A globals.css `html` elemnek van egy kemény krém háttérszíne — embed módban ez
+          átütne az átlátszó oldal mögött, ezt írjuk itt felül. */}
+      {embed && <style>{'html, body { background: transparent !important; }'}</style>}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(restaurant, 'restaurant')) }}
