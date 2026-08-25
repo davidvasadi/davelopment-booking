@@ -1249,7 +1249,12 @@ export function NewsletterManager({ variant, businessId, businessName, logoUrl, 
             <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line bg-paper/60 px-6 py-4 sm:px-8">
               <div>
                 {subscriberCount === 0 && <p className="text-[12px] text-ink-soft2">Még nincs feliratkozott vendéged.</p>}
-                {usedThisMonth >= cap && cap > 0 && <p className="text-[12px] text-red-500">Elérted a havi keretet — a hónap hátralévő részében nem tudsz küldeni.</p>}
+                {usedThisMonth >= cap && cap > 0 && (
+                  <p className="flex flex-wrap items-center gap-2 text-[12px] text-red-500">
+                    Elérted a havi keretet — a hónap hátralévő részében nem tudsz küldeni.
+                    <Link href={settingsHref} className="font-semibold text-ink underline underline-offset-2 hover:text-gold">Csomag bővítése ›</Link>
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2.5">
                 <motion.button
