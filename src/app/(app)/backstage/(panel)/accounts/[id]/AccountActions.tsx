@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
-import { LogIn, ChevronDown, Power, PlayCircle, PauseCircle, CheckCircle2, XCircle, Loader2, Trash2 } from 'lucide-react'
+import { LogIn, ChevronDown, Power, PlayCircle, PauseCircle, CheckCircle2, XCircle, Loader2, Trash2, CreditCard } from 'lucide-react'
 import { popItem } from '@/lib/motion'
 import type { SubStatus } from '@/lib/backstageMetrics'
 
@@ -75,6 +75,12 @@ function AccountActions({ ownerId, status, plan, anyActive, hasSub }: {
     await patch(body, 'Előfizetés-státusz frissítve')
   }
 
+  // Plan (trial/paid) a státusztól FÜGGETLENÜL is állítható — ez volt eddig csak a
+  // /backstage/subscriptions oldalon lehetséges, most itt is (a két oldal összevonva).
+  async function setPlan(next: 'trial' | 'paid') {
+    await patch({ plan: next }, 'Csomag frissítve')
+  }
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       {/* Impersonate */}
@@ -94,6 +100,18 @@ function AccountActions({ ownerId, status, plan, anyActive, hasSub }: {
       >
         <Power className="h-3.5 w-3.5 text-ink-soft" /> {anyActive ? 'Összes deaktiválása' : 'Összes aktiválása'}
       </button>
+
+      {/* Csomag (trial/fizető) — a státusztól függetlenül állítható */}
+      {hasSub && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setPlan(plan === 'paid' ? 'trial' : 'paid')}
+          className="flex items-center gap-1.5 rounded-[22px] bg-paper px-[16px] py-[11px] text-[13px] font-semibold text-ink transition-colors hover:bg-line-strong disabled:opacity-50"
+        >
+          <CreditCard className="h-3.5 w-3.5 text-ink-soft" /> Csomag: {plan === 'paid' ? 'Fizető' : 'Próba'}
+        </button>
+      )}
 
       {/* Státusz-váltó popover */}
       {hasSub && (

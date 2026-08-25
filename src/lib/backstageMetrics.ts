@@ -68,6 +68,8 @@ export type BackstageData = {
   totalEmails: number
   monthEmails: number
   emailsTrend: TrendPoint[] // 30 napos NAPI kimenő email-darab (nem kumulált)
+  /** Az ELŐZŐ 30 napos ablak napi email-darabszáma, nap-pozíció szerint illesztve az `emailsTrend`-hez — az összehasonlító vonalhoz a grafikonon. */
+  emailsPrevTrend: number[]
   // Idősorok (30 nap, kumulált)
   mrrTrend: TrendPoint[]
   accountsTrend: TrendPoint[]
@@ -123,6 +125,31 @@ export function dailyCountTrend(isoDates: string[]): TrendPoint[] {
     days.push({ label: d.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }), value: perDay.get(key) ?? 0 })
   }
   return days
+}
+
+/**
+ * Ugyanaz mint a `dailyCountTrend`, de az ELŐZŐ 30 napos ablakra (nap-pozíció szerint illesztve
+ * a jelenlegi ablakhoz — az összehasonlító szürke/pontozott vonalhoz a grafikonon, pl. „Kimenő
+ * emailek" előző havi görbéje). Csak az értékeket adja vissza, a jelenlegi ablak feliratozza az X-tengelyt.
+ */
+export function dailyCountTrendPrevPeriod(isoDates: string[]): number[] {
+  const start = new Date(); start.setHours(0, 0, 0, 0)
+  start.setDate(start.getDate() - (TREND_DAYS - 1) - TREND_DAYS)
+  const perDay = new Map<string, number>()
+  const end = new Date(start); end.setDate(start.getDate() + TREND_DAYS)
+  for (const iso of isoDates) {
+    const d = new Date(iso); d.setHours(0, 0, 0, 0)
+    if (d < start || d >= end) continue
+    const key = d.toISOString().slice(0, 10)
+    perDay.set(key, (perDay.get(key) ?? 0) + 1)
+  }
+  const values: number[] = []
+  for (let i = 0; i < TREND_DAYS; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i)
+    const key = d.toISOString().slice(0, 10)
+    values.push(perDay.get(key) ?? 0)
+  }
+  return values
 }
 
 /**
@@ -391,6 +418,7 @@ export async function loadBackstageData(): Promise<BackstageData> {
   const totalEmails = emailDates.length
   const monthEmails = emailDates.filter(iso => new Date(iso) >= monthStart).length
   const emailsTrend = dailyCountTrend(emailDates)
+  const emailsPrevTrend = dailyCountTrendPrevPeriod(emailDates)
 
   return {
     accounts,
@@ -405,9 +433,11 @@ export async function loadBackstageData(): Promise<BackstageData> {
     conversionRate, churnRate,
     totalPlaces, activePlaces, totalSalons, totalRestaurants,
     totalBookings, monthBookings, activePlaceRate,
-    totalEmails, monthEmails, emailsTrend,
+    totalEmails, monthEmails, emailsTrend, emailsPrevTrend,
     mrrTrend: mrrCumulativeTrend(activeSubs),
-    accountsTrend: cumulativeTrend(userDates),
+    // Napi ÚJ regisztráció, nem halmozott összlétszám — kevés fióknál a kumulatív görbe
+    // csak egy értelmetlen lépcső (0→1→2), a napi bontás legalább mutat valós mozgást.
+    accountsTrend: dailyCountTrend(userDates),
     bookingsTrend: cumulativeTrend([...bookingDates, ...reservationDates]),
     placesTrend: cumulativeTrend([...salonDates, ...restaurantDates]),
     salonMrr, restaurantMrr, salonUnits, restaurantUnits,

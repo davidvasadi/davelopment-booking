@@ -1,6 +1,6 @@
 import { requireAuth, getCurrentUser } from '@/lib/auth'
 import Link from 'next/link'
-import { AlertTriangle, Clock, Users, CreditCard, CalendarCheck, TrendingUp, Store, Activity, ArrowRight, Building2, Percent } from 'lucide-react'
+import { AlertTriangle, Clock, Users, CreditCard, CalendarCheck, TrendingUp, Store, Activity, ChevronRight, Building2, Percent } from 'lucide-react'
 import { loadBackstageData } from '@/lib/backstageMetrics'
 import { CARD, HeroKpi } from '@/components/dashboard/overview-ui'
 import { StatusPills } from '@/components/dashboard/StatusPills'
@@ -71,7 +71,7 @@ export default async function BackstagePage() {
       {(d.pastDueCount > 0 || d.expiringTrials.length > 0) && (
         <div className="grid gap-[5px] sm:grid-cols-2">
           {d.pastDueCount > 0 && (
-            <Link href="/backstage/subscriptions?status=past_due" className={`group dav-hover-lift flex items-center gap-3 rounded-[20px] p-4 ${CARD}`}>
+            <Link href="/backstage/accounts?status=past_due" className={`group dav-hover-lift flex items-center gap-3 rounded-[20px] p-4 ${CARD}`}>
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bad-bg text-bad">
                 <AlertTriangle className="h-[18px] w-[18px]" strokeWidth={1.9} />
               </span>
@@ -80,7 +80,7 @@ export default async function BackstagePage() {
                 <p className="text-[12px] text-ink-soft">Azonnali teendő — nézd át az előfizetéseket</p>
               </div>
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-ink-soft transition-transform group-hover:translate-x-0.5">
-                <ArrowRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4" />
               </span>
             </Link>
           )}
@@ -94,7 +94,7 @@ export default async function BackstagePage() {
                 <p className="text-[12px] text-ink-soft">Kövesd a lejáró próbaidőszakokat</p>
               </div>
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-ink-soft transition-transform group-hover:translate-x-0.5">
-                <ArrowRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4" />
               </span>
             </Link>
           )}
@@ -153,11 +153,12 @@ export default async function BackstagePage() {
                 { label: 'Lemondott', value: d.canceledCount, color: '#1D1C19' },
               ]} />
             </div>
-            {/* Jobb: Kimenő emailek kártya (a donut MELLETT) — nagy szám + napi sparkline. */}
-            <BackstageTrendCard title="Kimenő emailek" value={d.monthEmails.toLocaleString('hu-HU')} caption="e hónap · napi" trend={d.emailsTrend} color="#E4CE7E" />
+            {/* Jobb: Előfizetők-trend kártya (a donut MELLETT) — nagy szám + napi sparkline. */}
+            <BackstageTrendCard title="Előfizetők alakulása" value={String(d.totalAccounts)} caption={`${d.payingAccounts} fizető`} trend={d.accountsTrend} color="#F1CE45" />
           </div>
-          {/* ALATTA: széles Előfizetők-trend VONALDIAGRAM (tengelyekkel, sima görbe). */}
-          <BackstageTrendCard title="Előfizetők alakulása" value={String(d.totalAccounts)} caption={`${d.payingAccounts} fizető`} trend={d.accountsTrend} color="#F1CE45" wide line />
+          {/* ALATTA: széles Kimenő emailek VONALDIAGRAM (tengelyekkel, sima görbe) — ennek kellett
+              a hely a tengely-feliratokhoz (bal Y + alsó X), kis kártyán nem fért el rendesen. */}
+          <BackstageTrendCard title="Kimenő emailek" value={d.monthEmails.toLocaleString('hu-HU')} caption="e hónap · napi" trend={d.emailsTrend} prevValues={d.emailsPrevTrend} color="#F1CE45" wide line />
         </div>
 
         {/* COL3: legutóbbi fiókok + gyors nézetek */}
@@ -165,7 +166,7 @@ export default async function BackstagePage() {
           <div className={`${CARD} flex min-h-0 flex-1 flex-col overflow-hidden`}>
             <div className="flex items-center justify-between px-5 pb-3 pt-[22px]">
               <p className="text-[15px] font-medium text-ink">Legutóbbi előfizetők</p>
-              <Link href="/backstage/accounts" className="text-[12px] font-semibold text-ink-soft transition-colors hover:text-ink">Összes →</Link>
+              <Link href="/backstage/accounts" className="text-[12px] font-semibold text-ink-soft transition-colors hover:text-ink">Összes ›</Link>
             </div>
             {recentAccounts.length === 0
               ? <p className="px-5 py-6 text-[13px] text-ink-soft">Még nincs regisztrált fiók.</p>
@@ -185,7 +186,7 @@ export default async function BackstagePage() {
                 </span>
                 <span className="flex-1 text-[13.5px] font-medium text-ink">{label}</span>
                 {badge != null && <span className="rounded-full bg-bad-bg px-2 py-0.5 text-[11px] font-bold text-bad">{badge}</span>}
-                <ArrowRight className="h-4 w-4 shrink-0 text-ink-soft2 transition-transform group-hover:translate-x-0.5" />
+                <ChevronRight className="h-4 w-4 shrink-0 text-ink-soft2 transition-transform group-hover:translate-x-0.5" />
               </Link>
             ))}
           </div>

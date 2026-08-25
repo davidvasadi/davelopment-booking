@@ -25,7 +25,7 @@ export type AccountRow = {
   trialEndsAt: string | null
 }
 
-type Filter = 'all' | 'active' | 'trialing' | 'past_due' | 'canceled'
+export type Filter = 'all' | 'active' | 'trialing' | 'past_due' | 'canceled'
 
 const FILTERS: { value: Filter; label: string }[] = [
   { value: 'all', label: 'Mind' },
@@ -42,9 +42,9 @@ function composition(a: AccountRow): string {
   return parts.length ? parts.join(' · ') : 'nincs üzlet'
 }
 
-export default function AccountsClient({ accounts }: { accounts: AccountRow[] }) {
+export default function AccountsClient({ accounts, initialStatus }: { accounts: AccountRow[]; initialStatus?: Filter }) {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
+  const [filter, setFilter] = useState<Filter>(initialStatus ?? 'all')
 
   const filtered = useMemo(() => accounts.filter(a => {
     if (filter !== 'all' && a.status !== filter) return false

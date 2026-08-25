@@ -1,15 +1,36 @@
 import { requireAuth } from '@/lib/auth'
 import { CreditCard, Users, Wallet } from 'lucide-react'
 import { loadBackstageData } from '@/lib/backstageMetrics'
+import { getPayloadClient } from '@/lib/payload'
 import { BackstageHero } from '@/components/backstage/BackstageHero'
 import { formatHuf } from '@/components/backstage/BackstageUi'
-import AccountsClient, { type AccountRow } from './AccountsClient'
+import AccountsClient, { type AccountRow, type Filter } from './AccountsClient'
+import OrphanSubscriptions, { type OrphanSub } from './OrphanSubscriptions'
 
 export const dynamic = 'force-dynamic'
 
-export default async function AccountsPage() {
+const VALID_FILTERS: Filter[] = ['all', 'active', 'trialing', 'past_due', 'canceled']
+
+export default async function AccountsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
   await requireAuth('admin')
+  const { status } = await searchParams
+  const initialStatus = VALID_FILTERS.includes(status as Filter) ? (status as Filter) : undefined
   const d = await loadBackstageData()
+
+  // Árva előfizetések: owner nélküli subscription-sorok — a fő lista USEREKBŐL indul ki, ezért
+  // ezeket sose látná (a Subscriptions oldal viszont raw subscription-lekérdezésből építkezett,
+  // ott látszottak — összevonáskor ide kerülnek, külön kis szekcióban, hogy ne tűnjenek el).
+  const payload = await getPayloadClient()
+  const orphanResult = await payload.find({
+    collection: 'subscriptions',
+    where: { owner: { exists: false } },
+    limit: 50,
+    depth: 0,
+    overrideAccess: true,
+  })
+  const orphans: OrphanSub[] = orphanResult.docs.map(s => ({
+    id: String(s.id), plan: s.plan, status: s.status, breakdown: s.breakdown ?? null, createdAt: s.createdAt,
+  }))
 
   const rows: AccountRow[] = d.accounts.map(a => ({
     ownerId: a.ownerId,
@@ -48,7 +69,8 @@ export default async function AccountsPage() {
         ]}
       />
 
-      <AccountsClient accounts={rows} />
+      <AccountsClient accounts={rows} initialStatus={initialStatus} />
+      {orphans.length > 0 && <OrphanSubscriptions subs={orphans} />}
     </div>
   )
 }

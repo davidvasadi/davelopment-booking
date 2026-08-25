@@ -151,7 +151,7 @@ export default async function SalonDetailPage({ params }: { params: Promise<{ id
           ) : (
             <div>
               <p className="text-[14px] text-ink-soft">Nincs előfizetés</p>
-              <Link href="/backstage/subscriptions" className="mt-1 inline-block text-[12px] text-ink-soft underline">Létrehozás →</Link>
+              <Link href="/backstage/accounts" className="mt-1 inline-block text-[12px] text-ink-soft underline">Létrehozás →</Link>
             </div>
           )}
         </div>
