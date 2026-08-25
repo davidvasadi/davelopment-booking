@@ -86,7 +86,7 @@ export function MrrLineChart({ trend, unit = ' Ft' }: { trend: TrendPoint[]; uni
             return <div className="rounded-[10px] bg-ink-dark px-2.5 py-1.5 text-[12px] font-semibold text-white shadow-lg"><p className="text-white/50">{label}</p><p>{Number(payload[0].value).toLocaleString('hu-HU')}{unit}</p></div>
           }}
         />
-        <Line type="natural" dataKey="value" stroke={C.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" dot={false} activeDot={{ r: 5, fill: C.accent, stroke: '#fff', strokeWidth: 2 }} isAnimationActive animationDuration={900} />
+        <Line type="monotone" dataKey="value" stroke={C.accent} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" dot={false} activeDot={{ r: 5, fill: C.accent, stroke: '#fff', strokeWidth: 2 }} isAnimationActive animationDuration={900} />
       </LineChart>
     </ResponsiveContainer>
   )

@@ -4,6 +4,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { CONTACT_EMAIL } from '@/lib/brand'
 import { escapeHtml } from '@/lib/emailLayout'
 import { logEmail } from '@/lib/emailLog'
+import { sendPushToUsers } from '@/lib/webPush'
 import { Resend } from 'resend'
 
 const schema = z.object({
@@ -43,6 +44,25 @@ export async function POST(req: NextRequest) {
       read: false,
     },
   }).catch(() => null)
+
+  // Böngésző-push az összes adminnak — best-effort, ne bukjon el emiatt a beküldés.
+  try {
+    const admins = await payload.find({
+      collection: 'users',
+      where: { role: { equals: 'admin' } },
+      limit: 200,
+      depth: 0,
+      overrideAccess: true,
+    })
+    await sendPushToUsers(payload, admins.docs.map((a) => a.id), {
+      title: `Új kapcsolatfelvétel: ${name}`,
+      body: message.length > 140 ? `${message.slice(0, 140)}…` : message,
+      url: '/backstage/contact',
+      tag: 'contact-message',
+    })
+  } catch (err) {
+    payload.logger.error(`contact push hiba: ${String(err)}`)
+  }
 
   const subject = `Új kapcsolatfelvétel — ${name}`
   const html = `

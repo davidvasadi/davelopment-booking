@@ -6,7 +6,7 @@ import 'server-only'
  * loaderből dolgozik, hogy a számok MINDENHOL konzisztensek legyenek (korábban oldalanként
  * duplikálva, eltérő eredménnyel számoltuk).
  */
-import type { Salon, Restaurant, User, Subscription } from '@/payload/payload-types'
+import type { Salon, Restaurant, User, Subscription, EmailLogEntry } from '@/payload/payload-types'
 import { getPayloadClient } from '@/lib/payload'
 import { subAmountHuf, ownerIdOfSubscription } from '@/lib/backstagePlaces'
 
@@ -659,4 +659,47 @@ export async function loadAccountProfile(ownerId: string): Promise<AccountProfil
     places, totalBookings, monthBookings,
     recentBookings: recentBookings.slice(0, 12),
   }
+}
+
+/* ── Üzemeltetési egészség: email-kézbesítés (a /backstage/revenue oldal "Üzemeltetés" panelje) ── */
+
+export type EmailHealth = {
+  /** Kiküldött emailek száma az elmúlt 30 napban. */
+  total30d: number
+  /** Ebből sikertelen (ok: false). */
+  failed30d: number
+  /** Sikeresség aránya %-ban (0 kiküldésnél 100 — nincs mit riasztani). */
+  successRatePct: number
+  /** A legutóbbi sikertelen küldések (max 5), típussal + hibaüzenettel, gyors diagnózishoz. */
+  recentFailures: { type: string; to: string; error: string | null; createdAt: string }[]
+  /** Ha a lekérdezés maga hibázott (nem a küldés) — a hívó ekkor NE mutasson hamis "100% sikeres"
+   *  zöld jelzést, hanem explicit "nem sikerült betölteni" állapotot. */
+  loadFailed?: boolean
+}
+
+/** Email-kézbesítési egészség az elmúlt 30 napra — riasztási küszöbhöz (`successRatePct < 95` → figyelmeztetés). */
+export async function loadEmailHealth(): Promise<EmailHealth> {
+  const payload = await getPayloadClient()
+  const since = new Date(Date.now() - 30 * MS_DAY).toISOString()
+
+  const [totalRes, failedRes] = await Promise.all([
+    payload.count({ collection: 'email-log', where: { createdAt: { greater_than_equal: since } }, overrideAccess: true }),
+    payload.find({
+      collection: 'email-log',
+      where: { and: [{ createdAt: { greater_than_equal: since } }, { ok: { equals: false } }] },
+      sort: '-createdAt',
+      limit: 5,
+      depth: 0,
+      overrideAccess: true,
+    }),
+  ])
+
+  const total30d = totalRes.totalDocs
+  const failed30d = failedRes.totalDocs
+  const successRatePct = total30d > 0 ? Math.round(((total30d - failed30d) / total30d) * 1000) / 10 : 100
+
+  const recentFailures = (failedRes.docs as EmailLogEntry[])
+    .map(f => ({ type: f.type ?? '—', to: f.to ?? '—', error: f.error ?? null, createdAt: f.createdAt }))
+
+  return { total30d, failed30d, successRatePct, recentFailures }
 }

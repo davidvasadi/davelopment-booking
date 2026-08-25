@@ -1,9 +1,10 @@
+import Link from 'next/link'
 import { requireAuth } from '@/lib/auth'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
 import { SectionPanel, BackstageHeader } from '@/components/backstage/BackstageUi'
-import { loadBackstageData, loadRevenueBreakdown } from '@/lib/backstageMetrics'
+import { loadBackstageData, loadRevenueBreakdown, loadEmailHealth, daysUntil } from '@/lib/backstageMetrics'
 import { StatusDonut, MrrLineChart } from '@/components/backstage/BackstageCharts'
 
 export const dynamic = 'force-dynamic'
@@ -15,9 +16,22 @@ function retentionTint(pct: number): string {
   return 'bg-bad-bg text-bad'
 }
 
+/** Email-sikeresség → tint — 95% alatt már figyelmeztető szintű (kézbesítési probléma gyanúja). */
+function emailHealthTint(pct: number): string {
+  if (pct >= 98) return 'bg-ok-bg text-ok'
+  if (pct >= 95) return 'bg-warn-bg text-warn'
+  return 'bg-bad-bg text-bad'
+}
+
 export default async function RevenuePage() {
   await requireAuth('admin')
-  const [d, rev] = await Promise.all([loadBackstageData(), loadRevenueBreakdown()])
+  // `loadEmailHealth()` best-effort — egy hiba itt (pl. az email-log lekérdezés) NE vigye
+  // magával az egész, egyébként jól működő Bevétel oldalt, csak az Üzemeltetés panelt.
+  const [d, rev, email] = await Promise.all([
+    loadBackstageData(),
+    loadRevenueBreakdown(),
+    loadEmailHealth().catch(() => ({ total30d: 0, failed30d: 0, successRatePct: 100, recentFailures: [], loadFailed: true })),
+  ])
 
   // Státusz-csík: fizető / próba / kockázat megoszlás (mint a Statisztikán a teljesített/lemondva/nyitott).
   const total = d.activeCount + d.trialingCount + d.pastDueCount + d.canceledCount + d.pausedCount || 1
@@ -132,6 +146,80 @@ export default async function RevenuePage() {
             </table>
           </div>
         )}
+      </SectionPanel>
+
+      {/* Üzemeltetés: email-kézbesítés egészsége + fizetési hibában lévő fiókok — a "csendben
+          eltörik valami" típusú kockázatokat teszi láthatóvá, riasztási küszöbbel. */}
+      <SectionPanel title="Üzemeltetés">
+        <div className="grid grid-cols-1 gap-6 p-5 lg:grid-cols-2">
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-[13px] font-semibold text-ink">Email-kézbesítés (30 nap)</h3>
+              {email.loadFailed ? (
+                <span className="inline-flex items-center rounded-full bg-warn-bg px-2.5 py-1 text-[11px] font-semibold text-warn">
+                  nem sikerült betölteni
+                </span>
+              ) : (
+                <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${emailHealthTint(email.successRatePct)}`}>
+                  {email.successRatePct}% sikeres
+                </span>
+              )}
+            </div>
+            {email.loadFailed ? (
+              <p className="text-[13px] text-ink-soft">Az adat most nem elérhető — próbáld frissíteni az oldalt.</p>
+            ) : (
+              <>
+                <p className="mb-3 text-[12.5px] text-ink-soft">
+                  {email.total30d.toLocaleString('hu-HU')} kiküldött email, {email.failed30d.toLocaleString('hu-HU')} sikertelen.
+                </p>
+                {email.recentFailures.length === 0 ? (
+                  <p className="text-[13px] text-ink-soft">Nincs sikertelen küldés az elmúlt 30 napban.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {email.recentFailures.map((f, i) => (
+                      <li key={i} className="rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[12.5px]">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-ink">{f.to}</span>
+                          <span className="text-[11px] text-ink-soft2">{new Date(f.createdAt).toLocaleDateString('hu-HU')}</span>
+                        </div>
+                        {f.error && <p className="mt-0.5 truncate text-ink-soft" title={f.error}>{f.error}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
+          <div>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-[13px] font-semibold text-ink">Fizetési hibában (lejárt előfizetés)</h3>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold ${d.pastDueAccounts.length > 0 ? 'bg-bad-bg text-bad' : 'bg-ok-bg text-ok'}`}>
+                {d.pastDueAccounts.length} fiók
+              </span>
+            </div>
+            {d.pastDueAccounts.length === 0 ? (
+              <p className="text-[13px] text-ink-soft">Jelenleg nincs fizetési hibában lévő fiók.</p>
+            ) : (
+              <ul className="space-y-2">
+                {d.pastDueAccounts.slice(0, 8).map((acc) => {
+                  const overdueDays = Math.abs(daysUntil(acc.sub?.current_period_end) ?? 0)
+                  return (
+                    <li key={acc.ownerId}>
+                      <Link
+                        href={`/backstage/accounts/${acc.ownerId}`}
+                        className="flex items-center justify-between gap-2 rounded-[12px] border border-line bg-white px-3.5 py-2.5 text-[12.5px] transition-colors hover:border-ink/20"
+                      >
+                        <span className="font-medium text-ink">{acc.owner.name || acc.owner.email}</span>
+                        <span className="shrink-0 text-bad">{overdueDays} napja lejárt · {acc.potentialFee.toLocaleString('hu-HU')} Ft</span>
+                      </Link>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+        </div>
       </SectionPanel>
     </div>
   )

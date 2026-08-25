@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { getCurrentUser } from '@/lib/auth'
+import { sendPushToUsers } from '@/lib/webPush'
 
 const schema = z.object({
   title: z.string().trim().min(1).max(200),
@@ -79,6 +80,8 @@ export async function POST(req: NextRequest) {
   // Egymás után, nem Promise.all-lal — sok egyidejű bulk-create ugyanazon a megosztott
   // erőforráson (ugyanaz a tanulság, mint a ma esti törlés-versenyhelyzetnél).
   let sent = 0
+  const salonOwnerIds = new Set<string | number>()
+  const restaurantOwnerIds = new Set<string | number>()
   for (const salon of salons.docs) {
     await payload.create({
       collection: 'notifications',
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest) {
       data: { audience: 'owner', type: 'admin_broadcast', title, body: message, salon: salon.id, campaign_id: Number(log.id), read: false },
     }).catch(() => null)
     sent++
+    if (salon.owner != null) salonOwnerIds.add(typeof salon.owner === 'object' ? salon.owner.id : salon.owner)
   }
   for (const restaurant of restaurants.docs) {
     await payload.create({
@@ -94,6 +98,7 @@ export async function POST(req: NextRequest) {
       data: { audience: 'owner', type: 'admin_broadcast', title, body: message, restaurant: restaurant.id, campaign_id: Number(log.id), read: false },
     }).catch(() => null)
     sent++
+    if (restaurant.owner != null) restaurantOwnerIds.add(typeof restaurant.owner === 'object' ? restaurant.owner.id : restaurant.owner)
   }
 
   await payload.update({
@@ -102,6 +107,13 @@ export async function POST(req: NextRequest) {
     overrideAccess: true,
     data: { sent_count: sent },
   }).catch(() => null)
+
+  // Böngésző-push, best-effort — nem bukhatja el a választ, ha a küldés lassú/hibázik (a
+  // felhasználó ekkor is legalább az app-on belüli harangban látja az üzenetet).
+  await Promise.all([
+    sendPushToUsers(payload, Array.from(salonOwnerIds), { title, body: message, url: '/dashboard/notifications', tag: `broadcast-${log.id}` }),
+    sendPushToUsers(payload, Array.from(restaurantOwnerIds), { title, body: message, url: '/restaurant/notifications', tag: `broadcast-${log.id}` }),
+  ]).catch((err) => payload.logger.error(`broadcast push hiba: ${String(err)}`))
 
   return NextResponse.json({ ok: true, sent })
 }
