@@ -38,14 +38,11 @@ export function GoodToKnowEditor({
   const add = () => onChange([...value, { icon: 'info', title: '', body: '' }])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
 
-  // Stabil kulcs objektum-referenciánként — a `GoodToKnowItem`-eknek nincs saját id-jük.
-  const keysRef = useRef(new WeakMap<GoodToKnowItem, number>())
-  const nextKeyRef = useRef(0)
-  const keyFor = (s: GoodToKnowItem) => {
-    let k = keysRef.current.get(s)
-    if (k === undefined) { k = nextKeyRef.current++; keysRef.current.set(s, k) }
-    return k
-  }
+  // Stabil kulcs pozíció (nem objektum-referencia) alapján — `update` minden gépeléskor ÚJ
+  // objektumot hoz létre a szerkesztett ponthoz ({...s, ...patch}), egy referencia-alapú kulcs
+  // (pl. korábban egy WeakMap) emiatt minden billentyűleütésnél ÚJ kulcsot adott a sornak, ami
+  // React-et remountolásra kényszerítette → az input elvesztette a fókuszt minden karakternél.
+  const keyFor = (_s: GoodToKnowItem, i: number) => i
 
   if (value.length === 0) {
     return (
@@ -84,7 +81,7 @@ export function GoodToKnowEditor({
       <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
         {value.map((s, i) => (
           <GoodToKnowRow
-            key={keyFor(s)}
+            key={keyFor(s, i)}
             item={s}
             onChange={(patch) => update(i, patch)}
             onRemove={() => remove(i)}

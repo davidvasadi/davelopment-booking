@@ -13,6 +13,7 @@ import * as migration_20260731_000000_add_users_digest_notif_pref from './202607
 import * as migration_20260731_100000_add_review_feature_columns from './20260731_100000_add_review_feature_columns';
 import * as migration_20260823_014350_sync_pre_launch_schema from './20260823_014350_sync_pre_launch_schema';
 import * as migration_20260823_213013_add_users_deleted_at from './20260823_213013_add_users_deleted_at';
+import * as migration_20260825_120000_add_contact_broadcast_notif_campaign from './20260825_120000_add_contact_broadcast_notif_campaign';
 
 export const migrations = [
   {
@@ -89,5 +90,10 @@ export const migrations = [
     up: migration_20260823_213013_add_users_deleted_at.up,
     down: migration_20260823_213013_add_users_deleted_at.down,
     name: '20260823_213013_add_users_deleted_at'
+  },
+  {
+    up: migration_20260825_120000_add_contact_broadcast_notif_campaign.up,
+    down: migration_20260825_120000_add_contact_broadcast_notif_campaign.down,
+    name: '20260825_120000_add_contact_broadcast_notif_campaign',
   },
 ];
