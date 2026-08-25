@@ -106,6 +106,11 @@ interface Props {
   /** A bejelentkezett néző e-mailje — az adatlap ez alapján ismeri fel, hogy a megnyitott
    *  profil a sajátja-e (akkor a fizetés jog nélkül is látszik). */
   viewerEmail?: string | null
+  /** Egy extra (a beépített kereten felüli) aktív munkatárs havi többlet-díja Ft-ban — az "Új
+   *  munkatárs" felületen jelezzük, hogy ez a hozzáadás növeli-e a havidíjat. */
+  extraStaffFeeHuf?: number
+  /** Hány aktív munkatárs fér bele a csomag alapdíjába (jelenleg 1) — efölött számít az extra díj. */
+  includedStaffCount?: number
 }
 
 /** A staff-avatar VAGY (ha nincs) a személy saját profilképe email-egyezéssel. */
@@ -139,6 +144,8 @@ export default function StaffManager({
   canManage = false,
   canViewOthersSalary = false,
   viewerEmail = null,
+  extraStaffFeeHuf = 0,
+  includedStaffCount = 1,
 }: Props) {
   const router = useRouter()
 
@@ -866,6 +873,11 @@ export default function StaffManager({
                 <span className={`absolute top-[3px] h-5 w-5 rounded-full bg-white transition-all ${activeWatch ? 'left-[23px]' : 'left-[3px]'}`} />
               </span>
             </label>
+            )}
+            {editLocale === 'hu' && !editing && activeWatch && activeCount >= includedStaffCount && extraStaffFeeHuf > 0 && (
+              <p className="rounded-xl border border-gold/40 bg-warn-bg px-4 py-3 text-[12.5px] text-warn">
+                Ez a munkatárs aktívként +{extraStaffFeeHuf.toLocaleString('hu-HU')} Ft-tal növeli a havidíjadat (az első munkatárs benne van az alapdíjban, minden további fő külön díjköteles).
+              </p>
             )}
             {editLocale === 'hu' && salonServices.length > 0 && (
               <div className="space-y-2">

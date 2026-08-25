@@ -7,6 +7,8 @@ import StaffManager from '@/components/dashboard/StaffManager'
 import { getStaffStats } from '@/lib/staffStats'
 import { getTeamRoster } from '@/lib/teamRoster'
 import { fixMediaUrl } from '@/lib/utils'
+import { getPricing } from '@/lib/pricing'
+import { SALON_INCLUDED_STAFF } from '@/lib/tier'
 
 export default async function StaffPage() {
   const { salon, capabilities, userEmail } = await getOwnedSalon()
@@ -22,7 +24,7 @@ export default async function StaffPage() {
   const ownerUserRaw = ownerUserId ? await payload.findByID({ collection: 'users', id: ownerUserId, depth: 0, overrideAccess: true }).catch(() => null) : null
   const ownerUser = ownerUserRaw ? { name: (ownerUserRaw as { name?: string }).name ?? null, email: (ownerUserRaw as { email?: string }).email ?? null, avatar_url: (ownerUserRaw as { avatar_url?: string }).avatar_url ?? null, join_date: (ownerUserRaw as { join_date?: string }).join_date ?? null, createdAt: (ownerUserRaw as { createdAt?: string }).createdAt ?? null, role_title: (ownerUserRaw as { role_title?: string }).role_title ?? null } : null
 
-  const [staffResult, stats, shiftsRes, roster, servicesRes, invitedRes, rolesRes] = await Promise.all([
+  const [staffResult, stats, shiftsRes, roster, servicesRes, invitedRes, rolesRes, pricing] = await Promise.all([
     payload.find({
       collection: 'staff',
       where: { salon: { equals: salon.id } },
@@ -62,6 +64,7 @@ export default async function StaffPage() {
       limit: 100,
       overrideAccess: true,
     }),
+    getPricing(),
   ])
 
   const allMonthShifts = shiftsRes.docs as Shift[]
@@ -132,6 +135,8 @@ export default async function StaffPage() {
         canManage={can(capabilities, 'staff.manage')}
         canViewOthersSalary={can(capabilities, 'staff.salary')}
         viewerEmail={userEmail}
+        extraStaffFeeHuf={pricing.salon_extra_staff_huf}
+        includedStaffCount={SALON_INCLUDED_STAFF}
       />
     </div>
   )
