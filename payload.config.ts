@@ -37,6 +37,8 @@ import { EmailLog } from './src/payload/collections/EmailLog'
 import { Tasks } from './src/payload/collections/Tasks'
 import { Invoices } from './src/payload/collections/Invoices'
 import { TrialLedger } from './src/payload/collections/TrialLedger'
+import { ContactMessages } from './src/payload/collections/ContactMessages'
+import { BroadcastLog } from './src/payload/collections/BroadcastLog'
 
 // Globals
 import { PricingSettings } from './src/payload/globals/PricingSettings'
@@ -99,6 +101,8 @@ export default buildConfig({
     Tasks,
     Invoices,
     TrialLedger,
+    ContactMessages,
+    BroadcastLog,
   ],
   globals: [PricingSettings],
   // Többnyelvű publikus foglaló: a tulaj-content (szolgáltatás/kategória nevek, leírások, „jó tudni",

@@ -33,6 +33,8 @@ export interface Config {
     'email-log': EmailLogEntry
     tasks: Task
     'trial-ledger': TrialLedgerEntry
+    'contact-messages': ContactMessage
+    'broadcast-log': BroadcastLogEntry
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
@@ -479,6 +481,28 @@ export interface TrialLedgerEntry {
   createdAt: string
   updatedAt: string
 }
+/** Publikus kapcsolatfelvételi űrlap beérkező üzenetei. */
+export interface ContactMessage {
+  id: string
+  name: string
+  email: string
+  phone?: string | null
+  message: string
+  status?: ('new' | 'answered') | null
+  createdAt: string
+  updatedAt: string
+}
+/** Admin körüzenetek naplója — egy sor kampányonként. */
+export interface BroadcastLogEntry {
+  id: string
+  title: string
+  body: string
+  target: 'all' | 'paying' | 'trial' | 'custom'
+  sent_count: number
+  sent_by?: string | User | null
+  createdAt: string
+  updatedAt: string
+}
 export interface PushSubscription {
   id: string
   user: string | User
@@ -570,6 +594,7 @@ export interface EmailLogEntry {
     | 'team_invite'
     | 'password_reset'
     | 'schedule_change'
+    | 'contact_form'
     | 'other'
   to?: string | null
   subject?: string | null
@@ -600,9 +625,10 @@ export interface Notification {
   salon?: string | Salon | null
   user?: string | User | null
   audience: 'owner' | 'member' | 'admin'
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'voucher_purchase'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'voucher_purchase' | 'contact_message' | 'admin_broadcast'
   title: string
   body?: string | null
+  campaign_id?: number | null
   read?: boolean | null
   metadata?: Record<string, unknown> | null
   reservation?: string | Reservation | null
