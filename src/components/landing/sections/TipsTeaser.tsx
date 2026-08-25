@@ -120,7 +120,7 @@ export function TipsTeaser({ relatedExclude }: { relatedExclude?: string }) {
       >
         <div className="flex flex-col gap-4">
           <motion.span variants={cardItem} className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[15px] tracking-[-0.03em] text-brand-ink">
-            {relatedExclude ? 'Kapcsolódó tippek' : 'Tippek'}
+            {relatedExclude ? 'Kapcsolódó tippek' : 'Blog'}
           </motion.span>
           <motion.h2 variants={cardItem} className="font-semibold text-[clamp(1.75rem,4vw,2.75rem)] leading-[1.05] tracking-[-0.05em] text-brand-ink">
             {relatedExclude ? 'Ezek is érdekelhetnek' : <>Tekints meg néhány<br className="hidden sm:block" /> hasznos tippet a rendszerből.</>}

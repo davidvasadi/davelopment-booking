@@ -18,9 +18,8 @@ import { RollButton } from '@/components/landing/sections/TestimonialButtons'
 const LINKS = [
   { id: 'hogyan', label: 'Funkciók' },
   { id: 'arazas', label: 'Árak' },
-  { id: 'velemenyek', label: 'Vélemények' },
-  { id: 'gyik', label: 'GYIK' },
-  { id: 'tippek', label: 'Tippek' },
+  { id: 'tippek', label: 'Blog' },
+  { id: 'kapcsolat', label: 'Kapcsolat' },
 ]
 
 export const SERVICES = [

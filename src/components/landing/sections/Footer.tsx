@@ -47,6 +47,7 @@ const NAV_LINKS = [
   { href: '#velemenyek', label: 'Vélemények' },
   { href: '#arazas', label: 'Árak' },
   { href: '#gyik', label: 'GYIK' },
+  { href: '#kapcsolat', label: 'Kapcsolat' },
   { href: '/login', label: 'Bejelentkezés' },
 ]
 const INDUSTRY_LINKS = [
