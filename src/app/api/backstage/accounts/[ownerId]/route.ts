@@ -37,6 +37,14 @@ export async function PATCH(
   if (typeof body.notes === 'string') subData.notes = body.notes
   if (typeof body.status === 'string') subData.status = body.status
   if (typeof body.plan === 'string') subData.plan = body.plan
+  // Admin manuálisan próbaidőszakra állít: ez a legmagasabb prioritású döntés, a próbaidő
+  // MOSTANTÓL számoljon, ne egy régi (esetleg már lejárt) trial_ends_at-ból — különben a háttérben
+  // futó expireStaleTrials/expireOneTrial a következő betöltéskor azonnal visszaírná past_due-ra.
+  if (body.status === 'trialing') {
+    const pricing = await payload.findGlobal({ slug: 'pricing-settings', overrideAccess: true })
+    const trialDays = (pricing as { trial_days?: number }).trial_days ?? 14
+    subData.trial_ends_at = new Date(Date.now() + trialDays * 86_400_000).toISOString()
+  }
   if (Object.keys(subData).length > 0) {
     if (!sub) return NextResponse.json({ error: 'No subscription for account' }, { status: 404 })
     await payload.update({ collection: 'subscriptions', id: sub.id, data: subData, overrideAccess: true, user })
