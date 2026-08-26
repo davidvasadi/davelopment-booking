@@ -9,12 +9,14 @@ import { listStagger } from '@/lib/motion'
 import { StatusBadge, formatHuf } from '@/components/backstage/BackstageUi'
 import { EmptyState } from '@/components/ui/empty-state'
 import type { SubStatus } from '@/lib/backstageMetrics'
+import type { Tier } from '@/lib/tier'
 
 export type AccountRow = {
   ownerId: string
   email: string
   name: string
   status: SubStatus | null
+  tier: Tier | null
   mrr: number
   salonCount: number
   restaurantCount: number
@@ -24,6 +26,8 @@ export type AccountRow = {
   createdAt: string
   trialEndsAt: string | null
 }
+
+const TIER_LABEL: Record<Tier, string> = { starter: 'Starter', pro: 'Pro', egyedi: 'Egyedi' }
 
 export type Filter = 'all' | 'active' | 'trialing' | 'past_due' | 'canceled'
 
@@ -39,7 +43,8 @@ function composition(a: AccountRow): string {
   const parts: string[] = []
   if (a.salonCount) parts.push(`${a.salonCount} szalon`)
   if (a.restaurantCount) parts.push(`${a.restaurantCount} étterem`)
-  return parts.length ? parts.join(' · ') : 'nincs üzlet'
+  const base = parts.length ? parts.join(' · ') : 'nincs üzlet'
+  return a.tier ? `${base} · ${TIER_LABEL[a.tier]}` : base
 }
 
 export default function AccountsClient({ accounts, initialStatus }: { accounts: AccountRow[]; initialStatus?: Filter }) {

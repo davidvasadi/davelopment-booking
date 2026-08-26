@@ -1,6 +1,7 @@
 import { getPayloadClient } from '@/lib/payload'
 import { requireAuth } from '@/lib/auth'
 import type { Salon, Restaurant, User } from '@/payload/payload-types'
+import { resolveTier } from '@/lib/tier'
 import { BackstageHeader } from '@/components/backstage/BackstageUi'
 import PlacesClient, { type PlaceRow } from './PlacesClient'
 
@@ -56,6 +57,7 @@ export default async function BackstagePlacesPage() {
       ownerName: owner?.name,
       ownerBusinessCount: oid ? (ownerBizCount.get(oid) ?? 1) : 1,
       bookingCount: count,
+      tier: resolveTier(doc.tier),
     }
   }
 

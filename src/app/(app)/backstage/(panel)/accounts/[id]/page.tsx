@@ -7,11 +7,14 @@ import {
 } from 'lucide-react'
 import { loadAccountProfile, daysUntil } from '@/lib/backstageMetrics'
 import { PLAN_LABELS } from '@/lib/backstagePlaces'
+import type { Tier } from '@/lib/tier'
 import { HeroKpi, CARD } from '@/components/dashboard/overview-ui'
 import { StatusBadge, ActivePill, SectionPanel, FIELD_LABEL, formatHuf } from '@/components/backstage/BackstageUi'
 import AccountActions, { AccountNotes } from './AccountActions'
 
 export const dynamic = 'force-dynamic'
+
+const TIER_LABEL: Record<Tier, string> = { starter: 'Starter', pro: 'Pro', egyedi: 'Egyedi' }
 
 function bookingBadgeCls(status: string): string {
   if (status === 'confirmed') return 'bg-ok-bg text-ok'
@@ -165,6 +168,7 @@ export default async function AccountProfilePage({ params }: { params: Promise<{
                         </p>
                         <p className="truncate text-[12px] text-ink-soft">{p.city ? `${p.city} · ` : ''}{p.totalBookings} foglalás · {p.monthBookings} e hónap</p>
                       </div>
+                      <span className="shrink-0 rounded-full bg-ink-dark px-2.5 py-1 text-[11px] font-semibold text-gold">{TIER_LABEL[p.tier]}</span>
                       <ActivePill active={p.is_active} />
                       <a href={`/${p.slug}`} target="_blank" rel="noopener noreferrer" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-gold/20 hover:text-ink-dark" title="Nyilvános oldal">
                         <ExternalLink className="h-3.5 w-3.5" />

@@ -7,6 +7,7 @@ import { Building2, UtensilsCrossed, MapPin, CalendarCheck, Search } from 'lucid
 import PlaceToggle from './PlaceToggle'
 import PlaceDetailSheet from '@/components/backstage/PlaceDetailSheet'
 import type { PlaceKind } from '@/lib/backstagePlaces'
+import type { Tier } from '@/lib/tier'
 import { ActivePill } from '@/components/backstage/BackstageUi'
 import { EmptyState } from '@/components/ui/empty-state'
 import { listStagger } from '@/lib/motion'
@@ -25,7 +26,10 @@ export type PlaceRow = {
   /** Több-üzlet: hány üzlet tartozik ehhez a fiókhoz (>1 esetén jelöljük). */
   ownerBusinessCount?: number
   bookingCount: number
+  tier: Tier
 }
+
+const TIER_LABEL: Record<Tier, string> = { starter: 'Starter', pro: 'Pro', egyedi: 'Egyedi' }
 
 type Filter = 'all' | PlaceKind
 
@@ -135,6 +139,7 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
                       <div className="mb-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                         <p className="truncate text-[14px] font-semibold text-ink">{p.name}</p>
                         <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-ink-soft">{typeLabel}</span>
+                        <span className="shrink-0 rounded-full bg-ink-dark px-2 py-0.5 text-[10px] font-bold text-gold">{TIER_LABEL[p.tier]}</span>
                         <ActivePill active={!!p.is_active} />
                       </div>
                       <p className="truncate text-[11.5px] text-ink-soft">{p.ownerEmail ?? '—'}</p>
@@ -159,6 +164,7 @@ export default function PlacesClient({ places }: { places: PlaceRow[] }) {
                         <p className="flex min-w-0 items-center gap-1.5">
                           <span className="truncate text-[13.5px] font-semibold text-ink">{p.name}</span>
                           <span className="shrink-0 text-[10px] font-bold uppercase tracking-wide text-ink-soft">{typeLabel}</span>
+                          <span className="shrink-0 rounded-full bg-ink-dark px-2 py-0.5 text-[10px] font-bold text-gold">{TIER_LABEL[p.tier]}</span>
                         </p>
                         {p.city && <p className="mt-0.5 flex items-center gap-1 text-[11.5px] text-ink-soft"><MapPin className="h-3 w-3" />{p.city}</p>}
                       </div>

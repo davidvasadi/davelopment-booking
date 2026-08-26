@@ -38,6 +38,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
     email: a.owner.email,
     name: a.owner.name,
     status: a.status,
+    tier: a.tier,
     mrr: a.mrr,
     salonCount: a.salonCount,
     restaurantCount: a.restaurantCount,

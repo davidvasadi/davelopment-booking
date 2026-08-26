@@ -9,6 +9,7 @@ import 'server-only'
 import type { Salon, Restaurant, User, Subscription, EmailLogEntry } from '@/payload/payload-types'
 import { getPayloadClient } from '@/lib/payload'
 import { subAmountHuf, ownerIdOfSubscription } from '@/lib/backstagePlaces'
+import { resolveTier, type Tier } from '@/lib/tier'
 
 export type SubStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
 
@@ -35,7 +36,10 @@ export type AccountSummary = {
   /** A fiók legrégebbi üzletének létrehozása — a fiók „kora". */
   firstPlaceCreatedAt: string | null
   createdAt: string
-  places: { kind: 'salon' | 'restaurant'; id: string; name: string; slug: string; is_active: boolean; city: string | null }[]
+  /** A fiók csomagja — a legkorábban létrehozott üzlete alapján (a legtöbb fióknak csak 1
+   *  üzlete van; több üzletnél az elsőé az irányadó, a `places[].tier` mindegyiket megadja). */
+  tier: Tier | null
+  places: { kind: 'salon' | 'restaurant'; id: string; name: string; slug: string; is_active: boolean; city: string | null; tier: Tier }[]
 }
 
 /** Egy nap egy idősorban. */
@@ -312,6 +316,7 @@ export async function loadBackstageData(): Promise<BackstageData> {
         recentBookings: 0,
         firstPlaceCreatedAt: null,
         createdAt: owner.createdAt,
+        tier: null,
         places: [],
       }
       accountMap.set(key, acc)
@@ -329,12 +334,14 @@ export async function loadBackstageData(): Promise<BackstageData> {
     acc.placeCount += 1
     acc.totalBookings += bk?.total ?? 0
     acc.recentBookings += bk?.recent ?? 0
+    const tier = resolveTier(doc.tier)
     if (!acc.firstPlaceCreatedAt || new Date(doc.createdAt) < new Date(acc.firstPlaceCreatedAt)) {
       acc.firstPlaceCreatedAt = doc.createdAt
+      acc.tier = tier
     }
     acc.places.push({
       kind, id: String(doc.id), name: doc.name, slug: doc.slug,
-      is_active: doc.is_active ?? false, city: doc.city ?? null,
+      is_active: doc.is_active ?? false, city: doc.city ?? null, tier,
     })
   }
   for (const s of salons) addPlace('salon', s, salonBookingMap.get(String(s.id)))
@@ -575,6 +582,7 @@ export type AccountPlaceDetail = {
   createdAt: string
   totalBookings: number
   monthBookings: number
+  tier: Tier
 }
 
 export type AccountBookingRow = {
@@ -629,7 +637,7 @@ export async function loadAccountProfile(ownerId: string): Promise<AccountProfil
       payload.find({ collection: 'bookings', where: { salon: { equals: s.id } }, sort: '-createdAt', limit: 5, depth: 1, overrideAccess: true }),
     ])
     totalBookings += total.totalDocs; monthBookings += month.totalDocs
-    places.push({ kind: 'salon', id: String(s.id), name: s.name, slug: s.slug, city: s.city ?? null, is_active: s.is_active ?? false, createdAt: s.createdAt, totalBookings: total.totalDocs, monthBookings: month.totalDocs })
+    places.push({ kind: 'salon', id: String(s.id), name: s.name, slug: s.slug, city: s.city ?? null, is_active: s.is_active ?? false, createdAt: s.createdAt, totalBookings: total.totalDocs, monthBookings: month.totalDocs, tier: resolveTier(s.tier) })
     for (const b of recent.docs) {
       const svc = b.service && typeof b.service === 'object' ? (b.service as { name?: string }) : null
       recentBookings.push({ id: String(b.id), placeName: s.name, kind: 'salon', customerName: b.customer_name ?? '—', detail: svc?.name ?? '—', date: b.date ?? '', time: b.start_time ?? '', status: b.status ?? '', createdAt: b.createdAt })
@@ -642,7 +650,7 @@ export async function loadAccountProfile(ownerId: string): Promise<AccountProfil
       payload.find({ collection: 'reservations', where: { restaurant: { equals: r.id } }, sort: '-createdAt', limit: 5, depth: 1, overrideAccess: true }),
     ])
     totalBookings += total.totalDocs; monthBookings += month.totalDocs
-    places.push({ kind: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, city: r.city ?? null, is_active: r.is_active ?? false, createdAt: r.createdAt, totalBookings: total.totalDocs, monthBookings: month.totalDocs })
+    places.push({ kind: 'restaurant', id: String(r.id), name: r.name, slug: r.slug, city: r.city ?? null, is_active: r.is_active ?? false, createdAt: r.createdAt, totalBookings: total.totalDocs, monthBookings: month.totalDocs, tier: resolveTier(r.tier) })
     for (const b of recent.docs) {
       const rec = b as { customer_name?: string; pax?: number; date?: string; start_time?: string; status?: string; id: string | number; createdAt: string }
       recentBookings.push({ id: String(rec.id), placeName: r.name, kind: 'restaurant', customerName: rec.customer_name ?? '—', detail: rec.pax != null ? `${rec.pax} fő` : '—', date: rec.date ?? '', time: rec.start_time ?? '', status: rec.status ?? '', createdAt: rec.createdAt })
