@@ -9,7 +9,7 @@ import { BrandLogo } from '@/components/BrandLogo'
 import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
 import { RestaurantCard } from '@/components/restaurant/RestaurantCard'
 import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
-import { placeJsonLd } from '@/lib/publicSeo'
+import { placeJsonLd, placeBreadcrumbJsonLd } from '@/lib/publicSeo'
 import type { Media, Restaurant } from '@/payload/payload-types'
 import { t, resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { hasActivePackage } from '@/lib/newsletterLimits'
@@ -70,7 +70,11 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       {embed && <style>{'html, body { background: transparent !important; }'}</style>}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(restaurant, 'restaurant')) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(restaurant, 'restaurant', reviews, openingHours)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeBreadcrumbJsonLd(restaurant)) }}
       />
       <MarketingTrackingScripts ga4Id={restaurant.marketing_tracking?.ga4_measurement_id} facebookPixelId={restaurant.marketing_tracking?.facebook_pixel_id} />
 
@@ -78,7 +82,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       {!embed && hasCover && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverUrl} alt="" aria-hidden className="absolute inset-0 z-0 h-full w-full object-cover" />
+          <img src={coverUrl} alt="" aria-hidden fetchPriority="high" className="absolute inset-0 z-0 h-full w-full object-cover" />
           <div
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
@@ -90,7 +94,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
           />
           <div
             className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2]"
-            style={{ height: '62%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)' }}
+            style={{ height: '70%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)' }}
           />
         </>
       )}
@@ -125,6 +129,9 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
               <div className="mt-2">
                 <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
               </div>
+            )}
+            {restaurant.description && (
+              <p className={`mt-2 line-clamp-2 text-[13px] leading-relaxed ${heroSub}`}>{restaurant.description.trim().slice(0, 160)}</p>
             )}
           </div>
 

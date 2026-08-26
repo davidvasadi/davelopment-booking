@@ -7,8 +7,7 @@ import type { Pricing } from '@/lib/pricing'
  *
  * Egy helyen gyártjuk a `generateMetadata` visszatérési értékét és a JSON-LD
  * structured datát a szalon/étterem közös mezőiből (name, description, city,
- * cover_image, phone, email). A description típusa eltér (Salon = Payload
- * richText, Restaurant = plain string), ezt a `descriptionText` normalizálja.
+ * cover_image, phone, email).
  */
 
 export const SITE_URL = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001').replace(/\/$/, '')
@@ -21,23 +20,11 @@ export function mediaUrl(m: string | Media | null | undefined): string | null {
   return url.startsWith('http') ? url : `${SITE_URL}${url}`
 }
 
-/** Lexical richText → sík szöveg (első ~200 karakter), vagy plain string, vagy ''. */
+/** A hely leírása, trimmelve — mindkét collectionnél sima szöveg. `typeof` védelem: a szalon
+ *  `description`-je korábban richText-objektum volt, egy korlátlanul cache-elt, séma-váltás
+ *  előtti bejegyzés még a régi alakot adhatja vissza. */
 export function descriptionText(desc: Salon['description'] | Restaurant['description']): string {
-  if (!desc) return ''
-  if (typeof desc === 'string') return desc.trim()
-  // Payload lexical: bejárjuk a children-fát és összefűzzük a text-node-okat.
-  const out: string[] = []
-  const walk = (nodes: unknown[]) => {
-    for (const n of nodes) {
-      if (!n || typeof n !== 'object') continue
-      const node = n as { text?: string; children?: unknown[] }
-      if (typeof node.text === 'string') out.push(node.text)
-      if (Array.isArray(node.children)) walk(node.children)
-    }
-  }
-  const root = (desc as { root?: { children?: unknown[] } }).root
-  if (root?.children) walk(root.children)
-  return out.join(' ').replace(/\s+/g, ' ').trim()
+  return typeof desc === 'string' ? desc.trim() : ''
 }
 
 /** Rövid, találati-listára szánt leírás: a saját leírás, vagy egy értelmes fallback. */
@@ -67,7 +54,10 @@ export function placeMetadata(
 ): Metadata {
   const desc = descriptionText(place.description)
   const description = metaDescription(place.name, place.city, desc, kind)
-  const title = place.city ? `${place.name} — ${place.city}` : place.name
+  // Ha a hely NEVE már tartalmazza a várost (pl. "Szalon Budapest"), ne fűzzük hozzá még
+  // egyszer — "Szalon Budapest — Budapest" félrevezető, redundáns title-t adna.
+  const cityAlreadyInName = place.city && place.name.toLowerCase().includes(place.city.toLowerCase())
+  const title = place.city && !cityAlreadyInName ? `${place.name} — ${place.city}` : place.name
   const coverImage = mediaUrl(place.cover_image) ?? mediaUrl(place.logo)
   const url = `${SITE_URL}/${place.slug}`
 
@@ -133,8 +123,37 @@ export function siteJsonLd(pricing: Pricing): Record<string, unknown> {
 }
 
 /** schema.org JSON-LD a rich-resulthoz (LocalBusiness / Restaurant / HairSalon). */
-export function placeJsonLd(place: PlaceLike, kind: 'salon' | 'restaurant'): Record<string, unknown> {
+/** Payload `day_of_week` ('monday'…) → schema.org napnév ('Monday'…). */
+function capitalizeDay(day: string): string {
+  return day.charAt(0).toUpperCase() + day.slice(1)
+}
+
+export type OpeningHourLike = { day_of_week: string; is_open?: boolean | null; open_time?: string | null; close_time?: string | null }
+
+/** Heti nyitvatartás → schema.org `OpeningHoursSpecification` tömb (csak a valóban nyitott napok). */
+function openingHoursSpec(hours: OpeningHourLike[]): Record<string, unknown>[] {
+  return hours
+    .filter((h) => h.is_open && h.open_time && h.close_time)
+    .map((h) => ({
+      '@type': 'OpeningHoursSpecification',
+      dayOfWeek: `https://schema.org/${capitalizeDay(h.day_of_week)}`,
+      opens: h.open_time,
+      closes: h.close_time,
+    }))
+}
+
+export function placeJsonLd(
+  place: PlaceLike,
+  kind: 'salon' | 'restaurant',
+  /** Csillag-értékelés a Google találati listájában megjelenő csillagokhoz (`AggregateRating`) —
+   *  Google irányelve szerint csak akkor szabad kiírni, ha van legalább 1 valódi értékelés. */
+  reviews?: { average: number; count: number },
+  /** Heti nyitvatartás — ha van, a Google közvetlenül a találatban is megjelenítheti ("Nyitva"/
+   *  "Zárva", nyitvatartási idő). */
+  openingHours?: OpeningHourLike[],
+): Record<string, unknown> {
   const image = mediaUrl(place.cover_image) ?? mediaUrl(place.logo)
+  const spec = openingHours ? openingHoursSpec(openingHours) : []
   return {
     '@context': 'https://schema.org',
     '@type': kind === 'restaurant' ? 'Restaurant' : 'HealthAndBeautyBusiness',
@@ -146,10 +165,37 @@ export function placeJsonLd(place: PlaceLike, kind: 'salon' | 'restaurant'): Rec
       : {}),
     ...(place.phone ? { telephone: place.phone } : {}),
     ...(place.email ? { email: place.email } : {}),
+    ...(reviews && reviews.count > 0
+      ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: reviews.average, reviewCount: reviews.count, bestRating: 5, worstRating: 1 } }
+      : {}),
+    ...(spec.length > 0 ? { openingHoursSpecification: spec } : {}),
     potentialAction: {
       '@type': 'ReserveAction',
       target: `${SITE_URL}/${place.slug}/book`,
       name: kind === 'restaurant' ? 'Asztalfoglalás' : 'Időpontfoglalás',
     },
+  }
+}
+
+/**
+ * Breadcrumb JSON-LD a profil-oldalhoz (Főoldal > [Város] > [Hely neve]) — a `/[slug]/book`
+ * foglaló wizard szándékosan `robots.txt`-tel le van tiltva a crawlolástól, ezért oda NEM kerül
+ * strukturált adat (fölösleges lenne egy nem-indexelt oldalon), csak ide, az indexelt profilra.
+ */
+export function placeBreadcrumbJsonLd(place: PlaceLike): Record<string, unknown> {
+  const items = [
+    { name: 'Főoldal', item: SITE_URL },
+    ...(place.city ? [{ name: place.city, item: `${SITE_URL}/?city=${encodeURIComponent(place.city)}` }] : []),
+    { name: place.name, item: `${SITE_URL}/${place.slug}` },
+  ]
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: items.map((it, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: it.name,
+      item: it.item,
+    })),
   }
 }

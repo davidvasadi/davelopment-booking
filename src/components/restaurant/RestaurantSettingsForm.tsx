@@ -139,6 +139,7 @@ type Settings = {
   good_to_know: GoodToKnowItem[]
   event_types: EventTypeItem[]
   custom_questions: CustomQuestion[]
+  description: string
 }
 
 // Crextio/Apple mező: tiszta fehér + meleg hajszálvékony keret + arany fókusz-gyűrű (NINCS krém fill).
@@ -216,6 +217,7 @@ export function RestaurantSettingsForm({
     id: restaurantId,
     supported: ['hu', ...savedSupported],
     huValues: {
+      description: initial.description,
       booking_email_subject: initial.booking_email_subject,
       booking_email_intro: initial.booking_email_intro,
       cancel_email_subject: initial.cancel_email_subject,
@@ -505,25 +507,27 @@ export function RestaurantSettingsForm({
 
       {/* Cover image */}
       <Section id="cover" title="Borítókép" full>
+        <p className="text-xs text-ink-soft -mt-1">A nyilvános oldalon a felső sötét sávon jelenik meg háttérként.</p>
         <div className="relative">
           <button
             type="button"
             onClick={() => coverRef.current?.click()}
-            className="group relative w-full h-40 rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong flex items-center justify-center hover:border-ink/25 transition-colors"
+            className="relative w-full h-36 rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong flex items-center justify-center hover:border-ink/25 transition-colors"
           >
             {uploadingCover ? (
               <Loader2 className="h-6 w-6 text-ink-soft animate-spin" />
             ) : coverPreview ? (
               <>
-                <img src={coverPreview} alt="Borítókép" className="h-full w-full object-cover" />
-                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <Camera className="h-5 w-5 text-white" />
+                <img src={coverPreview} alt="Borítókép" className="absolute inset-0 h-full w-full object-cover opacity-40" />
+                <div className="relative flex flex-col items-center gap-1.5 text-ink-soft">
+                  <ImagePlus className="h-5 w-5" />
+                  <span className="text-xs font-medium">Csere</span>
                 </div>
               </>
             ) : (
-              <div className="flex flex-col items-center gap-1 text-ink-soft">
+              <div className="flex flex-col items-center gap-1.5 text-ink-soft">
                 <ImagePlus className="h-6 w-6" />
-                <span className="text-xs">Borítókép feltöltése</span>
+                <span className="text-xs font-medium">Borítókép feltöltése</span>
               </div>
             )}
           </button>
@@ -532,9 +536,9 @@ export function RestaurantSettingsForm({
               type="button"
               aria-label="Borítókép eltávolítása"
               onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
-              className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-bad transition-colors"
+              className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
             >
-              <X className="h-3 w-3 text-white" />
+              <X className="h-3.5 w-3.5 text-white" />
             </button>
           )}
         </div>
@@ -658,6 +662,20 @@ export function RestaurantSettingsForm({
           <Label className={labelClass}>Weboldal</Label>
           <Input className={inputClass} value={form.website} onChange={(e) => set('website', e.target.value)} type="url" placeholder="https://" />
         </div>
+      </Section>
+
+      <Section id="description" title="Bemutatkozás" full>
+        <p className="text-xs text-ink-soft -mt-1">
+          Rövid szöveg magatokról — ez jelenik meg a Google-találatban, ÉS a foglaló oldaladon is, a vendégeknek.
+        </p>
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
+        <textarea
+          className={`${inputClass} min-h-[100px] resize-y py-2.5`}
+          value={loc.current.description}
+          onChange={(e) => loc.setField('description', e.target.value)}
+          maxLength={300}
+          placeholder="Pl. 10 éve várjuk vendégeinket a belváros szívében, szezonális konyhával és barátságos kiszolgálással."
+        />
       </Section>
 
       {/* Public booking URL */}

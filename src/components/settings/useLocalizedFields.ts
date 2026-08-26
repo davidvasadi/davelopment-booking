@@ -7,6 +7,8 @@ import type { CustomQuestion, CustomQuestionType } from './CustomQuestionsEditor
 
 /** A dashboardról szerkeszthető localizált mezők egy üzletön (salon/restaurant). */
 export interface LocalizedValues {
+  /** Rövid bemutatkozás — a Google-találat leírása ÉS a foglaló oldal látható szövege is ez. */
+  description: string
   // Szerkeszthető email-tartalom (tárgy + bevezető) típusonként. A visszaigazoló = booking_*.
   booking_email_subject: string
   booking_email_intro: string
@@ -26,6 +28,7 @@ export interface LocalizedValues {
 }
 
 const EMPTY: LocalizedValues = {
+  description: '',
   booking_email_subject: '',
   booking_email_intro: '',
   cancel_email_subject: '',
@@ -49,6 +52,7 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
   const evt = Array.isArray(doc.event_types) ? doc.event_types : []
   const cq = Array.isArray(doc.custom_questions) ? doc.custom_questions : []
   return {
+    description: (doc.description as string) ?? '',
     booking_email_subject: (doc.booking_email_subject as string) ?? '',
     booking_email_intro: (doc.booking_email_intro as string) ?? '',
     cancel_email_subject: (doc.cancel_email_subject as string) ?? '',
@@ -181,6 +185,7 @@ export function useLocalizedFields(opts: {
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
+          description: values.description,
           booking_email_subject: values.booking_email_subject,
           booking_email_intro: values.booking_email_intro,
           cancel_email_subject: values.cancel_email_subject,

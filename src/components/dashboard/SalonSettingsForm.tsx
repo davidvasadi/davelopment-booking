@@ -229,6 +229,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     id: salon.id,
     supported: ['hu', ...savedSupported],
     huValues: {
+      description: salon.description ?? '',
       booking_email_subject: salon.booking_email_subject ?? '',
       booking_email_intro: salon.booking_email_intro ?? '',
       cancel_email_subject: salon.cancel_email_subject ?? '',
@@ -627,6 +628,20 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
           <Label className={labelBase}>Weboldal</Label>
           <Input className={inputBase} {...register('website')} type="url" placeholder="https://" />
         </div>
+      </Section>
+
+      <Section id="description" title="Bemutatkozás" full>
+        <p className="text-xs text-ink-soft -mt-1">
+          Rövid szöveg magadról — ez jelenik meg a Google-találatban, ÉS a foglaló oldaladon is, a vendégeknek.
+        </p>
+        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
+        <textarea
+          className={`${inputBase} min-h-[100px] resize-y py-2.5`}
+          value={loc.current.description}
+          onChange={(e) => loc.setField('description', e.target.value)}
+          maxLength={300}
+          placeholder="Pl. 10 éve várjuk vendégeinket a belváros szívében, modern eszközökkel és barátságos csapattal."
+        />
       </Section>
 
       <Section id="booking-url" title="Nyilvános foglaló oldal" full>

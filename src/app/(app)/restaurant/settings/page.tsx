@@ -291,6 +291,7 @@ export default async function RestaurantSettingsPage() {
               phone: r.phone ?? '',
               email: r.email ?? '',
               website: r.website ?? '',
+              description: r.description ?? '',
               turn_duration_minutes: r.turn_duration_minutes ?? 120,
               slot_step_minutes: r.slot_step_minutes ?? 30,
               last_seating_buffer_minutes: r.last_seating_buffer_minutes ?? 0,

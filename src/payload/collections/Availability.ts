@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
+import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
 
 export const Availability: CollectionConfig = {
   slug: 'availability',
@@ -9,6 +10,14 @@ export const Availability: CollectionConfig = {
     useAsTitle: 'salon',
     defaultColumns: ['salon', 'staff', 'day_of_week', 'start_time', 'end_time'],
     hidden: true,
+  },
+  hooks: {
+    // A szalon-szintű (staff nélküli) nyitvatartás mostantól a publikus profil-oldal
+    // strukturált adatába (JSON-LD `openingHoursSpecification`) is bekerül — enélkül a hook
+    // nélkül egy órarend-módosítás nem invalidálná a cache-elt profil-oldalt, a Google-találat
+    // a régi nyitvatartást mutatná tovább.
+    afterChange: [revalidateChildOnChange('salon', 'salon')],
+    afterDelete: [revalidateChildOnDelete('salon', 'salon')],
   },
   access: {
     read: () => true,

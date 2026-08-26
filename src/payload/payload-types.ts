@@ -693,16 +693,7 @@ export interface Salon {
   name: string
   slug: string
   owner: string | User
-  description?: {
-    root: {
-      children: unknown[]
-      direction: string | null
-      format: string
-      indent: number
-      type: string
-      version: number
-    }
-  } | null
+  description?: string | null
   logo?: string | Media | null
   cover_image?: string | Media | null
   address?: string | null

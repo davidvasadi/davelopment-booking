@@ -3,6 +3,7 @@ import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { settingsExtensionFields, businessTierField, customMonthlyFeeField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields, marketingTrackingFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
+import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
 import { auditAfterChange } from '../hooks/auditLog'
 
@@ -21,6 +22,7 @@ export const Salons: CollectionConfig = {
   hooks: {
     afterChange: [
       revalidatePlaceOnChange('salon'),
+      cleanupMediaOnChange(['logo', 'cover_image']),
       auditAfterChange('Szalon beállítás', 'self-salon'),
       async ({ req, doc, operation }) => {
         if (operation !== 'create') return
@@ -152,9 +154,10 @@ export const Salons: CollectionConfig = {
             },
             {
               name: 'description',
-              type: 'richText',
+              type: 'textarea',
               label: 'Szalon leírása',
               localized: true,
+              admin: { description: 'Rövid bemutatkozás — ez jelenik meg a Google-találatban ÉS a foglaló oldaladon is.' },
             },
             {
               name: 'logo',

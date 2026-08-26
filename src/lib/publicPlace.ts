@@ -9,6 +9,7 @@ import type {
   StaffMember,
   Restaurant,
   OpeningHour,
+  Availability,
   GiftVoucherType,
 } from '@/payload/payload-types'
 
@@ -36,6 +37,9 @@ export type PublicSalonData = {
   staff: StaffMember[]
   serviceCategories: ServiceCategory[]
   voucherTypes: GiftVoucherType[]
+  /** Szalon-szintű (staff nélküli), rendszeres heti nyitvatartás — a JSON-LD
+   *  `openingHoursSpecification`-höz. */
+  availability: Availability[]
 } | null
 
 export type PublicRestaurantData = {
@@ -59,7 +63,7 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
   if (!salonResult.docs.length) return null
   const salon = salonResult.docs[0] as Salon
 
-  const [servicesResult, staffResult, categoriesResult, voucherTypesResult] = await Promise.all([
+  const [servicesResult, staffResult, categoriesResult, voucherTypesResult, availabilityResult] = await Promise.all([
     payload.find({
       collection: 'services',
       where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }] },
@@ -96,6 +100,14 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
       locale,
       fallbackLocale: 'hu',
     }),
+    // Szalon-szintű (staff nélküli), rendszeres (nem kivétel) heti nyitvatartás.
+    payload.find({
+      collection: 'availability',
+      where: { and: [{ salon: { equals: salon.id } }, { staff: { exists: false } }, { exception_date: { exists: false } }] },
+      depth: 0,
+      limit: 20,
+      overrideAccess: true,
+    }),
   ])
 
   // Fallback-avatar EMAIL alapján: ha a tulaj sosem töltött fel külön staff-avatart, de a
@@ -128,6 +140,7 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
     staff: staffWithFallback,
     serviceCategories: categoriesResult.docs as ServiceCategory[],
     voucherTypes: voucherTypesResult.docs as GiftVoucherType[],
+    availability: availabilityResult.docs as Availability[],
   }
 }
 
@@ -176,7 +189,10 @@ async function fetchPublicRestaurant(slug: string, locale: Locale): Promise<Publ
 export function getPublicSalon(slug: string, locale: Locale = 'hu'): Promise<PublicSalonData> {
   // A cache-kulcs nyelvenként külön (a localizált mezők eltérnek); a tag közös, így egy módosítás
   // minden nyelv-variánst invalidál.
-  return unstable_cache(() => fetchPublicSalon(slug, locale), ['public-salon', slug, locale], {
+  // A 'v2' verzió-jelző szándékos: a PublicSalonData alakja bővült (availability, description
+  // string-re egyszerűsítve) — a régi, TTL nélküli cache-bejegyzéseket ez a deploy pillanatában
+  // automatikusan érvényteleníti, nem kell megvárni, amíg a tulaj szerkeszt valamit.
+  return unstable_cache(() => fetchPublicSalon(slug, locale), ['public-salon', slug, locale, 'v2'], {
     tags: [salonTag(slug)],
   })()
 }
@@ -186,7 +202,9 @@ export function getPublicSalon(slug: string, locale: Locale = 'hu'): Promise<Pub
  * Korlátlanul cache-elt; csak a place:restaurant:{slug} tag revalidálásakor frissül.
  */
 export function getPublicRestaurant(slug: string, locale: Locale = 'hu'): Promise<PublicRestaurantData> {
-  return unstable_cache(() => fetchPublicRestaurant(slug, locale), ['public-restaurant', slug, locale], {
+  // Lásd getPublicSalon() fenti megjegyzését — a JSON-LD kimenet (aggregateRating,
+  // breadcrumb) itt is bővült, ugyanazzal a 'v2' cache-bumppal frissül minden régi bejegyzés.
+  return unstable_cache(() => fetchPublicRestaurant(slug, locale), ['public-restaurant', slug, locale, 'v2'], {
     tags: [restaurantTag(slug)],
   })()
 }

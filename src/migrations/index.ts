@@ -15,6 +15,7 @@ import * as migration_20260823_014350_sync_pre_launch_schema from './20260823_01
 import * as migration_20260823_213013_add_users_deleted_at from './20260823_213013_add_users_deleted_at';
 import * as migration_20260825_120000_add_contact_broadcast_notif_campaign from './20260825_120000_add_contact_broadcast_notif_campaign';
 import * as migration_20260825_190000_add_weekly_tip_notification_type from './20260825_190000_add_weekly_tip_notification_type';
+import * as migration_20260826_120000_simplify_salon_description from './20260826_120000_simplify_salon_description';
 
 export const migrations = [
   {
@@ -101,5 +102,10 @@ export const migrations = [
     up: migration_20260825_190000_add_weekly_tip_notification_type.up,
     down: migration_20260825_190000_add_weekly_tip_notification_type.down,
     name: '20260825_190000_add_weekly_tip_notification_type',
+  },
+  {
+    up: migration_20260826_120000_simplify_salon_description.up,
+    down: migration_20260826_120000_simplify_salon_description.down,
+    name: '20260826_120000_simplify_salon_description',
   },
 ];
