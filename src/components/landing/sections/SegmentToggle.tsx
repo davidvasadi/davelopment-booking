@@ -65,7 +65,7 @@ function StackedCards() {
             initial={false}
             transition={spring}
           >
-            <img src={src} className="w-full block" alt="" />
+            <img src={src} className="w-full block" alt="" loading="lazy" />
           </motion.div>
         )
       })}

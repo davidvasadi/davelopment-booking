@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, Loader2, Scissors, Users, User, Phone, Mail, Globe, MapPin, Info, Gift, Camera, X } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, Loader2, Tag, Users, User, Phone, Mail, Globe, MapPin, Info, Gift, Camera, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatPrice, cn } from '@/lib/utils'
@@ -701,7 +701,7 @@ export function ProfileCard({
                   {bookableServices.length > 0 && (
                     <div>
                       <div className="mb-3 flex items-center gap-2">
-                        <Scissors className="h-3.5 w-3.5 text-white/40" />
+                        <Tag className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.services')}</p>
                       </div>
                       <button
