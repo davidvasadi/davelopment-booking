@@ -4,13 +4,15 @@
  * VPS cron hívja (percenként vagy óránként), CRON_SECRET-tel védve, pl.:
  *   * * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://booking.davelopment.hu/api/cron/notifications
  *
- * Három feladat:
+ * Négy feladat:
  *  1) Emlékeztető: közelgő, még ki nem küldött (reminder_sent=false) foglalások.
  *  2) Visszajelzés-kérés: lezajlott (múltbeli), feedback_sent=false foglalások.
  *  3) Digest összefoglaló: minden üzlet a SAJÁT nyitás/zárás idejéhez igazítva.
  *     - Szalon: nyitáskor → reggeli (in-app + email), záráskor → esti (in-app + email)
  *     - Étterem: nyitáskor → reggeli (in-app + push), záráskor → esti (in-app + push)
  *     - Idempotens: ha az adott típus ma már ment, nem küldi újra.
+ *  4) Takarítás: 90 napnál régebbi in-app értesítések + 30+ napja elhagyott (0 üzlet/sub/
+ *     tagság) regisztrációk törlése — lásd lib/accountCleanup.ts.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
@@ -20,6 +22,7 @@ import { sendPushToUsers } from '@/lib/webPush'
 import { buildSalonAdvisor, buildRestaurantAdvisor, type SetupFlags } from '@/lib/tipsAdvisor'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { getRestaurantStats } from '@/lib/restaurantStats'
+import { purgeAbandonedAccounts } from '@/lib/accountCleanup'
 import { ALL_CAPABILITIES } from '@/lib/permissions'
 import type { Salon, Service, StaffMember, Booking, Restaurant, Reservation, User, Membership } from '@/payload/payload-types'
 
@@ -138,7 +141,7 @@ async function handle(request: NextRequest) {
   const forceTip = process.env.NODE_ENV !== 'production' && request.nextUrl.searchParams.get('forceTip') === '1'
 
   const now = Date.now()
-  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, weeklyTips: 0, notificationsCleaned: 0, errors: 0 }
+  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, weeklyTips: 0, notificationsCleaned: 0, accountsPurged: 0, errors: 0 }
 
   try {
     const payload = await getPayloadClient()
@@ -1075,6 +1078,14 @@ async function handle(request: NextRequest) {
       summary.notificationsCleaned = Array.isArray(deleted.docs) ? deleted.docs.length : 0
     } catch (err) {
       console.error('[Cron] Notifications cleanup failed', err)
+    }
+
+    // ── Elhagyott regisztrációk törlése (0 üzlet, 0 sub, 0 tagság, 30+ napja regisztrált) ──
+    // Ugyanaz a best-effort minta, mint a fenti notifications-takarítás — lásd lib/accountCleanup.ts.
+    try {
+      summary.accountsPurged = await purgeAbandonedAccounts(payload)
+    } catch (err) {
+      console.error('[Cron] Abandoned account purge failed', err)
     }
 
     return NextResponse.json({ ok: true, ...summary })

@@ -2,7 +2,6 @@ import { requireAuth } from '@/lib/auth'
 import { getPricing } from '@/lib/pricing'
 import { BackstageHeader } from '@/components/backstage/BackstageUi'
 import PricingForm from './PricingForm'
-import { CleanupCard } from './CleanupCard'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,9 +11,8 @@ export default async function BackstageSettingsPage() {
 
   return (
     <div className="space-y-6 p-5 lg:p-0">
-      <BackstageHeader title="Beállítások" subtitle="Globális árazás és adattisztítás" />
+      <BackstageHeader title="Beállítások" subtitle="Globális árazás" />
       <PricingForm initial={pricing} />
-      <CleanupCard />
     </div>
   )
 }

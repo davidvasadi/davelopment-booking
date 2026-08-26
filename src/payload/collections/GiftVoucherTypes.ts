@@ -1,6 +1,7 @@
 import type { CollectionConfig, Access, CollectionAfterChangeHook, CollectionAfterDeleteHook, PayloadRequest } from 'payload'
 import { revalidateTag } from 'next/cache'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
+import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 import { salonTag, restaurantTag } from '@/lib/publicPlace'
 
 /**
@@ -77,7 +78,7 @@ const revalidateOnDelete: CollectionAfterDeleteHook = async ({ doc, req }) => {
 export const GiftVoucherTypes: CollectionConfig = {
   slug: 'gift-voucher-types',
   hooks: {
-    afterChange: [revalidateOnChange, auditAfterChange('Ajándékutalvány-típus', 'auto')],
+    afterChange: [revalidateOnChange, cleanupMediaOnChange(['image']), auditAfterChange('Ajándékutalvány-típus', 'auto')],
     afterDelete: [revalidateOnDelete, auditAfterDelete('Ajándékutalvány-típus', 'auto')],
   },
   labels: { singular: 'Ajándékutalvány-típus', plural: 'Ajándékutalvány-típusok' },

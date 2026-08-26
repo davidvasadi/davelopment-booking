@@ -37,11 +37,12 @@ async function ownedBusinessWhere(req: Parameters<Access>[0]['req']): Promise<Wh
 const ownerScoped: Access = ({ req }) => ownedBusinessWhere(req)
 
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
+import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 
 export const Memberships: CollectionConfig = {
   slug: 'memberships',
   hooks: {
-    afterChange: [auditAfterChange('Csapattag', 'auto')],
+    afterChange: [cleanupMediaOnChange(['avatar']), auditAfterChange('Csapattag', 'auto')],
     afterDelete: [auditAfterDelete('Csapattag', 'auto')],
   },
   labels: { singular: 'Tagság', plural: 'Csapat & jogok' },

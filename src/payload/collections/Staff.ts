@@ -1,5 +1,6 @@
 import { CollectionConfig } from 'payload'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
+import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
@@ -20,6 +21,7 @@ export const Staff: CollectionConfig = {
   hooks: {
     afterChange: [
       revalidateChildOnChange('salon', 'salon'),
+      cleanupMediaOnChange(['avatar']),
       auditAfterChange('Munkatárs', 'salon'),
       // Új munkatárs vagy aktív/inaktív váltás → a szalon díja (alap + aktív fő × extra) azonnal
       // frissül, ne csak egy KÉSŐBBI, független eseménynél (pl. másik üzlet hozzáadása) számolódjon újra.

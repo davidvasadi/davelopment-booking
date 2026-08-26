@@ -1,6 +1,7 @@
 import type { CollectionConfig, Access, Where } from 'payload'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 import { notifyOnVoucher } from '../hooks/notifyOnVoucher'
+import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 
 /**
  * Ajándékutalvány — additív, defenzív, a `Waitlist.ts` polimorf mintáját követve. Egy bejegyzés
@@ -45,7 +46,7 @@ const isGiftVoucherOwnerOrAdmin: Access = async ({ req }) => {
 export const GiftVouchers: CollectionConfig = {
   slug: 'gift-vouchers',
   hooks: {
-    afterChange: [notifyOnVoucher, auditAfterChange('Ajándékutalvány', 'auto')],
+    afterChange: [notifyOnVoucher, cleanupMediaOnChange(['image']), auditAfterChange('Ajándékutalvány', 'auto')],
     afterDelete: [auditAfterDelete('Ajándékutalvány', 'auto')],
   },
   labels: { singular: 'Ajándékutalvány', plural: 'Ajándékutalványok' },

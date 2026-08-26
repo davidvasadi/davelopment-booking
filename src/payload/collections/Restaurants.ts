@@ -4,6 +4,7 @@ import { slugify } from '../lib/slugify'
 import { settingsExtensionFields, businessTierField, customMonthlyFeeField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields, marketingTrackingFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
+import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
 import { auditAfterChange } from '../hooks/auditLog'
 
@@ -18,6 +19,7 @@ export const Restaurants: CollectionConfig = {
   hooks: {
     afterChange: [
       revalidatePlaceOnChange('restaurant'),
+      cleanupMediaOnChange(['logo', 'cover_image']),
       auditAfterChange('Étterem beállítás', 'self-restaurant'),
       async ({ req, doc, operation }) => {
         if (operation !== 'create') return

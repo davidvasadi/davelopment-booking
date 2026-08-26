@@ -1,11 +1,12 @@
 import { CollectionConfig } from 'payload'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
+import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 
 export const ServiceCategories: CollectionConfig = {
   slug: 'service-categories',
   hooks: {
-    afterChange: [revalidateChildOnChange('salon', 'salon')],
+    afterChange: [revalidateChildOnChange('salon', 'salon'), cleanupMediaOnChange(['image'])],
     afterDelete: [revalidateChildOnDelete('salon', 'salon')],
   },
   labels: { singular: 'Szolgáltatás kategória', plural: 'Szolgáltatás kategóriák' },

@@ -1,12 +1,13 @@
 import { CollectionConfig } from 'payload'
 import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/revalidatePublicPlace'
+import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 export const Services: CollectionConfig = {
   slug: 'services',
   hooks: {
-    afterChange: [revalidateChildOnChange('salon', 'salon'), auditAfterChange('Szolgáltatás', 'salon')],
+    afterChange: [revalidateChildOnChange('salon', 'salon'), cleanupMediaOnChange(['image']), auditAfterChange('Szolgáltatás', 'salon')],
     afterDelete: [revalidateChildOnDelete('salon', 'salon'), auditAfterDelete('Szolgáltatás', 'salon')],
   },
   labels: { singular: 'Szolgáltatás', plural: 'Szolgáltatások' },
