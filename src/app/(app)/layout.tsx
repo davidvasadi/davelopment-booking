@@ -5,6 +5,7 @@ import { SmoothScroll } from '@/components/SmoothScroll'
 import { ThemeProvider } from '@/components/ThemeProvider'
 import { MotionProvider } from '@/components/MotionProvider'
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
+import { PlatformAnalytics } from '@/components/PlatformAnalytics'
 import { BRAND_NAME, APP_URL } from '@/lib/brand'
 import './globals.css'
 
@@ -54,6 +55,7 @@ export default function RootLayout({
               toastOptions={{ className: 'dav-toast', duration: 3600 }}
             />
             <ServiceWorkerRegister />
+            <PlatformAnalytics />
           </MotionProvider>
         </ThemeProvider>
       </body>
