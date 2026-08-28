@@ -3,10 +3,14 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
+import { CalendarDays, CalendarRange, CalendarClock, Plus, type LucideIcon } from 'lucide-react'
 import { hhmmToMinutes, ymdLocal } from '@/lib/utils'
 import { ReservationEditSheet, type EditTarget } from './ReservationEditSheet'
 import { ACTIVE, cellKey, draftToReservation, groupOverlaps, renderCellItem, tableNamesOf } from './DailyView'
-import { extraStackHeightPx } from '@/components/dashboard/SalonDailyView'
+import { CLOSED_BORDER, CLOSED_FG, CLOSED_HATCH, extraStackHeightPx } from '@/components/dashboard/SalonDailyView'
+import { HoverButton } from '@/components/shared/HoverButton'
+import { MobileOptionSheet } from '@/components/ui/MobileOptionSheet'
+import type { BookingsRange } from '@/components/dashboard/DateFilter'
 import { getDrafts, subscribeDrafts, type ReservationDraft } from '@/lib/offlineDrafts'
 import type { Reservation, Room, Table } from '@/payload/payload-types'
 
@@ -15,6 +19,36 @@ const HU_WEEKDAYS_SHORT = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']
 function weekdayIndex(dateStr: string): number {
   const [y, m, d] = dateStr.split('-').map(Number)
   return (new Date(y, m - 1, d).getDay() + 6) % 7 // hétfő = 0
+}
+
+/** JS natív `getDay()` (0=vasárnap..6=szombat) — ez a `closedWeekdays` kódolása, nem a
+ *  hétfő-first `weekdayIndex`. */
+function jsDow(dateStr: string): number {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d).getDay()
+}
+
+/** Ugyanaz a "Zárva" jelvény, mint a Naptár hónap-rácsán (ScheduleView.tsx). */
+function ClosedBadge() {
+  return (
+    <span className="mt-1 inline-block rounded-[5px] bg-[rgba(180,60,50,.12)] px-1 text-[7.5px] font-bold uppercase tracking-wide text-[#b43c32] sm:text-[8px]">
+      Zárva
+    </span>
+  )
+}
+
+/** Ugyanaz a "Zárva" sáv, mint a napi nézet üres/beosztatlan óráinál — a hatch-sávok (nem csak a
+ *  nap-pill jelvény) is ezt kapják zárva napokon. */
+function ClosedBand() {
+  return (
+    <div
+      aria-hidden
+      className="flex h-[72px] items-center justify-center rounded-[18px] border"
+      style={{ background: CLOSED_HATCH, borderColor: CLOSED_BORDER }}
+    >
+      <span className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: CLOSED_FG }}>Zárva</span>
+    </div>
+  )
 }
 
 /** Egy foglalás terem-kulcsa: az első asztalához tartozó terem id-je, vagy `'none'`, ha nincs
@@ -31,6 +65,11 @@ export interface RestaurantScheduleViewProps {
   /** A megjelenítendő napok (`YYYY-MM-DD`), tetszőleges hosszban — heti nézetnél 7, havinál a
    *  hónap összes napja. */
   days: string[]
+  /** A jelenlegi időszak-nézet (heti/havi) — a mobil fejléc-ikon nézet-választó sheet-jéhez kell. */
+  range: BookingsRange
+  /** A DateFilter query-paraméterében szereplő aktuális dátum — a Nap/Hét/Hónap váltásnál ez
+   *  marad a cél-dátum. */
+  date: string
   title: string
   subtitle: string
   restaurantId: string
@@ -41,7 +80,13 @@ export interface RestaurantScheduleViewProps {
   openMin: number
   closeMin: number
   turnMinutes: number
+  /** Egyszeri kivétel-zárás dátumai (`YYYY-MM-DD`) — ugyanaz a forrás, mint a Naptár oldalon. */
+  closedDates?: string[]
+  /** Heti visszatérő zárvatartás napjai (0=vasárnap..6=szombat) — ugyanaz a forrás, mint a
+   *  Naptár oldalon; csak a mai naptól előre érvényes (ld. isClosedDay). */
+  closedWeekdays?: number[]
   dateFilter: React.ReactNode
+  printButton?: React.ReactNode
   canManage?: boolean
 }
 
@@ -53,13 +98,29 @@ export interface RestaurantScheduleViewProps {
  * egy-oszlopos, a napi mobil idővonallal (MobileTimeline/HourList) azonos mechanikájú lista fut.
  */
 export function RestaurantScheduleView({
-  days, title, subtitle, restaurantId, reservations, rooms, eventTypes = [], openMin, closeMin, turnMinutes, dateFilter, canManage = false,
+  days, range, date, title, subtitle, restaurantId, reservations, rooms, eventTypes = [], openMin, closeMin, turnMinutes, closedDates = [], closedWeekdays = [], dateFilter, printButton, canManage = false,
 }: RestaurantScheduleViewProps) {
   const router = useRouter()
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<ReservationDraft[]>([])
   const [expandedGridDays, setExpandedGridDays] = useState<Set<string>>(() => new Set())
   const [expandedFlatDays, setExpandedFlatDays] = useState<Set<string>>(() => new Set())
+  const [mobileViewOpen, setMobileViewOpen] = useState(false)
+
+  // Mobilon a Nap/Hét/Hónap váltó a fejléc csengő melletti ikonjából nyílik (DashboardNav
+  // dispatch-eli) — ugyanaz az esemény, mint a napi nézet nézet-választója.
+  useEffect(() => {
+    const handler = () => setMobileViewOpen(true)
+    window.addEventListener('davelopment:open-bookings-view', handler)
+    return () => window.removeEventListener('davelopment:open-bookings-view', handler)
+  }, [])
+
+  const rangeButtons: { mode: BookingsRange; icon: LucideIcon; label: string }[] = [
+    { mode: 'day', icon: CalendarDays, label: 'Nap' },
+    { mode: 'week', icon: CalendarRange, label: 'Hét' },
+    { mode: 'month', icon: CalendarClock, label: 'Hónap' },
+  ]
+  const pickRange = (v: BookingsRange) => router.push(`/restaurant/bookings?date=${date}&range=${v}`)
 
   useEffect(() => {
     setDrafts(getDrafts(restaurantId))
@@ -67,6 +128,9 @@ export function RestaurantScheduleView({
   }, [restaurantId])
 
   const today = ymdLocal(new Date())
+  // Zárva: egyszeri kivétel BÁRMIKOR, vagy heti visszatérő zárvatartás — de utóbbi csak a mai
+  // naptól előre (ugyanaz a szabály, mint a Naptár hónap-rácsán).
+  const isClosedDay = (day: string) => closedDates.includes(day) || (day >= today && closedWeekdays.includes(jsDow(day)))
   const daySet = useMemo(() => new Set(days), [days])
 
   const allReservations = useMemo(() => {
@@ -112,7 +176,18 @@ export function RestaurantScheduleView({
   const openEdit = (r: Reservation) => {
     if (canManage) setTarget({ reservation: r })
   }
+  const openCreate = () => {
+    if (canManage) setTarget({ reservation: null })
+  }
   const goToDay = (day: string) => router.push(`/restaurant/bookings?range=day&date=${day}`)
+
+  // Mobilon az "Új foglalás" a fejléc csengő melletti ikonjából nyílik (DashboardNav
+  // dispatch-eli) — ugyanaz az esemény, mint a napi nézetben.
+  useEffect(() => {
+    const handler = () => openCreate()
+    window.addEventListener('davelopment:open-bookings-create', handler)
+    return () => window.removeEventListener('davelopment:open-bookings-create', handler)
+  }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const card = 'rounded-[26px] dav-card-glass'
   const legend = [
@@ -132,7 +207,19 @@ export function RestaurantScheduleView({
           </h1>
           <p className="mt-1.5 text-sm font-medium text-ink-soft2">{subtitle}</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">{dateFilter}</div>
+        <div className="flex flex-wrap items-center gap-2">
+          {dateFilter}
+          <div className="hidden lg:block">{printButton}</div>
+          {canManage && (
+            <HoverButton
+              onClick={openCreate}
+              className="hidden items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0 lg:inline-flex"
+            >
+              <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
+              <span className="hidden sm:inline">Új foglalás</span>
+            </HoverButton>
+          )}
+        </div>
       </div>
 
       {/* Desktop rács — terem-oszlopok, nap-sorok (óránkénti bontás nélkül). */}
@@ -153,33 +240,39 @@ export function RestaurantScheduleView({
           <div className="overflow-x-auto">
             {(() => {
               const colMin = columns.length <= 4 ? 220 : Math.max(160, Math.round(880 / columns.length))
+              const gridTemplateColumns = `86px repeat(${columns.length}, minmax(${colMin}px, 1fr))`
+              const minWidth = 86 + columns.length * colMin
               return (
-                <div
-                  className="grid gap-x-3"
-                  style={{
-                    gridTemplateColumns: `86px repeat(${columns.length}, minmax(${colMin}px, 1fr))`,
-                    minWidth: 86 + columns.length * colMin,
-                  }}
-                >
-                  {/* Fejléc-sor: üres bal sarok + terem-fejlécek. */}
-                  <div style={{ gridColumn: 1, gridRow: 1 }} />
-                  {columns.map((col, ci) => (
-                    <div key={col.key} style={{ gridColumn: ci + 2, gridRow: 1 }} className="flex items-center border-b border-line pb-3">
-                      <span className="block text-sm font-semibold text-ink truncate leading-tight">{col.name}</span>
-                    </div>
-                  ))}
+                <div style={{ minWidth }}>
+                  {/* Fejléc-sor: üres bal sarok + terem-fejlécek — SAJÁT, NEM görgő fa (ugyanaz a
+                      minta, mint a napi Idősáv nézetnél), így havi nézetnél (sok nap-sor) sem
+                      csúszik el a fejléc a függőleges görgetéskor. */}
+                  <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
+                    <div />
+                    {columns.map((col, ci) => (
+                      <div key={col.key} style={{ gridColumn: ci + 2 }} className="flex items-center border-b border-line pb-3">
+                        <span className="block text-sm font-semibold text-ink truncate leading-tight">{col.name}</span>
+                      </div>
+                    ))}
+                  </div>
 
+                  {/* Tartalom: KÜLÖN, függőlegesen görgő konténer a fejléc alatt — havi nézetnél
+                      (akár 31 nap-sor) ez görgethető belül, nem az egész oldal nő meg, és a fejléc
+                      mindig látszik fölötte. */}
+                  <div className="max-h-[65vh] overflow-y-auto pt-1">
+                  <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
                   {/* Bal tengely — egy nap-pill naponta, alatta a nyitó "+" gomb, ha bármelyik
                       teremnél van extra foglalás aznap. A pill maga a napi nézetbe drillel. */}
                   {days.map((day, i) => {
                     const isToday = day === today
+                    const isClosed = isClosedDay(day)
                     const anyThatDay = perRoomDayBookings.some((rows) => rows[i].length > 0)
                     const extraTotal = perRoomDayBookings.reduce((sum, rows) => sum + Math.max(0, rows[i].length - 1), 0)
                     const isOpen = expandedGridDays.has(day)
                     const last = i === days.length - 1
-                    const pillCls = isToday ? 'bg-ink-dark text-white' : anyThatDay ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
+                    const pillCls = isToday ? 'bg-ink-dark text-white' : isClosed ? 'border border-[rgba(180,60,50,.3)] bg-[rgba(180,60,50,.08)] text-[#b43c32]' : anyThatDay ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
                     return (
-                      <div key={day} style={{ gridColumn: 1, gridRow: i + 2 }} className="flex flex-col items-center">
+                      <div key={day} style={{ gridColumn: 1, gridRow: i + 1 }} className="flex flex-col items-center">
                         <button
                           type="button"
                           onClick={() => goToDay(day)}
@@ -187,6 +280,7 @@ export function RestaurantScheduleView({
                         >
                           {HU_WEEKDAYS_SHORT[weekdayIndex(day)]} {Number(day.slice(8, 10))}
                         </button>
+                        {isClosed && <ClosedBadge />}
                         {!last ? (
                           <div className="relative min-h-[16px] flex-1 py-1">
                             <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 border-l-2 border-dotted border-line-strong" />
@@ -222,13 +316,17 @@ export function RestaurantScheduleView({
                     const cells: React.ReactNode[] = []
                     const isOpen = expandedGridDays.has(day)
                     const maxExtra = Math.max(0, ...columns.map((_, ci) => perRoomDayBookings[ci][i].length - 1))
-                    const HatchBand = () => (
-                      <div
-                        aria-hidden
-                        className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                        style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                      />
-                    )
+                    const dayClosed = isClosedDay(day)
+                    const HatchBand = () =>
+                      dayClosed ? (
+                        <ClosedBand />
+                      ) : (
+                        <div
+                          aria-hidden
+                          className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
+                          style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
+                        />
+                      )
                     let ci = 0
                     while (ci < columns.length) {
                       const rows = perRoomDayBookings[ci][i]
@@ -236,7 +334,7 @@ export function RestaurantScheduleView({
                         const col = columns[ci]
                         const hatchNeeded = maxExtra - (rows.length - 1)
                         cells.push(
-                          <div key={`${col.key}-${day}`} style={{ gridColumn: ci + 2, gridRow: i + 2 }} className="pb-3">
+                          <div key={`${col.key}-${day}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
                             {renderCellItem(rows[0], openEdit, tableNamesOf, null)}
                             <AnimatePresence initial={false}>
                               {isOpen && maxExtra > 0 && (
@@ -269,7 +367,7 @@ export function RestaurantScheduleView({
                         while (ci < columns.length && perRoomDayBookings[ci][i].length === 0) ci += 1
                         const span = ci - start
                         cells.push(
-                          <div key={`gap-${day}-${start}`} style={{ gridColumn: `${start + 2} / span ${span}`, gridRow: i + 2 }} className="pb-3">
+                          <div key={`gap-${day}-${start}`} style={{ gridColumn: `${start + 2} / span ${span}`, gridRow: i + 1 }} className="pb-3">
                             <HatchBand />
                             <AnimatePresence initial={false}>
                               {isOpen && maxExtra > 0 && (
@@ -297,6 +395,8 @@ export function RestaurantScheduleView({
                     }
                     return cells
                   })}
+                  </div>
+                  </div>
                 </div>
               )
             })()}
@@ -327,9 +427,10 @@ export function RestaurantScheduleView({
                 active.filter((r) => r.date === day).sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time)),
               )
               const isToday = day === today
+              const isClosed = isClosedDay(day)
               const isOpen = expandedFlatDays.has(day)
               const last = i === days.length - 1
-              const pillCls = isToday ? 'bg-ink-dark text-white' : inDay.length > 0 ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
+              const pillCls = isToday ? 'bg-ink-dark text-white' : isClosed ? 'border border-[rgba(180,60,50,.3)] bg-[rgba(180,60,50,.08)] text-[#b43c32]' : inDay.length > 0 ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
               return (
                 <div key={day} className="flex gap-3">
                   <div className="flex w-[62px] shrink-0 flex-col items-center">
@@ -340,6 +441,7 @@ export function RestaurantScheduleView({
                     >
                       {HU_WEEKDAYS_SHORT[weekdayIndex(day)]} {Number(day.slice(8, 10))}
                     </button>
+                    {isClosed && <ClosedBadge />}
                     {!last && (
                       <div className="relative flex min-h-[30px] flex-1 items-center justify-center py-1.5">
                         <span className="absolute inset-y-0 border-l-2 border-dotted border-line-strong" />
@@ -379,6 +481,8 @@ export function RestaurantScheduleView({
                           )}
                         </AnimatePresence>
                       </div>
+                    ) : isClosed ? (
+                      <ClosedBand />
                     ) : (
                       <div
                         aria-hidden
@@ -404,6 +508,15 @@ export function RestaurantScheduleView({
         openMin={openMin}
         closeMin={closeMin}
         turnMinutes={turnMinutes}
+      />
+
+      <MobileOptionSheet
+        open={mobileViewOpen}
+        onClose={() => setMobileViewOpen(false)}
+        title="Időszak"
+        options={rangeButtons}
+        value={range}
+        onChange={pickRange}
       />
     </div>
   )

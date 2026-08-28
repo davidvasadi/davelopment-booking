@@ -24,6 +24,7 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   onTertiary,
+  zIndexClass = 'z-[60]',
 }: {
   open: boolean
   title: string
@@ -38,12 +39,14 @@ export function ConfirmDialog({
   onConfirm: () => void
   onCancel: () => void
   onTertiary?: () => void
+  /** Egy másik, magasabb z-index-ű modalba ágyazva felülírható, hogy a dialógus fölé kerüljön. */
+  zIndexClass?: string
 }) {
   if (!open || typeof document === 'undefined') return null
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm`}
       onClick={onCancel}
     >
       <div

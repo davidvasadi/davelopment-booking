@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard, BarChart3, Plus, Printer, Download } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import { can, type Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -428,6 +428,35 @@ export function DashboardNav({
               <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
             </button>
           )}
+          {/* Naptár (schedule) ikonok — statisztika, szűrő, + új műszak; csak a schedule oldalon. */}
+          {pathname.endsWith('/schedule') && (
+            <>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-schedule-stats'))}
+                aria-label="Havi összegző"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <BarChart3 className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-schedule-filter'))}
+                aria-label="Szűrők"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-schedule-add'))}
+                aria-label="Új műszak felvétele"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
+              >
+                <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
+              </button>
+            </>
+          )}
           {/* Súgó kereső — csak /help oldalon; kattintásra animáltan kinyílik. */}
           {pathname.endsWith('/help') && (
             <motion.div
@@ -486,16 +515,56 @@ export function DashboardNav({
               </AnimatePresence>
             </motion.div>
           )}
-          {/* Foglalások nézet-váltó ikon — csak a bookings oldalakon (szalon + étterem) jelenik meg. */}
+          {/* Foglalások ikonok — nézet-váltó, nap nyomtatása, + új foglalás; a bookings oldalakon
+              (szalon + étterem). */}
           {pathname.endsWith('/bookings') && (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event('davelopment:open-bookings-view'))}
-              aria-label="Nézet váltása"
-              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-            >
-              <LayoutGrid className="h-[19px] w-[19px]" strokeWidth={2} />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-bookings-view'))}
+                aria-label="Nézet váltása"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <LayoutGrid className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:print-bookings-day'))}
+                aria-label="Napi lista nyomtatása"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <Printer className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-bookings-create'))}
+                aria-label="Új foglalás"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
+              >
+                <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
+              </button>
+            </>
+          )}
+          {/* Munkatársak ikonok — export + új munkatárs; a staff oldalakon (szalon + étterem). */}
+          {pathname.endsWith('/staff') && can(capabilities, 'staff.manage') && (
+            <>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:staff-export'))}
+                aria-label="Export"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <Download className="h-[19px] w-[19px]" strokeWidth={1.7} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-staff-add'))}
+                aria-label="Új munkatárs"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
+              >
+                <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
+              </button>
+            </>
           )}
           {/* Utalványok — fekete beolvasás/beváltás ikon + a "Típusok kezelése"/"Új utalvány"
               választó-sheetet nyitó ikon (csak a vouchers oldalakon, szalon + étterem). */}

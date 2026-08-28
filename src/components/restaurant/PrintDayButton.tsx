@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Printer } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { hu } from 'date-fns/locale'
@@ -25,22 +26,27 @@ function esc(s: string | number | null | undefined): string {
   return String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]!)
 }
 
-/** A nap foglalásait egy nyomtatható ablakban jeleníti meg és elindítja a
- *  böngésző nyomtatást. A kapott listát (a szülő oldalon már betöltve) használja,
- *  nincs külön lekérés. A lemondott/nem jött sorok halványan, de szerepelnek. */
+/** Egy nap vagy egy nap-tartomány (heti/havi nézet) foglalásait egy nyomtatható ablakban
+ *  jeleníti meg és elindítja a böngésző nyomtatást. A kapott listát (a szülő oldalon már
+ *  betöltve) használja, nincs külön lekérés. A lemondott/nem jött sorok halványan, de
+ *  szerepelnek. Több napnál (`days.length > 1`) a fejléc dátum-tartományt mutat, és a táblázat
+ *  egy extra "Dátum" oszlopot kap, mert a sorok több napra szórtan futnak. */
 export function PrintDayButton({
-  date,
+  days,
   restaurantName,
   reservations,
 }: {
-  date: string
+  days: string[]
   restaurantName: string
   reservations: Reservation[]
 }) {
   function handlePrint() {
-    const dayLabel = format(parseISO(date), 'yyyy. MMMM d., EEEE', { locale: hu })
+    const multi = days.length > 1
+    const periodLabel = multi
+      ? `${format(parseISO(days[0]), 'yyyy. MMMM d.', { locale: hu })} – ${format(parseISO(days[days.length - 1]), 'MMMM d.', { locale: hu })}`
+      : format(parseISO(days[0]), 'yyyy. MMMM d., EEEE', { locale: hu })
     const sorted = [...reservations].sort((a, b) =>
-      (a.start_time ?? '').localeCompare(b.start_time ?? ''),
+      a.date === b.date ? (a.start_time ?? '').localeCompare(b.start_time ?? '') : (a.date ?? '').localeCompare(b.date ?? ''),
     )
     const totalPax = sorted
       .filter((r) => r.status !== 'cancelled' && r.status !== 'no_show')
@@ -50,6 +56,7 @@ export function PrintDayButton({
       .map((r) => {
         const off = r.status === 'cancelled' || r.status === 'no_show'
         return `<tr class="${off ? 'off' : ''}">
+          ${multi ? `<td class="t">${esc(format(parseISO(r.date), 'MM.dd.', { locale: hu }))}</td>` : ''}
           <td class="t">${esc(r.start_time)}–${esc(r.end_time)}</td>
           <td class="c">${esc(r.pax)}</td>
           <td>${esc(r.customer_name)}</td>
@@ -61,8 +68,10 @@ export function PrintDayButton({
       })
       .join('')
 
+    const colCount = multi ? 8 : 7
+
     const html = `<!doctype html><html lang="hu"><head><meta charset="utf-8">
-      <title>${esc(restaurantName)} – ${esc(dayLabel)}</title>
+      <title>${esc(restaurantName)} – ${esc(periodLabel)}</title>
       <style>
         * { box-sizing: border-box; }
         body { font-family: -apple-system, system-ui, sans-serif; margin: 24px; color: #18181b; }
@@ -81,13 +90,13 @@ export function PrintDayButton({
       </style></head><body>
       <header>
         <h1>${esc(restaurantName)}</h1>
-        <div class="meta">${esc(dayLabel)} · ${sorted.length} foglalás · ${totalPax} fő</div>
+        <div class="meta">${esc(periodLabel)} · ${sorted.length} foglalás · ${totalPax} fő</div>
       </header>
       <table>
         <thead><tr>
-          <th>Idő</th><th>Fő</th><th>Vendég</th><th>Telefon</th><th>Forrás</th><th>Státusz</th><th>Megjegyzés</th>
+          ${multi ? '<th>Dátum</th>' : ''}<th>Idő</th><th>Fő</th><th>Vendég</th><th>Telefon</th><th>Forrás</th><th>Státusz</th><th>Megjegyzés</th>
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:24px;color:#a1a1aa">Nincs foglalás erre a napra.</td></tr>'}</tbody>
+        <tbody>${rows || `<tr><td colspan="${colCount}" style="text-align:center;padding:24px;color:#a1a1aa">Nincs foglalás erre az időszakra.</td></tr>`}</tbody>
       </table>
       </body></html>`
 
@@ -113,6 +122,13 @@ export function PrintDayButton({
     iframe.srcdoc = html
     document.body.appendChild(iframe)
   }
+
+  // Mobilon a fejléc csengő melletti ikonja indítja (DashboardNav dispatch-eli) — a gomb maga a
+  // toolbarból mobilon rejtve, ld. DailyView.
+  useEffect(() => {
+    window.addEventListener('davelopment:print-bookings-day', handlePrint)
+    return () => window.removeEventListener('davelopment:print-bookings-day', handlePrint)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <HoverButton

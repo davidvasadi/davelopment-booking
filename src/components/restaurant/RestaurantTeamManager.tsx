@@ -96,6 +96,19 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
   // Sorra kattintva nyílik a Munkavállalók-adatlap overlay (a kattintott sor indexével előre-kiválasztva).
   const [hiringIndex, setHiringIndex] = useState<number | null>(null)
 
+  // Mobilon az "Új munkatárs"/"Export" a fejléc csengő melletti ikonjaiból nyílik (DashboardNav
+  // dispatch-eli) — a gombok maguk a toolbarból mobilon rejtve, ld. lent.
+  useEffect(() => {
+    const handleAdd = () => { if (canManage) setOpen(true) }
+    const handleExport = () => { if (canManage) window.print() }
+    window.addEventListener('davelopment:open-staff-add', handleAdd)
+    window.addEventListener('davelopment:staff-export', handleExport)
+    return () => {
+      window.removeEventListener('davelopment:open-staff-add', handleAdd)
+      window.removeEventListener('davelopment:staff-export', handleExport)
+    }
+  }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
+
   const memberCount = team.filter((t) => t.roleTone !== 'owner').length
   const activeCount = team.filter((t) => !t.pending).length
   const pendingCount = team.filter((t) => t.pending).length
@@ -318,13 +331,13 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
             <div className="flex flex-wrap items-center gap-2.5 print:hidden">
               <button
                 onClick={() => setOpen(true)}
-                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-ink-dark px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-ink"
+                className="hidden h-[38px] items-center gap-2 rounded-[18px] bg-ink-dark px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-ink lg:flex"
               >
                 <Plus className="h-[15px] w-[15px]" strokeWidth={2} /> Új munkatárs
               </button>
               <button
                 onClick={() => window.print()}
-                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+                className="hidden h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper lg:flex"
               >
                 <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
               </button>

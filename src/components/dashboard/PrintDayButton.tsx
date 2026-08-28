@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Printer } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { hu } from 'date-fns/locale'
@@ -22,25 +23,32 @@ function nameOf(v: unknown): string {
   return ''
 }
 
-/** A nap foglalásait egy nyomtatható ablakban jeleníti meg és elindítja a
- *  böngésző nyomtatást — az étterem PrintDayButton salon-megfelelője (ld. ott a részletek). */
+/** Egy nap vagy egy nap-tartomány (heti/havi nézet) foglalásait egy nyomtatható ablakban
+ *  jeleníti meg és elindítja a böngésző nyomtatást — az étterem PrintDayButton salon-megfelelője
+ *  (ld. ott a részletek). Egyetlen napnál (`days.length === 1`) a fejléc-dátum és a táblázat
+ *  ugyanaz, mint korábban; több napnál a fejléc egy dátum-tartományt mutat, és a táblázat egy
+ *  extra "Dátum" oszlopot kap, mert a sorok több napra szórtan futnak. */
 export function PrintDayButton({
-  date,
+  days,
   salonName,
   bookings,
 }: {
-  date: string
+  days: string[]
   salonName: string
   bookings: Booking[]
 }) {
   function handlePrint() {
-    const dayLabel = format(parseISO(date), 'yyyy. MMMM d., EEEE', { locale: hu })
-    const sorted = [...bookings].sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? ''))
+    const multi = days.length > 1
+    const periodLabel = multi
+      ? `${format(parseISO(days[0]), 'yyyy. MMMM d.', { locale: hu })} – ${format(parseISO(days[days.length - 1]), 'MMMM d.', { locale: hu })}`
+      : format(parseISO(days[0]), 'yyyy. MMMM d., EEEE', { locale: hu })
+    const sorted = [...bookings].sort((a, b) => (a.date === b.date ? (a.start_time ?? '').localeCompare(b.start_time ?? '') : (a.date ?? '').localeCompare(b.date ?? '')))
 
     const rows = sorted
       .map((b) => {
         const off = b.status === 'cancelled'
         return `<tr class="${off ? 'off' : ''}">
+          ${multi ? `<td class="t">${esc(format(parseISO(b.date), 'MM.dd.', { locale: hu }))}</td>` : ''}
           <td class="t">${esc(b.start_time)}–${esc(b.end_time)}</td>
           <td>${esc(b.customer_name)}</td>
           <td>${esc(nameOf(b.service))}</td>
@@ -52,8 +60,10 @@ export function PrintDayButton({
       })
       .join('')
 
+    const colCount = multi ? 8 : 7
+
     const html = `<!doctype html><html lang="hu"><head><meta charset="utf-8">
-      <title>${esc(salonName)} – ${esc(dayLabel)}</title>
+      <title>${esc(salonName)} – ${esc(periodLabel)}</title>
       <style>
         * { box-sizing: border-box; }
         body { font-family: -apple-system, system-ui, sans-serif; margin: 24px; color: #18181b; }
@@ -71,13 +81,13 @@ export function PrintDayButton({
       </style></head><body>
       <header>
         <h1>${esc(salonName)}</h1>
-        <div class="meta">${esc(dayLabel)} · ${sorted.length} foglalás</div>
+        <div class="meta">${esc(periodLabel)} · ${sorted.length} foglalás</div>
       </header>
       <table>
         <thead><tr>
-          <th>Idő</th><th>Vendég</th><th>Szolgáltatás</th><th>Szakember</th><th>Telefon</th><th>Státusz</th><th>Megjegyzés</th>
+          ${multi ? '<th>Dátum</th>' : ''}<th>Idő</th><th>Vendég</th><th>Szolgáltatás</th><th>Szakember</th><th>Telefon</th><th>Státusz</th><th>Megjegyzés</th>
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="7" style="text-align:center;padding:24px;color:#a1a1aa">Nincs foglalás erre a napra.</td></tr>'}</tbody>
+        <tbody>${rows || `<tr><td colspan="${colCount}" style="text-align:center;padding:24px;color:#a1a1aa">Nincs foglalás erre az időszakra.</td></tr>`}</tbody>
       </table>
       </body></html>`
 
@@ -104,6 +114,13 @@ export function PrintDayButton({
     iframe.srcdoc = html
     document.body.appendChild(iframe)
   }
+
+  // Mobilon a fejléc csengő melletti ikonja indítja (DashboardNav dispatch-eli) — a gomb maga a
+  // toolbarból mobilon rejtve, ld. SalonDailyView.
+  useEffect(() => {
+    window.addEventListener('davelopment:print-bookings-day', handlePrint)
+    return () => window.removeEventListener('davelopment:print-bookings-day', handlePrint)
+  }, [])  // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <HoverButton

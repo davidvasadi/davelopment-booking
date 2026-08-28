@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal, fixMediaUrl } from '@/lib/utils'
-import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, CalendarRange, CalendarClock, UserRound, Banknote } from 'lucide-react'
+import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, CalendarRange, CalendarClock, UserRound, Banknote, Coffee } from 'lucide-react'
 import type { BookingsRange } from './DateFilter'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -145,6 +145,18 @@ export interface SalonDailyViewProps {
   /** Azok az email-ek (kisbetűs), akiknek van függőben lévő meghívójuk — amíg nem fogadják el,
    *  nem oszthatók be foglalásra (lakat + UX infó, ld. BookingEditSheet). */
   invitedEmails?: Set<string>
+  /** staffId → aznapi szünet (Shifts.break_start/end) — az idősávon "zárva" stílusú, a
+   *  foglaló oldalon néma sávként jelenik meg (mintha foglalt lenne, semmi külön jelzés ott). */
+  staffBreaks?: Record<string, { start: string; end: string }>
+  /** staffId → szabadnapos/szabadságon/beteg aznap (Shifts.type) — a teljes oszlopa ez alapján
+   *  jelenik meg az idősávon, nem az üres/beosztatlan hatch-mintával. */
+  staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
+  /** A bejelentkezett user SAJÁT (linkelt) staff-id-je, ha van — mobilon a kevert (tulaj)
+   *  nézetben is elsődleges helyen jelenik meg a SAJÁT szünete/szabadnapja, nem a "+N" alatt. */
+  viewerStaffId?: string
+  /** A megjelenített nap zárva van (egyszeri kivétel vagy heti visszatérő zárvatartás) — az üres
+   *  (beosztatlan) sávok ilyenkor a Naptár "Zárva" mintázatát kapják sima kréme hatch helyett. */
+  isClosedToday?: boolean
   /** Értesítésből érkezve ezt a foglalást nyitjuk meg automatikusan. */
   openBookingId?: string
   /** A toolbar-ba ágyazott dátum-navigátor (server komponensből). */
@@ -158,7 +170,7 @@ export interface SalonDailyViewProps {
 }
 
 export function SalonDailyView(props: SalonDailyViewProps) {
-  const { date, range, salonId, staff, services, openMin, closeMin, invitedEmails, openBookingId, dateFilter, printButton, canManage = false, consentEnabled = false } = props
+  const { date, range, salonId, staff, services, openMin, closeMin, invitedEmails, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false, openBookingId, dateFilter, printButton, canManage = false, consentEnabled = false } = props
   const [view, setView] = useState<ViewMode>('timeline')
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<SalonBookingDraft[]>([])
@@ -211,6 +223,14 @@ export function SalonDailyView(props: SalonDailyViewProps) {
   const openCreate = (presetStart?: string, presetStaffId?: string | number | null) => {
     if (canManage) setTarget({ booking: null, presetStart, presetStaffId })
   }
+
+  // Mobilon az "Új foglalás" a fejléc csengő melletti ikonjából nyílik (DashboardNav dispatch-eli)
+  // — a gomb maga a toolbarból mobilon rejtve, ld. lent.
+  useEffect(() => {
+    const handler = () => openCreate()
+    window.addEventListener('davelopment:open-bookings-create', handler)
+    return () => window.removeEventListener('davelopment:open-bookings-create', handler)
+  }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Áthelyezés drag&drop-ból: új időpont és/vagy szakember. A szerver validál (átfedés).
   // Hibánál a router.refresh visszaállítja az eredeti pozíciót, és toast jelzi az okot.
@@ -313,11 +333,11 @@ export function SalonDailyView(props: SalonDailyViewProps) {
               </HoverButton>
             ))}
           </div>
-          {printButton}
+          <div className="hidden lg:block">{printButton}</div>
           {canManage && (
             <HoverButton
               onClick={() => openCreate()}
-              className="inline-flex items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
+              className="hidden items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0 lg:inline-flex"
             >
               <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
               <span className="hidden sm:inline">Új foglalás</span>
@@ -355,6 +375,10 @@ export function SalonDailyView(props: SalonDailyViewProps) {
           staff={activeStaff}
           openMin={openMin}
           closeMin={closeMin}
+          staffBreaks={staffBreaks}
+          staffOffType={staffOffType}
+          viewerStaffId={viewerStaffId}
+          isClosedToday={isClosedToday}
           onEdit={openEdit}
           onCreate={openCreate}
           onMove={moveBooking}
@@ -523,13 +547,17 @@ type TLProps = {
   staff: StaffMember[]
   openMin: number
   closeMin: number
+  staffBreaks?: Record<string, { start: string; end: string }>
+  staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
+  viewerStaffId?: string
+  isClosedToday?: boolean
   onEdit: (b: Booking) => void
   onCreate: (start?: string, staffId?: string | number | null) => void
   onMove: (b: Booking, newStart: string, newStaffId: string | number) => void
   canManage?: boolean
 }
 
-function TimelineView({ date, bookings, staff, openMin, closeMin, onEdit, onCreate, onMove, canManage = false }: TLProps) {
+function TimelineView({ date, bookings, staff, openMin, closeMin, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false, onEdit, onCreate, onMove, canManage = false }: TLProps) {
   const totalMin = Math.max(closeMin - openMin, 60)
   const nowMin = useNowMinutes(date)
   const nowVisible = nowMin != null && nowMin >= openMin && nowMin <= closeMin
@@ -551,11 +579,11 @@ function TimelineView({ date, bookings, staff, openMin, closeMin, onEdit, onCrea
   return (
     <>
       <div className={forceMobile ? '' : 'lg:hidden'}>
-        <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
+        <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks, staffOffType, viewerStaffId, isClosedToday }} />
       </div>
       {!forceMobile && (
         <div className="hidden lg:block">
-          <StaffColumnsTimeline {...{ staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit }} />
+          <StaffColumnsTimeline {...{ staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit, staffBreaks, staffOffType, isClosedToday }} />
         </div>
       )}
     </>
@@ -759,13 +787,36 @@ export function renderBookingCard(b: Booking, onEdit: (b: Booking) => void, show
  *  a kártya-wrapper NÉLKÜL, hogy desktopon szakemberenként egymás mellé lehessen tenni
  *  (ld. StaffColumnsTimeline) — ÍGY garantáltan ugyanúgy néz ki, mint mobilon. */
 export function HourList({
-  hourMarks, active, openMin, closeMin, nowMin, onEdit,
+  hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false,
 }: {
   hourMarks: number[]; active: Booking[]; openMin: number; closeMin: number; nowMin: number | null; onEdit: (b: Booking) => void
+  staff?: StaffMember[]
+  staffBreaks?: Record<string, { start: string; end: string }>
+  staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
+  viewerStaffId?: string
+  isClosedToday?: boolean
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
   const toggle = (m: number) =>
     setExpanded((prev) => { const n = new Set(prev); n.has(m) ? n.delete(m) : n.add(m); return n })
+
+  // Saját nézet (mobilon a nem-tulaj csak a saját napját látja → a lista pontosan 1 szakemberre
+  // szűkül): a szabadnap/szabadság/beteg és a szünet ELSŐDLEGES helyen jelenik meg, nem kell
+  // kinyitni — ez zárja le a "hogyan nézzen ki mobilon" kérdést mindkettőre ugyanazzal a mintával.
+  // Tulaj-nézet (több szakember): a meglévő elsődleges hely (valós foglalások) változatlan, a
+  // MÁSOK szabadnapos/szünetelő infója a kibontható "+N" részbe kerül — DE a bejelentkezett user
+  // SAJÁT szünete/szabadnapja akkor is elsődleges (mindig látható) helyen jelenik meg, ha épp a
+  // kevert (mindenkit mutató) tulaj-nézetet nézi.
+  const soleStaff = staff && staff.length === 1 ? staff[0] : null
+  const viewerStaff = staff && staff.length > 1 && viewerStaffId ? staff.find((t) => String(t.id) === viewerStaffId) ?? null : null
+  const primaryStaff = soleStaff ?? viewerStaff
+  const soleOff = primaryStaff ? staffOffType[String(primaryStaff.id)] : undefined
+  const soleBreak = primaryStaff ? staffBreaks[String(primaryStaff.id)] : undefined
+  // A kevert nézetben ez csak akkor "veszi át" a teljes elsődleges helyet, mint az egyszemélyes
+  // nézetben — több szakembernél a SAJÁT off/szünet melléje, nem helyette jelenik meg (ld. lent).
+  const soleTakesOverWholeSlot = !!soleStaff
+  // Tulaj-nézet: aznap szabadnapos/szabadságon/beteg MÁS szakemberek (a sajátunk fent már megvan).
+  const offToday = staff && staff.length > 1 ? staff.filter((t) => staffOffType[String(t.id)] && String(t.id) !== String(viewerStaff?.id ?? '')) : []
 
   return (
     <div>
@@ -783,9 +834,40 @@ export function HourList({
             const e = hhmmToMinutes(b.end_time)
             return s < lo && e > lo
           })
+          // Saját szünet erre az órára — induló VAGY korábbról átnyúló (ugyanaz a minta, mint a
+          // desktop-oszlopoknál: több órás szünet is egybefüggő, összekötött sávként fut).
+          const soleBreakStarts = soleBreak && hhmmToMinutes(soleBreak.start) >= lo && hhmmToMinutes(soleBreak.start) < hi
+          const soleBreakContinues = soleBreak && hhmmToMinutes(soleBreak.start) < lo && hhmmToMinutes(soleBreak.end) > lo
+          // Tulaj-nézet: kik szünetelnek ÉPP ebben az órában (a sajátunk fent már megvan).
+          const breakingNow = staff && staff.length > 1
+            ? staff.filter((t) => {
+                if (String(t.id) === String(viewerStaff?.id ?? '')) return false
+                const b = staffBreaks[String(t.id)]
+                if (!b) return false
+                return hhmmToMinutes(b.start) < hi && hhmmToMinutes(b.end) > lo
+              })
+            : []
+          // Kevert (tulaj) nézetben a SAJÁT szünet/off csak MELLÉ kerül a valós tartalom mellé
+          // (nem veszi át a helyét, mint az egyszemélyes nézetben) — mindig látható, nincs "+N".
+          const viewerBreakHereInMixed = !soleTakesOverWholeSlot && (soleBreakStarts || soleBreakContinues)
+          const viewerOffInMixed = !soleTakesOverWholeSlot && !!soleOff
+          const extraCount = Math.max(0, inHour.length - 1) + (i === 0 ? offToday.length : 0) + breakingNow.length
           const isNow = nowMin != null && nowMin >= m && nowMin < (hourMarks[i + 1] ?? closeMin + 1)
           const isOpen = expanded.has(m)
-          const pillCls = isNow ? 'bg-ink-dark text-white' : inHour.length > 0 ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
+          const pillCls = isNow ? 'bg-ink-dark text-white' : (inHour.length > 0 || soleOff || soleBreakStarts || soleBreakContinues) ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
+          // A saját kártyán a "Te" felirat helyett a saját avatar jelzi, kié a sáv — ugyanaz a
+          // sor-elrendezés, mint a többiek kártyáján (OffAndBreakExtras), csak névsor nélkül.
+          const viewerCard = viewerOffInMixed && soleOff ? (
+            <div className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border px-4" style={{ background: OFF_TYPE_STYLE[soleOff].hatch, color: OFF_TYPE_STYLE[soleOff].fg, borderColor: OFF_TYPE_STYLE[soleOff].border }}>
+              <Ava url={avatarUrlOf(viewerStaff)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
+              <span className="text-[13px] font-semibold">{OFF_TYPE_LABEL[soleOff]}</span>
+            </div>
+          ) : viewerBreakHereInMixed ? (
+            <div className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border border-[rgba(192,86,74,.22)] px-4 text-[#B0453F]" style={{ background: 'repeating-linear-gradient(115deg,#F3D9D6 0 7px,#EFC5C0 7px 9px)' }}>
+              <Ava url={avatarUrlOf(viewerStaff)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
+              <span className="text-[13px] font-semibold">Szünet</span>
+            </div>
+          ) : null
           const last = i === hourMarks.length - 1
           return (
             <div key={m} className="flex gap-3">
@@ -796,25 +878,37 @@ export function HourList({
                 {!last && (
                   <div className="relative flex min-h-[30px] flex-1 items-center justify-center py-1.5">
                     <span className="absolute inset-y-0 border-l-2 border-dotted border-line-strong" />
-                    {inHour.length > 1 && (
+                    {extraCount > 0 && (
                       <button
                         type="button"
                         onClick={() => toggle(m)}
-                        aria-label={`még ${inHour.length - 1} foglalás ${minutesToHHMMWrapped(m)}-kor`}
+                        aria-label={`még ${extraCount} tétel ${minutesToHHMMWrapped(m)}-kor`}
                         className={`relative z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
                       >
-                        +{inHour.length - 1}
+                        +{extraCount}
                       </button>
                     )}
                   </div>
                 )}
               </div>
               <div className="min-w-0 flex-1 pb-3">
-                {inHour.length > 0 ? (
+                {soleTakesOverWholeSlot && soleOff ? (
+                  // Saját nézet, egész napos távollét — minden óra-sor ugyanezzel a kártyával fut,
+                  // a szomszédos sorokkal a szaggatott vonal köti össze (ld. bal oldali tengely).
+                  <div className="flex h-[72px] items-center justify-center rounded-[18px] border" style={{ background: OFF_TYPE_STYLE[soleOff].hatch, color: OFF_TYPE_STYLE[soleOff].fg, borderColor: OFF_TYPE_STYLE[soleOff].border }}>
+                    <span className="text-[13px] font-semibold">{OFF_TYPE_LABEL[soleOff]}</span>
+                  </div>
+                ) : soleTakesOverWholeSlot && (soleBreakStarts || soleBreakContinues) ? (
+                  <div className="flex h-[72px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[rgba(192,86,74,.22)] text-[#B0453F]" style={{ background: 'repeating-linear-gradient(115deg,#F3D9D6 0 7px,#EFC5C0 7px 9px)' }}>
+                    <Coffee className="h-3.5 w-3.5" strokeWidth={1.8} />
+                    <span className="text-[10.5px] font-semibold">Szünet</span>
+                  </div>
+                ) : inHour.length > 0 ? (
                   <div>
                     {renderCellItem(inHour[0], onEdit, true, nowMin)}
+                    {viewerCard && <div className="pt-2">{viewerCard}</div>}
                     <AnimatePresence initial={false}>
-                      {isOpen && inHour.length > 1 && (
+                      {isOpen && (inHour.length > 1 || (i === 0 && offToday.length > 0) || breakingNow.length > 0) && (
                         <motion.div
                           key="extra"
                           className="overflow-hidden"
@@ -834,6 +928,7 @@ export function HourList({
                                 {renderCellItem(item, onEdit, true, nowMin)}
                               </motion.div>
                             ))}
+                            <OffAndBreakExtras offToday={i === 0 ? offToday : []} breakingNow={breakingNow} staffOffType={staffOffType} staffBreaks={staffBreaks} />
                           </motion.div>
                         </motion.div>
                       )}
@@ -851,7 +946,60 @@ export function HourList({
                     {continuing.map((b) => (
                       <div key={`cont-${b.id}`}>{renderBookingCard(b, onEdit, true, nowMin)}</div>
                     ))}
+                    {viewerCard}
                   </div>
+                ) : viewerCard ? (
+                  <div className="space-y-2">
+                    {viewerCard}
+                    {extraCount > 0 && (
+                      <AnimatePresence initial={false}>
+                        {isOpen && (
+                          <motion.div
+                            key="extra"
+                            className="overflow-hidden"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
+                          >
+                            <div className="space-y-2 pt-2">
+                              <OffAndBreakExtras offToday={i === 0 ? offToday : []} breakingNow={breakingNow} staffOffType={staffOffType} staffBreaks={staffBreaks} />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    )}
+                  </div>
+                ) : extraCount > 0 ? (
+                  <div>
+                    {isClosedToday ? (
+                      <ClosedBand />
+                    ) : (
+                      <div
+                        aria-hidden
+                        className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
+                        style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
+                      />
+                    )}
+                    <AnimatePresence initial={false}>
+                      {isOpen && (
+                        <motion.div
+                          key="extra"
+                          className="overflow-hidden"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: 'auto', opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
+                        >
+                          <div className="space-y-2 pt-2">
+                            <OffAndBreakExtras offToday={i === 0 ? offToday : []} breakingNow={breakingNow} staffOffType={staffOffType} staffBreaks={staffBreaks} />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                ) : isClosedToday ? (
+                  <ClosedBand />
                 ) : (
                   <div
                     aria-hidden
@@ -867,16 +1015,83 @@ export function HourList({
   )
 }
 
+/** Tulaj-nézet kibontott "+N" toldaléka: aznap szabadnapos/szabadságon/beteg szakemberek (egyszer,
+ *  az első órasornál) + akik ÉPP ebben az órában szünetelnek — a valós foglalás-extrák alatt. */
+function OffAndBreakExtras({
+  offToday, breakingNow, staffOffType, staffBreaks,
+}: {
+  offToday: StaffMember[]; breakingNow: StaffMember[]
+  staffOffType: Record<string, 'leave' | 'sick' | 'vacation'>
+  staffBreaks: Record<string, { start: string; end: string }>
+}) {
+  if (offToday.length === 0 && breakingNow.length === 0) return null
+  return (
+    <>
+      {offToday.map((t) => {
+        const off = staffOffType[String(t.id)]
+        if (!off) return null
+        const st = OFF_TYPE_STYLE[off]
+        return (
+          <div key={`off-${t.id}`} className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border px-4" style={{ background: st.hatch, color: st.fg, borderColor: st.border }}>
+            <Ava url={avatarUrlOf(t)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{t.name}</div>
+              <div className="mt-0.5 truncate text-xs opacity-80">{OFF_TYPE_LABEL[off]}</div>
+            </div>
+          </div>
+        )
+      })}
+      {breakingNow.map((t) => {
+        const brk = staffBreaks[String(t.id)]
+        if (!brk) return null
+        return (
+          <div key={`brk-${t.id}`} className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border border-[rgba(192,86,74,.22)] px-4 text-[#B0453F]" style={{ background: 'repeating-linear-gradient(115deg,#F3D9D6 0 7px,#EFC5C0 7px 9px)' }}>
+            <Ava url={avatarUrlOf(t)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-sm font-semibold">{t.name}</div>
+              <div className="mt-0.5 truncate text-xs opacity-80">Szünet {brk.start}–{brk.end}</div>
+            </div>
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
+/** Ugyanaz a "Zárva" mintázat, mint a Naptár hónap-rácsán (ScheduleView.tsx) — az üres
+ *  (beosztatlan) sávok kapják, ha a nap egyszeri kivétellel vagy heti visszatérő zárvatartással
+ *  zárva van. Sima kártya-háttér + piros szegély + felirat, nem csak egy külön jelvény. */
+export const CLOSED_HATCH = 'repeating-linear-gradient(115deg,#F9E4E1 0 7px,#F1D0CB 7px 9px)'
+export const CLOSED_BORDER = 'rgba(180,60,50,.28)'
+export const CLOSED_FG = '#b43c32'
+
+function ClosedBand() {
+  return (
+    <div
+      aria-hidden
+      className="flex h-[72px] items-center justify-center rounded-[18px] border"
+      style={{ background: CLOSED_HATCH, borderColor: CLOSED_BORDER }}
+    >
+      <span className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: CLOSED_FG }}>Zárva</span>
+    </div>
+  )
+}
+
 /** Mobil idővonal — kártya-keret + cím + a közös HourList (minden szakember foglalása vegyítve). */
 function MobileTimeline({
-  hourMarks, active, openMin, closeMin, nowMin, onEdit,
+  hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks = {}, staffOffType = {}, viewerStaffId, isClosedToday = false,
 }: {
   hourMarks: number[]; active: Booking[]; openMin: number; closeMin: number; nowMin: number | null; onEdit: (b: Booking) => void
+  staff: StaffMember[]
+  staffBreaks?: Record<string, { start: string; end: string }>
+  staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
+  viewerStaffId?: string
+  isClosedToday?: boolean
 }) {
   return (
     <div className="rounded-[26px] p-4 dav-card-glass">
       <div className="mb-3 text-[17px] font-medium text-ink">Napi időbeosztás</div>
-      <HourList {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
+      <HourList {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks, staffOffType, viewerStaffId, isClosedToday }} />
     </div>
   )
 }
@@ -886,12 +1101,28 @@ function MobileTimeline({
  *  oszlopukban kapják a kártyáikat, ugyanahhoz a közös óra-sorhoz igazítva (CSS grid — minden
  *  sor automatikusan a legmagasabb cellájához igazodik, így a tengely és az oszlopok mindig
  *  egy vonalban maradnak, még ha az egyik oszlopban ki is nyílik egy "+N" extra foglalás). */
+export const OFF_TYPE_LABEL: Record<'leave' | 'sick' | 'vacation', string> = { leave: 'Szabadság', sick: 'Beteg', vacation: 'Szabadnap' }
+// A fejléc-jelvény (kis pill, tömör szín — az apró szöveg ott olvashatatlan lenne csíkozva) és a
+// teljes napi oszlop-kártya (csíkozott, mint a Szünet — 115°, UGYANAZ a szög, mint a nézet többi
+// szabvány-mintázatánál) külön stílust kap, de azonos színcsaládból.
+export const OFF_TYPE_STYLE: Record<'leave' | 'sick' | 'vacation', { badgeBg: string; badgeFg: string; hatch: string; fg: string; border: string }> = {
+  // Nem sárga — az már a "Függő" foglalás státusz-színe ebben a nézetben, ütközne.
+  leave: { badgeBg: '#E8A23D', badgeFg: '#1D1C19', hatch: 'repeating-linear-gradient(115deg,#F7E2C4 0 7px,#F1D3A6 7px 9px)', fg: '#8A5A1C', border: 'rgba(232,162,61,.3)' },
+  // Meleg (nem semleges) szürke — a semleges F7F7F7/DCDCDC pár a krémes háttér mellett kékesnek
+  // hatott; ez itt az app saját ink-szürke tónuscsaládja, feketésebb összhatással.
+  vacation: { badgeBg: '#E4E1D8', badgeFg: '#1D1C19', hatch: 'repeating-linear-gradient(115deg,#E4E1D8 0 7px,#C7C2B2 7px 9px)', fg: '#3F3D36', border: 'rgba(60,56,44,.18)' },
+  sick: { badgeBg: '#8B6BB0', badgeFg: '#fff', hatch: 'repeating-linear-gradient(115deg,#E7DEF3 0 7px,#F1EAF8 7px 9px)', fg: '#6E4E96', border: 'rgba(124,92,168,.22)' },
+}
+
 function StaffColumnsTimeline({
-  staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit,
+  staff, active, hourMarks, openMin, closeMin, nowMin, card, onEdit, staffBreaks = {}, staffOffType = {}, isClosedToday = false,
 }: {
   staff: StaffMember[]; active: Booking[]; hourMarks: number[]; openMin: number; closeMin: number
   nowMin: number | null; card: string
   onEdit: (b: Booking) => void
+  staffBreaks?: Record<string, { start: string; end: string }>
+  staffOffType?: Record<string, 'leave' | 'sick' | 'vacation'>
+  isClosedToday?: boolean
 }) {
   // Óránként EGY közös nyitó-gomb (a bal tengelyen, az idő alatt — mint mobilon), nem
   // szakemberenként külön — kattintásra az adott óra MINDEN oszlopában megjelennek az extrák.
@@ -943,6 +1174,47 @@ function StaffColumnsTimeline({
     [staff, active, hourMarks, openMin],
   )
 
+  // Napi szünet (Shifts.break_start/end) — UGYANAZ a minta, mint a foglalásoknál: "indul ebben az
+  // órában" vs. "korábbi órából átnyúlik ide" — hogy egy 2 órás szünet is egybefüggő, folytonos
+  // sávként jelenjen meg (mint egy több órás foglalás), ne külön-külön hatch-cellaként.
+  const perStaffHourBreak = useMemo(
+    () =>
+      staff.map((t) => {
+        const brk = staffBreaks[String(t.id)]
+        return hourMarks.map((m, i) => {
+          if (!brk) return false
+          const lo = i === 0 ? openMin : m
+          const hi = i < hourMarks.length - 1 ? hourMarks[i + 1] : closeMin + 1
+          const s = hhmmToMinutes(brk.start)
+          return s >= lo && s < hi
+        })
+      }),
+    [staff, staffBreaks, hourMarks, openMin, closeMin],
+  )
+  const perStaffBreakContinuation = useMemo(
+    () =>
+      staff.map((t) => {
+        const brk = staffBreaks[String(t.id)]
+        return hourMarks.map((m, i) => {
+          if (!brk) return false
+          const lo = i === 0 ? openMin : m
+          const s = hhmmToMinutes(brk.start)
+          const e = hhmmToMinutes(brk.end)
+          return s < lo && e > lo
+        })
+      }),
+    [staff, staffBreaks, hourMarks, openMin],
+  )
+  const BreakCard = () => (
+    <div
+      className="flex h-[72px] flex-col items-center justify-center gap-1 rounded-[18px] border border-[rgba(192,86,74,.22)] text-[#B0453F]"
+      style={{ background: 'repeating-linear-gradient(115deg,#F3D9D6 0 7px,#EFC5C0 7px 9px)' }}
+    >
+      <Coffee className="h-3.5 w-3.5" strokeWidth={1.8} />
+      <span className="text-[10.5px] font-semibold">Szünet</span>
+    </div>
+  )
+
   return (
     <div className={`${card} p-[18px] sm:p-[20px_22px_22px]`}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
@@ -986,6 +1258,7 @@ function StaffColumnsTimeline({
                   <div />
                   {staff.map((t, ci) => {
                     const url = avatarUrlOf(t)
+                    const off = staffOffType[String(t.id)]
                     return (
                       <div
                         key={String(t.id)}
@@ -995,7 +1268,11 @@ function StaffColumnsTimeline({
                         <Ava url={url} className="h-9 w-9 shrink-0 rounded-full overflow-hidden" />
                         <div className="min-w-0">
                           <span className="block text-sm font-semibold text-ink truncate leading-tight">{t.name}</span>
-                          {t.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{t.role_title}</span>}
+                          {off ? (
+                            <span className="mt-0.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none" style={{ background: OFF_TYPE_STYLE[off].badgeBg, color: OFF_TYPE_STYLE[off].badgeFg }}>{OFF_TYPE_LABEL[off]}</span>
+                          ) : (
+                            t.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{t.role_title}</span>
+                          )}
                         </div>
                       </div>
                     )
@@ -1070,17 +1347,37 @@ function StaffColumnsTimeline({
               // előfordul ebben az órában — ennyi üres/foglalt extra sávnak kell megjelennie
               // MINDEN oszlopban kinyitáskor, hogy a sorok egy vonalban maradjanak.
               const maxExtra = Math.max(0, ...staff.map((_, ci) => perStaffHourBookings[ci][i].length - 1))
-              const HatchBand = () => (
-                <div
-                  aria-hidden
-                  className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                  style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                />
-              )
+              const HatchBand = () =>
+                isClosedToday ? (
+                  <ClosedBand />
+                ) : (
+                  <div
+                    aria-hidden
+                    className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
+                    style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
+                  />
+                )
               let ci = 0
               while (ci < staff.length) {
+                const off = staffOffType[String(staff[ci].id)]
                 const rows = perStaffHourBookings[ci][i]
-                if (rows.length > 0) {
+                if (off) {
+                  // Aznap szabadnapos/szabadságon/beteg — a TELJES napi oszlopa ez alapján
+                  // jelenik meg, minden óra-sorban, nem olvad össze más (üres) oszloppal.
+                  const t = staff[ci]
+                  const st = OFF_TYPE_STYLE[off]
+                  cells.push(
+                    <div key={`off-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="relative pb-3">
+                      {i > 0 && (
+                        <span aria-hidden className="absolute -top-3 left-1/2 h-3 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
+                      )}
+                      <div className="flex h-[72px] flex-col items-center justify-center gap-1 rounded-[18px] border" style={{ background: st.hatch, color: st.fg, borderColor: st.border }}>
+                        <span className="text-[10.5px] font-semibold">{OFF_TYPE_LABEL[off]}</span>
+                      </div>
+                    </div>,
+                  )
+                  ci += 1
+                } else if (rows.length > 0) {
                   const t = staff[ci]
                   const hatchNeeded = maxExtra - (rows.length - 1)
                   cells.push(
@@ -1154,9 +1451,30 @@ function StaffColumnsTimeline({
                     </div>,
                   )
                   ci += 1
+                } else if (perStaffHourBreak[ci][i]) {
+                  // Napi szünet, ebben az órában induló — "zárva" stílusú kártya, mint egy
+                  // foglalás: saját oszlop, nem olvad össze a szomszédos üres oszlopokkal.
+                  const t = staff[ci]
+                  cells.push(
+                    <div key={`brk-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
+                      <BreakCard />
+                    </div>,
+                  )
+                  ci += 1
+                } else if (perStaffBreakContinuation[ci][i]) {
+                  // Korábbi órában induló szünet, ide is átnyúlik — ugyanaz a folytonos-sáv minta,
+                  // mint egy több órás foglalásnál (szaggatott vonallal összekötve).
+                  const t = staff[ci]
+                  cells.push(
+                    <div key={`brkcont-${t.id}-${m}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="relative pb-3">
+                      <span aria-hidden className="absolute -top-3 left-1/2 h-3 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
+                      <BreakCard />
+                    </div>,
+                  )
+                  ci += 1
                 } else {
                   const start = ci
-                  while (ci < staff.length && perStaffHourBookings[ci][i].length === 0 && !perStaffHourContinuation[ci][i]) ci += 1
+                  while (ci < staff.length && !staffOffType[String(staff[ci].id)] && perStaffHourBookings[ci][i].length === 0 && !perStaffHourContinuation[ci][i] && !perStaffHourBreak[ci][i] && !perStaffBreakContinuation[ci][i]) ci += 1
                   const span = ci - start
                   cells.push(
                     <div

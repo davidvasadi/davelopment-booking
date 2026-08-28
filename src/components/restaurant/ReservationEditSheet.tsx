@@ -32,12 +32,19 @@ function formatHuDate(dateStr: string): string {
 // ISO ország-kód → nemzetközi előhívó (a tárolt teljes szám összeállításához / felbontásához).
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map((c) => [c.code, c.dial]))
 
-// Az avatar-menü (UserMenu) „genie" belépője — a foglalás-panel PONTOSAN ezt használja
-// (azonos érzés: nagy scale-ugrás + overshoot = pulzáló pop, a gyerekek staggerrel folynak be).
+// Az avatar-menü (UserMenu) „genie" belépője — DESKTOP-on (középre nyíló modal) PONTOSAN ezt
+// használja (azonos érzés: nagy scale-ugrás + overshoot = pulzáló pop, a gyerekek staggerrel folynak be).
 const GENIE = {
   hidden: { opacity: 0, scale: 0.7, y: 14 },
   show: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, stiffness: 520, damping: 26, mass: 0.9, staggerChildren: 0.045, delayChildren: 0.06 } },
   exit: { opacity: 0, scale: 0.92, y: 8, transition: { duration: 0.14, ease: 'easeIn' as const } },
+} as const
+// Mobilon (alulról induló sheet) VALÓDI alulról-felcsúszás kell — a genie kicsinyítő-pop-ja itt
+// épp azt az érzetet keltette, hogy nem "úszik fel" alulról, csak beugrik/felnő a helyén.
+const SLIDE_UP = {
+  hidden: { opacity: 0, y: '100%' },
+  show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 380, damping: 34, mass: 0.9, staggerChildren: 0.045, delayChildren: 0.06 } },
+  exit: { opacity: 0, y: '100%', transition: { duration: 0.2, ease: 'easeIn' as const } },
 } as const
 // A panel régiói (fejléc/törzs/lábléc) „folyami" belépője a genie-stagger alá.
 const PANEL_ITEM = {
@@ -162,6 +169,17 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   const isEdit = !!reservation
   const draftId = draftIdOf(reservation)
   const isDraft = draftId != null
+
+  // Mobilon (alulról induló sheet) valódi felcsúszás, desktopon (középre nyíló modal) a genie-pop
+  // — a Tailwind `sm:` töréspontnak megfelelő 640px-es media query-vel váltva.
+  const [isDesktop, setIsDesktop] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)')
+    setIsDesktop(mq.matches)
+    const handler = (e: MediaQueryListEvent) => setIsDesktop(e.matches)
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
 
   // A foglalás napja — kezdetben a jelenleg megtekintett nap (a `date` prop), de a sheeten
   // belül átválasztható (ld. DatePickerPopover lent), hogy ne kelljen a nézetet elhagyni
@@ -578,12 +596,12 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
             />
             {/* Középre úszó panel — az avatar „genie" springje (pulzáló pop); mobilon alsó lap. */}
             <motion.div
-              variants={GENIE}
+              variants={isDesktop ? GENIE : SLIDE_UP}
               initial="hidden"
               animate="show"
               exit="exit"
               style={{ transformOrigin: 'center' }}
-              className="relative z-10 flex max-h-[100dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-h-[92vh] sm:max-w-[840px] sm:rounded-[26px]"
+              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-h-[92vh] sm:max-w-[840px] sm:rounded-[26px]"
             >
               {/* Fejléc (fix) */}
               <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 px-5 py-4 sm:px-6">

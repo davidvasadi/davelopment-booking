@@ -61,9 +61,8 @@ export function ReservationDateFilter({
 }: {
   currentDate: string
   range?: BookingsRange
-  /** Napi nézetnél a Nap/Hét/Hónap pill mobilon a fejléc-ikon nézet-választó sheet-jébe kerül
-   *  (ld. DailyView), itt nem kell duplán, külön sorban megjelenítenünk. Heti/havi nézetnél
-   *  (ahol ilyen sheet nincs) marad látható, hogy mobilon is legyen visszaút Napra. */
+  /** A Nap/Hét/Hónap pill mobilon MINDIG a fejléc-ikon nézet-választó sheet-jébe kerül (ld.
+   *  DailyView / RestaurantScheduleView), itt nem kell duplán, külön sorban megjelenítenünk. */
   hideRangeOnMobile?: boolean
 }) {
   const router = useRouter()
@@ -82,8 +81,8 @@ export function ReservationDateFilter({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Nap/Hét/Hónap — napi nézetnél mobilon rejtve (a fejléc-ikon nyitja a DailyView
-          nézet-választó sheet-jébe ágyazva); heti/havi nézetnél mobilon is látható marad. */}
+      {/* Nap/Hét/Hónap — mobilon mindig rejtve, a fejléc-ikon nyitja meg a nézet-választó
+          sheet-be ágyazva (ld. DailyView / RestaurantScheduleView). */}
       <div className={`${hideRangeOnMobile ? 'hidden lg:inline-flex' : 'inline-flex'} h-[42px] items-center gap-0.5 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1`}>
         {RANGE_OPTIONS.map(({ value, label: rangeLabel }) => (
           <HoverButton

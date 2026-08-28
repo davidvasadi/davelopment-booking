@@ -10,7 +10,7 @@ import WaitlistPanel from '@/components/dashboard/WaitlistPanel'
 import { hhmmToMinutes, getDayName } from '@/lib/utils'
 import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import { parseISO } from 'date-fns'
-import type { Reservation, Table, Room, OpeningHour } from '@/payload/payload-types'
+import type { Reservation, Table, Room, OpeningHour, OpeningHoursException } from '@/payload/payload-types'
 
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
@@ -61,8 +61,36 @@ export default async function RestaurantBookingsPage({
   const turnMinutes = restaurant.turn_duration_minutes ?? 120
   const canManage = can(capabilities, 'bookings.manage')
   const dateFilterEl = (
-    <ReservationDateFilter key="date-filter" currentDate={selectedDate} range={range} hideRangeOnMobile={range === 'day'} />
+    <ReservationDateFilter key="date-filter" currentDate={selectedDate} range={range} hideRangeOnMobile />
   )
+
+  // Zárva-napok (heti/havi nézethez) — ugyanaz a két lekérdezés, mint a Naptár oldalon
+  // (restaurant/schedule/page.tsx): egyszeri kivétel-zárás (dátum-tartomány!) + heti visszatérő
+  // zárvatartás.
+  const [closedExceptionsRes, closedWeeklyRes] = await Promise.all([
+    payload.find({
+      collection: 'opening-hours-exceptions',
+      where: { and: [{ restaurant: { equals: restaurant.id } }, { is_closed: { equals: true } }] },
+      depth: 0, limit: 500, overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'opening-hours',
+      where: { and: [{ restaurant: { equals: restaurant.id } }, { is_open: { equals: false } }] },
+      depth: 0, limit: 20, overrideAccess: true,
+    }),
+  ])
+  const closedDates: string[] = (closedExceptionsRes.docs as OpeningHoursException[]).flatMap((e) => {
+    const dates: string[] = []
+    const cur = new Date(e.start_date)
+    const end = new Date(e.end_date)
+    while (cur <= end) {
+      dates.push(cur.toISOString().slice(0, 10))
+      cur.setDate(cur.getDate() + 1)
+    }
+    return dates
+  })
+  const DOW_NUM: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 }
+  const closedWeekdays = Array.from(new Set((closedWeeklyRes.docs as { day_of_week?: string | null }[]).map((e) => DOW_NUM[e.day_of_week ?? '']).filter((n): n is number => n != null)))
 
   // Esemény-típusok az admin szerkesztő-laphoz (a tulaj engedélyezettjei, vagy az alapkészlet).
   const enabledEvents = ((restaurant as { event_types?: { icon?: string | null; label?: string | null; enabled?: boolean | null }[] | null }).event_types ?? [])
@@ -129,6 +157,8 @@ export default async function RestaurantBookingsPage({
     const roomCount = rooms.length
     const tableCount = tables.length
 
+    const isClosedToday = closedDates.includes(selectedDate) || (selectedDate >= ymd(new Date()) && closedWeekdays.includes(parseISO(selectedDate).getDay()))
+
     return (
       <div className="p-5 lg:p-0 space-y-5">
         <DailyView
@@ -153,13 +183,14 @@ export default async function RestaurantBookingsPage({
           printButton={
             <PrintDayButton
               key="print-btn"
-              date={selectedDate}
+              days={[selectedDate]}
               restaurantName={restaurant.name}
               reservations={reservations}
             />
           }
           canManage={canManage}
           consentEnabled={!!restaurant.consent_settings?.enabled}
+          isClosedToday={isClosedToday}
         />
         <WaitlistPanel restaurantId={restaurant.id} />
       </div>
@@ -233,6 +264,8 @@ export default async function RestaurantBookingsPage({
     <div className="p-5 lg:p-0 space-y-5">
       <RestaurantScheduleView
         days={days}
+        range={range}
+        date={selectedDate}
         title="Asztalfoglalások"
         subtitle={range === 'week' ? 'Heti áttekintés' : 'Havi áttekintés'}
         restaurantId={String(restaurant.id)}
@@ -242,7 +275,12 @@ export default async function RestaurantBookingsPage({
         openMin={rangeOpenMin}
         closeMin={rangeCloseMin}
         turnMinutes={turnMinutes}
+        closedDates={closedDates}
+        closedWeekdays={closedWeekdays}
         dateFilter={dateFilterEl}
+        printButton={
+          <PrintDayButton key="print-btn" days={days} restaurantName={restaurant.name} reservations={reservations} />
+        }
         canManage={canManage}
       />
       <WaitlistPanel restaurantId={restaurant.id} />

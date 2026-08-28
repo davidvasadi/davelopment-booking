@@ -80,11 +80,16 @@ export default async function BookingsPage({
   // "Ez a saját fiókom" kapcsolóval), email-fallbackkel a régi, még nem linkelt rekordokra.
   // A sentinel `0` (NEM string, pl. '__none__') — a `staff_id` numerikus oszlop, egy nem-numerikus
   // sentinel NaN-re castolva eldobatta a lekérdezést Postgres alatt.
-  const myStaffId = role !== 'owner' ? (await findMyStaffId(salon.id, userId, userEmail)) ?? 0 : null
+  // A tulaj SAJÁT (ha van) linkelt staff-rekordja is kell — nem a szűkítéshez (a tulaj mindig
+  // mindenkit lát), hanem hogy a mobil idővonalon a SAJÁT szabadnapja/szünete elsődleges helyen
+  // jelenjen meg akkor is, ha egyébként a kevert (mindenkit mutató) nézetet nézi.
+  const resolvedOwnStaffId = await findMyStaffId(salon.id, userId, userEmail)
+  const myStaffId = role !== 'owner' ? resolvedOwnStaffId ?? 0 : null
   const scopeWhere = role !== 'owner' ? [{ staff: { equals: myStaffId ?? 0 } }] : []
   // A fejléc-avatarsor (szakember-oszlopok) is csak a SAJÁT oszlopot mutassa nem-tulajnak —
   // különben a foglalás-adat rejtve van, de mások neve/avatarja még mindig látszik a fejlécben.
   const staffScopeWhere = role !== 'owner' ? [{ id: { equals: myStaffId ?? 0 } }] : []
+  const viewerStaffId = resolvedOwnStaffId != null ? String(resolvedOwnStaffId) : undefined
 
   // Meghívóra váró (még nem elfogadott) tagok — amíg nem fogadják el, nem oszthatók be
   // foglalásra sehol (BookingEditSheet lakat + UX infó a kártyájukon).
@@ -94,6 +99,24 @@ export default async function BookingsPage({
     depth: 0, limit: 500, overrideAccess: true,
   })
   const invitedEmails = new Set((invitedRes.docs as { email?: string | null }[]).map((m) => (m.email ?? '').toLowerCase()).filter(Boolean))
+
+  // Zárva-napok (heti/havi nézethez) — ugyanaz a két lekérdezés, mint a Naptár oldalon
+  // (dashboard/schedule/page.tsx): egyszeri kivétel-zárás + heti visszatérő zárvatartás.
+  const [closedExceptionsRes, closedWeeklyRes] = await Promise.all([
+    payload.find({
+      collection: 'availability',
+      where: { and: [{ salon: { equals: salon.id } }, { staff: { exists: false } }, { exception_date: { exists: true } }, { is_available: { equals: false } }] },
+      depth: 0, limit: 500, overrideAccess: true,
+    }),
+    payload.find({
+      collection: 'availability',
+      where: { and: [{ salon: { equals: salon.id } }, { staff: { exists: false } }, { recurring: { equals: true } }, { is_available: { equals: false } }] },
+      depth: 0, limit: 20, overrideAccess: true,
+    }),
+  ])
+  const closedDates = (closedExceptionsRes.docs as Availability[]).map((e) => e.exception_date).filter((d): d is string => !!d)
+  const DOW_NUM: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 }
+  const closedWeekdays = Array.from(new Set((closedWeeklyRes.docs as Availability[]).map((e) => DOW_NUM[e.day_of_week ?? '']).filter((n): n is number => n != null)))
 
   // Értesítésből érkezve (?booking=) a foglalás napjára ugrunk, hogy a sheet a megfelelő
   // napon nyíljon ki — a kliens a query alapján nyitja meg a szerkesztőt.
@@ -107,13 +130,13 @@ export default async function BookingsPage({
 
   const canManage = can(capabilities, 'bookings.manage')
   const dateFilterEl = (
-    <DateFilter key="date-filter" currentDate={selectedDate} range={range} hideRangeOnMobile={range === 'day'} />
+    <DateFilter key="date-filter" currentDate={selectedDate} range={range} hideRangeOnMobile />
   )
 
   if (range === 'day') {
     // ── NAPI nézet (változatlan viselkedés) ──
     const dayName = getDayName(parseISO(selectedDate))
-    const [staffRes, servicesRes, bookingsRes, availRes] = await Promise.all([
+    const [staffRes, servicesRes, bookingsRes, availRes, shiftsRes] = await Promise.all([
       payload.find({
         collection: 'staff',
         where: { and: [{ salon: { equals: salon.id } }, { is_active: { not_equals: false } }, ...staffScopeWhere] },
@@ -151,15 +174,34 @@ export default async function BookingsPage({
         limit: 1,
         overrideAccess: true,
       }),
+      payload.find({
+        collection: 'shifts',
+        where: { and: [{ salon: { equals: salon.id } }, { date: { equals: `${selectedDate}T12:00:00.000Z` } }, ...(role !== 'owner' ? [{ staff: { equals: myStaffId ?? 0 } }] : [])] },
+        depth: 0,
+        limit: 200,
+        overrideAccess: true,
+      }),
     ])
 
     const staff = await withAvatarFallback(payload, staffRes.docs as StaffMember[])
     const services = servicesRes.docs as Service[]
     const bookings = bookingsRes.docs as Booking[]
     const rule = availRes.docs[0] as Availability | undefined
+    // staffId → napi szünet (Shifts.break_start/end) — vizuálisan a "zárva" stílussal jelenik meg.
+    const staffBreaks: Record<string, { start: string; end: string }> = {}
+    // staffId → aznap szabadnapos/szabadságon/beteg (Shifts.type) — a teljes oszlopa ez alapján
+    // jelenik meg, nem az üres/beosztatlan hatch-mintával.
+    const staffOffType: Record<string, 'leave' | 'sick' | 'vacation'> = {}
+    for (const sh of shiftsRes.docs as { staff?: unknown; type?: string; start_time?: string | null; end_time?: string | null; break_start?: string | null; break_end?: string | null }[]) {
+      const sid = sh.staff != null ? String(typeof sh.staff === 'object' ? (sh.staff as { id: string | number }).id : sh.staff) : null
+      if (!sid) continue
+      if (sh.break_start && sh.break_end) staffBreaks[sid] = { start: sh.break_start, end: sh.break_end }
+      if (sh.type === 'leave' || sh.type === 'sick' || sh.type === 'vacation') staffOffType[sid] = sh.type
+    }
 
     // ── Idő-tengely: a szalon aznapi nyitvatartása, ésszerű alapértékkel, majd kiszélesítve
-    //    a napi foglalásokra, hogy egy foglalás se essen a tengelyen kívülre. ──
+    //    a napi foglalásokra ÉS a ténylegesen beosztott munkatársak műszak-idejére, hogy egy
+    //    foglalás vagy egy tovább nyitva lévő szakember se essen a tengelyen kívülre. ──
     let openMin = 8 * 60
     let closeMin = 20 * 60
     if (rule?.is_available && rule.start_time && rule.end_time) {
@@ -174,8 +216,15 @@ export default async function BookingsPage({
       openMin = Math.min(openMin, hhmmToMinutes(b.start_time))
       closeMin = Math.max(closeMin, hhmmToMinutes(b.end_time))
     }
+    for (const sh of shiftsRes.docs as { type?: string; start_time?: string | null; end_time?: string | null }[]) {
+      if (sh.type !== 'shift' || !sh.start_time || !sh.end_time) continue
+      openMin = Math.min(openMin, hhmmToMinutes(sh.start_time))
+      closeMin = Math.max(closeMin, hhmmToMinutes(sh.end_time))
+    }
     openMin = Math.floor(openMin / 60) * 60
     closeMin = Math.ceil(closeMin / 60) * 60
+
+    const isClosedToday = closedDates.includes(selectedDate) || (selectedDate >= ymd(new Date()) && closedWeekdays.includes(parseISO(selectedDate).getDay()))
 
     return (
       <div className="p-5 lg:p-0 space-y-5">
@@ -192,10 +241,14 @@ export default async function BookingsPage({
           openBookingId={bookingParam}
           dateFilter={dateFilterEl}
           printButton={
-            <PrintDayButton key="print-btn" date={selectedDate} salonName={salon.name} bookings={bookings} />
+            <PrintDayButton key="print-btn" days={[selectedDate]} salonName={salon.name} bookings={bookings} />
           }
           canManage={canManage}
           consentEnabled={!!salon.consent_settings?.enabled}
+          staffBreaks={staffBreaks}
+          staffOffType={staffOffType}
+          viewerStaffId={viewerStaffId}
+          isClosedToday={isClosedToday}
         />
         <WaitlistPanel salonId={salon.id} />
       </div>
@@ -211,7 +264,7 @@ export default async function BookingsPage({
   const rangeStart = days[0]
   const rangeEnd = days[days.length - 1]
 
-  const [staffRes, servicesRes, bookingsRes] = await Promise.all([
+  const [staffRes, servicesRes, bookingsRes, shiftsRes] = await Promise.all([
     payload.find({
       collection: 'staff',
       where: { and: [{ salon: { equals: salon.id } }, { is_active: { not_equals: false } }, ...staffScopeWhere] },
@@ -243,10 +296,36 @@ export default async function BookingsPage({
       depth: 2,
       overrideAccess: true,
     }),
+    payload.find({
+      collection: 'shifts',
+      where: {
+        and: [
+          { salon: { equals: salon.id } },
+          { date: { greater_than_equal: `${rangeStart}T00:00:00.000Z` } },
+          { date: { less_than_equal: `${rangeEnd}T23:59:59.999Z` } },
+          { type: { in: ['leave', 'sick', 'vacation'] } },
+          ...(role !== 'owner' ? [{ staff: { equals: myStaffId ?? 0 } }] : []),
+        ],
+      },
+      depth: 0,
+      limit: range === 'month' ? 5000 : 1000,
+      overrideAccess: true,
+    }),
   ])
   const staff = await withAvatarFallback(payload, staffRes.docs as StaffMember[])
   const services = servicesRes.docs as Service[]
   const bookings = bookingsRes.docs as Booking[]
+
+  // Szakember-id → nap (`YYYY-MM-DD`) → teljes napos távollét-típus, a heti/havi rácshoz
+  // (ugyanaz a Shifts.type forrás, mint a napi nézet staffOffType-ja, csak a teljes tartományra).
+  const staffOffType: Record<string, Record<string, 'leave' | 'sick' | 'vacation'>> = {}
+  for (const sh of shiftsRes.docs as { staff?: unknown; type?: string; date?: string | null }[]) {
+    const sid = sh.staff != null ? String(typeof sh.staff === 'object' ? (sh.staff as { id: string | number }).id : sh.staff) : null
+    const day = sh.date ? String(sh.date).slice(0, 10) : null
+    if (!sid || !day || (sh.type !== 'leave' && sh.type !== 'sick' && sh.type !== 'vacation')) continue
+    if (!staffOffType[sid]) staffOffType[sid] = {}
+    staffOffType[sid][day] = sh.type
+  }
 
   // Idő-tengely: ésszerű alapérték, kiszélesítve a tartomány összes foglalására, hogy egy se
   // essen a tengelyen kívülre (ugyanaz a minta, mint a napi nézetnél).
@@ -264,6 +343,8 @@ export default async function BookingsPage({
     <div className="p-5 lg:p-0 space-y-5">
       <SalonScheduleView
         days={days}
+        range={range}
+        date={selectedDate}
         title="Foglalások"
         subtitle={range === 'week' ? 'Heti áttekintés' : 'Havi áttekintés'}
         salonId={String(salon.id)}
@@ -273,7 +354,13 @@ export default async function BookingsPage({
         openMin={rangeOpenMin}
         closeMin={rangeCloseMin}
         invitedEmails={invitedEmails}
+        staffOffType={staffOffType}
+        closedDates={closedDates}
+        closedWeekdays={closedWeekdays}
         dateFilter={dateFilterEl}
+        printButton={
+          <PrintDayButton key="print-btn" days={days} salonName={salon.name} bookings={bookings} />
+        }
         canManage={canManage}
       />
       <WaitlistPanel salonId={salon.id} />

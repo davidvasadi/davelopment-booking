@@ -111,7 +111,7 @@ const [moreOpen, setMoreOpen] = useState(false)
 
   return (
     <>
-      <div className="lg:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-40">
+      <div className="lg:hidden print:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-40">
       <motion.nav
         animate={{ y: navVisible ? 0 : 120 }}
         transition={{ type: 'spring', stiffness: 320, damping: 30 }}

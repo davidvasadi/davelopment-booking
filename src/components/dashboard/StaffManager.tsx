@@ -15,6 +15,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Plus, CalendarDays, Trash2, Search, Download, ChevronDown, Check, UserRound } from 'lucide-react'
 
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
+import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -149,10 +150,14 @@ export default function StaffManager({
 }: Props) {
   const router = useRouter()
 
-  // SSE / router.refresh() után a szerver új prop-okat ad — szinkronizáljuk a lokális state-et,
-  // de csak ha nincs nyitott szerkesztő/overlay (hogy ne szakítsuk félbe az éppen zajló munkát).
+  // SSE / router.refresh() után a szerver új prop-okat ad — szinkronizáljuk a lokális state-et.
+  // A staff-listás szerkesztő (`open`) modal esetén ez még indokolt védelem (ne szakítsuk félbe a
+  // beviteli űrlapot) — az `empList`-et viszont MINDIG frissítjük, NYITOTT overlay esetén is: a
+  // Munkavállalók-adatlap belső Naptár-widgetje pont AKKOR ment (elérhetőség-kivétel), amikor az
+  // overlay nyitva van, és a router.refresh() utáni friss `calendar`-adatnak el KELL jutnia hozzá,
+  // különben a mentés láthatatlan marad a felületen (a szerveren és a külső foglalón már stimmel).
   useEffect(() => { if (!open) setStaff(initialStaff) }, [initialStaff]) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (hiringIndex === null) setEmpList(employees ?? []) }, [employees]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setEmpList(employees ?? []) }, [employees])
 
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
@@ -179,6 +184,7 @@ export default function StaffManager({
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [avatarModified, setAvatarModified] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [socialLinks, setSocialLinks] = useState<string[]>([])
 
   const [openCalendar, setOpenCalendar] = useState(false)
 
@@ -197,6 +203,7 @@ export default function StaffManager({
     setAvatarId(null)
     setAvatarPreview(null)
     setAvatarModified(false)
+    setSocialLinks([])
     setSelectedServiceIds([])
     // "— Szerepkör nélkül —" a valódi alapértelmezett — korábban itt hibásan az ELSŐ elérhető
     // szerepre állt, így ha valaki nem figyelt oda, minden új munkatárs AUTOMATIKUSAN megkapta
@@ -204,6 +211,19 @@ export default function StaffManager({
     setSelectedRoleId('')
     setOpen(true)
   }
+
+  // Mobilon az "Új munkatárs"/"Export" a fejléc csengő melletti ikonjaiból nyílik (DashboardNav
+  // dispatch-eli) — a gombok maguk a toolbarból mobilon rejtve, ld. lent.
+  useEffect(() => {
+    const handleAdd = () => { if (canManage) openAdd() }
+    const handleExport = () => { if (canManage) window.print() }
+    window.addEventListener('davelopment:open-staff-add', handleAdd)
+    window.addEventListener('davelopment:staff-export', handleExport)
+    return () => {
+      window.removeEventListener('davelopment:open-staff-add', handleAdd)
+      window.removeEventListener('davelopment:staff-export', handleExport)
+    }
+  }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEdit = (m: StaffMember) => {
     reset({ name: m.name, bio: m.bio ?? '', email: m.email ?? '', role_title: m.role_title ?? '', is_active: m.is_active ?? true })
@@ -214,6 +234,7 @@ export default function StaffManager({
     const media = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media) : null
     setAvatarId(media ? Number(media.id) : null)
     setAvatarModified(false)
+    setSocialLinks((m.social_links ?? []).map((s) => s.url))
     // Előre-töltjük: mely szolgáltatásokban szerepel ez a munkatárs
     setSelectedServiceIds(
       salonServices
@@ -302,6 +323,7 @@ export default function StaffManager({
       }
 
       const body: Record<string, unknown> = { ...data, salon: salonId }
+      body.social_links = socialLinks.filter((u) => u.trim()).map((url) => ({ url }))
       if (avatarModified) body.avatar = avatarId ?? null
       else if (avatarId) body.avatar = avatarId
       // Szerepkör: csak új munkatársnál, ha van kiválasztva (a membership-hez, nem a staff rekordhoz)
@@ -558,13 +580,13 @@ export default function StaffManager({
             <div className="flex flex-wrap items-center gap-2.5">
               <button
                 onClick={openAdd}
-                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-ink-dark px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-ink"
+                className="hidden h-[38px] items-center gap-2 rounded-[18px] bg-ink-dark px-4 text-[13px] font-semibold text-white shadow-[0_2px_6px_rgba(70,60,20,.14)] transition-colors hover:bg-ink lg:flex"
               >
                 <Plus className="h-[15px] w-[15px]" strokeWidth={2} /> Új munkatárs
               </button>
               <button
                 onClick={() => window.print()}
-                className="flex h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+                className="hidden h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper lg:flex"
               >
                 <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
               </button>
@@ -861,6 +883,16 @@ export default function StaffManager({
               <Label className="text-sm font-medium">Bemutatkozás</Label>
               <Textarea className="rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('bio')} rows={3} placeholder={editLocale !== 'hu' ? (editing?.bio ?? '') : undefined} />
             </div>
+            {editLocale === 'hu' && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Közösségi linkek</Label>
+              <SocialLinksEditor
+                value={socialLinks}
+                onChange={setSocialLinks}
+                inputClassName="rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2"
+              />
+            </div>
+            )}
             {editLocale === 'hu' && (
             <label htmlFor="staff_active" className="flex items-center justify-between rounded-xl border border-line bg-paper px-4 py-3.5 cursor-pointer">
               <span>

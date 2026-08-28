@@ -19,6 +19,7 @@ import { useRestaurantUI } from './RestaurantUIContext'
 import { getDrafts, subscribeDrafts, type ReservationDraft } from '@/lib/offlineDrafts'
 import { MobileOptionSheet } from '@/components/ui/MobileOptionSheet'
 import { HoverButton } from '@/components/shared/HoverButton'
+import { CLOSED_BORDER, CLOSED_FG, CLOSED_HATCH } from '@/components/dashboard/SalonDailyView'
 import type { Reservation, Table, Room } from '@/payload/payload-types'
 
 type ViewMode = 'list' | 'timeline' | 'floor'
@@ -127,6 +128,9 @@ export interface DailyViewProps {
   completedCount: number
   cancelledCount: number
   walkInCount: number
+  /** A megjelenített nap zárva van (egyszeri kivétel vagy heti visszatérő zárvatartás) — az üres
+   *  sávok ilyenkor a Naptár "Zárva" mintázatát kapják sima kréme hatch helyett. */
+  isClosedToday?: boolean
   /** A toolbar-ba ágyazott, csak ezen az oldalon használt vezérlők. */
   dateFilter: React.ReactNode
   printButton: React.ReactNode
@@ -208,7 +212,7 @@ export function draftToReservation(d: ReservationDraft): DraftReservation {
 export function DailyView(props: DailyViewProps) {
   const {
     date, range, restaurantId, eventTypes, rooms, tables, openMin, closeMin, turnMinutes, openReservationId,
-    roomCount, tableCount, activeCount, completedCount, cancelledCount, walkInCount,
+    roomCount, tableCount, activeCount, completedCount, cancelledCount, walkInCount, isClosedToday = false,
     dateFilter, printButton, canManage = false, consentEnabled = false,
   } = props
   const [view, setView] = useState<ViewMode>('timeline')
@@ -265,6 +269,14 @@ export function DailyView(props: DailyViewProps) {
   const openCreate = (presetStart?: string, presetTableId?: string | number | null) => {
     if (canManage) setTarget({ reservation: null, presetStart, presetTableId })
   }
+
+  // Mobilon az "Új foglalás" a fejléc csengő melletti ikonjából nyílik (DashboardNav dispatch-eli)
+  // — a gomb maga a toolbarból mobilon rejtve, ld. lent (ugyanaz a minta, mint a szalon oldalon).
+  useEffect(() => {
+    const handler = () => openCreate()
+    window.addEventListener('davelopment:open-bookings-create', handler)
+    return () => window.removeEventListener('davelopment:open-bookings-create', handler)
+  }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // Foglalás áthelyezése drag&drop-ból: új időpont és/vagy asztal. A szerver validál
   // (ütközés, nyitvatartás, kapacitás) — hibánál a router.refresh visszaállítja az
@@ -373,11 +385,11 @@ export function DailyView(props: DailyViewProps) {
               </HoverButton>
             ))}
           </div>
-          {printButton}
+          <div className="hidden lg:block">{printButton}</div>
           {canManage && (
             <HoverButton
               onClick={() => openCreate()}
-              className="inline-flex items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0"
+              className="hidden items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0 lg:inline-flex"
             >
               <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
               <span className="hidden sm:inline">Új foglalás</span>
@@ -421,7 +433,7 @@ export function DailyView(props: DailyViewProps) {
       {view === 'timeline' && (
         <TimelineView
           date={date}
-          {...{ reservations, rooms, tables, openMin, closeMin, turnMinutes }}
+          {...{ reservations, rooms, tables, openMin, closeMin, turnMinutes, isClosedToday }}
           onEdit={openEdit}
           onCreate={openCreate}
           onMove={moveReservation}
@@ -615,8 +627,9 @@ export function ReservationRow({ r, onEdit, nowMin, consentEnabled }: { r: Reser
 
 /* ---------- Timeline (asztal × idő rács) ---------- */
 function TimelineView({
-  date, reservations, rooms, tables, openMin, closeMin, turnMinutes, onEdit, onCreate, onMove, canManage = false,
+  date, reservations, rooms, tables, openMin, closeMin, turnMinutes, isClosedToday = false, onEdit, onCreate, onMove, canManage = false,
 }: ViewProps & {
+  isClosedToday?: boolean
   onEdit: (r: Reservation) => void
   onCreate: (start?: string, tableId?: string | number | null) => void
   onMove: (r: Reservation, newStart: string, newTableId: string | number) => void
@@ -672,7 +685,7 @@ function TimelineView({
     <>
       {/* Mobil: Crextio Mobile függőleges idővonal (óra-pillek pontozott vonallal + kártyák) */}
       <div className="lg:hidden">
-        <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
+        <MobileTimeline {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit, isClosedToday }} />
       </div>
       {/* Desktop: normál nyitvatartásnál a teljes nap egy nézetben (százalékos); ha a nap
           nagyon hosszú (pl. éjfél utánig nyitva — ld. a záróra-normalizálást a page.tsx-ben),
@@ -681,7 +694,7 @@ function TimelineView({
           aktuális időpontra görget nyitáskor. */}
       <div className="hidden lg:block">
         <TableGrid
-          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate, onMove, canManage }}
+          {...{ groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, onEdit, onCreate, onMove, canManage, isClosedToday }}
           mode={totalMin > 13 * 60 ? 'scroll' : 'fit'}
         />
       </div>
@@ -946,7 +959,7 @@ export function renderReservationCard(
 /** Óránkénti lista — a mobil idővonal "törzse" (idő-pill + foglalás-kártya/üres rés), a
  *  kártya-wrapper NÉLKÜL — a Heti nézet ezt hívja NAPONKÉNT, saját fejléccel körbevéve. */
 export function HourList({
-  hourMarks, active, openMin, closeMin, nowMin, onEdit,
+  hourMarks, active, openMin, closeMin, nowMin, onEdit, isClosedToday = false,
 }: {
   hourMarks: number[]
   active: Reservation[]
@@ -954,6 +967,7 @@ export function HourList({
   closeMin: number
   nowMin: number | null
   onEdit: (r: Reservation) => void
+  isClosedToday?: boolean
 }) {
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set())
   const toggle = (m: number) =>
@@ -1053,6 +1067,14 @@ export function HourList({
                       <div key={`cont-${r.id}`}>{renderReservationCard(r, onEdit, tableNamesOf, nowMin)}</div>
                     ))}
                   </div>
+                ) : isClosedToday ? (
+                  <div
+                    aria-hidden
+                    className="flex h-[72px] items-center justify-center rounded-[18px] border"
+                    style={{ background: CLOSED_HATCH, borderColor: CLOSED_BORDER }}
+                  >
+                    <span className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: CLOSED_FG }}>Zárva</span>
+                  </div>
                 ) : (
                   // Üres óra — Crextio „prison" szaggatott hatch-placeholder kártya (nincs foglalás)
                   <div
@@ -1072,7 +1094,7 @@ export function HourList({
 /** Mobil idővonal — kártya-keret + cím + a közös `HourList` (Crextio „Schedule" panel: üveges,
  *  áttetsző kártya, az oldal-gradient átdereng rajta; üres óráknál szaggatott hatch-placeholder). */
 function MobileTimeline({
-  hourMarks, active, openMin, closeMin, nowMin, onEdit,
+  hourMarks, active, openMin, closeMin, nowMin, onEdit, isClosedToday = false,
 }: {
   hourMarks: number[]
   active: Reservation[]
@@ -1080,11 +1102,12 @@ function MobileTimeline({
   closeMin: number
   nowMin: number | null
   onEdit: (r: Reservation) => void
+  isClosedToday?: boolean
 }) {
   return (
     <div className="rounded-[26px] p-4 dav-card-glass">
       <div className="mb-3 text-[17px] font-medium text-ink">Mai szervizterv</div>
-      <HourList {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit }} />
+      <HourList {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit, isClosedToday }} />
     </div>
   )
 }
@@ -1169,7 +1192,7 @@ function TableGridStack({
  *  (desktop). A foglalás-blokkok tartalma közös. */
 const PX_PER_MIN = 1.5 // scroll módban 1 perc = 1.5px → 30 perc = 45px
 function TableGrid({
-  groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, mode, onEdit, onCreate, onMove, canManage = false,
+  groups, active, hourMarks, openMin, closeMin, totalMin, turnMinutes, nowMin, nowVisible, card, mode, onEdit, onCreate, onMove, canManage = false, isClosedToday = false,
 }: {
   groups: TimelineGroup[]
   active: Reservation[]
@@ -1186,6 +1209,7 @@ function TableGrid({
   onCreate: (start?: string, tableId?: string | number | null) => void
   onMove: (r: Reservation, newStart: string, newTableId: string | number) => void
   canManage?: boolean
+  isClosedToday?: boolean
 }) {
   const fit = mode === 'fit'
   const labelW = 'w-[110px] sm:w-[150px]'
@@ -1668,16 +1692,18 @@ function TableGrid({
                         style={{ left: left(m) }}
                       />
                     ))}
-                    {/* Üres rések — szaggatott hatch-pillek (húzáskor elrejtve, hogy ne takarják a drop-highlightot) */}
+                    {/* Üres rések — szaggatott hatch-pillek (húzáskor elrejtve, hogy ne takarják a drop-highlightot);
+                        zárva napon a Naptár "Zárva" piros mintázatát kapják a sima kréme hatch helyett. */}
                     {!dragging && freeGaps.map(([gs, ge], i) => (
                       <span
                         key={`gap-${i}`}
                         aria-hidden
-                        className="pointer-events-none absolute top-[7px] bottom-[7px] rounded-[11px] border border-[rgba(120,110,70,.10)]"
+                        className="pointer-events-none absolute top-[7px] bottom-[7px] rounded-[11px] border"
                         style={{
                           left: `calc(${left(gs)} + 2px)`,
                           width: `calc(${span(ge - gs)} - 4px)`,
-                          background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)',
+                          background: isClosedToday ? CLOSED_HATCH : 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)',
+                          borderColor: isClosedToday ? CLOSED_BORDER : 'rgba(120,110,70,.10)',
                         }}
                       />
                     ))}
