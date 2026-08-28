@@ -22,6 +22,17 @@ function stripPayloadInternals(obj: unknown): unknown {
   return obj
 }
 
+/** Legalább egy kitöltött (cím VAGY szöveg) foglalási-feltétel szakasz van-e. */
+function hasFilledTerms(sections: unknown): boolean {
+  if (!Array.isArray(sections)) return false
+  return sections.some((s) => {
+    if (!s || typeof s !== 'object') return false
+    const title = (s as { title?: unknown }).title
+    const body = (s as { body?: unknown }).body
+    return (typeof title === 'string' && title.trim() !== '') || (typeof body === 'string' && body.trim() !== '')
+  })
+}
+
 // A dashboard fordítás-szerkesztőinek (pl. beleegyező nyilatkozat) kell egy `?locale=`-es
 // olvasás is, hogy a nyelvváltáskor a MÁR mentett idegen-nyelvi tartalmat töltsék be — ugyanaz
 // a minta, mint a services/[id] GET-nél.
@@ -78,8 +89,27 @@ export async function PATCH(request: NextRequest) {
   // — itt, mentés előtt titkosítjuk, hogy sose kerüljön nyers szöveg a DB-be.
   encryptInvoiceKeysInBody(safeBody)
 
-  const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr') || undefined
   const payload = await getPayloadClient()
+
+  // Vendég-előleg csak akkor kapcsolható be, ha az üzlet legalább egy foglalási-feltétel
+  // szakaszt kitöltött — az előleg-kérésért és annak visszatérítési szabályaiért az ÜZLET
+  // vállal felelősséget, ezt a saját feltételeinek kell rögzítenie, nem a platform ad hozzá
+  // alapértelmezett szöveget. Szerver-oldali kapu, hogy a kliens-oldali form ne legyen
+  // megkerülhető.
+  const depositSettings = safeBody.deposit_settings as { enabled?: boolean } | undefined
+  if (depositSettings?.enabled === true) {
+    const termsSections = Array.isArray(safeBody.terms_sections)
+      ? safeBody.terms_sections
+      : (await payload.findByID({ collection: 'restaurants', id: active.id, depth: 0, overrideAccess: true })).terms_sections
+    if (!hasFilledTerms(termsSections)) {
+      return NextResponse.json(
+        { error: 'Az előleg bekapcsolása előtt töltsd ki a foglalási feltételeket (Dokumentumok & jogi fül) — ez rögzíti, hogy az előleg-kérésért és annak visszatérítési szabályaiért az üzlet vállal felelősséget.' },
+        { status: 400 },
+      )
+    }
+  }
+
+  const locale = (request.nextUrl.searchParams.get('locale') as 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr') || undefined
   const doUpdate = () => payload.update({
     collection: 'restaurants',
     id: active.id,

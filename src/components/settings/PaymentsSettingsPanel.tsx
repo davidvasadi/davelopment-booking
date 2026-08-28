@@ -192,12 +192,17 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             credentials: 'include',
             body: JSON.stringify(body),
           })
-          if (!res.ok) throw new Error()
+          if (!res.ok) {
+            // A szerver konkrét indoklást ad vissza pl. az előleg-bekapcsolás feltétel-kapujánál
+            // (nincs kitöltve a foglalási feltétel) — ezt mutassuk, ne az általános hibaszöveget.
+            const json = await res.json().catch(() => null)
+            throw new Error(typeof json?.error === 'string' ? json.error : undefined)
+          }
           setSzamlazzKeyInput('')
           setBillingoKeyInput('')
           return true
-        } catch {
-          toast.error('Hiba történt')
+        } catch (err) {
+          toast.error(err instanceof Error && err.message ? err.message : 'Hiba történt')
           return false
         }
       },
