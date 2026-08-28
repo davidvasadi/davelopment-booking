@@ -93,7 +93,9 @@ export async function POST(request: NextRequest) {
           },
           quantity: 1,
         }],
+        customer_email: data.purchaserEmail,
         payment_intent_data: {
+          receipt_email: data.purchaserEmail,
           metadata: {
             kind: 'gift-voucher',
             ...(data.kind === 'salon' ? { salonId: data.salonId } : { restaurantId: data.restaurantId }),

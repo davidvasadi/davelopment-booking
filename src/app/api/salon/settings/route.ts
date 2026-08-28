@@ -99,13 +99,34 @@ export async function PATCH(request: NextRequest) {
   // alapértelmezett szöveget. Szerver-oldali kapu, hogy a kliens-oldali form ne legyen
   // megkerülhető.
   const depositSettings = safeBody.deposit_settings as { enabled?: boolean } | undefined
-  if (depositSettings?.enabled === true) {
-    const termsSections = Array.isArray(safeBody.terms_sections)
-      ? safeBody.terms_sections
-      : (await payload.findByID({ collection: 'salons', id: active.id, depth: 0, overrideAccess: true })).terms_sections
+  const voucherSettings = safeBody.voucher_settings as { enabled?: boolean } | undefined
+  const wantsDeposit = depositSettings?.enabled === true
+  const wantsVoucher = voucherSettings?.enabled === true
+  let currentDoc: Record<string, unknown> | null = null
+  const loadCurrentDoc = async () => {
+    if (!currentDoc) currentDoc = await payload.findByID({ collection: 'salons', id: active.id, depth: 0, overrideAccess: true }) as unknown as Record<string, unknown>
+    return currentDoc
+  }
+
+  if (wantsDeposit) {
+    const termsSections = Array.isArray(safeBody.terms_sections) ? safeBody.terms_sections : (await loadCurrentDoc()).terms_sections
     if (!hasFilledTerms(termsSections)) {
       return NextResponse.json(
         { error: 'Az előleg bekapcsolása előtt töltsd ki a foglalási feltételeket (Dokumentumok & jogi fül) — ez rögzíti, hogy az előleg-kérésért és annak visszatérítési szabályaiért az üzlet vállal felelősséget.' },
+        { status: 400 },
+      )
+    }
+  }
+
+  // Előleg és ajándékutalvány is ugyanazon a Stripe Connect fiókon keresztül fut (nincs
+  // második Connect-integráció, ld. voucherSettingsFields kommentje) — ha az üzlet nincs
+  // KYC-vel onboardolva, a vendég fizetése a checkoutnál törne el láthatatlanul. Szerver-
+  // oldali kapu, mert `stripe_connect_onboarded` a klienstől sose jöhet (FORBIDDEN_KEYS).
+  if (wantsDeposit || wantsVoucher) {
+    const onboarded = (await loadCurrentDoc()).stripe_connect_onboarded === true
+    if (!onboarded) {
+      return NextResponse.json(
+        { error: 'Az előleg/ajándékutalvány bekapcsolása előtt kösd össze a fiókodat a Stripe-pal (Fizetések fül) — enélkül a vendég fizetése nem tudna lemenni.' },
         { status: 400 },
       )
     }

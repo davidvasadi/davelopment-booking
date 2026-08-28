@@ -24,10 +24,16 @@ const tagFor = (kind: PlaceKind, slug: string) =>
 function revalidatePlace(kind: PlaceKind, slug: string | null | undefined) {
   if (!slug) return
   try {
-    // Next 16: a revalidateTag második argumentuma a cache-profil. A 'max' a
-    // beépített „korlátlanul cache-elt, csak explicit invalidációkor frissül"
-    // profil — pontosan az on-demand revalidáció szándéka.
-    revalidateTag(tagFor(kind, slug), 'max')
+    // A 'max' NÉVVEL hívott cache-profil a Next 16 tényleges implementációja
+    // szerint NEM azonnali törlés, hanem "stale-while-revalidate" lágy
+    // frissítés (a 'max' profilnak van egy beépített ~5 perces stale-ablaka
+    // még invalidálás után is) — élesben ez percekig elavult adatot szolgált
+    // ki (pl. újonnan létrehozott ajándékutalvány-típus késve jelent meg a
+    // publikus oldalon). Az explicit `{ expire: 0 }` cache-profil az, amit a
+    // Next forráskódja (revalidate.js) is az azonnali/kemény invalidáció
+    // feltételeként kezel — ez NEM egy elnevezett profil, hanem egy
+    // egyedi CacheLife-objektum.
+    revalidateTag(tagFor(kind, slug), { expire: 0 })
   } catch {
     // A cache-revalidáció best-effort: ha itt hibázik (pl. static generation
     // store hiánya a hívási kontextusban), az NEM bukhatja el a mögötte futó

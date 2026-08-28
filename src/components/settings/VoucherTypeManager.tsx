@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Loader2, Plus, Pencil, Trash2, ImagePlus, X } from 'lucide-react'
 import { PopupModal } from '@/components/ui/popup-modal'
@@ -42,6 +43,7 @@ function imageUrlOf(image: VoucherTypeData['image']): string | null {
 }
 
 export function VoucherTypeManager({ variant, businessId, initialTypes, minAmountHuf, maxAmountHuf, supportedLocales }: Props) {
+  const router = useRouter()
   const [types, setTypes] = useState<VoucherTypeData[]>(initialTypes)
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<VoucherTypeData | null>(null)
@@ -151,6 +153,7 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
         })
         if (!res.ok) throw new Error()
         setModalOpen(false)
+        router.refresh()
         toast.success('Fordítás mentve')
       } catch {
         toast.error('Mentés sikertelen')
@@ -182,6 +185,9 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
       const saved: VoucherTypeData = json.doc
       setTypes(prev => editing ? prev.map(t => t.id === saved.id ? saved : t) : [...prev, saved])
       setModalOpen(false)
+      // A popup bezárás/újranyitás közben remountol és a szülőtől kapott `initialTypes` propból
+      // épül újra — enélkül a helyi state-be írt új elem eltűnne a következő megnyitáskor.
+      router.refresh()
       toast.success('Mentve')
     } catch {
       toast.error('Mentés sikertelen')
@@ -197,6 +203,8 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
     if (!res.ok) {
       setTypes(prev => prev.map(x => x.id === t.id ? { ...x, active: t.active } : x))
       toast.error('Nem sikerült frissíteni')
+    } else {
+      router.refresh()
     }
   }
 
@@ -205,6 +213,7 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
     const res = await fetch(`/api/gift-voucher-types/${t.id}`, { method: 'DELETE', credentials: 'include' })
     if (!res.ok) return toast.error('Törlés sikertelen')
     setTypes(prev => prev.filter(x => x.id !== t.id))
+    router.refresh()
     toast.success('Törölve')
   }
 

@@ -151,7 +151,7 @@ function ServiceRow({
           {imgUrl
             ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
             : logoUrl
-              ? <img src={logoUrl} alt="" className="h-full w-full object-cover opacity-70" />
+              ? <img src={logoUrl} alt="" className="h-full w-full object-contain p-1.5 opacity-70" />
               : <Scissors className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
         </span>
         <div className="min-w-0">
@@ -249,7 +249,7 @@ function CategoryGroup({
             </div>
           ) : logoUrl ? (
             <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-white">
-              <img src={logoUrl} alt="" className="h-full w-full object-cover opacity-70" />
+              <img src={logoUrl} alt="" className="h-full w-full object-contain p-1.5 opacity-70" />
             </div>
           ) : (
             <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px]" style={{ background: tint.head }}>
@@ -318,7 +318,7 @@ function CategoryGroupStatic({
         <div className="flex min-w-0 items-center gap-3">
           {logoUrl ? (
             <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-white">
-              <img src={logoUrl} alt="" className="h-full w-full object-cover opacity-70" />
+              <img src={logoUrl} alt="" className="h-full w-full object-contain p-1.5 opacity-70" />
             </div>
           ) : (
             <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px]" style={{ background: tint.head }}>
