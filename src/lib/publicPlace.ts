@@ -67,7 +67,7 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
     payload.find({
       collection: 'services',
       where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }] },
-      sort: 'name',
+      sort: ['sort_order', 'name'],
       depth: 1,
       limit: 100,
       locale,

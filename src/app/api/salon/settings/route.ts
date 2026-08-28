@@ -4,6 +4,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { can } from '@/lib/permissions'
 import { encryptInvoiceKeysInBody } from '@/lib/encryption'
+import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
 
 // `stripe_connect_*`: KIZÁRÓLAG szerver-oldali Connect onboarding/webhook írhatja — a route
 // `overrideAccess: true`-val ment, ami a mező-szintű admin-only `access.update`-et (lásd
@@ -99,6 +100,19 @@ export async function PATCH(request: NextRequest) {
       await doUpdate()
     } else {
       throw err
+    }
+  }
+
+  // Ha a foglalási ablakot (booking_window_days) most tolták ki, a most megnyíló napokat
+  // rögtön feltöltjük alap "Műszak"-ként, MEGVÁRVA (nem fire-and-forget) — enélkül a user a
+  // mentés után azonnal a naptárra ugorva még üresen látta volna az új napot, a következő
+  // éjszakai cron-futásig (ld. `src/lib/scheduleAutofill.ts`, ugyanezt hívja a cron is). Egy
+  // beállítás-mentés nem forgalom-kritikus útvonal, a pár száz ms/pár mp többlet elfogadható.
+  if (typeof safeBody.booking_window_days === 'number') {
+    try {
+      await autofillSalonSchedule(payload, String(active.id), safeBody.booking_window_days)
+    } catch (err) {
+      payload.logger.error(`[salon/settings] schedule-autofill hiba: ${String(err)}`)
     }
   }
 

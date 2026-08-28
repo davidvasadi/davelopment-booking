@@ -38,7 +38,7 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
   const canManage = can(capabilities, 'schedule.manage')
   const payload = await getPayloadClient()
 
-  const [membersRes, shiftsRes, exceptionsRes] = await Promise.all([
+  const [membersRes, shiftsRes, exceptionsRes, weeklyClosedRes] = await Promise.all([
     payload.find({
       // AKTÍV + MEGHÍVOTT tagok is: a meghívottakat is be lehessen osztani (különben üres a lista,
       // amíg senki nem fogadta el a meghívót → a Beosztás használhatatlan).
@@ -64,6 +64,14 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
       limit: 500,
       overrideAccess: true,
     }),
+    // Heti visszatérő zárvatartás (pl. "minden vasárnap zárva") — a szalon oldalihoz hasonlóan.
+    payload.find({
+      collection: 'opening-hours',
+      where: { and: [{ restaurant: { equals: restaurant.id } }, { is_open: { equals: false } }] },
+      depth: 0,
+      limit: 20,
+      overrideAccess: true,
+    }),
   ])
 
   // Tartomány → egyedi napok listája
@@ -77,6 +85,8 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
     }
     return dates
   })
+  const DOW_NUM: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 }
+  const closedWeekdays = Array.from(new Set((weeklyClosedRes.docs as { day_of_week?: string | null }[]).map((e) => DOW_NUM[e.day_of_week ?? '']).filter((n): n is number => n != null)))
 
   const members: StaffVM[] = (membersRes.docs as Membership[]).map((m) => {
     const u = typeof m.user === 'object' ? (m.user as User) : null
@@ -113,6 +123,8 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
     start_time: sh.start_time ?? null,
     end_time: sh.end_time ?? null,
     hours: typeof sh.hours === 'number' ? sh.hours : null,
+    break_start: null,
+    break_end: null,
     note: sh.note ?? null,
     left_early_at: sh.left_early_at ?? null,
     left_early_reason: (sh.left_early_reason ?? null) as 'sick' | 'personal' | null,
@@ -174,6 +186,7 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
         month={now.getMonth()}
         dailyTips={dailyTips}
         closedDates={closedDates}
+        closedWeekdays={closedWeekdays}
         canManage={canManage}
         initialDate={initialDate}
       />

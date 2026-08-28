@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
 import { emitBookingChange } from '@/lib/sseEmitter'
+import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
 import type { StaffMember } from '@/payload/payload-types'
 
 /**
@@ -23,8 +24,12 @@ async function loadManageableStaff(id: string, userId: string | number) {
   const salonId = staff.salon ? (typeof staff.salon === 'object' ? staff.salon.id : staff.salon) : null
   if (!salonId) return { error: 'Érvénytelen munkatárs', status: 400 as const }
   const denied = await assertCapability(userId, 'salon', salonId, 'staff.manage')
-  if (denied) return { error: denied.error, status: denied.status }
-  return { payload, staff, salonId }
+  if (!denied) return { payload, staff, salonId, isSelfOnly: false }
+  // Nincs staff.manage — de a SAJÁT (linkelt) rekordját akkor is szerkesztheti, KORLÁTOZOTTAN
+  // (jelenleg csak az alap napi szünet, önkiszolgáló beállítás, ld. `default_break_*`).
+  const isSelf = staff.user != null && String(typeof staff.user === 'object' ? staff.user.id : staff.user) === String(userId)
+  if (isSelf) return { payload, staff, salonId, isSelfOnly: true }
+  return { error: denied.error, status: denied.status }
 }
 
 /**
@@ -119,11 +124,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
   const locale = request.nextUrl.searchParams.get('locale') || undefined
-  const data: Record<string, unknown> = {
-    ...body,
-    ...(body.salon != null ? { salon: num(body.salon) } : {}),
-    ...(body.avatar != null ? { avatar: num(body.avatar) } : {}),
-  }
+  const data: Record<string, unknown> = loaded.isSelfOnly
+    ? {
+        ...('default_break_start' in body ? { default_break_start: body.default_break_start ?? null } : {}),
+        ...('default_break_end' in body ? { default_break_end: body.default_break_end ?? null } : {}),
+      }
+    : {
+        ...body,
+        ...(body.salon != null ? { salon: num(body.salon) } : {}),
+        ...(body.avatar != null ? { avatar: num(body.avatar) } : {}),
+      }
 
   try {
     const doc = await loaded.payload.update({
@@ -151,6 +161,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         await syncMembershipPosition(loaded.payload, loaded.salonId, email, body.role_title.trim())
       } catch (e) {
         console.error('[api/staff PATCH] membership-pozíció szinkron sikertelen', e)
+      }
+    }
+    // Ha az alap napi szünet változott, azonnal ráírjuk a Naptárra (nem várunk az éjszakai
+    // cronig) — ugyanaz a mintázat, mint a szalon-beállítás/elérhetőség-kivétel mentésénél.
+    if ('default_break_start' in body || 'default_break_end' in body) {
+      try {
+        const salon = await loaded.payload.findByID({ collection: 'salons', id: loaded.salonId, depth: 0, overrideAccess: true })
+        if (salon) await autofillSalonSchedule(loaded.payload, String(loaded.salonId), salon.booking_window_days ?? 60)
+      } catch (e) {
+        console.error('[api/staff PATCH] szünet schedule-autofill szinkron hiba', e)
       }
     }
 

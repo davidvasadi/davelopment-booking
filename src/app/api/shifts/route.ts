@@ -12,6 +12,40 @@ import { notifyShiftMember, notifyShiftStaff } from '@/lib/notifyShift'
  */
 const num = (v: unknown) => (v == null ? v : /^\d+$/.test(String(v)) ? Number(v) : v)
 
+/**
+ * GET /api/shifts?staff=X&date=YYYY-MM-DD — egyetlen nap egyetlen munkatárs bejegyzése (a Napi
+ * szünet önkiszolgáló szerkesztéséhez a Munkatársak-oldalon és a Saját profilban). Jogosultság:
+ * `schedule.manage` az üzletben, VAGY a saját (linkelt) staff-rekordja — hogy a munkatárs a
+ * SAJÁT napját is lekérdezhesse `schedule.manage` nélkül.
+ */
+export async function GET(request: NextRequest) {
+  const user = await getCurrentUser()
+  if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
+
+  const staffId = request.nextUrl.searchParams.get('staff')
+  const date = request.nextUrl.searchParams.get('date')
+  if (!staffId || !date) return NextResponse.json({ error: 'Hiányzó staff vagy date' }, { status: 400 })
+
+  const payload = await getPayloadClient()
+  const staffDoc = await payload.findByID({ collection: 'staff', id: staffId, depth: 0, overrideAccess: true }).catch(() => null)
+  if (!staffDoc) return NextResponse.json({ error: 'Nem található munkatárs' }, { status: 404 })
+
+  const isSelf = staffDoc.user != null && String(typeof staffDoc.user === 'object' ? staffDoc.user.id : staffDoc.user) === String(user.id)
+  if (!isSelf) {
+    const denied = await assertCapability(user.id, 'salon', staffDoc.salon, 'schedule.manage')
+    if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
+  }
+
+  const res = await payload.find({
+    collection: 'shifts',
+    where: { and: [{ staff: { equals: staffId } }, { date: { equals: `${date}T12:00:00.000Z` } }] },
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+  })
+  return NextResponse.json({ doc: res.docs[0] ?? null })
+}
+
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
@@ -39,6 +73,8 @@ export async function POST(request: NextRequest) {
     start_time: body.start_time ?? null,
     end_time: body.end_time ?? null,
     hours: body.hours ?? null,
+    break_start: body.break_start ?? null,
+    break_end: body.break_end ?? null,
     note: body.note ?? null,
     ...('left_early_at' in body ? { left_early_at: body.left_early_at ?? null } : {}),
     ...('left_early_reason' in body ? { left_early_reason: body.left_early_reason ?? null } : {}),

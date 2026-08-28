@@ -2,6 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
+import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
+
+/** A naptár-kivétel írása/törlése után a Naptár/Shifts azonnal kövesse — ne várjon az éjszakai cronra. */
+async function resyncSalonSchedule(payload: Awaited<ReturnType<typeof getPayloadClient>>, salonId: unknown) {
+  try {
+    const salon = await payload.findByID({ collection: 'salons', id: salonId as string | number, depth: 0, overrideAccess: true })
+    if (salon) await autofillSalonSchedule(payload, String(salon.id), salon.booking_window_days ?? 60)
+  } catch (err) {
+    payload.logger.error(`[availability] schedule-autofill szinkron hiba: ${String(err)}`)
+  }
+}
 
 /**
  * PATCH  /api/availability/[id]  — naptár-kivétel frissítése
@@ -41,6 +52,7 @@ export async function PATCH(
       overrideAccess: true,
       user,
     })
+    await resyncSalonSchedule(payload, existing.salon)
     return NextResponse.json({ doc })
   } catch (e) {
     console.error('[api/availability PATCH]', e)
@@ -68,6 +80,7 @@ export async function DELETE(
 
   try {
     await payload.delete({ collection: 'availability', id: numId, overrideAccess: true })
+    await resyncSalonSchedule(payload, existing.salon)
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error('[api/availability DELETE]', e)

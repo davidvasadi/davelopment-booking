@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
 import { NumberStepper } from '@/components/ui/NumberStepper'
-import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
+import { Camera, Loader2, ImagePlus, X, Trash2, Eye, Move } from 'lucide-react'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
 import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -24,6 +24,9 @@ import { CustomQuestionsEditor, type CustomQuestionType } from '@/components/set
 import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
+import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
+import { CoverFocalPointEditor } from '@/components/settings/CoverFocalPointEditor'
+import { parseEmailBlocks } from '@/lib/emailBlocks'
 import { useSettingsFormContext } from '@/components/settings/settingsFormContext'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { compressImage } from '@/lib/compressImage'
@@ -88,8 +91,9 @@ function SaveBar({ dirty, submitting, onSave, onPreview }: { dirty: boolean; sub
         type="button"
         onClick={onSave}
         disabled={!dirty || submitting}
-        className="h-12 flex-1 px-6 rounded-dav-pill bg-ink-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity disabled:opacity-40 sm:h-11 sm:flex-none"
+        className="flex h-12 flex-1 items-center justify-center gap-2 px-6 rounded-dav-pill bg-ink-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity disabled:opacity-70 sm:h-11 sm:flex-none"
       >
+        {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
         {submitting ? 'Mentés...' : 'Mentés'}
       </button>
       {onPreview && (
@@ -126,6 +130,7 @@ const schema = z.object({
   email_show_address: z.boolean(),
   email_show_directions: z.boolean(),
   email_directions_address: z.string().optional(),
+  email_show_terms: z.boolean(),
   legal_name: z.string().optional(),
   tax_number: z.string().optional(),
   company_reg_number: z.string().optional(),
@@ -178,6 +183,13 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
   const [uploadingCover, setUploadingCover] = useState(false)
   const [coverModified, setCoverModified] = useState(false)
   const coverRef = useRef<HTMLInputElement>(null)
+  const [coverFocalX, setCoverFocalX] = useState(salon.cover_focal_x ?? 50)
+  const [coverFocalY, setCoverFocalY] = useState(salon.cover_focal_y ?? 50)
+  const [coverZoom, setCoverZoom] = useState(salon.cover_zoom ?? 1)
+  const [focalEditorOpen, setFocalEditorOpen] = useState(false)
+
+  const [socialLinks, setSocialLinks] = useState<string[]>((salon.social_links ?? []).map((s) => s.url))
+  const [socialLinksModified, setSocialLinksModified] = useState(false)
 
   const initialValues: FormData = {
     name: salon.name,
@@ -198,6 +210,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     email_show_address: salon.email_show_address ?? false,
     email_show_directions: salon.email_show_directions ?? false,
     email_directions_address: salon.email_directions_address ?? '',
+    email_show_terms: salon.email_show_terms ?? true,
     legal_name: salon.legal_name ?? '',
     tax_number: salon.tax_number ?? '',
     company_reg_number: salon.company_reg_number ?? '',
@@ -231,19 +244,20 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     huValues: {
       description: salon.description ?? '',
       booking_email_subject: salon.booking_email_subject ?? '',
-      booking_email_intro: salon.booking_email_intro ?? '',
+      booking_email_intro: parseEmailBlocks(salon.booking_email_intro),
       cancel_email_subject: salon.cancel_email_subject ?? '',
-      cancel_email_intro: salon.cancel_email_intro ?? '',
+      cancel_email_intro: parseEmailBlocks(salon.cancel_email_intro),
       reminder_email_subject: salon.reminder_email_subject ?? '',
-      reminder_email_intro: salon.reminder_email_intro ?? '',
+      reminder_email_intro: parseEmailBlocks(salon.reminder_email_intro),
       feedback_email_subject: salon.feedback_email_subject ?? '',
-      feedback_email_intro: salon.feedback_email_intro ?? '',
+      feedback_email_intro: parseEmailBlocks(salon.feedback_email_intro),
       notify_email_subject: salon.notify_email_subject ?? '',
-      notify_email_intro: salon.notify_email_intro ?? '',
+      notify_email_intro: parseEmailBlocks(salon.notify_email_intro),
       terms_sections: (salon.terms_sections ?? []).map((s) => ({ title: s.title ?? '', body: s.body ?? '' })),
       good_to_know: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
       event_types: [], // szalon-only: nincs esemény-típus (étterem-funkció)
       custom_questions: (salon.custom_questions ?? []).map((q) => ({
+        id: q.id ?? crypto.randomUUID(),
         label: q.label ?? '',
         type: (q.type ?? 'text') as CustomQuestionType,
         options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),
@@ -280,7 +294,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
   const TAB_FIELDS: Record<string, (keyof FormData)[]> = {
     general: ['name', 'slug', 'postal_code', 'city', 'address', 'phone', 'email', 'website'],
     booking: ['booking_buffer_minutes', 'booking_window_days', 'require_phone', 'notify_new_bookings'],
-    email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
+    email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address', 'email_show_terms'],
     documents: [],
   }
   // Mely fülön van localizált tartalom (a `loc.dirty` is számít a fül „mentetlen" jelzésénél).
@@ -293,10 +307,36 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
   const activeTab = hubCtx?.controlledTab ?? controlledTab ?? internalTab
   const [pendingTab, setPendingTab] = useState<string | null>(null)
 
+  // A borítókép-szerkesztő (pozíció+nagyítás) SAJÁT, azonnali mentése — nem a "Beállítások"
+  // fül csoportos mentésére vár, hanem a modal "Mentés" gombja rögtön PATCH-eli, a friss
+  // (paraméterként kapott, NEM a state-ből olvasott) x/y/zoom értékkel, mert a state-frissítés
+  // még nem futott volna le, mire ez a hívás elindul (render-batching miatt).
+  const saveCoverFocal = async (x: number, y: number, z: number): Promise<boolean> => {
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/salon/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ cover_image: coverId ?? null, cover_focal_x: x, cover_focal_y: y, cover_zoom: z }),
+      })
+      if (!res.ok) { toast.error('Hiba történt a mentés során'); return false }
+      setCoverFocalX(x); setCoverFocalY(y); setCoverZoom(z); setCoverModified(false)
+      toast.success('Borítókép mentve')
+      router.refresh()
+      return true
+    } catch {
+      toast.error('Hiba történt a mentés során')
+      return false
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const tabDirty = (tab: string): boolean => {
     const fieldDirty = (TAB_FIELDS[tab] ?? []).some((k) => dirtyFields[k])
     const locDirty = LOC_TABS.has(tab) && loc.dirty
-    if (tab === 'general') return fieldDirty || logoModified || coverModified || locDirty
+    if (tab === 'general') return fieldDirty || logoModified || coverModified || socialLinksModified || locDirty
     if (tab === 'languages') return supportedDirty
     return fieldDirty || locDirty
   }
@@ -309,7 +349,8 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       const body: Record<string, unknown> = {}
       for (const k of fields) body[k] = values[k]
       if (includeMedia && logoModified) body.logo = logoId ?? null
-      if (includeMedia && coverModified) body.cover_image = coverId ?? null
+      if (includeMedia && coverModified) { body.cover_image = coverId ?? null; body.cover_focal_x = coverFocalX; body.cover_focal_y = coverFocalY; body.cover_zoom = coverZoom }
+      if (includeMedia && socialLinksModified) body.social_links = socialLinks.filter((u) => u.trim()).map((url) => ({ url }))
       const res = await fetch('/api/salon/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -330,7 +371,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       reset(values, { keepValues: true })
       defaultsRef.current = values
       if (fields.includes('slug')) { setSavedSlug(values.slug); setSlugServerError(null) }
-      if (includeMedia) { setLogoModified(false); setCoverModified(false) }
+      if (includeMedia) { setLogoModified(false); setCoverModified(false); setSocialLinksModified(false) }
       toast.success('Beállítások mentve')
       router.refresh()
       return true
@@ -357,7 +398,11 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     for (const k of (TAB_FIELDS[tab] ?? [])) {
       setValue(k, defaultsRef.current[k], { shouldDirty: false })
     }
-    if (tab === 'general') { setLogoModified(false); setCoverModified(false) }
+    if (tab === 'general') {
+      setLogoModified(false); setCoverModified(false)
+      setCoverFocalX(salon.cover_focal_x ?? 50); setCoverFocalY(salon.cover_focal_y ?? 50); setCoverZoom(salon.cover_zoom ?? 1)
+      setSocialLinks((salon.social_links ?? []).map((s) => s.url)); setSocialLinksModified(false)
+    }
     if (tab === 'languages') setSupportedExtras(savedSupported)
     // A localizált mezőket (jó tudni, feltételek, email-sablonok, egyedi kérdések) a `loc` hook
     // KÜLÖN cache-eli — enélkül a „Mégse" ezeket sose állította volna vissza, csak a sima
@@ -488,7 +533,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
               <Loader2 className="h-6 w-6 text-ink-soft animate-spin" />
             ) : coverPreview ? (
               <>
-                <img src={coverPreview} alt="Borítókép" className="absolute inset-0 h-full w-full object-cover opacity-40" />
+                <img src={coverPreview} alt="Borítókép" className="absolute inset-0 h-full w-full object-cover opacity-40" style={{ objectPosition: `${coverFocalX}% ${coverFocalY}%`, transform: `scale(${coverZoom})`, transformOrigin: `${coverFocalX}% ${coverFocalY}%` }} />
                 <div className="relative flex flex-col items-center gap-1.5 text-ink-soft">
                   <ImagePlus className="h-5 w-5" />
                   <span className="text-xs font-medium">Csere</span>
@@ -502,15 +547,38 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
             )}
           </button>
           {coverPreview && !uploadingCover && (
-            <button
-              type="button"
-              onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
-              className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
-            >
-              <X className="h-3.5 w-3.5 text-white" />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setFocalEditorOpen(true)}
+                className="absolute top-2 left-2 flex h-7 items-center gap-1.5 rounded-full bg-black/60 px-2.5 text-[11px] font-medium text-white hover:bg-black/80 transition-colors"
+              >
+                <Move className="h-3.5 w-3.5" /> Szerkesztés
+              </button>
+              <button
+                type="button"
+                onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
+                className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
+              >
+                <X className="h-3.5 w-3.5 text-white" />
+              </button>
+            </>
           )}
         </div>
+        {focalEditorOpen && coverPreview && (
+          <CoverFocalPointEditor
+            imageUrl={coverPreview}
+            initialX={coverFocalX}
+            initialY={coverFocalY}
+            initialZoom={coverZoom}
+            onCancel={() => setFocalEditorOpen(false)}
+            onSave={async (x, y, z) => {
+              const ok = await saveCoverFocal(x, y, z)
+              if (ok) setFocalEditorOpen(false)
+              return ok
+            }}
+          />
+        )}
         <input
           ref={coverRef}
           type="file"
@@ -628,6 +696,14 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
           <Label className={labelBase}>Weboldal</Label>
           <Input className={inputBase} {...register('website')} type="url" placeholder="https://" />
         </div>
+        <div className="space-y-1.5">
+          <Label className={labelBase}>Közösségi linkek</Label>
+          <SocialLinksEditor
+            value={socialLinks}
+            onChange={(next) => { setSocialLinks(next); setSocialLinksModified(true) }}
+            inputClassName={inputBase}
+          />
+        </div>
       </Section>
 
       <Section id="description" title="Bemutatkozás" full>
@@ -686,7 +762,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
           {/* Bal oszlop */}
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label className={labelBase}>Puffer foglalások között (perc)</Label>
+              <Label className={labelBase}>Szünet a foglalások között (perc)</Label>
               <div className="max-w-xs">
                 <NumberStepper
                   value={watch('booking_buffer_minutes') ?? 0}
@@ -806,6 +882,9 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
                   />
                 </div>
               )}
+            </div>
+            <div className="px-4 py-3.5">
+              <Toggle checked={watch('email_show_terms')} onChange={(v) => setValue('email_show_terms', v, { shouldDirty: true })} label="Foglalási feltételek linkje" description="Csak akkor jelenik meg, ha van megadva foglalási feltétel." />
             </div>
           </div>
         </Section>

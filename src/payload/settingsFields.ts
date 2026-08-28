@@ -89,6 +89,15 @@ export const settingsExtensionFields: Field[] = [
       { name: 'deposit_enabled', type: 'checkbox', defaultValue: false },
       { name: 'waitlist_enabled', type: 'checkbox', defaultValue: false },
       { name: 'cancellation_protection', type: 'checkbox', defaultValue: false },
+      // Cím-mező kötelezővé tétele FÜGGETLENÜL az előlegtől (pl. saját nyilvántartáshoz,
+      // számlázáshoz kell, deposit nélkül is) — lásd ProfileCard/RestaurantCard `addressRequired`.
+      { name: 'require_address', type: 'checkbox', defaultValue: false, label: 'Cím megadása mindig kötelező' },
+      {
+        name: 'require_address_note',
+        type: 'text',
+        label: 'Cím-kérés indoklása a vendégnek',
+        admin: { description: 'Ez a szöveg jelenik meg a vendégnek a cím-mező alatt, hogy értse, miért kérjük. Üresen hagyva egy általános szöveg jelenik meg.' },
+      },
     ],
   },
   {
@@ -393,11 +402,14 @@ const emailContentPair = (type: string, labelHu: string): Field[] => [
     admin: { description: `Opcionális, nyelvenként. Üresen → alap tárgy. ${VARS_HINT}` },
   },
   {
+    // Blokk-alapú tartalom (JSON, `ComposerBlock[]` — lásd lib/emailBlocks.ts), UGYANAZ a
+    // szerkesztő-motor, mint a marketing hírlevélé. Az email fix, márkás váza (foglalás-adatok
+    // kártyája, lábléc) NEM ide tartozik — az mindig megmarad, ez csak a bevezető rész.
     name: `${type}_email_intro`,
-    type: 'textarea',
+    type: 'json',
     localized: true,
-    label: `${labelHu} email bevezető szövege`,
-    admin: { description: `Sima szöveg, nyelvenként. Az email tetejére kerül. ${VARS_HINT}` },
+    label: `${labelHu} email bevezető tartalma`,
+    admin: { description: `Blokk-szerkesztős tartalom, nyelvenként. Az email tetejére kerül. ${VARS_HINT}` },
   },
 ]
 

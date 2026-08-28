@@ -56,6 +56,8 @@ export type NotificationPrefs = {
 // „Hamarosan", a várólista a Funkciók gazdája — ezért nincsenek itt.
 export type BookingRulesToggles = {
   auto_confirm: boolean
+  require_address: boolean
+  require_address_note: string
 }
 
 /* ── Fehér kártya — a Nyitvatartás/Foglalások kártya-mintája (bordered, dav árnyék) ── */
@@ -478,12 +480,26 @@ export function SettingsHub({
   // ── Foglalási szabályok — CSAK a valós, hatással bíró szabály: `auto_confirm`. A `deposit`/
   //    `cancellation_protection` fizetési integrációt igényel (őszinte „Hamarosan"), a `waitlist`
   //    gazdája a Funkciók oldal (`feature_modules.waitlist_on`) — ezért itt nem duplázzuk.
-  const [ruleToggles, setRuleToggles] = useState({ autoConfirm: bookingRules.auto_confirm })
-  const rulesBaseline = useMemo(() => ({ autoConfirm: bookingRules.auto_confirm }), [bookingRules])
+  const [ruleToggles, setRuleToggles] = useState({
+    autoConfirm: bookingRules.auto_confirm,
+    requireAddress: bookingRules.require_address,
+    requireAddressNote: bookingRules.require_address_note,
+  })
+  const rulesBaseline = useMemo(() => ({
+    autoConfirm: bookingRules.auto_confirm,
+    requireAddress: bookingRules.require_address,
+    requireAddressNote: bookingRules.require_address_note,
+  }), [bookingRules])
   const rulesDirty = JSON.stringify(ruleToggles) !== JSON.stringify(rulesBaseline)
   const [rulesSaved, setRulesSaved] = useState(false)
   const saveRules = async () => {
-    const ok = await patchGroup({ booking_rules: { auto_confirm: ruleToggles.autoConfirm } })
+    const ok = await patchGroup({
+      booking_rules: {
+        auto_confirm: ruleToggles.autoConfirm,
+        require_address: ruleToggles.requireAddress,
+        require_address_note: ruleToggles.requireAddressNote.trim() || null,
+      },
+    })
     if (ok) setRulesSaved(true)
   }
   // Lásd a Google fülnél lentebb lévő megjegyzést — ugyanaz a "ne villanjon vissza
@@ -679,17 +695,33 @@ export function SettingsHub({
   // jelentett állapot) / Értesítések / a Foglalás fülbe összevont auto-megerősítés szabály.
   // Egyetlen mentés-hely az egész oldalra.
   const saveForm = useCallback(async () => {
-    const ok = await formApiRef.current?.save()
-    if (ok) { router.refresh(); setFormSaved(true) }
+    setSaving(true)
+    try {
+      const ok = await formApiRef.current?.save()
+      if (ok) { router.refresh(); setFormSaved(true) }
+    } finally {
+      setSaving(false)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // A „Foglalás" fül a profil-form saját booking-fülét, az auto-megerősítés szabályt ÉS a
   // Foglalási funkciókat (BookingFeatures) is mutatja — a mentés-sáv mindhármat lefedi.
   const saveBookingTab = useCallback(async () => {
-    if (rulesDirty) await saveRules()
-    if (featuresPanel.dirty) await featuresPanel.apiRef.current?.save()
-    const ok = await formApiRef.current?.save()
-    if (ok) { router.refresh(); setFormSaved(true) }
-  }, [rulesDirty, featuresPanel.dirty]) // eslint-disable-line react-hooks/exhaustive-deps
+    setSaving(true)
+    try {
+      if (rulesDirty) await saveRules()
+      if (featuresPanel.dirty) await featuresPanel.apiRef.current?.save()
+      const ok = await formApiRef.current?.save()
+      if (ok) { router.refresh(); setFormSaved(true) }
+    } finally {
+      setSaving(false)
+    }
+    // FONTOS: a `saveRules` NEM ref-en keresztül olvassa a `ruleToggles`-t (a többi mentés-
+    // függvénnyel ellentétben, amik csak `.current`-et hívnak) — ha `saveRules` hiányzik a
+    // dependency-ből, ez a callback csak akkor frissül újra, amikor `rulesDirty` ténylegesen
+    // vált (jellemzően az ELSŐ karakternél/kapcsoló-váltásnál), utána viszont befagy: a Mentés
+    // gomb egy RÉGI `ruleToggles`-pillanatképet küld el, hiába gépelt tovább a user — pontosan
+    // ez okozta, hogy a beírt szöveg helyett csak az első pár karakter mentődött el.
+  }, [rulesDirty, featuresPanel.dirty, saveRules]) // eslint-disable-line react-hooks/exhaustive-deps
   // Az összevont sáv (mindhárom lehetséges forrásból: profil-form/szabály/funkciók) csak akkor
   // rejti el a "Mentve"-t, ha VALAMENNYI érintett `dirty` ténylegesen hamisra váltott — a
   // `router.refresh()` aszinkron, enélkül a sáv visszavillanna "Mentetlen változások"-ra, amíg a
@@ -705,9 +737,14 @@ export function SettingsHub({
   // beleegyező nyilatkozat kártyát (PaymentsSettingsPanel `sections={['consent']}`) mutatja.
   const [documentsSaved, setDocumentsSaved] = useState(false)
   const saveDocumentsTab = useCallback(async () => {
-    await documentsPanel.apiRef.current?.save()
-    const ok = await formApiRef.current?.save()
-    if (ok) { router.refresh(); setDocumentsSaved(true) }
+    setSaving(true)
+    try {
+      await documentsPanel.apiRef.current?.save()
+      const ok = await formApiRef.current?.save()
+      if (ok) { router.refresh(); setDocumentsSaved(true) }
+    } finally {
+      setSaving(false)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (documentsSaved && !documentsPanel.dirty && !formDirty) {
@@ -719,8 +756,13 @@ export function SettingsHub({
   // A „Fizetés" fül egyetlen forrásból menti (Stripe/Előleg/Ajándékutalvány kártyák).
   const [paymentsTabSaved, setPaymentsTabSaved] = useState(false)
   const savePaymentsTab = useCallback(async () => {
-    const ok = await paymentsTabPanel.apiRef.current?.save()
-    if (ok) { router.refresh(); setPaymentsTabSaved(true) }
+    setSaving(true)
+    try {
+      const ok = await paymentsTabPanel.apiRef.current?.save()
+      if (ok) { router.refresh(); setPaymentsTabSaved(true) }
+    } finally {
+      setSaving(false)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // Ez a `router.refresh()` hiánya okozta konkrétan azt is, hogy egy funkció (pl. utalvány)
   // bekapcsolása után a nav-elem (AppShell `hiddenHrefs`) csak kézi újratöltésre jelent meg —
@@ -736,9 +778,14 @@ export function SettingsHub({
   // Hírlevél/Számlázás) — mindkettő mentése egyetlen sávból.
   const [integSaved, setIntegSaved] = useState(false)
   const saveIntegrationsTab = useCallback(async () => {
-    const okA = await integPanel.apiRef.current?.save()
-    const okB = await integPaymentsPanel.apiRef.current?.save()
-    if (okA !== false && okB !== false) { router.refresh(); setIntegSaved(true) }
+    setSaving(true)
+    try {
+      const okA = await integPanel.apiRef.current?.save()
+      const okB = await integPaymentsPanel.apiRef.current?.save()
+      if (okA !== false && okB !== false) { router.refresh(); setIntegSaved(true) }
+    } finally {
+      setSaving(false)
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (integSaved && !integPanel.dirty && !integPaymentsPanel.dirty) {
@@ -753,10 +800,15 @@ export function SettingsHub({
   // sáv „mentetlen"-nek látszana maradni/visszaugrani, még ha a DB-írás sikeres is volt.
   const [googleSaved, setGoogleSaved] = useState(false)
   const saveGoogleTab = useCallback(async () => {
-    const ok = await googlePanel.apiRef.current?.save()
-    if (ok) {
-      router.refresh()
-      setGoogleSaved(true)
+    setSaving(true)
+    try {
+      const ok = await googlePanel.apiRef.current?.save()
+      if (ok) {
+        router.refresh()
+        setGoogleSaved(true)
+      }
+    } finally {
+      setSaving(false)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   // A `router.refresh()` aszinkron — ha a „Mentve" jelzést egy sima setTimeout tüntetné el, az
@@ -1083,8 +1135,27 @@ export function SettingsHub({
                   desc="A foglalások emberi jóváhagyás nélkül visszaigazolódnak"
                   checked={ruleToggles.autoConfirm}
                   onChange={() => setRuleToggles((s) => ({ ...s, autoConfirm: !s.autoConfirm }))}
-                  last
                 />
+                <RuleRow
+                  title="Cím megadása mindig kötelező"
+                  desc="A vendégnek akkor is meg kell adnia a pontos címét, ha nincs bekapcsolva az előleg"
+                  checked={ruleToggles.requireAddress}
+                  onChange={() => setRuleToggles((s) => ({ ...s, requireAddress: !s.requireAddress }))}
+                  last={!ruleToggles.requireAddress}
+                />
+                {ruleToggles.requireAddress && (
+                  <div className="pb-4">
+                    <label className="mb-1.5 block text-[12.5px] font-medium text-ink-soft">Cím-kérés indoklása a vendégnek</label>
+                    <input
+                      type="text"
+                      value={ruleToggles.requireAddressNote}
+                      onChange={(e) => setRuleToggles((s) => ({ ...s, requireAddressNote: e.target.value }))}
+                      placeholder="Pl. A pontos cím megadására a foglalásod rögzítéséhez van szükségünk."
+                      className="w-full rounded-[12px] border border-line-strong bg-white px-3 py-2.5 text-[13.5px] text-ink placeholder:text-ink-soft2 focus:outline-none focus:ring-2 focus:ring-gold/40"
+                    />
+                    <p className="mt-1.5 text-[11.5px] text-ink-soft2">Üresen hagyva egy általános szöveg jelenik meg a vendégnek a cím-mező alatt.</p>
+                  </div>
+                )}
               </div>
 
               <BookingFeatures
@@ -2125,29 +2196,32 @@ function UnsavedBar({
                 <Check className="h-4 w-4" strokeWidth={2.2} /> Mentve
               </span>
             ) : (
-              <span className="inline-flex items-center gap-2 text-[13px] font-medium text-ink-soft">
-                <span className="h-1.5 w-1.5 rounded-full bg-gold" />
-                Mentetlen változások
-              </span>
+              <>
+                <span className="inline-flex items-center gap-2 text-[13px] font-medium text-ink-soft">
+                  <span className="h-1.5 w-1.5 rounded-full bg-gold" />
+                  Mentetlen változások
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onCancel}
+                    disabled={!dirty || saving}
+                    className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[13px] font-semibold text-ink transition-opacity disabled:opacity-40"
+                  >
+                    Mégse
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSave}
+                    disabled={!dirty || saving}
+                    className="flex items-center gap-1.5 rounded-[13px] bg-ink-dark px-5 py-2 text-[13px] font-semibold text-white transition-opacity disabled:opacity-70"
+                  >
+                    {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gold" />}
+                    {saving ? 'Mentés…' : 'Mentés'}
+                  </button>
+                </div>
+              </>
             )}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={onCancel}
-                disabled={!dirty || saving}
-                className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[13px] font-semibold text-ink transition-opacity disabled:opacity-40"
-              >
-                Mégse
-              </button>
-              <button
-                type="button"
-                onClick={onSave}
-                disabled={!dirty || saving}
-                className="rounded-[13px] bg-ink-dark px-5 py-2 text-[13px] font-semibold text-white transition-opacity disabled:opacity-40"
-              >
-                {saving ? 'Mentés…' : 'Mentés'}
-              </button>
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -39,7 +39,7 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
   const canManageOwn = can(capabilities, 'schedule.manage.own')
   const payload = await getPayloadClient()
 
-  const [staffRes, shiftsRes, exceptionsRes] = await Promise.all([
+  const [staffRes, shiftsRes, exceptionsRes, weeklyClosedRes] = await Promise.all([
     payload.find({
       collection: 'staff',
       where: { salon: { equals: salon.id }, is_active: { equals: true } },
@@ -63,11 +63,22 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
       limit: 500,
       overrideAccess: true,
     }),
+    // Heti visszatérő zárvatartás (pl. "minden vasárnap zárva") — a szalon-szintű alap-mintában
+    // MINDEN naphoz van rekord (nyitva/zárva), ezért a zárt napokat is directben lekérdezhetjük.
+    payload.find({
+      collection: 'availability',
+      where: { and: [{ salon: { equals: salon.id } }, { staff: { exists: false } }, { recurring: { equals: true } }, { is_available: { equals: false } }] },
+      depth: 0,
+      limit: 20,
+      overrideAccess: true,
+    }),
   ])
 
   const closedDates = (exceptionsRes.docs as Availability[])
     .map((e) => e.exception_date)
     .filter((d): d is string => !!d)
+  const DOW_NUM: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 }
+  const closedWeekdays = Array.from(new Set((weeklyClosedRes.docs as Availability[]).map((e) => DOW_NUM[e.day_of_week ?? '']).filter((n): n is number => n != null)))
 
   // Meghívóra váró (még nem elfogadott) tagok — amíg nem fogadják el, nem oszthatók be
   // műszakra (lakat + UX infó a szakember-választón, ld. ScheduleView DayEditor).
@@ -121,6 +132,8 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
     start_time: sh.start_time ?? null,
     end_time: sh.end_time ?? null,
     hours: typeof sh.hours === 'number' ? sh.hours : null,
+    break_start: sh.break_start ?? null,
+    break_end: sh.break_end ?? null,
     note: sh.note ?? null,
     left_early_at: sh.left_early_at ?? null,
     left_early_reason: (sh.left_early_reason ?? null) as 'sick' | 'personal' | null,
@@ -138,11 +151,15 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
 
   const now = new Date()
   const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const todayStr = toYmd(now.toISOString())
 
   // ── KPI-k ──
   // Vezető: csapat-összesítő; saját-nézet: csak a saját hónap
   const kpiShifts = canManage ? allShifts.filter((s) => s.date.startsWith(ym)) : shifts.filter((s) => s.date.startsWith(ym))
-  const workedHours = Math.round(kpiShifts.filter((s) => s.type === 'shift').reduce((a, s) => a + (s.hours ?? 0), 0))
+  // "Ledolgozott" = csak a MÁIG tartó napok — a beosztás-automatizáló a foglalási ablakra
+  // (akár 60+ nap előre) is beír "Műszak" rekordot, azok nélkül a jövőbeli napok is
+  // "ledolgozott" óraként jelentek volna meg ebben a fejléc-KPI-ban.
+  const workedHours = Math.round(kpiShifts.filter((s) => s.type === 'shift' && s.date <= todayStr).reduce((a, s) => a + (s.hours ?? 0), 0))
   const offDays = kpiShifts.filter((s) => s.type === 'leave' || s.type === 'sick' || s.type === 'vacation').length
 
   const total = kpiShifts.length || 1
@@ -197,6 +214,7 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
         year={now.getFullYear()}
         month={now.getMonth()}
         closedDates={closedDates}
+        closedWeekdays={closedWeekdays}
         canManage={canManage || (isOwnOnly && canManageOwn)}
         myStaffId={myStaffId}
         initialDate={initialDate}

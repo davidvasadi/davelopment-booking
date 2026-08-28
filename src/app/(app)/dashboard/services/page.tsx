@@ -3,21 +3,22 @@ import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { fixMediaUrl } from '@/lib/utils'
-import type { Service, ServiceCategory, StaffMember, Booking } from '@/payload/payload-types'
+import type { Service, ServiceCategory, StaffMember, Booking, Media } from '@/payload/payload-types'
 import ServicesManager from '@/components/dashboard/ServicesManager'
 
 export default async function ServicesPage() {
-  const { salon, capabilities } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon(1)
   requireAnyCapability(capabilities, ['catalog.view', 'catalog.manage'], '/dashboard')
   const payload = await getPayloadClient()
 
   const yearStart = `${new Date().getFullYear()}-01-01`
+  const logoUrl = salon.logo && typeof salon.logo === 'object' ? fixMediaUrl((salon.logo as Media).url ?? null) : null
 
   const [servicesResult, staffResult, categoriesResult, bookingsResult] = await Promise.all([
     payload.find({
       collection: 'services',
       where: { salon: { equals: salon.id } },
-      sort: 'name',
+      sort: ['sort_order', 'name'],
       depth: 1,
       limit: 200,
     }),
@@ -103,6 +104,7 @@ export default async function ServicesPage() {
         avatarUrlByEmail={avatarUrlByEmail}
         invitedEmails={invitedEmails}
         canManage={can(capabilities, 'catalog.manage')}
+        logoUrl={logoUrl}
       />
     </div>
   )

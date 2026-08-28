@@ -19,6 +19,7 @@ export default async function StaffPage() {
   const todayYmd = now.toISOString().slice(0, 10)
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const monthEnd = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`
 
   const ownerUserId = salon.owner && typeof salon.owner === 'object' ? (salon.owner as { id: string | number }).id : salon.owner as string | number | null
   const ownerUserRaw = ownerUserId ? await payload.findByID({ collection: 'users', id: ownerUserId, depth: 0, overrideAccess: true }).catch(() => null) : null
@@ -101,6 +102,11 @@ export default async function StaffPage() {
   }
 
   // staffId → szabad napok száma e hónapban (daysInMonth − beosztott napok).
+  // FONTOS: az `allMonthShifts` lekérdezésnek (a fenti `upcomingShiftById` miatt, ami a
+  // KÖVETKEZŐ jövőbeli műszakot keresi, akár a következő hónapban is) nincs felső dátum-határa —
+  // itt viszont KIFEJEZETTEN csak a jelen hónapra eső napokat szabad számolni, különben a
+  // beosztás-automatizáló által a teljes foglalási ablakra (akár 60-90 nap) feltöltött jövőbeli
+  // napok miatt a "beosztott napok" száma meghaladja a hónap napjainak számát → negatív eredmény.
   const freeDaysById: Record<string, number> = {}
   for (const s of staffResult.docs as StaffMember[]) {
     const sid = String(s.id)
@@ -108,6 +114,7 @@ export default async function StaffPage() {
       allMonthShifts
         .filter((sh) => sh.staff != null && String(typeof sh.staff === 'object' ? sh.staff.id : sh.staff) === sid)
         .map((sh) => sh.date.slice(0, 10))
+        .filter((d) => d <= monthEnd)
     )
     freeDaysById[sid] = daysInMonth - scheduled.size
   }

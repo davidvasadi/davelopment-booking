@@ -1,6 +1,5 @@
 'use client'
 
-import { useRef } from 'react'
 import { Reorder, useDragControls } from 'framer-motion'
 import { Plus, Trash2, GripVertical, HelpCircle } from 'lucide-react'
 import { Switch } from '@/components/ui/toggle-switch'
@@ -9,10 +8,18 @@ import { cn } from '@/lib/utils'
 export type CustomQuestionType = 'text' | 'yesno' | 'select'
 export type CustomQuestionOption = { value: string }
 export type CustomQuestion = {
+  /** Stabil kliens-oldali (vagy Payload-mentett) azonosító — a React `key` ebből jön, NEM az
+   *  objektum-referenciából, mert az minden gépeléskor újra létrejön (`{...q, ...patch}`), ami
+   *  korábban minden karakternél újra-mountolta a sort és elvitte a fókuszt. */
+  id: string
   label: string
   type: CustomQuestionType
   options: CustomQuestionOption[]
   required: boolean
+}
+
+function newQuestionId(): string {
+  return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `q-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 const TYPE_LABELS: Record<CustomQuestionType, string> = {
@@ -37,17 +44,8 @@ export function CustomQuestionsEditor({
 }) {
   const update = (i: number, patch: Partial<CustomQuestion>) =>
     onChange(value.map((q, idx) => (idx === i ? { ...q, ...patch } : q)))
-  const add = () => onChange([...value, { label: '', type: 'text', options: [], required: false }])
+  const add = () => onChange([...value, { id: newQuestionId(), label: '', type: 'text', options: [], required: false }])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
-
-  // Stabil kulcs objektum-referenciánként — a `CustomQuestion`-öknek nincs saját id-jük.
-  const keysRef = useRef(new WeakMap<CustomQuestion, number>())
-  const nextKeyRef = useRef(0)
-  const keyFor = (q: CustomQuestion) => {
-    let k = keysRef.current.get(q)
-    if (k === undefined) { k = nextKeyRef.current++; keysRef.current.set(q, k) }
-    return k
-  }
 
   if (value.length === 0) {
     return (
@@ -76,7 +74,7 @@ export function CustomQuestionsEditor({
       <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
         {value.map((q, i) => (
           <CustomQuestionRow
-            key={keyFor(q)}
+            key={q.id}
             item={q}
             onChange={(patch) => update(i, patch)}
             onRemove={() => remove(i)}

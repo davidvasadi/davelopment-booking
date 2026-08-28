@@ -4,22 +4,24 @@ import { useCallback, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { CustomQuestion, CustomQuestionType } from './CustomQuestionsEditor'
+import { parseEmailBlocks, type ComposerBlock } from '@/lib/emailBlocks'
 
 /** A dashboardról szerkeszthető localizált mezők egy üzletön (salon/restaurant). */
 export interface LocalizedValues {
   /** Rövid bemutatkozás — a Google-találat leírása ÉS a foglaló oldal látható szövege is ez. */
   description: string
   // Szerkeszthető email-tartalom (tárgy + bevezető) típusonként. A visszaigazoló = booking_*.
+  // A bevezető blokk-alapú (ComposerBlock[], ugyanaz a szerkesztő, mint a marketing hírlevélé).
   booking_email_subject: string
-  booking_email_intro: string
+  booking_email_intro: ComposerBlock[]
   cancel_email_subject: string
-  cancel_email_intro: string
+  cancel_email_intro: ComposerBlock[]
   reminder_email_subject: string
-  reminder_email_intro: string
+  reminder_email_intro: ComposerBlock[]
   feedback_email_subject: string
-  feedback_email_intro: string
+  feedback_email_intro: ComposerBlock[]
   notify_email_subject: string
-  notify_email_intro: string
+  notify_email_intro: ComposerBlock[]
   terms_sections: { title: string; body: string }[]
   good_to_know: { icon: string; title: string; body: string }[]
   /** Étterem-only: esemény-típusok (alkalmak). A `label` localizált, az icon/enabled globális. */
@@ -30,15 +32,15 @@ export interface LocalizedValues {
 const EMPTY: LocalizedValues = {
   description: '',
   booking_email_subject: '',
-  booking_email_intro: '',
+  booking_email_intro: [],
   cancel_email_subject: '',
-  cancel_email_intro: '',
+  cancel_email_intro: [],
   reminder_email_subject: '',
-  reminder_email_intro: '',
+  reminder_email_intro: [],
   feedback_email_subject: '',
-  feedback_email_intro: '',
+  feedback_email_intro: [],
   notify_email_subject: '',
-  notify_email_intro: '',
+  notify_email_intro: [],
   terms_sections: [],
   good_to_know: [],
   event_types: [],
@@ -54,15 +56,15 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
   return {
     description: (doc.description as string) ?? '',
     booking_email_subject: (doc.booking_email_subject as string) ?? '',
-    booking_email_intro: (doc.booking_email_intro as string) ?? '',
+    booking_email_intro: parseEmailBlocks(doc.booking_email_intro),
     cancel_email_subject: (doc.cancel_email_subject as string) ?? '',
-    cancel_email_intro: (doc.cancel_email_intro as string) ?? '',
+    cancel_email_intro: parseEmailBlocks(doc.cancel_email_intro),
     reminder_email_subject: (doc.reminder_email_subject as string) ?? '',
-    reminder_email_intro: (doc.reminder_email_intro as string) ?? '',
+    reminder_email_intro: parseEmailBlocks(doc.reminder_email_intro),
     feedback_email_subject: (doc.feedback_email_subject as string) ?? '',
-    feedback_email_intro: (doc.feedback_email_intro as string) ?? '',
+    feedback_email_intro: parseEmailBlocks(doc.feedback_email_intro),
     notify_email_subject: (doc.notify_email_subject as string) ?? '',
-    notify_email_intro: (doc.notify_email_intro as string) ?? '',
+    notify_email_intro: parseEmailBlocks(doc.notify_email_intro),
     terms_sections: terms.map((s: Record<string, unknown>) => ({
       title: (s.title as string) ?? '',
       body: (s.body as string) ?? '',
@@ -78,6 +80,7 @@ function fromDoc(doc: Record<string, unknown>): LocalizedValues {
       enabled: (e.enabled as boolean) ?? true,
     })),
     custom_questions: cq.map((q: Record<string, unknown>) => ({
+      id: (q.id as string) ?? crypto.randomUUID(),
       label: (q.label as string) ?? '',
       type: ((q.type as string) ?? 'text') as CustomQuestionType,
       options: Array.isArray(q.options)
@@ -194,6 +197,8 @@ export function useLocalizedFields(opts: {
           reminder_email_intro: values.reminder_email_intro,
           feedback_email_subject: values.feedback_email_subject,
           feedback_email_intro: values.feedback_email_intro,
+          notify_email_subject: values.notify_email_subject,
+          notify_email_intro: values.notify_email_intro,
           terms_sections: values.terms_sections,
           good_to_know: values.good_to_know,
           custom_questions: values.custom_questions,

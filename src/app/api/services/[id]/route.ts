@@ -42,10 +42,24 @@ export async function PATCH(request: NextRequest, { params }: Ctx) {
   const denied = await assertCapability(user.id, 'salon', existing.salon, 'catalog.manage')
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
+  const doUpdate = () => payload.update({ collection: 'services', id, data: body as never, locale, overrideAccess: true })
   try {
-    const doc = await payload.update({ collection: 'services', id, data: body as never, locale, overrideAccess: true })
+    // Payload v3/Drizzle locales-join bug: `_locale`/`_parent_id` leak into validation a
+    // localizált kollekció ELSŐ update-hívásánál (a `services.name`/`description` localized) —
+    // a második próbálkozás mindig sikeres, ezért csendben újrapróbáljuk (ugyanaz a minta, mint
+    // a szalon/étterem settings PATCH-nél).
+    const doc = await doUpdate()
     return NextResponse.json({ doc })
-  } catch (e) {
+  } catch (e: unknown) {
+    if (e && typeof e === 'object' && 'name' in e && (e as { name: string }).name === 'ValidationError') {
+      try {
+        const doc = await doUpdate()
+        return NextResponse.json({ doc })
+      } catch (e2) {
+        console.error('[api/services PATCH]', e2)
+        return NextResponse.json({ error: 'Mentés sikertelen' }, { status: 500 })
+      }
+    }
     console.error('[api/services PATCH]', e)
     return NextResponse.json({ error: 'Mentés sikertelen' }, { status: 500 })
   }

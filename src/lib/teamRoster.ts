@@ -84,7 +84,9 @@ function computeShiftStats(shifts: Shift[], now: Date = new Date()) {
   for (const sh of shifts) {
     const date = (sh.date ?? '').slice(0, 10)
     const hrs = shiftHours(sh)
-    if (date && (!(date in calendar) || sh.type === 'shift')) calendar[date] = sh.type as 'shift' | 'leave' | 'sick' | 'vacation'
+    // Szabadság/beteg/szabadnap MINDIG elsőbbséget élvez egy ugyanarra a napra eső "Műszak"
+    // rekorddal szemben (pl. az automata feltöltés alap-műszakja) — soha nem írjuk felül azzal.
+    if (date && (!(date in calendar) || calendar[date] === 'shift')) calendar[date] = sh.type as 'shift' | 'leave' | 'sick' | 'vacation'
     if (date.startsWith(thisYm)) {
       if (sh.type === 'shift') {
         daysWorked += 1; shiftsCount += 1; hoursThisMonth += hrs
@@ -228,9 +230,10 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
         id,
         name: s.name,
         avatarUrl: mediaUrl(s.avatar) ?? (s.email ? (userAvatarByEmail[s.email] ?? null) : null),
-        position: isOwner
-          ? (s.role_title ? `Tulajdonos · ${s.role_title}` : 'Tulajdonos')
-          : (s.role_title || s.department || ''),
+        // A `role_title` a VALÓS staff-rekordnál mindig a TELJES, kész megjelenítendő szöveg (ezt
+        // várja a Naptár oldal is, ld. `dashboard/schedule/page.tsx` StaffVM.role) — a tulaj-sornál
+        // NEM fűzünk elé "Tulajdonos · "-t, azt a `roleTone==='owner'` jelvény már jelzi külön.
+        position: isOwner ? (s.role_title || 'Tulajdonos') : (s.role_title || s.department || ''),
         roleTone: isOwner ? 'owner' : 'staff',
         email: s.email || '',
         phone: s.phone || '',
@@ -238,6 +241,7 @@ export async function getTeamRoster(variant: Variant, businessId: string | numbe
         contract: contractLabel(s.weekly_hours),
         tags: stats.servicesById[id] ?? [],
         note: s.bio || '',
+        socialLinks: (s.social_links ?? []).map((l) => l.url),
         status: invitedEmails.has((s.email ?? '').toLowerCase()) ? 'invited' : s.is_active === false ? 'suspended' : 'active',
         hr: {
           birthday: s.birthday ?? null,

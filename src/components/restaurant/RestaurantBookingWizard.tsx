@@ -40,6 +40,8 @@ export function RestaurantBookingWizard({
   initialTimeProp,
   initialPaxProp,
   depositEnabled = false,
+  addressRequired = false,
+  addressRequiredNote = null,
   voucherEnabled = false,
   newsletterEnabled = false,
   consentEnabled = false,
@@ -64,6 +66,8 @@ export function RestaurantBookingWizard({
   initialPaxProp?: number
   /** Vendég-előleg — ha KI van kapcsolva, a wizard a mai viselkedést mutatja bit-pontosan. */
   depositEnabled?: boolean
+  addressRequired?: boolean
+  addressRequiredNote?: string | null
   voucherEnabled?: boolean
   newsletterEnabled?: boolean
   consentEnabled?: boolean
@@ -87,8 +91,8 @@ export function RestaurantBookingWizard({
   const REVIEW_STEP = 2 + (depositEnabled ? 1 : 0) + (consentEnabled ? 1 : 0)
   const STEPS = [
     tt('rbooking.step.datetime'), tt('rbooking.step.details'),
-    ...(depositEnabled ? ['Előleg'] : []),
-    ...(consentEnabled ? [consentTitle?.trim() || 'Nyilatkozat'] : []),
+    ...(depositEnabled ? [tt('public.deposit.title')] : []),
+    ...(consentEnabled ? [consentTitle?.trim() || tt('public.consent.title')] : []),
     tt('rbooking.step.review'),
   ]
   const searchParams = useSearchParams()
@@ -161,6 +165,7 @@ export function RestaurantBookingWizard({
   // ── Mező-szintű validáció (a szalon-wizarddal AZONOS minta: error-placement, blur, focus) ──
   type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address'
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
+  const [detailsShakeKey, setDetailsShakeKey] = useState(0)
   const fieldRefs = {
     name: useRef<HTMLInputElement>(null),
     email: useRef<HTMLInputElement>(null),
@@ -168,14 +173,17 @@ export function RestaurantBookingWizard({
     city: useRef<HTMLInputElement>(null),
     address: useRef<HTMLInputElement>(null),
   }
+  // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is).
+  const addressGateOn = depositEnabled || addressRequired
+  const addressNote = addressRequiredNote?.trim()
+    || (depositEnabled ? 'Az előleg-számlázáshoz kötelező.' : 'A pontos cím megadására a foglalásod rögzítéséhez van szükségünk.')
+
   const validateField = (key: FieldKey): string | null => {
     if (key === 'name') return name.trim().length < 2 ? tt('rbooking.err.name') : null
     if (key === 'email') return !/^\S+@\S+\.\S+$/.test(email) ? tt('rbooking.err.email') : null
     if (key === 'phone') return requirePhone && phone.replace(/\s/g, '').length < 7 ? tt('rbooking.err.phone') : null
-    // A Számlázz.hu/Billingo bizonylathoz kötelező a vevő városa ÉS utca+házszáma — csak akkor
-    // kérjük, ha előleg van.
-    if (key === 'city') return depositEnabled && !city.trim() ? 'A város megadása kötelező az előleg-számlázáshoz' : null
-    if (key === 'address') return depositEnabled && !address.trim() ? 'A cím (utca, házszám) megadása kötelező az előleg-számlázáshoz' : null
+    if (key === 'city') return addressGateOn && !city.trim() ? 'A város megadása kötelező' : null
+    if (key === 'address') return addressGateOn && !address.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
     return null
   }
   const onFieldBlur = (key: FieldKey) => setErrors(prev => ({ ...prev, [key]: validateField(key) ?? undefined }))
@@ -229,6 +237,7 @@ export function RestaurantBookingWizard({
     if (Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
       setErrors(nextErrors)
       setCustomErrors(nextCustomErrors)
+      setDetailsShakeKey(k => k + 1)
       const firstBad = order.find(k => nextErrors[k])
       if (firstBad) fieldRefs[firstBad].current?.focus()
       return false
@@ -456,7 +465,7 @@ export function RestaurantBookingWizard({
 
               <div className={`${cardClass} space-y-3`} style={cardStyle}>
                 <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt("rbooking.details")}</p>
-                <div>
+                <div key={`name-${detailsShakeKey}`} className={cn(errors.name && 'animate-shake')}>
                   <input
                     ref={fieldRefs.name}
                     className={cn(inputClass, errors.name && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
@@ -471,7 +480,7 @@ export function RestaurantBookingWizard({
                   />
                   {errors.name && <p id="rbk-name-err" role="alert" className="mt-1 text-[12px] text-red-500">{errors.name}</p>}
                 </div>
-                <div>
+                <div key={`email-${detailsShakeKey}`} className={cn(errors.email && 'animate-shake')}>
                   <input
                     ref={fieldRefs.email}
                     className={cn(inputClass, errors.email && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
@@ -488,7 +497,7 @@ export function RestaurantBookingWizard({
                   />
                   {errors.email && <p id="rbk-email-err" role="alert" className="mt-1 text-[12px] text-red-500">{errors.email}</p>}
                 </div>
-                <div>
+                <div key={`phone-${detailsShakeKey}`} className={cn(errors.phone && 'animate-shake')}>
                   <PhoneCountryInput
                     inputRef={fieldRefs.phone}
                     country={country}
@@ -504,38 +513,36 @@ export function RestaurantBookingWizard({
                   />
                   {errors.phone && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.phone}</p>}
                 </div>
-                <div>
+                <div key={`city-${detailsShakeKey}`} className={cn(errors.city && 'animate-shake')}>
                   <input
                     ref={fieldRefs.city}
                     className={cn(inputClass, errors.city && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
                     autoComplete="address-level2"
-                    placeholder={depositEnabled ? `${tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('rbooking.field.city')}
-                    aria-label={depositEnabled ? tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '') : tt('rbooking.field.city')}
+                    placeholder={addressGateOn ? `${tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('rbooking.field.city')}
+                    aria-label={addressGateOn ? tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '') : tt('rbooking.field.city')}
                     aria-invalid={!!errors.city}
                     value={city}
                     onChange={(e) => { setCity(e.target.value); clearError('city') }}
                     onBlur={() => onFieldBlur('city')}
                   />
                   {errors.city && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.city}</p>}
-                  {depositEnabled && !errors.city && <p className={`mt-1 text-[11px] ${labelCls}`}>Az előleg-számlázáshoz kötelező.</p>}
+                  {addressGateOn && !errors.city && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
                 </div>
-                {depositEnabled && (
-                  <div>
-                    <input
-                      ref={fieldRefs.address}
-                      className={cn(inputClass, errors.address && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                      autoComplete="street-address"
-                      placeholder="Cím (utca, házszám) *"
-                      aria-label="Cím (utca, házszám)"
-                      aria-invalid={!!errors.address}
-                      value={address}
-                      onChange={(e) => { setAddress(e.target.value); clearError('address') }}
-                      onBlur={() => onFieldBlur('address')}
-                    />
-                    {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
-                    {!errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>Az előleg-számlázáshoz kötelező.</p>}
-                  </div>
-                )}
+                <div key={`address-${detailsShakeKey}`} className={cn(errors.address && 'animate-shake')}>
+                  <input
+                    ref={fieldRefs.address}
+                    className={cn(inputClass, errors.address && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                    autoComplete="street-address"
+                    placeholder={addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address')}
+                    aria-label={addressGateOn ? tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '') : tt('booking.field.address')}
+                    aria-invalid={!!errors.address}
+                    value={address}
+                    onChange={(e) => { setAddress(e.target.value); clearError('address') }}
+                    onBlur={() => onFieldBlur('address')}
+                  />
+                  {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
+                  {addressGateOn && !errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
+                </div>
                 {customQuestionsList.map((q) => {
                   const key = q.id ?? ''
                   const val = customAnswers[key] ?? ''
@@ -554,7 +561,7 @@ export function RestaurantBookingWizard({
                   }
                   if (q.type === 'select') {
                     return (
-                      <div key={key}>
+                      <div key={`${key}-${detailsShakeKey}`} className={cn(err && 'animate-shake')}>
                         <select
                           value={val}
                           onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
@@ -571,7 +578,7 @@ export function RestaurantBookingWizard({
                     )
                   }
                   return (
-                    <div key={key}>
+                    <div key={`${key}-${detailsShakeKey}`} className={cn(err && 'animate-shake')}>
                       <input
                         className={cn(inputClass, err && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
                         placeholder={`${q.label}${q.required ? ' *' : ''}`}
@@ -687,7 +694,7 @@ export function RestaurantBookingWizard({
           {/* Step 2 (ha van előleg): Előleg-fizetés */}
           {step === DEPOSIT_STEP && depositEnabled && (
             <div className={cardClass} style={cardStyle}>
-              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>Előleg</p>
+              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{tt('public.deposit.title')}</p>
               {time && (
                 <DepositStep
                   dark={dk}
@@ -705,7 +712,7 @@ export function RestaurantBookingWizard({
           {/* Beleegyező nyilatkozat */}
           {step === CONSENT_STEP && consentEnabled && (
             <div className={cardClass} style={cardStyle}>
-              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{consentTitle?.trim() || 'Nyilatkozat'}</p>
+              <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{consentTitle?.trim() || tt('public.consent.title')}</p>
               <div
                 className={`mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed ${dk ? 'text-white/75' : 'text-ink-soft'}`}
                 style={{ background: dk ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.03)', border: dk ? '1.5px solid rgba(255,255,255,0.10)' : '1.5px solid rgba(0,0,0,0.06)' }}

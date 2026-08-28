@@ -9,7 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
 import { NumberStepper } from '@/components/ui/NumberStepper'
-import { Camera, Loader2, ImagePlus, X, Trash2, Eye } from 'lucide-react'
+import { Camera, Loader2, ImagePlus, X, Trash2, Eye, Move } from 'lucide-react'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
 import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -20,6 +20,9 @@ import { EventTypesEditor, type EventTypeItem } from '@/components/settings/Even
 import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
+import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
+import { CoverFocalPointEditor } from '@/components/settings/CoverFocalPointEditor'
+import type { ComposerBlock } from '@/lib/emailBlocks'
 import { useSettingsFormContext } from '@/components/settings/settingsFormContext'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { Media } from '@/payload/payload-types'
@@ -35,8 +38,9 @@ function SaveBar({ dirty, submitting, onSave, onPreview }: { dirty: boolean; sub
         type="button"
         onClick={onSave}
         disabled={!dirty || submitting}
-        className="h-12 flex-1 px-6 rounded-dav-pill bg-ink-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity disabled:opacity-40 sm:h-11 sm:flex-none"
+        className="flex h-12 flex-1 items-center justify-center gap-2 px-6 rounded-dav-pill bg-ink-dark hover:opacity-90 text-white font-semibold text-sm transition-opacity disabled:opacity-70 sm:h-11 sm:flex-none"
       >
+        {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
         {submitting ? 'Mentés...' : 'Mentés'}
       </button>
       {onPreview && (
@@ -108,6 +112,10 @@ type Settings = {
   phone: string
   email: string
   website: string
+  social_links: string[]
+  cover_focal_x: number
+  cover_focal_y: number
+  cover_zoom: number
   turn_duration_minutes: number
   slot_step_minutes: number
   last_seating_buffer_minutes: number
@@ -116,21 +124,22 @@ type Settings = {
   require_phone: boolean
   notify_new_bookings: boolean
   booking_email_subject: string
-  booking_email_intro: string
+  booking_email_intro: ComposerBlock[]
   cancel_email_subject: string
-  cancel_email_intro: string
+  cancel_email_intro: ComposerBlock[]
   reminder_email_subject: string
-  reminder_email_intro: string
+  reminder_email_intro: ComposerBlock[]
   feedback_email_subject: string
-  feedback_email_intro: string
+  feedback_email_intro: ComposerBlock[]
   notify_email_subject: string
-  notify_email_intro: string
+  notify_email_intro: ComposerBlock[]
   email_show_phone: boolean
   email_contact_phone: string
   email_show_email: boolean
   email_show_address: boolean
   email_show_directions: boolean
   email_directions_address: string
+  email_show_terms: boolean
   legal_name: string
   tax_number: string
   company_reg_number: string
@@ -232,6 +241,7 @@ export function RestaurantSettingsForm({
       good_to_know: initial.good_to_know.map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
       event_types: initial.event_types.map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
       custom_questions: initial.custom_questions.map((q) => ({
+        id: q.id ?? crypto.randomUUID(),
         label: q.label ?? '',
         type: q.type ?? 'text',
         options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),
@@ -266,12 +276,12 @@ export function RestaurantSettingsForm({
   // Melyik mező melyik fülhöz tartozik (dirty-követés + per-tab mentés).
   // A localizált mezőket (good_to_know, terms_sections, booking_email_*) a `loc` hook kezeli.
   const TAB_FIELDS: Record<string, (keyof Settings)[]> = {
-    general: ['name', 'slug', 'city', 'address', 'phone', 'email', 'website'],
+    general: ['name', 'slug', 'city', 'address', 'phone', 'email', 'website', 'social_links'],
     booking: [
       'turn_duration_minutes', 'slot_step_minutes', 'last_seating_buffer_minutes',
       'lead_time_hours', 'booking_window_days', 'require_phone', 'notify_new_bookings',
     ],
-    email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address'],
+    email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address', 'email_show_terms'],
     documents: [],
   }
   const LOC_TABS = new Set(['general', 'booking', 'email', 'documents'])
@@ -285,6 +295,30 @@ export function RestaurantSettingsForm({
   const [pendingTab, setPendingTab] = useState<string | null>(null)
 
   // Az „Általános" fülön a logó/borító képváltozás is dirty-nek számít.
+  // A borítókép-szerkesztő (pozíció+nagyítás) SAJÁT, azonnali mentése — lásd a szalon-form
+  // azonos megjegyzését: friss paraméterekkel PATCH-el, nem a state-frissítésre vár.
+  const saveCoverFocal = async (x: number, y: number, z: number): Promise<boolean> => {
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/restaurant/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ cover_image: coverId ?? null, cover_focal_x: x, cover_focal_y: y, cover_zoom: z }),
+      })
+      if (!res.ok) { toast.error('Hiba történt a mentés során'); return false }
+      setCoverFocalX(x); setCoverFocalY(y); setCoverZoom(z); setCoverModified(false)
+      toast.success('Borítókép mentve')
+      router.refresh()
+      return true
+    } catch {
+      toast.error('Hiba történt a mentés során')
+      return false
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const tabDirty = (tab: string): boolean => {
     const fields = TAB_FIELDS[tab] ?? []
     const fieldDirty = fields.some((k) => form[k] !== saved[k])
@@ -305,6 +339,10 @@ export function RestaurantSettingsForm({
   const [uploadingCover, setUploadingCover] = useState(false)
   const [coverModified, setCoverModified] = useState(false)
   const coverRef = useRef<HTMLInputElement>(null)
+  const [coverFocalX, setCoverFocalX] = useState(initial.cover_focal_x ?? 50)
+  const [coverFocalY, setCoverFocalY] = useState(initial.cover_focal_y ?? 50)
+  const [coverZoom, setCoverZoom] = useState(initial.cover_zoom ?? 1)
+  const [focalEditorOpen, setFocalEditorOpen] = useState(false)
 
   const [origin, setOrigin] = useState('')
   useEffect(() => setOrigin(window.location.origin), [])
@@ -394,8 +432,9 @@ export function RestaurantSettingsForm({
     try {
       const body: Record<string, unknown> = {}
       for (const k of fields) body[k] = form[k]
+      if (fields.includes('social_links')) body.social_links = form.social_links.filter((u) => u.trim()).map((url) => ({ url }))
       if (includeMedia && logoModified) body.logo = logoId ?? null
-      if (includeMedia && coverModified) body.cover_image = coverId ?? null
+      if (includeMedia && coverModified) { body.cover_image = coverId ?? null; body.cover_focal_x = coverFocalX; body.cover_focal_y = coverFocalY; body.cover_zoom = coverZoom }
       const res = await fetch('/api/restaurant/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -451,6 +490,7 @@ export function RestaurantSettingsForm({
     if (tab === 'general') {
       setLogoModified(false); setLogoPreview(mediaUrl(logo)); setLogoId(mediaId(logo))
       setCoverModified(false); setCoverPreview(mediaUrl(coverImage)); setCoverId(mediaId(coverImage))
+      setCoverFocalX(initial.cover_focal_x ?? 50); setCoverFocalY(initial.cover_focal_y ?? 50); setCoverZoom(initial.cover_zoom ?? 1)
     }
     if (tab === 'languages') setSupportedExtras(savedSupported)
     // A localizált mezőket (jó tudni, feltételek, email-sablonok, egyedi kérdések) a `loc` hook
@@ -518,7 +558,7 @@ export function RestaurantSettingsForm({
               <Loader2 className="h-6 w-6 text-ink-soft animate-spin" />
             ) : coverPreview ? (
               <>
-                <img src={coverPreview} alt="Borítókép" className="absolute inset-0 h-full w-full object-cover opacity-40" />
+                <img src={coverPreview} alt="Borítókép" className="absolute inset-0 h-full w-full object-cover opacity-40" style={{ objectPosition: `${coverFocalX}% ${coverFocalY}%`, transform: `scale(${coverZoom})`, transformOrigin: `${coverFocalX}% ${coverFocalY}%` }} />
                 <div className="relative flex flex-col items-center gap-1.5 text-ink-soft">
                   <ImagePlus className="h-5 w-5" />
                   <span className="text-xs font-medium">Csere</span>
@@ -532,16 +572,39 @@ export function RestaurantSettingsForm({
             )}
           </button>
           {coverPreview && !uploadingCover && (
-            <button
-              type="button"
-              aria-label="Borítókép eltávolítása"
-              onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
-              className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
-            >
-              <X className="h-3.5 w-3.5 text-white" />
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setFocalEditorOpen(true)}
+                className="absolute top-2 left-2 flex h-7 items-center gap-1.5 rounded-full bg-black/60 px-2.5 text-[11px] font-medium text-white hover:bg-black/80 transition-colors"
+              >
+                <Move className="h-3.5 w-3.5" /> Szerkesztés
+              </button>
+              <button
+                type="button"
+                aria-label="Borítókép eltávolítása"
+                onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
+                className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
+              >
+                <X className="h-3.5 w-3.5 text-white" />
+              </button>
+            </>
           )}
         </div>
+        {focalEditorOpen && coverPreview && (
+          <CoverFocalPointEditor
+            imageUrl={coverPreview}
+            initialX={coverFocalX}
+            initialY={coverFocalY}
+            initialZoom={coverZoom}
+            onCancel={() => setFocalEditorOpen(false)}
+            onSave={async (x, y, z) => {
+              const ok = await saveCoverFocal(x, y, z)
+              if (ok) setFocalEditorOpen(false)
+              return ok
+            }}
+          />
+        )}
         <input
           ref={coverRef}
           type="file"
@@ -661,6 +724,10 @@ export function RestaurantSettingsForm({
         <div className="space-y-1.5">
           <Label className={labelClass}>Weboldal</Label>
           <Input className={inputClass} value={form.website} onChange={(e) => set('website', e.target.value)} type="url" placeholder="https://" />
+        </div>
+        <div className="space-y-1.5">
+          <Label className={labelClass}>Közösségi linkek</Label>
+          <SocialLinksEditor value={form.social_links} onChange={(next) => set('social_links', next)} inputClassName={inputClass} />
         </div>
       </Section>
 
@@ -889,6 +956,9 @@ export function RestaurantSettingsForm({
                   />
                 </div>
               )}
+            </div>
+            <div className="px-4 py-3.5">
+              <ToggleSwitch checked={form.email_show_terms} onChange={(v) => set('email_show_terms', v)} label="Foglalási feltételek linkje" description="Csak akkor jelenik meg, ha van megadva foglalási feltétel." />
             </div>
           </div>
         </Section>

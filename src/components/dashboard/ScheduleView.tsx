@@ -8,10 +8,14 @@
  */
 
 import { useMemo, useState, useEffect, useRef, useCallback, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal, BarChart3, Bell, Loader2, Lock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal, BarChart3, Bell, Loader2, Lock, Crown, Settings, Coffee } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 export type ShiftType = 'shift' | 'leave' | 'sick' | 'vacation'
 
@@ -23,6 +27,8 @@ export interface ShiftVM {
   start_time: string | null
   end_time: string | null
   hours: number | null
+  break_start: string | null
+  break_end: string | null
   note: string | null
   // Státuszváltás a napon belül: a műszak vége előtt hazament (pl. délben beteg lett). Nincs duplázás.
   left_early_at: string | null
@@ -53,7 +59,8 @@ interface Props {
   year: number
   month: number // 0-based
   dailyTips?: Record<string, number> // dátum → napi központi borravaló (Ft); csak étterem
-  closedDates?: string[] // YYYY-MM-DD — nyitvatartás-kivételből zárva napok
+  closedDates?: string[] // YYYY-MM-DD — nyitvatartás-kivételből (egyszeri) zárva napok
+  closedWeekdays?: number[] // 0=vasárnap..6=szombat — heti visszatérő zárvatartásból zárt napok (csak jövőre)
   canManage?: boolean // false → csak megtekintés, szerkesztő/hozzáadás gombok rejtve
   myStaffId?: string // bejelentkezett user staff-id-je → ez az alapértelmezett kiválasztott személy
   initialDate?: string // YYYY-MM-DD — értesítés-linkből; nyitja a napot és navigál a hónapba
@@ -80,13 +87,13 @@ const NOTCH_CSS = `@media(min-width:1024px){.sched-folder{
   mask-size:clamp(420px,48%,600px) 76px,100% 100%;mask-composite:exclude;
 }}`
 
-const TYPE_LABEL: Record<ShiftType, string> = { shift: 'Műszak', leave: 'Szabadság', sick: 'Betegszabadság', vacation: 'Fizetett szabadság' }
+const TYPE_LABEL: Record<ShiftType, string> = { shift: 'Műszak', leave: 'Szabadság', sick: 'Betegszabadság', vacation: 'Szabadnap' }
 
 /** Chip-szín típusonként (avatar-chip a nap-cellában és a nap-szerkesztőben). */
 function chipStyle(type: ShiftType): { bg: string; fg: string } {
-  if (type === 'sick') return { bg: '#1D1C19', fg: '#fff' }
-  if (type === 'leave' || type === 'vacation') return { bg: '#E4DECC', fg: '#5C5848' }
-  return { bg: '#F1CE45', fg: '#1D1C19' } // shift
+  if (type === 'sick') return { bg: '#C0564A', fg: '#fff' } // piros — a dav-bad tokennel egyező
+  if (type === 'leave' || type === 'vacation') return { bg: '#F1CE45', fg: '#1D1C19' } // sárga
+  return { bg: '#1D1C19', fg: '#fff' } // shift — fekete
 }
 
 const LEFT_REASON: Record<'sick' | 'personal', string> = { sick: 'beteg lett', personal: 'hazament' }
@@ -105,6 +112,8 @@ export type ShiftInput = {
   type: ShiftType
   start_time: string
   end_time: string
+  break_start: string
+  break_end: string
   note: string
   left_early_at: string | null
   left_early_reason: 'sick' | 'personal' | null
@@ -144,15 +153,19 @@ function fmtShort(d: string): string {
   return `${MONTH_SHORT[(mm || 1) - 1]} ${dd}.`
 }
 
-/** Avatar: profilkép ha van (object-cover kör), különben User ikon (nem monogram). */
-function Ava({ url, ini, className, style }: { url?: string | null; ini: string; className: string; style?: CSSProperties }) {
+/** Avatar: profilkép ha van (object-cover kör), különben ikon (alapból User, tulajdonosnál Crown). */
+function Ava({ url, ini, className, style, icon: Icon = User }: { url?: string | null; ini: string; className: string; style?: CSSProperties; icon?: typeof User }) {
   if (url) return <img src={url} alt={ini} className={`${className} object-cover object-top`} style={style} />
   return (
     <span className={`${className} flex items-center justify-center`} style={style}>
-      <User className="h-[52%] w-[52%] opacity-70" strokeWidth={1.8} />
+      <Icon className="h-[52%] w-[52%] opacity-70" strokeWidth={1.8} />
     </span>
   )
 }
+
+/** Tulajdonos-e a szerep (role_title szövege alapján) — a fényképnélküli avatar-fallback ez
+ *  alapján dönt korona vs. sima személy-ikon között. */
+const isOwnerRole = (r: string) => /tulajdonos|owner/i.test(r)
 
 /**
  * Apple-szerű SZEGMENTÁLT szűrő: a kijelölt szegmens alá egy sötét kiemelés CSÚSZIK (framer `layoutId`,
@@ -161,7 +174,7 @@ function Ava({ url, ini, className, style }: { url?: string | null; ini: string;
  */
 function SegFilter<T extends string>({ id, options, value, onChange }: { id: string; options: { v: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
-    <div className="flex items-center rounded-[11px] bg-[#E8E8EC] p-[3px]">
+    <div className="flex items-center rounded-[11px] bg-[#F7F7F7] p-[3px]">
       {options.map((o) => {
         const active = o.v === value
         return (
@@ -175,10 +188,15 @@ function SegFilter<T extends string>({ id, options, value, onChange }: { id: str
   )
 }
 
-export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, year, month, dailyTips = {}, closedDates = [], canManage = true, myStaffId, initialDate }: Props) {
+export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, year, month, dailyTips = {}, closedDates = [], closedWeekdays = [], canManage = true, myStaffId, initialDate }: Props) {
   const isRestaurant = variant === 'restaurant'
   const router = useRouter()
   const [shifts, setShifts] = useState<ShiftVM[]>(initialShifts)
+  // A `shifts` csak MOUNT-kor veszi át az `initialShifts`-et — enélkül a szinkronizáló effekt
+  // nélkül egy router.refresh() (pl. másik oldalról frissülő szerver-adat) nem jutna el ide, és a
+  // felület a régi állapotot mutatná tovább, holott a DB-ben már friss (ld. az `empList` azonos
+  // hibáját a StaffManager.tsx-ben — ugyanaz a minta, itt is javítva).
+  useEffect(() => { setShifts(initialShifts) }, [initialShifts])
   const [tips, setTips] = useState<Record<string, number>>(dailyTips)
   // initialDate (YYYY-MM-DD) értesítés-linkből: a megfelelő hónapba navigál és a napot kijelöli.
   const [y, setY] = useState(() => {
@@ -208,29 +226,18 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
   const [activeTool, setActiveTool] = useState<'search' | 'filter' | 'stats'>('search')
   const [daysWithChanges, setDaysWithChanges] = useState<Set<string>>(new Set()) // napok ahol volt CRUD
   const [notifyingDay, setNotifyingDay] = useState(false)
+  const [pendingDelete, setPendingDelete] = useState<ShiftVM | null>(null) // törlés-megerősítés a nap-oldalsáv listájában
   const toolbarRef = useRef<HTMLDivElement>(null)
   const folderRef = useRef<HTMLDivElement>(null)
-  const rightColRef = useRef<HTMLDivElement>(null)
-  const centerColRef = useRef<HTMLDivElement>(null)
-  const [leftPanelMinH, setLeftPanelMinH] = useState<number | undefined>(undefined)
-
-  useEffect(() => {
-    const update = () => {
-      if (window.innerWidth < 1024) { setLeftPanelMinH(undefined); return }
-      const rh = rightColRef.current?.offsetHeight ?? 0
-      const ch = centerColRef.current?.offsetHeight ?? 0
-      // rightColRef wrapper: a benne lévő motion.div -mt-16 miatt a wrapper offsetHeight = motion_h - 64.
-      // Bal panel is -mt-16 → leftPanelMinH kell = motion_h = rh + 64.
-      // Közép +mt-5: leftPanelMinH = ch + 84 hogy aljuk egyezzen.
-      setLeftPanelMinH(Math.max(rh + 64, ch + 84))
-    }
-    update()
-    const obs = new ResizeObserver(update)
-    if (rightColRef.current) obs.observe(rightColRef.current)
-    if (centerColRef.current) obs.observe(centerColRef.current)
-    window.addEventListener('resize', update)
-    return () => { obs.disconnect(); window.removeEventListener('resize', update) }
-  }, [])
+  // Mobilon a statisztika/szűrő gomb a DashboardNav fejlécébe (csengő mellé) kerül — onnan egyedi
+  // window-eseménnyel nyitjuk itt alulról felcsúszó panelként (ld. DashboardNav.tsx, ugyanaz a
+  // minta mint a Beállítások/Tippek mobil-fejléc ikonjainál).
+  const [mobileStatsOpen, setMobileStatsOpen] = useState(false)
+  const [mobileFilterOpen, setMobileFilterOpen] = useState(false)
+  // A createPortal(..., document.body) csak kliensen fut — szerver-renderkor a `document` nem
+  // létezik, enélkül a guard nélkül a teljes oldal SSR-hibával elszállt volna.
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => { setIsMounted(true) }, [])
 
   // Félrekattintásra a toolbar VISSZAÁLL a keresőre (Apple-szerű alap-állapot).
   useEffect(() => {
@@ -245,6 +252,23 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
 
   const staffById = useMemo(() => new Map(staff.map((s) => [s.id, s])), [staff])
   const sel = useMemo(() => staff.find((s) => s.id === selStaff) ?? staff[0], [staff, selStaff])
+
+  const today = new Date()
+  const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate())
+
+  useEffect(() => {
+    const onStats = () => setMobileStatsOpen(true)
+    const onFilter = () => setMobileFilterOpen(true)
+    const onAdd = () => setDayEditor(selectedDay ?? todayStr)
+    window.addEventListener('davelopment:open-schedule-stats', onStats)
+    window.addEventListener('davelopment:open-schedule-filter', onFilter)
+    window.addEventListener('davelopment:open-schedule-add', onAdd)
+    return () => {
+      window.removeEventListener('davelopment:open-schedule-stats', onStats)
+      window.removeEventListener('davelopment:open-schedule-filter', onFilter)
+      window.removeEventListener('davelopment:open-schedule-add', onAdd)
+    }
+  }, [selectedDay, todayStr])
 
   const monthPrefix = `${y}-${pad(m + 1)}`
   const monthShifts = useMemo(() => shifts.filter((s) => s.date.startsWith(monthPrefix)), [shifts, monthPrefix])
@@ -262,17 +286,21 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
 
   // Fejléc-stat a KIVÁLASZTOTT dolgozóra (Crextio: Ledolgozott/Hiányzás/Szabadság).
   const staffMonthShifts = useMemo(() => monthShifts.filter((s) => sel && s.staffId === sel.id), [monthShifts, sel])
-  const worked = staffMonthShifts.filter((s) => s.type === 'shift').reduce((a, s) => a + (s.hours ?? diffHours(s.start_time, s.end_time) ?? 0), 0)
+  // "Ledolgozott" = ténylegesen MEGTÖRTÉNT munka, ezért csak a MÁIG tartó napokat számoljuk —
+  // a beosztás-automatizáló a foglalási ablak teljes hosszára (akár 60+ nap előre) létrehoz
+  // "Műszak" rekordokat, ezek NÉLKÜL a jövőbeli, még meg sem történt napok is "ledolgozott"
+  // óraként jelentek volna meg a hónap elején/közepén.
+  const worked = staffMonthShifts.filter((s) => s.type === 'shift' && s.date <= todayStr).reduce((a, s) => a + (s.hours ?? diffHours(s.start_time, s.end_time) ?? 0), 0)
   const sick = staffMonthShifts.filter((s) => s.type === 'sick').reduce((a, s) => a + (s.hours ?? 8), 0)
   const vacation = staffMonthShifts.filter((s) => s.type === 'leave' || s.type === 'vacation').reduce((a, s) => a + (s.hours ?? 8), 0)
   const totalWorked = worked + sick + vacation
   // Szabadság/hiányzás NAPban mérjük (nem órában) — a pillek nap-alapúak, egységesen.
-  const daysWorked = staffMonthShifts.filter((s) => s.type === 'shift').length
+  const daysWorked = staffMonthShifts.filter((s) => s.type === 'shift' && s.date <= todayStr).length
   const sickDays = staffMonthShifts.filter((s) => s.type === 'sick').length
   const vacationDays = staffMonthShifts.filter((s) => s.type === 'leave' || s.type === 'vacation').length
 
   function utilization(st: StaffVM): number {
-    const w = monthShifts.filter((s) => s.staffId === st.id && s.type === 'shift').reduce((a, s) => a + (s.hours ?? diffHours(s.start_time, s.end_time) ?? 0), 0)
+    const w = monthShifts.filter((s) => s.staffId === st.id && s.type === 'shift' && s.date <= todayStr).reduce((a, s) => a + (s.hours ?? diffHours(s.start_time, s.end_time) ?? 0), 0)
     const target = (st.weekly_hours ?? 40) * 4
     return target > 0 ? Math.min(100, Math.round((w / target) * 100)) : 0
   }
@@ -284,9 +312,6 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
   for (let i = 0; i < firstDow; i++) cells.push({ day: 0, inMonth: false, date: null })
   for (let d = 1; d <= daysInMonth; d++) cells.push({ day: d, inMonth: true, date: ymd(y, m, d) })
   while (cells.length % 7 !== 0) cells.push({ day: 0, inMonth: false, date: null })
-
-  const today = new Date()
-  const todayStr = ymd(today.getFullYear(), today.getMonth(), today.getDate())
   const birthdaysOn = (date: string) => staff.filter((st) => st.birthday && st.birthday.slice(5) === date.slice(5))
 
   // ── Jobb-profil: a kiválasztott dolgozó KÖVETKEZŐ műszaka + e HETI beosztása (valós hét, H–V). ──
@@ -373,8 +398,11 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
   async function addShift(staffId: string, p: ShiftInput, date: string): Promise<boolean> {
     const st = staffById.get(staffId)
     if (!st) return false
-    // #2 — egy munkatárs / nap CSAK egyszer. (A nap-szerkesztő a listából is kihagyja a beosztottakat.)
-    if (shifts.some((s) => s.date === date && s.staffId === staffId)) {
+    // #2 — egy munkatárs / nap CSAK egyszer, DE a beosztás-automatizáló által auto-generált
+    // "Műszak" napot (note === '__auto__') felül lehet írni — a kézi bejegyzéseket viszont
+    // sose (ott marad a blokkolás, "Módosítsd a meglévőt" útmutatással).
+    const existing = shifts.find((s) => s.date === date && s.staffId === staffId)
+    if (existing && existing.note !== '__auto__') {
       alert('Ez a munkatárs már be van osztva erre a napra. Módosítsd a meglévő bejegyzést.')
       return false
     }
@@ -391,27 +419,85 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
       start_time: isShift ? p.start_time || null : null,
       end_time: isShift ? p.end_time || null : null,
       hours: effHours(p),
+      break_start: isShift ? p.break_start || null : null,
+      break_end: isShift ? p.break_end || null : null,
       note: p.note || null,
       left_early_at,
       left_early_reason: left_early_at ? p.left_early_reason ?? 'personal' : null,
     }
     try {
-      const res = await fetch('/api/shifts', {
+      const res = existing
+        ? await fetch(`/api/shifts/${existing.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body),
+          })
+        : await fetch('/api/shifts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(body),
+          })
+      if (!res.ok) throw new Error()
+      const json = await res.json()
+      const doc = json.doc ?? json
+      const vm: ShiftVM = { id: existing ? existing.id : String(doc.id), staffId, date, type: p.type, start_time: body.start_time, end_time: body.end_time, hours: body.hours, break_start: body.break_start, break_end: body.break_end, note: body.note, left_early_at: body.left_early_at, left_early_reason: body.left_early_reason }
+      setShifts((prev) => (existing ? prev.map((s) => (s.id === existing.id ? vm : s)) : [...prev, vm]))
+      setDaysWithChanges((prev) => new Set([...prev, date]))
+      router.refresh()
+      return true
+    } catch {
+      alert('Nem sikerült beosztani.')
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  /** Szabadság/beteg/fizetett szabadság FELVITELE egy dátumtartományra ("tól-ig") EGY művelettel —
+   *  a szerver napra bontva hozza létre a rekordokat és összevont értesítést küld (ld.
+   *  /api/shifts/batch). A helyi `shifts` állapotot a válaszban kapott VALÓDI id-kkal töltjük fel
+   *  (nem kitalált id-vel), mert ez a komponens sose szinkronizálja vissza magát a szerver-propból. */
+  async function addShiftRange(staffId: string, p: ShiftInput, startDate: string, endDate: string): Promise<boolean> {
+    const st = staffById.get(staffId)
+    if (!st) return false
+    setBusy(true)
+    const body = {
+      ...(isRestaurant
+        ? (staffId === 'owner' ? { owner_shift: true, restaurant: restaurantId } : { member: staffId, restaurant: restaurantId })
+        : { staff: staffId, salon: salonId }),
+      start_date: startDate,
+      end_date: endDate,
+      type: p.type,
+      note: p.note || null,
+    }
+    try {
+      const res = await fetch('/api/shifts/batch', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(body),
       })
       if (!res.ok) throw new Error()
-      const json = await res.json()
-      const doc = json.doc ?? json
-      const vm: ShiftVM = { id: String(doc.id), staffId, date, type: p.type, start_time: body.start_time, end_time: body.end_time, hours: body.hours, note: body.note, left_early_at: body.left_early_at, left_early_reason: body.left_early_reason }
-      setShifts((prev) => [...prev, vm])
-      setDaysWithChanges((prev) => new Set([...prev, date]))
+      const json = await res.json() as { results: { id: string | number; date: string }[] }
+      setShifts((prev) => {
+        // A tartományba eső napokon a korábbi (ütköző) bejegyzéseket a szerver felülírta — a
+        // helyi állapotból is töröljük őket, mielőtt az újakat beillesztjük.
+        const rangeDates = new Set(json.results.map((r) => r.date))
+        const kept = prev.filter((s) => !(s.staffId === staffId && rangeDates.has(s.date)))
+        const added: ShiftVM[] = json.results.map((r) => ({
+          id: String(r.id), staffId, date: r.date, type: p.type,
+          start_time: null, end_time: null, hours: null, break_start: null, break_end: null, note: p.note || null,
+          left_early_at: null, left_early_reason: null,
+        }))
+        return [...kept, ...added]
+      })
+      setDaysWithChanges((prev) => new Set([...prev, ...json.results.map((r) => r.date)]))
       router.refresh()
       return true
     } catch {
-      alert('Nem sikerült beosztani.')
+      alert('Nem sikerült beosztani a tartományt.')
       return false
     } finally {
       setBusy(false)
@@ -429,6 +515,8 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
       start_time: isShift ? p.start_time || null : null,
       end_time: isShift ? p.end_time || null : null,
       hours: effHours(p),
+      break_start: isShift ? p.break_start || null : null,
+      break_end: isShift ? p.break_end || null : null,
       note: p.note || null,
       left_early_at,
       left_early_reason: left_early_at ? p.left_early_reason ?? 'personal' : null,
@@ -466,6 +554,12 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
     } finally {
       setBusy(false)
     }
+  }
+
+  async function confirmPendingDelete() {
+    if (!pendingDelete) return
+    await deleteShift(pendingDelete)
+    setPendingDelete(null)
   }
 
   /** Nap véglegesítése — értesítést küld az adott napon beosztott összes tagnak. */
@@ -520,7 +614,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
           <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} ref={toolbarRef} className="pointer-events-auto flex w-full items-center gap-1 rounded-full border border-white/50 bg-white/40 p-1.5 shadow-dav-card backdrop-blur-md lg:w-auto">
             {/* Statisztika — BAL oldalt (a kereső előtt); egy-aktív popover a havi összegzővel (a régi közép stat-sávok helyett) */}
             {sel && (
-              <div className="relative hidden sm:block">
+              <div className="relative hidden lg:block">
                 <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setActiveTool(activeTool === 'stats' ? 'search' : 'stats')} title="Havi összegző" className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors ${activeTool === 'stats' ? 'bg-[#1D1C19] text-white' : 'bg-white/55 text-ink-soft hover:bg-white'}`}>
                   <BarChart3 className="h-[18px] w-[18px]" strokeWidth={2} />
                 </motion.button>
@@ -540,7 +634,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
               </div>
             )}
             {/* Kereső — inaktívan kör; aktívan (ALAP) széles fehér mezővé nyílik, layout-animációval */}
-            <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} onClick={() => activeTool !== 'search' && setActiveTool('search')} className={`flex h-10 items-center gap-2 overflow-hidden rounded-full transition-colors ${activeTool === 'search' ? 'flex-1 bg-white px-3.5 shadow-sm sm:w-[216px] sm:flex-none' : 'w-10 flex-shrink-0 cursor-pointer justify-center bg-white/55 hover:bg-white'}`}>
+            <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} onClick={() => activeTool !== 'search' && setActiveTool('search')} className={`flex h-10 items-center gap-2 overflow-hidden rounded-full transition-colors ${activeTool === 'search' ? 'flex-1 bg-white px-3.5 shadow-sm lg:w-[216px] lg:flex-none' : 'w-10 flex-shrink-0 cursor-pointer justify-center bg-white/55 hover:bg-white'}`}>
               <Search className="h-[18px] w-[18px] flex-shrink-0 text-ink-soft" strokeWidth={2} />
               {activeTool === 'search' && (
                 <>
@@ -550,14 +644,14 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
               )}
             </motion.div>
             {/* Szűrők — aktív: fekete-fehér + label + panel; inaktív: ikon (aktív szűrőnél apró jelző) */}
-            <div className="relative">
+            <div className="relative hidden lg:block">
               <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setActiveTool(activeTool === 'filter' ? 'search' : 'filter')} title="Szűrők" className={`relative flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-colors ${activeTool === 'filter' ? 'bg-[#1D1C19] text-white' : 'bg-white/55 text-ink-soft hover:bg-white'}`}>
                 <SlidersHorizontal className="h-[18px] w-[18px]" strokeWidth={2} />
                 {filtersActive && activeTool !== 'filter' && <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#E8A23D]" />}
               </motion.button>
               <AnimatePresence>
                 {activeTool === 'filter' && (
-                  <motion.div initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }} style={{ transformOrigin: 'top center' }} className="absolute left-1/2 top-full z-50 mt-2.5 w-[288px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-black/[0.06] bg-white/90 shadow-[0_20px_50px_-12px_rgba(30,25,10,.3)] backdrop-blur-2xl">
+                  <motion.div initial={{ opacity: 0, y: -8, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8, scale: 0.98 }} transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }} style={{ transformOrigin: 'top center' }} className="absolute left-1/2 top-full z-50 mt-2.5 w-[400px] -translate-x-1/2 overflow-hidden rounded-[22px] border border-black/[0.06] bg-white/90 shadow-[0_20px_50px_-12px_rgba(30,25,10,.3)] backdrop-blur-2xl">
                     {/* fejléc */}
                     <div className="flex items-center justify-between px-4 pb-1.5 pt-3.5">
                       <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">Szűrők</span>
@@ -567,10 +661,10 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                     </div>
                     {/* típus — iOS szegmentált vezérlő */}
                     <div className="px-3 pb-2.5 pt-1">
-                      <SegFilter id="type" value={typeFilter} onChange={(v) => setTypeFilter(v)} options={[{ v: 'all', label: 'Mind' }, { v: 'shift', label: 'Műszak' }, { v: 'leave', label: 'Szab' }, { v: 'vacation', label: 'Fiz' }, { v: 'sick', label: 'Beteg' }]} />
+                      <SegFilter id="type" value={typeFilter} onChange={(v) => setTypeFilter(v)} options={[{ v: 'all', label: 'Mind' }, { v: 'shift', label: 'Műszak' }, { v: 'leave', label: 'Szab' }, { v: 'vacation', label: 'Szabadnap' }, { v: 'sick', label: 'Beteg' }]} />
                     </div>
                     {/* csoportosított lista (iOS-inset) */}
-                    <div className="mx-3 mb-3 overflow-hidden rounded-[15px] bg-[#F2F2F5]">
+                    <div className="mx-3 mb-3 overflow-hidden rounded-[15px] bg-[#F7F7F7]">
                       {positionOptions.length > 0 && (
                         <>
                           <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
@@ -602,22 +696,106 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
             </div>
             {/* + Új műszak — sötét kör; csak beosztás-kezelőknek */}
             {canManage && (
-              <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setDayEditor(selectedDay ?? todayStr)} title="Új műszak felvétele" className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white transition-colors hover:bg-ink">
+              <motion.button layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} type="button" onClick={() => setDayEditor(selectedDay ?? todayStr)} title="Új műszak felvétele" className="hidden h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white transition-colors hover:bg-ink lg:flex">
                 <Plus className="h-[18px] w-[18px]" strokeWidth={2.2} />
               </motion.button>
             )}
           </motion.div>
         </div>
 
+        {/* Mobil bottom sheet-ek: statisztika + szűrő — a DashboardNav fejléc-ikonjai nyitják
+            (davelopment:open-schedule-stats/filter), ugyanaz a felcsúszó-panel minta mint a
+            Beállítások/Tippek mobil-fejléc ikonjainál. */}
+        {isMounted && createPortal(
+          <AnimatePresence>
+            {mobileStatsOpen && sel && (
+              <div className="fixed inset-0 z-[160] lg:hidden">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm" onClick={() => setMobileStatsOpen(false)} />
+                <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }} data-lenis-prevent className="absolute inset-x-0 bottom-0 rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]">
+                  <div className="px-4 pb-3 pt-3">
+                    <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{sel.name.split(' ')[0]} · {MONTHS[m]} összegző</span>
+                      <button type="button" onClick={() => setMobileStatsOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"><X className="h-4 w-4" strokeWidth={2} /></button>
+                    </div>
+                  </div>
+                  <div className="px-4 pb-6">
+                    {([['Ledolgozott', daysWorked, '#F1CE45'], ['Hiányzás', sickDays, '#1D1C19'], ['Szabadság', vacationDays, '#E4DECC'], ['Szabad nap', daysInMonth - daysWorked - sickDays - vacationDays, '#C9C3B4']] as [string, number, string][]).map(([label, val, color]) => (
+                      <div key={label} className="flex items-center justify-between py-2 text-[14px]">
+                        <span className="flex items-center gap-2 font-medium text-ink"><span className="h-2.5 w-2.5 rounded-full" style={{ background: color }} />{label}</span>
+                        <span className="font-semibold text-ink">{val} nap</span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+        {isMounted && createPortal(
+          <AnimatePresence>
+            {mobileFilterOpen && (
+              <div className="fixed inset-0 z-[160] lg:hidden">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm" onClick={() => setMobileFilterOpen(false)} />
+                <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }} data-lenis-prevent className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]">
+                  <div className="px-4 pb-3 pt-3">
+                    <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+                    <div className="flex items-center justify-between">
+                      <span className="text-[15px] font-semibold tracking-[-0.01em] text-ink">Szűrők</span>
+                      <div className="flex items-center gap-3">
+                        {filtersActive && (
+                          <button type="button" onClick={() => { setTypeFilter('all'); setPosFilter('all'); setOnlyUncovered(false); setQuery('') }} className="text-[13px] font-medium text-[#0A84FF] transition-opacity hover:opacity-70">Törlés</button>
+                        )}
+                        <button type="button" onClick={() => setMobileFilterOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"><X className="h-4 w-4" strokeWidth={2} /></button>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="px-3 pb-2.5 pt-1">
+                    <SegFilter id="type-mobile" value={typeFilter} onChange={(v) => setTypeFilter(v)} options={[{ v: 'all', label: 'Mind' }, { v: 'shift', label: 'Műszak' }, { v: 'leave', label: 'Szab' }, { v: 'vacation', label: 'Szabadnap' }, { v: 'sick', label: 'Beteg' }]} />
+                  </div>
+                  <div className="mx-3 mb-4 overflow-hidden rounded-[15px] bg-[#F7F7F7]">
+                    {positionOptions.length > 0 && (
+                      <>
+                        <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
+                          <span className="text-[14px] text-ink">Pozíció</span>
+                          <div className="relative flex items-center">
+                            <select value={posFilter} onChange={(e) => setPosFilter(e.target.value)} className="max-w-[150px] cursor-pointer appearance-none truncate bg-transparent pr-5 text-right text-[14px] font-medium focus:outline-none" style={{ color: posFilter !== 'all' ? '#1D1C19' : '#8b8578' }}>
+                              <option value="all">Bármely</option>
+                              {positionOptions.map((p) => <option key={p} value={p}>{p}</option>)}
+                            </select>
+                            <ChevronDown className="pointer-events-none absolute right-0 h-4 w-4 text-ink-soft2" strokeWidth={1.8} />
+                          </div>
+                        </div>
+                        <div className="ml-3.5 h-px bg-black/[0.06]" />
+                      </>
+                    )}
+                    <button type="button" onClick={() => setOnlyUncovered((v) => !v)} className="flex w-full items-center justify-between px-3.5 py-2.5 text-left">
+                      <span className="text-[14px] text-ink">Csak fedetlen napok</span>
+                      <span className={`relative inline-flex h-[26px] w-[42px] flex-shrink-0 items-center rounded-full transition-colors duration-200 ${onlyUncovered ? 'bg-[#1D1C19]' : 'bg-[#E2E2E8]'}`}><span className={`h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.25)] transition-transform duration-200 ${onlyUncovered ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} /></span>
+                    </button>
+                    <div className="ml-3.5 h-px bg-black/[0.06]" />
+                    <button type="button" onClick={() => setCoverWeekends((v) => !v)} className="flex w-full items-center justify-between px-3.5 py-2.5 text-left">
+                      <span className="text-[14px] text-ink">Hétvégét is figyelje</span>
+                      <span className={`relative inline-flex h-[26px] w-[42px] flex-shrink-0 items-center rounded-full transition-colors duration-200 ${coverWeekends ? 'bg-[#1D1C19]' : 'bg-[#E2E2E8]'}`}><span className={`h-[22px] w-[22px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.25)] transition-transform duration-200 ${coverWeekends ? 'translate-x-[18px]' : 'translate-x-[2px]'}`} /></span>
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
+
         <div ref={folderRef} className="sched-folder rounded-[34px] bg-[rgba(255,255,255,.55)] p-4 pt-[68px] shadow-[0_24px_60px_-34px_rgba(70,60,20,.4)] backdrop-blur-[18px] sm:p-5 sm:pt-[76px]">
-          <div className="grid gap-4 lg:grid-cols-[1fr_1.5fr_1fr] lg:items-start">
+          <div className="grid gap-4 lg:grid-cols-[1fr_1.5fr_1fr]">
         {/* ── BAL: csapat-lista VAGY (nap kijelölésekor) az aznap dolgozók ── (fel a vállba) */}
-        <div className="rounded-[26px] dav-card-glass p-3.5 lg:-mt-16 lg:flex lg:flex-col" style={leftPanelMinH ? { height: leftPanelMinH } : undefined}>
+        <div className="rounded-[26px] dav-card-glass p-3.5 lg:-mt-16 lg:flex lg:flex-col lg:self-stretch">
           <AnimatePresence mode="wait" initial={false}>
             {selectedDay ? (
               <motion.div key="day" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="lg:flex lg:flex-col lg:flex-1 lg:min-h-0">
                 <div className="mb-3 flex items-center gap-2">
-                  <button type="button" onClick={() => setSelectedDay(null)} title="Vissza a csapathoz" className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-paper text-ink-soft transition-colors hover:text-ink">
+                  <button type="button" onClick={() => setSelectedDay(null)} title="Vissza a csapathoz" className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#f7f7f7] text-ink-soft transition-colors hover:text-ink">
                     <ArrowLeft className="h-4 w-4" strokeWidth={2} />
                   </button>
                   <div className="min-w-0">
@@ -649,26 +827,17 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                           return (
                             <div key={s.id} className="mb-1 flex w-full items-center gap-1">
                               <button type="button" onClick={() => st && setSelStaff(st.id)} className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[14px] p-2 text-left transition-colors hover:bg-paper" style={active ? { background: '#FBF7EC' } : undefined}>
-                                <Ava url={st?.avatarUrl} ini={st?.ini ?? '?'} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold" style={{ background: cs.bg, color: cs.fg }} />
+                                <Ava url={st?.avatarUrl} ini={st?.ini ?? '?'} icon={isOwnerRole(st?.role ?? '') ? Crown : User} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold" style={{ background: cs.bg, color: cs.fg, boxShadow: st?.avatarUrl ? `0 0 0 2px ${cs.bg}` : undefined }} />
                                 <div className="min-w-0 flex-1">
                                   <div className="truncate text-[13px] font-semibold text-ink">{st?.name ?? 'Ismeretlen'}</div>
                                   <div className="flex items-center gap-1 text-[11px] font-medium text-ink-soft">
                                     {s.left_early_at && <LogOut className="h-3 w-3 flex-shrink-0 text-[#C0392B]" strokeWidth={2} />}
-                                    <span className="truncate">
-                                      {!isRestaurant && s.type === 'shift' && s.start_time
-                                        ? s.left_early_at ? statusLabel(s) : ''
-                                        : statusLabel(s)}
-                                    </span>
+                                    <span className="truncate">{statusLabel(s)}</span>
                                   </div>
                                 </div>
-                                {!isRestaurant && s.type === 'shift' && s.start_time && (
-                                  <span className="shrink-0 rounded-[10px] bg-[#F4F2EC] px-2.5 py-1 text-[11.5px] font-semibold tabular-nums text-ink">
-                                    {s.start_time}{s.end_time ? `–${s.end_time}` : ''}
-                                  </span>
-                                )}
                               </button>
                               {canManage && (
-                                <button type="button" disabled={busy} onClick={() => deleteShift(s)} className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#FBECEC] text-[#C0392B] disabled:opacity-60 transition-opacity">
+                                <button type="button" disabled={busy} onClick={() => setPendingDelete(s)} className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#FBECEC] text-[#C0392B] disabled:opacity-60 transition-opacity">
                                   <Trash2 className="h-3.5 w-3.5" strokeWidth={1.8} />
                                 </button>
                               )}
@@ -696,7 +865,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                   </button>
                 )}
                 {canManage && (
-                  <button type="button" onClick={() => setDayEditor(selectedDay)} className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] border border-line bg-paper py-2.5 text-[12.5px] font-semibold text-ink transition-colors hover:bg-[#F0EAD8]">
+                  <button type="button" onClick={() => setDayEditor(selectedDay)} className="mt-2 flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#F7F7F7] py-2.5 text-[12.5px] font-semibold text-ink transition-colors hover:bg-[#EFEFEF]">
                     <Plus className="h-4 w-4 text-ink-soft" strokeWidth={2.2} /> Nap szerkesztése
                   </button>
                 )}
@@ -751,7 +920,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
         </div>
 
         {/* ── KÖZÉP: fejléc + globális naptár ── (lejjebb, a luk alá) */}
-        <div ref={centerColRef} className="rounded-[26px] lg:mt-5">
+        <div className="rounded-[26px] lg:mt-5">
           <div className="flex items-start justify-between gap-3">
             <div className="text-[28px] font-light tracking-[-0.02em] text-ink lg:text-[32px]">
               {selectedDay ? (
@@ -803,14 +972,18 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
               >
             {cells.map((c, i) => {
               if (!c.inMonth) return <div key={i} className="min-h-[70px] rounded-[10px] sm:min-h-[84px] sm:rounded-[14px]" style={{ background: 'repeating-linear-gradient(-45deg, rgba(160,150,120,.13) 0px, rgba(160,150,120,.13) 1px, transparent 1px, transparent 7px), rgba(255,255,255,.18)' }} />
-              const dayAll = c.date ? byDate.get(c.date) ?? [] : [] // TELJES nap (fedettséghez)
-              const dayShifts = filtersActive ? dayAll.filter(passesFilter) : dayAll // szűrt (chipekhez)
+              const dayAll = c.date ? byDate.get(c.date) ?? [] : [] // TELJES nap (fedettséghez — a szabadnapos is "nincs ki dolgozzon" jel)
+              // A chipekhez/létszámhoz a "Szabadnap" (vacation) típust KIVESSZÜK — ő nem "dolgozik"
+              // aznap, nem akarjuk úgy mutatni a rácsban, mintha be lenne osztva.
+              const dayShifts = (filtersActive ? dayAll.filter(passesFilter) : dayAll).filter((s) => s.type !== 'vacation')
               const isToday = c.date === todayStr
               const isSelDay = c.date === selectedDay
               const bdays = c.date ? birthdaysOn(c.date) : []
-              const isClosed = c.date != null && closedDates.includes(c.date)
-              // Fedettség: fedetlen = mai/jövőbeli HÉTKÖZNAP (H–P) 0 beosztással (a TELJES napból) → halvány figyelmeztetés.
               const dow = new Date(y, m, c.day).getDay() // 0=vas … 6=szo
+              // Zárva: egyszeri kivétel BÁRMIKOR, vagy heti visszatérő zárvatartás — de utóbbi csak
+              // a mai naptól előre (visszamenőleg egy új heti szabály ne írja át a múltat).
+              const isClosed = c.date != null && (closedDates.includes(c.date) || (c.date >= todayStr && closedWeekdays.includes(dow)))
+              // Fedettség: fedetlen = mai/jövőbeli HÉTKÖZNAP (H–P) 0 beosztással (a TELJES napból) → halvány figyelmeztetés.
               const isUncovered = !isSelDay && !isClosed && c.date != null && c.date >= todayStr && isWatchedDow(dow) && dayAll.length === 0
               return (
                 <div key={i} className="group relative">
@@ -864,7 +1037,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                         return (
                           <span key={s.id} title={`${st?.name ?? ''} · ${statusLabel(s)}`}
                             className={`flex h-4 w-4 flex-shrink-0 items-center justify-center overflow-hidden rounded-full transition-opacity sm:h-5 sm:w-5${idx > 0 ? ' -ml-[4px]' : ''}`}
-                            style={{ background: photo ? '#F0EAD8' : cs.bg, color: cs.fg, boxShadow: isSelSt ? '0 0 0 1.5px #1D1C19' : '0 0 0 1px rgba(255,255,255,0.7)', zIndex: 3 - idx, opacity: (focusPerson && !selectedDay && !isSelSt) ? 0.2 : 1 }}>
+                            style={{ background: photo ? '#F0EAD8' : cs.bg, color: cs.fg, boxShadow: isSelSt ? `0 0 0 1.5px ${cs.bg}, 0 0 0 3px #fff` : `0 0 0 1.5px ${cs.bg}`, zIndex: 3 - idx, opacity: (focusPerson && !selectedDay && !isSelSt) ? 0.2 : 1 }}>
                             {photo ? <img src={photo} alt="" className="h-full w-full object-cover object-top" /> : <User className="h-[56%] w-[56%] opacity-70" strokeWidth={1.9} />}
                           </span>
                         )
@@ -925,21 +1098,21 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
             )}
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] font-medium text-ink-soft">
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-gold" />Műszak</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-ink-dark" />Betegszabadság</span>
-            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full" style={{ background: '#E4DECC' }} />Szabadság</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-ink-dark" />Műszak</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full" style={{ background: '#C0564A' }} />Betegszabadság</span>
+            <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full bg-gold" />Szabadság</span>
             <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border border-dashed" style={{ borderColor: '#E8A23D' }} />Fedetlen nap</span>
             <span className="inline-flex items-center gap-1.5"><LogOut className="h-3 w-3 text-[#C0392B]" strokeWidth={2} />Korai távozás</span>
           </div>
         </div>
 
         {/* ── JOBB: profil (KOMPAKT fejléc — nincs borítókép-banner, hogy ne legyen magasabb a bal oldalnál) ── */}
-        <div ref={rightColRef}>
+        <div className="lg:flex lg:flex-col lg:self-stretch">
         <AnimatePresence mode="wait" initial={false}>
         {sel ? (
-          <motion.div key={sel.id} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 14 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="overflow-hidden rounded-[26px] dav-card-glass lg:-mt-16">
-            <div className="flex items-center gap-3 px-6 pb-4 pt-6">
-              <Ava url={sel.avatarUrl} ini={sel.ini} className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full text-[18px] font-bold" style={{ background: '#F1CE45', color: '#1D1C19' }} />
+          <motion.div key={sel.id} initial={{ opacity: 0, x: 14 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 14 }} transition={{ duration: 0.2, ease: 'easeOut' }} className="overflow-hidden rounded-[26px] dav-card-glass lg:-mt-16 lg:flex lg:flex-1 lg:flex-col">
+            <div className="flex items-center gap-3 p-3.5">
+              <Ava url={sel.avatarUrl} ini={sel.ini} icon={isOwnerRole(sel.role) ? Crown : User} className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full text-[18px] font-bold" style={{ background: '#F1CE45', color: '#1D1C19' }} />
               <div className="min-w-0 flex-1">
                 <div className="truncate text-[17px] font-semibold text-ink">{sel.name}</div>
                 <div className="truncate text-[13px] font-medium text-ink-soft">{sel.role || 'Munkatárs'}</div>
@@ -950,12 +1123,12 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F0EAD8] text-ink-soft transition-colors hover:bg-[#E8DFC8] hover:text-ink"
                   title="Saját profil"
                 >
-                  <User className="h-4 w-4" strokeWidth={1.8} />
+                  <Settings className="h-4 w-4" strokeWidth={1.8} />
                 </Link>
               )}
             </div>
 
-            <div className="px-6 pb-2">
+            <div className="p-3.5">
               <div className="mb-3 text-[14px] font-semibold text-ink">Alapadatok</div>
               {([
                 ['Születésnap', fmtHu(sel.birthday)],
@@ -990,7 +1163,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
             </div>
 
             {/* Beosztás: következő műszak + e heti (H–V) mini-csík a valós hétből */}
-            <div className="px-6 pb-2 pt-4">
+            <div className="p-3.5">
               <div className="mb-3 text-[14px] font-semibold text-ink">Beosztás</div>
               <div className="mb-3 flex items-center justify-between rounded-[14px] bg-[#FBF9F2] px-3.5 py-2.5">
                 <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-soft"><CalendarClock className="h-3.5 w-3.5" strokeWidth={1.8} /> Következő műszak</span>
@@ -1025,7 +1198,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
               </div>
             </div>
 
-            <div className="px-6 pb-7 pt-4">
+            <div className="p-3.5 lg:flex lg:flex-1 lg:flex-col">
               <div className="mb-3.5 text-[14px] font-semibold text-ink">Statisztika (hó)</div>
               {([
                 ['Betegszabadság', `${Math.round(sick / 8)} nap`, Math.min(100, (sick / 40) * 100), '#1D1C19'],
@@ -1042,15 +1215,17 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                   </div>
                 </div>
               ))}
+              {/* Rugalmas töltő — a felesleges (a bal panellel egyeztetett) magasságot itt nyeli el, a Hívás gombot az aljára tolva. */}
+              <div className="lg:flex-1" />
               {sel.phone && (
-                <a href={`tel:${sel.phone}`} className="mt-2 flex items-center justify-center gap-2 rounded-[16px] bg-[#F6F2E4] py-2.5 text-[13px] font-semibold text-ink transition-colors hover:bg-[#EFE9D6]">
+                <a href={`tel:${sel.phone}`} className="mt-2 flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#F6F2E4] py-2.5 text-[13px] font-semibold text-ink transition-colors hover:bg-[#EFE9D6]">
                   <Phone className="h-4 w-4" strokeWidth={1.7} /> Hívás
                 </a>
               )}
             </div>
           </motion.div>
         ) : (
-          <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="rounded-[26px] dav-card-glass p-6 text-center text-[13px] text-ink-soft lg:-mt-16">Válassz munkatársat.</motion.div>
+          <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="rounded-[26px] dav-card-glass p-6 text-center text-[13px] text-ink-soft lg:-mt-16 lg:flex lg:flex-1 lg:items-center lg:justify-center">Válassz munkatársat.</motion.div>
         )}
         </AnimatePresence>
         </div>
@@ -1070,11 +1245,24 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
           dayTip={tips[dayEditor] ?? 0}
           onSaveTips={(amount) => saveTips(dayEditor, amount)}
           onAdd={(staffId, p) => addShift(staffId, p, dayEditor)}
+          onAddRange={(staffId, p, endDate) => addShiftRange(staffId, p, dayEditor, endDate)}
           onEdit={(id, p) => editShift(id, p)}
           onDelete={deleteShift}
           onClose={() => setDayEditor(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Bejegyzés törlése"
+        description={pendingDelete ? `Biztosan törlöd ${staffById.get(pendingDelete.staffId)?.name ?? 'ennek a munkatársnak'} ${fmtHu(pendingDelete.date)}-i bejegyzését?` : undefined}
+        confirmLabel="Törlés"
+        cancelLabel="Mégse"
+        destructive
+        busy={busy}
+        onConfirm={confirmPendingDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   )
 }
@@ -1082,7 +1270,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
 /* ── Nap-szerkesztő: az aznapi bejegyzések (MÓDOSÍTHATÓ + törölhető) + ember hozzáadása
  *   (a már beosztottak KIHAGYVA), plusz státuszváltás (korai távozás — beteg lett / hazament). ── */
 function DayEditor({
-  date, staff, staffById, dayShifts, busy, isRestaurant, dayTip, onSaveTips, onAdd, onEdit, onDelete, onClose,
+  date, staff, staffById, dayShifts, busy, isRestaurant, dayTip, onSaveTips, onAdd, onAddRange, onEdit, onDelete, onClose,
 }: {
   date: string
   staff: StaffVM[]
@@ -1093,8 +1281,9 @@ function DayEditor({
   dayTip: number
   onSaveTips: (amount: number) => Promise<boolean>
   onAdd: (staffId: string, p: ShiftInput) => Promise<boolean>
+  onAddRange: (staffId: string, p: ShiftInput, endDate: string) => Promise<boolean>
   onEdit: (id: string, p: ShiftInput) => Promise<boolean>
-  onDelete: (s: ShiftVM) => void
+  onDelete: (s: ShiftVM) => void | Promise<void>
   onClose: () => void
 }) {
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -1102,23 +1291,44 @@ function DayEditor({
   const [type, setType] = useState<ShiftType>('shift')
   const [start, setStart] = useState('09:00')
   const [end, setEnd] = useState('17:00')
+  const [hasBreak, setHasBreak] = useState(false)
+  const [breakStart, setBreakStart] = useState('12:00')
+  const [breakEnd, setBreakEnd] = useState('13:00')
   const [note, setNote] = useState('')
   const [leftEarly, setLeftEarly] = useState(false)
   const [leftAt, setLeftAt] = useState('12:00')
   const [leftReason, setLeftReason] = useState<'sick' | 'personal'>('sick')
   const [tipInput, setTipInput] = useState(dayTip > 0 ? String(dayTip) : '')
+  // "Tól-ig" tartomány szabadság/beteg/fizetett szabadságnál — csak ÚJ felvitelnél (nem
+  // módosításnál), hogy egy művelettel több napra is fel lehessen vinni ugyanazt a típust.
+  const [rangeMode, setRangeMode] = useState(false)
+  const [rangeEnd, setRangeEnd] = useState('')
+  const [pendingDelete, setPendingDelete] = useState<ShiftVM | null>(null)
   const formRef = useRef<HTMLDivElement>(null)
 
-  // #2 — a hozzáadásnál CSAK a még be nem osztott munkatársak választhatók.
+  async function confirmPendingDelete() {
+    if (!pendingDelete) return
+    if (editingId === pendingDelete.id) resetForm()
+    await onDelete(pendingDelete)
+    setPendingDelete(null)
+  }
+
+  // #2 — sima "Műszak" hozzáadásnál CSAK a még be nem osztott munkatársak választhatók (nem
+  // akarunk véletlen duplázást). Szabadság/beteg/fizetett szabadságnál viszont BÁRKI választható,
+  // MÉG AZ IS, akinek már van aznapra (akár a beosztás-automatizáló által auto-generált) "Műszak"
+  // bejegyzése — ezt a mentés felül fogja írni (ld. `addShift`/`addShiftRange`). E nélkül az
+  // automatizálás óta (ami mindenkinek beír egy alap Műszakot minden napra) senki nem lett volna
+  // itt kiválasztható, tehát a szabadság-felvitel gyakorlatilag elérhetetlenné vált.
   const scheduledIds = new Set(dayShifts.map((s) => s.staffId))
   const available = staff.filter((st) => !scheduledIds.has(st.id))
+  const pickList = type === 'shift' ? available : staff
   // A meghívóra váró (még nem elfogadott) munkatárs megjelenik a listában (ne tűnjön el
   // nyomtalanul), de nem választható ki alapértelmezettként — ld. a <select> disabled option-jét lent.
   const effStaffId = editingId
     ? staffId
-    : available.some((s) => s.id === staffId && !s.pending)
+    : pickList.some((s) => s.id === staffId && !s.pending)
       ? staffId
-      : available.find((s) => !s.pending)?.id ?? ''
+      : pickList.find((s) => !s.pending)?.id ?? ''
   const editingStaff = editingId ? staffById.get(staffId) : null
 
   // Módosításkor görgessük a szerkesztő-formot a nézetbe (egységes UX).
@@ -1130,29 +1340,51 @@ function DayEditor({
 
   const resetForm = () => {
     setEditingId(null); setType('shift'); setStart('09:00'); setEnd('17:00'); setNote('')
+    setHasBreak(false); setBreakStart('12:00'); setBreakEnd('13:00')
     setLeftEarly(false); setLeftAt('12:00'); setLeftReason('sick')
+    setRangeMode(false); setRangeEnd('')
   }
   const startEdit = (s: ShiftVM) => {
     setEditingId(s.id); setStaffId(s.staffId); setType(s.type)
-    setStart(s.start_time ?? '09:00'); setEnd(s.end_time ?? '17:00'); setNote(s.note ?? '')
+    // A `__auto__` egy belső jelölő (a beosztás-automatizáló hozta létre a napot) — sose
+    // mutatjuk a felhasználónak, és ha innen mentenek, a rekord "kézivé" válik (a jelölő eltűnik).
+    setStart(s.start_time ?? '09:00'); setEnd(s.end_time ?? '17:00'); setNote(s.note === '__auto__' ? '' : s.note ?? '')
+    setHasBreak(!!(s.break_start && s.break_end)); setBreakStart(s.break_start ?? '12:00'); setBreakEnd(s.break_end ?? '13:00')
     setLeftEarly(!!s.left_early_at); setLeftAt(s.left_early_at ?? '12:00'); setLeftReason(s.left_early_reason ?? 'sick')
+    setRangeMode(false); setRangeEnd('')
   }
 
   const submit = async () => {
     const p: ShiftInput = {
       type, start_time: start, end_time: end, note,
+      break_start: type === 'shift' && hasBreak ? breakStart : '',
+      break_end: type === 'shift' && hasBreak ? breakEnd : '',
       left_early_at: type === 'shift' && leftEarly ? leftAt : null,
       left_early_reason: type === 'shift' && leftEarly ? leftReason : null,
     }
-    const ok = editingId ? await onEdit(editingId, p) : effStaffId ? await onAdd(effStaffId, p) : false
+    // A tól-ig tartomány MÓDOSÍTÁS közben is elérhető (nem csak új felvitelnél) — szerkesztéskor
+    // a `staffId` (nem az `effStaffId`, ami csak a "hozzáadás" választóhoz kell) adja a célszemélyt.
+    const useRange = rangeMode && type !== 'shift' && rangeEnd && rangeEnd >= date
+    const targetStaffId = editingId ? staffId : effStaffId
+    const ok = useRange
+      ? await onAddRange(targetStaffId, p, rangeEnd)
+      : editingId
+        ? await onEdit(editingId, p)
+        : effStaffId ? await onAdd(effStaffId, p) : false
     if (ok) resetForm()
   }
 
   const inp = 'w-full rounded-[13px] border border-line bg-white px-3 py-2 text-[13px] font-medium text-ink focus:outline-none'
 
-  return (
+  // A `document.body`-ra portáljuk (nem a hívó helyén rendereljük) — enélkül a "fixed inset-0"
+  // egy transformot/filtert használó ŐS DOBOZÁHOZ igazodna a viewport helyett (CSS-szabály: egy
+  // ilyen tulajdonságú ős új "containing block"-ot hoz létre a fixed elemeknek), ami épp az
+  // étterem-oldali oldal-átmenet wrapperje miatt más SZÉLESSÉGET adott a modálnak, mint a szalon
+  // oldalon — ugyanaz a minta, mint a `CoverFocalPointEditor`-nál.
+  return <>
+    {createPortal(
     <div className="fixed inset-0 z-[900] flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div className="flex max-h-[92vh] w-full max-w-[460px] flex-col overflow-y-auto rounded-t-[26px] bg-white p-5 shadow-dav-card sm:rounded-[26px]" onClick={(e) => e.stopPropagation()} data-lenis-prevent>
+      <div className="flex max-h-[92vh] w-full flex-col overflow-y-auto rounded-t-[26px] bg-white p-5 shadow-dav-card sm:max-w-[460px] sm:rounded-[26px] lg:max-w-[860px]" onClick={(e) => e.stopPropagation()} data-lenis-prevent>
         <div className="mb-4 flex items-start justify-between">
           <div>
             <div className="text-[17px] font-semibold text-ink">Nap szerkesztése</div>
@@ -1163,21 +1395,27 @@ function DayEditor({
           </button>
         </div>
 
+        {/* Desktopon (lg+) két oszlop egymás mellett: bal = napi lista + borravaló, jobb = a
+            hozzáadás/módosítás form — mobilon (a lg: osztályok nélkül) továbbra is egy
+            egymás-alatti oszlop marad, ahogy eddig. */}
+        <div className="lg:flex lg:items-start lg:gap-5">
+        <div className="lg:min-w-0 lg:flex-1">
         {/* Napi KÖZPONTI borravaló (étterem) — az aznap dolgozó jogosultak közt oszlik el */}
         {isRestaurant && (
           <div className="mb-4 rounded-[16px] border border-line bg-[#FCFBF7] p-3.5">
             <div className="mb-2 flex items-center gap-1.5 text-[12.5px] font-semibold text-ink"><Coins className="h-4 w-4 text-[#C9A227]" strokeWidth={2} /> Napi borravaló</div>
-            <div className="flex items-center gap-2">
-              <div className="relative flex-1">
-                <input type="number" inputMode="numeric" min={0} value={tipInput} onChange={(e) => setTipInput(e.target.value)} placeholder="0" className="w-full rounded-[13px] border border-line bg-white px-3 py-2.5 pr-9 text-[14px] font-semibold text-ink focus:outline-none" />
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative min-w-[120px] flex-1">
+                <input type="number" inputMode="numeric" min={0} value={tipInput} onChange={(e) => setTipInput(e.target.value)} placeholder="0" className="w-full rounded-[13px] border border-line bg-white px-3 py-2.5 pr-9 text-[14px] font-semibold text-ink outline-none [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
                 <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[12px] font-medium text-ink-soft2">Ft</span>
               </div>
               <button
                 type="button"
                 disabled={busy || (tipInput === '' ? dayTip === 0 : Math.round(Number(tipInput)) === dayTip)}
                 onClick={() => onSaveTips(tipInput === '' ? 0 : Number(tipInput))}
-                className="flex-shrink-0 rounded-[13px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
+                className="flex flex-shrink-0 items-center gap-1.5 rounded-[13px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
               >
+                {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
                 Mentés
               </button>
             </div>
@@ -1195,8 +1433,8 @@ function DayEditor({
               const cs = chipStyle(s.type)
               const isEditing = editingId === s.id
               return (
-                <div key={s.id} className="flex items-center gap-2.5 rounded-[14px] p-2.5" style={{ background: isEditing ? '#FBF7EC' : '#FBF9F2', boxShadow: isEditing ? 'inset 0 0 0 1.5px rgba(224,179,37,.6)' : undefined }}>
-                  <Ava url={st?.avatarUrl} ini={st?.ini ?? '?'} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold" style={{ background: cs.bg, color: cs.fg, boxShadow: st?.avatarUrl ? `0 0 0 2px ${cs.bg}` : undefined }} />
+                <div key={s.id} role="button" tabIndex={0} onClick={() => startEdit(s)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startEdit(s) } }} className="flex cursor-pointer items-center gap-2.5 rounded-[14px] p-2.5" style={{ background: isEditing ? '#FBF7EC' : '#FBF9F2', boxShadow: isEditing ? 'inset 0 0 0 1.5px rgba(224,179,37,.6)' : undefined }}>
+                  <Ava url={st?.avatarUrl} ini={st?.ini ?? '?'} icon={isOwnerRole(st?.role ?? '') ? Crown : User} className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-[12px] font-bold" style={{ background: cs.bg, color: cs.fg, boxShadow: st?.avatarUrl ? `0 0 0 2px ${cs.bg}` : undefined }} />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[13.5px] font-semibold text-ink">{st?.name ?? 'Ismeretlen'}</div>
                     <div className="flex items-center gap-1 text-[11.5px] font-medium text-ink-soft">
@@ -1204,8 +1442,7 @@ function DayEditor({
                       <span className="truncate">{statusLabel(s)}</span>
                     </div>
                   </div>
-                  <button type="button" onClick={() => startEdit(s)} className="flex-shrink-0 rounded-full bg-white px-2.5 py-1.5 text-[11.5px] font-semibold text-ink shadow-[0_1px_3px_rgba(70,60,20,.1)] transition-colors hover:bg-paper">Módosít</button>
-                  <button type="button" disabled={busy} onClick={() => { if (editingId === s.id) resetForm(); onDelete(s) }} className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#FBECEC] text-[#C0392B] disabled:opacity-60">
+                  <button type="button" disabled={busy} onClick={(e) => { e.stopPropagation(); setPendingDelete(s) }} className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#FBECEC] text-[#C0392B] disabled:opacity-60">
                     <Trash2 className="h-4 w-4" strokeWidth={1.8} />
                   </button>
                 </div>
@@ -1213,32 +1450,55 @@ function DayEditor({
             })
           )}
         </div>
+        </div>
 
-        {/* hozzáadás VAGY módosítás */}
+        {/* hozzáadás VAGY módosítás — desktopon a jobb oszlop, mobilon a lista alatt */}
+        <div className="mt-4 lg:mt-0 lg:w-[320px] lg:shrink-0">
         <div ref={formRef} className="rounded-[18px] border border-line bg-[#FCFBF7] p-3.5">
           <div className="mb-2.5 flex items-center justify-between">
             <span className="truncate text-[12.5px] font-semibold text-ink">{editingId ? `Módosítás — ${editingStaff?.name ?? ''}` : 'Ember hozzáadása'}</span>
             {editingId && <button type="button" onClick={resetForm} className="flex-shrink-0 text-[11.5px] font-medium text-ink-soft transition-colors hover:text-ink">Mégse</button>}
           </div>
 
-          {!editingId && available.length === 0 ? (
-            <div className="rounded-[12px] bg-white px-3 py-2.5 text-center text-[12px] text-ink-soft">{staff.length === 0 ? 'Nincs munkatárs.' : 'Mindenki be van osztva erre a napra.'}</div>
+          {!editingId && staff.length === 0 ? (
+            <div className="rounded-[12px] bg-white px-3 py-2.5 text-center text-[12px] text-ink-soft">Nincs munkatárs.</div>
           ) : (
             <>
               {!editingId && (
-                <div className="relative mb-2.5">
-                  <select value={effStaffId} onChange={(e) => setStaffId(e.target.value)} className="w-full cursor-pointer appearance-none rounded-[13px] border border-line bg-white px-3 py-2.5 pr-9 text-[13.5px] font-medium text-ink focus:outline-none">
-                    {available.map((st) => (
-                      <option key={st.id} value={st.id} disabled={st.pending}>
-                        {st.pending ? `🔒 ${st.name} — meghívó függőben` : st.name}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft2" strokeWidth={1.8} />
-                </div>
+                pickList.length === 0 ? null : (
+                  <div className="relative mb-2.5">
+                    <Select value={effStaffId} onValueChange={(v) => setStaffId(v)}>
+                      <SelectTrigger className="w-full rounded-[13px] border border-line bg-white px-3 py-2.5 text-[13.5px] font-medium text-ink focus:outline-none focus:ring-0 focus:ring-offset-0">
+                        <SelectValue placeholder="Válassz munkatársat" />
+                      </SelectTrigger>
+                      {/* A "Nap szerkesztése" modal saját overlaya z-[900]-on ül, a Select alap
+                          z-[100]-a emögé kerülne (a lenyíló technikailag "nyitva" van, csak
+                          láthatatlanul, a modal háttere mögött) — inline z-index-szel felülírva,
+                          mert a kompilált Tailwind-osztályok sorrendje nem garantálja a győzelmet. */}
+                      <SelectContent style={{ zIndex: 950 }}>
+                        {pickList.map((st) => (
+                          <SelectItem key={st.id} value={st.id} disabled={st.pending}>
+                            {st.pending ? (
+                              <span className="flex items-center gap-1.5">
+                                <Lock className="h-3 w-3 shrink-0 text-ink-soft2" strokeWidth={2} />
+                                {st.name} — meghívó függőben
+                              </span>
+                            ) : type !== 'shift' && available.every((a) => a.id !== st.id) ? (
+                              <span className="flex items-center gap-1.5">
+                                {st.name} <span className="text-ink-soft2">(felülírja a mai Műszakját)</span>
+                              </span>
+                            ) : st.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )
               )}
-              {!editingId && available.every((st) => st.pending) === false && available.some((st) => st.pending) && (
-                <p className="mb-2.5 -mt-1 text-[11px] text-ink-soft2">A 🔒 jelöltek még nem fogadták el a meghívást, addig nem oszthatók be.</p>
+              {!editingId && pickList.some((st) => st.pending) && (
+                <p className="mb-2.5 -mt-1 flex items-center gap-1.5 text-[11px] text-ink-soft2">
+                  <Lock className="h-3 w-3 shrink-0" strokeWidth={2} /> A jelölt munkatársak még nem fogadták el a meghívást, addig nem oszthatók be.
+                </p>
               )}
               <div className="mb-2.5 grid grid-cols-2 gap-2">
                 {(['shift', 'vacation', 'sick', 'leave'] as ShiftType[]).map((t) => (
@@ -1247,6 +1507,27 @@ function DayEditor({
                   </button>
                 ))}
               </div>
+              {type !== 'shift' && (
+                <div className="mb-2.5 rounded-[13px] border border-line bg-white p-2.5">
+                  <button type="button" onClick={() => setRangeMode((v) => !v)} className="flex w-full items-center gap-2.5">
+                    <span className={`flex h-[22px] w-[38px] flex-shrink-0 items-center rounded-full px-0.5 transition-colors ${rangeMode ? 'justify-end bg-ink-dark' : 'justify-start bg-line-strong'}`}>
+                      <span className="h-[18px] w-[18px] rounded-full bg-white" />
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink">Több napra (tól-ig)</span>
+                  </button>
+                  {rangeMode && (
+                    <div className="mt-2.5">
+                      <label className="block">
+                        <span className="mb-1 block text-[11.5px] font-medium text-ink-soft">Meddig tart (záró nap)</span>
+                        <DatePickerPopover value={rangeEnd || date} onChange={setRangeEnd} triggerClassName={`${inp} text-left`}>
+                          {rangeEnd ? fmtHu(`${rangeEnd}T00:00:00`) : 'Válassz dátumot'}
+                        </DatePickerPopover>
+                      </label>
+                      <p className="mt-1.5 text-[11px] text-ink-soft2">{fmtHu(`${date}T00:00:00`)}-tól {rangeEnd ? fmtHu(`${rangeEnd}T00:00:00`) : '…'}-ig, minden napra ez a típus kerül be (a meglévő bejegyzéseket felülírja).</p>
+                    </div>
+                  )}
+                </div>
+              )}
               {type === 'shift' && (
                 <>
                   <div className="mb-2.5 grid grid-cols-2 gap-2.5">
@@ -1259,6 +1540,29 @@ function DayEditor({
                       <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={inp} />
                     </label>
                   </div>
+                  {/* Napi szünet — kézi felülírás erre a napra; a foglaló oldalon némán "foglaltként" viselkedik. Egyelőre csak szalon-oldalon (étterem külön kör). */}
+                  {!isRestaurant && (
+                  <div className="mb-2.5 rounded-[13px] border border-line bg-white p-2.5">
+                    <button type="button" onClick={() => setHasBreak((v) => !v)} className="flex w-full items-center gap-2.5">
+                      <span className={`flex h-[22px] w-[38px] flex-shrink-0 items-center rounded-full px-0.5 transition-colors ${hasBreak ? 'justify-end bg-ink-dark' : 'justify-start bg-line-strong'}`}>
+                        <span className="h-[18px] w-[18px] rounded-full bg-white" />
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink"><Coffee className="h-3.5 w-3.5 text-ink-soft" strokeWidth={1.9} /> Szünet ezen a napon</span>
+                    </button>
+                    {hasBreak && (
+                      <div className="mt-2.5 grid grid-cols-2 gap-2.5">
+                        <label className="block">
+                          <span className="mb-1 block text-[11.5px] font-medium text-ink-soft">Szünet kezdete</span>
+                          <input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className={inp} />
+                        </label>
+                        <label className="block">
+                          <span className="mb-1 block text-[11.5px] font-medium text-ink-soft">Szünet vége</span>
+                          <input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className={inp} />
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                  )}
                   {/* Státuszváltás: korai távozás (pl. délben beteg lett / hazament) — egy soron marad, nincs duplázás */}
                   <div className="mb-2.5 rounded-[13px] border border-line bg-white p-2.5">
                     <button type="button" onClick={() => setLeftEarly((v) => !v)} className="flex w-full items-center gap-2.5">
@@ -1286,13 +1590,30 @@ function DayEditor({
                 </>
               )}
               <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Megjegyzés (opcionális)" className={`mb-3 ${inp} placeholder:text-ink-soft2`} />
-              <button type="button" disabled={busy || (!editingId && !effStaffId)} onClick={submit} className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-60">
-                <Plus className="h-4 w-4 text-gold" strokeWidth={2.2} /> {editingId ? 'Változás mentése' : 'Beosztom erre a napra'}
+              <button type="button" disabled={busy || (rangeMode && type !== 'shift' ? !rangeEnd : (!editingId && !effStaffId))} onClick={submit} className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-ink-dark py-2.5 text-[13.5px] font-semibold text-white disabled:opacity-60">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin text-gold" /> : <Plus className="h-4 w-4 text-gold" strokeWidth={2.2} />}
+                {busy ? 'Mentés…' : (rangeMode && type !== 'shift') ? 'Beosztom a tartományra' : editingId ? 'Változás mentése' : 'Beosztom erre a napra'}
               </button>
             </>
           )}
         </div>
+        </div>
+        </div>
       </div>
-    </div>
-  )
+    </div>,
+    document.body,
+    )}
+    <ConfirmDialog
+      open={pendingDelete !== null}
+      title="Bejegyzés törlése"
+      description={pendingDelete ? `Biztosan törlöd ${staffById.get(pendingDelete.staffId)?.name ?? 'ennek a munkatársnak'} ${fmtHu(pendingDelete.date)}-i bejegyzését?` : undefined}
+      confirmLabel="Törlés"
+      cancelLabel="Mégse"
+      destructive
+      busy={busy}
+      onConfirm={confirmPendingDelete}
+      onCancel={() => setPendingDelete(null)}
+      zIndexClass="z-[950]"
+    />
+  </>
 }

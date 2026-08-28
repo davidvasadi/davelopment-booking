@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useEffect, useRef, useId } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, animate, type Variants } from 'framer-motion'
 import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock, CalendarDays, Loader2, UserRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { popItem } from '@/lib/motion'
 import { Switch } from '@/components/ui/toggle-switch'
 import { TimeSelect } from '@/components/ui/time-select'
+import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
+import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 
 /** Felfüggesztett sávozott (hatch) minta — a lista sorával konzisztens. */
 const SUSPEND_HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.6), rgba(255,255,255,.6) 7px, rgba(190,180,140,.16) 7px, rgba(190,180,140,.16) 14px)'
@@ -33,6 +36,7 @@ type EditForm = {
   name: string; position: string; phone: string; birthday: string; address: string
   tax_id: string; tax_number: string; join_date: string; weekly_hours: string
   pay_type: 'daily' | 'hourly'; pay_rate: string; tip_eligible: boolean; bio: string
+  socialLinks: string[]
 }
 type HistEntry = { position: string; changed_at: string }
 
@@ -127,6 +131,16 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
         )}
       </div>
       <div><label className={lc}>Megjegyzés / bemutatkozás</label><textarea value={f.bio} onChange={set('bio')} rows={3} className="w-full rounded-[12px] border border-line bg-[#EFEFEC] px-3 py-2 text-[14px] text-ink focus:outline-none focus:border-line-strong" /></div>
+      {variant === 'salon' && !isOwner && (
+        <div>
+          <label className={lc}>Közösségi linkek</label>
+          <SocialLinksEditor
+            value={f.socialLinks}
+            onChange={(next) => setF((p) => ({ ...p, socialLinks: next }))}
+            inputClassName="h-11 border-line bg-[#EFEFEC]"
+          />
+        </div>
+      )}
       {!isOwner && history.length > 0 && (
         <div>
           <label className={lc}>Pozíció-előzmény</label>
@@ -200,6 +214,7 @@ export interface Employee {
   contract: string           // foglalkoztatás típusa
   tags: string[]             // állomások / specializáció
   note: string               // rövid, üzleti megjegyzés (NEM CV)
+  socialLinks?: string[]     // CSAK szalon staff — a szakember saját közösségi linkjei (pl. Instagram-portfólió)
   // — havi statisztikák —
   attendance: number         // jelenlét % (0–100)
   daysWorked: number         // ledolgozott napok
@@ -588,6 +603,13 @@ const DAY_STYLE: Record<string, { bg: string; color: string }> = {
   leave: { bg: '#D9EAD3', color: '#3B6B4B' },
   sick: { bg: '#F3D9D6', color: '#B0453F' },
 }
+// Elérhetőség-KIVÉTEL napokra (nem shift-alapú) — a napi pöttyözés helyett saját cella-szín, hogy
+// egy pillantásra látszódjon: "Szabadnap" = a szalon-alap felülírva "nem dolgozik"-ra (nincs is
+// hozzá Shift-rekord, ezért ugyanaz a halvány szín, mint az üres/beosztatlan napé), "Egyedi" =
+// a szalon-alaptól eltérő (pl. rövidebb) munkaidő aznap, de MÉG dolgozik.
+const EMPTY_STYLE = { bg: '#F5F3EC', color: '#B7B2A4' }
+const OFF_EXCEPTION_STYLE = EMPTY_STYLE
+const CUSTOM_EXCEPTION_STYLE = { bg: '#DCE7F0', color: '#3D6B8C' }
 type AvailRec = { id?: string; is_available: boolean; start_time: string; end_time: string }
 const CAL_DOW: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' }
 
@@ -621,9 +643,17 @@ function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { cale
           if (c === null) return <div key={`b${i}`} />
           const dateStr = keyOf(c)
           const t = calendar[dateStr]
-          const st = t ? DAY_STYLE[t] : { bg: '#F5F3EC', color: '#B7B2A4' }
-          const isSelected = selectedDay === dateStr
           const exc = exceptions?.[dateStr]
+          // Sorrend: beteg/szabadság a legspecifikusabb, mindig felülír. utána jön a kivétel
+          // (Szabadnap/Egyedi) — ez akkor is számít, ha a napnak MÉG VAN "shift" Shift-rekordja
+          // (hiszen az Egyedi napon is dolgozik, csak eltérő idővel), ezért a `t==='shift'`-nek
+          // NEM szabad megelőznie a kivétel-ellenőrzést.
+          const st = (t === 'sick' || t === 'vacation' || t === 'leave')
+            ? DAY_STYLE[t]
+            : exc
+              ? (exc.is_available ? CUSTOM_EXCEPTION_STYLE : OFF_EXCEPTION_STYLE)
+              : t === 'shift' ? DAY_STYLE.shift : EMPTY_STYLE
+          const isSelected = selectedDay === dateStr
           const isClickable = !!onDaySelect
           return (
             <motion.div
@@ -636,9 +666,6 @@ function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { cale
               onClick={() => isClickable && onDaySelect(dateStr)}
             >
               {c}
-              {exc && (
-                <span className="absolute bottom-[3px] right-[3px] h-[5px] w-[5px] rounded-full" style={{ background: exc.is_available ? '#3B6B4B' : '#B0453F' }} />
-              )}
             </motion.div>
           )
         })}
@@ -647,6 +674,8 @@ function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { cale
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: 'var(--dav-accent)' }} />Ledolgozott ({workedDays})</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: '#D9EAD3' }} />Szabadság</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: '#F3D9D6' }} />Beteg</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px] border border-line" style={{ background: OFF_EXCEPTION_STYLE.bg }} />Szabadnap</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: CUSTOM_EXCEPTION_STYLE.bg }} />Egyedi</span>
       </div>
     </div>
   )
@@ -670,6 +699,7 @@ function scrollPanelToTop() {
 }
 
 export function HiringView({ variant, employees, positionOptions = [], currentUser = null, canManage = false, canEditSalary = false, viewerEmail = null, statusById, onStatusChange, onProfileChange, onOpenEdit, onCalendarRequest, onClose, initialIndex = 0, salonId, openCalendar }: { variant: Variant; employees?: Employee[]; positionOptions?: { label: string; level: 'lead' | 'staff' }[]; currentUser?: CurrentUser | null; canManage?: boolean; canEditSalary?: boolean; viewerEmail?: string | null; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onOpenEdit?: (id: string) => void; onCalendarRequest?: (id: string) => void; onClose?: () => void; initialIndex?: number; salonId?: string; openCalendar?: boolean }) {
+  const router = useRouter()
   // Valós adat, ha kaptunk (akár üres listát is tiszteletben tartunk); különben mock-fallback.
   const data = employees ?? mockData(variant)
   const startId = data.length ? (data[Math.min(Math.max(initialIndex, 0), data.length - 1)]?.id ?? data[0].id) : ''
@@ -693,6 +723,10 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   const [calSalonDefaults, setCalSalonDefaults] = useState<Record<string, AvailRec>>({})
   const [calEditState, setCalEditState] = useState<AvailRec | null>(null)
   const [calSaving, setCalSaving] = useState(false)
+  // Napi szünet — a Shifts.break_start/break_end mezőt írja/olvassa (UGYANAZ az adat, mint a
+  // Naptár DayEditorjában), hogy a két felület mindig szinkronban maradjon.
+  const [breakShiftId, setBreakShiftId] = useState<string | null>(null)
+  const [breakDraft, setBreakDraft] = useState<{ has: boolean; start: string; end: string }>({ has: false, start: '12:00', end: '13:00' })
 
   if (data.length === 0) {
     return (
@@ -826,6 +860,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             weekly_hours: form.weekly_hours === '' ? null : Number(form.weekly_hours),
             bio: form.bio || null,
             role_title: form.position.trim() || null,
+            social_links: form.socialLinks.filter((u) => u.trim()).map((url) => ({ url })),
             ...(canEditSalary ? { salary: form.pay_rate === '' ? null : Number(form.pay_rate) } : {}),
           }),
         })
@@ -835,6 +870,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
           position: form.position.trim() || eff.position,
           phone: form.phone,
           note: form.bio,
+          socialLinks: form.socialLinks,
           hr: {
             ...eff.hr,
             birthday: form.birthday || null,
@@ -936,6 +972,32 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
     }).catch(() => {})
   }, [variant, salonId, sel?.id])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Napi szünet betöltése a kijelölt napra (ugyanaz a Shifts-rekord, mint a Naptáron) ──
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (variant !== 'salon' || !calSelDay || !sel?.id || sel.id === 'owner') { setBreakShiftId(null); setBreakDraft({ has: false, start: '12:00', end: '13:00' }); return }
+    let cancelled = false
+    fetch(`/api/shifts?staff=${sel.id}&date=${calSelDay}`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((json: { doc: { id: string | number; break_start?: string | null; break_end?: string | null } | null }) => {
+        if (cancelled) return
+        setBreakShiftId(json.doc ? String(json.doc.id) : null)
+        setBreakDraft(json.doc?.break_start && json.doc?.break_end ? { has: true, start: json.doc.break_start, end: json.doc.break_end } : { has: false, start: '12:00', end: '13:00' })
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [variant, calSelDay, sel?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  const saveBreak = async () => {
+    if (!breakShiftId) return
+    await fetch(`/api/shifts/${breakShiftId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ break_start: breakDraft.has ? breakDraft.start : null, break_end: breakDraft.has ? breakDraft.end : null }),
+    }).catch(() => {})
+  }
+
   // Auto-open calendar section when openCalendar prop is true (pl. lista CalendarDays gombból).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -986,6 +1048,10 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
       setCalExceptions(prev => ({ ...prev, [calSelDay]: saved }))
       setCalEditState(saved)
       toast.success('Mentve')
+      // A mentés a szerveren már frissítette a Naptár/Shifts adatot (ld. `/api/availability`
+      // route) — de a mini-naptár `calendar` színezése szerver-oldalon számolt, statikus prop,
+      // enélkül a refresh nélkül a képernyőn nem látszana az azonnali változás.
+      router.refresh()
     } catch {
       toast.error('Hiba történt')
     } finally {
@@ -1004,6 +1070,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
       const base = calSalonDefaults[dow]
       setCalEditState({ is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' })
       toast.success('Visszaállítva szalon alapra')
+      router.refresh()
     } catch {
       toast.error('Hiba történt')
     } finally {
@@ -1269,12 +1336,33 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                             </div>
                           </div>
                         )}
+                        {/* Napi szünet — a Naptárral szinkronban (ugyanaz a Shifts-rekord) */}
+                        {calEditState.is_available && breakShiftId && (
+                          <div className="mb-4 rounded-[14px] border border-line bg-[#F7F7F7] p-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[12.5px] font-medium text-ink">Szünet ezen a napon</span>
+                              <Switch checked={breakDraft.has} onChange={(v) => setBreakDraft((prev) => ({ ...prev, has: v }))} />
+                            </div>
+                            {breakDraft.has && (
+                              <div className="mt-3 grid grid-cols-2 gap-3">
+                                <div>
+                                  <p className="mb-1 text-[11px] font-semibold text-ink-soft">Szünet kezdete</p>
+                                  <TimeSelect value={breakDraft.start} onChange={(v) => setBreakDraft((prev) => ({ ...prev, start: v }))} />
+                                </div>
+                                <div>
+                                  <p className="mb-1 text-[11px] font-semibold text-ink-soft">Szünet vége</p>
+                                  <TimeSelect value={breakDraft.end} onChange={(v) => setBreakDraft((prev) => ({ ...prev, end: v }))} />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                         {/* Mentés / visszaállítás */}
                         <div className="flex gap-2">
                           {calExceptions[calSelDay] && (
                             <button type="button" onClick={resetCalDay} disabled={calSaving} className="rounded-[12px] border border-line px-3 py-2 text-[12.5px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50">Visszaállítás</button>
                           )}
-                          <button type="button" onClick={saveCalDay} disabled={calSaving} className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-ink-dark px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50">
+                          <button type="button" onClick={async () => { await saveCalDay(); await saveBreak() }} disabled={calSaving} className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-ink-dark px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50">
                             {calSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mentés'}
                           </button>
                         </div>
@@ -1315,6 +1403,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                     pay_rate: eff.hr?.pay_rate != null ? String(eff.hr.pay_rate) : '',
                     tip_eligible: eff.hr?.tip_eligible ?? false,
                     bio: eff.note,
+                    socialLinks: eff.socialLinks ?? [],
                   }}
                   initialHistory={eff.hr?.position_history ?? []}
                   positionOptions={positionCatalog}
@@ -1413,6 +1502,25 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                     })}
                   </div>
                   {eff.note && <p className="mt-5 max-w-[520px] text-[15.5px] leading-relaxed text-ink-soft">{eff.note}</p>}
+                  {eff.socialLinks && eff.socialLinks.filter(Boolean).length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2 print:hidden">
+                      {eff.socialLinks.filter(Boolean).map((url) => {
+                        const platform = detectPlatform(url)
+                        return (
+                          <a
+                            key={url}
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={SOCIAL_LABELS[platform]}
+                            className="flex h-9 w-9 items-center justify-center rounded-full border border-line transition-colors hover:border-line-strong"
+                          >
+                            <img src={socialIconDataUri(platform)} alt="" className="h-6 w-6 rounded-full" />
+                          </a>
+                        )
+                      })}
+                    </div>
+                  )}
                   <div className="mt-5 flex flex-wrap gap-x-8 gap-y-2.5 text-[14px] text-ink-soft">
                     {headEmail && <a href={`mailto:${headEmail}`} className="flex items-center gap-2.5 transition-colors hover:text-ink"><Mail className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.7} />{headEmail}</a>}
                     {eff.phone && <a href={`tel:${eff.phone.replace(/\s+/g, '')}`} className="flex items-center gap-2.5 transition-colors hover:text-ink"><Phone className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.7} />{eff.phone}</a>}

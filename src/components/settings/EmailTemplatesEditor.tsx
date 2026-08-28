@@ -3,12 +3,13 @@
 import { useState } from 'react'
 import { Eye } from 'lucide-react'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { LocaleEditBar } from './LocaleEditBar'
 import { EmailVariablesHelp } from './EmailVariablesHelp'
 import type { useLocalizedFields } from './useLocalizedFields'
 import { LOCALE_LABELS, type Locale } from '@/lib/i18n'
+import { NewsletterBlockEditor } from '@/components/dashboard/NewsletterBlockEditor'
+import type { ComposerBlock } from '@/lib/emailBlocks'
 
 type Loc = ReturnType<typeof useLocalizedFields>
 
@@ -25,6 +26,10 @@ const labelClass = 'text-[12.5px] font-medium text-ink-soft'
 type SubjectField = 'booking_email_subject' | 'cancel_email_subject' | 'reminder_email_subject' | 'feedback_email_subject' | 'notify_email_subject'
 type IntroField = 'booking_email_intro' | 'cancel_email_intro' | 'reminder_email_intro' | 'feedback_email_intro' | 'notify_email_intro'
 type LocalizedPreset = Record<Locale, string>
+/** Egy sablon-bekezdés típusa+szövege — a "Sablon betöltése" ebből épít valódi, szerkeszthető
+ *  blokk-tömböt (nem sima 1-bekezdéses szöveget, hanem tagolt, alcím+törzs felépítést). */
+type TemplatePara = { type: 'subtitle' | 'text'; text: string }
+type LocalizedTemplate = Record<Locale, TemplatePara[]>
 type EmailTypeDef = {
   key: string
   state: string
@@ -32,8 +37,16 @@ type EmailTypeDef = {
   subjectField: SubjectField
   introField: IntroField
   subjectPh: LocalizedPreset
-  introPh: LocalizedPreset
+  introPh: LocalizedTemplate
   hint: string
+}
+function templateToBlocks(paras: TemplatePara[]): ComposerBlock[] {
+  return paras.map((p) => ({ id: nextTemplateId(), type: p.type, html: p.text }))
+}
+let templateIdCounter = 0
+function nextTemplateId(): string {
+  templateIdCounter += 1
+  return `tpl-${Date.now()}-${templateIdCounter}`
 }
 
 const EMAIL_TYPES: EmailTypeDef[] = [
@@ -49,12 +62,30 @@ const EMAIL_TYPES: EmailTypeDef[] = [
       fr: 'Réservation confirmée — {{name}}',
     },
     introPh: {
-      hu: 'Kedves {{name}}!\n\nKöszönjük a foglalást, várunk szeretettel!',
-      en: 'Dear {{name}},\n\nThank you for your booking, we look forward to seeing you!',
-      de: 'Liebe/r {{name}},\n\nvielen Dank für deine Buchung, wir freuen uns auf dich!',
-      es: 'Hola {{name}},\n\n¡Gracias por tu reserva, te esperamos con gusto!',
-      it: 'Gentile {{name}},\n\ngrazie per la prenotazione, ti aspettiamo con piacere!',
-      fr: 'Cher/Chère {{name}},\n\nmerci pour votre réservation, nous avons hâte de vous accueillir !',
+      hu: [
+        { type: 'subtitle', text: 'Már alig várjuk, hogy találkozzunk!' },
+        { type: 'text', text: 'Örülünk, hogy nálunk foglaltál, {{name}}! Lent megtalálod a foglalásod minden részletét, és a naptáradba is könnyen felveheted a mellékelt .ics fájllal. Ha bármi közbejönne, a lemondás linkje ezen az emailen keresztül bármikor elérhető — és a foglalás előtt emlékeztetőt is küldünk, hogy semmi ne csússzon el.' },
+      ],
+      en: [
+        { type: 'subtitle', text: "We can't wait to see you!" },
+        { type: 'text', text: "Thanks for booking with us, {{name}}! You'll find all the details of your booking below, and you can add it straight to your calendar with the attached .ics file. If anything changes, the cancellation link is always available in this email — and we'll also send a reminder before your visit so nothing slips through." },
+      ],
+      de: [
+        { type: 'subtitle', text: 'Wir freuen uns schon sehr auf dich!' },
+        { type: 'text', text: 'Danke für deine Buchung, {{name}}! Unten findest du alle Details zu deinem Termin, den du mit der beigefügten .ics-Datei direkt in deinen Kalender übernehmen kannst. Falls sich etwas ändert, findest du den Stornierungslink jederzeit in dieser E-Mail — und vor deinem Termin schicken wir dir außerdem eine Erinnerung.' },
+      ],
+      es: [
+        { type: 'subtitle', text: '¡Estamos deseando verte!' },
+        { type: 'text', text: '¡Gracias por reservar con nosotros, {{name}}! Abajo encontrarás todos los detalles de tu reserva, y puedes añadirla directamente a tu calendario con el archivo .ics adjunto. Si algo cambia, el enlace de cancelación está siempre disponible en este correo — y también te enviaremos un recordatorio antes de tu visita.' },
+      ],
+      it: [
+        { type: 'subtitle', text: 'Non vediamo l\'ora di rivederti!' },
+        { type: 'text', text: 'Grazie per aver prenotato da noi, {{name}}! Qui sotto trovi tutti i dettagli della tua prenotazione, che puoi aggiungere subito al calendario con il file .ics allegato. Se qualcosa dovesse cambiare, il link per annullare è sempre disponibile in questa email — e prima della tua visita ti invieremo anche un promemoria.' },
+      ],
+      fr: [
+        { type: 'subtitle', text: 'Nous avons hâte de vous accueillir !' },
+        { type: 'text', text: 'Merci pour votre réservation, {{name}} ! Vous trouverez ci-dessous tous les détails de votre réservation, que vous pouvez ajouter directement à votre agenda grâce au fichier .ics joint. Si quoi que ce soit change, le lien d\'annulation reste toujours accessible dans cet e-mail — et nous vous enverrons également un rappel avant votre venue.' },
+      ],
     },
     hint: 'A foglalás rögzítésekor megy ki, .ics naptár-melléklettel.',
   },
@@ -70,12 +101,30 @@ const EMAIL_TYPES: EmailTypeDef[] = [
       fr: 'Votre réservation a été annulée',
     },
     introPh: {
-      hu: 'Kedves {{name}}!\n\nA foglalásodat lemondtuk.',
-      en: 'Dear {{name}},\n\nYour booking has been cancelled.',
-      de: 'Liebe/r {{name}},\n\ndeine Buchung wurde storniert.',
-      es: 'Hola {{name}},\n\ntu reserva ha sido cancelada.',
-      it: 'Gentile {{name}},\n\nla tua prenotazione è stata annullata.',
-      fr: 'Cher/Chère {{name}},\n\nvotre réservation a été annulée.',
+      hu: [
+        { type: 'subtitle', text: 'Sajnáljuk, hogy most nem találkozunk.' },
+        { type: 'text', text: 'A lenti foglalásodat, {{name}}, sikeresen lemondtuk — semmilyen további teendőd nincs. Ha csak az időpont nem volt megfelelő, szívesen segítünk másikat találni: nézz vissza hozzánk, amikor kényelmes!' },
+      ],
+      en: [
+        { type: 'subtitle', text: "We're sorry we won't see you this time." },
+        { type: 'text', text: "Your booking below, {{name}}, has been successfully cancelled — no further action is needed. If it was just the timing that didn't work, we'd be happy to help you find a new slot: come back and book whenever it suits you!" },
+      ],
+      de: [
+        { type: 'subtitle', text: 'Schade, dass wir uns diesmal nicht sehen.' },
+        { type: 'text', text: 'Deine untenstehende Buchung, {{name}}, wurde erfolgreich storniert — du musst nichts weiter tun. Falls es nur der Zeitpunkt war, der nicht gepasst hat, helfen wir dir gerne, einen neuen Termin zu finden: buch einfach wieder, wann es dir passt!' },
+      ],
+      es: [
+        { type: 'subtitle', text: 'Sentimos no verte esta vez.' },
+        { type: 'text', text: 'Tu reserva de abajo, {{name}}, se ha cancelado correctamente — no necesitas hacer nada más. Si solo era la hora la que no encajaba, con gusto te ayudamos a encontrar otro momento: ¡vuelve a reservar cuando te venga bien!' },
+      ],
+      it: [
+        { type: 'subtitle', text: 'Ci dispiace non vederti questa volta.' },
+        { type: 'text', text: 'La tua prenotazione qui sotto, {{name}}, è stata annullata con successo — non devi fare altro. Se era solo l\'orario a non andare bene, siamo felici di aiutarti a trovarne un altro: torna a prenotare quando preferisci!' },
+      ],
+      fr: [
+        { type: 'subtitle', text: "Nous sommes désolés de ne pas vous voir cette fois-ci." },
+        { type: 'text', text: "Votre réservation ci-dessous, {{name}}, a bien été annulée — vous n'avez rien d'autre à faire. Si seul le créneau ne convenait pas, nous serons ravis de vous aider à en trouver un autre : revenez réserver quand cela vous arrangera !" },
+      ],
     },
     hint: 'A foglalás lemondásakor megy ki a vendégnek.',
   },
@@ -91,12 +140,30 @@ const EMAIL_TYPES: EmailTypeDef[] = [
       fr: 'Rappel : votre réservation approche',
     },
     introPh: {
-      hu: 'Kedves {{name}}!\n\nCsak emlékeztetünk: hamarosan várunk!',
-      en: 'Dear {{name}},\n\nJust a quick reminder: we look forward to seeing you soon!',
-      de: 'Liebe/r {{name}},\n\nnur zur Erinnerung: wir freuen uns bald auf dich!',
-      es: 'Hola {{name}},\n\nsolo un recordatorio: ¡te esperamos pronto!',
-      it: 'Gentile {{name}},\n\nsolo un promemoria: ti aspettiamo presto!',
-      fr: 'Cher/Chère {{name}},\n\nun petit rappel : nous avons hâte de vous voir bientôt !',
+      hu: [
+        { type: 'subtitle', text: 'Már csak egy kis idő van hátra!' },
+        { type: 'text', text: 'Csak szerettünk volna emlékeztetni, {{name}}, hogy hamarosan itt a foglalásod időpontja. Ha közben bármi változna, a lemondás linkje ezen az emailen keresztül elérhető — de reméljük, hamarosan találkozunk!' },
+      ],
+      en: [
+        { type: 'subtitle', text: 'Not long to go now!' },
+        { type: 'text', text: "Just a quick reminder, {{name}}, that your booking is coming up soon. If anything changes in the meantime, the cancellation link is available in this email — but we hope to see you very soon!" },
+      ],
+      de: [
+        { type: 'subtitle', text: 'Es dauert nicht mehr lange!' },
+        { type: 'text', text: 'Nur eine kurze Erinnerung, {{name}}: dein Termin steht bald an. Falls sich in der Zwischenzeit etwas ändert, findest du den Stornierungslink in dieser E-Mail — aber wir hoffen, dich bald zu sehen!' },
+      ],
+      es: [
+        { type: 'subtitle', text: '¡Ya queda poco!' },
+        { type: 'text', text: 'Solo un pequeño recordatorio, {{name}}: tu reserva se acerca. Si algo cambia mientras tanto, el enlace de cancelación está disponible en este correo — ¡pero esperamos verte muy pronto!' },
+      ],
+      it: [
+        { type: 'subtitle', text: 'Manca sempre meno!' },
+        { type: 'text', text: 'Solo un breve promemoria, {{name}}: la tua prenotazione si avvicina. Se qualcosa dovesse cambiare nel frattempo, il link per annullare è disponibile in questa email — ma speriamo di vederti molto presto!' },
+      ],
+      fr: [
+        { type: 'subtitle', text: 'Ça approche à grands pas !' },
+        { type: 'text', text: "Un petit rappel, {{name}} : votre réservation approche. Si quoi que ce soit change d'ici là, le lien d'annulation est disponible dans cet e-mail — mais nous espérons vous voir très bientôt !" },
+      ],
     },
     hint: 'A foglalás előtt megy ki — az időzítést a „Foglalási funkciók" szekcióban állítod.',
   },
@@ -112,12 +179,30 @@ const EMAIL_TYPES: EmailTypeDef[] = [
       fr: 'Comment s\'est passée votre visite ?',
     },
     introPh: {
-      hu: 'Kedves {{name}}!\n\nReméljük jól érezted magad. Mondd el a véleményed!',
-      en: 'Dear {{name}},\n\nWe hope you had a great time. Let us know what you think!',
-      de: 'Liebe/r {{name}},\n\nwir hoffen, es hat dir gefallen. Lass uns gerne dein Feedback da!',
-      es: 'Hola {{name}},\n\nesperamos que lo hayas pasado genial. ¡Cuéntanos qué te pareció!',
-      it: 'Gentile {{name}},\n\nsperiamo tu ti sia trovato bene. Facci sapere cosa ne pensi!',
-      fr: 'Cher/Chère {{name}},\n\nnous espérons que vous avez passé un bon moment. Dites-nous ce que vous en pensez !',
+      hu: [
+        { type: 'subtitle', text: 'Köszönjük, hogy nálunk jártál!' },
+        { type: 'text', text: 'Reméljük, jól érezted magad, {{name}}! A véleményed sokat számít nekünk — segít abban, hogy még jobbak legyünk, és másoknak is megmutatja, milyen nálunk. Ha van egy perced, oszd meg velünk!' },
+      ],
+      en: [
+        { type: 'subtitle', text: 'Thanks for visiting us!' },
+        { type: 'text', text: "We hope you had a great time, {{name}}! Your feedback means a lot to us — it helps us improve and shows others what it's like to visit us. If you have a minute, we'd love to hear from you!" },
+      ],
+      de: [
+        { type: 'subtitle', text: 'Danke für deinen Besuch!' },
+        { type: 'text', text: 'Wir hoffen, es hat dir gefallen, {{name}}! Dein Feedback bedeutet uns viel — es hilft uns, besser zu werden, und zeigt anderen, wie es bei uns ist. Wenn du eine Minute Zeit hast, freuen wir uns über deine Meinung!' },
+      ],
+      es: [
+        { type: 'subtitle', text: '¡Gracias por visitarnos!' },
+        { type: 'text', text: 'Esperamos que lo hayas pasado genial, {{name}}. Tu opinión significa mucho para nosotros — nos ayuda a mejorar y muestra a otros cómo es venir a vernos. ¡Si tienes un minuto, nos encantaría saber qué te pareció!' },
+      ],
+      it: [
+        { type: 'subtitle', text: 'Grazie per essere venuto/a da noi!' },
+        { type: 'text', text: 'Speriamo tu ti sia trovato/a bene, {{name}}! La tua opinione conta molto per noi — ci aiuta a migliorare e mostra agli altri com\'è venire da noi. Se hai un minuto, ci farebbe piacere sapere cosa ne pensi!' },
+      ],
+      fr: [
+        { type: 'subtitle', text: 'Merci pour votre visite !' },
+        { type: 'text', text: 'Nous espérons que vous avez passé un bon moment, {{name}} ! Votre avis compte beaucoup pour nous — il nous aide à nous améliorer et montre à d\'autres à quoi ressemble une visite chez nous. Si vous avez une minute, nous serions ravis de vous lire !' },
+      ],
     },
     hint: 'A látogatás után megy ki — a „Foglalási funkciók" szekcióban kapcsolható be.',
   },
@@ -133,12 +218,15 @@ const EMAIL_TYPES: EmailTypeDef[] = [
       fr: 'Nouvelle réservation : {{name}} — {{date}} {{time}}',
     },
     introPh: {
-      hu: 'Új foglalás érkezett. Kérlek ellenőrizd és készülj fel!',
-      en: 'A new booking has arrived. Please check the details and get ready!',
-      de: 'Eine neue Buchung ist eingegangen. Bitte prüfe die Details und bereite dich vor!',
-      es: 'Ha llegado una nueva reserva. Revisa los detalles y prepárate.',
-      it: 'È arrivata una nuova prenotazione. Controlla i dettagli e preparati!',
-      fr: 'Une nouvelle réservation est arrivée. Merci de vérifier les détails et de vous préparer !',
+      hu: [
+        { type: 'subtitle', text: 'Új foglalás érkezett — érdemes átnézni.' },
+        { type: 'text', text: 'Az alábbiakban találod a foglalás részleteit. Ha szükséges, a naptáradban bármikor módosíthatod vagy visszaigazolhatod — érdemes időben ránézni, hogy minden készen álljon.' },
+      ],
+      en: [{ type: 'subtitle', text: '' }, { type: 'text', text: '' }],
+      de: [{ type: 'subtitle', text: '' }, { type: 'text', text: '' }],
+      es: [{ type: 'subtitle', text: '' }, { type: 'text', text: '' }],
+      it: [{ type: 'subtitle', text: '' }, { type: 'text', text: '' }],
+      fr: [{ type: 'subtitle', text: '' }, { type: 'text', text: '' }],
     },
     hint: 'A tulajdonosnak (+ szakembernek) megy ki minden új foglalásnál — nekik, nem a vendégnek, ezért ez a sablon nem nyelvfüggő, mindig magyarul megy ki. Az alapértelmezett tárgy és szöveg akkor is küld, ha üresen hagyod.',
   },
@@ -160,7 +248,7 @@ export function EmailTemplatesEditor({
 }: {
   variant: 'restaurant' | 'salon'
   loc: Loc
-  onPreview: (state: string, intro: string) => void
+  onPreview: (state: string, intro: ComposerBlock[]) => void
 }) {
   const [sel, setSel] = useState<EmailTypeDef>(EMAIL_TYPES[0])
   const isSingleLanguage = SINGLE_LANGUAGE_KEYS.has(sel.key)
@@ -200,7 +288,7 @@ export function EmailTemplatesEditor({
           type="button"
           onClick={() => {
             loc.setField(sel.subjectField, subjectPh)
-            loc.setField(sel.introField, introPh)
+            loc.setField(sel.introField, templateToBlocks(introPh))
           }}
           className="shrink-0 text-[11.5px] font-semibold text-ink-soft2 underline decoration-dotted underline-offset-2 transition-colors hover:text-ink"
         >
@@ -220,14 +308,11 @@ export function EmailTemplatesEditor({
       </div>
 
       <div className="space-y-1.5">
-        <Label className={labelClass}>Bevezető szöveg</Label>
-        <Textarea
-          className={inputClass + ' min-h-28 py-3'}
-          value={intro}
-          onChange={(e) => loc.setField(sel.introField, e.target.value)}
-          placeholder={introPh}
-        />
-        <p className="text-xs text-ink-soft">Az email tetejére kerül, a foglalás részletei elé.</p>
+        <Label className={labelClass}>Bevezető tartalom</Label>
+        <div className="rounded-dav-chip border border-line-strong bg-white p-3">
+          <NewsletterBlockEditor blocks={intro} onChange={(next) => loc.setField(sel.introField, next)} railMode="flow" />
+        </div>
+        <p className="text-xs text-ink-soft">Az email tetejére kerül, a foglalás részletei elé — ugyanaz a szerkesztő, mint a marketing hírlevélnél.</p>
       </div>
 
       <EmailVariablesHelp type={variant} />

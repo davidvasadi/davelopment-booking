@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { toast } from 'sonner'
 import { Check, Clock, Pencil, ArrowUpRight } from 'lucide-react'
 import { DAY_LABELS_HU, DAYS_OF_WEEK, type DayOfWeek } from '@/lib/restaurantTemplates'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { WheelTimePicker } from '@/components/ui/wheel-time-picker'
 import { TimeSelect } from '@/components/ui/time-select'
 import { SalonAvailabilityExceptions, type SalonException } from '@/components/dashboard/SalonAvailabilityExceptions'
@@ -266,6 +266,9 @@ export function SalonAvailabilityView({
       {/* ── Nap-szerkesztő sheet ── */}
       <Sheet open={editIdx != null} onOpenChange={(o) => { if (!o) setEditIdx(null) }}>
         <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto rounded-t-[26px] border-t border-line bg-white">
+          <SheetTitle className="sr-only">
+            {editIdx != null ? `${DAY_LABELS_HU[days[editIdx].day_of_week]} — heti nyitvatartás szerkesztése` : 'Nap szerkesztése'}
+          </SheetTitle>
           {editIdx != null && (
             <div>
               <div className="mb-6 flex items-center justify-between gap-3">

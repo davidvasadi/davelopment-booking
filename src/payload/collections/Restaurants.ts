@@ -116,6 +116,13 @@ export const Restaurants: CollectionConfig = {
     { name: 'email', type: 'email', label: 'Email' },
     { name: 'website', type: 'text', label: 'Weboldal' },
     {
+      name: 'social_links',
+      type: 'array',
+      label: 'Közösségi linkek',
+      admin: { description: 'Bármilyen platform linkje beilleszthető (Instagram, Facebook, TikTok…) — a platformot és az ikont a linkből ismerjük fel automatikusan.' },
+      fields: [{ name: 'url', type: 'text', required: true, label: 'Link' }],
+    },
+    {
       // Az étterem SAJÁT munkakörei (posztjai). A munkatárs-meghíváskor ezekből lehet
       // választani; új poszt megadásakor a lista automatikusan bővül (a meghívó-route teszi hozzá).
       name: 'positions',
@@ -155,6 +162,10 @@ export const Restaurants: CollectionConfig = {
       relationTo: 'media',
       label: 'Borítókép',
     },
+    // Lásd Salons.ts azonos mezőinek magyarázatát — Notion/Facebook-féle húzható fókuszpont.
+    { name: 'cover_focal_x', type: 'number', defaultValue: 50, admin: { hidden: true } },
+    { name: 'cover_focal_y', type: 'number', defaultValue: 50, admin: { hidden: true } },
+    { name: 'cover_zoom', type: 'number', defaultValue: 1, admin: { hidden: true } },
     {
       name: 'logo',
       type: 'upload',
@@ -235,10 +246,10 @@ export const Restaurants: CollectionConfig = {
     },
     {
       name: 'booking_email_intro',
-      type: 'textarea',
+      type: 'json',
       localized: true,
-      label: 'Visszaigazoló email bevezető szövege',
-      admin: { description: 'Sima szöveg, nyelvenként. A visszaigazoló email tetejére kerül. Változók: {{name}}, {{date}}, {{time}}, {{pax}}.' },
+      label: 'Visszaigazoló email bevezető tartalma',
+      admin: { description: 'Blokk-szerkesztős tartalom, nyelvenként. A visszaigazoló email tetejére kerül. Változók: {{name}}, {{date}}, {{time}}, {{pax}}.' },
     },
     // Lemondó / emlékeztető / visszajelzés-kérő emailek szerkeszthető tárgya + bevezetője (localized).
     ...emailTemplateFields,
@@ -279,6 +290,13 @@ export const Restaurants: CollectionConfig = {
       type: 'text',
       label: 'Útvonaltervezéshez használt cím (opcionális)',
       admin: { description: 'Ha üres, a fenti címet használja. Megadhatsz pontosabb címet vagy Google Maps-linket is.' },
+    },
+    {
+      name: 'email_show_terms',
+      type: 'checkbox',
+      defaultValue: true,
+      label: 'Foglalási feltételek linkje a visszaigazoló emailben',
+      admin: { description: 'Csak akkor jelenik meg, ha van megadva foglalási feltétel. Kikapcsolva a visszaigazoló email nem hivatkozik a feltételekre.' },
     },
     { name: 'legal_name', type: 'text', label: 'Hivatalos cégnév' },
     { name: 'tax_number', type: 'text', label: 'Adószám' },

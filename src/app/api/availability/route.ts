@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
+import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
 
 async function canPostToSalon(
   payload: Awaited<ReturnType<typeof getPayloadClient>>,
@@ -95,6 +96,14 @@ export async function POST(request: NextRequest) {
       overrideAccess: true,
       user,
     })
+    // A naptár-kivétel (pl. "ezen a napon nem dolgozom") azonnal tükröződjön a Naptár/Shifts
+    // oldalon is — különben a beosztás-automatizáló csak az éjszakai cronig venné észre.
+    try {
+      const salon = await payload.findByID({ collection: 'salons', id: salonId as string | number, depth: 0, overrideAccess: true })
+      if (salon) await autofillSalonSchedule(payload, String(salon.id), salon.booking_window_days ?? 60)
+    } catch (err) {
+      payload.logger.error(`[availability POST] schedule-autofill szinkron hiba: ${String(err)}`)
+    }
     return NextResponse.json({ doc }, { status: 201 })
   } catch (e) {
     console.error('[api/availability POST]', e)

@@ -16,6 +16,14 @@ import * as migration_20260823_213013_add_users_deleted_at from './20260823_2130
 import * as migration_20260825_120000_add_contact_broadcast_notif_campaign from './20260825_120000_add_contact_broadcast_notif_campaign';
 import * as migration_20260825_190000_add_weekly_tip_notification_type from './20260825_190000_add_weekly_tip_notification_type';
 import * as migration_20260826_120000_simplify_salon_description from './20260826_120000_simplify_salon_description';
+import * as migration_20260827_100000_add_social_links from './20260827_100000_add_social_links';
+import * as migration_20260827_140000_add_cover_focal_point from './20260827_140000_add_cover_focal_point';
+import * as migration_20260827_150000_add_cover_zoom from './20260827_150000_add_cover_zoom';
+import * as migration_20260827_160000_email_intro_to_blocks from './20260827_160000_email_intro_to_blocks';
+import * as migration_20260827_170000_add_require_address from './20260827_170000_add_require_address';
+import * as migration_20260827_180000_add_email_show_terms from './20260827_180000_add_email_show_terms';
+import * as migration_20260827_190000_add_service_sort_order from './20260827_190000_add_service_sort_order';
+import * as migration_20260827_200000_add_break_fields from './20260827_200000_add_break_fields';
 
 export const migrations = [
   {
@@ -107,5 +115,45 @@ export const migrations = [
     up: migration_20260826_120000_simplify_salon_description.up,
     down: migration_20260826_120000_simplify_salon_description.down,
     name: '20260826_120000_simplify_salon_description',
+  },
+  {
+    up: migration_20260827_100000_add_social_links.up,
+    down: migration_20260827_100000_add_social_links.down,
+    name: '20260827_100000_add_social_links',
+  },
+  {
+    up: migration_20260827_140000_add_cover_focal_point.up,
+    down: migration_20260827_140000_add_cover_focal_point.down,
+    name: '20260827_140000_add_cover_focal_point',
+  },
+  {
+    up: migration_20260827_150000_add_cover_zoom.up,
+    down: migration_20260827_150000_add_cover_zoom.down,
+    name: '20260827_150000_add_cover_zoom',
+  },
+  {
+    up: migration_20260827_160000_email_intro_to_blocks.up,
+    down: migration_20260827_160000_email_intro_to_blocks.down,
+    name: '20260827_160000_email_intro_to_blocks',
+  },
+  {
+    up: migration_20260827_170000_add_require_address.up,
+    down: migration_20260827_170000_add_require_address.down,
+    name: '20260827_170000_add_require_address',
+  },
+  {
+    up: migration_20260827_180000_add_email_show_terms.up,
+    down: migration_20260827_180000_add_email_show_terms.down,
+    name: '20260827_180000_add_email_show_terms',
+  },
+  {
+    up: migration_20260827_190000_add_service_sort_order.up,
+    down: migration_20260827_190000_add_service_sort_order.down,
+    name: '20260827_190000_add_service_sort_order',
+  },
+  {
+    up: migration_20260827_200000_add_break_fields.up,
+    down: migration_20260827_200000_add_break_fields.down,
+    name: '20260827_200000_add_break_fields',
   },
 ];

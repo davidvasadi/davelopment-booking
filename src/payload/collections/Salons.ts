@@ -66,6 +66,7 @@ export const Salons: CollectionConfig = {
                   user: doc.owner,
                   name: owner.name || 'Tulajdonos',
                   email: owner.email || undefined,
+                  role_title: 'Tulajdonos',
                   is_active: true,
                 },
               })
@@ -171,6 +172,28 @@ export const Salons: CollectionConfig = {
               relationTo: 'media',
               hasMany: false,
             },
+            // Fókuszpont (0-100%) + nagyítás — az Instagram-féle "húzd és nagyítsd" crop-minta
+            // menti ide, hogy a kép lényegi része a nagyon eltérő mobil/desktop képarányokon is
+            // látszódjon. Alapértelmezett 50/50 fókusz + 1x nagyítás = a mai, eddigi center-cover
+            // viselkedés, tehát a meglévő szalonok változatlanul jelennek meg.
+            {
+              name: 'cover_focal_x',
+              type: 'number',
+              defaultValue: 50,
+              admin: { hidden: true },
+            },
+            {
+              name: 'cover_focal_y',
+              type: 'number',
+              defaultValue: 50,
+              admin: { hidden: true },
+            },
+            {
+              name: 'cover_zoom',
+              type: 'number',
+              defaultValue: 1,
+              admin: { hidden: true },
+            },
             {
               name: 'address',
               type: 'text',
@@ -200,6 +223,13 @@ export const Salons: CollectionConfig = {
               name: 'website',
               type: 'text',
               label: 'Weboldal',
+            },
+            {
+              name: 'social_links',
+              type: 'array',
+              label: 'Közösségi linkek',
+              admin: { description: 'Bármilyen platform linkje beilleszthető (Instagram, Facebook, TikTok…) — a platformot és az ikont a linkből ismerjük fel automatikusan.' },
+              fields: [{ name: 'url', type: 'text', required: true, label: 'Link' }],
             },
             {
               name: 'booking_buffer_minutes',
@@ -248,10 +278,10 @@ export const Salons: CollectionConfig = {
             },
             {
               name: 'booking_email_intro',
-              type: 'textarea',
+              type: 'json',
               localized: true,
-              label: 'Visszaigazoló email bevezető szövege',
-              admin: { description: 'Sima szöveg, nyelvenként. A visszaigazoló email tetejére kerül. Változók: {{name}}, {{date}}, {{time}}, {{service}}.' },
+              label: 'Visszaigazoló email bevezető tartalma',
+              admin: { description: 'Blokk-szerkesztős tartalom, nyelvenként. A visszaigazoló email tetejére kerül. Változók: {{name}}, {{date}}, {{time}}, {{service}}.' },
             },
             // Lemondó / emlékeztető / visszajelzés-kérő emailek szerkeszthető tárgya + bevezetője (localized).
             ...emailTemplateFields,
@@ -292,6 +322,13 @@ export const Salons: CollectionConfig = {
               type: 'text',
               label: 'Útvonaltervezéshez használt cím (opcionális)',
               admin: { description: 'Ha üres, a fenti címet használja. Megadhatsz pontosabb címet vagy Google Maps-linket is.' },
+            },
+            {
+              name: 'email_show_terms',
+              type: 'checkbox',
+              defaultValue: true,
+              label: 'Foglalási feltételek linkje a visszaigazoló emailben',
+              admin: { description: 'Csak akkor jelenik meg, ha van megadva foglalási feltétel. Kikapcsolva a visszaigazoló email nem hivatkozik a feltételekre.' },
             },
             { name: 'legal_name', type: 'text', label: 'Hivatalos cégnév' },
             { name: 'tax_number', type: 'text', label: 'Adószám' },

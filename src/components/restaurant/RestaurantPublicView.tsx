@@ -43,6 +43,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
   const coverUrl = restaurant.cover_image && typeof restaurant.cover_image === 'object'
     ? (restaurant.cover_image as Media).url ?? null
     : null
+  const coverFocal = `${restaurant.cover_focal_x ?? 50}% ${restaurant.cover_focal_y ?? 50}%`
+  const coverZoom = restaurant.cover_zoom ?? 1
   const logoUrl = restaurant.logo && typeof restaurant.logo === 'object'
     ? (restaurant.logo as Media).url ?? null
     : null
@@ -82,7 +84,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       {!embed && hasCover && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverUrl} alt="" aria-hidden fetchPriority="high" className="absolute inset-0 z-0 h-full w-full object-cover" />
+          <img src={coverUrl} alt="" aria-hidden fetchPriority="high" className="absolute inset-0 z-0 h-full w-full object-cover" style={{ objectPosition: coverFocal, transform: `scale(${coverZoom})`, transformOrigin: coverFocal }} />
           <div
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
@@ -164,6 +166,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
         phone={restaurant.phone}
         email={restaurant.email}
         website={restaurant.website}
+        socialLinks={(restaurant.social_links ?? []).map((s) => s.url)}
         openingHours={openingHours}
         reviews={reviews}
         requirePhone={restaurant.require_phone ?? true}
@@ -181,6 +184,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
           phone: restaurant.phone,
         }}
         depositEnabled={!!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded}
+        addressRequired={!!restaurant.booking_rules?.require_address}
+        addressRequiredNote={restaurant.booking_rules?.require_address_note}
         voucherEnabled={!!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0}
         voucherTypes={voucherTypes}
         newsletterEnabled={hasActivePackage(restaurant.newsletter_settings?.package)}

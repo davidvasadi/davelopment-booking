@@ -6,7 +6,6 @@ import {
   heroBlock,
   detailsCard,
   infoRow,
-  introBlock,
   cancelBlock,
   footerInfoBlock,
   calendarBlock,
@@ -16,6 +15,7 @@ import {
   escapeHtml,
   COLORS,
 } from './emailLayout'
+import { introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
@@ -69,6 +69,7 @@ function emailVars(data: ReservationEmailData): Record<string, string> {
 }
 
 function hasTerms(restaurant: Restaurant): boolean {
+  if (restaurant.email_show_terms === false) return false
   return (restaurant.terms_sections ?? []).some((s) => s?.title || s?.body)
 }
 
@@ -474,7 +475,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
       time: `${reservation.start_time} – ${reservation.end_time}`,
     }),
     content: `
-      ${introBlock(restaurant.booking_email_intro ?? '', emailVars(data))}
+      ${introBlockFromJson(restaurant.booking_email_intro, emailVars(data))}
       ${detailsCard(detailRows(data))}
       ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 28px 0">
         <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>${t(locale, 'email.label.notes')}:</strong> ${reservation.notes}</p>
@@ -518,14 +519,13 @@ function notificationHtml(data: ReservationEmailData): string {
     reservation.customer_phone ? infoRow('phone', 'Telefon', reservation.customer_phone) : '',
     reservation.notes ? infoRow('note', 'Megjegyzés', reservation.notes) : '',
   ].filter(Boolean).join('')
-  const customIntro = (restaurant.notify_email_intro ?? '').trim()
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'bell',
       title: 'Új asztalfoglalás',
       subtitle: `${reservation.customer_name} asztalt foglalt.`,
     })}
-    ${customIntro ? introBlock(customIntro, emailVars(data)) : ''}
+    ${introBlockFromJson(restaurant.notify_email_intro, emailVars(data))}
     ${detailsCard(detailRows(data))}
     ${detailsCard(contactRows)}
     ${bottomSpacer()}
@@ -541,7 +541,7 @@ function reminderHtml(data: ReservationEmailData, cancelUrl: string | null): str
       title: 'Közeleg a foglalásod',
       subtitle: `Kedves ${reservation.customer_name}, csak hogy emlékeztessünk: hamarosan várunk!`,
     })}
-    ${introBlock(restaurant.reminder_email_intro ?? '', emailVars(data))}
+    ${introBlockFromJson(restaurant.reminder_email_intro, emailVars(data))}
     ${detailsCard(detailRows(data))}
     ${calendarBlock({
       title: `${t(locale, 'rbooking.header')} – ${restaurant.name}`,
@@ -566,18 +566,13 @@ function feedbackHtml(data: ReservationEmailData): string {
   const cancelToken = (reservation as { cancel_token?: string }).cancel_token
   const reviewUrl = `${APP_URL}/review/${cancelToken}`
   const reviewCta = 'Értékelés'
-  const rows = [
-    infoRow('calendar', 'Dátum', reservation.date),
-    infoRow('people', 'Fő', `${reservation.pax} fő`),
-  ].join('')
   return wrap(restaurant, `
     ${heroBlock({
       icon: 'bell',
       title: 'Milyen volt nálunk?',
       subtitle: `Kedves ${reservation.customer_name}, reméljük jól érezted magad. Mondd el a véleményed!`,
     })}
-    ${introBlock(restaurant.feedback_email_intro ?? '', emailVars(data))}
-    ${detailsCard(rows)}
+    ${introBlockFromJson(restaurant.feedback_email_intro, emailVars(data))}
     <tr>
       <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
         <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
@@ -596,7 +591,7 @@ function cancellationHtml(data: ReservationEmailData): string {
       title: t(locale, 'email.cancel.title'),
       subtitle: t(locale, 'email.cancel.body'),
     })}
-    ${introBlock(restaurant.cancel_email_intro ?? '', emailVars(data))}
+    ${introBlockFromJson(restaurant.cancel_email_intro, emailVars(data))}
     ${detailsCard(detailRows(data))}
     ${bottomSpacer()}
   `)

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, useDragControls } from 'framer-motion'
 import { ChevronRight, MapPin, Phone, Mail, Globe, CheckCircle, Gift, Camera, X, ArrowLeft, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatPrice, cn } from '@/lib/utils'
@@ -10,6 +10,7 @@ import { BrandLogo } from '@/components/BrandLogo'
 import { APP_URL } from '@/lib/brand'
 import { t, type Locale } from '@/lib/i18n'
 import { RatingStars } from '@/components/booking/RatingStars'
+import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 import { DepositStep } from '@/components/booking/DepositStep'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -41,6 +42,7 @@ export function RestaurantCard({
   phone,
   email,
   website,
+  socialLinks,
   openingHours,
   reviews,
   requirePhone,
@@ -50,6 +52,8 @@ export function RestaurantCard({
   termsSections,
   company,
   depositEnabled,
+  addressRequired,
+  addressRequiredNote,
   voucherEnabled,
   voucherTypes = [],
   newsletterEnabled,
@@ -69,6 +73,7 @@ export function RestaurantCard({
   phone?: string | null
   email?: string | null
   website?: string | null
+  socialLinks?: string[] | null
   openingHours: OpeningHour[]
   reviews: { count: number; average: number }
   requirePhone: boolean
@@ -78,6 +83,8 @@ export function RestaurantCard({
   termsSections?: { title?: string | null; body?: string | null }[] | null
   company?: CompanyInfo | null
   depositEnabled?: boolean
+  addressRequired?: boolean
+  addressRequiredNote?: string | null
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
   newsletterEnabled?: boolean
@@ -95,6 +102,7 @@ export function RestaurantCard({
   embed?: boolean
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
+  const sheetDragControls = useDragControls()
   const [isMobile, setIsMobile] = useState(true)
   const [view, setView] = useState<View>('main')
   const [bookInitial, setBookInitial] = useState<{ date: string; time: string; pax: number } | null>(null)
@@ -259,7 +267,7 @@ export function RestaurantCard({
   }
 
   const mainView = (
-    <div className="space-y-5 px-5 pb-6 pt-4 lg:px-6">
+    <div className="space-y-5 px-5 pb-6 pt-6 lg:px-6">
       <div>
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
           {t(locale, 'public.bookTable')}
@@ -319,6 +327,22 @@ export function RestaurantCard({
             <Globe className="h-3 w-3" />{t(locale, 'public.website')}
           </a>
         )}
+        {(socialLinks ?? []).filter(Boolean).map((url) => {
+          const platform = detectPlatform(url)
+          return (
+            <a
+              key={url}
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={SOCIAL_LABELS[platform]}
+              className="inline-flex h-[30px] w-[30px] items-center justify-center rounded-full transition-colors hover:bg-white/[0.12]"
+              style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.10)' }}
+            >
+              <img src={socialIconDataUri(platform)} alt="" className="h-5 w-5 rounded-full" />
+            </a>
+          )
+        })}
       </div>
 
       {openingHours.length > 0 && (
@@ -355,7 +379,7 @@ export function RestaurantCard({
   )
 
   const bookView = (
-    <div className="px-4 pb-6 pt-4">
+    <div className="px-4 pb-6 pt-6">
       <RestaurantBookingWizard
         key={bookInitial ? `${bookInitial.date}-${bookInitial.time}` : 'default'}
         restaurantId={restaurantId}
@@ -374,6 +398,8 @@ export function RestaurantCard({
         initialTimeProp={bookInitial?.time}
         initialPaxProp={bookInitial?.pax}
         depositEnabled={depositEnabled}
+        addressRequired={addressRequired}
+        addressRequiredNote={addressRequiredNote}
         voucherEnabled={voucherEnabled}
         newsletterEnabled={newsletterEnabled}
         consentEnabled={consentEnabled}
@@ -428,7 +454,7 @@ export function RestaurantCard({
   )
 
   const voucherView = (
-    <div className="px-5 pb-6 pt-4 lg:px-6">
+    <div className="px-5 pb-6 pt-6 lg:px-6">
       {voucherResult ? (
         <div className="flex min-h-[50vh] flex-col items-center justify-center py-8 text-center">
           <motion.div
@@ -665,6 +691,14 @@ export function RestaurantCard({
           initial={embed ? false : { y: '100%' }}
           animate={embed ? { y: 0 } : { y: isMobile ? (sheetOpen ? 0 : '100%') : 0 }}
           transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+          drag={!embed && isMobile ? 'y' : false}
+          dragControls={sheetDragControls}
+          dragListener={false}
+          dragConstraints={{ top: 0, bottom: 0 }}
+          dragElastic={{ top: 0, bottom: 1 }}
+          onDragEnd={(_e, info) => {
+            if (info.offset.y > 120 || info.velocity.y > 500) setSheetOpen(false)
+          }}
           className={embed ? 'flex flex-col overflow-hidden rounded-[24px]' : 'flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]'}
           style={{
             // Embed módban a kártya a természetes tartalom-magasságára nő — a fenti
@@ -680,9 +714,13 @@ export function RestaurantCard({
             boxShadow: embed ? '0 4px 24px rgba(0,0,0,0.25)' : undefined,
           }}
         >
-          {/* Drag handle (mobil) — embed módban nincs húzható sheet */}
+          {/* Drag handle (mobil) — lehúzható; embed módban nincs húzható sheet */}
           {!embed && (
-            <div className="shrink-0 flex justify-center pt-3 pb-1 lg:hidden">
+            <div
+              className="shrink-0 flex touch-none justify-center pt-3 pb-1 lg:hidden"
+              onPointerDown={(e) => sheetDragControls.start(e)}
+              style={{ touchAction: 'none' }}
+            >
               <div className="h-1 w-10 rounded-full bg-white/20" />
             </div>
           )}

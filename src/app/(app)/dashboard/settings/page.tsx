@@ -6,6 +6,7 @@ import { getActiveBusiness } from '@/lib/activeBusiness'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import SalonSettingsForm from '@/components/dashboard/SalonSettingsForm'
 import { ProfileEditor } from '@/components/dashboard/ProfileEditor'
+import { DefaultBreakCard } from '@/components/dashboard/DefaultBreakCard'
 import { getTeamForBusiness } from '@/lib/teamContext'
 import { getAuditLogForBusiness } from '@/lib/auditContext'
 import {
@@ -78,6 +79,15 @@ export default async function SettingsPage() {
   const auditLog = can(capabilities, 'audit.view')
     ? await getAuditLogForBusiness({ type: 'salon', businessId: salon.id })
     : []
+
+  // ── Saját napi szünet — a bejelentkezett user linkelt staff-rekordja EBBEN a szalonban (ha
+  // van), hogy a "Saját profil" fülön önkiszolgálóan beállíthassa az alap szünetidejét.
+  const myStaffRes = await payload.find({
+    collection: 'staff',
+    where: { and: [{ salon: { equals: salon.id } }, { user: { equals: user.id } }] },
+    depth: 0, limit: 1, overrideAccess: true,
+  })
+  const myStaff = myStaffRes.docs[0] ?? null
 
   // ── Telephelyek — VALÓS fiók-üzletek. Az aktuális üzlethez a betöltött szalon címét mutatjuk.
   const { businesses } = await getActiveBusiness(user)
@@ -177,18 +187,23 @@ export default async function SettingsPage() {
         subtitle={subtitle}
         availabilityHref="/dashboard/availability"
         selfProfile={
-          <ProfileEditor
-            name={user.name}
-            email={user.email}
-            avatarUrl={(user as { avatar_url?: string | null }).avatar_url ?? null}
-            fields={{
-              phone: (user as { phone?: string | null }).phone ?? null,
-              address: (user as { address?: string | null }).address ?? null,
-              birthday: (user as { birthday?: string | null }).birthday ?? null,
-              emergency_contact: (user as { emergency_contact?: string | null }).emergency_contact ?? null,
-            }}
-            roles={businesses.map((b) => ({ type: b.type, name: b.name, roleName: b.roleName, isOwner: b.role === 'owner' }))}
-          />
+          <div className="space-y-6">
+            <ProfileEditor
+              name={user.name}
+              email={user.email}
+              avatarUrl={(user as { avatar_url?: string | null }).avatar_url ?? null}
+              fields={{
+                phone: (user as { phone?: string | null }).phone ?? null,
+                address: (user as { address?: string | null }).address ?? null,
+                birthday: (user as { birthday?: string | null }).birthday ?? null,
+                emergency_contact: (user as { emergency_contact?: string | null }).emergency_contact ?? null,
+              }}
+              roles={businesses.map((b) => ({ type: b.type, name: b.name, roleName: b.roleName, isOwner: b.role === 'owner' }))}
+            />
+            {myStaff && (
+              <DefaultBreakCard staffId={String(myStaff.id)} defaultBreakStart={myStaff.default_break_start ?? null} defaultBreakEnd={myStaff.default_break_end ?? null} />
+            )}
+          </div>
         }
         apiBase="/api/salon/settings"
         notificationPrefs={{
@@ -198,7 +213,7 @@ export default async function SettingsPage() {
           digest_morning_email: np.digest_morning_email ?? false,
           digest_evening_email: np.digest_evening_email ?? false,
         }}
-        bookingRules={{ auto_confirm: br.auto_confirm ?? true }}
+        bookingRules={{ auto_confirm: br.auto_confirm ?? true, require_address: br.require_address ?? false, require_address_note: br.require_address_note ?? '' }}
         featureModules={{
           reminders_on: fm.reminders_on ?? true,
           reminder_ch_email: fm.reminder_ch_email ?? true,

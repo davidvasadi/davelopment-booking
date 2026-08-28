@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import { RestaurantSettingsForm } from '@/components/restaurant/RestaurantSettingsForm'
+import { parseEmailBlocks } from '@/lib/emailBlocks'
 import { ProfileEditor } from '@/components/dashboard/ProfileEditor'
 import { getTeamForBusiness } from '@/lib/teamContext'
 import { getAuditLogForBusiness } from '@/lib/auditContext'
@@ -200,7 +201,7 @@ export default async function RestaurantSettingsPage() {
           digest_morning_email: np.digest_morning_email ?? false,
           digest_evening_email: np.digest_evening_email ?? false,
         }}
-        bookingRules={{ auto_confirm: br.auto_confirm ?? true }}
+        bookingRules={{ auto_confirm: br.auto_confirm ?? true, require_address: br.require_address ?? false, require_address_note: br.require_address_note ?? '' }}
         featureModules={{
           reminders_on: fm.reminders_on ?? true,
           reminder_ch_email: fm.reminder_ch_email ?? true,
@@ -291,6 +292,10 @@ export default async function RestaurantSettingsPage() {
               phone: r.phone ?? '',
               email: r.email ?? '',
               website: r.website ?? '',
+              social_links: (r.social_links ?? []).map((s) => s.url),
+              cover_focal_x: r.cover_focal_x ?? 50,
+              cover_focal_y: r.cover_focal_y ?? 50,
+              cover_zoom: r.cover_zoom ?? 1,
               description: r.description ?? '',
               turn_duration_minutes: r.turn_duration_minutes ?? 120,
               slot_step_minutes: r.slot_step_minutes ?? 30,
@@ -300,21 +305,22 @@ export default async function RestaurantSettingsPage() {
               require_phone: r.require_phone ?? true,
               notify_new_bookings: r.notify_new_bookings ?? true,
               booking_email_subject: r.booking_email_subject ?? '',
-              booking_email_intro: r.booking_email_intro ?? '',
+              booking_email_intro: parseEmailBlocks(r.booking_email_intro),
               cancel_email_subject: r.cancel_email_subject ?? '',
-              cancel_email_intro: r.cancel_email_intro ?? '',
+              cancel_email_intro: parseEmailBlocks(r.cancel_email_intro),
               reminder_email_subject: r.reminder_email_subject ?? '',
-              reminder_email_intro: r.reminder_email_intro ?? '',
+              reminder_email_intro: parseEmailBlocks(r.reminder_email_intro),
               feedback_email_subject: r.feedback_email_subject ?? '',
-              feedback_email_intro: r.feedback_email_intro ?? '',
+              feedback_email_intro: parseEmailBlocks(r.feedback_email_intro),
               notify_email_subject: r.notify_email_subject ?? '',
-              notify_email_intro: r.notify_email_intro ?? '',
+              notify_email_intro: parseEmailBlocks(r.notify_email_intro),
               email_show_phone: r.email_show_phone ?? true,
               email_contact_phone: r.email_contact_phone ?? '',
               email_show_email: r.email_show_email ?? false,
               email_show_address: r.email_show_address ?? false,
               email_show_directions: r.email_show_directions ?? false,
               email_directions_address: r.email_directions_address ?? '',
+              email_show_terms: r.email_show_terms ?? true,
               legal_name: r.legal_name ?? '',
               tax_number: r.tax_number ?? '',
               company_reg_number: r.company_reg_number ?? '',
@@ -323,6 +329,7 @@ export default async function RestaurantSettingsPage() {
               good_to_know: (r.good_to_know ?? []).map((s) => ({ icon: s.icon ?? 'info', title: s.title ?? '', body: s.body ?? '' })),
               event_types: (r.event_types ?? []).map((e) => ({ icon: e.icon ?? 'party', label: e.label ?? '', enabled: e.enabled ?? true })),
               custom_questions: (r.custom_questions ?? []).map((q) => ({
+                id: q.id ?? crypto.randomUUID(),
                 label: q.label ?? '',
                 type: (q.type ?? 'text') as CustomQuestionType,
                 options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),

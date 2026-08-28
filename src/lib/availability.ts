@@ -19,23 +19,23 @@ export interface TimeSlot {
   end: string
 }
 
-export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]> {
-  const { salonId, staffId, serviceId, date, includePast = false } = params
+/**
+ * Egy adott nap NYITVA van-e egy (opcionális) munkatársnak — prioritás: kivétel (dátum-
+ * specifikus) > munkatárs saját ismétlődő heti mintája (ha van neki egyáltalán) > szalon-szintű
+ * ismétlődő minta (fallback, ha a munkatársnak nincs saját beállítása). Ha `staffId` nincs
+ * megadva, csak a szalon-szintű mintát nézi. Ezt használja mind az `getAvailableSlots` (konkrét
+ * szolgáltatás-idővel), mind a beosztás-automatizáló cron (ami csak azt akarja tudni, dolgozna-e
+ * aznap az illető, szolgáltatás-fogalom nélkül).
+ */
+export async function resolveStaffWorkHours(
+  salonId: string,
+  staffId: string | undefined,
+  date: string,
+): Promise<{ start: string; end: string } | null> {
   const payload = await getPayloadClient()
-
-  // 1. Fetch service to get duration
-  const service = await payload.findByID({ collection: 'services', id: serviceId })
-  const durationMinutes = service.duration_minutes
-
-  // 2. Fetch salon to get buffer
-  const salon = await payload.findByID({ collection: 'salons', id: salonId })
-  const bufferMinutes = salon.booking_buffer_minutes ?? 15
-
-  // 3. Determine the day name
   const dateObj = parseISO(date)
   const dayName = getDayName(dateObj)
 
-  // 4. Fetch availability records — priority: exception > staff recurring > salon recurring
   const [allExceptionsRes, staffAllRecurring, salonAvail] = await Promise.all([
     // Összes kivétel erre a dátumra (mind a staff-specifikus, mind a szalon-szintű).
     // Client-oldali szűréssel különítjük el — a { staff: { exists: false } } Payload-operator
@@ -99,27 +99,69 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   // If staff has any recurring records configured, missing days = closed (don't fall back to salon)
   const staffHasCustomSchedule = staffAllRecurring.docs.length > 0
 
-  let workStart: string
-  let workEnd: string
-
   if (activeException) {
-    if (!activeException.is_available) return []
-    workStart = activeException.start_time
-    workEnd = activeException.end_time
-  } else if (staffDayRecord) {
-    if (!staffDayRecord.is_available) return []
-    workStart = staffDayRecord.start_time
-    workEnd = staffDayRecord.end_time
-  } else if (staffHasCustomSchedule) {
-    // Staff has a schedule but this day isn't in it → closed for this day
-    return []
-  } else {
-    // Csak a szalon-szintű ismétlődő beosztást nézzük fallbacknek (staff = null)
-    const salonRule = salonAvail.docs.find((r) => !r.staff)
-    if (!salonRule || !salonRule.is_available) return []
-    workStart = salonRule.start_time
-    workEnd = salonRule.end_time
+    if (!activeException.is_available) return null
+    return { start: activeException.start_time, end: activeException.end_time }
   }
+  if (staffDayRecord) {
+    if (!staffDayRecord.is_available) return null
+    return { start: staffDayRecord.start_time, end: staffDayRecord.end_time }
+  }
+  if (staffHasCustomSchedule) {
+    // Staff has a schedule but this day isn't in it → closed for this day
+    return null
+  }
+  // Csak a szalon-szintű ismétlődő beosztást nézzük fallbacknek (staff = null)
+  const salonRule = salonAvail.docs.find((r) => !r.staff)
+  if (!salonRule || !salonRule.is_available) return null
+  return { start: salonRule.start_time, end: salonRule.end_time }
+}
+
+export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]> {
+  const { salonId, staffId, serviceId, date, includePast = false } = params
+  const payload = await getPayloadClient()
+
+  // 1. Fetch service to get duration
+  const service = await payload.findByID({ collection: 'services', id: serviceId })
+  const durationMinutes = service.duration_minutes
+
+  // 2. Fetch salon to get buffer
+  const salon = await payload.findByID({ collection: 'salons', id: salonId })
+  const bufferMinutes = salon.booking_buffer_minutes ?? 15
+
+  // 3b. Ha a munkatársnak van erre a napra "szabadság/beteg/fizetett szabadság" beosztás-
+  // rekordja (Shifts), aznap egyáltalán nem foglalható — üres slot-listát adunk vissza, ami
+  // pontosan ugyanúgy jelenik meg a vendégnek, mint egy teljesen betelt nap (nincs külön UI-t
+  // kellett hozzá építeni). Korábban a Shifts (HR-beosztás) és ez a foglalási számítás teljesen
+  // független volt egymástól — beteg/szabadságos munkatársnál is lehetett foglalni.
+  // 3c. Az aznapi Shift-rekord szünete (break_start/break_end) — mintha foglalt lenne, semmilyen
+  // külön UI-jelzés nincs a vendégnek, csak az érintett időpontok tűnnek el a listából.
+  let dayBreak: { start: number; end: number } | null = null
+  if (staffId) {
+    const leaveShift = await payload.find({
+      collection: 'shifts',
+      where: {
+        and: [
+          { staff: { equals: staffId } },
+          { date: { equals: `${date}T12:00:00.000Z` } },
+        ],
+      },
+      depth: 0,
+      overrideAccess: true,
+      limit: 1,
+    })
+    const todayShift = leaveShift.docs[0]
+    if (todayShift && ['sick', 'vacation', 'leave'].includes(todayShift.type)) return []
+    if (todayShift?.break_start && todayShift?.break_end) {
+      dayBreak = { start: hhmmToMinutes(todayShift.break_start), end: hhmmToMinutes(todayShift.break_end) }
+    }
+  }
+
+  // 4. Nyitvatartás ma erre a munkatársra (kivétel > saját minta > szalon-fallback)
+  const hours = await resolveStaffWorkHours(salonId, staffId, date)
+  if (!hours) return []
+  const workStart = hours.start
+  const workEnd = hours.end
 
   const openMin = hhmmToMinutes(workStart)
   const closeMin = hhmmToMinutes(workEnd)
@@ -150,6 +192,7 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
     start: hhmmToMinutes(b.start_time),
     end: hhmmToMinutes(b.end_time) + bufferMinutes,
   }))
+  if (dayBreak) occupied.push(dayBreak)
 
   const todayStr = new Date().toISOString().split('T')[0]
   const nowMinutes = date === todayStr

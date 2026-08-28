@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, Loader2, Tag, Users, User, Phone, Mail, Globe, MapPin, Info, Gift, Camera, X } from 'lucide-react'
+import { AnimatePresence, motion, useDragControls } from 'framer-motion'
+import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, ChevronDown, Loader2, Tag, Users, User, Phone, Mail, Globe, MapPin, Info, Gift, Camera, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatPrice, cn } from '@/lib/utils'
@@ -25,6 +25,7 @@ import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import type { Section } from '@/components/booking/TermsContent'
 import { DepositStep } from '@/components/booking/DepositStep'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
+import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 
 const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map(c => [c.code, c.dial]))
 
@@ -46,6 +47,7 @@ interface Props {
   phone?: string | null
   email?: string | null
   website?: string | null
+  socialLinks?: string[] | null
   nextSlotNode?: ReactNode
   requirePhone?: boolean
   bookingWindowDays?: number
@@ -53,6 +55,8 @@ interface Props {
   company?: CompanyInfo | null
   goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
   depositEnabled?: boolean
+  addressRequired?: boolean
+  addressRequiredNote?: string | null
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
   newsletterEnabled?: boolean
@@ -80,9 +84,10 @@ function getCategoryId(cat: Service['category']): string | null {
 export function ProfileCard({
   slug, salonId, locale, salonName, salonDescription, salonAddress, salonCity,
   services, staff, serviceCategories,
-  phone, email, website, nextSlotNode,
+  phone, email, website, socialLinks, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
   termsSections, company, goodToKnow, depositEnabled = false,
+  addressRequired = false, addressRequiredNote = null,
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
   consentEnabled = false, consentTitle = null, consentText = null,
   customQuestions = null, embed = false,
@@ -96,6 +101,7 @@ export function ProfileCard({
   // Ha a főnézeten előbb egy konkrét munkatársat választ a vendég, ezt tároljuk — a
   // szolgáltatás-listát rá szűrjük, és a serviceDetail nézeten már nem kérdezünk rá újra.
   const [preStaffId, setPreStaffId] = useState<string | null>(null)
+  const [staffStripOpen, setStaffStripOpen] = useState(false)
   const [dir, setDir] = useState(1)
 
   // Booking flow state
@@ -141,6 +147,7 @@ export function ProfileCard({
   const [voucherFieldErrors, setVoucherFieldErrors] = useState<Record<string, string>>({})
   const [voucherTypeError, setVoucherTypeError] = useState(false)
   const [voucherShakeKey, setVoucherShakeKey] = useState(0)
+  const [detailsShakeKey, setDetailsShakeKey] = useState(0)
   const [voucherPaymentStep, setVoucherPaymentStep] = useState(false)
   const [voucherCreating, setVoucherCreating] = useState(false)
   const [voucherResult, setVoucherResult] = useState<{ code: string; amountHuf: number; qrCodeDataUrl: string } | null>(null)
@@ -154,6 +161,7 @@ export function ProfileCard({
 
   // Mobile sheet open state
   const [sheetOpen, setSheetOpen] = useState(false)
+  const sheetDragControls = useDragControls()
   const [isMobile, setIsMobile] = useState(true)
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 1023px)')
@@ -229,6 +237,11 @@ export function ProfileCard({
   const bookingStaff = bookingStaffId ? (staff.find(m => String(m.id) === String(bookingStaffId)) ?? null) : null
   const bookingDateParsed = new Date(bookingDate + 'T00:00:00')
 
+  // A lépés-fejlécben mindvégig látható "kiválasztott szakember" csík forrása: a szolgáltatás-
+  // választás lépésein (services/serviceDetail) a preStaff, utána (datetime-tól) a végleges
+  // bookingStaff — "Bármelyik szakember" esetén nincs konkrét személy, a csík nem jelenik meg.
+  const displayStaff = (view === 'services' || view === 'serviceDetail') ? preStaff : bookingStaff
+
   const goTo = (
     newView: View,
     catId: string | null = null,
@@ -286,6 +299,10 @@ export function ProfileCard({
     setSheetOpen(false)
   }
 
+  // A kiválasztott-szakember csík ne maradjon nyitva, ha másik szakemberre váltanak, vagy
+  // elhagyják a lépést, ahol egyáltalán megjelenik.
+  useEffect(() => { setStaffStripOpen(false) }, [displayStaff?.id])
+
   // Desktop CTA — BookCtaMorph / nextSlotNode open services view
   useEffect(() => {
     const handler = () => {
@@ -332,12 +349,19 @@ export function ProfileCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, selectedServiceId, bookingStaffId, bookingDate, salonId])
 
+  // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is).
+  const addressGateOn = depositEnabled || addressRequired
+  // Az egyedi indoklás mindig elsőbbséget élvez (akkor is, ha az előleg is be van kapcsolva),
+  // különben a felülírás észrevétlen maradna a cégnek — ld. user-visszajelzés.
+  const addressNote = addressRequiredNote?.trim()
+    || (depositEnabled ? 'Az előleg-számlázáshoz kötelező.' : 'A pontos cím megadására a foglalásod rögzítéséhez van szükségünk.')
+
   const validateField = (key: FieldKey): string | null => {
     if (key === 'name') return !customerName || customerName.trim().length < 2 ? tt('booking.err.name') : null
     if (key === 'email') return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) ? tt('booking.err.email') : null
     if (key === 'phone') return requirePhone && customerPhone.replace(/\s/g, '').length < 7 ? tt('booking.err.phone') : null
-    if (key === 'city') return depositEnabled && !customerCity.trim() ? 'A város megadása kötelező az előleg-számlázáshoz' : null
-    if (key === 'address') return depositEnabled && !customerAddress.trim() ? 'A cím (utca, házszám) megadása kötelező az előleg-számlázáshoz' : null
+    if (key === 'city') return addressGateOn && !customerCity.trim() ? 'A város megadása kötelező' : null
+    if (key === 'address') return addressGateOn && !customerAddress.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
     return null
   }
 
@@ -358,7 +382,7 @@ export function ProfileCard({
 
   const submit = async () => {
     if (!selectedServiceId || !bookingSlot) return
-    const order: FieldKey[] = ['name', 'email', 'phone', ...(depositEnabled ? (['city', 'address'] as FieldKey[]) : [])]
+    const order: FieldKey[] = ['name', 'email', 'phone', ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -582,6 +606,14 @@ export function ProfileCard({
         initial={embed ? false : { y: '100%' }}
         animate={embed ? { y: 0 } : { y: isMobile ? (sheetOpen ? 0 : '100%') : 0 }}
         transition={{ type: 'spring', stiffness: 300, damping: 32 }}
+        drag={!embed && isMobile ? 'y' : false}
+        dragControls={sheetDragControls}
+        dragListener={false}
+        dragConstraints={{ top: 0, bottom: 0 }}
+        dragElastic={{ top: 0, bottom: 1 }}
+        onDragEnd={(_e, info) => {
+          if (info.offset.y > 120 || info.velocity.y > 500) setSheetOpen(false)
+        }}
         className={embed ? 'flex flex-col overflow-hidden rounded-[24px]' : 'flex flex-col overflow-hidden rounded-t-[28px] lg:rounded-[24px]'}
         style={{
           // Embed módban a kártya a TERMÉSZETES tartalom-magasságára nő (nincs korlát) — a
@@ -597,9 +629,13 @@ export function ProfileCard({
           WebkitBackdropFilter: embed ? undefined : 'blur(24px) saturate(1.4)',
         }}
       >
-        {/* Drag handle — mobilon (embed módban nincs húzható sheet) */}
+        {/* Drag handle — mobilon lehúzható (embed módban nincs húzható sheet) */}
         {!embed && (
-          <div className="flex shrink-0 justify-center pb-1 pt-3 lg:hidden">
+          <div
+            className="flex shrink-0 touch-none justify-center pb-1 pt-3 lg:hidden"
+            onPointerDown={(e) => sheetDragControls.start(e)}
+            style={{ touchAction: 'none' }}
+          >
             <div className="h-1 w-9 rounded-full bg-white/20" />
           </div>
         )}
@@ -613,7 +649,7 @@ export function ProfileCard({
             : view === 'consent' ? 3 + (depositEnabled ? 1 : 0)
             : stepCount - 1
           return (
-            <div className="shrink-0 flex items-center justify-between px-5 pb-2 pt-1 lg:px-6">
+            <div className="shrink-0 flex items-center justify-between px-5 pb-2 pt-4 lg:px-6 lg:pt-5">
               <button
                 onClick={handleBack}
                 className="flex h-9 w-9 items-center justify-center rounded-full transition-all hover:bg-white/10"
@@ -638,27 +674,99 @@ export function ProfileCard({
           )
         })()}
 
+        {/* Kiválasztott szakember csík — a szolgáltatás-választástól az összegzésig mindvégig
+            látható, hogy a bizalmi infó (bemutatkozás + social) ne vesszen el a folyamat közben.
+            Kattintásra HELYBEN kinyílik (nem navigál el), hogy egy hosszabb bemutatkozás is
+            elférjen — a szakember-váltás külön, explicit gombbal történik a kinyílt panelben,
+            nem a kártya egészének (nem egyértelmű) kattintásával. "Bármelyik szakember"
+            esetén nincs kit mutatni. */}
+        {view !== 'main' && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && displayStaff && (() => {
+          const avatarUrl = displayStaff.avatar && typeof displayStaff.avatar === 'object' ? (displayStaff.avatar as Media).url ?? null : null
+          const links = (displayStaff.social_links ?? []).map((s) => s.url).filter(Boolean)
+          return (
+            <div className="mx-5 mb-2 shrink-0 overflow-hidden rounded-2xl lg:mx-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+              <button
+                type="button"
+                onClick={() => setStaffStripOpen(o => !o)}
+                className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors hover:bg-white/[0.06]"
+              >
+                <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-white/10">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayStaff.name} className="h-full w-full object-cover object-top" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-[12px] font-semibold text-white/40">{displayStaff.name[0]}</div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12.5px] font-semibold leading-tight text-white">{displayStaff.name}</p>
+                  {displayStaff.bio && <p className="mt-0.5 truncate text-[11px] text-white/45">{displayStaff.bio}</p>}
+                </div>
+                <ChevronDown className={`h-3.5 w-3.5 shrink-0 text-white/35 transition-transform ${staffStripOpen ? 'rotate-180' : ''}`} />
+              </button>
+              <AnimatePresence initial={false}>
+                {staffStripOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="border-t px-3 pb-3 pt-2.5" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                      {displayStaff.bio && <p className="whitespace-pre-line text-[12.5px] leading-relaxed text-white/60">{displayStaff.bio}</p>}
+                      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                        {links.map((url) => {
+                          const platform = detectPlatform(url)
+                          return (
+                            <a
+                              key={url}
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] transition-colors hover:bg-white/[0.14]"
+                              aria-label={SOCIAL_LABELS[platform]}
+                            >
+                              <img src={socialIconDataUri(platform)} alt="" className="h-5 w-5 rounded-full" />
+                            </a>
+                          )
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => { setStaffStripOpen(false); goTo('main', null, null, -1) }}
+                          className="ml-auto text-[12px] font-medium text-white/45 underline-offset-2 transition-colors hover:text-white hover:underline"
+                        >
+                          Szakember váltása
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )
+        })()}
+
         {/* Scrollable content — header + tartalom együtt scrollozik */}
         <div className="min-h-0 flex-1 overflow-y-auto px-6" data-lenis-prevent style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
-          <div className="pb-4 pt-2">
+          <div className={view === 'main' ? 'pb-4 pt-5 lg:pt-6' : 'pb-4 pt-2'}>
             {view === 'main' ? (
               <>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/35">{tl(locale, 'public.eyebrow')}</p>
                 <h2 className="mt-0.5 text-[20px] font-light leading-tight tracking-[-0.02em] text-white">{salonName}</h2>
                 {(salonDescription || salonAddress || salonCity) && (
-                  <div className="mt-2.5 space-y-1.5">
+                  <div className="mt-4 space-y-2.5">
                     {salonDescription && (
                       <p className="line-clamp-2 text-[12px] leading-relaxed text-white/50">{salonDescription}</p>
                     )}
                     {(salonAddress || salonCity) && (
-                      <p className="flex items-center gap-1 text-[11px] text-white/30">
+                      <p className="flex items-center gap-1.5 text-[12px] text-white/55">
                         <MapPin className="h-3 w-3 shrink-0" />
                         {[salonAddress, salonCity].filter(Boolean).join(', ')}
                       </p>
                     )}
                   </div>
                 )}
-                {(phone || email || website) && (
+                {(phone || email || website || (socialLinks ?? []).some(Boolean)) && (
                   <div className="mt-3 flex flex-wrap gap-2">
                     {phone && (
                       <a href={`tel:${phone}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
@@ -675,6 +783,14 @@ export function ProfileCard({
                         <Globe className="h-3.5 w-3.5 shrink-0" />{tl(locale, 'public.website')}
                       </a>
                     )}
+                    {(socialLinks ?? []).filter(Boolean).map((url) => {
+                      const platform = detectPlatform(url)
+                      return (
+                        <a key={url} href={url} target="_blank" rel="noopener noreferrer" aria-label={SOCIAL_LABELS[platform]} className="inline-flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-full bg-white/[0.06] transition-colors hover:bg-white/[0.12] active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
+                          <img src={socialIconDataUri(platform)} alt="" className="h-6 w-6 rounded-full" />
+                        </a>
+                      )
+                    })}
                   </div>
                 )}
               </>
@@ -745,11 +861,15 @@ export function ProfileCard({
                       <div className={`grid ${staffCols} gap-2`}>
                         {staff.map(m => {
                           const avatarUrl = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
+                          const links = (m.social_links ?? []).map((s) => s.url).filter(Boolean)
                           return (
-                            <button
+                            <div
                               key={m.id}
+                              role="button"
+                              tabIndex={0}
                               onClick={() => { setPreStaffId(String(m.id)); goTo('services', null) }}
-                              className="relative transition-opacity hover:opacity-90"
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPreStaffId(String(m.id)); goTo('services', null) } }}
+                              className="relative cursor-pointer transition-opacity hover:opacity-90"
                               style={{ aspectRatio: '3/4', clipPath: 'inset(0 round 12px)' }}
                             >
                               <div className="absolute inset-0 bg-ink/[0.07]">
@@ -760,6 +880,26 @@ export function ProfileCard({
                                     <span className="text-[32px] font-semibold text-white/25">{m.name[0]}</span>
                                   </div>
                                 )}
+                                {links.length > 0 && (
+                                  <div className="absolute right-1.5 top-1.5 flex gap-1">
+                                    {links.slice(0, 2).map((url) => {
+                                      const platform = detectPlatform(url)
+                                      return (
+                                        <a
+                                          key={url}
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          aria-label={SOCIAL_LABELS[platform]}
+                                          className="flex h-5 w-5 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-colors hover:bg-black/60"
+                                        >
+                                          <img src={socialIconDataUri(platform)} alt="" className="h-3.5 w-3.5 rounded-full" />
+                                        </a>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                                 <div
                                   className="absolute inset-x-0 bottom-0 flex min-h-[52px] flex-col justify-center px-2.5 py-2.5"
                                   style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
@@ -768,7 +908,7 @@ export function ProfileCard({
                                   {m.bio && <p className="mt-0.5 truncate text-[10px] text-white/65">{m.bio}</p>}
                                 </div>
                               </div>
-                            </button>
+                            </div>
                           )
                         })}
                       </div>
@@ -817,25 +957,33 @@ export function ProfileCard({
                     <p className="mb-4 text-[12px] text-white/45">{preStaff.name} szolgáltatásai</p>
                   )}
                   <div className={cn('space-y-1.5', !preStaff && 'mt-4')}>
-                    {servicesInView.map(s => (
+                    {servicesInView.map(s => {
+                      const sImgUrl = s.image && typeof s.image === 'object' ? (s.image as Media).url ?? null : null
+                      return (
                       <button
                         key={s.id}
                         onClick={() => goTo('serviceDetail', selectedCategoryId, String(s.id))}
-                        className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08]"
+                        className="flex w-full items-center justify-between overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.08]"
                         style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
                       >
-                        <div className="min-w-0">
+                        {sImgUrl && (
+                          <div className="h-[60px] w-[60px] shrink-0 overflow-hidden" style={{ borderRadius: '10px 0 0 10px' }}>
+                            <img src={sImgUrl} alt={s.name} className="h-full w-full object-cover" />
+                          </div>
+                        )}
+                        <div className={cn('min-w-0 flex-1', sImgUrl ? 'px-3 py-3' : 'py-3 pl-3')}>
                           <p className="text-[13px] font-semibold text-white">{s.name}</p>
                           <p className="mt-0.5 flex items-center gap-1 text-[11px] text-white/45">
                             <Clock className="h-2.5 w-2.5" />{s.duration_minutes} {tt('booking.minutes')}
                           </p>
                         </div>
-                        <div className="ml-3 flex shrink-0 items-center gap-2">
+                        <div className="mr-3 flex shrink-0 items-center gap-2">
                           <p className="text-[13px] font-bold text-white">{formatPrice(s.price, s.currency)}</p>
                           <ChevronRight className="h-3.5 w-3.5 text-white/35" />
                         </div>
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -899,11 +1047,15 @@ export function ProfileCard({
                       </button>
                       {serviceStaff.map(m => {
                         const avatarUrl = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media).url ?? null : null
+                        const links = (m.social_links ?? []).map((s) => s.url).filter(Boolean)
                         return (
-                          <button
+                          <div
                             key={m.id}
+                            role="button"
+                            tabIndex={0}
                             onClick={() => startBooking(String(m.id))}
-                            className="relative transition-all active:scale-[0.97]"
+                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); startBooking(String(m.id)) } }}
+                            className="relative cursor-pointer transition-all active:scale-[0.97]"
                             style={{
                               aspectRatio: '3/4',
                               background: 'rgba(255,255,255,0.08)',
@@ -915,6 +1067,26 @@ export function ProfileCard({
                               ? <img src={avatarUrl} alt={m.name} className="absolute inset-0 h-full w-full object-cover object-top" />
                               : <div className="absolute inset-0 flex items-center justify-center"><User className="h-10 w-10 text-white/25" /></div>
                             }
+                            {links.length > 0 && (
+                              <div className="absolute right-1.5 top-1.5 flex gap-1">
+                                {links.slice(0, 2).map((url) => {
+                                  const platform = detectPlatform(url)
+                                  return (
+                                    <a
+                                      key={url}
+                                      href={url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={(e) => e.stopPropagation()}
+                                      aria-label={SOCIAL_LABELS[platform]}
+                                      className="flex h-5 w-5 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm transition-colors hover:bg-black/60"
+                                    >
+                                      <img src={socialIconDataUri(platform)} alt="" className="h-3.5 w-3.5 rounded-full" />
+                                    </a>
+                                  )
+                                })}
+                              </div>
+                            )}
                             <div
                               className="absolute inset-x-0 bottom-0 flex min-h-[52px] flex-col justify-center px-2.5 py-2.5 text-left"
                               style={{ backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}
@@ -922,7 +1094,7 @@ export function ProfileCard({
                               <p className="truncate text-[12px] font-semibold leading-tight text-white">{m.name}</p>
                               {m.bio && <p className="mt-0.5 truncate text-[10px] text-white/60">{m.bio}</p>}
                             </div>
-                          </button>
+                          </div>
                         )
                       })}
                     </div>
@@ -1007,7 +1179,7 @@ export function ProfileCard({
                 <div>
                   <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.details.title')}</h2>
                   <div className="space-y-2 pb-4">
-                    <div className="space-y-1">
+                    <div key={`name-${detailsShakeKey}`} className={cn('space-y-1', errors.name && 'animate-shake')}>
                       <Label htmlFor="bk-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.name')}</Label>
                       <Input
                         id="bk-name" ref={fieldRefs.name} value={customerName}
@@ -1019,7 +1191,7 @@ export function ProfileCard({
                       />
                       {errors.name && <p role="alert" className="text-[12px] text-red-400">{errors.name}</p>}
                     </div>
-                    <div className="space-y-1">
+                    <div key={`email-${detailsShakeKey}`} className={cn('space-y-1', errors.email && 'animate-shake')}>
                       <Label htmlFor="bk-email" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.email')}</Label>
                       <Input
                         id="bk-email" ref={fieldRefs.email} type="email" inputMode="email" autoComplete="email" value={customerEmail}
@@ -1031,7 +1203,7 @@ export function ProfileCard({
                       />
                       {errors.email && <p role="alert" className="text-[12px] text-red-400">{errors.email}</p>}
                     </div>
-                    <div className="space-y-1">
+                    <div key={`phone-${detailsShakeKey}`} className={cn('space-y-1', errors.phone && 'animate-shake')}>
                       <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.phone')}{requirePhone ? ' *' : ''}</Label>
                       <PhoneCountryInput
                         inputRef={fieldRefs.phone} country={customerCountry} phone={customerPhone}
@@ -1043,9 +1215,9 @@ export function ProfileCard({
                       />
                       {errors.phone && <p role="alert" className="text-[12px] text-red-400">{errors.phone}</p>}
                     </div>
-                    <div className="space-y-1">
+                    <div key={`city-${detailsShakeKey}`} className={cn('space-y-1', errors.city && 'animate-shake')}>
                       <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
-                        {depositEnabled ? `${tt('booking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.city')}
+                        {addressGateOn ? `${tt('booking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.city')}
                       </Label>
                       <Input
                         id="bk-city" ref={fieldRefs.city} value={customerCity}
@@ -1056,23 +1228,23 @@ export function ProfileCard({
                         className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.city && 'ring-1 ring-red-400')}
                       />
                       {errors.city && <p role="alert" className="text-[12px] text-red-400">{errors.city}</p>}
-                      {depositEnabled && !errors.city && <p className="text-[11px] text-white/40">Az előleg-számlázáshoz kötelező.</p>}
+                      {addressGateOn && !errors.city && <p className="text-[11px] text-white/40">{addressNote}</p>}
                     </div>
-                    {depositEnabled && (
-                      <div className="space-y-1">
-                        <Label htmlFor="bk-address" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">Cím (utca, házszám) *</Label>
-                        <Input
-                          id="bk-address" ref={fieldRefs.address} value={customerAddress}
-                          onChange={e => { setCustomerAddress(e.target.value); clearError('address') }}
-                          onBlur={() => onFieldBlur('address')}
-                          aria-invalid={!!errors.address}
-                          autoComplete="street-address" placeholder="Pl. Fő utca 12."
-                          className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.address && 'ring-1 ring-red-400')}
-                        />
-                        {errors.address && <p role="alert" className="text-[12px] text-red-400">{errors.address}</p>}
-                        {!errors.address && <p className="text-[11px] text-white/40">Az előleg-számlázáshoz kötelező.</p>}
-                      </div>
-                    )}
+                    <div key={`address-${detailsShakeKey}`} className={cn('space-y-1', errors.address && 'animate-shake')}>
+                      <Label htmlFor="bk-address" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
+                        {addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address')}
+                      </Label>
+                      <Input
+                        id="bk-address" ref={fieldRefs.address} value={customerAddress}
+                        onChange={e => { setCustomerAddress(e.target.value); clearError('address') }}
+                        onBlur={() => onFieldBlur('address')}
+                        aria-invalid={!!errors.address}
+                        autoComplete="street-address" placeholder="Pl. Fő utca 12."
+                        className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.address && 'ring-1 ring-red-400')}
+                      />
+                      {errors.address && <p role="alert" className="text-[12px] text-red-400">{errors.address}</p>}
+                      {addressGateOn && !errors.address && <p className="text-[11px] text-white/40">{addressNote}</p>}
+                    </div>
                     {customQuestionsList.map((q) => {
                       const key = q.id ?? ''
                       const val = customAnswers[key] ?? ''
@@ -1091,7 +1263,7 @@ export function ProfileCard({
                       }
                       if (q.type === 'select') {
                         return (
-                          <div key={key} className="space-y-1">
+                          <div key={`${key}-${detailsShakeKey}`} className={cn('space-y-1', err && 'animate-shake')}>
                             <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{q.label}{q.required ? ' *' : ''}</Label>
                             <select
                               value={val}
@@ -1108,7 +1280,7 @@ export function ProfileCard({
                         )
                       }
                       return (
-                        <div key={key} className="space-y-1">
+                        <div key={`${key}-${detailsShakeKey}`} className={cn('space-y-1', err && 'animate-shake')}>
                           <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{q.label}{q.required ? ' *' : ''}</Label>
                           <Input
                             value={val}
@@ -1175,7 +1347,7 @@ export function ProfileCard({
               {/* DEPOSIT */}
               {view === 'deposit' && depositEnabled && (
                 <div>
-                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">Előleg</h2>
+                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('public.deposit.title')}</h2>
                   {/* bookingStaffId lehet null ("Bármelyik szakember") — a deposit-intent route
                       old fel egy konkrét, szabad szakembert, ha nincs megadva. */}
                   {selectedServiceId && bookingSlot && (
@@ -1197,7 +1369,7 @@ export function ProfileCard({
               {/* CONSENT — digitális beleegyező nyilatkozat */}
               {view === 'consent' && consentEnabled && (
                 <div>
-                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{consentTitle?.trim() || 'Beleegyező nyilatkozat'}</h2>
+                  <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{consentTitle?.trim() || tt('public.consent.title')}</h2>
                   <div
                     className="mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed text-white/75"
                     style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}
@@ -1512,14 +1684,21 @@ export function ProfileCard({
                     if (view === 'summary') {
                       submit()
                     } else if (view === 'details') {
-                      const order: FieldKey[] = ['name', 'email', 'phone', ...(depositEnabled ? (['city', 'address'] as FieldKey[]) : [])]
+                      const order: FieldKey[] = ['name', 'email', 'phone', ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : [])]
                       const nextErrors: Partial<Record<FieldKey, string>> = {}
                       for (const key of order) {
                         const msg = validateField(key)
                         if (msg) nextErrors[key] = msg
                       }
-                      if (Object.keys(nextErrors).length > 0) {
+                      const nextCustomErrors: Record<string, string> = {}
+                      for (const q of customQuestionsList) {
+                        const msg = validateCustomQuestion(q)
+                        if (msg && q.id) nextCustomErrors[q.id] = msg
+                      }
+                      if (Object.keys(nextErrors).length > 0 || Object.keys(nextCustomErrors).length > 0) {
                         setErrors(nextErrors)
+                        setCustomErrors(nextCustomErrors)
+                        setDetailsShakeKey(k => k + 1)
                         const firstBad = order.find(k => nextErrors[k])
                         if (firstBad) fieldRefs[firstBad].current?.focus()
                         return

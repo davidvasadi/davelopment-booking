@@ -60,6 +60,13 @@ export const Staff: CollectionConfig = {
       label: 'Bemutatkozás',
     },
     {
+      name: 'social_links',
+      type: 'array',
+      label: 'Közösségi linkek',
+      admin: { description: 'Pl. a szakember saját Instagram-portfóliója — bármilyen platform linkje beilleszthető, a platformot a linkből ismerjük fel automatikusan.' },
+      fields: [{ name: 'url', type: 'text', required: true, label: 'Link' }],
+    },
+    {
       name: 'salon',
       type: 'relationship',
       relationTo: 'salons',
@@ -122,6 +129,18 @@ export const Staff: CollectionConfig = {
       name: 'weekly_hours',
       type: 'number',
       label: 'Heti óraszám',
+    },
+    {
+      name: 'default_break_start',
+      type: 'text',
+      label: 'Napi szünet kezdete (ÓÓ:PP)',
+      admin: { placeholder: '12:00', description: 'Alap szünetidő — a beosztás-automatizáló minden napra ezt írja rá, egyedi napokon felülírható.' },
+    },
+    {
+      name: 'default_break_end',
+      type: 'text',
+      label: 'Napi szünet vége (ÓÓ:PP)',
+      admin: { placeholder: '13:00' },
     },
     {
       name: 'phone',

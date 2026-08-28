@@ -105,6 +105,16 @@ export const Services: CollectionConfig = {
       defaultValue: true,
       label: 'Aktív',
     },
+    {
+      // Kategórián belüli megjelenítési sorrend (drag & drop a Beállítások > Szolgáltatások
+      // oldalon). Alapértelmezett 0 mindenkinél — a `sort: ['sort_order','name']` lekérdezés
+      // emiatt névsor szerint rendez, amíg a cég először át nem rendez valamit, tehát a
+      // meglévő megjelenés nem változik magától.
+      name: 'sort_order',
+      type: 'number',
+      defaultValue: 0,
+      admin: { hidden: true },
+    },
   ],
   timestamps: true,
 }

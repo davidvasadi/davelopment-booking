@@ -35,8 +35,16 @@ async function loadManageableShift(id: string, userId: string | number) {
   const bizId = restaurantId ?? salonId
   if (!bizType || !bizId) return { error: 'Érvénytelen műszak', status: 400 as const }
   const denied = await assertCapability(userId, bizType, bizId, 'schedule.manage')
-  if (denied) return { error: denied.error, status: denied.status }
-  return { payload, shift, bizType, bizId }
+  if (!denied) return { payload, shift, bizType, bizId, isSelfOnly: false }
+  // Nincs schedule.manage — de a SAJÁT (linkelt) staff-rekordja a napi szünetét attól függetlenül
+  // szerkesztheti (önkiszolgáló, ld. `default_break_*`); minden más mezőnél marad a tiltás.
+  if (bizType === 'salon' && shift.staff) {
+    const staffId = relId(shift.staff)
+    const staffDoc = staffId ? await payload.findByID({ collection: 'staff', id: staffId, depth: 0, overrideAccess: true }).catch(() => null) : null
+    const isSelf = staffDoc?.user != null && String(typeof staffDoc.user === 'object' ? staffDoc.user.id : staffDoc.user) === String(userId)
+    if (isSelf) return { payload, shift, bizType, bizId, isSelfOnly: true }
+  }
+  return { error: denied.error, status: denied.status }
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -54,20 +62,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const loaded = await loadManageableShift(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
-  const data: Record<string, unknown> = {
-    ...(body.date != null ? { date: /^\d{4}-\d{2}-\d{2}$/.test(String(body.date)) ? `${body.date}T12:00:00.000Z` : body.date } : {}),
-    ...(body.type != null ? { type: body.type } : {}),
-    ...('start_time' in body ? { start_time: body.start_time ?? null } : {}),
-    ...('end_time' in body ? { end_time: body.end_time ?? null } : {}),
-    ...('hours' in body ? { hours: body.hours ?? null } : {}),
-    ...('note' in body ? { note: body.note ?? null } : {}),
-    ...('left_early_at' in body ? { left_early_at: body.left_early_at ?? null } : {}),
-    ...('left_early_reason' in body ? { left_early_reason: body.left_early_reason ?? null } : {}),
-    ...(body.member != null ? { member: num(body.member) } : {}),
-    ...(body.restaurant != null ? { restaurant: num(body.restaurant) } : {}),
-    ...(body.staff != null ? { staff: num(body.staff) } : {}),
-    ...(body.salon != null ? { salon: num(body.salon) } : {}),
-  }
+  // Önkiszolgáló (nincs schedule.manage, csak a saját napja): KIZÁRÓLAG a szünet módosítható.
+  const data: Record<string, unknown> = loaded.isSelfOnly
+    ? {
+        ...('break_start' in body ? { break_start: body.break_start ?? null } : {}),
+        ...('break_end' in body ? { break_end: body.break_end ?? null } : {}),
+      }
+    : {
+        ...(body.date != null ? { date: /^\d{4}-\d{2}-\d{2}$/.test(String(body.date)) ? `${body.date}T12:00:00.000Z` : body.date } : {}),
+        ...(body.type != null ? { type: body.type } : {}),
+        ...('start_time' in body ? { start_time: body.start_time ?? null } : {}),
+        ...('end_time' in body ? { end_time: body.end_time ?? null } : {}),
+        ...('hours' in body ? { hours: body.hours ?? null } : {}),
+        ...('break_start' in body ? { break_start: body.break_start ?? null } : {}),
+        ...('break_end' in body ? { break_end: body.break_end ?? null } : {}),
+        ...('note' in body ? { note: body.note ?? null } : {}),
+        ...('left_early_at' in body ? { left_early_at: body.left_early_at ?? null } : {}),
+        ...('left_early_reason' in body ? { left_early_reason: body.left_early_reason ?? null } : {}),
+        ...(body.member != null ? { member: num(body.member) } : {}),
+        ...(body.restaurant != null ? { restaurant: num(body.restaurant) } : {}),
+        ...(body.staff != null ? { staff: num(body.staff) } : {}),
+        ...(body.salon != null ? { salon: num(body.salon) } : {}),
+      }
 
   try {
     const doc = await loaded.payload.update({ collection: 'shifts', id, data: data as never, overrideAccess: true, user })

@@ -102,9 +102,13 @@ export interface Restaurant {
   phone?: string | null
   email?: string | null
   website?: string | null
+  social_links?: { url: string; id?: string | null }[] | null
   positions?: { label: string; level?: ('lead' | 'staff') | null; id?: string | null }[] | null
   daily_tips?: { date: string; amount: number; id?: string | null }[] | null
   cover_image?: string | Media | null
+  cover_focal_x?: number | null
+  cover_focal_y?: number | null
+  cover_zoom?: number | null
   logo?: string | Media | null
   turn_duration_minutes?: number | null
   slot_step_minutes?: number | null
@@ -131,6 +135,8 @@ export interface Restaurant {
     deposit_enabled?: boolean | null
     waitlist_enabled?: boolean | null
     cancellation_protection?: boolean | null
+    require_address?: boolean | null
+    require_address_note?: string | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null
@@ -183,21 +189,22 @@ export interface Restaurant {
     billingo_api_key_enc?: string | null
   } | null
   booking_email_subject?: string | null
-  booking_email_intro?: string | null
+  booking_email_intro?: unknown
   cancel_email_subject?: string | null
-  cancel_email_intro?: string | null
+  cancel_email_intro?: unknown
   reminder_email_subject?: string | null
-  reminder_email_intro?: string | null
+  reminder_email_intro?: unknown
   feedback_email_subject?: string | null
-  feedback_email_intro?: string | null
+  feedback_email_intro?: unknown
   notify_email_subject?: string | null
-  notify_email_intro?: string | null
+  notify_email_intro?: unknown
   email_show_phone?: boolean | null
   email_contact_phone?: string | null
   email_show_email?: boolean | null
   email_show_address?: boolean | null
   email_show_directions?: boolean | null
   email_directions_address?: string | null
+  email_show_terms?: boolean | null
   legal_name?: string | null
   tax_number?: string | null
   company_reg_number?: string | null
@@ -696,12 +703,16 @@ export interface Salon {
   description?: string | null
   logo?: string | Media | null
   cover_image?: string | Media | null
+  cover_focal_x?: number | null
+  cover_focal_y?: number | null
+  cover_zoom?: number | null
   address?: string | null
   city?: string | null
   postal_code?: string | null
   phone?: string | null
   email?: string | null
   website?: string | null
+  social_links?: { url: string; id?: string | null }[] | null
   booking_buffer_minutes?: number | null
   booking_window_days?: number | null
   require_phone?: boolean | null
@@ -724,6 +735,8 @@ export interface Salon {
     deposit_enabled?: boolean | null
     waitlist_enabled?: boolean | null
     cancellation_protection?: boolean | null
+    require_address?: boolean | null
+    require_address_note?: string | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null
@@ -776,21 +789,22 @@ export interface Salon {
     billingo_api_key_enc?: string | null
   } | null
   booking_email_subject?: string | null
-  booking_email_intro?: string | null
+  booking_email_intro?: unknown
   cancel_email_subject?: string | null
-  cancel_email_intro?: string | null
+  cancel_email_intro?: unknown
   reminder_email_subject?: string | null
-  reminder_email_intro?: string | null
+  reminder_email_intro?: unknown
   feedback_email_subject?: string | null
-  feedback_email_intro?: string | null
+  feedback_email_intro?: unknown
   notify_email_subject?: string | null
-  notify_email_intro?: string | null
+  notify_email_intro?: unknown
   email_show_phone?: boolean | null
   email_contact_phone?: string | null
   email_show_email?: boolean | null
   email_show_address?: boolean | null
   email_show_directions?: boolean | null
   email_directions_address?: string | null
+  email_show_terms?: boolean | null
   legal_name?: string | null
   tax_number?: string | null
   company_reg_number?: string | null
@@ -819,6 +833,7 @@ export interface StaffMember {
   id: string
   name: string
   bio?: string | null
+  social_links?: { url: string; id?: string | null }[] | null
   salon: string | Salon
   /** Ha ez a szakember EGYBEN egy bejelentkezett fiók is (pl. a tulajdonos, aki maga is dolgozik). */
   user?: string | User | null
@@ -830,6 +845,8 @@ export interface StaffMember {
   birthday?: string | null
   join_date?: string | null
   weekly_hours?: number | null
+  default_break_start?: string | null
+  default_break_end?: string | null
   phone?: string | null
   email?: string | null
   address?: string | null
@@ -851,6 +868,8 @@ export interface Shift {
   start_time?: string | null
   end_time?: string | null
   hours?: number | null
+  break_start?: string | null
+  break_end?: string | null
   note?: string | null
   owner_shift?: boolean | null
   /** Státuszváltás: a dolgozó a műszak vége előtt hazament (pl. délben beteg lett). */
@@ -873,6 +892,7 @@ export interface Service {
   price: number
   currency?: 'HUF' | 'EUR'
   is_active?: boolean | null
+  sort_order?: number | null
   createdAt: string
   updatedAt: string
 }

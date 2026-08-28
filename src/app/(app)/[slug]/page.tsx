@@ -71,6 +71,10 @@ export default async function SalonPublicPage({
   const coverUrl = salon.cover_image && typeof salon.cover_image === 'object'
     ? (salon.cover_image as Media).url ?? null
     : null
+  // "Áthelyezés" (fókuszpont) a beállításokból — object-position-ként, hogy a kép lényegi
+  // része mobilon/desktopon (nagyon eltérő képarányon) is a helyén maradjon.
+  const coverFocal = `${salon.cover_focal_x ?? 50}% ${salon.cover_focal_y ?? 50}%`
+  const coverZoom = salon.cover_zoom ?? 1
   const logoUrl = salon.logo && typeof salon.logo === 'object'
     ? (salon.logo as Media).url ?? null
     : null
@@ -108,7 +112,7 @@ export default async function SalonPublicPage({
       {!embed && hasCover && (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverUrl} alt="" aria-hidden fetchPriority="high" className="absolute inset-0 z-0 h-full w-full object-cover" />
+          <img src={coverUrl} alt="" aria-hidden fetchPriority="high" className="absolute inset-0 z-0 h-full w-full object-cover" style={{ objectPosition: coverFocal, transform: `scale(${coverZoom})`, transformOrigin: coverFocal }} />
           <div
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
@@ -248,12 +252,15 @@ export default async function SalonPublicPage({
         phone={salon.phone}
         email={salon.email}
         website={salon.website}
+        socialLinks={(salon.social_links ?? []).map((s) => s.url)}
         nextSlotNode={nextSlotNode}
         requirePhone={salon.require_phone ?? true}
         bookingWindowDays={salon.booking_window_days ?? 60}
         termsSections={salon.terms_sections}
         goodToKnow={salon.good_to_know}
         depositEnabled={!!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded}
+        addressRequired={!!salon.booking_rules?.require_address}
+        addressRequiredNote={salon.booking_rules?.require_address_note}
         voucherEnabled={!!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded && voucherTypes.length > 0}
         voucherTypes={voucherTypes}
         newsletterEnabled={hasActivePackage(salon.newsletter_settings?.package)}

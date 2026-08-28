@@ -55,6 +55,15 @@ export function renderSubject(template: string, vars: Record<string, string>): s
   return template.replace(/\{\{(\w+)\}\}/g, (_m, key: string) => vars[key] ?? '')
 }
 
+/** Ugyanaz a `{{var}}`-csere, mint `renderTemplate`, de a bemenetet NEM escape-eli — a blokk-
+ *  szerkesztőből (lib/emailBlocks.ts) jövő tartalom már kész HTML, azt eltörné az escape-elés.
+ *  Csak a BEHELYETTESÍTETT értékeket escape-eljük (pl. vendégnév), a szöveg maga a tulajdonosé. */
+export function renderTemplateHtml(html: string, vars: Record<string, string>): string {
+  return html.replace(/\{\{(\w+)\}\}/g, (_m, key: string) =>
+    key in vars ? escapeHtml(vars[key]) : '',
+  )
+}
+
 // ── Ikon-készletek ──────────────────────────────────────────────────────────────
 
 export type DetailIcon =

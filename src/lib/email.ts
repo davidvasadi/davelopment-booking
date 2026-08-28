@@ -6,7 +6,6 @@ import {
   heroBlock,
   detailsCard,
   infoRow,
-  introBlock,
   cancelBlock,
   footerInfoBlock,
   calendarBlock,
@@ -16,6 +15,7 @@ import {
   escapeHtml,
   COLORS,
 } from './emailLayout'
+import { introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
@@ -71,6 +71,7 @@ function emailVars(data: BookingEmailData): Record<string, string> {
 }
 
 function hasTerms(salon: Salon): boolean {
+  if (salon.email_show_terms === false) return false
   return (salon.terms_sections ?? []).some((s) => s?.title || s?.body)
 }
 
@@ -548,7 +549,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
       time: `${booking.start_time} – ${booking.end_time}`,
     }),
     content: `
-      ${introBlock(salon.booking_email_intro ?? '', emailVars(data))}
+      ${introBlockFromJson(salon.booking_email_intro, emailVars(data))}
       ${detailsCard(bookingRows(data))}
       ${calendarBlock({
         title: `${data.service.name} – ${salon.name}`,
@@ -590,14 +591,13 @@ function notificationHtml(data: BookingEmailData): string {
     infoRow('clock', 'Időpont', `${booking.start_time} – ${booking.end_time}`),
     booking.notes ? infoRow('note', 'Megjegyzés', booking.notes) : '',
   ].filter(Boolean).join('')
-  const customIntro = (salon.notify_email_intro ?? '').trim()
   return wrap(salon, `
     ${heroBlock({
       icon: 'bell',
       title: 'Új foglalás érkezett',
       subtitle: `${booking.customer_name} foglalt időpontot.`,
     })}
-    ${customIntro ? introBlock(customIntro, emailVars(data)) : ''}
+    ${introBlockFromJson(salon.notify_email_intro, emailVars(data))}
     ${detailsCard(rows)}
     ${bottomSpacer()}
   `)
@@ -612,7 +612,7 @@ function reminderHtml(data: BookingEmailData, cancelUrl: string | null): string 
       title: 'Közeleg a foglalásod',
       subtitle: `Kedves ${booking.customer_name}, csak hogy emlékeztessünk: hamarosan találkozunk!`,
     })}
-    ${introBlock(salon.reminder_email_intro ?? '', emailVars(data))}
+    ${introBlockFromJson(salon.reminder_email_intro, emailVars(data))}
     ${detailsCard(bookingRows(data))}
     ${calendarBlock({
       title: `${data.service.name} – ${salon.name}`,
@@ -630,22 +630,17 @@ function reminderHtml(data: BookingEmailData, cancelUrl: string | null): string 
 }
 
 function feedbackHtml(data: BookingEmailData): string {
-  const { booking, salon, service } = data
+  const { booking, salon } = data
   const cancellationToken = (booking as { cancellation_token?: string }).cancellation_token
   const reviewUrl = `${APP_URL}/review/${cancellationToken}`
   const reviewCta = 'Értékelés'
-  const rows = [
-    infoRow('scissors', 'Szolgáltatás', service.name),
-    infoRow('calendar', 'Dátum', booking.date),
-  ].join('')
   return wrap(salon, `
     ${heroBlock({
       icon: 'bell',
       title: 'Milyen volt nálunk?',
       subtitle: `Kedves ${booking.customer_name}, reméljük elégedett voltál a látogatásoddal. Mondd el a véleményed!`,
     })}
-    ${introBlock(salon.feedback_email_intro ?? '', emailVars(data))}
-    ${detailsCard(rows)}
+    ${introBlockFromJson(salon.feedback_email_intro, emailVars(data))}
     <tr>
       <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
         <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
@@ -671,7 +666,7 @@ function cancellationHtml(data: BookingEmailData): string {
       title: t(locale, 'email.cancel.title'),
       subtitle: t(locale, 'email.cancel.body'),
     })}
-    ${introBlock(salon.cancel_email_intro ?? '', emailVars(data))}
+    ${introBlockFromJson(salon.cancel_email_intro, emailVars(data))}
     ${detailsCard(rows)}
     <tr><td style="background:${COLORS.surface};padding:16px 32px 0;text-align:center">
       <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.cancel.hint')}</p>

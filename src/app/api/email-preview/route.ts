@@ -9,14 +9,15 @@ import {
   heroBlock,
   detailsCard,
   infoRow,
-  introBlock,
   cancelBlock,
   footerInfoBlock,
   calendarBlock,
   formatBookingDate,
   bottomSpacer,
   COLORS,
+  escapeHtml,
 } from '@/lib/emailLayout'
+import { introBlockFromHtml, blocksToHtml } from '@/lib/emailBlocks'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
@@ -112,12 +113,14 @@ export async function GET(req: NextRequest) {
   const bookingUrl = realSlug ? `${APP_URL}/${realSlug}/terms` : '#'
   const cancelUrl = '#' // preview: a lemondás-link nem visz sehova
 
-  // A szerkesztőből élőben átadott bevezető szöveg (ha van, akár üres), különben minta.
-  const customIntro = p.get('intro')
-  const introText =
-    customIntro != null && customIntro.trim() !== ''
-      ? customIntro
-      : t(locale, 'email.confirm.intro')
+  // A szerkesztőből élőben átadott, MÁR RENDERELT HTML (a kliens a blokk-szerkesztő tartalmát
+  // `blocksToHtml`-lel alakítja HTML-lé, mielőtt ide küldi — ugyanaz a minta, mint a marketing
+  // hírlevél élő előnézeténél). Visszaigazolásnál üresen egy minta-szöveg jelenik meg.
+  const customIntroHtml = p.get('intro')
+  const introHtml =
+    customIntroHtml != null && customIntroHtml.trim() !== ''
+      ? customIntroHtml
+      : blocksToHtml([{ id: 'preview-sample', type: 'text', html: escapeHtml(t(locale, 'email.confirm.intro')) }])
 
   const previewStartTime = type === 'salon' ? '14:30' : '19:00'
   const previewEndTime   = type === 'salon' ? '15:15' : '21:00'
@@ -125,7 +128,7 @@ export async function GET(req: NextRequest) {
 
   // A nem-visszaigazoló emaileknél (lemondás/emlékeztető/visszajelzés) a bevezető nyersen jelenik
   // meg (üresen semmi, ahogy a valódi emailben is); a változók behelyettesítéséhez ez a minta-készlet.
-  const rawIntro = p.get('intro') ?? ''
+  const rawIntroHtml = p.get('intro') ?? ''
   const introVars = { name, date: PREVIEW_DATE, time: `${previewStartTime} – ${previewEndTime}`, pax: '4', service: 'Hajvágás + szárítás' }
 
   let header: string | undefined
@@ -134,21 +137,20 @@ export async function GET(req: NextRequest) {
   if (state === 'cancel') {
     content = `
       ${heroBlock({ icon: 'cancel', title: t(locale, 'email.cancel.title'), subtitle: t(locale, 'email.cancel.body') })}
-      ${introBlock(rawIntro, introVars)}
+      ${introBlockFromHtml(rawIntroHtml, introVars)}
       ${detailsCard(detailRows)}
       ${bottomSpacer()}`
   } else if (state === 'reminder') {
     content = `
       ${heroBlock({ icon: 'bell', title: 'Közeleg a foglalásod', subtitle: `Kedves ${name}, csak hogy emlékeztessünk: hamarosan várunk!` })}
-      ${introBlock(rawIntro, introVars)}
+      ${introBlockFromHtml(rawIntroHtml, introVars)}
       ${detailsCard(detailRows)}
       ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}
       ${bottomSpacer()}`
   } else if (state === 'feedback') {
     content = `
       ${heroBlock({ icon: 'bell', title: 'Milyen volt nálunk?', subtitle: `Kedves ${name}, reméljük jól érezted magad. Mondd el a véleményed!` })}
-      ${introBlock(rawIntro, introVars)}
-      ${detailsCard(detailRows)}
+      ${introBlockFromHtml(rawIntroHtml, introVars)}
       <tr><td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
         <a href="${realGoogleReview || '#'}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${realGoogleReview ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'}</a>
       </td></tr>
@@ -170,11 +172,11 @@ export async function GET(req: NextRequest) {
       time: `${previewStartTime} – ${previewEndTime}`,
     })
     content = `
-      ${introBlock(introText, { name, date: PREVIEW_DATE, time: `${previewStartTime} – ${previewEndTime}`, pax: '4', service: 'Hajvágás + szárítás' })}
+      ${introBlockFromHtml(introHtml, introVars)}
       ${detailsCard(detailRows)}
       ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}
       ${footerInfoBlock({
-        hasTerms: true,
+        hasTerms: p.get('terms') !== '0',
         bookingUrl,
         phone: p.get('phone') !== '0' ? (p.get('contactPhone')?.trim() || realPhone || '+36 1 234 5678') : null,
         email: p.get('cmail') === '1' ? realEmail : null,

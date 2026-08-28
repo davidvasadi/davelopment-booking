@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
+import { Reorder, useDragControls } from 'framer-motion'
 import { formatPrice, fixMediaUrl } from '@/lib/utils'
 import type { Service, ServiceCategory, StaffMember, Media } from '@/payload/payload-types'
 import { Input } from '@/components/ui/input'
@@ -13,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Scissors, Layers, Tag, Lock } from 'lucide-react'
+import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Scissors, Layers, Tag, Lock, GripVertical } from 'lucide-react'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
@@ -60,6 +61,9 @@ interface Props {
    *  nem rendelhetők szolgáltatáshoz (lakat + UX infó). */
   invitedEmails?: Set<string>
   canManage?: boolean
+  /** A cég logója — csak ADMIN-nézeti placeholder, ha egy kategóriának/szolgáltatásnak nincs
+   *  saját képe (a publikus foglalón NEM jelenik meg logó pótlásként, ott üresen marad). */
+  logoUrl?: string | null
 }
 
 /** A staff-avatar VAGY (ha nincs) a személy saját profilképe email-egyezéssel. */
@@ -100,8 +104,254 @@ function compactFt(n: number): string {
   return `${n.toLocaleString('hu-HU')} Ft`
 }
 
+/** Egy szolgáltatás-sor a kategória-listában — MODUL-SZINTEN definiálva (nem a render
+ *  belsejében!), mert a húzáshoz (`useDragControls`) saját hook-példány kell soronként; a
+ *  `key`-t a szülő a `s.id`-ból adja, nem az objektum-referenciából, így gépeléskor/mentéskor
+ *  sem mountol újra (ugyanaz a tanulság, mint az egyedi kérdéseknél). */
+function ServiceRow({
+  s, tint, canManage, avatarUrlByEmail, logoUrl, onOpenEdit, onToggleActive, onDelete,
+}: {
+  s: Service
+  tint: ReturnType<typeof tintFor>
+  canManage: boolean
+  avatarUrlByEmail?: Record<string, string>
+  logoUrl?: string | null
+  onOpenEdit: () => void
+  onToggleActive: () => void
+  onDelete: () => void
+}) {
+  const imgUrl = serviceImageUrl(s)
+  const active = s.is_active !== false
+  const staffMembers = (s.staff ?? []).filter((x): x is StaffMember => typeof x === 'object' && x !== null)
+  const dragControls = useDragControls()
 
-export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory, avatarUrlByEmail, invitedEmails, canManage = false }: Props) {
+  return (
+    <Reorder.Item
+      as="div"
+      value={s}
+      dragListener={false}
+      dragControls={dragControls}
+      className="group flex items-center gap-2 rounded-[16px] px-1 py-3 transition-colors hover:bg-[var(--dav-glass)] sm:gap-3 sm:px-2"
+    >
+      {canManage && (
+        <div
+          onPointerDown={(e) => dragControls.start(e)}
+          className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+          style={{ touchAction: 'none' }}
+          title="Húzd az átrendezéshez"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+      )}
+      <button onClick={() => canManage && onOpenEdit()} className={`flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4 ${canManage ? '' : 'cursor-default'}`}>
+        <span
+          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px]"
+          style={imgUrl || logoUrl ? undefined : { background: tint.grad }}
+        >
+          {imgUrl
+            ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
+            : logoUrl
+              ? <img src={logoUrl} alt="" className="h-full w-full object-cover opacity-70" />
+              : <Scissors className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-[15px] font-semibold text-ink">{s.name}</p>
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+            {!active ? (
+              <span className="rounded-[7px] bg-[#E7E1D0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">Inaktív</span>
+            ) : staffMembers.length > 0 ? (
+              <>
+                <div className="flex shrink-0">
+                  {staffMembers.slice(0, 4).map((m, mi) => {
+                    const url = staffAvatarUrl(m, avatarUrlByEmail)
+                    return (
+                      <span key={m.id} className={`flex h-[22px] w-[22px] items-center justify-center overflow-hidden rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
+                        {url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={url} alt={m.name} className="h-full w-full object-cover object-top" />
+                        ) : (
+                          m.name.slice(0, 1).toUpperCase()
+                        )}
+                      </span>
+                    )
+                  })}
+                </div>
+                <span className="truncate text-[12px] text-ink-soft">{staffMembers.map(m => m.name).join(', ')}</span>
+              </>
+            ) : (
+              <span className="text-[12px] text-ink-soft2">Nincs hozzárendelt szakember</span>
+            )}
+          </div>
+        </div>
+      </button>
+      <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] bg-[#EFEEE9] px-3 py-1.5 text-[13px] font-medium text-ink sm:inline-flex">
+        <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
+      </span>
+      <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{formatPrice(s.price, s.currency)}</span>
+      {canManage && (
+        <>
+          <Switch checked={active} onChange={onToggleActive} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
+          <button onClick={onOpenEdit} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
+          <button onClick={onDelete} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
+        </>
+      )}
+    </Reorder.Item>
+  )
+}
+
+/** Egy fő kategória-csoport kártyája (fejléc + benne a szolgáltatás-lista) — húzható, a felette
+ *  lévő `Reorder.Group`-ba illesztve. Modul-szinten (nem a render belsejében), ugyanazért, mint
+ *  a `ServiceRow`-nál: soronkénti `useDragControls`. */
+function CategoryGroup({
+  categoryId, items, catRecord, catLabel, tint, canManage, avatarUrlByEmail, logoUrl,
+  onOpenCatEdit, onOpenEdit, onToggleActive, onDelete, onReorderServices,
+}: {
+  categoryId: string
+  items: Service[]
+  catRecord: ServiceCategory | undefined
+  catLabel: string
+  tint: ReturnType<typeof tintFor>
+  canManage: boolean
+  avatarUrlByEmail?: Record<string, string>
+  logoUrl?: string | null
+  onOpenCatEdit: () => void
+  onOpenEdit: (s: Service) => void
+  onToggleActive: (s: Service) => void
+  onDelete: (id: string) => void
+  onReorderServices: (next: Service[]) => void
+}) {
+  const catImgUrl = categoryImageUrl(catRecord)
+  const dragControls = useDragControls()
+
+  return (
+    <Reorder.Item
+      as="div"
+      value={categoryId}
+      dragListener={false}
+      dragControls={dragControls}
+      className="dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5"
+    >
+      <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
+        <div className="flex min-w-0 items-center gap-3">
+          {canManage && (
+            <div
+              onPointerDown={(e) => dragControls.start(e)}
+              className="flex h-8 w-5 shrink-0 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+              style={{ touchAction: 'none' }}
+              title="Húzd az átrendezéshez"
+            >
+              <GripVertical className="h-4 w-4" />
+            </div>
+          )}
+          {catImgUrl ? (
+            <div className="h-[42px] w-[42px] shrink-0 overflow-hidden rounded-[12px]">
+              <img src={catImgUrl} alt={catLabel} className="h-full w-full object-cover" />
+            </div>
+          ) : logoUrl ? (
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-white">
+              <img src={logoUrl} alt="" className="h-full w-full object-cover opacity-70" />
+            </div>
+          ) : (
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px]" style={{ background: tint.head }}>
+              <Scissors className="h-[19px] w-[19px] text-ink/55" strokeWidth={1.7} />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-[17px] font-semibold text-ink">{catLabel}</p>
+            <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-ink-soft2">
+              {items.length} szolgáltatás
+              {catRecord?.duration_label && (
+                <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{catRecord.duration_label}</span>
+              )}
+            </p>
+          </div>
+        </div>
+        {catRecord && canManage && (
+          <button
+            onClick={onOpenCatEdit}
+            className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper"
+            title="Kategória szerkesztése"
+          >
+            <Pencil className="h-[15px] w-[15px]" strokeWidth={1.8} />
+          </button>
+        )}
+      </div>
+
+      <Reorder.Group as="div" axis="y" values={items} onReorder={onReorderServices} className="mt-1 divide-y divide-line/70">
+        {items.map((s) => (
+          <ServiceRow
+            key={s.id}
+            s={s}
+            tint={tint}
+            canManage={canManage}
+            avatarUrlByEmail={avatarUrlByEmail}
+            logoUrl={logoUrl}
+            onOpenEdit={() => onOpenEdit(s)}
+            onToggleActive={() => onToggleActive(s)}
+            onDelete={() => onDelete(String(s.id))}
+          />
+        ))}
+      </Reorder.Group>
+    </Reorder.Item>
+  )
+}
+
+/** Az „Egyéb" (kategória nélküli) csoport — nincs mögötte valódi kategória-rekord, ezért nem
+ *  húzható (nincs drag-fogantyú, nincs `Reorder.Item`), mindig a lista végén jelenik meg. */
+function CategoryGroupStatic({
+  items, catLabel, tint, canManage, avatarUrlByEmail, logoUrl, onOpenEdit, onToggleActive, onDelete, onReorderServices,
+}: {
+  items: Service[]
+  catLabel: string
+  tint: ReturnType<typeof tintFor>
+  canManage: boolean
+  avatarUrlByEmail?: Record<string, string>
+  logoUrl?: string | null
+  onOpenEdit: (s: Service) => void
+  onToggleActive: (s: Service) => void
+  onDelete: (id: string) => void
+  onReorderServices: (next: Service[]) => void
+}) {
+  return (
+    <div className="dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5">
+      <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
+        <div className="flex min-w-0 items-center gap-3">
+          {logoUrl ? (
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-white">
+              <img src={logoUrl} alt="" className="h-full w-full object-cover opacity-70" />
+            </div>
+          ) : (
+            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px]" style={{ background: tint.head }}>
+              <Scissors className="h-[19px] w-[19px] text-ink/55" strokeWidth={1.7} />
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-[17px] font-semibold text-ink">{catLabel}</p>
+            <p className="mt-0.5 text-[12.5px] text-ink-soft2">{items.length} szolgáltatás</p>
+          </div>
+        </div>
+      </div>
+      <Reorder.Group as="div" axis="y" values={items} onReorder={onReorderServices} className="mt-1 divide-y divide-line/70">
+        {items.map((s) => (
+          <ServiceRow
+            key={s.id}
+            s={s}
+            tint={tint}
+            canManage={canManage}
+            avatarUrlByEmail={avatarUrlByEmail}
+            logoUrl={logoUrl}
+            onOpenEdit={() => onOpenEdit(s)}
+            onToggleActive={() => onToggleActive(s)}
+            onDelete={() => onDelete(String(s.id))}
+          />
+        ))}
+      </Reorder.Group>
+    </div>
+  )
+}
+
+
+export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory, avatarUrlByEmail, invitedEmails, canManage = false, logoUrl = null }: Props) {
   const [services, setServices] = useState(initialServices)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
@@ -486,6 +736,73 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
     }
   }
 
+  // Framer Motion a `Reorder.Group.onReorder`-t EGY húzás alatt TÖBBSZÖR is meghívja (minden
+  // pozíció-váltásnál, nem csak elengedéskor) — ezért a szerver-mentést debounce-oljuk (csak a
+  // húzás megállása után 400ms-mal fut le, a köztes hívások PATCH-özés nélkül, csak a helyi
+  // állapotot frissítik). Kategóriánként/globálisan külön időzítő, hogy két egyidejű húzás ne
+  // törölje egymás időzítőjét.
+  const serviceReorderTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const categoryReorderTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Kategórián belüli drag & drop átrendezés — a `services` tömb SORRENDJE vezérli a
+  // csoportosítást (categoryMap), ezért csak az érintett kategória elemeit cseréljük ki a
+  // tömbön belül, a többi kategória pozícióját (és a köztük lévő sorrendet) nem bántjuk.
+  // FONTOS: a csere-logika a `prev`-ből (a setState functional updaterén BELÜL) számol, nem a
+  // külső closure-ből — egy korábbi verzió a külső (esetleg elavult) `categories`/`categoryMap`-
+  // ból számolt, ami gyors, egymást követő onReorder-hívásoknál `undefined`-et illesztett az
+  // állapotba (hossz-eltérés → `newItems[idx++]` index-túllépés) → "Cannot read properties of
+  // undefined (reading 'id')" render-hibát okozott. A `?? s` védőháló is ezért kell.
+  const reorderCategory = (categoryId: string, newItems: Service[]) => {
+    setServices(prev => {
+      const draggable = new Set(newItems.map(s => String(s.id)))
+      let idx = 0
+      return prev.map(s => (draggable.has(String(s.id)) ? (newItems[idx++] ?? s) : s))
+    })
+    if (serviceReorderTimers.current[categoryId]) clearTimeout(serviceReorderTimers.current[categoryId])
+    serviceReorderTimers.current[categoryId] = setTimeout(async () => {
+      try {
+        const results = await Promise.all(newItems.map((s, i) =>
+          fetch(`/api/services/${s.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ sort_order: i }),
+          })
+        ))
+        if (results.some(r => !r.ok)) throw new Error()
+      } catch {
+        toast.error('A sorrend mentése nem sikerült')
+      }
+    }, 400)
+  }
+
+  // Fő kategória-CSOPORTOK drag & drop átrendezése — ugyanaz a védett minta, mint fent.
+  const reorderCategories = (newIds: string[]) => {
+    setCategories(prev => {
+      const idToCat = new Map(prev.map(c => [String(c.id), c]))
+      const draggableSet = new Set(newIds)
+      const newOrderCats = newIds.map(id => idToCat.get(id)).filter((c): c is ServiceCategory => !!c)
+      let idx = 0
+      return prev.map(c => (draggableSet.has(String(c.id)) ? (newOrderCats[idx++] ?? c) : c))
+    })
+    if (categoryReorderTimer.current) clearTimeout(categoryReorderTimer.current)
+    categoryReorderTimer.current = setTimeout(async () => {
+      try {
+        const results = await Promise.all(newIds.map((id, i) =>
+          fetch(`/api/service-categories/${id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ sort_order: i }),
+          })
+        ))
+        if (results.some(r => !r.ok)) throw new Error()
+      } catch {
+        toast.error('A kategória-sorrend mentése nem sikerült')
+      }
+    }, 400)
+  }
+
   // Csoportosítás kategória-ID szerint (a relationship-ből). A megjelenített nevet a kategória-rekord
   // adja (catById); ismeretlen/üres → 'Egyéb'. Az alkategória is ID-kulcs.
   const categoryMap = services.reduce((acc, s) => {
@@ -496,6 +813,10 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
   }, {} as Record<string, Service[]>)
 
   const catName = (id: string): string => (id === '__none__' ? 'Egyéb' : catById.get(id)?.name ?? 'Egyéb')
+
+  // A valódi kategória-rekordok (`categories`, `sort_order` szerint rendezve) sorrendje adja a
+  // húzható csoportok sorrendjét — csak azok, amiknek van ténylegesen szolgáltatása (categoryMap).
+  const orderedCategoryIds = categories.map(c => String(c.id)).filter(id => categoryMap[id])
 
   const catCount = new Set(services.map(s => relId(s.category) ?? '__none__')).size
 
@@ -560,113 +881,42 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
         </DashboardCard>
       ) : (
         <div className="space-y-4">
-          {Object.entries(categoryMap).map(([categoryId, items], catIdx) => {
-            const catRecord = categoryId === '__none__' ? undefined : catById.get(categoryId)
-            const catImgUrl = categoryImageUrl(catRecord)
-            const catLabel = catName(categoryId)
-            const tint = tintFor(catIdx)
-
-            return (
-              <div key={categoryId} className="dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5">
-                <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
-                  <div className="flex min-w-0 items-center gap-3">
-                    {catImgUrl ? (
-                      <div className="h-[42px] w-[42px] shrink-0 overflow-hidden rounded-[12px]">
-                        <img src={catImgUrl} alt={catLabel} className="h-full w-full object-cover" />
-                      </div>
-                    ) : (
-                      <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px]" style={{ background: tint.head }}>
-                        <Scissors className="h-[19px] w-[19px] text-ink/55" strokeWidth={1.7} />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="truncate text-[17px] font-semibold text-ink">{catLabel}</p>
-                      <p className="mt-0.5 flex items-center gap-1.5 text-[12.5px] text-ink-soft2">
-                        {items.length} szolgáltatás
-                        {catRecord?.duration_label && (
-                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{catRecord.duration_label}</span>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-                  {catRecord && canManage && (
-                    <button
-                      onClick={() => openCatEdit(categoryId)}
-                      className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(80,70,30,.07)] transition-colors hover:bg-paper"
-                      title="Kategória szerkesztése"
-                    >
-                      <Pencil className="h-[15px] w-[15px]" strokeWidth={1.8} />
-                    </button>
-                  )}
-                </div>
-
-                <div className="mt-1 divide-y divide-line/70">
-                  {items.map((s) => {
-                    const imgUrl = serviceImageUrl(s)
-                    const active = s.is_active !== false
-                    const staffMembers = (s.staff ?? []).filter((x): x is StaffMember => typeof x === 'object' && x !== null)
-                    return (
-                      <div
-                        key={s.id}
-                        className="group flex items-center gap-3 rounded-[16px] px-1 py-3 transition-colors hover:bg-[var(--dav-glass)] sm:gap-4 sm:px-2"
-                      >
-                        <button onClick={() => canManage && openEdit(s)} className={`flex min-w-0 flex-1 items-center gap-3 text-left sm:gap-4 ${canManage ? '' : 'cursor-default'}`}>
-                          <span
-                            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[14px]"
-                            style={imgUrl ? undefined : { background: tint.grad }}
-                          >
-                            {imgUrl
-                              ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
-                              : <Scissors className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-[15px] font-semibold text-ink">{s.name}</p>
-                            <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-                              {!active ? (
-                                <span className="rounded-[7px] bg-[#E7E1D0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">Inaktív</span>
-                              ) : staffMembers.length > 0 ? (
-                                <>
-                                  <div className="flex shrink-0">
-                                    {staffMembers.slice(0, 4).map((m, mi) => {
-                                      const url = staffAvatarUrl(m, avatarUrlByEmail)
-                                      return (
-                                        <span key={m.id} className={`flex h-[22px] w-[22px] items-center justify-center overflow-hidden rounded-full border-2 border-white bg-ink-dark text-[9px] font-semibold text-gold ${mi > 0 ? '-ml-[7px]' : ''}`}>
-                                          {url ? (
-                                            // eslint-disable-next-line @next/next/no-img-element
-                                            <img src={url} alt={m.name} className="h-full w-full object-cover object-top" />
-                                          ) : (
-                                            m.name.slice(0, 1).toUpperCase()
-                                          )}
-                                        </span>
-                                      )
-                                    })}
-                                  </div>
-                                  <span className="truncate text-[12px] text-ink-soft">{staffMembers.map(m => m.name).join(', ')}</span>
-                                </>
-                              ) : (
-                                <span className="text-[12px] text-ink-soft2">Nincs hozzárendelt szakember</span>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                        <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] bg-[#EFEEE9] px-3 py-1.5 text-[13px] font-medium text-ink sm:inline-flex">
-                          <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
-                        </span>
-                        <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{formatPrice(s.price, s.currency)}</span>
-                        {canManage && (
-                          <>
-                            <Switch checked={active} onChange={() => toggleActive(s)} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
-                            <button onClick={() => openEdit(s)} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
-                            <button onClick={() => deleteService(String(s.id))} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
-                          </>
-                        )}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
+          <Reorder.Group as="div" axis="y" values={orderedCategoryIds} onReorder={reorderCategories} className="space-y-4">
+            {orderedCategoryIds.map((categoryId, catIdx) => (
+              <CategoryGroup
+                key={categoryId}
+                categoryId={categoryId}
+                items={categoryMap[categoryId]}
+                catRecord={catById.get(categoryId)}
+                catLabel={catName(categoryId)}
+                tint={tintFor(catIdx)}
+                canManage={canManage}
+                avatarUrlByEmail={avatarUrlByEmail}
+                logoUrl={logoUrl}
+                onOpenCatEdit={() => openCatEdit(categoryId)}
+                onOpenEdit={openEdit}
+                onToggleActive={toggleActive}
+                onDelete={(id) => deleteService(id)}
+                onReorderServices={(next) => reorderCategory(categoryId, next)}
+              />
+            ))}
+          </Reorder.Group>
+          {/* „Egyéb" (kategória nélküli) csoport — nem valódi kategória-rekord, ezért nem húzható,
+              mindig a lista végén marad. */}
+          {categoryMap['__none__'] && (
+            <CategoryGroupStatic
+              items={categoryMap['__none__']}
+              catLabel={catName('__none__')}
+              tint={tintFor(orderedCategoryIds.length)}
+              canManage={canManage}
+              avatarUrlByEmail={avatarUrlByEmail}
+              logoUrl={logoUrl}
+              onOpenEdit={openEdit}
+              onToggleActive={toggleActive}
+              onDelete={(id) => deleteService(id)}
+              onReorderServices={(next) => reorderCategory('__none__', next)}
+            />
+          )}
         </div>
       )}
 

@@ -144,6 +144,18 @@ export const Shifts: CollectionConfig = {
       label: 'Óraszám',
     },
     {
+      name: 'break_start',
+      type: 'text',
+      label: 'Szünet kezdete (ÓÓ:PP)',
+      admin: { placeholder: '12:00', description: 'Ezen a napon nem foglalható; a foglaló oldalon nem jelenik meg külön jelzésként.' },
+    },
+    {
+      name: 'break_end',
+      type: 'text',
+      label: 'Szünet vége (ÓÓ:PP)',
+      admin: { placeholder: '13:00' },
+    },
+    {
       name: 'note',
       type: 'text',
       label: 'Megjegyzés',
