@@ -4,9 +4,24 @@ import type { Payload } from 'payload'
 import { getStripe, mapStripeStatus } from '@/lib/stripe'
 import { getPayloadClient } from '@/lib/payload'
 import { applyCheckoutCompleted, ensureInvoiceForStripeInvoice, periodEndISO } from '@/lib/stripeCheckoutSync'
+import { sendPushToUsers } from '@/lib/webPush'
 import type { Subscription } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
+
+/** Böngésző-push az összes adminnak — best-effort, ne bukjon el emiatt a webhook-feldolgozás
+ *  (a Stripe különben ismétli a kézbesítést). Dispute/fraud-gyanú időérzékeny, azonnal észre
+ *  kell venni akkor is, ha épp nem néz be valaki a Backstage-be. */
+async function pushToAdmins(payload: Payload, title: string, body: string) {
+  try {
+    const admins = await payload.find({
+      collection: 'users', where: { role: { equals: 'admin' } }, limit: 200, depth: 0, overrideAccess: true,
+    })
+    await sendPushToUsers(payload, admins.docs.map((a) => a.id), { title, body, url: '/backstage', tag: 'stripe-alert' })
+  } catch (err) {
+    payload.logger.error(`stripe webhook admin push hiba: ${String(err)}`)
+  }
+}
 
 /** A Stripe aláírás-ellenőrzés a NYERS body-t igényli — App Routerben `req.text()` adja. */
 async function findSubBy(payload: Payload, field: 'stripe_subscription_id' | 'stripe_customer_id', value: string) {
@@ -94,6 +109,72 @@ export async function POST(req: Request) {
         const custId = typeof inv.customer === 'string' ? inv.customer : inv.customer?.id
         const our = custId ? await findSubBy(payload, 'stripe_customer_id', custId) : null
         if (our) await ensureInvoiceForStripeInvoice(payload, our, inv)
+        break
+      }
+
+      // Próbaidő hamarosan lejár (~3 nappal előtte) → a fiók tulajdonosának ÖSSZES üzletébe
+      // beírunk egy értesítést, ugyanaz a "helyenkénti" minta, mint a backstage körüzenetnél
+      // (a notification-modell salon/restaurant + audience:'owner' szűrésű, nem közvetlen useres).
+      case 'customer.subscription.trial_will_end': {
+        const s = event.data.object as Stripe.Subscription
+        const our = await findSubBy(payload, 'stripe_subscription_id', s.id)
+        const ownerId = our?.owner != null ? (typeof our.owner === 'object' ? our.owner.id : our.owner) : null
+        if (ownerId) {
+          const [salons, restaurants] = await Promise.all([
+            payload.find({ collection: 'salons', where: { owner: { equals: ownerId } }, limit: 200, depth: 0, overrideAccess: true }),
+            payload.find({ collection: 'restaurants', where: { owner: { equals: ownerId } }, limit: 200, depth: 0, overrideAccess: true }),
+          ])
+          const title = 'Hamarosan lejár a próbaidőszakod'
+          const body = 'Adj meg egy fizetési módot a Beállítások → Előfizetés & számlázás oldalon, hogy zökkenőmentesen folytatódjon az előfizetésed.'
+          for (const salon of salons.docs) {
+            await payload.create({
+              collection: 'notifications', overrideAccess: true,
+              data: { audience: 'owner', type: 'trial_ending', title, body, salon: salon.id, read: false },
+            }).catch((err) => payload.logger.error(`trial_ending notification create hiba (salon ${salon.id}): ${String(err)}`))
+          }
+          for (const restaurant of restaurants.docs) {
+            await payload.create({
+              collection: 'notifications', overrideAccess: true,
+              data: { audience: 'owner', type: 'trial_ending', title, body, restaurant: restaurant.id, read: false },
+            }).catch((err) => payload.logger.error(`trial_ending notification create hiba (restaurant ${restaurant.id}): ${String(err)}`))
+          }
+        }
+        break
+      }
+
+      // Visszaterhelés (chargeback) → admin-értesítés, mert válaszadási határideje van.
+      case 'charge.dispute.created': {
+        const dispute = event.data.object as Stripe.Dispute
+        const amount = (dispute.amount / 100).toLocaleString('hu-HU')
+        const dueBy = dispute.evidence_details?.due_by
+          ? new Date(dispute.evidence_details.due_by * 1000).toLocaleDateString('hu-HU')
+          : 'ismeretlen'
+        {
+          const title = `Visszaterhelés érkezett: ${amount} ${dispute.currency.toUpperCase()}`
+          const body = `Ok: ${dispute.reason}. Válaszadási határidő: ${dueBy}.`
+          await payload.create({
+            collection: 'notifications', overrideAccess: true,
+            data: { audience: 'admin', type: 'dispute_created', title, body, read: false },
+          }).catch((err) => payload.logger.error(`dispute_created notification create hiba: ${String(err)}`))
+          await pushToAdmins(payload, title, body)
+        }
+        break
+      }
+
+      // Korai csalás-gyanú jelzés → admin-értesítés, mielőtt disputebe fordulna.
+      case 'radar.early_fraud_warning.created': {
+        const warning = event.data.object as Stripe.Radar.EarlyFraudWarning
+        const chargeId = typeof warning.charge === 'string' ? warning.charge : warning.charge.id
+        {
+          const title = 'Korai csalás-gyanú jelzés érkezett'
+          const actionable = warning.actionable ? 'Van még mit tenni (visszatéríthető).' : 'Már nincs mit tenni (vita indult vagy már visszatérítve).'
+          const body = `Charge: ${chargeId}. Típus: ${warning.fraud_type}. ${actionable}`
+          await payload.create({
+            collection: 'notifications', overrideAccess: true,
+            data: { audience: 'admin', type: 'fraud_warning', title, body, read: false },
+          }).catch((err) => payload.logger.error(`fraud_warning notification create hiba: ${String(err)}`))
+          await pushToAdmins(payload, title, body)
+        }
         break
       }
 
