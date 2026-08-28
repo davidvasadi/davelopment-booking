@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import { trackEvent } from '@/lib/adsTracking'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -70,6 +71,10 @@ export function RegisterWizard() {
   const mobileCTARef = useRef<HTMLDivElement>(null)
   const [salonId, setSalonId] = useState('')
   const [registeredEmail, setRegisteredEmail] = useState('')
+
+  // Google Ads konverziós cél — a regisztrációs varázsló megnyitása (a "regisztráció gombra"
+  // kattintás eredménye). A tényleges befejezéskor (finish()) az ads_conversion_booking sül el.
+  useEffect(() => { trackEvent('ads_conversion_signup', { kind: 'salon' }) }, [])
 
   // Két különálló useForm példány a mobil + desktop form-hoz, hogy a react-hook-form
   // ne olvasson üres desktop-inputokból mobilon (és fordítva).
@@ -185,6 +190,8 @@ export function RegisterWizard() {
     } catch {
       // nem blokkoló — a check-email oldal mindenképp a helyes útmutatást adja
     }
+    // Google Ads konverziós cél — a regisztráció ténylegesen, a végén befejeződött.
+    trackEvent('ads_conversion_booking', { kind: 'salon' })
     router.push(`/register/check-email?email=${encodeURIComponent(registeredEmail)}`)
   }
 

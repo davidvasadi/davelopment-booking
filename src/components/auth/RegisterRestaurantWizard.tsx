@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { trackEvent } from '@/lib/adsTracking'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -54,6 +55,9 @@ export function RegisterRestaurantWizard() {
   const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null)
   const [restaurantId, setRestaurantId] = useState<string | number | null>(null)
   const [registeredEmail, setRegisteredEmail] = useState('')
+
+  // Google Ads konverziós cél — a regisztrációs varázsló megnyitása — lásd RegisterWizard.
+  useEffect(() => { trackEvent('ads_conversion_signup', { kind: 'restaurant' }) }, [])
 
   // Két különálló useForm példány a mobil + desktop form-hoz (lásd RegisterWizard magyarázat)
   const mobileForm = useForm<Step2Data>({ resolver: zodResolver(step2Schema) })
@@ -158,6 +162,8 @@ export function RegisterRestaurantWizard() {
     } catch {
       // nem blokkoló — a check-email oldal mindenképp a helyes útmutatást adja
     }
+    // Google Ads konverziós cél — a regisztráció ténylegesen, a végén befejeződött.
+    trackEvent('ads_conversion_booking', { kind: 'restaurant' })
     router.push(`/register/check-email?email=${encodeURIComponent(registeredEmail)}`)
   }
 

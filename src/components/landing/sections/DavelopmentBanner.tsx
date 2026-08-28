@@ -6,6 +6,7 @@ import { ArrowRight } from 'lucide-react'
 import { FadeUp } from '@/components/landing/Motion'
 import { EASE, buttonHover } from '@/lib/motion'
 import { SERVICES } from '@/components/landing/sections/Nav'
+import { trackEvent } from '@/lib/adsTracking'
 
 // Kép/videó belépő — mint a SegmentToggle imgV variánsa: alulról jön fel, kicsit később
 const videoReveal = {
@@ -95,6 +96,7 @@ export function DavelopmentBanner() {
                 href="https://davelopment.hu/hu"
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackEvent('ads_conversion_outbound_davelopment')}
                 variants={buttonHover}
                 initial="rest"
                 whileHover="hover"

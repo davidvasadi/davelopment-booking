@@ -14,6 +14,7 @@ import { ContactSection } from '@/components/landing/sections/ContactSection'
 import { DavelopmentBanner } from '@/components/landing/sections/DavelopmentBanner'
 import { Footer } from '@/components/landing/sections/Footer'
 import { CookieBanner } from '@/components/landing/CookieBanner'
+import { LandingClickTracker } from '@/components/landing/LandingClickTracker'
 
 export type { LandingPricing }
 
@@ -42,6 +43,7 @@ export default function HomeClient({ pricing }: { pricing: LandingPricing }) {
       <DavelopmentBanner />
       <Footer trial_days={pricing.trial_days} />
       <CookieBanner />
+      <LandingClickTracker />
     </main>
   )
 }
