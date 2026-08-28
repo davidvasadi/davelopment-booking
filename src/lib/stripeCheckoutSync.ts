@@ -88,7 +88,12 @@ export async function ensureInvoiceForStripeInvoice(
   const buyerEmail = b?.billing_email || b?.email || user?.email || ''
 
   const label = `davelopment booking előfizetés — ${our.billing_cycle === 'annual' ? 'éves' : 'havi'}`
-  const grossHuf = our.amount_huf ?? Math.round((inv.amount_paid ?? 0) / 100)
+  // A TÉNYLEGESEN beérkezett Stripe-összeg az elsődleges forrás — a helyi `amount_huf` csak
+  // vészhelyzeti tartalék, ha a Stripe invoice valamiért nem hordozná (elvileg mindig hordozza).
+  // Korábban fordítva volt (amount_huf elsőbbséggel), ami eltérést engedett a ténylegesen
+  // terhelt és a számlázott összeg között, ha a kettő bármi okból szétcsúszik.
+  const paidFromStripeHuf = typeof inv.amount_paid === 'number' ? Math.round(inv.amount_paid / 100) : null
+  const grossHuf = paidFromStripeHuf ?? our.amount_huf ?? 0
 
   const result = await createInvoice({
     buyer: {

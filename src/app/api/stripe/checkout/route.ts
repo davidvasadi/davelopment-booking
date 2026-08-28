@@ -45,6 +45,13 @@ export async function POST(req: Request) {
   const unitForint = cycle === 'annual' ? monthlyEffective * 12 : monthlyEffective
   const interval: 'month' | 'year' = cycle === 'annual' ? 'year' : 'month'
 
+  // Külön ellenőrzés a KEDVEZMÉNY UTÁNI végösszegre is — egy elrontott/szélsőséges
+  // annual_discount_pct (pl. tévedésből 100%) a fenti guardot megkerülve 0 Ft-os Stripe
+  // session-t hozna létre, ami valódi fizetés nélkül "sikeresnek" tűnne.
+  if (unitForint <= 0) {
+    return NextResponse.json({ error: 'Érvénytelen előfizetési díj (0 Ft). Ellenőrizd az árazási beállításokat.' }, { status: 400 })
+  }
+
   // Stripe customer újrafelhasználása / létrehozása, és visszamentése a subre (idempotens).
   let customerId = sub.stripe_customer_id || null
   if (!customerId) {
@@ -63,6 +70,11 @@ export async function POST(req: Request) {
   const session = await stripe.checkout.sessions.create({
     mode: 'subscription',
     customer: customerId,
+    // Csak kártya — más fizetési mód (pl. Revolut Pay) nem menthető el újra-terhelhető
+    // alapértelmezett fizetési módként egy előfizetéshez. E nélkül Stripe csendben (hiba
+    // nélkül) létrehozza az előfizetést valódi terhelés nélkül, a díjat a vevő Stripe-
+    // egyenlegére írva tartozásként, a számlát pedig tévesen "paid"-nek jelölve.
+    payment_method_types: ['card'],
     line_items: [
       {
         quantity: 1,
