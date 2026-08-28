@@ -43,7 +43,10 @@ export async function POST(req: NextRequest) {
       body: message.length > 140 ? `${message.slice(0, 140)}…` : message,
       read: false,
     },
-  }).catch(() => null)
+  }).catch((err) => {
+    payload.logger.error(`contact notification create hiba: ${String(err)} | cause: ${String((err as { cause?: unknown })?.cause)}`)
+    return null
+  })
 
   // Böngésző-push az összes adminnak — best-effort, ne bukjon el emiatt a beküldés.
   try {

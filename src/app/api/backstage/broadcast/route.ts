@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       data: { audience: 'owner', type: 'admin_broadcast', title, body: message, salon: salon.id, campaign_id: Number(log.id), read: false },
     }).then(() => true).catch((err) => {
-      payload.logger.error(`broadcast notification create hiba (salon ${salon.id}): ${String(err)}`)
+      payload.logger.error(`broadcast notification create hiba (salon ${salon.id}): ${String(err)} | cause: ${String((err as { cause?: unknown })?.cause)}`)
       return false
     })
     if (ok) {
@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       data: { audience: 'owner', type: 'admin_broadcast', title, body: message, restaurant: restaurant.id, campaign_id: Number(log.id), read: false },
     }).then(() => true).catch((err) => {
-      payload.logger.error(`broadcast notification create hiba (restaurant ${restaurant.id}): ${String(err)}`)
+      payload.logger.error(`broadcast notification create hiba (restaurant ${restaurant.id}): ${String(err)} | cause: ${String((err as { cause?: unknown })?.cause)}`)
       return false
     })
     if (ok) {

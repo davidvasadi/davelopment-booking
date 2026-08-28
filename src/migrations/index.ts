@@ -24,6 +24,7 @@ import * as migration_20260827_170000_add_require_address from './20260827_17000
 import * as migration_20260827_180000_add_email_show_terms from './20260827_180000_add_email_show_terms';
 import * as migration_20260827_190000_add_service_sort_order from './20260827_190000_add_service_sort_order';
 import * as migration_20260827_200000_add_break_fields from './20260827_200000_add_break_fields';
+import * as migration_20260828_000000_add_broadcast_contact_notification_types from './20260828_000000_add_broadcast_contact_notification_types';
 
 export const migrations = [
   {
@@ -155,5 +156,10 @@ export const migrations = [
     up: migration_20260827_200000_add_break_fields.up,
     down: migration_20260827_200000_add_break_fields.down,
     name: '20260827_200000_add_break_fields',
+  },
+  {
+    up: migration_20260828_000000_add_broadcast_contact_notification_types.up,
+    down: migration_20260828_000000_add_broadcast_contact_notification_types.down,
+    name: '20260828_000000_add_broadcast_contact_notification_types',
   },
 ];
