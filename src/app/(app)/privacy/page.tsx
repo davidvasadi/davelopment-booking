@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <LegalPage title="Adatkezelési tájékoztató" updated="2026. június 24.">
+    <LegalPage title="Adatkezelési tájékoztató" updated="2026. augusztus 28.">
       <p>
         A jelen tájékoztató a davelopment booking szolgáltatás (a továbbiakban: „Szolgáltatás") keretében
         megvalósuló személyesadat-kezelést ismerteti az Európai Parlament és a Tanács (EU) 2016/679
@@ -21,9 +21,10 @@ export default function PrivacyPage() {
           A Szolgáltatást üzemeltető:
         </p>
         <ul className="list-disc pl-6 space-y-1">
-          <li>Név / cégnév: <strong className="text-brand-ink">[Üzemeltető neve]</strong></li>
-          <li>Székhely: <strong className="text-brand-ink">[Székhely]</strong></li>
-          <li>Nyilvántartási szám: <strong className="text-brand-ink">[Nyilvántartási szám]</strong></li>
+          <li>Név: <strong className="text-brand-ink">Vasadi Dávid egyéni vállalkozó</strong></li>
+          <li>Székhely: <strong className="text-brand-ink">2161 Csomád, Szent István utca 19/C.</strong></li>
+          <li>Nyilvántartási szám: <strong className="text-brand-ink">62508634</strong></li>
+          <li>Adószám: <strong className="text-brand-ink">92176472-1-33</strong></li>
           <li>Kapcsolat: <a href="mailto:hello@davelopment.hu" className="font-medium text-brand-ink underline underline-offset-2">hello@davelopment.hu</a></li>
         </ul>
       </LegalSection>
@@ -69,12 +70,13 @@ export default function PrivacyPage() {
       <LegalSection heading="5. Adatfeldolgozók és továbbítás">
         <p>
           A Szolgáltatás működéséhez gondosan kiválasztott adatfeldolgozókat veszünk igénybe (tárhely-
-          és infrastruktúra-szolgáltató, e-mail-küldő szolgáltató, valamint a fizetésekhez a{' '}
-          <strong className="text-brand-ink">Stripe Payments Europe, Ltd.</strong>). Ezek kizárólag a
-          megbízásunkból, a jelen tájékoztatóval összhangban kezelik az adatokat. Adatait harmadik
-          félnek értékesítési célból nem adjuk át. Az EU-n kívülre történő esetleges adattovábbítás
-          kizárólag megfelelő garanciák (pl. az Európai Bizottság általános szerződési feltételei)
-          mellett történhet.
+          és infrastruktúra-szolgáltató, e-mail-küldő szolgáltató, a fizetésekhez a{' '}
+          <strong className="text-brand-ink">Stripe Payments Europe, Ltd.</strong>, a számlakiállításhoz
+          pedig a <strong className="text-brand-ink">KBOSS.hu Kft. (Számlázz.hu)</strong>). Ezek
+          kizárólag a megbízásunkból, a jelen tájékoztatóval összhangban kezelik az adatokat. Adatait
+          harmadik félnek értékesítési célból nem adjuk át. Az EU-n kívülre történő esetleges
+          adattovábbítás kizárólag megfelelő garanciák (pl. az Európai Bizottság általános szerződési
+          feltételei) mellett történhet.
         </p>
       </LegalSection>
 

@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function TermsPage() {
   return (
-    <LegalPage title="Felhasználási feltételek" updated="2026. június 24.">
+    <LegalPage title="Felhasználási feltételek" updated="2026. augusztus 28.">
       <p>
         A jelen Általános Szerződési Feltételek (a továbbiakban: „ÁSZF") a davelopment booking online időpont-
         és asztalfoglaló szolgáltatás (a továbbiakban: „Szolgáltatás") igénybevételének feltételeit
@@ -23,10 +23,12 @@ export default function TermsPage() {
           A Szolgáltatást üzemeltető (a továbbiakban: „Szolgáltató"):
         </p>
         <ul className="list-disc pl-6 space-y-1">
-          <li>Név / cégnév: <strong className="text-brand-ink">[Üzemeltető neve]</strong></li>
-          <li>Székhely: <strong className="text-brand-ink">[Székhely]</strong></li>
-          <li>Nyilvántartási szám: <strong className="text-brand-ink">[Nyilvántartási szám]</strong></li>
-          <li>Adószám: <strong className="text-brand-ink">[Adószám]</strong> (alanyi adómentes)</li>
+          <li>Név: <strong className="text-brand-ink">Vasadi Dávid egyéni vállalkozó</strong></li>
+          <li>Székhely: <strong className="text-brand-ink">2161 Csomád, Szent István utca 19/C.</strong></li>
+          <li>Nyilvántartási szám: <strong className="text-brand-ink">62508634</strong></li>
+          <li>Adószám: <strong className="text-brand-ink">92176472-1-33</strong> (alanyi adómentes)</li>
+          <li>Közösségi adószám: <strong className="text-brand-ink">HU92176472</strong></li>
+          <li>Illetékes adóhatóság: <strong className="text-brand-ink">NAV 13. Pest Vármegyei Adó- és Vámigazgatósága</strong></li>
           <li>E-mail: <a href="mailto:hello@davelopment.hu" className="font-medium text-brand-ink underline underline-offset-2">hello@davelopment.hu</a></li>
         </ul>
         <p>
