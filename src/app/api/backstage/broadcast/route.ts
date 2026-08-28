@@ -79,26 +79,45 @@ export async function POST(req: NextRequest) {
 
   // Egymás után, nem Promise.all-lal — sok egyidejű bulk-create ugyanazon a megosztott
   // erőforráson (ugyanaz a tanulság, mint a ma esti törlés-versenyhelyzetnél).
+  //
+  // KORÁBBI HIBA (a jelentett "push megjön, de nincs az értesítésekben" tünet oka): a
+  // `.catch(() => null)` NÉMÁN elnyelte a create hibáját, a `sent++` és a push-célzó
+  // `*OwnerIds.add(...)` viszont FÜGGETLENÜL, MINDIG lefutott — tehát ha az app-on belüli
+  // rekord létrehozása elhasalt, a tulaj AKKOR IS kapott push-ot, aminek a megnyitása után
+  // a listában soha nem volt ott a hozzá tartozó bejegyzés (mert az sose jött létre), és a
+  // `sent_count` is hibásan túlszámolt. Most a push-célzás és a `sent` számláló is a TÉNYLEGES
+  // sikeres create-től függ — push csak azoknak megy, akiknek valóban létrejött az app-beli
+  // rekord is, így a kettő sose szakadhat el egymástól.
   let sent = 0
   const salonOwnerIds = new Set<string | number>()
   const restaurantOwnerIds = new Set<string | number>()
   for (const salon of salons.docs) {
-    await payload.create({
+    const ok = await payload.create({
       collection: 'notifications',
       overrideAccess: true,
       data: { audience: 'owner', type: 'admin_broadcast', title, body: message, salon: salon.id, campaign_id: Number(log.id), read: false },
-    }).catch(() => null)
-    sent++
-    if (salon.owner != null) salonOwnerIds.add(typeof salon.owner === 'object' ? salon.owner.id : salon.owner)
+    }).then(() => true).catch((err) => {
+      payload.logger.error(`broadcast notification create hiba (salon ${salon.id}): ${String(err)}`)
+      return false
+    })
+    if (ok) {
+      sent++
+      if (salon.owner != null) salonOwnerIds.add(typeof salon.owner === 'object' ? salon.owner.id : salon.owner)
+    }
   }
   for (const restaurant of restaurants.docs) {
-    await payload.create({
+    const ok = await payload.create({
       collection: 'notifications',
       overrideAccess: true,
       data: { audience: 'owner', type: 'admin_broadcast', title, body: message, restaurant: restaurant.id, campaign_id: Number(log.id), read: false },
-    }).catch(() => null)
-    sent++
-    if (restaurant.owner != null) restaurantOwnerIds.add(typeof restaurant.owner === 'object' ? restaurant.owner.id : restaurant.owner)
+    }).then(() => true).catch((err) => {
+      payload.logger.error(`broadcast notification create hiba (restaurant ${restaurant.id}): ${String(err)}`)
+      return false
+    })
+    if (ok) {
+      sent++
+      if (restaurant.owner != null) restaurantOwnerIds.add(typeof restaurant.owner === 'object' ? restaurant.owner.id : restaurant.owner)
+    }
   }
 
   await payload.update({

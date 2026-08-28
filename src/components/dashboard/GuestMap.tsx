@@ -270,7 +270,9 @@ export default function GuestMap({ buckets, focusIso }: { buckets: CountryBucket
         .guest-map-pin,.guest-city-pin{background:transparent;border:none;}
         .leaflet-control-zoom a{border-radius:11px!important;color:#211F1A!important;border:none!important;box-shadow:0 2px 8px rgba(80,70,30,.12)!important;background:#fff!important;width:38px!important;height:38px!important;line-height:36px!important;font-size:20px!important}
         .leaflet-control-zoom{border:none!important;margin:16px!important}
-        .leaflet-bar a:first-child{margin-bottom:7px}`}</style>
+        .leaflet-bar a:first-child{margin-bottom:7px}
+        .leaflet-control-attribution{background:rgba(255,255,255,.7)!important;border-radius:8px!important;font-size:10px!important;color:#8A8577!important;padding:1px 6px!important;margin:0 10px 8px 0!important}
+        .leaflet-control-attribution a{color:#8A8577!important}`}</style>
       <MapContainer
         center={[34, 8]}
         zoom={2}
@@ -278,13 +280,14 @@ export default function GuestMap({ buckets, focusIso }: { buckets: CountryBucket
         worldCopyJump
         scrollWheelZoom
         zoomControl={false}
-        attributionControl={false}
+        attributionControl={true}
         style={{ height: '100%', width: '100%' }}
       >
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          url={`https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png?key=${process.env.NEXT_PUBLIC_CARTO_API_KEY}`}
           subdomains="abcd"
           maxZoom={19}
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, &copy; <a href="https://carto.com/attributions">CARTO</a>'
         />
         <ZoomControl position="bottomleft" />
         <MapRef onReady={setMapObj} />
