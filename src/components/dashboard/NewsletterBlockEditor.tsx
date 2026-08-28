@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
 import { toast } from 'sonner'
 import {
@@ -1058,7 +1059,12 @@ export function NewsletterBlockEditor({
           ? (cell as Extract<ColumnCell, { type: 'text' }>).align || 'left'
           : ('align' in block && block.align) || 'left'
         const applyAlign = (a: TextAlign) => (isCell ? setCellAlign(block.id, bubble.cellIndex!, a) : setAlign(block.id, a))
-        return (
+        // Portál a body-ra: a `fixed` pozíció csak akkor számol helyesen viewport-koordinátákkal
+        // (`getBoundingClientRect()`), ha NINCS `transform`-os ős (pl. egy animált beállítás-panel
+        // `motion.div`-je) — az ilyen ős a `fixed` elemet saját magához "fixálja", ami a
+        // beállítások-oldalon eltolt/túllógó eszköztárat okozott. Ugyanaz a minta, mint a
+        // teljes-képernyős blur-modaloknál (ld. overlay-portál).
+        return createPortal(
           <div
             className="fixed z-40 flex items-center gap-1 rounded-2xl bg-ink-dark p-1.5 shadow-[0_18px_42px_-16px_rgba(0,0,0,.5)]"
             style={{ top: bubble.top, left: bubble.left, transform: 'translate(-50%, calc(-100% - 8px))' }}
@@ -1099,7 +1105,8 @@ export function NewsletterBlockEditor({
             <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('italic')} className="flex h-7 w-7 items-center justify-center rounded-[8px] text-white/70 transition-colors hover:bg-white/10 hover:text-white" title="Dőlt"><Italic className="h-3.5 w-3.5" /></motion.button>
             <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('underline')} className="flex h-7 w-7 items-center justify-center rounded-[8px] text-white/70 transition-colors hover:bg-white/10 hover:text-white" title="Aláhúzott"><Underline className="h-3.5 w-3.5" /></motion.button>
             <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onMouseDown={(e) => e.preventDefault()} onClick={() => exec('strikeThrough')} className="flex h-7 w-7 items-center justify-center rounded-[8px] text-white/70 transition-colors hover:bg-white/10 hover:text-white" title="Áthúzott"><Strikethrough className="h-3.5 w-3.5" /></motion.button>
-          </div>
+          </div>,
+          document.body,
         )
       })()}
     </div>
