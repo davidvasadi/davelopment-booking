@@ -204,12 +204,14 @@ export function Nav() {
 
         {/* Jobb: Bejelentkezés (szekunder) + CTA + hamburger */}
         <div className="flex items-center gap-3 shrink-0">
-          <Link
-            href="/login"
-            className="hidden min-[1033px]:inline-flex text-[14px] font-medium tracking-[-0.3px] text-brand-ink/50 hover:text-brand-ink transition-colors"
-          >
-            Bejelentkezés
-          </Link>
+          {!scrolled && (
+            <Link
+              href="/login"
+              className="hidden min-[1033px]:inline-flex text-[14px] font-medium tracking-[-0.3px] text-brand-ink/50 hover:text-brand-ink transition-colors"
+            >
+              Bejelentkezés
+            </Link>
+          )}
           <RollButton
             href="/register"
             label="Próbáld ki ingyen"

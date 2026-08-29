@@ -294,6 +294,7 @@ export interface Reservation {
   customer_phone?: string | null
   customer_city?: string | null
   customer_address?: string | null
+  customer_tax_number?: string | null
   country?: string | null
   notes?: string | null
   internal_notes?: string | null
@@ -919,6 +920,7 @@ export interface Booking {
   customer_phone?: string | null
   customer_city?: string | null
   customer_address?: string | null
+  customer_tax_number?: string | null
   date: string
   start_time: string
   end_time: string

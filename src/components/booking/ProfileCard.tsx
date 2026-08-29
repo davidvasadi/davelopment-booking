@@ -31,7 +31,7 @@ const DIAL_BY_CODE: Record<string, string> = Object.fromEntries(COUNTRIES.map(c 
 
 type Slot = { start: string; end: string }
 type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher' | 'voucherSuccess'
-type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address'
+type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address' | 'taxNumber'
 
 interface Props {
   slug: string
@@ -55,6 +55,7 @@ interface Props {
   company?: CompanyInfo | null
   goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
   depositEnabled?: boolean
+  invoicingEnabled?: boolean
   addressRequired?: boolean
   addressRequiredNote?: string | null
   voucherEnabled?: boolean
@@ -86,7 +87,7 @@ export function ProfileCard({
   services, staff, serviceCategories,
   phone, email, website, socialLinks, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
-  termsSections, company, goodToKnow, depositEnabled = false,
+  termsSections, company, goodToKnow, depositEnabled = false, invoicingEnabled = false,
   addressRequired = false, addressRequiredNote = null,
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
   consentEnabled = false, consentTitle = null, consentText = null,
@@ -114,6 +115,8 @@ export function ProfileCard({
   const [customerCountry, setCustomerCountry] = useState('HU')
   const [customerCity, setCustomerCity] = useState('')
   const [customerAddress, setCustomerAddress] = useState('')
+  const [customerIsCompany, setCustomerIsCompany] = useState(false)
+  const [customerTaxNumber, setCustomerTaxNumber] = useState('')
   const [customerNotes, setCustomerNotes] = useState('')
   // GDPR opt-in — SOSE előre kipipált, a foglaláskor mentődik tartósan a Customers táblába.
   const [marketingConsent, setMarketingConsent] = useState(false)
@@ -192,6 +195,7 @@ export function ProfileCard({
     phone: useRef<HTMLInputElement>(null),
     city: useRef<HTMLInputElement>(null),
     address: useRef<HTMLInputElement>(null),
+    taxNumber: useRef<HTMLInputElement>(null),
   }
 
   const isBookingView = view === 'datetime' || view === 'details' || view === 'deposit' || view === 'consent' || view === 'summary'
@@ -362,6 +366,7 @@ export function ProfileCard({
     if (key === 'phone') return requirePhone && customerPhone.replace(/\s/g, '').length < 7 ? tt('booking.err.phone') : null
     if (key === 'city') return addressGateOn && !customerCity.trim() ? 'A város megadása kötelező' : null
     if (key === 'address') return addressGateOn && !customerAddress.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
+    if (key === 'taxNumber') return customerIsCompany && !customerTaxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
     return null
   }
 
@@ -382,7 +387,7 @@ export function ProfileCard({
 
   const submit = async () => {
     if (!selectedServiceId || !bookingSlot) return
-    const order: FieldKey[] = ['name', 'email', 'phone', ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : [])]
+    const order: FieldKey[] = ['name', 'email', 'phone', ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany ? (['taxNumber'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -414,6 +419,7 @@ export function ProfileCard({
             : '',
           customer_city: customerCity.trim() || undefined,
           customer_address: customerAddress.trim() || undefined,
+          ...(depositEnabled && customerIsCompany && customerTaxNumber.trim() ? { customer_tax_number: customerTaxNumber.trim() } : {}),
           notes: customerNotes, locale,
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
           ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
@@ -1245,6 +1251,28 @@ export function ProfileCard({
                       {errors.address && <p role="alert" className="text-[12px] text-red-400">{errors.address}</p>}
                       {addressGateOn && !errors.address && <p className="text-[11px] text-white/40">{addressNote}</p>}
                     </div>
+                    {depositEnabled && invoicingEnabled && (
+                      <>
+                        <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">
+                          <span className="text-[13px] text-white/80">{tt('public.voucher.companyToggle')}</span>
+                          <Switch checked={customerIsCompany} onChange={setCustomerIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
+                        </div>
+                        {customerIsCompany && (
+                          <div key={`taxNumber-${detailsShakeKey}`} className={cn('space-y-1', errors.taxNumber && 'animate-shake')}>
+                            <Label htmlFor="bk-taxnumber" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.taxNumber')} *</Label>
+                            <Input
+                              id="bk-taxnumber" ref={fieldRefs.taxNumber} value={customerTaxNumber}
+                              onChange={e => { setCustomerTaxNumber(e.target.value); clearError('taxNumber') }}
+                              onBlur={() => onFieldBlur('taxNumber')}
+                              aria-invalid={!!errors.taxNumber}
+                              placeholder="12345678-1-42"
+                              className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.taxNumber && 'ring-1 ring-red-400')}
+                            />
+                            {errors.taxNumber ? <p role="alert" className="text-[12px] text-red-400">{errors.taxNumber}</p> : <p className="text-[11px] text-white/40">{tt('public.voucher.taxNumberHint')}</p>}
+                          </div>
+                        )}
+                      </>
+                    )}
                     {customQuestionsList.map((q) => {
                       const key = q.id ?? ''
                       const val = customAnswers[key] ?? ''
@@ -1563,11 +1591,13 @@ export function ProfileCard({
                         {voucherFieldErrors.address ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.address}</p> : <p className="text-[11px] text-white/40">{tt('public.voucher.addressHint')}</p>}
                       </div>
 
+                      {invoicingEnabled && (
                       <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">
                         <span className="text-[13px] text-white/80">{tt('public.voucher.companyToggle')}</span>
                         <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                       </div>
-                      {voucherIsCompany && (
+                      )}
+                      {invoicingEnabled && voucherIsCompany && (
                         <div key={`taxNumber-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.taxNumber && 'animate-shake')}>
                           <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.taxNumber')} *</Label>
                           <Input
@@ -1684,7 +1714,7 @@ export function ProfileCard({
                     if (view === 'summary') {
                       submit()
                     } else if (view === 'details') {
-                      const order: FieldKey[] = ['name', 'email', 'phone', ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : [])]
+                      const order: FieldKey[] = ['name', 'email', 'phone', ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany ? (['taxNumber'] as FieldKey[]) : [])]
                       const nextErrors: Partial<Record<FieldKey, string>> = {}
                       for (const key of order) {
                         const msg = validateField(key)

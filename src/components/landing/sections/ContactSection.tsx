@@ -24,7 +24,8 @@ const INFO_CARDS = [
   {
     icon: Clock,
     title: 'Ügyfélszolgálat',
-    body: 'Hétfőtől péntekig, 10:00–15:00 között érhető el.',
+    body: 'Hétfőtől péntekig, 10:00–15:00 · +36 30 362 8377',
+    href: 'tel:+36303628377',
   },
   {
     icon: Mail,

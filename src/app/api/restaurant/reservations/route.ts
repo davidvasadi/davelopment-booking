@@ -22,6 +22,7 @@ const schema = z.object({
   customer_phone: z.string().max(30).optional(),
   customer_city: z.string().max(120).optional(),
   customer_address: z.string().max(200).optional(),
+  customer_tax_number: z.string().max(30).optional(),
   country: z.string().max(60).optional(),
   notes: z.string().max(1000).optional(),
   occasion: z.string().max(80).optional(),
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
   }
-  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
+  const { restaurantId, date, start_time, pax, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_tax_number, country, notes, occasion, occasion_icon, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
 
   try {
     const payload = await getPayloadClient()
@@ -227,6 +228,7 @@ export async function POST(request: NextRequest) {
           ...(customer_phone ? { customer_phone } : {}),
           ...(customer_city ? { customer_city } : {}),
           ...(customer_address ? { customer_address } : {}),
+          ...(customer_tax_number ? { customer_tax_number } : {}),
           ...(country ? { country } : {}),
           ...(notes ? { notes } : {}),
           ...(occasion ? { occasion } : {}),
@@ -283,7 +285,7 @@ export async function POST(request: NextRequest) {
         collection: 'reservations',
         id: reservation.id,
         invoiceSettings: restaurant.invoice_settings,
-        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address },
+        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address, taxNumber: customer_tax_number },
         label: `Előleg — ${restaurant.name} · ${date} · ${pax} fő`,
         grossHuf: depositHuf,
         orderRef: String(payment_intent_id),

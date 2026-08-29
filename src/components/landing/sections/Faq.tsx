@@ -5,37 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 import { EASE } from '@/lib/motion'
 import { FadeUp } from '@/components/landing/Motion'
-import { ftFmt, type LandingPricing } from '@/components/landing/types'
-
-/** A GYIK kérdés-listája — az árazás-függő válaszok a propból épülnek. */
-export function buildFaqItems(pricing: LandingPricing) {
-  return [
-    {
-      q: 'Mennyibe kerül a davelopment booking?',
-      a: `Szalon Pro: ${ftFmt(pricing.salon_pro_huf)}/hó. Étterem Pro (asztalfoglalással): ${ftFmt(pricing.restaurant_pro_huf)}/hó. Mindkettő ${pricing.trial_days} napig ingyenes, kártya nélkül. Lemondható bármikor, visszamenőleges számlázás nélkül.`,
-    },
-    {
-      q: 'Kell bankkártyaadatokat megadni a próbaidőhöz?',
-      a: `Nem. A ${pricing.trial_days} napos próbaidőhöz csak egy email cím és jelszó szükséges. Kártyaadatokat csak akkor kérünk, ha az ingyenes időszak után is folytatnád.`,
-    },
-    {
-      q: 'Mennyi ideig tart beállítani?',
-      a: 'Az első profil — névvel, szolgáltatásokkal és nyitvatartással — kb. 5 perc alatt elkészíthető. Utána máris megosztható a foglalási link.',
-    },
-    {
-      q: 'Hány munkatársat és szolgáltatást adhatok hozzá?',
-      a: 'Korlátlan számút. Minden munkatársnak saját elérhetőségi naptárt állíthatsz be, és minden szolgáltatáshoz külön árat és időtartamot rendelhetsz.',
-    },
-    {
-      q: 'Kapnak visszaigazolást az ügyfeleim?',
-      a: 'Igen. Minden foglalásnál automatikusan küldünk visszaigazoló emailt az ügyfélnek a foglalás részleteivel.',
-    },
-    {
-      q: 'Éttermeknek és szalonoknak is megfelel?',
-      a: 'Igen. A Szalon Pro időpontfoglalásra optimalizált (fodrászat, masszőr, kozmetika, edzőterem). Az Étterem Pro asztalfoglalásos logikával dolgozik: kapacitás, asztaltérkép, csoportfoglalás, előleg.',
-    },
-  ]
-}
+import type { LandingPricing } from '@/components/landing/types'
+import { buildFaqItems } from '@/lib/faqContent'
 
 /**
  * Plus→Minus morph ikon: a vízszintes szár marad, a függőleges szár nyitáskor 0-ra skálázódik
@@ -151,16 +122,11 @@ export function Faq({ pricing }: { pricing: LandingPricing }) {
         <span className="inline-flex self-start items-center rounded-full bg-white px-4 py-2 font-onest text-[20px] tracking-[-0.06em] text-brand-ink">
           FAQ
         </span>
-        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-          <FadeUp>
-            <h2 className="font-semibold text-[clamp(2.75rem,7vw,100px)] leading-[0.94] tracking-[-0.05em] text-brand-ink">
-              Gyakran kérdezik.
-            </h2>
-          </FadeUp>
-          <p className="text-[16px] leading-[1.5] text-brand-ink lg:text-right lg:max-w-[344px] lg:pt-3">
-            Gyakran felmerülő kérdések. Itt vagyunk, hogy segítsünk.
-          </p>
-        </div>
+        <FadeUp>
+          <h2 className="font-semibold text-[clamp(2.75rem,7vw,100px)] leading-[0.94] tracking-[-0.05em] text-brand-ink">
+            Gyakran kérdezik.
+          </h2>
+        </FadeUp>
       </div>
       <FaqAccordion items={items} />
     </section>

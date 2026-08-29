@@ -40,6 +40,7 @@ export function RestaurantBookingWizard({
   initialTimeProp,
   initialPaxProp,
   depositEnabled = false,
+  invoicingEnabled = false,
   addressRequired = false,
   addressRequiredNote = null,
   voucherEnabled = false,
@@ -66,6 +67,7 @@ export function RestaurantBookingWizard({
   initialPaxProp?: number
   /** Vendég-előleg — ha KI van kapcsolva, a wizard a mai viselkedést mutatja bit-pontosan. */
   depositEnabled?: boolean
+  invoicingEnabled?: boolean
   addressRequired?: boolean
   addressRequiredNote?: string | null
   voucherEnabled?: boolean
@@ -122,6 +124,8 @@ export function RestaurantBookingWizard({
   const [country, setCountry] = useState('HU')
   const [city, setCity] = useState('')
   const [address, setAddress] = useState('')
+  const [isCompany, setIsCompany] = useState(false)
+  const [taxNumber, setTaxNumber] = useState('')
   const [notes, setNotes] = useState('')
   // GDPR opt-in — SOSE előre kipipált, a foglaláskor mentődik tartósan a Customers táblába.
   const [marketingConsent, setMarketingConsent] = useState(false)
@@ -163,7 +167,7 @@ export function RestaurantBookingWizard({
   }
 
   // ── Mező-szintű validáció (a szalon-wizarddal AZONOS minta: error-placement, blur, focus) ──
-  type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address'
+  type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address' | 'taxNumber'
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({})
   const [detailsShakeKey, setDetailsShakeKey] = useState(0)
   const fieldRefs = {
@@ -172,6 +176,7 @@ export function RestaurantBookingWizard({
     phone: useRef<HTMLInputElement>(null),
     city: useRef<HTMLInputElement>(null),
     address: useRef<HTMLInputElement>(null),
+    taxNumber: useRef<HTMLInputElement>(null),
   }
   // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is).
   const addressGateOn = depositEnabled || addressRequired
@@ -184,6 +189,7 @@ export function RestaurantBookingWizard({
     if (key === 'phone') return requirePhone && phone.replace(/\s/g, '').length < 7 ? tt('rbooking.err.phone') : null
     if (key === 'city') return addressGateOn && !city.trim() ? 'A város megadása kötelező' : null
     if (key === 'address') return addressGateOn && !address.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
+    if (key === 'taxNumber') return isCompany && !taxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
     return null
   }
   const onFieldBlur = (key: FieldKey) => setErrors(prev => ({ ...prev, [key]: validateField(key) ?? undefined }))
@@ -223,7 +229,7 @@ export function RestaurantBookingWizard({
   }, [restaurantId, date, pax, slotsReloadKey])
 
   const validateDetails = (): boolean => {
-    const order: FieldKey[] = ['name', 'email', 'phone', 'city', 'address']
+    const order: FieldKey[] = ['name', 'email', 'phone', 'city', 'address', ...(depositEnabled && isCompany ? (['taxNumber'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -261,6 +267,7 @@ export function RestaurantBookingWizard({
           country,
           customer_city: city.trim() || undefined,
           customer_address: address.trim() || undefined,
+          ...(depositEnabled && isCompany && taxNumber.trim() ? { customer_tax_number: taxNumber.trim() } : {}),
           notes: notes.trim() || undefined,
           ...(occasionIdx != null && eventTypes[occasionIdx]
             ? { occasion: eventTypes[occasionIdx].label, occasion_icon: eventTypes[occasionIdx].icon }
@@ -543,6 +550,29 @@ export function RestaurantBookingWizard({
                   {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
                   {addressGateOn && !errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
                 </div>
+                {depositEnabled && invoicingEnabled && (
+                  <>
+                    <div className={cn('flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-3', dk ? 'bg-white/[0.06]' : 'bg-paper')}>
+                      <span className={`text-[13px] ${textCls}`}>{tt('public.voucher.companyToggle')}</span>
+                      <Switch checked={isCompany} onChange={setIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
+                    </div>
+                    {isCompany && (
+                      <div key={`taxNumber-${detailsShakeKey}`} className={cn(errors.taxNumber && 'animate-shake')}>
+                        <input
+                          ref={fieldRefs.taxNumber}
+                          className={cn(inputClass, errors.taxNumber && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                          placeholder="12345678-1-42"
+                          aria-label={tt('public.voucher.taxNumber')}
+                          aria-invalid={!!errors.taxNumber}
+                          value={taxNumber}
+                          onChange={(e) => { setTaxNumber(e.target.value); clearError('taxNumber') }}
+                          onBlur={() => onFieldBlur('taxNumber')}
+                        />
+                        {errors.taxNumber ? <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.taxNumber}</p> : <p className={`mt-1 text-[11px] ${labelCls}`}>{tt('public.voucher.taxNumberHint')}</p>}
+                      </div>
+                    )}
+                  </>
+                )}
                 {customQuestionsList.map((q) => {
                   const key = q.id ?? ''
                   const val = customAnswers[key] ?? ''

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
-import { MapPin, Calendar, Star, ChevronDown, Check, ExternalLink } from 'lucide-react'
+import { MapPin, Star, ChevronDown, Check, ExternalLink } from 'lucide-react'
 import { IntegCard, UrlRow, Steps } from './IntegCardKit'
 import { Toggle } from './SettingsToggle'
 import { EASE, DUR } from '@/lib/motion'
@@ -348,14 +348,6 @@ export function GoogleSettingsPanel({
           </a>
         </div>
       </IntegCard>
-
-      {/* ── Google Calendar OAuth ── */}
-      <IntegCard
-        icon={Calendar}
-        title="Google Calendar kétirányú szinkron"
-        description="Foglalások ↔ Google Naptár valós idejű szinkronizálása — elfoglaltságok automatikus blokkolása"
-        status="soon"
-      />
     </div>
   )
 }

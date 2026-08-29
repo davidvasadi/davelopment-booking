@@ -184,6 +184,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
           phone: restaurant.phone,
         }}
         depositEnabled={!!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded}
+        invoicingEnabled={!!restaurant.invoice_settings?.invoice_provider && restaurant.invoice_settings.invoice_provider !== 'none'}
         addressRequired={!!restaurant.booking_rules?.require_address}
         addressRequiredNote={restaurant.booking_rules?.require_address_note}
         voucherEnabled={!!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0}

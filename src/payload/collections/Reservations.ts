@@ -52,6 +52,7 @@ export const Reservations: CollectionConfig = {
     { name: 'customer_phone', type: 'text', label: 'Telefon' },
     { name: 'customer_city', type: 'text', label: 'Város', admin: { description: 'Opcionális — a vendég a foglalónál adja meg (vendég-analitika / térkép).' } },
     { name: 'customer_address', type: 'text', label: 'Cím (utca, házszám)', admin: { description: 'Csak előleg-fizetéskor kötelező a vendégnek (a Számlázz.hu/Billingo bizonylathoz kell).' } },
+    { name: 'customer_tax_number', type: 'text', label: 'Vendég adószáma', admin: { description: 'Csak akkor töltött, ha a vendég cégként vásárolt (adószámos számlát kért) az előleg-fizetésnél.' } },
     { name: 'country', type: 'text', label: 'Ország (ISO kód, pl. HU)', admin: { description: 'A foglaló országa a telefon-előhívó választóból (statisztikához).' } },
     { name: 'notes', type: 'textarea', label: 'Megjegyzés (vendégtől)' },
     { name: 'internal_notes', type: 'textarea', label: 'Belső megjegyzés' },

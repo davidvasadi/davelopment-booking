@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import type { Salon, Restaurant, Media } from '@/payload/payload-types'
 import type { Pricing } from '@/lib/pricing'
+import { buildFaqItems } from '@/lib/faqContent'
 
 /**
  * SEO-segédek a publikus profil-oldalakhoz (/[slug]).
@@ -91,7 +92,9 @@ export function placeMetadata(
 
 /** schema.org JSON-LD a főoldalhoz — Organization + SoftwareApplication (a legalacsonyabb aktuális árral). */
 export function siteJsonLd(pricing: Pricing): Record<string, unknown> {
-  const lowestPrice = Math.min(pricing.salon_pro_huf, pricing.restaurant_pro_huf)
+  // A Starter a legolcsóbb belépési pont — a Pro-árral számolt "-tól" ár tévesen drágábbnak
+  // mutatta a terméket a Google-találatokban, mint amilyen valójában.
+  const lowestPrice = Math.min(pricing.salon_starter_huf, pricing.restaurant_starter_huf)
   return {
     '@context': 'https://schema.org',
     '@graph': [
@@ -117,6 +120,16 @@ export function siteJsonLd(pricing: Pricing): Record<string, unknown> {
           priceValidUntil: `${new Date().getFullYear() + 1}-12-31`,
         },
         publisher: { '@id': `${SITE_URL}/#organization` },
+      },
+      {
+        '@type': 'FAQPage',
+        // Ugyanaz az egy forrás (`buildFaqItems`), amit a landing FAQ-accordion is renderel —
+        // a látható szöveg és a strukturált adat sosem csúszhat szét.
+        mainEntity: buildFaqItems(pricing).map(({ q, a }) => ({
+          '@type': 'Question',
+          name: q,
+          acceptedAnswer: { '@type': 'Answer', text: a },
+        })),
       },
     ],
   }

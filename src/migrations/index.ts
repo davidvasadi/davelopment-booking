@@ -27,6 +27,7 @@ import * as migration_20260827_200000_add_break_fields from './20260827_200000_a
 import * as migration_20260828_000000_add_broadcast_contact_notification_types from './20260828_000000_add_broadcast_contact_notification_types';
 import * as migration_20260828_100000_add_subscription_webhook_notification_types from './20260828_100000_add_subscription_webhook_notification_types';
 import * as migration_20260828_200000_restore_invoice_pdfs_table from './20260828_200000_restore_invoice_pdfs_table';
+import * as migration_20260828_300000_add_customer_tax_number from './20260828_300000_add_customer_tax_number';
 
 export const migrations = [
   {
@@ -173,5 +174,10 @@ export const migrations = [
     up: migration_20260828_200000_restore_invoice_pdfs_table.up,
     down: migration_20260828_200000_restore_invoice_pdfs_table.down,
     name: '20260828_200000_restore_invoice_pdfs_table',
+  },
+  {
+    up: migration_20260828_300000_add_customer_tax_number.up,
+    down: migration_20260828_300000_add_customer_tax_number.down,
+    name: '20260828_300000_add_customer_tax_number',
   },
 ];

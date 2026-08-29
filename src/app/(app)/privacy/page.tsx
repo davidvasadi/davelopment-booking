@@ -46,6 +46,7 @@ export default function PrivacyPage() {
           <li><strong className="text-brand-ink">Fiókadatok:</strong> név, e-mail cím, jelszó (titkosított formában tárolva), vállalkozás neve, telefonszám, település.</li>
           <li><strong className="text-brand-ink">Foglalási adatok:</strong> a Felhasználó ügyfeleinek neve, elérhetősége, foglalási időpontok és megjegyzések.</li>
           <li><strong className="text-brand-ink">Számlázási adatok:</strong> az előfizetéshez szükséges számlázási információk (a kártyaadatokat kizárólag a Stripe kezeli).</li>
+          <li><strong className="text-brand-ink">Vendég-fizetési adatok (előleg, ajándékutalvány):</strong> ha a Felhasználó ezt a funkciót aktiválja, a vendég a foglalási előleget vagy az ajándékutalvány díját közvetlenül a Felhasználó saját, önálló Stripe Connect-fiókjába fizeti be — a kártyaadatokhoz és a fizetés lebonyolításához a Szolgáltató ebben a körben sem fér hozzá, azokat nem látja és nem tárolja.</li>
           <li><strong className="text-brand-ink">Technikai adatok:</strong> bejelentkezési naplók, IP-cím, eszköz- és böngészőinformációk a biztonság és a hibaelhárítás érdekében.</li>
         </ul>
       </LegalSection>
@@ -77,6 +78,12 @@ export default function PrivacyPage() {
           harmadik félnek értékesítési célból nem adjuk át. Az EU-n kívülre történő esetleges
           adattovábbítás kizárólag megfelelő garanciák (pl. az Európai Bizottság általános szerződési
           feltételei) mellett történhet.
+        </p>
+        <p>
+          A Felhasználó által aktivált vendég-előleg és ajándékutalvány-fizetéseknél a Stripe a
+          Felhasználó saját, önálló (Stripe Connect) fiókjaként működik közre — ebben a körben a
+          Szolgáltató nem adatfeldolgozó, a fizetési adatokhoz nem fér hozzá, azok kizárólag a
+          vendég, a Felhasználó és a Stripe között áramlanak.
         </p>
       </LegalSection>
 

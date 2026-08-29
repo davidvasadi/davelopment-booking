@@ -114,16 +114,20 @@ export function MorphButton({
   label,
   variant = 'light',
   className,
+  newTab = false,
 }: {
   href: string
   label: string
   variant?: Palette
   className?: string
+  /** Külső célnál (pl. Google-értékelés link) új fülön nyíljon, ne vigye el a látogatót a landingről. */
+  newTab?: boolean
 }) {
   const t = { duration: 0.4, ease: EASE }
   return (
     <MotionLink
       href={href}
+      {...(newTab ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
       initial="rest"
       whileHover="hover"
       whileTap="hover"

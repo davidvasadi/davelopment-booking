@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, FileSignature } from 'lucide-react'
 import { monthlyEmailCapForTier, resolveTier } from '@/lib/tier'
@@ -83,6 +83,16 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
   const show = (s: NonNullable<Props['sections']>[number]) => sections.includes(s)
   const [connecting, setConnecting] = useState(false)
   const [loginLinkLoading, setLoginLinkLoading] = useState(false)
+  // Ha a szerver az előleg/utalvány bekapcsolását a hiányzó Stripe-onboarding miatt utasítja
+  // el, a toast mellett a Stripe-kártyára is rá kell irányítani a figyelmet — a felhasználó
+  // különben nem feltétlenül köti össze a hibaüzenetet ezzel a fenti kártyával.
+  const stripeCardRef = useRef<HTMLDivElement>(null)
+  const [stripeAlert, setStripeAlert] = useState(false)
+  const flagStripeCard = () => {
+    stripeCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setStripeAlert(true)
+    setTimeout(() => setStripeAlert(false), 1600)
+  }
 
   const [d, setD] = useState<DepositSettingsData>(deposit)
   const [v, setV] = useState<VoucherSettingsData>(voucher)
@@ -196,7 +206,11 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             // A szerver konkrét indoklást ad vissza pl. az előleg-bekapcsolás feltétel-kapujánál
             // (nincs kitöltve a foglalási feltétel) — ezt mutassuk, ne az általános hibaszöveget.
             const json = await res.json().catch(() => null)
-            throw new Error(typeof json?.error === 'string' ? json.error : undefined)
+            const message = typeof json?.error === 'string' ? json.error : undefined
+            // A hiányzó Stripe-onboarding miatti elutasításnál a toast mellett a Stripe-kártyát
+            // is megrezegtetjük/pirosra emeljük, hogy egyértelmű legyen, hol kell javítani.
+            if (message?.includes('kösd össze a fiókodat a Stripe-pal')) flagStripeCard()
+            throw new Error(message)
           }
           setSzamlazzKeyInput('')
           setBillingoKeyInput('')
@@ -249,7 +263,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
     <div className="space-y-4">
       {/* Stripe Connect állapot */}
       {show('stripe') && (
-      <div className="rounded-[26px] dav-card-glass px-6 py-5">
+      <div
+        ref={stripeCardRef}
+        className={`rounded-[26px] dav-card-glass px-6 py-5 transition-shadow duration-300 ${stripeAlert ? 'animate-shake ring-2 ring-red-400/70' : ''}`}
+      >
         <div className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
             <CreditCard className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />

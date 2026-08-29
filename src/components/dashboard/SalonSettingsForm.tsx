@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
 import { NumberStepper } from '@/components/ui/NumberStepper'
-import { Camera, Loader2, ImagePlus, X, Trash2, Eye, Move } from 'lucide-react'
+import { Camera, Loader2, ImagePlus, X, Trash2, Eye, Move, ChevronDown } from 'lucide-react'
 import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
 import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -139,13 +139,28 @@ const schema = z.object({
 type FormData = z.infer<typeof schema>
 
 // A Nyitvatartás/Foglalások kártya-mintája: bordered + fejléc-elválasztó + 15px semibold cím.
-function Section({ title, children, full, id }: { title: string; children: React.ReactNode; full?: boolean; id?: string }) {
+/** `collapsible` esetén a szekció alapból csukott (`defaultOpen=false`, ha nincs felülírva) —
+ *  a hosszú, ritkán szerkesztett listás szerkesztők (Jó tudni, Egyedi kérdések, Foglalási
+ *  feltételek) így nem töltik ki felesleges hellyel az oldalt minden megnyitáskor. */
+function Section({ title, children, full, id, collapsible, defaultOpen = false }: { title: string; children: React.ReactNode; full?: boolean; id?: string; collapsible?: boolean; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(!collapsible || defaultOpen)
   return (
     <div id={id} className={`rounded-[26px] dav-card-glass overflow-hidden font-onest scroll-mt-6 ${full ? 'lg:col-span-2' : ''}`}>
-      <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
-        <span className="text-[15px] font-semibold text-ink">{title}</span>
-      </div>
-      <div className="px-5 py-5 space-y-4 sm:px-6">{children}</div>
+      {collapsible ? (
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className={`flex w-full items-center justify-between px-5 py-4 sm:px-6 text-left ${open ? 'border-b border-line' : ''}`}
+        >
+          <span className="text-[15px] font-semibold text-ink">{title}</span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-ink-soft transition-transform duration-200 ${open ? 'rotate-180' : ''}`} strokeWidth={2} />
+        </button>
+      ) : (
+        <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
+          <span className="text-[15px] font-semibold text-ink">{title}</span>
+        </div>
+      )}
+      {open && <div className="px-5 py-5 space-y-4 sm:px-6">{children}</div>}
     </div>
   )
 }
@@ -737,7 +752,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         </div>
       </Section>
 
-      <Section id="good-to-know" title="Jó tudni (foglaló oldal)" full>
+      <Section id="good-to-know" title="Jó tudni (foglaló oldal)" full collapsible>
         <p className="text-xs text-ink-soft -mt-1">
           Saját „Jó tudni" pontok (ikon + cím + szöveg) a nyilvános foglaló oldalon. Pl. „Parkolás: az udvarban ingyenes" vagy „Lemondás: legkésőbb a foglalás előtt 24 órával".
         </p>
@@ -804,7 +819,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
         </div>
       </Section>
 
-      <Section id="custom-questions" title="Egyedi kérdések a foglaláskor" full>
+      <Section id="custom-questions" title="Egyedi kérdések a foglaláskor" full collapsible>
         <p className="text-xs text-ink-soft -mt-1">
           Saját kérdések, amiket a vendégnek fel kell tenni a foglaló-wizard adatlap lépésében (pl. „Allergiás vagy valamire?").
         </p>
@@ -895,7 +910,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
 
       {activeTab === 'documents' && (
       <div className="space-y-[5px]">
-      <Section title="Foglalási feltételek">
+      <Section title="Foglalási feltételek" collapsible>
         <p className="text-xs text-ink-soft">
           Szakaszonként add meg a feltételeket (cím + szöveg). Megjelenik a nyilvános foglaló oldalon és a visszaigazoló emailben. Hagyd üresen, ha nincs.
         </p>

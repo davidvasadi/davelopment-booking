@@ -4,14 +4,18 @@ import { useId } from 'react'
 import { motion } from 'framer-motion'
 import { Activity, SquareKanban, CreditCard, ArrowDown, ArrowUp, ArrowRight } from 'lucide-react'
 import { float } from '@/components/landing/Motion'
-import { MorphButton } from '@/components/landing/sections/TestimonialButtons'
 import { SectionLabel } from '@/components/landing/SectionLabel'
 import { EASE, buttonHover } from '@/lib/motion'
+import { MorphButton } from '@/components/landing/sections/TestimonialButtons'
 
 /**
  * „Most N napig ingyen" — Értékelések/CTA szekció.
  * trial_days a Backstage-ből jön (pricing.trial_days), nem hardkódolt.
  */
+
+// Ideiglenesen elrejtve: még csak 2 Google-értékelés van, korai lenne kiemelten kérni többet.
+// Visszahozáshoz: állítsd true-ra.
+const SHOW_REVIEW_CTA = false
 
 const CURVE =
   'M0,118 C50,95 75,42 118,48 C152,54 162,88 208,80 C248,72 288,22 379,16'
@@ -217,15 +221,17 @@ export function Testimonials({ trial_days }: { trial_days: number }) {
               </motion.span>
             </div>
 
-            <motion.div
-              className="flex items-center"
-              initial={{ opacity: 0, y: 8 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, amount: 0.3 }}
-              transition={{ duration: 0.4, ease: EASE, delay: 0.6 }}
-            >
-              <MorphButton href="/register" label="Értékelj minket" variant="light" />
-            </motion.div>
+            {SHOW_REVIEW_CTA && (
+              <motion.div
+                className="flex items-center"
+                initial={{ opacity: 0, y: 8 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.4, ease: EASE, delay: 0.6 }}
+              >
+                <MorphButton href="https://g.page/r/CT-L6SVVD1vBEBM/review" label="Értékelj minket" variant="light" newTab />
+              </motion.div>
+            )}
           </div>
         </div>
       </motion.div>

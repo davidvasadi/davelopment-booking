@@ -68,6 +68,16 @@ export default function TermsPage() {
           díjak a számlázási időszak elején, előre fizetendők. A Szolgáltató fenntartja a jogot a
           díjak jövőbeni módosítására, amelyről a Felhasználót előzetesen értesíti.
         </p>
+        <p>
+          A Felhasználó — saját döntése alapján — a vendégeitől foglalási előleget kérhet, illetve
+          ajándékutalványt értékesíthet. Ezen fizetések a Felhasználó saját, önálló Stripe
+          Connect-fiókjába, közvetlenül, a Szolgáltató közreműködése nélkül érkeznek; a Szolgáltató e
+          fizetések tekintetében kizárólag a technikai (szoftveres) hátteret biztosítja, a fizetési
+          jogviszonynak nem alanya. Az előleg és az ajándékutalvány feltételeiért (így különösen a
+          visszatérítés szabályaiért és az utalvány érvényességi idejéért) kizárólag a Felhasználó
+          felel, akinek ezeket saját, a vendégek számára közzétett foglalási feltételeiben kell
+          rögzítenie.
+        </p>
       </LegalSection>
 
       <LegalSection heading="5. Elállás, lemondás és visszatérítés">

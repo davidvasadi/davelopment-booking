@@ -80,6 +80,12 @@ export const Bookings: CollectionConfig = {
       admin: { description: 'Csak előleg-fizetéskor kötelező a vendégnek (a Számlázz.hu/Billingo bizonylathoz kell).' },
     },
     {
+      name: 'customer_tax_number',
+      type: 'text',
+      label: 'Ügyfél adószáma',
+      admin: { description: 'Csak akkor töltött, ha a vendég cégként vásárolt (adószámos számlát kért) az előleg-fizetésnél.' },
+    },
+    {
       name: 'date',
       type: 'text',
       required: true,

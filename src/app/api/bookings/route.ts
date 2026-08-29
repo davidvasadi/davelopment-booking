@@ -30,6 +30,7 @@ const schema = z.object({
   customer_phone: z.string().min(7).max(30),
   customer_city: z.string().max(120).optional(),
   customer_address: z.string().max(200).optional(),
+  customer_tax_number: z.string().max(30).optional(),
   notes: z.string().max(1000).optional(),
   locale: z.enum(['hu', 'en', 'de', 'es', 'it', 'fr']).default('hu'),
   // Opcionális ismétlődés. Hiánya → PONTOSAN a jelenlegi egyszeri viselkedés.
@@ -79,7 +80,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: firstMsg }, { status: 400 })
   }
 
-  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
+  const { salonId, serviceId, date, start_time, end_time, customer_name, customer_email, customer_phone, customer_city, customer_address, customer_tax_number, notes, locale, repeat, payment_intent_id, voucher_code, marketing_consent, consent_accepted, custom_answers } = parsed.data
   let staffId = parsed.data.staffId
 
   // Tiltólista (üzletenként): tiltott e-mail/telefon → ÁLTALÁNOS hiba (nem áruljuk el a tiltást).
@@ -291,6 +292,7 @@ export async function POST(request: NextRequest) {
           notes: notes ?? undefined,
           ...(customer_city ? { customer_city } : {}),
           ...(customer_address ? { customer_address } : {}),
+          ...(customer_tax_number ? { customer_tax_number } : {}),
           locale,
           cancellation_token: randomBytes(32).toString('hex'),
           ...(seriesId ? { series_id: seriesId } : {}),
@@ -345,7 +347,7 @@ export async function POST(request: NextRequest) {
         collection: 'bookings',
         id: booking.id,
         invoiceSettings: salon.invoice_settings,
-        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address },
+        buyer: { name: customer_name, email: customer_email, city: customer_city, address: customer_address, taxNumber: customer_tax_number },
         label: `Előleg — ${service.name} · ${salon.name} · ${date}`,
         grossHuf: depositHuf,
         orderRef: String(payment_intent_id),
