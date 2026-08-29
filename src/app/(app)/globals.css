@@ -181,6 +181,23 @@ html {
   to { transform: translateX(-33.333%); }
 }
 
+/* ── Munkavállaló-kártya (.hv-panel) SAJÁT, kicsit halványabb arany-glow-ja ──
+   Csak ez a felugró panel kapja — a globális --dav-container-gradient token (a dashboard
+   TÖBBI felülete) változatlan marad. Unlayered szabály, ezért felülírja a bg-dav-container
+   Tailwind-utility-t (ami @layer utilities-ben van) anélkül, hogy a JSX-ből ki kéne szedni. */
+.hv-panel {
+  background-image:
+    radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.20) 0%, rgba(241,206,69,0) 42%),
+    linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
+}
+@media (max-width: 1023px) {
+  .hv-panel {
+    background-image:
+      radial-gradient(125% 80% at 100% 30%, rgba(241,206,69,.20) 0%, rgba(241,206,69,0) 42%),
+      linear-gradient(180deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
+  }
+}
+
 /* ── HiringView detail panel reszponzív layout ──
    A Tailwind JIT nem mindig generálja az arbitrary-value lg:w-[Xpx] osztályokat
    dinamikus template literálban — ezért CSS-ben definiáljuk a reszponzív szélességet. */
@@ -193,17 +210,21 @@ html {
 
 /* ── RadialGauge: abszolút jobb felső sarok a profil-kártyán — MINDEN nézetben (a gauge
    korábban mobilon el volt rejtve, ezt kérte a user visszaállítani "a sarokba, ahol volt").
-   A .hv-profile-block position:relative; a padding-right helyet hagy a gauge-nek — mobilon
-   a gauge kisebb (RadialGauge saját reszponzív mérete: 85px < 640px), ezért a fenntartott hely
-   is kisebb, különben a fejléc-szöveg feleslegesen összeszorulna.
-   Ha a naptárszerkesztő nyitva van (data-wide="true"): gauge elrejt + padding törlés,
-   hogy a fejléc-gomboknak teljes szélesség maradjon. */
-.hv-right-col .hv-profile-block { position: relative; padding-right: 100px; }
+   A .hv-profile-block position:relative (a gauge ehhez képest van abszolút pozicionálva),
+   de a padding-right csak a .hv-profile-head-en (fotó + név/gombsor) van — ez a gauge tényleges
+   magassága melletti egyetlen sor, a tag/kontakt/statisztika sorok ALATTA már nem érintkeznek
+   a gauge-dzsel, ezért azok teljes szélességet kaphatnak (korábban a padding a TELJES
+   .hv-profile-block-re volt téve, feleslegesen összeszorítva minden alatta lévő sort is mobilon).
+   Mobilon a gauge kisebb (RadialGauge saját reszponzív mérete: 85px < 640px), ezért a fenntartott
+   hely is kisebb. Ha a naptárszerkesztő nyitva van (data-wide="true"): gauge elrejt + padding
+   törlés, hogy a fejléc-gomboknak teljes szélesség maradjon. */
+.hv-right-col .hv-profile-block { position: relative; }
+.hv-right-col .hv-profile-head { padding-right: 100px; }
 @media (min-width: 640px) {
-  .hv-right-col .hv-profile-block { padding-right: 170px; }
+  .hv-right-col .hv-profile-head { padding-right: 170px; }
 }
 .hv-right-col .hv-profile-gauge { position: absolute; right: 0; top: 0; }
-.hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-block { padding-right: 0; }
+.hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-head { padding-right: 0; }
 .hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-gauge { display: none; }
 
 /* ── Nyomtatás ──
@@ -258,7 +279,7 @@ html {
     flex: 1 !important;
     min-width: 0 !important;
   }
-  body.printing-profile .hv-profile-block { padding-right: 170px !important; }
+  body.printing-profile .hv-profile-head { padding-right: 170px !important; }
   body.printing-profile .hv-profile-gauge { display: block !important; position: absolute; right: 0; top: 0; }
 
   /* ── Egy A4-re sűrítés (a GRAFIKONOK maradnak, csak kompaktabbak) ──

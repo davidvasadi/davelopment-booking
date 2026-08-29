@@ -622,6 +622,10 @@ function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { cale
   const cells: (number | null)[] = []
   for (let i = 0; i < firstWeekday; i++) cells.push(null)
   for (let d = 1; d <= daysInMonth; d++) cells.push(d)
+  // A sorba bekerülő, de a hónapon kívül eső napok (vezető ÉS a hónap végén a sort kitöltő
+  // napok) is csíkozott, szaggatott mintát kapnak — ugyanaz a minta, mint a nagy naptár
+  // nézetben (ScheduleView.tsx) a hónapon kívüli napoknál.
+  while (cells.length % 7 !== 0) cells.push(null)
   const workedDays = Array.from({ length: daysInMonth }, (_, i) => calendar[keyOf(i + 1)] === 'shift').filter(Boolean).length
   const step = (delta: number) => setView((v) => { const d = new Date(v.y, v.m + delta, 1); return { y: d.getFullYear(), m: d.getMonth() } })
   const monthLabel = first.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })
@@ -640,7 +644,7 @@ function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { cale
           <div key={d} className="pb-0.5 text-center text-[10px] font-semibold uppercase tracking-wide text-ink-soft2">{d}</div>
         ))}
         {cells.map((c, i) => {
-          if (c === null) return <div key={`b${i}`} />
+          if (c === null) return <div key={`b${i}`} className="aspect-square rounded-[9px]" style={{ background: 'repeating-linear-gradient(-45deg, rgba(160,150,120,.13) 0px, rgba(160,150,120,.13) 1px, transparent 1px, transparent 7px), rgba(255,255,255,.18)' }} />
           const dateStr = keyOf(c)
           const t = calendar[dateStr]
           const exc = exceptions?.[dateStr]
@@ -1113,14 +1117,18 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
           <X className="h-[17px] w-[17px]" strokeWidth={1.8} />
         </button>
       )}
-      {/* HEADER: cím + kereső + szűrő + (overlay) bezárás */}
-      <motion.div variants={popItem} className="mb-6 flex flex-wrap items-center justify-between gap-3 pr-14 print:hidden lg:pr-0">
-        <div>
+      {/* HEADER: cím + kereső + szűrő + (overlay) bezárás — mobilon a cím fölé, a kereső+szűrő
+          alá kerül (teljes szélességben), hogy ne kelljen összezsugorodnia egy sorban; lg+-on
+          változatlanul egy sorban, egymás mellett. */}
+      <motion.div variants={popItem} className="mb-6 flex flex-col gap-3 print:hidden lg:flex-row lg:flex-wrap lg:items-center lg:justify-between">
+        {/* pr-14 csak a cím-soron: itt van fölötte a mobil X gomb (absolute, jobb felül) — a
+            search+szűrő sor alatta van, nem ütközik vele, ezért az már mehet teljes szélességig. */}
+        <div className="pr-14 lg:pr-0">
           <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-ink-soft">{variant === 'restaurant' ? 'Éttermi csapat' : 'Szalon csapat'}</p>
           <h1 className="text-[26px] font-light tracking-[-0.02em] text-ink lg:text-[34px]">Munkavállalók</h1>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex h-11 min-w-[200px] items-center gap-2.5 rounded-dav-pill border border-line bg-white px-4">
+          <div className="flex h-11 flex-1 items-center gap-2.5 rounded-dav-pill border border-line bg-white px-4 lg:min-w-[200px] lg:flex-none">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
             <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Keresés" className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none" />
           </div>
@@ -1262,7 +1270,9 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
         </motion.div>
 
         {/* ── JOBB: adatlap (kiválasztáskor újra-animálódik) ── */}
-        <motion.div variants={popItem} data-print-root className="order-first rounded-[26px] dav-card-glass p-6 sm:p-8 lg:order-last">
+        {/* Mobilon nincs kártya-keret (dav-card-glass/rounded/padding) körülötte — csak lg+-tól,
+            hogy a fejléc alatti hely ne vesszen kártya-paddingre. */}
+        <motion.div variants={popItem} data-print-root className="order-first lg:rounded-[26px] lg:dav-card-glass lg:p-8 lg:order-last">
           <motion.div
             key={sel.id}
             initial="hidden"
@@ -1420,18 +1430,21 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                 <div className="min-w-0">
                   {/* Mobilon/tableten (lg alatt) a kép a fejléc (név/státusz/pozíció) FÖLÖTT —
                       lg+ felett a hero-fotó (hv-left-col) veszi át a szerepet, ez ott elrejtve.
-                      A jelenlét-gyűrű NEM ide, hanem a sarokba kerül (lásd .hv-profile-gauge lent). */}
-                  <div className="mb-4 h-[110px] w-[110px] overflow-hidden rounded-[22px] lg:hidden" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
-                    {headAvatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={headAvatar} alt={headName ?? ''} className="h-full w-full object-cover object-top" />
-                    ) : (
-                      <div className="flex h-full w-full items-center justify-center">
-                        <UserRound className="h-10 w-10 text-white/30" strokeWidth={1.2} />
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+                      A jelenlét-gyűrű NEM ide, hanem a sarokba kerül (lásd .hv-profile-gauge lent).
+                      A hv-profile-head a gauge-nek fenntartott padding-right-ot kapja — CSAK ez a
+                      sor, az alatta lévő tag/kontakt/statisztika sorok már nem, lásd globals.css. */}
+                  <div className="hv-profile-head">
+                    <div className="mb-4 h-[110px] w-[110px] overflow-hidden rounded-[22px] lg:hidden" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                      {headAvatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={headAvatar} alt={headName ?? ''} className="h-full w-full object-cover object-top" />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center">
+                          <UserRound className="h-10 w-10 text-white/30" strokeWidth={1.2} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
                     <div>
                       <div className="flex flex-wrap items-center gap-3">
                         <h2 className="text-[28px] font-semibold leading-tight text-ink">{headName}</h2>
@@ -1482,18 +1495,24 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                     </div>
                     <div className="flex shrink-0 gap-2 print:hidden">
                       {canEditProfile && !editing && (
-                        <button type="button" onClick={() => setEditing(true)} title="Szerkesztés" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><Pencil className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
+                        <button type="button" onClick={() => setEditing(true)} title="Szerkesztés" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><Pencil className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
                       )}
                       {variant === 'salon' && salonId && (
-                        <button type="button" onClick={() => { const today = new Date().toISOString().split('T')[0]; handleCalDayClick(today); setTimeout(() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }} title="Ugrás a mai naphoz" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><CalendarDays className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
+                        <button type="button" onClick={() => { const today = new Date().toISOString().split('T')[0]; handleCalDayClick(today); setTimeout(() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }} title="Ugrás a mai naphoz" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><CalendarDays className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
                       )}
-                      <button type="button" onClick={printProfileNow} title="Profil nyomtatása" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink print:hidden"><Printer className="h-[18px] w-[18px]" strokeWidth={1.7} /></button>
+                      <button type="button" onClick={printProfileNow} title="Profil nyomtatása" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink print:hidden"><Printer className="h-[18px] w-[18px]" strokeWidth={1.7} /></button>
                       {eff.phone ? (
-                        <a href={`tel:${eff.phone.replace(/\s+/g, '')}`} title="Hívás" className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><PhoneCall className="h-[18px] w-[18px]" strokeWidth={1.7} /></a>
+                        <a href={`sms:${eff.phone.replace(/\s+/g, '')}`} title="Üzenet küldése" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><MessageCircle className="h-[17px] w-[17px]" strokeWidth={1.7} /></a>
                       ) : (
-                        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-line text-ink-soft2 opacity-40"><PhoneCall className="h-[18px] w-[18px]" strokeWidth={1.7} /></span>
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft2 opacity-40"><MessageCircle className="h-[17px] w-[17px]" strokeWidth={1.7} /></span>
+                      )}
+                      {eff.phone ? (
+                        <a href={`tel:${eff.phone.replace(/\s+/g, '')}`} title="Hívás" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><PhoneCall className="h-[18px] w-[18px]" strokeWidth={1.7} /></a>
+                      ) : (
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft2 opacity-40"><PhoneCall className="h-[18px] w-[18px]" strokeWidth={1.7} /></span>
                       )}
                     </div>
+                  </div>
                   </div>
                   <div className="mt-5 flex flex-wrap gap-2.5">
                     {sel.tags.map((s, i) => {

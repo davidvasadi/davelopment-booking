@@ -610,8 +610,12 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
       <style>{NOTCH_CSS}</style>
       <div className="relative">
         {/* ── FÜL-toolbar (ÜVEGES): EGY-aktív — a Kereső az alap, váltáskor átanimálódik (az nyílik ki, a másik összemegy); active = FEKETE-FEHÉR ── */}
-        <div className="pointer-events-none absolute inset-x-0 top-1.5 z-30 flex px-4 lg:justify-center">
-          <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} ref={toolbarRef} className="pointer-events-auto flex w-full items-center gap-1 rounded-full border border-white/50 bg-white/40 p-1.5 shadow-dav-card backdrop-blur-md lg:w-auto">
+        {/* Mobilon a toolbar saját px-4-e (ami a sched-folder RÉGI, mindig-jelen p-4-ét tükrözte)
+            és a vastag fehér border most eltűnik — a sched-folder mobilon már nem ad saját
+            oldal-paddingot, ezért ennek is az outer p-4-re kell hagyatkoznia, hogy azonos
+            szélességű legyen az alatta lévő konténerrel; lg+-on változatlan. */}
+        <div className="pointer-events-none absolute inset-x-0 top-1.5 z-30 flex lg:justify-center lg:px-4">
+          <motion.div layout transition={{ type: 'spring', stiffness: 420, damping: 40 }} ref={toolbarRef} className="pointer-events-auto flex w-full items-center gap-1 rounded-full lg:w-auto lg:border lg:border-white/50 lg:bg-white/40 lg:p-1.5 lg:shadow-dav-card lg:backdrop-blur-md">
             {/* Statisztika — BAL oldalt (a kereső előtt); egy-aktív popover a havi összegzővel (a régi közép stat-sávok helyett) */}
             {sel && (
               <div className="relative hidden lg:block">
@@ -787,7 +791,10 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
           document.body,
         )}
 
-        <div ref={folderRef} className="sched-folder rounded-[34px] bg-[rgba(255,255,255,.55)] p-4 pt-[68px] shadow-[0_24px_60px_-34px_rgba(70,60,20,.4)] backdrop-blur-[18px] sm:p-5 sm:pt-[76px]">
+        {/* Mobilon (lg alatt) nincs "dobozos" megjelenés (kerekítés/áttetsző háttér/árnyék/blur) —
+            a pt-[68px]/sm:pt-[76px] viszont MARAD minden nézetben, mert ez a hely kell a fölötte
+            lebegő, absolute pozíciós szűrő-toolbarnak, különben ráülne a rács tetejére. */}
+        <div ref={folderRef} className="sched-folder pt-[68px] sm:pt-[76px] lg:rounded-[34px] lg:bg-[rgba(255,255,255,.55)] lg:p-5 lg:pt-[76px] lg:shadow-[0_24px_60px_-34px_rgba(70,60,20,.4)] lg:backdrop-blur-[18px]">
           <div className="grid gap-4 lg:grid-cols-[1fr_1.5fr_1fr]">
         {/* ── BAL: csapat-lista VAGY (nap kijelölésekor) az aznap dolgozók ── (fel a vállba) */}
         <div className="rounded-[26px] dav-card-glass p-3.5 lg:-mt-16 lg:flex lg:flex-col lg:self-stretch">
