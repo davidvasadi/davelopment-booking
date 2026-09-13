@@ -603,33 +603,36 @@ async function handle(request: NextRequest) {
           ownerDigestAppOn = ownerPrefs.digest !== false
         }
 
-        if (ownerDigestAppOn) {
-          await payload.create({
-            collection: 'notifications',
-            overrideAccess: true,
-            data: {
-              salon: Number(salonId),
-              audience: 'owner',
-              type: digestType,
-              title: isEvening ? `Esti összefoglaló – ${dateStr}` : `Reggeli összefoglaló – ${dateStr}`,
-              body: `${bookingCount} foglalás`,
-              read: false,
-              metadata: {
-                bookings: bookingCount,
-                guests: bookingCount,
-                date: dateStr,
-                team_count: teamCount,
-                shift_manager: shiftManager,
-                staff_breakdown: staffBreakdown,
-                status: statusCounts,
-                revenue_huf: revenueHuf > 0 ? revenueHuf : undefined,
-                top_services: topServices.length > 0 ? topServices : undefined,
-                new_guests: newGuestCount,
-                returning_guests: returningGuestCount,
-              },
+        // A rekord MINDIG létrejön — ez az idempotencia-jelző a következő cron-futásoknak
+        // (lásd digestAlreadySent). Ha a tulaj kikapcsolta az appon belüli digest-értesítést,
+        // a rekord `read: true`-val jön létre (nem jelenik meg olvasatlanul a haranggal), de
+        // ATTÓL FÜGGETLENÜL LÉTEZIK, különben a push-küldés (lent) minden egyes cron-futásnál
+        // (percenként) újra elsülne, mert nincs mihez képest ellenőrizni a "ma már elküldve" állapotot.
+        await payload.create({
+          collection: 'notifications',
+          overrideAccess: true,
+          data: {
+            salon: Number(salonId),
+            audience: 'owner',
+            type: digestType,
+            title: isEvening ? `Esti összefoglaló – ${dateStr}` : `Reggeli összefoglaló – ${dateStr}`,
+            body: `${bookingCount} foglalás`,
+            read: !ownerDigestAppOn,
+            metadata: {
+              bookings: bookingCount,
+              guests: bookingCount,
+              date: dateStr,
+              team_count: teamCount,
+              shift_manager: shiftManager,
+              staff_breakdown: staffBreakdown,
+              status: statusCounts,
+              revenue_huf: revenueHuf > 0 ? revenueHuf : undefined,
+              top_services: topServices.length > 0 ? topServices : undefined,
+              new_guests: newGuestCount,
+              returning_guests: returningGuestCount,
             },
-          })
-        }
+          },
+        })
 
         // Per-staff alkalmazotti digest — minden munkatársnak saját összefoglalója
         for (const [staffId, staffData] of staffCountMap.entries()) {
@@ -890,34 +893,34 @@ async function handle(request: NextRequest) {
           restOwnerDigestAppOn = restOwnerPrefs.digest !== false
         }
 
-        if (restOwnerDigestAppOn) {
-          await payload.create({
-            collection: 'notifications',
-            overrideAccess: true,
-            data: {
-              restaurant: Number(restId),
-              audience: 'owner',
-              type: digestType,
-              title: isEvening ? `Esti összefoglaló – ${dateStr}` : `Reggeli összefoglaló – ${dateStr}`,
-              body: `${bookingCount} foglalás, ${guestCount} fő`,
-              read: false,
-              metadata: {
-                bookings: bookingCount,
-                guests: guestCount,
-                date: dateStr,
-                team_count: todayShifts.totalDocs,
-                occasions: Object.keys(occasions).length > 0 ? occasions : undefined,
-                shift_manager: shiftManager,
-                source,
-                status,
-                revenue_huf: revenueHuf > 0 ? revenueHuf : undefined,
-                countries: Object.keys(countries).length > 0 ? countries : undefined,
-                new_guests: newGuestCount,
-                returning_guests: returningGuestCount,
-              },
+        // Lásd a szalon-ágban lévő magyarázatot: a rekord MINDIG létrejön (idempotencia-jelző
+        // a push-küldésnek), a tulaj preferenciája csak azt dönti el, olvasatlanul jelenjen-e meg.
+        await payload.create({
+          collection: 'notifications',
+          overrideAccess: true,
+          data: {
+            restaurant: Number(restId),
+            audience: 'owner',
+            type: digestType,
+            title: isEvening ? `Esti összefoglaló – ${dateStr}` : `Reggeli összefoglaló – ${dateStr}`,
+            body: `${bookingCount} foglalás, ${guestCount} fő`,
+            read: !restOwnerDigestAppOn,
+            metadata: {
+              bookings: bookingCount,
+              guests: guestCount,
+              date: dateStr,
+              team_count: todayShifts.totalDocs,
+              occasions: Object.keys(occasions).length > 0 ? occasions : undefined,
+              shift_manager: shiftManager,
+              source,
+              status,
+              revenue_huf: revenueHuf > 0 ? revenueHuf : undefined,
+              countries: Object.keys(countries).length > 0 ? countries : undefined,
+              new_guests: newGuestCount,
+              returning_guests: returningGuestCount,
             },
-          })
-        }
+          },
+        })
 
         // Push — étteremnél nincs email digest
         try {
