@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import Script from 'next/script'
 
 const STORAGE_KEY = 'davelopment-cookie-consent'
-const GA4_ID = 'G-NE18MQT41F'
-// A Google Ads saját címkéje — külön ID a GA4-es mérőkódtól, de ugyanabból a betöltött
-// gtag.js-ből mehet egy második `gtag('config', ...)` hívással.
-const ADS_ID = 'G-MXYSTX2XXK'
+const GA4_ID = 'G-HGW3Y9FV95'
+// A Google Ads saját címkéje — amíg nincs kész a dedikált, új Ads-fiók/konverziós azonosító
+// (a régi, hello.davelopment@gmail.com alatti Google-fiók letiltása miatt), ideiglenesen a
+// GA4-mérőkóddal egyezik meg.
+const ADS_ID = GA4_ID
 
 /**
  * A davelopment booking platform saját (nem üzletenkénti) Google Analytics + Google Ads
