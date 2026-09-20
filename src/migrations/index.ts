@@ -28,6 +28,7 @@ import * as migration_20260828_000000_add_broadcast_contact_notification_types f
 import * as migration_20260828_100000_add_subscription_webhook_notification_types from './20260828_100000_add_subscription_webhook_notification_types';
 import * as migration_20260828_200000_restore_invoice_pdfs_table from './20260828_200000_restore_invoice_pdfs_table';
 import * as migration_20260828_300000_add_customer_tax_number from './20260828_300000_add_customer_tax_number';
+import * as migration_20260920_150000_relax_localized_label_not_null from './20260920_150000_relax_localized_label_not_null';
 
 export const migrations = [
   {
@@ -179,5 +180,10 @@ export const migrations = [
     up: migration_20260828_300000_add_customer_tax_number.up,
     down: migration_20260828_300000_add_customer_tax_number.down,
     name: '20260828_300000_add_customer_tax_number',
+  },
+  {
+    up: migration_20260920_150000_relax_localized_label_not_null.up,
+    down: migration_20260920_150000_relax_localized_label_not_null.down,
+    name: '20260920_150000_relax_localized_label_not_null',
   },
 ];

@@ -162,12 +162,30 @@ const labelClass = 'text-[12.5px] font-medium text-ink-soft'
  *  feltételek) így nem töltik ki felesleges hellyel az oldalt minden megnyitáskor. */
 function Section({ title, children, full, id, collapsible, defaultOpen = false }: { title: string; children: React.ReactNode; full?: boolean; id?: string; collapsible?: boolean; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(!collapsible || defaultOpen)
+  // A nyitott/csukott állapot megjegyzése (localStorage) — csak kliens-oldali effektben
+  // olvasunk, hogy az SSR-render és a hidratáció ne térjen el (nincs hydration-mismatch).
+  useEffect(() => {
+    if (!collapsible || !id) return
+    try {
+      const stored = window.localStorage.getItem(`davelopment-section-open:${id}`)
+      if (stored !== null) setOpen(stored === '1')
+    } catch { /* localStorage nem elérhető — marad a defaultOpen */ }
+  }, [collapsible, id])
+  const toggle = () => {
+    setOpen((o) => {
+      const next = !o
+      if (collapsible && id) {
+        try { window.localStorage.setItem(`davelopment-section-open:${id}`, next ? '1' : '0') } catch { /* no-op */ }
+      }
+      return next
+    })
+  }
   return (
     <div id={id} className={`rounded-[26px] dav-card-glass overflow-hidden font-onest scroll-mt-6 ${full ? 'lg:col-span-2' : ''}`}>
       {collapsible ? (
         <button
           type="button"
-          onClick={() => setOpen((o) => !o)}
+          onClick={toggle}
           className={`flex w-full items-center justify-between px-5 py-4 sm:px-6 text-left ${open ? 'border-b border-line' : ''}`}
         >
           <span className="text-[15px] font-semibold text-ink">{title}</span>
@@ -786,7 +804,7 @@ export function RestaurantSettingsForm({
         <GoodToKnowEditor value={loc.current.good_to_know} onChange={(v) => loc.setField('good_to_know', v)} locale={loc.editLocale} />
       </Section>
 
-      <Section title="Esemény-típusok (alkalmak)" full>
+      <Section id="event-types" title="Esemény-típusok (alkalmak)" full collapsible>
         <p className="text-xs text-ink-soft">
           Milyen alkalomból foglalhat a vendég — a foglaláskor választhat ezekből (pl. Születésnap, Évforduló, Céges vacsora). A kikapcsoltak nem jelennek meg. Ha egy sincs, az alapkészletet kínáljuk fel.
         </p>
@@ -984,7 +1002,7 @@ export function RestaurantSettingsForm({
 
       {activeTab === 'documents' && (
       <div className="space-y-[5px]">
-      <Section title="Foglalási feltételek" collapsible>
+      <Section id="booking-terms" title="Foglalási feltételek" collapsible>
         <p className="text-xs text-ink-soft">
           Szakaszonként add meg a feltételeket (cím + szöveg). Megjelenik a nyilvános foglaló oldalon és a visszaigazoló emailben. Hagyd üresen, ha nincs.
         </p>

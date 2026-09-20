@@ -334,7 +334,7 @@ export const Restaurants: CollectionConfig = {
       label: 'Egyedi kérdések a foglaláskor',
       admin: { description: 'Saját kérdések, amiket a vendégnek fel kell tenni foglaláskor (pl. „Van különleges alkalmuk?").' },
       fields: [
-        { name: 'label', type: 'text', required: true, localized: true, label: 'Kérdés szövege' },
+        { name: 'label', type: 'text', localized: true, label: 'Kérdés szövege' },
         {
           name: 'type',
           type: 'select',
@@ -374,7 +374,7 @@ export const Restaurants: CollectionConfig = {
       ],
       fields: [
         { name: 'icon', type: 'text', label: 'Ikon kulcs', defaultValue: 'party' },
-        { name: 'label', type: 'text', required: true, localized: true, label: 'Megnevezés' },
+        { name: 'label', type: 'text', localized: true, label: 'Megnevezés' },
         { name: 'enabled', type: 'checkbox', defaultValue: true, label: 'Aktív' },
       ],
     },

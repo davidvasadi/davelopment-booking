@@ -366,7 +366,7 @@ export const Salons: CollectionConfig = {
               label: 'Egyedi kérdések a foglaláskor',
               admin: { description: 'Saját kérdések, amiket a vendégnek fel kell tenni foglaláskor (pl. „Allergiás vagy valamire?").' },
               fields: [
-                { name: 'label', type: 'text', required: true, localized: true, label: 'Kérdés szövege' },
+                { name: 'label', type: 'text', localized: true, label: 'Kérdés szövege' },
                 {
                   name: 'type',
                   type: 'select',

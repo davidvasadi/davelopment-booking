@@ -688,9 +688,11 @@ async function handle(request: NextRequest) {
             })
           }
         }
-        // Push — szalon digest (ugyanúgy mint az étteremnél).
+        // Push — szalon digest (ugyanúgy mint az étteremnél). Ugyanaz a preferencia
+        // (`ownerDigestAppOn`) dönti el, mint az appon belüli értesítést — korábban ez a
+        // push-ág teljesen figyelmen kívül hagyta a kapcsolót, kikapcsolt állapotban is ment.
         try {
-          if (ownerId) {
+          if (ownerDigestAppOn && ownerId) {
             await sendPushToUsers(
               payload,
               [ownerId],
@@ -922,25 +924,43 @@ async function handle(request: NextRequest) {
           },
         })
 
-        // Push — étteremnél nincs email digest
+        // Push — étteremnél nincs email digest. A tulajnál `restOwnerDigestAppOn` dönt (mint
+        // az appon belüli értesítésnél), a csapattagoknál a SAJÁT `personal_notif_prefs.digest`
+        // preferenciájuk — korábban ez a push-ág egyik kapcsolót sem nézte, mindenkinek ment.
         try {
-          const ownerId = restOwnerId
           const members = await payload.find({
             collection: 'memberships',
             where: { and: [{ restaurant: { equals: restId } }, { status: { equals: 'active' } }] },
             limit: 200, depth: 0, overrideAccess: true,
           })
           const memberUserIds = members.docs.map((m) => m.user).filter(Boolean) as (string | number)[]
-          await sendPushToUsers(
-            payload,
-            [ownerId, ...memberUserIds].filter(Boolean) as (string | number)[],
-            {
-              title: `${isEvening ? 'Esti' : 'Reggeli'} összefoglaló · ${restaurant.name}`,
-              body: `${bookingCount} foglalás, ${guestCount} fő`,
-              url: '/restaurant/bookings',
-              tag: `digest-${restId}-${dateStr}-${digestType}`,
-            },
-          )
+          let eligibleMemberIds: (string | number)[] = []
+          if (memberUserIds.length > 0) {
+            const memberUsers = await payload.find({
+              collection: 'users',
+              where: { id: { in: memberUserIds } },
+              limit: 200, depth: 0, overrideAccess: true,
+            })
+            eligibleMemberIds = memberUsers.docs
+              .filter((u) => (u.personal_notif_prefs as Record<string, boolean | null> | null)?.digest !== false)
+              .map((u) => u.id)
+          }
+          const recipients = [
+            ...(restOwnerDigestAppOn && restOwnerId ? [restOwnerId] : []),
+            ...eligibleMemberIds,
+          ]
+          if (recipients.length > 0) {
+            await sendPushToUsers(
+              payload,
+              recipients,
+              {
+                title: `${isEvening ? 'Esti' : 'Reggeli'} összefoglaló · ${restaurant.name}`,
+                body: `${bookingCount} foglalás, ${guestCount} fő`,
+                url: '/restaurant/bookings',
+                tag: `digest-${restId}-${dateStr}-${digestType}`,
+              },
+            )
+          }
         } catch (pushErr) {
           console.error('[Cron] Restaurant digest push failed', pushErr)
         }
