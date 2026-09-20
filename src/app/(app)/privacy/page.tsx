@@ -4,6 +4,7 @@ import { LegalPage, LegalSection } from '@/components/landing/LegalPage'
 export const metadata: Metadata = {
   title: 'Adatkezelési tájékoztató',
   description: 'A davelopment booking adatkezelési tájékoztatója a GDPR rendelkezéseivel összhangban.',
+  robots: { index: false, follow: true },
 }
 
 export default function PrivacyPage() {

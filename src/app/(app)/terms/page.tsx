@@ -4,6 +4,7 @@ import { LegalPage, LegalSection } from '@/components/landing/LegalPage'
 export const metadata: Metadata = {
   title: 'Felhasználási feltételek',
   description: 'A davelopment booking időpontfoglaló szolgáltatás Általános Szerződési Feltételei.',
+  robots: { index: false, follow: true },
 }
 
 export default function TermsPage() {

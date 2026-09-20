@@ -4,6 +4,7 @@ import { LegalPage, LegalSection } from '@/components/landing/LegalPage'
 export const metadata: Metadata = {
   title: 'Sütikezelés',
   description: 'Tájékoztató a davelopment booking által használt sütikről (cookie-król).',
+  robots: { index: false, follow: true },
 }
 
 export default function CookiesPage() {
