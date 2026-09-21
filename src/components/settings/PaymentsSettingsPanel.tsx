@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, FileSignature } from 'lucide-react'
 import { monthlyEmailCapForTier, resolveTier } from '@/lib/tier'
-import { resolveAvailableLocales, LOCALE_LABELS, type Locale } from '@/lib/i18n'
+import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { Pricing } from '@/lib/pricing'
 import { Toggle } from './SettingsToggle'
+import { LocaleEditBar } from './LocaleEditBar'
+import { consentTemplate } from './contentTemplates'
 
 /**
  * "Fizetések" panel — vendég-előleg (Stripe Connect Express), ajándékutalvány, beleegyező
@@ -98,48 +100,37 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
   const [v, setV] = useState<VoucherSettingsData>(voucher)
   const [c, setC] = useState<ConsentSettingsData>(consent)
 
-  // Beleegyező nyilatkozat — fordítások. Önálló, azonnali akció (ugyanaz a minta, mint a
-  // Stripe-kártyánál), NEM a fő dirty-mentés-sávon megy, mert a többi kártyától eltérően
-  // per-nyelv menthető, HU-tól függetlenül.
+  // Beleegyező nyilatkozat — fordítások. A HU-tól eltérő nyelvekre a `?locale=` paraméterrel
+  // megy a mentés (külön API-hívás), DE ugyanabba a fő Mentés-gombba/dirty-állapotba tartozik,
+  // mint a többi kártya — nincs külön "Fordítás mentése" gomb, ld. lent a `dirty`/`save()`.
   const consentLocales = resolveAvailableLocales(supportedLocales).filter((l) => l !== 'hu')
   const [translateLocale, setTranslateLocale] = useState<Locale | null>(null)
   const [translateTitle, setTranslateTitle] = useState('')
   const [translateText, setTranslateText] = useState('')
+  // A legutóbb BETÖLTÖTT/MENTETT (még nem szerkesztett) fordítás-érték — ehhez képest dől el,
+  // van-e mentendő változás ezen a nyelven (ugyanaz a minta, mint a `deposit`/`voucher`/`consent` propnál).
+  const [translatePristine, setTranslatePristine] = useState({ title: '', text: '' })
   const [translateLoading, setTranslateLoading] = useState(false)
-  const [translateSaving, setTranslateSaving] = useState(false)
 
   const openTranslate = async (loc: Locale) => {
+    if (loc === 'hu') { setTranslateLocale(null); return }
     setTranslateLocale(loc)
     setTranslateLoading(true)
     try {
-      const res = await fetch(`${apiBase}?locale=${loc}`, { credentials: 'include' })
+      // `fallback-locale=null` nélkül a Payload a magyar szöveget adta vissza fallbackként egy
+      // még le nem fordított nyelvnél — emiatt tűnt úgy, hogy az angol (vagy bármelyik) fordítás
+      // "nem töltődik be": valójában a magyar tartalom jelent meg, nem az (üres) angol.
+      const res = await fetch(`${apiBase}?locale=${loc}&fallback-locale=null`, { credentials: 'include' })
       if (res.ok) {
         const json = await res.json()
-        setTranslateTitle(json?.consent_settings?.title ?? '')
-        setTranslateText(json?.consent_settings?.template_text ?? '')
+        const title = json?.consent_settings?.title ?? ''
+        const text = json?.consent_settings?.template_text ?? ''
+        setTranslateTitle(title)
+        setTranslateText(text)
+        setTranslatePristine({ title, text })
       }
     } finally {
       setTranslateLoading(false)
-    }
-  }
-
-  const saveTranslate = async () => {
-    if (!translateLocale) return
-    setTranslateSaving(true)
-    try {
-      const res = await fetch(`${apiBase}?locale=${translateLocale}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ consent_settings: { title: translateTitle || undefined, template_text: translateText || undefined } }),
-      })
-      if (!res.ok) throw new Error()
-      toast.success('Fordítás mentve')
-      setTranslateLocale(null)
-    } catch {
-      toast.error('Mentés sikertelen')
-    } finally {
-      setTranslateSaving(false)
     }
   }
   const [invoiceProvider, setInvoiceProvider] = useState(invoice.provider)
@@ -153,7 +144,8 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
   const voucherDirty = show('voucher') && JSON.stringify(v) !== JSON.stringify(voucher)
   const consentDirty = show('consent') && JSON.stringify(c) !== JSON.stringify(consent)
   const invoiceDirty = show('invoicing') && (invoiceProvider !== invoice.provider || szamlazzKeyInput.trim() !== '' || billingoKeyInput.trim() !== '')
-  const dirty = depositDirty || voucherDirty || consentDirty || invoiceDirty
+  const translateDirty = show('consent') && translateLocale !== null && (translateTitle !== translatePristine.title || translateText !== translatePristine.text)
+  const dirty = depositDirty || voucherDirty || consentDirty || invoiceDirty || translateDirty
 
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -194,23 +186,37 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
           if (billingoKeyInput.trim()) invoice_settings.billingo_api_key_enc = billingoKeyInput.trim()
           body.invoice_settings = invoice_settings
         }
-        if (Object.keys(body).length === 0) return true
         try {
-          const res = await fetch(apiBase, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify(body),
-          })
-          if (!res.ok) {
-            // A szerver konkrét indoklást ad vissza pl. az előleg-bekapcsolás feltétel-kapujánál
-            // (nincs kitöltve a foglalási feltétel) — ezt mutassuk, ne az általános hibaszöveget.
-            const json = await res.json().catch(() => null)
-            const message = typeof json?.error === 'string' ? json.error : undefined
-            // A hiányzó Stripe-onboarding miatti elutasításnál a toast mellett a Stripe-kártyát
-            // is megrezegtetjük/pirosra emeljük, hogy egyértelmű legyen, hol kell javítani.
-            if (message?.includes('kösd össze a fiókodat a Stripe-pal')) flagStripeCard()
-            throw new Error(message)
+          // A HU-mentés (fő body) és a fordítás-mentés (?locale=) KÉT külön API-hívás (a Payload
+          // localizált mezői nyelvenként külön PATCH-csel írhatók), de EGY Mentés-gombhoz,
+          // egy dirty-állapothoz tartoznak — nincs külön "Fordítás mentése" akció/gomb.
+          if (Object.keys(body).length > 0) {
+            const res = await fetch(apiBase, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify(body),
+            })
+            if (!res.ok) {
+              // A szerver konkrét indoklást ad vissza pl. az előleg-bekapcsolás feltétel-kapujánál
+              // (nincs kitöltve a foglalási feltétel) — ezt mutassuk, ne az általános hibaszöveget.
+              const json = await res.json().catch(() => null)
+              const message = typeof json?.error === 'string' ? json.error : undefined
+              // A hiányzó Stripe-onboarding miatti elutasításnál a toast mellett a Stripe-kártyát
+              // is megrezegtetjük/pirosra emeljük, hogy egyértelmű legyen, hol kell javítani.
+              if (message?.includes('kösd össze a fiókodat a Stripe-pal')) flagStripeCard()
+              throw new Error(message)
+            }
+          }
+          if (translateDirty && translateLocale) {
+            const res = await fetch(`${apiBase}?locale=${translateLocale}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ consent_settings: { title: translateTitle || undefined, template_text: translateText || undefined } }),
+            })
+            if (!res.ok) throw new Error()
+            setTranslatePristine({ title: translateTitle, text: translateText })
           }
           setSzamlazzKeyInput('')
           setBillingoKeyInput('')
@@ -227,10 +233,12 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
         setInvoiceProvider(invoice.provider)
         setSzamlazzKeyInput('')
         setBillingoKeyInput('')
+        setTranslateTitle(translatePristine.title)
+        setTranslateText(translatePristine.text)
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d, v, c, invoiceProvider, szamlazzKeyInput, billingoKeyInput, deposit, voucher, consent, invoice])
+  }, [d, v, c, invoiceProvider, szamlazzKeyInput, billingoKeyInput, deposit, voucher, consent, invoice, translateLocale, translateTitle, translateText, translatePristine, translateDirty])
 
   const startOnboarding = async () => {
     setConnecting(true)
@@ -474,122 +482,91 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
       </div>
       )}
 
-      {/* Beleegyező nyilatkozat */}
+      {/* Beleegyező nyilatkozat — mindig nyitott kártya (nincs nyit/zár gomb), EGY mezőkészlet
+          van, amit a nyelvváltó sáv vezérel (nem külön HU + külön fordítás-blokk). */}
       {show('consent') && (
-      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
-              <FileSignature className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
-            </div>
-            <div>
-              <div className="text-[15px] font-medium text-ink">Beleegyező nyilatkozat</div>
-              <div className="text-[13px] text-ink-soft">A vendégnek el kell fogadnia a foglalás véglegesítéséhez — vagy helyszínen, check-inkor.</div>
-            </div>
+      <div id="consent" className="rounded-[26px] dav-card-glass overflow-hidden font-onest scroll-mt-6">
+        <div className="flex items-center gap-3 border-b border-line px-5 py-4 sm:px-6">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
+            <FileSignature className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
           </div>
-          <Toggle checked={c.enabled} onChange={() => setC((s) => ({ ...s, enabled: !s.enabled }))} />
+          <div className="min-w-0 flex-1">
+            <div className="text-[15px] font-semibold text-ink">Beleegyező nyilatkozat</div>
+            <div className="text-[13px] text-ink-soft">A vendégnek el kell fogadnia a foglalás véglegesítéséhez — vagy helyszínen, check-inkor.</div>
+          </div>
+          <Toggle
+            checked={c.enabled}
+            onChange={() => setC((s) => ({ ...s, enabled: !s.enabled }))}
+          />
         </div>
 
-        {c.enabled && (
-          <div className="space-y-3 border-t border-dashed border-line pt-4">
-            <div className="space-y-1.5">
-              <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Nyilatkozat címe</label>
-              <input
-                type="text"
-                name="consent-title"
-                autoComplete="off"
-                value={c.title}
-                onChange={(e) => setC((s) => ({ ...s, title: e.target.value }))}
-                placeholder="Beleegyező nyilatkozat"
-                className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-2.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Nyilatkozat szövege</label>
-              {!c.templateText.trim() && (
-                <button
-                  type="button"
-                  onClick={() => setC((s) => ({
-                    ...s,
-                    templateText:
-                      'Kijelentem, hogy az általam igénybe vett kezeléssel/szolgáltatással kapcsolatos kockázatokról tájékoztatást kaptam, ' +
-                      'egészségügyi állapotomról (allergia, gyógyszerérzékenység, bőrprobléma stb.) a valóságnak megfelelően nyilatkoztam, ' +
-                      'és a szolgáltatás elvégzéséhez hozzájárulok.',
-                  }))}
-                  className="text-[12px] font-semibold text-ink-soft underline underline-offset-2 hover:text-ink"
-                >
-                  Sablon betöltése
-                </button>
-              )}
-            </div>
-            <textarea
-              rows={5}
-              value={c.templateText}
-              onChange={(e) => setC((s) => ({ ...s, templateText: e.target.value }))}
-              placeholder="Ezt a szöveget látja majd a vendég elfogadásra…"
-              className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-3 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-            />
-            <p className="text-[12px] text-ink-soft2">
-              A vendég a foglalás során fogadja el (kapcsolóval), vagy a személyzet a helyszínen, tableten íratja alá vele érkezéskor — mindkét
-              elfogadás dátummal, IP-vel és a pontos szöveg-verzióval mentődik a foglaláshoz.
-            </p>
-
-            {consentLocales.length > 0 && (
-              <div className="space-y-2.5 border-t border-dashed border-line pt-4">
-                <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">
-                  Fordítások <span className="font-normal normal-case text-ink-soft2">(a foglaló ennyi nyelven is fut)</span>
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {consentLocales.map((loc) => (
-                    <button
-                      key={loc}
-                      type="button"
-                      onClick={() => openTranslate(loc)}
-                      className={`rounded-[10px] px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
-                        translateLocale === loc ? 'bg-ink-dark text-white' : 'bg-paper text-ink-soft hover:text-ink'
-                      }`}
-                    >
-                      {LOCALE_LABELS[loc]}
-                    </button>
-                  ))}
-                </div>
-                {translateLocale && (
-                  <div className="space-y-3 rounded-[14px] bg-paper p-3.5">
-                    {translateLoading ? (
-                      <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin text-ink-soft" /></div>
-                    ) : (
-                      <>
+        <div className="space-y-4 px-5 py-5 sm:px-6">
+            {c.enabled && (() => {
+              const isTranslating = translateLocale !== null
+              const activeTitle = isTranslating ? translateTitle : c.title
+              const activeText = isTranslating ? translateText : c.templateText
+              const setActiveTitle = (val: string) => (isTranslating ? setTranslateTitle(val) : setC((s) => ({ ...s, title: val })))
+              const setActiveText = (val: string) => (isTranslating ? setTranslateText(val) : setC((s) => ({ ...s, templateText: val })))
+              return (
+                <div className="space-y-3">
+                  {consentLocales.length > 0 && (
+                    <LocaleEditBar
+                      available={['hu', ...consentLocales]}
+                      active={translateLocale ?? 'hu'}
+                      onSelect={openTranslate}
+                      loading={translateLoading}
+                    />
+                  )}
+                  {translateLoading ? (
+                    <div className="flex items-center justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-ink-soft" /></div>
+                  ) : (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Nyilatkozat címe</label>
                         <input
                           type="text"
-                          value={translateTitle}
-                          onChange={(e) => setTranslateTitle(e.target.value)}
-                          placeholder={c.title || 'Beleegyező nyilatkozat'}
+                          name="consent-title"
+                          autoComplete="off"
+                          value={activeTitle}
+                          onChange={(e) => setActiveTitle(e.target.value)}
+                          placeholder={isTranslating ? (c.title || 'Beleegyező nyilatkozat') : 'Beleegyező nyilatkozat'}
                           className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-2.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
                         />
-                        <textarea
-                          rows={5}
-                          value={translateText}
-                          onChange={(e) => setTranslateText(e.target.value)}
-                          placeholder={c.templateText || 'Fordítás…'}
-                          className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-3 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-                        />
-                        <button
-                          type="button"
-                          onClick={saveTranslate}
-                          disabled={translateSaving}
-                          className="flex h-10 w-full items-center justify-center gap-2 rounded-[12px] bg-ink-dark text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
-                        >
-                          {translateSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                          Fordítás mentése
-                        </button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Nyilatkozat szövege</label>
+                        {!activeText.trim() && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const tpl = consentTemplate(translateLocale ?? 'hu')
+                              setActiveTitle(tpl.title)
+                              setActiveText(tpl.text)
+                            }}
+                            className="text-[12px] font-semibold text-ink-soft underline underline-offset-2 hover:text-ink"
+                          >
+                            Sablon betöltése
+                          </button>
+                        )}
+                      </div>
+                      <textarea
+                        rows={5}
+                        value={activeText}
+                        onChange={(e) => setActiveText(e.target.value)}
+                        placeholder={isTranslating ? (c.templateText || 'Fordítás…') : 'Ezt a szöveget látja majd a vendég elfogadásra…'}
+                        className="w-full rounded-[12px] border border-line-strong bg-white px-3.5 py-3 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+                      />
+                      <p className="text-[12px] text-ink-soft2">
+                        {isTranslating
+                          ? 'Ez a fordítás is a lenti Mentés gombbal kerül elmentésre, nincs külön mentés.'
+                          : 'A vendég a foglalás során fogadja el (kapcsolóval), vagy a személyzet a helyszínen, tableten íratja alá vele érkezéskor — mindkét elfogadás dátummal, IP-vel és a pontos szöveg-verzióval mentődik a foglaláshoz.'}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )
+            })()}
+        </div>
       </div>
       )}
 

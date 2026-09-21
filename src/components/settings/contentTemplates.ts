@@ -107,3 +107,36 @@ export function termsTemplate(locale: Locale): TermsSection[] {
 export function goodToKnowTemplate(locale: Locale): GoodToKnowItem[] {
   return (GOOD_TO_KNOW[locale] ?? GOOD_TO_KNOW.hu).map((s) => ({ ...s }))
 }
+
+// Beleegyező nyilatkozat (salon-only, pl. szépészeti/egészségügyi kockázat-tájékoztató) —
+// ugyanaz a váz-jelleg, mint a fenti sablonoknál: kiindulópont, nem jogi tanácsadás.
+const CONSENT: Record<Locale, { title: string; text: string }> = {
+  hu: {
+    title: 'Beleegyező nyilatkozat',
+    text: 'Kijelentem, hogy az általam igénybe vett kezeléssel/szolgáltatással kapcsolatos kockázatokról tájékoztatást kaptam, egészségügyi állapotomról (allergia, gyógyszerérzékenység, bőrprobléma stb.) a valóságnak megfelelően nyilatkoztam, és a szolgáltatás elvégzéséhez hozzájárulok.',
+  },
+  en: {
+    title: 'Consent declaration',
+    text: 'I declare that I have been informed about the risks associated with the treatment/service I am receiving, that I have truthfully disclosed my health condition (allergies, medication sensitivities, skin conditions, etc.), and that I consent to the service being performed.',
+  },
+  de: {
+    title: 'Einverständniserklärung',
+    text: 'Ich erkläre, dass ich über die mit der von mir in Anspruch genommenen Behandlung/Dienstleistung verbundenen Risiken informiert wurde, dass ich meinen Gesundheitszustand (Allergien, Medikamentenunverträglichkeiten, Hautprobleme usw.) wahrheitsgemäß angegeben habe und dass ich der Durchführung der Dienstleistung zustimme.',
+  },
+  es: {
+    title: 'Declaración de consentimiento',
+    text: 'Declaro que he sido informado/a de los riesgos relacionados con el tratamiento/servicio que voy a recibir, que he declarado con veracidad mi estado de salud (alergias, sensibilidad a medicamentos, problemas de piel, etc.) y que doy mi consentimiento para la realización del servicio.',
+  },
+  it: {
+    title: 'Dichiarazione di consenso',
+    text: 'Dichiaro di essere stato/a informato/a sui rischi legati al trattamento/servizio di cui usufruisco, di aver dichiarato in modo veritiero il mio stato di salute (allergie, sensibilità ai farmaci, problemi cutanei, ecc.) e di acconsentire all\'esecuzione del servizio.',
+  },
+  fr: {
+    title: 'Déclaration de consentement',
+    text: 'Je déclare avoir été informé(e) des risques liés au traitement/service dont je bénéficie, avoir déclaré fidèlement mon état de santé (allergies, sensibilités médicamenteuses, problèmes cutanés, etc.) et consentir à la réalisation du service.',
+  },
+}
+
+export function consentTemplate(locale: Locale): { title: string; text: string } {
+  return { ...(CONSENT[locale] ?? CONSENT.hu) }
+}

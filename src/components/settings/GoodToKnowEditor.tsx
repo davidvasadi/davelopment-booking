@@ -44,14 +44,20 @@ export function GoodToKnowEditor({
   // React-et remountolásra kényszerítette → az input elvesztette a fókuszt minden karakternél.
   const keyFor = (_s: GoodToKnowItem, i: number) => i
 
-  if (value.length === 0) {
+  // Üresnek számít a 0-elemű tömb, VAGY ha van pont, de mindegyik cím+szöveg üres — ez utóbbi a
+  // más nyelvre váltás esete (a pontok SZÁMA nem nyelvenkénti, csak a tartalma; egy még le nem
+  // fordított nyelven ugyanannyi, de üres pontot kapunk vissza a HU-ból, nem 0-elemű tömböt).
+  // Ilyenkor a (fordítás nélküli, üres) pontokat NEM mutatjuk, csak a tiszta sablon-ajánlatot.
+  const isBlank = value.length === 0 || value.every((s) => !s.title.trim() && !s.body.trim())
+
+  if (isBlank) {
     return (
       <div className="flex flex-col items-center gap-3 rounded-[18px] border border-dashed border-line-strong bg-white px-6 py-10 text-center">
         <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-ink-dark text-gold">
           <Info className="h-5 w-5" strokeWidth={1.7} />
         </span>
         <div>
-          <p className="text-sm font-semibold text-ink">Még nincs „Jó tudni" pont</p>
+          <p className="text-sm font-semibold text-ink">{value.length === 0 ? 'Még nincs „Jó tudni" pont' : 'Erre a nyelvre még nincs lefordítva'}</p>
           <p className="mt-0.5 text-xs text-ink-soft">Pl. parkolás, módosítás, kisállat-barát…</p>
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-2">

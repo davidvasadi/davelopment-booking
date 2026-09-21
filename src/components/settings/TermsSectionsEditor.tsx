@@ -82,6 +82,9 @@ export function TermsSectionsEditor({
     return k
   }
 
+  // Üresnek számít a 0-elemű tömb, VAGY ha van elem, de mindegyik cím+szöveg üres (lásd lent).
+  const isBlank = value.length === 0 || value.every((s) => !s.title.trim() && !s.body.trim())
+
   return (
     <div className="space-y-3">
       <div className="flex items-start gap-2 rounded-[12px] bg-warn-bg border border-warn/25 px-3 py-2.5 text-xs text-warn">
@@ -93,9 +96,14 @@ export function TermsSectionsEditor({
         </span>
       </div>
 
-      {value.length === 0 && (
+      {/* "Üresnek" számít a 0-elemű tömb ÉS az az eset is, amikor MINDEN sor cím/szövege üres —
+          ez utóbbi a más nyelvre váltás: a szakaszok SZÁMA nem nyelvenkénti, csak a tartalma,
+          ezért egy még le nem fordított nyelven ugyanannyi, de üres sort kapunk vissza a HU-ból,
+          nem 0-elemű tömböt. Ilyenkor a (fordítás nélküli, üres) sorokat NEM mutatjuk — csak a
+          tiszta sablon-ajánlatot, különben egy kupac értelmetlen üres mező jelenne meg. */}
+      {isBlank ? (
         <div className="rounded-[18px] border border-dashed border-line-strong bg-white p-6 text-center">
-          <p className="mb-3 text-sm text-ink-soft">Még nincs feltétel hozzáadva.</p>
+          <p className="mb-3 text-sm text-ink-soft">{value.length === 0 ? 'Még nincs feltétel hozzáadva.' : 'Erre a nyelvre még nincs lefordítva.'}</p>
           <button
             type="button"
             onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(termsTemplate(locale)))}
@@ -105,21 +113,21 @@ export function TermsSectionsEditor({
             Sablon betöltése
           </button>
         </div>
+      ) : (
+        <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
+          {value.map((s, i) => (
+            <SectionRow
+              key={keyFor(s)}
+              section={s}
+              index={i}
+              onChange={(patch) => update(i, patch)}
+              onRemove={() => remove(i)}
+            />
+          ))}
+        </Reorder.Group>
       )}
 
-      <Reorder.Group as="div" axis="y" values={value} onReorder={onChange} className="space-y-3">
-        {value.map((s, i) => (
-          <SectionRow
-            key={keyFor(s)}
-            section={s}
-            index={i}
-            onChange={(patch) => update(i, patch)}
-            onRemove={() => remove(i)}
-          />
-        ))}
-      </Reorder.Group>
-
-      {value.length > 0 && (
+      {!isBlank && (
         <button
           type="button"
           onClick={add}
