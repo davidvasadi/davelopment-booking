@@ -62,11 +62,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const loaded = await loadManageableShift(id, user.id)
   if ('error' in loaded) return NextResponse.json({ error: loaded.error }, { status: loaded.status })
 
-  // Önkiszolgáló (nincs schedule.manage, csak a saját napja): KIZÁRÓLAG a szünet módosítható.
+  // Önkiszolgáló (nincs schedule.manage, csak a saját napja): KIZÁRÓLAG a szünet(ek) módosíthatók.
   const data: Record<string, unknown> = loaded.isSelfOnly
     ? {
-        ...('break_start' in body ? { break_start: body.break_start ?? null } : {}),
-        ...('break_end' in body ? { break_end: body.break_end ?? null } : {}),
+        ...('breaks' in body ? { breaks: Array.isArray(body.breaks) ? body.breaks : [] } : {}),
       }
     : {
         ...(body.date != null ? { date: /^\d{4}-\d{2}-\d{2}$/.test(String(body.date)) ? `${body.date}T12:00:00.000Z` : body.date } : {}),
@@ -74,8 +73,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...('start_time' in body ? { start_time: body.start_time ?? null } : {}),
         ...('end_time' in body ? { end_time: body.end_time ?? null } : {}),
         ...('hours' in body ? { hours: body.hours ?? null } : {}),
-        ...('break_start' in body ? { break_start: body.break_start ?? null } : {}),
-        ...('break_end' in body ? { break_end: body.break_end ?? null } : {}),
+        ...('breaks' in body ? { breaks: Array.isArray(body.breaks) ? body.breaks : [] } : {}),
         ...('note' in body ? { note: body.note ?? null } : {}),
         ...('left_early_at' in body ? { left_early_at: body.left_early_at ?? null } : {}),
         ...('left_early_reason' in body ? { left_early_reason: body.left_early_reason ?? null } : {}),

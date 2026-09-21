@@ -134,9 +134,10 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   // pontosan ugyanúgy jelenik meg a vendégnek, mint egy teljesen betelt nap (nincs külön UI-t
   // kellett hozzá építeni). Korábban a Shifts (HR-beosztás) és ez a foglalási számítás teljesen
   // független volt egymástól — beteg/szabadságos munkatársnál is lehetett foglalni.
-  // 3c. Az aznapi Shift-rekord szünete (break_start/break_end) — mintha foglalt lenne, semmilyen
-  // külön UI-jelzés nincs a vendégnek, csak az érintett időpontok tűnnek el a listából.
-  let dayBreak: { start: number; end: number } | null = null
+  // 3c. Az aznapi Shift-rekord szünete(i) — mintha foglalt lenne, semmilyen külön UI-jelzés
+  // nincs a vendégnek, csak az érintett időpontok tűnnek el a listából. Egy nap TÖBB szünetet
+  // is tarthat (pl. ebéd + délutáni pihenő) — mindegyiket blokkoljuk.
+  const dayBreaks: { start: number; end: number }[] = []
   if (staffId) {
     const leaveShift = await payload.find({
       collection: 'shifts',
@@ -152,8 +153,8 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
     })
     const todayShift = leaveShift.docs[0]
     if (todayShift && ['sick', 'vacation', 'leave'].includes(todayShift.type)) return []
-    if (todayShift?.break_start && todayShift?.break_end) {
-      dayBreak = { start: hhmmToMinutes(todayShift.break_start), end: hhmmToMinutes(todayShift.break_end) }
+    for (const w of todayShift?.breaks ?? []) {
+      if (w.start_time && w.end_time) dayBreaks.push({ start: hhmmToMinutes(w.start_time), end: hhmmToMinutes(w.end_time) })
     }
   }
 
@@ -192,7 +193,7 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
     start: hhmmToMinutes(b.start_time),
     end: hhmmToMinutes(b.end_time) + bufferMinutes,
   }))
-  if (dayBreak) occupied.push(dayBreak)
+  occupied.push(...dayBreaks)
 
   const todayStr = new Date().toISOString().split('T')[0]
   const nowMinutes = date === todayStr

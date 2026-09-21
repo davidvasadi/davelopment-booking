@@ -144,16 +144,13 @@ export const Shifts: CollectionConfig = {
       label: 'Óraszám',
     },
     {
-      name: 'break_start',
-      type: 'text',
-      label: 'Szünet kezdete (ÓÓ:PP)',
-      admin: { placeholder: '12:00', description: 'Ezen a napon nem foglalható; a foglaló oldalon nem jelenik meg külön jelzésként.' },
-    },
-    {
-      name: 'break_end',
-      type: 'text',
-      label: 'Szünet vége (ÓÓ:PP)',
-      admin: { placeholder: '13:00' },
+      // Egy nap TÖBB szünetet is tarthat (pl. ebéd + délutáni pihenő) — ezért lista, nem 2 sima
+      // mező. A korábbi egyszeres `break_start`/`break_end` oszlopok az adatbázisban megmaradtak
+      // (nem törölve, expand-contract minta), a meglévő adat egy 1-elemű tömbbé lett migrálva.
+      name: 'breaks',
+      type: 'json',
+      label: 'Szünetek',
+      admin: { description: 'Ezeken az időszakokon nem foglalható; a foglaló oldalon nem jelenik meg külön jelzésként.' },
     },
     {
       name: 'note',

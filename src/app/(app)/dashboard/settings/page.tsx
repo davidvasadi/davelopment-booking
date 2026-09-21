@@ -201,7 +201,7 @@ export default async function SettingsPage() {
               roles={businesses.map((b) => ({ type: b.type, name: b.name, roleName: b.roleName, isOwner: b.role === 'owner' }))}
             />
             {myStaff && (
-              <DefaultBreakCard staffId={String(myStaff.id)} defaultBreakStart={myStaff.default_break_start ?? null} defaultBreakEnd={myStaff.default_break_end ?? null} />
+              <DefaultBreakCard staffId={String(myStaff.id)} defaultBreaks={myStaff.default_breaks ?? null} />
             )}
           </div>
         }

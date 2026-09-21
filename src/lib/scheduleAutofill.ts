@@ -1,4 +1,5 @@
 import type { BasePayload } from 'payload'
+import type { BreakWindow } from '@/payload/payload-types'
 import { resolveStaffWorkHours } from './availability'
 
 /** Sentinel a `note` mezőben — ígyKÜLÖNBÖZTETI meg az automatikusan generált "Műszak" rekordokat
@@ -7,17 +8,19 @@ import { resolveStaffWorkHours } from './availability'
  *  váltott, saját megjegyzést írt, törölte), a rekord onnantól "kézi", a cron többé nem nyúl hozzá. */
 const AUTO_NOTE = '__auto__'
 
-/** A munkatárs alap napi szünete, a műszak idejére szorítva — ha a szünet kilógna a
- *  (megváltozott) munkaidőből, inkább nincs szünet aznap, mint hibás időpont. */
-function resolveBreak(
-  defaultStart: string | null | undefined,
-  defaultEnd: string | null | undefined,
+const breaksEqual = (a: BreakWindow[], b: BreakWindow[]): boolean =>
+  a.length === b.length && a.every((w, i) => w.start_time === b[i]?.start_time && w.end_time === b[i]?.end_time)
+
+/** A munkatárs alap napi szünetei, a műszak idejére szorítva — ha egy szünet kilógna a
+ *  (megváltozott) munkaidőből, inkább nincs az a szünet aznap, mint hibás időpont. Egy nap
+ *  TÖBB szünetet is tarthat (pl. ebéd + délutáni pihenő). */
+function resolveBreaks(
+  defaults: BreakWindow[] | null | undefined,
   shiftStart: string,
   shiftEnd: string,
-): { start: string; end: string } | null {
-  if (!defaultStart || !defaultEnd) return null
-  if (defaultStart < shiftStart || defaultEnd > shiftEnd || defaultStart >= defaultEnd) return null
-  return { start: defaultStart, end: defaultEnd }
+): BreakWindow[] {
+  if (!defaults?.length) return []
+  return defaults.filter((w) => w.start_time && w.end_time && w.start_time >= shiftStart && w.end_time <= shiftEnd && w.start_time < w.end_time)
 }
 
 /**
@@ -88,14 +91,14 @@ export async function autofillSalonSchedule(
         continue
       }
 
-      const brk = resolveBreak(st.default_break_start, st.default_break_end, hours.start, hours.end)
+      const brk = resolveBreaks(st.default_breaks, hours.start, hours.end)
 
       if (existing) {
-        if (existing.start_time !== hours.start || existing.end_time !== hours.end || (existing.break_start ?? null) !== (brk?.start ?? null) || (existing.break_end ?? null) !== (brk?.end ?? null)) {
+        if (existing.start_time !== hours.start || existing.end_time !== hours.end || !breaksEqual((existing.breaks as BreakWindow[] | null) ?? [], brk)) {
           await payload.update({
             collection: 'shifts',
             id: existing.id,
-            data: { start_time: hours.start, end_time: hours.end, break_start: brk?.start ?? null, break_end: brk?.end ?? null } as never,
+            data: { start_time: hours.start, end_time: hours.end, breaks: brk } as never,
             overrideAccess: true,
           })
           summary.updated++
@@ -112,8 +115,7 @@ export async function autofillSalonSchedule(
           type: 'shift',
           start_time: hours.start,
           end_time: hours.end,
-          break_start: brk?.start ?? null,
-          break_end: brk?.end ?? null,
+          breaks: brk,
           note: AUTO_NOTE,
         } as never,
         overrideAccess: true,

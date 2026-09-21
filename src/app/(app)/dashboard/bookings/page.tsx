@@ -187,15 +187,18 @@ export default async function BookingsPage({
     const services = servicesRes.docs as Service[]
     const bookings = bookingsRes.docs as Booking[]
     const rule = availRes.docs[0] as Availability | undefined
-    // staffId → napi szünet (Shifts.break_start/end) — vizuálisan a "zárva" stílussal jelenik meg.
+    // staffId → napi szünet (Shifts.breaks) — vizuálisan a "zárva" stílussal jelenik meg. Egy nap
+    // TÖBB szünetet is tarthat, de ez a timeline-nézet (egyelőre) csak az ELSŐT jeleníti meg —
+    // a tényleges foglalás-tiltás (lib/availability.ts) mindegyiket helyesen figyelembe veszi.
     const staffBreaks: Record<string, { start: string; end: string }> = {}
     // staffId → aznap szabadnapos/szabadságon/beteg (Shifts.type) — a teljes oszlopa ez alapján
     // jelenik meg, nem az üres/beosztatlan hatch-mintával.
     const staffOffType: Record<string, 'leave' | 'sick' | 'vacation'> = {}
-    for (const sh of shiftsRes.docs as { staff?: unknown; type?: string; start_time?: string | null; end_time?: string | null; break_start?: string | null; break_end?: string | null }[]) {
+    for (const sh of shiftsRes.docs as { staff?: unknown; type?: string; start_time?: string | null; end_time?: string | null; breaks?: { start_time: string; end_time: string }[] | null }[]) {
       const sid = sh.staff != null ? String(typeof sh.staff === 'object' ? (sh.staff as { id: string | number }).id : sh.staff) : null
       if (!sid) continue
-      if (sh.break_start && sh.break_end) staffBreaks[sid] = { start: sh.break_start, end: sh.break_end }
+      const firstBreak = sh.breaks?.[0]
+      if (firstBreak) staffBreaks[sid] = { start: firstBreak.start_time, end: firstBreak.end_time }
       if (sh.type === 'leave' || sh.type === 'sick' || sh.type === 'vacation') staffOffType[sid] = sh.type
     }
 

@@ -126,8 +126,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const locale = request.nextUrl.searchParams.get('locale') || undefined
   const data: Record<string, unknown> = loaded.isSelfOnly
     ? {
-        ...('default_break_start' in body ? { default_break_start: body.default_break_start ?? null } : {}),
-        ...('default_break_end' in body ? { default_break_end: body.default_break_end ?? null } : {}),
+        ...('default_breaks' in body ? { default_breaks: Array.isArray(body.default_breaks) ? body.default_breaks : [] } : {}),
       }
     : {
         ...body,
@@ -165,7 +164,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     }
     // Ha az alap napi szünet változott, azonnal ráírjuk a Naptárra (nem várunk az éjszakai
     // cronig) — ugyanaz a mintázat, mint a szalon-beállítás/elérhetőség-kivétel mentésénél.
-    if ('default_break_start' in body || 'default_break_end' in body) {
+    if ('default_breaks' in body) {
       try {
         const salon = await loaded.payload.findByID({ collection: 'salons', id: loaded.salonId, depth: 0, overrideAccess: true })
         if (salon) await autofillSalonSchedule(loaded.payload, String(loaded.salonId), salon.booking_window_days ?? 60)

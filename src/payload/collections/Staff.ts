@@ -131,16 +131,14 @@ export const Staff: CollectionConfig = {
       label: 'Heti óraszám',
     },
     {
-      name: 'default_break_start',
-      type: 'text',
-      label: 'Napi szünet kezdete (ÓÓ:PP)',
-      admin: { placeholder: '12:00', description: 'Alap szünetidő — a beosztás-automatizáló minden napra ezt írja rá, egyedi napokon felülírható.' },
-    },
-    {
-      name: 'default_break_end',
-      type: 'text',
-      label: 'Napi szünet vége (ÓÓ:PP)',
-      admin: { placeholder: '13:00' },
+      // Több alap-szünet is megadható (pl. ebéd + délutáni pihenő) — a beosztás-automatizáló
+      // minden napra ráírja mindet, egyedi napokon (vagy tartományon/"minden napra" felülíráson
+      // keresztül) módosítható. A korábbi egyszeres `default_break_start`/`_end` oszlopok az
+      // adatbázisban megmaradtak (expand-contract minta), a meglévő adat 1-elemű tömbbé migrálva.
+      name: 'default_breaks',
+      type: 'json',
+      label: 'Napi szünetek (alap)',
+      admin: { description: 'Alap szünetidők — a beosztás-automatizáló minden napra ezeket írja rá, egyedi napokon felülírhatók.' },
     },
     {
       name: 'phone',

@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, animate, type Variants } from 'framer-motion'
-import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock, CalendarDays, Loader2, UserRound } from 'lucide-react'
+import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock, CalendarDays, Loader2, UserRound, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import type { BreakWindow } from '@/payload/payload-types'
 import { popItem } from '@/lib/motion'
 import { Switch } from '@/components/ui/toggle-switch'
 import { TimeSelect } from '@/components/ui/time-select'
@@ -605,11 +606,12 @@ const DAY_STYLE: Record<string, { bg: string; color: string }> = {
 }
 // Elérhetőség-KIVÉTEL napokra (nem shift-alapú) — a napi pöttyözés helyett saját cella-szín, hogy
 // egy pillantásra látszódjon: "Szabadnap" = a szalon-alap felülírva "nem dolgozik"-ra (nincs is
-// hozzá Shift-rekord, ezért ugyanaz a halvány szín, mint az üres/beosztatlan napé), "Egyedi" =
-// a szalon-alaptól eltérő (pl. rövidebb) munkaidő aznap, de MÉG dolgozik.
+// hozzá Shift-rekord, ezért ugyanaz a halvány szín, mint az üres/beosztatlan napé). Az eltérő
+// (pl. rövidebb) munkaidejű, de MÉG dolgozós kivétel-napok szándékosan a sima "Ledolgozott"
+// színt kapják (nincs külön "Egyedi" jelölés) — a naptár csak azt mutatja, dolgozik-e a nap,
+// a pontos időt a napra kattintva látod.
 const EMPTY_STYLE = { bg: '#F5F3EC', color: '#B7B2A4' }
 const OFF_EXCEPTION_STYLE = EMPTY_STYLE
-const CUSTOM_EXCEPTION_STYLE = { bg: '#DCE7F0', color: '#3D6B8C' }
 type AvailRec = { id?: string; is_available: boolean; start_time: string; end_time: string }
 const CAL_DOW: Record<number, string> = { 0: 'sunday', 1: 'monday', 2: 'tuesday', 3: 'wednesday', 4: 'thursday', 5: 'friday', 6: 'saturday' }
 
@@ -649,13 +651,14 @@ function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { cale
           const t = calendar[dateStr]
           const exc = exceptions?.[dateStr]
           // Sorrend: beteg/szabadság a legspecifikusabb, mindig felülír. utána jön a kivétel
-          // (Szabadnap/Egyedi) — ez akkor is számít, ha a napnak MÉG VAN "shift" Shift-rekordja
-          // (hiszen az Egyedi napon is dolgozik, csak eltérő idővel), ezért a `t==='shift'`-nek
-          // NEM szabad megelőznie a kivétel-ellenőrzést.
+          // (Szabadnap) — ez akkor is számít, ha a napnak MÉG VAN "shift" Shift-rekordja (hiszen
+          // egy eltérő-idejű kivétel-napon is dolgozik, csak más munkaidővel), ezért a
+          // `t==='shift'`-nek NEM szabad megelőznie a kivétel-ellenőrzést. Dolgozós kivétel-napok
+          // szándékosan a sima "Ledolgozott" színt kapják, nincs külön "Egyedi" jelölés.
           const st = (t === 'sick' || t === 'vacation' || t === 'leave')
             ? DAY_STYLE[t]
             : exc
-              ? (exc.is_available ? CUSTOM_EXCEPTION_STYLE : OFF_EXCEPTION_STYLE)
+              ? (exc.is_available ? DAY_STYLE.shift : OFF_EXCEPTION_STYLE)
               : t === 'shift' ? DAY_STYLE.shift : EMPTY_STYLE
           const isSelected = selectedDay === dateStr
           const isClickable = !!onDaySelect
@@ -679,7 +682,6 @@ function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { cale
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: '#D9EAD3' }} />Szabadság</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: '#F3D9D6' }} />Beteg</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px] border border-line" style={{ background: OFF_EXCEPTION_STYLE.bg }} />Szabadnap</span>
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-[4px]" style={{ background: CUSTOM_EXCEPTION_STYLE.bg }} />Egyedi</span>
       </div>
     </div>
   )
@@ -727,10 +729,28 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   const [calSalonDefaults, setCalSalonDefaults] = useState<Record<string, AvailRec>>({})
   const [calEditState, setCalEditState] = useState<AvailRec | null>(null)
   const [calSaving, setCalSaving] = useState(false)
-  // Napi szünet — a Shifts.break_start/break_end mezőt írja/olvassa (UGYANAZ az adat, mint a
-  // Naptár DayEditorjában), hogy a két felület mindig szinkronban maradjon.
+  // "Legyen ez minden napra" — CSAK a szünet(ek)re vonatkozik: a most beírt szünet(ek) a
+  // munkatárs állandó alap-szünetévé válnak (Staff.default_breaks), ld. `saveDefaultBreaks`.
+  const [calApplyAllDays, setCalApplyAllDays] = useState(false)
+  // Napi szünet(ek) — a Shifts.breaks mezőt írja/olvassa (UGYANAZ az adat, mint a Naptár
+  // DayEditorjában), hogy a két felület mindig szinkronban maradjon. Egy nap TÖBB szünetet is
+  // tarthat (pl. ebéd + délutáni pihenő).
   const [breakShiftId, setBreakShiftId] = useState<string | null>(null)
-  const [breakDraft, setBreakDraft] = useState<{ has: boolean; start: string; end: string }>({ has: false, start: '12:00', end: '13:00' })
+  const [breakDraft, setBreakDraft] = useState<BreakWindow[]>([])
+  // A betöltött (még nem szerkesztett) állapot — ehhez képest döntjük el, hogy van-e MENTENDŐ
+  // változás (a Mentés csak akkor aktív, ha ténylegesen módosítottunk valamit).
+  const [calPristine, setCalPristine] = useState<{ is_available: boolean; start_time: string; end_time: string; breaks: BreakWindow[] }>({ is_available: true, start_time: '09:00', end_time: '18:00', breaks: [] })
+  const calBreaksDirty = (a: BreakWindow[], b: BreakWindow[]) =>
+    a.length !== b.length || a.some((w, i) => w.start_time !== b[i]?.start_time || w.end_time !== b[i]?.end_time)
+  const calIsDirty = !!calEditState && (
+    calEditState.is_available !== calPristine.is_available ||
+    calEditState.start_time !== calPristine.start_time ||
+    calEditState.end_time !== calPristine.end_time ||
+    calBreaksDirty(breakDraft, calPristine.breaks)
+  )
+  const addBreakDraft = () => setBreakDraft((b) => [...b, { start_time: '12:00', end_time: '13:00' }])
+  const updateBreakDraft = (i: number, patch: Partial<BreakWindow>) => setBreakDraft((b) => b.map((w, idx) => (idx === i ? { ...w, ...patch } : w)))
+  const removeBreakDraft = (i: number) => setBreakDraft((b) => b.filter((_, idx) => idx !== i))
 
   if (data.length === 0) {
     return (
@@ -979,14 +999,16 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   // ── Napi szünet betöltése a kijelölt napra (ugyanaz a Shifts-rekord, mint a Naptáron) ──
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (variant !== 'salon' || !calSelDay || !sel?.id || sel.id === 'owner') { setBreakShiftId(null); setBreakDraft({ has: false, start: '12:00', end: '13:00' }); return }
+    if (variant !== 'salon' || !calSelDay || !sel?.id || sel.id === 'owner') { setBreakShiftId(null); setBreakDraft([]); return }
     let cancelled = false
     fetch(`/api/shifts?staff=${sel.id}&date=${calSelDay}`, { credentials: 'include' })
       .then((r) => r.json())
-      .then((json: { doc: { id: string | number; break_start?: string | null; break_end?: string | null } | null }) => {
+      .then((json: { doc: { id: string | number; breaks?: BreakWindow[] | null } | null }) => {
         if (cancelled) return
         setBreakShiftId(json.doc ? String(json.doc.id) : null)
-        setBreakDraft(json.doc?.break_start && json.doc?.break_end ? { has: true, start: json.doc.break_start, end: json.doc.break_end } : { has: false, start: '12:00', end: '13:00' })
+        const loadedBreaks = json.doc?.breaks ?? []
+        setBreakDraft(loadedBreaks)
+        setCalPristine((prev) => ({ ...prev, breaks: loadedBreaks }))
       })
       .catch(() => {})
     return () => { cancelled = true }
@@ -998,7 +1020,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ break_start: breakDraft.has ? breakDraft.start : null, break_end: breakDraft.has ? breakDraft.end : null }),
+      body: JSON.stringify({ breaks: breakDraft.filter((w) => w.start_time && w.end_time) }),
     }).catch(() => {})
   }
 
@@ -1027,14 +1049,19 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   const handleCalDayClick = (dateStr: string) => {
     if (!salonId || variant !== 'salon') return
     setCalSelDay(dateStr)
+    setCalApplyAllDays(false)
     const exc = calExceptions[dateStr]
-    if (exc) {
-      setCalEditState({ ...exc })
-    } else {
-      const dow = CAL_DOW[new Date(dateStr + 'T00:00:00').getDay()]
-      const base = calSalonDefaults[dow]
-      setCalEditState({ is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' })
-    }
+    const next = exc
+      ? { is_available: exc.is_available, start_time: exc.start_time, end_time: exc.end_time }
+      : (() => {
+          const dow = CAL_DOW[new Date(dateStr + 'T00:00:00').getDay()]
+          const base = calSalonDefaults[dow]
+          return { is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' }
+        })()
+    setCalEditState(exc ? { ...exc } : next)
+    // A `breaks` részt a pristine-ban a külön betöltő effekt tölti ki, amint megérkezik — addig
+    // mindkettő (draft + pristine) üres, hogy ne látsszon hamis "van módosítás" jelzés.
+    setCalPristine({ ...next, breaks: [] })
   }
 
   const saveCalDay = async () => {
@@ -1060,6 +1087,24 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
       toast.error('Hiba történt')
     } finally {
       setCalSaving(false)
+    }
+  }
+
+  /** A most beírt szünet(ek) a munkatárs ÁLLANDÓ alap-szünetévé válnak minden napra
+   *  (Staff.default_breaks — ugyanaz a mező, amit a "Saját profil" DefaultBreakCard-ja is ír).
+   *  A nap munkaidő/elérhetőség-beállítása ettől függetlenül, a szokásos módon mentődik. */
+  const saveDefaultBreaks = async () => {
+    if (!sel?.id) return
+    try {
+      const res = await fetch(`/api/staff/${sel.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ default_breaks: breakDraft.filter((w) => w.start_time && w.end_time) }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      toast.error('A szünet mentése minden napra nem sikerült')
     }
   }
 
@@ -1326,53 +1371,87 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                               {calExceptions[calSelDay] ? 'Egyéni beállítás' : 'Szalon alap'}
                             </span>
                           </div>
-                          <button type="button" onClick={() => { setCalSelDay(null); setCalEditState(null) }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><X className="h-3.5 w-3.5" /></button>
+                          <button type="button" onClick={() => { setCalSelDay(null); setCalEditState(null); setCalApplyAllDays(false) }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><X className="h-3.5 w-3.5" /></button>
                         </div>
-                        {/* Dolgozik e napon toggle */}
-                        <div className="mb-4 flex items-center justify-between">
-                          <span className="text-[13px] font-medium text-ink">Dolgozik ezen a napon</span>
-                          <Switch checked={calEditState.is_available} onChange={(v) => setCalEditState(prev => prev ? { ...prev, is_available: v } : null)} />
-                        </div>
-                        {/* Időpontok */}
-                        {calEditState.is_available && (
-                          <div className="mb-4 grid grid-cols-2 gap-3">
-                            <div>
-                              <p className="mb-1 text-[11px] font-semibold text-ink-soft">Kezdés</p>
-                              <TimeSelect value={calEditState.start_time} onChange={(v) => setCalEditState(prev => prev ? { ...prev, start_time: v } : null)} />
+                        {/* Munkaidő + szünet(ek) — egymás alatt, minden képernyőméreten. */}
+                        <div className="mb-4 grid grid-cols-1 gap-5">
+                          <div>
+                            {/* Dolgozik e napon toggle */}
+                            <div className="mb-4 flex items-center justify-between">
+                              <span className="text-[13px] font-medium text-ink">Dolgozik ezen a napon</span>
+                              <Switch checked={calEditState.is_available} onChange={(v) => setCalEditState(prev => prev ? { ...prev, is_available: v } : null)} />
                             </div>
-                            <div>
-                              <p className="mb-1 text-[11px] font-semibold text-ink-soft">Végzés</p>
-                              <TimeSelect value={calEditState.end_time} onChange={(v) => setCalEditState(prev => prev ? { ...prev, end_time: v } : null)} />
-                            </div>
-                          </div>
-                        )}
-                        {/* Napi szünet — a Naptárral szinkronban (ugyanaz a Shifts-rekord) */}
-                        {calEditState.is_available && breakShiftId && (
-                          <div className="mb-4 rounded-[14px] border border-line bg-[#F7F7F7] p-3">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[12.5px] font-medium text-ink">Szünet ezen a napon</span>
-                              <Switch checked={breakDraft.has} onChange={(v) => setBreakDraft((prev) => ({ ...prev, has: v }))} />
-                            </div>
-                            {breakDraft.has && (
-                              <div className="mt-3 grid grid-cols-2 gap-3">
+                            {/* Időpontok */}
+                            {calEditState.is_available && (
+                              <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                  <p className="mb-1 text-[11px] font-semibold text-ink-soft">Szünet kezdete</p>
-                                  <TimeSelect value={breakDraft.start} onChange={(v) => setBreakDraft((prev) => ({ ...prev, start: v }))} />
+                                  <p className="mb-1 text-[11px] font-semibold text-ink-soft">Kezdés</p>
+                                  <TimeSelect value={calEditState.start_time} onChange={(v) => setCalEditState(prev => prev ? { ...prev, start_time: v } : null)} />
                                 </div>
                                 <div>
-                                  <p className="mb-1 text-[11px] font-semibold text-ink-soft">Szünet vége</p>
-                                  <TimeSelect value={breakDraft.end} onChange={(v) => setBreakDraft((prev) => ({ ...prev, end: v }))} />
+                                  <p className="mb-1 text-[11px] font-semibold text-ink-soft">Végzés</p>
+                                  <TimeSelect value={calEditState.end_time} onChange={(v) => setCalEditState(prev => prev ? { ...prev, end_time: v } : null)} />
                                 </div>
                               </div>
                             )}
                           </div>
-                        )}
-                        {/* Mentés / visszaállítás */}
+                          {/* Napi szünet(ek) — a Naptárral szinkronban (ugyanaz a Shifts-rekord). Egy
+                              nap TÖBB szünetet is tarthat, "+" gombbal bővíthető. A "Legyen ez minden
+                              napra" csak akkor jelenik meg, ha van legalább 1 szünet felvéve — csak
+                              A SZÜNETEKET teszi állandó alapértékké (Staff.default_breaks), a
+                              munkaidő/elérhetőség a szokásos módon, csak erre a napra mentődik. */}
+                          {calEditState.is_available && breakShiftId && (
+                            <div>
+                              <div className="mb-2.5 flex items-center justify-between">
+                                <span className="text-[13px] font-medium text-ink">Szünet(ek) ezen a napon</span>
+                                <button type="button" onClick={addBreakDraft} className="flex items-center gap-1 rounded-full border border-line px-2 py-1 text-[11px] font-semibold text-ink-soft transition-colors hover:border-line-strong hover:text-ink">
+                                  <Plus className="h-3 w-3" /> Szünet
+                                </button>
+                              </div>
+                              {breakDraft.length > 0 && (
+                                <div className="space-y-2.5">
+                                  {breakDraft.map((w, i) => (
+                                    <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-[12px] border border-line p-2.5">
+                                      <div>
+                                        <p className="mb-1 text-[11px] font-semibold text-ink-soft">Kezdete</p>
+                                        <TimeSelect value={w.start_time} onChange={(v) => updateBreakDraft(i, { start_time: v })} />
+                                      </div>
+                                      <div>
+                                        <p className="mb-1 text-[11px] font-semibold text-ink-soft">Vége</p>
+                                        <TimeSelect value={w.end_time} onChange={(v) => updateBreakDraft(i, { end_time: v })} />
+                                      </div>
+                                      <button type="button" onClick={() => removeBreakDraft(i)} aria-label="Szünet törlése" className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-[10px] text-ink-soft2 transition-colors hover:text-red-500">
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  ))}
+                                  <div className="flex items-center justify-between pt-1">
+                                    <span className="text-[13px] font-medium text-ink">Ez legyen a szünet minden napra</span>
+                                    <Switch checked={calApplyAllDays} onChange={setCalApplyAllDays} />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        {/* Mentés / visszaállítás — a Mentés csak akkor aktív, ha valóban van
+                            mentendő változás (a "Legyen ez minden napra" bekapcsolása önmagában is
+                            szándékolt művelet, az mindig engedi a mentést). */}
                         <div className="flex gap-2">
                           {calExceptions[calSelDay] && (
                             <button type="button" onClick={resetCalDay} disabled={calSaving} className="rounded-[12px] border border-line px-3 py-2 text-[12.5px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50">Visszaállítás</button>
                           )}
-                          <button type="button" onClick={async () => { await saveCalDay(); await saveBreak() }} disabled={calSaving} className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-ink-dark px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50">
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await saveCalDay()
+                              await saveBreak()
+                              if (calApplyAllDays) await saveDefaultBreaks()
+                              setCalApplyAllDays(false)
+                            }}
+                            disabled={calSaving || (!calIsDirty && !calApplyAllDays)}
+                            className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-ink-dark px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
+                          >
                             {calSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mentés'}
                           </button>
                         </div>

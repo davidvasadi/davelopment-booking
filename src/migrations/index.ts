@@ -29,6 +29,8 @@ import * as migration_20260828_100000_add_subscription_webhook_notification_type
 import * as migration_20260828_200000_restore_invoice_pdfs_table from './20260828_200000_restore_invoice_pdfs_table';
 import * as migration_20260828_300000_add_customer_tax_number from './20260828_300000_add_customer_tax_number';
 import * as migration_20260920_150000_relax_localized_label_not_null from './20260920_150000_relax_localized_label_not_null';
+import * as migration_20260921_120000_multi_breaks from './20260921_120000_multi_breaks';
+import * as migration_20260921_130000_drop_old_break_columns from './20260921_130000_drop_old_break_columns';
 
 export const migrations = [
   {
@@ -185,5 +187,15 @@ export const migrations = [
     up: migration_20260920_150000_relax_localized_label_not_null.up,
     down: migration_20260920_150000_relax_localized_label_not_null.down,
     name: '20260920_150000_relax_localized_label_not_null',
+  },
+  {
+    up: migration_20260921_120000_multi_breaks.up,
+    down: migration_20260921_120000_multi_breaks.down,
+    name: '20260921_120000_multi_breaks',
+  },
+  {
+    up: migration_20260921_130000_drop_old_break_columns.up,
+    down: migration_20260921_130000_drop_old_break_columns.down,
+    name: '20260921_130000_drop_old_break_columns',
   },
 ];

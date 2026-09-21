@@ -16,6 +16,7 @@ import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, A
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import type { BreakWindow } from '@/payload/payload-types'
 
 export type ShiftType = 'shift' | 'leave' | 'sick' | 'vacation'
 
@@ -27,8 +28,7 @@ export interface ShiftVM {
   start_time: string | null
   end_time: string | null
   hours: number | null
-  break_start: string | null
-  break_end: string | null
+  breaks: BreakWindow[]
   note: string | null
   // Státuszváltás a napon belül: a műszak vége előtt hazament (pl. délben beteg lett). Nincs duplázás.
   left_early_at: string | null
@@ -112,8 +112,7 @@ export type ShiftInput = {
   type: ShiftType
   start_time: string
   end_time: string
-  break_start: string
-  break_end: string
+  breaks: BreakWindow[]
   note: string
   left_early_at: string | null
   left_early_reason: 'sick' | 'personal' | null
@@ -419,8 +418,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
       start_time: isShift ? p.start_time || null : null,
       end_time: isShift ? p.end_time || null : null,
       hours: effHours(p),
-      break_start: isShift ? p.break_start || null : null,
-      break_end: isShift ? p.break_end || null : null,
+      breaks: isShift ? p.breaks : [],
       note: p.note || null,
       left_early_at,
       left_early_reason: left_early_at ? p.left_early_reason ?? 'personal' : null,
@@ -442,7 +440,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
       if (!res.ok) throw new Error()
       const json = await res.json()
       const doc = json.doc ?? json
-      const vm: ShiftVM = { id: existing ? existing.id : String(doc.id), staffId, date, type: p.type, start_time: body.start_time, end_time: body.end_time, hours: body.hours, break_start: body.break_start, break_end: body.break_end, note: body.note, left_early_at: body.left_early_at, left_early_reason: body.left_early_reason }
+      const vm: ShiftVM = { id: existing ? existing.id : String(doc.id), staffId, date, type: p.type, start_time: body.start_time, end_time: body.end_time, hours: body.hours, breaks: body.breaks, note: body.note, left_early_at: body.left_early_at, left_early_reason: body.left_early_reason }
       setShifts((prev) => (existing ? prev.map((s) => (s.id === existing.id ? vm : s)) : [...prev, vm]))
       setDaysWithChanges((prev) => new Set([...prev, date]))
       router.refresh()
@@ -488,7 +486,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
         const kept = prev.filter((s) => !(s.staffId === staffId && rangeDates.has(s.date)))
         const added: ShiftVM[] = json.results.map((r) => ({
           id: String(r.id), staffId, date: r.date, type: p.type,
-          start_time: null, end_time: null, hours: null, break_start: null, break_end: null, note: p.note || null,
+          start_time: null, end_time: null, hours: null, breaks: [], note: p.note || null,
           left_early_at: null, left_early_reason: null,
         }))
         return [...kept, ...added]
@@ -515,8 +513,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
       start_time: isShift ? p.start_time || null : null,
       end_time: isShift ? p.end_time || null : null,
       hours: effHours(p),
-      break_start: isShift ? p.break_start || null : null,
-      break_end: isShift ? p.break_end || null : null,
+      breaks: isShift ? p.breaks : [],
       note: p.note || null,
       left_early_at,
       left_early_reason: left_early_at ? p.left_early_reason ?? 'personal' : null,
@@ -1298,9 +1295,11 @@ function DayEditor({
   const [type, setType] = useState<ShiftType>('shift')
   const [start, setStart] = useState('09:00')
   const [end, setEnd] = useState('17:00')
-  const [hasBreak, setHasBreak] = useState(false)
-  const [breakStart, setBreakStart] = useState('12:00')
-  const [breakEnd, setBreakEnd] = useState('13:00')
+  // Egy nap TÖBB szünetet is tarthat (pl. ebéd + délutáni pihenő) — lista, "+" gombbal bővíthető.
+  const [breaks, setBreaks] = useState<BreakWindow[]>([])
+  const addBreak = () => setBreaks((b) => [...b, { start_time: '12:00', end_time: '13:00' }])
+  const updateBreak = (i: number, patch: Partial<BreakWindow>) => setBreaks((b) => b.map((w, idx) => (idx === i ? { ...w, ...patch } : w)))
+  const removeBreak = (i: number) => setBreaks((b) => b.filter((_, idx) => idx !== i))
   const [note, setNote] = useState('')
   const [leftEarly, setLeftEarly] = useState(false)
   const [leftAt, setLeftAt] = useState('12:00')
@@ -1347,7 +1346,7 @@ function DayEditor({
 
   const resetForm = () => {
     setEditingId(null); setType('shift'); setStart('09:00'); setEnd('17:00'); setNote('')
-    setHasBreak(false); setBreakStart('12:00'); setBreakEnd('13:00')
+    setBreaks([])
     setLeftEarly(false); setLeftAt('12:00'); setLeftReason('sick')
     setRangeMode(false); setRangeEnd('')
   }
@@ -1356,7 +1355,7 @@ function DayEditor({
     // A `__auto__` egy belső jelölő (a beosztás-automatizáló hozta létre a napot) — sose
     // mutatjuk a felhasználónak, és ha innen mentenek, a rekord "kézivé" válik (a jelölő eltűnik).
     setStart(s.start_time ?? '09:00'); setEnd(s.end_time ?? '17:00'); setNote(s.note === '__auto__' ? '' : s.note ?? '')
-    setHasBreak(!!(s.break_start && s.break_end)); setBreakStart(s.break_start ?? '12:00'); setBreakEnd(s.break_end ?? '13:00')
+    setBreaks(s.breaks ?? [])
     setLeftEarly(!!s.left_early_at); setLeftAt(s.left_early_at ?? '12:00'); setLeftReason(s.left_early_reason ?? 'sick')
     setRangeMode(false); setRangeEnd('')
   }
@@ -1364,8 +1363,7 @@ function DayEditor({
   const submit = async () => {
     const p: ShiftInput = {
       type, start_time: start, end_time: end, note,
-      break_start: type === 'shift' && hasBreak ? breakStart : '',
-      break_end: type === 'shift' && hasBreak ? breakEnd : '',
+      breaks: type === 'shift' ? breaks.filter((w) => w.start_time && w.end_time) : [],
       left_early_at: type === 'shift' && leftEarly ? leftAt : null,
       left_early_reason: type === 'shift' && leftEarly ? leftReason : null,
     }
@@ -1547,25 +1545,34 @@ function DayEditor({
                       <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} className={inp} />
                     </label>
                   </div>
-                  {/* Napi szünet — kézi felülírás erre a napra; a foglaló oldalon némán "foglaltként" viselkedik. Egyelőre csak szalon-oldalon (étterem külön kör). */}
+                  {/* Napi szünet(ek) — kézi felülírás erre a napra; a foglaló oldalon némán "foglaltként"
+                      viselkednek. Egy napon több szünet is lehet (pl. ebéd + délutáni pihenő).
+                      Egyelőre csak szalon-oldalon (étterem külön kör). */}
                   {!isRestaurant && (
                   <div className="mb-2.5 rounded-[13px] border border-line bg-white p-2.5">
-                    <button type="button" onClick={() => setHasBreak((v) => !v)} className="flex w-full items-center gap-2.5">
-                      <span className={`flex h-[22px] w-[38px] flex-shrink-0 items-center rounded-full px-0.5 transition-colors ${hasBreak ? 'justify-end bg-ink-dark' : 'justify-start bg-line-strong'}`}>
-                        <span className="h-[18px] w-[18px] rounded-full bg-white" />
-                      </span>
+                    <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 text-[12.5px] font-medium text-ink"><Coffee className="h-3.5 w-3.5 text-ink-soft" strokeWidth={1.9} /> Szünet ezen a napon</span>
-                    </button>
-                    {hasBreak && (
-                      <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-                        <label className="block">
-                          <span className="mb-1 block text-[11.5px] font-medium text-ink-soft">Szünet kezdete</span>
-                          <input type="time" value={breakStart} onChange={(e) => setBreakStart(e.target.value)} className={inp} />
-                        </label>
-                        <label className="block">
-                          <span className="mb-1 block text-[11.5px] font-medium text-ink-soft">Szünet vége</span>
-                          <input type="time" value={breakEnd} onChange={(e) => setBreakEnd(e.target.value)} className={inp} />
-                        </label>
+                      <button type="button" onClick={addBreak} className="flex items-center gap-1 rounded-full border border-line px-2 py-1 text-[11px] font-semibold text-ink-soft transition-colors hover:border-line-strong hover:text-ink">
+                        <Plus className="h-3 w-3" /> Szünet
+                      </button>
+                    </div>
+                    {breaks.length > 0 && (
+                      <div className="mt-2.5 space-y-2">
+                        {breaks.map((w, i) => (
+                          <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2">
+                            <label className="block">
+                              <span className="mb-1 block text-[11.5px] font-medium text-ink-soft">Kezdete</span>
+                              <input type="time" value={w.start_time} onChange={(e) => updateBreak(i, { start_time: e.target.value })} className={inp} />
+                            </label>
+                            <label className="block">
+                              <span className="mb-1 block text-[11.5px] font-medium text-ink-soft">Vége</span>
+                              <input type="time" value={w.end_time} onChange={(e) => updateBreak(i, { end_time: e.target.value })} className={inp} />
+                            </label>
+                            <button type="button" onClick={() => removeBreak(i)} aria-label="Szünet törlése" className="mb-0.5 flex h-9 w-9 items-center justify-center rounded-[10px] text-ink-soft2 transition-colors hover:text-red-500">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>

@@ -1,6 +1,12 @@
 /** A Payload-lokalizáció támogatott nyelvei (lásd payload.config.ts localization.locales). */
 export type Locale = 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr'
 
+/** Egy szünet-időablak (ÓÓ:PP–ÓÓ:PP) — `Shift.breaks` / `StaffMember.default_breaks` eleme. */
+export interface BreakWindow {
+  start_time: string
+  end_time: string
+}
+
 export interface Config {
   collections: {
     users: User
@@ -846,8 +852,7 @@ export interface StaffMember {
   birthday?: string | null
   join_date?: string | null
   weekly_hours?: number | null
-  default_break_start?: string | null
-  default_break_end?: string | null
+  default_breaks?: BreakWindow[] | null
   phone?: string | null
   email?: string | null
   address?: string | null
@@ -869,8 +874,7 @@ export interface Shift {
   start_time?: string | null
   end_time?: string | null
   hours?: number | null
-  break_start?: string | null
-  break_end?: string | null
+  breaks?: BreakWindow[] | null
   note?: string | null
   owner_shift?: boolean | null
   /** Státuszváltás: a dolgozó a műszak vége előtt hazament (pl. délben beteg lett). */
