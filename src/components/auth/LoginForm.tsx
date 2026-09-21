@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { toast } from 'sonner'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
@@ -31,6 +30,10 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false)
   const [showForm, setShowForm] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  // Szerver-oldali bejelentkezési hiba (hibás email/jelszó, meg nem erősített fiók stb.) —
+  // NEM toast, hanem a mezők alatti inline szöveg + rezzenés, mint a többi form-hibánál.
+  const [serverError, setServerError] = useState<string | null>(null)
+  const [shakeKey, setShakeKey] = useState(0)
   // Csak az aktív eszköz form-ját rendereljük (mobil VAGY desktop), különben két azonos
   // name-ű input kerülne a DOM-ba, és a react-hook-form a rossz (rejtett) mezőt olvasná
   // → üres adat → néma "hibás adatok" visszadobás. mounted: SSR-hidratációs eltérés ellen.
@@ -49,8 +52,12 @@ export function LoginForm() {
     resolver: zodResolver(schema),
   })
 
+  // Kliens-oldali (zod) validációs hiba is rezzenjen, ugyanúgy mint a szerver-oldali.
+  const onInvalid = () => setShakeKey((k) => k + 1)
+
   const onSubmit = async (data: FormData) => {
     setLoading(true)
+    setServerError(null)
     try {
       const res = await fetch('/api/users/login', {
         method: 'POST',
@@ -61,12 +68,19 @@ export function LoginForm() {
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}))
         const rawMsg: string = errBody?.message ?? errBody?.errors?.[0]?.message ?? ''
-        // A Payload `verify: true` unverified usernél angol, "verif" szót tartalmazó hibát ad
-        // vissza (a pontos szöveg verzió-függő) — ezt fordítjuk le, a többit változatlanul hagyjuk.
-        if (rawMsg.toLowerCase().includes('verif')) {
+        const lowerMsg = rawMsg.toLowerCase()
+        // A Payload angol hibaüzeneteket ad vissza (verzió-függő pontos szöveggel) — ezeket
+        // ismerjük fel kulcsszó alapján és fordítjuk magyarra. Direkt NEM áruljuk el, hogy az
+        // email vagy a jelszó a rossz (account enumeration ellen), ezért minden fel nem ismert/
+        // "hibás belépés" jellegű hiba is az általános üzenetre esik vissza — a nyers angol
+        // szöveg SOSE jusson ki a felhasználóhoz.
+        if (lowerMsg.includes('verif')) {
           throw new Error('Erősítsd meg az email-címed a regisztrációkor kapott linkkel, mielőtt bejelentkezel.')
         }
-        throw new Error(rawMsg || 'Hibás adatok')
+        if (lowerMsg.includes('locked')) {
+          throw new Error('Túl sok sikertelen próbálkozás — a fiók átmenetileg zárolva, próbáld újra néhány perc múlva.')
+        }
+        throw new Error('Hibás email cím vagy jelszó')
       }
       const json = await res.json()
       const role = json?.user?.role
@@ -79,7 +93,8 @@ export function LoginForm() {
       const safeTo = hasFrom && from.startsWith('/') && !from.startsWith('//') ? from : home
       router.push(safeTo)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Bejelentkezés sikertelen')
+      setServerError(err instanceof Error ? err.message : 'Bejelentkezés sikertelen')
+      setShakeKey((k) => k + 1)
     } finally {
       setLoading(false)
     }
@@ -141,8 +156,8 @@ export function LoginForm() {
               <motion.h2 variants={listStagger.item} className="text-white font-light text-[2.25rem] uppercase tracking-[-0.02em] leading-[1.05] mb-8">
                 ÜDVÖZLÜNK<br />VISSZA.
               </motion.h2>
-              <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit)} className="space-y-3" noValidate>
-                <div className="space-y-1.5">
+              <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-3" noValidate>
+                <div key={`m-email-${shakeKey}`} className={cn('space-y-1.5', (errors.email || serverError) && 'animate-shake')}>
                   <Label htmlFor="login-m-email" className={authLabelDark}>Email</Label>
                   <input
                     id="login-m-email"
@@ -150,14 +165,14 @@ export function LoginForm() {
                     autoComplete="email"
                     inputMode="email"
                     placeholder="te@pelda.hu"
-                    aria-invalid={!!errors.email}
+                    aria-invalid={!!errors.email || !!serverError}
                     aria-describedby={errors.email ? 'login-m-email-err' : undefined}
-                    className={cn(authInputDark, errors.email && 'ring-2 ring-red-400 border-red-400')}
-                    {...register('email')}
+                    className={cn(authInputDark, (errors.email || serverError) && 'ring-2 ring-red-400 border-red-400')}
+                    {...register('email', { onChange: () => setServerError(null) })}
                   />
                   {errors.email && <p id="login-m-email-err" role="alert" className={authErrorTextDark}>Érvényes email szükséges</p>}
                 </div>
-                <div className="space-y-1.5">
+                <div key={`m-pw-${shakeKey}`} className={cn('space-y-1.5', (errors.password || serverError) && 'animate-shake')}>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="login-m-pw" className={authLabelDark}>Jelszó</Label>
                     <Link href="/forgot-password" className="text-xs text-white/50 no-underline hover:text-white/80 transition-colors">
@@ -169,10 +184,10 @@ export function LoginForm() {
                       id="login-m-pw"
                       type={showPassword ? 'text' : 'password'}
                       autoComplete="current-password"
-                      aria-invalid={!!errors.password}
-                      aria-describedby={errors.password ? 'login-m-pw-err' : undefined}
-                      className={cn(authInputDark, 'pr-11', errors.password && 'ring-2 ring-red-400 border-red-400')}
-                      {...register('password')}
+                      aria-invalid={!!errors.password || !!serverError}
+                      aria-describedby={errors.password ? 'login-m-pw-err' : serverError ? 'login-m-server-err' : undefined}
+                      className={cn(authInputDark, 'pr-11', (errors.password || serverError) && 'ring-2 ring-red-400 border-red-400')}
+                      {...register('password', { onChange: () => setServerError(null) })}
                     />
                     <button
                       type="button"
@@ -184,6 +199,7 @@ export function LoginForm() {
                     </button>
                   </div>
                   {errors.password && <p id="login-m-pw-err" role="alert" className={authErrorTextDark}>Minimum 6 karakter</p>}
+                  {!errors.password && serverError && <p id="login-m-server-err" role="alert" className={authErrorTextDark}>{serverError}</p>}
                 </div>
                 <div className="pt-2">
                   <button
@@ -237,8 +253,8 @@ export function LoginForm() {
               <h2 className="text-[44px] font-light leading-[1.1] tracking-[-0.02em] text-ink">Üdv újra!</h2>
               <p className="text-ink-soft text-base mt-2">Jelentkezz be a fiókodba.</p>
             </motion.div>
-            <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-              <div className="space-y-1.5">
+            <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4" noValidate>
+              <div key={`d-email-${shakeKey}`} className={cn('space-y-1.5', (errors.email || serverError) && 'animate-shake')}>
                 <Label htmlFor="login-d-email" className={authLabelBase}>Email</Label>
                 <input
                   id="login-d-email"
@@ -246,14 +262,14 @@ export function LoginForm() {
                   autoComplete="email"
                   inputMode="email"
                   placeholder="te@pelda.hu"
-                  aria-invalid={!!errors.email}
+                  aria-invalid={!!errors.email || !!serverError}
                   aria-describedby={errors.email ? 'login-d-email-err' : undefined}
-                  className={cn(authInputBase, errors.email && 'ring-2 ring-bad/40 border-bad/60')}
-                  {...register('email')}
+                  className={cn(authInputBase, (errors.email || serverError) && 'ring-2 ring-bad/40 border-bad/60')}
+                  {...register('email', { onChange: () => setServerError(null) })}
                 />
                 {errors.email && <p id="login-d-email-err" role="alert" className={authErrorText}>Érvényes email szükséges</p>}
               </div>
-              <div className="space-y-1.5">
+              <div key={`d-pw-${shakeKey}`} className={cn('space-y-1.5', (errors.password || serverError) && 'animate-shake')}>
                 <div className="flex items-center justify-between">
                   <Label htmlFor="login-d-pw" className={authLabelBase}>Jelszó</Label>
                   <Link href="/forgot-password" className="text-xs text-ink-soft hover:text-ink no-underline transition-colors">
@@ -265,10 +281,10 @@ export function LoginForm() {
                     id="login-d-pw"
                     type={showPassword ? 'text' : 'password'}
                     autoComplete="current-password"
-                    aria-invalid={!!errors.password}
-                    aria-describedby={errors.password ? 'login-d-pw-err' : undefined}
-                    className={cn(authInputBase, 'pr-11', errors.password && 'ring-2 ring-bad/40 border-bad/60')}
-                    {...register('password')}
+                    aria-invalid={!!errors.password || !!serverError}
+                    aria-describedby={errors.password ? 'login-d-pw-err' : serverError ? 'login-d-server-err' : undefined}
+                    className={cn(authInputBase, 'pr-11', (errors.password || serverError) && 'ring-2 ring-bad/40 border-bad/60')}
+                    {...register('password', { onChange: () => setServerError(null) })}
                   />
                   <button
                     type="button"
@@ -280,6 +296,7 @@ export function LoginForm() {
                   </button>
                 </div>
                 {errors.password && <p id="login-d-pw-err" role="alert" className={authErrorText}>Minimum 6 karakter</p>}
+                {!errors.password && serverError && <p id="login-d-server-err" role="alert" className={authErrorText}>{serverError}</p>}
               </div>
               <AuthPillButton type="submit" loading={loading} className="mt-2">
                 Bejelentkezés
