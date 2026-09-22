@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import { getPublicRestaurant } from '@/lib/publicPlace'
 import { getReviewSummary } from '@/lib/reviews'
 import { getMaxPax } from '@/lib/restaurantBooking'
@@ -83,8 +84,16 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       {/* Borítókép + overlay rétegek — embed módban nem jelenik meg. */}
       {!embed && hasCover && (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverUrl} alt="" aria-hidden fetchPriority="high" className="absolute inset-0 z-0 h-full w-full object-cover" style={{ objectPosition: coverFocal, transform: `scale(${coverZoom})`, transformOrigin: coverFocal }} />
+          <Image
+            src={coverUrl!}
+            alt=""
+            aria-hidden
+            fill
+            priority
+            sizes="100vw"
+            className="z-0 object-cover"
+            style={{ objectPosition: coverFocal, transform: `scale(${coverZoom})`, transformOrigin: coverFocal }}
+          />
           <div
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}

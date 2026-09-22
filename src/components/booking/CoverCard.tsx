@@ -25,7 +25,7 @@ export function CoverCard({
     >
       {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        <img src={imageUrl} alt={title} className="absolute inset-0 h-full w-full object-cover" />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-[#3a2f12] via-[#9A7B1E] to-[#F1CE45] text-[56px] font-semibold text-white/90">
           {fallbackInitials}

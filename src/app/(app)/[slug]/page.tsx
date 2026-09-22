@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import Image from 'next/image'
 import Script from 'next/script'
 import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
@@ -111,8 +112,16 @@ export default async function SalonPublicPage({
       {/* Cover image + overlay — embed módban nem jelenik meg (kevesebb navigáció/fejléc). */}
       {!embed && hasCover && (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={coverUrl} alt="" aria-hidden fetchPriority="high" className="absolute inset-0 z-0 h-full w-full object-cover" style={{ objectPosition: coverFocal, transform: `scale(${coverZoom})`, transformOrigin: coverFocal }} />
+          <Image
+            src={coverUrl!}
+            alt=""
+            aria-hidden
+            fill
+            priority
+            sizes="100vw"
+            className="z-0 object-cover"
+            style={{ objectPosition: coverFocal, transform: `scale(${coverZoom})`, transformOrigin: coverFocal }}
+          />
           <div
             className="pointer-events-none absolute inset-0 z-[1]"
             style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
