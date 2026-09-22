@@ -14,6 +14,7 @@ import { placeJsonLd, placeBreadcrumbJsonLd } from '@/lib/publicSeo'
 import type { Media, Restaurant } from '@/payload/payload-types'
 import { t, resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { hasActivePackage } from '@/lib/newsletterLimits'
+import { nextImageSrc } from '@/lib/utils'
 
 /**
  * Renders an active restaurant's public landing page.
@@ -85,7 +86,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       {!embed && hasCover && (
         <>
           <Image
-            src={coverUrl!}
+            src={nextImageSrc(coverUrl!)}
             alt=""
             aria-hidden
             fill

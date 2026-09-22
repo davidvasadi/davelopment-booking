@@ -7,6 +7,7 @@ import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, SITE_URL
 import { getReviewSummary } from '@/lib/reviews'
 import { getPricing } from '@/lib/pricing'
 import { INDUSTRY_LANDINGS } from '@/lib/industryLandings'
+import { nextImageSrc } from '@/lib/utils'
 import HomeClient from '../HomeClient'
 import type { Media } from '@/payload/payload-types'
 import { MapPin, Tag, Users } from 'lucide-react'
@@ -160,7 +161,7 @@ export default async function SalonPublicPage({
       {!embed && hasCover && (
         <>
           <Image
-            src={coverUrl!}
+            src={nextImageSrc(coverUrl!)}
             alt=""
             aria-hidden
             fill

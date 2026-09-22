@@ -93,3 +93,18 @@ export function fixMediaUrl(url: string | null | undefined): string | null {
   }
   return url
 }
+
+/**
+ * A Payload media-URL már URL-kódolt (pl. egy szóközt tartalmazó fájlnévnél "szóköz" → "%20") —
+ * ha ezt közvetlenül a `next/image` `src`-jébe adjuk, a Next SAJÁT kódolása a `%` jelet is
+ * újrakódolja ("%20" → "%2520"), és a `/_next/image` optimalizáló 400-at ad vissza rá (látszólag
+ * "eltűnik" a kép a publikus oldalon, miközben a feltöltés magában sikeres volt). Dekódoljuk
+ * egyszer előbb, hogy a Next pontosan egyszer kódolhassa vissza helyesen.
+ */
+export function nextImageSrc(url: string): string {
+  try {
+    return decodeURIComponent(url)
+  } catch {
+    return url
+  }
+}
