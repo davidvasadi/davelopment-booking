@@ -90,8 +90,10 @@ export function placeMetadata(
   }
 }
 
-/** schema.org JSON-LD a főoldalhoz — Organization + SoftwareApplication (a legalacsonyabb aktuális árral). */
-export function siteJsonLd(pricing: Pricing): Record<string, unknown> {
+/** schema.org JSON-LD a főoldalhoz (és az iparági landingekhez) — Organization + SoftwareApplication
+ *  (a legalacsonyabb aktuális árral) + FAQPage. `extraFaqItems` az iparági landingek szakma-specifikus
+ *  kérdéseit fűzi a lista elejére, ugyanaz az egy forrás, amit a látható GYIK-accordion is renderel. */
+export function siteJsonLd(pricing: Pricing, extraFaqItems?: { q: string; a: string }[]): Record<string, unknown> {
   // A Starter a legolcsóbb belépési pont — a Pro-árral számolt "-tól" ár tévesen drágábbnak
   // mutatta a terméket a Google-találatokban, mint amilyen valójában.
   const lowestPrice = Math.min(pricing.salon_starter_huf, pricing.restaurant_starter_huf)
@@ -125,7 +127,7 @@ export function siteJsonLd(pricing: Pricing): Record<string, unknown> {
         '@type': 'FAQPage',
         // Ugyanaz az egy forrás (`buildFaqItems`), amit a landing FAQ-accordion is renderel —
         // a látható szöveg és a strukturált adat sosem csúszhat szét.
-        mainEntity: buildFaqItems(pricing).map(({ q, a }) => ({
+        mainEntity: buildFaqItems(pricing, extraFaqItems).map(({ q, a }) => ({
           '@type': 'Question',
           name: q,
           acceptedAnswer: { '@type': 'Answer', text: a },

@@ -87,8 +87,17 @@ function segmentLadder(seg: Segment, pricing: LandingPricing) {
   return { noun, starterFee, proFee, starterFeats, proFeats, customFeats }
 }
 
-export function Pricing({ pricing }: { pricing: LandingPricing }) {
-  const [active, setActive] = useState<Segment>('salon')
+export function Pricing({
+  pricing,
+  segment: fixedSegment,
+}: {
+  pricing: LandingPricing
+  /** Iparági landingeknél a szegmens fix (pl. mindig "salon") — ilyenkor nincs értelme a
+   *  szakember/étterem váltónak, azt el is rejtjük. Homepage-en marad az interaktív toggle. */
+  segment?: Segment
+}) {
+  const [internalActive, setInternalActive] = useState<Segment>(fixedSegment ?? 'salon')
+  const active = fixedSegment ?? internalActive
   const { noun, starterFee, proFee, starterFeats, proFeats, customFeats } = segmentLadder(active, pricing)
 
   return (
@@ -114,34 +123,37 @@ export function Pricing({ pricing }: { pricing: LandingPricing }) {
           </p>
         </div>
 
-        {/* Üzlettípus-váltó — a "Látod mi történik" szekció pill-mintája, saját layoutId-val. */}
-        <div className="flex items-center gap-1 self-start rounded-full bg-white p-2.5">
-          {(['salon', 'restaurant'] as const).map((seg) => {
-            const label = seg === 'salon' ? 'Szakembereknek' : 'Éttermeknek'
-            const isActive = active === seg
-            return (
-              <motion.button
-                key={seg}
-                type="button"
-                onClick={() => setActive(seg)}
-                variants={buttonHover}
-                initial="rest"
-                whileHover="hover"
-                className="relative rounded-full px-5 py-3 text-[15px] font-onest font-light tracking-[-0.04em] transition-colors duration-200 sm:px-6 sm:py-4 sm:text-[17px]"
-                style={{ color: isActive ? '#ffffff' : '#3B3B3B' }}
-              >
-                {isActive && (
-                  <motion.span
-                    layoutId="pricing-seg-pill"
-                    className="absolute inset-0 rounded-full bg-brand-ink"
-                    transition={SPRING_SNAPPY}
-                  />
-                )}
-                <span className="relative z-10">{label}</span>
-              </motion.button>
-            )
-          })}
-        </div>
+        {/* Üzlettípus-váltó — a "Látod mi történik" szekció pill-mintája, saját layoutId-val.
+            Iparági landingnél a szegmens fix, ott nincs értelme a váltónak. */}
+        {!fixedSegment && (
+          <div className="flex items-center gap-1 self-start rounded-full bg-white p-2.5">
+            {(['salon', 'restaurant'] as const).map((seg) => {
+              const label = seg === 'salon' ? 'Szakembereknek' : 'Éttermeknek'
+              const isActive = active === seg
+              return (
+                <motion.button
+                  key={seg}
+                  type="button"
+                  onClick={() => setInternalActive(seg)}
+                  variants={buttonHover}
+                  initial="rest"
+                  whileHover="hover"
+                  className="relative rounded-full px-5 py-3 text-[15px] font-onest font-light tracking-[-0.04em] transition-colors duration-200 sm:px-6 sm:py-4 sm:text-[17px]"
+                  style={{ color: isActive ? '#ffffff' : '#3B3B3B' }}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="pricing-seg-pill"
+                      className="absolute inset-0 rounded-full bg-brand-ink"
+                      transition={SPRING_SNAPPY}
+                    />
+                  )}
+                  <span className="relative z-10">{label}</span>
+                </motion.button>
+              )
+            })}
+          </div>
+        )}
       </motion.div>
 
       {/* Kártyák — a dashboard bemart-sarkú `NotchedPricingCard`-ja, egységes stílus */}

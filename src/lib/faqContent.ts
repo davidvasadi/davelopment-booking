@@ -9,8 +9,14 @@ import { ftFmt, type LandingPricing } from '@/components/landing/types'
  * duplikáció. Szándékosan "szakember"-t mondunk "szalon" helyett a felhasználó felé — a termék
  * egyéni szolgáltatóknak (fodrász, kozmetikus, masszőr stb.) is szól, nem csak szalon-cégeknek.
  */
-export function buildFaqItems(pricing: LandingPricing) {
+export function buildFaqItems(
+  pricing: LandingPricing,
+  /** Iparági landingeknél az elejére fűzött, az adott szakmának szóló extra kérdések — a landing
+   *  így RÖGTÖN a szakmára szabott kérdésekkel nyit, nem egy generikus listával a végén elrejtve. */
+  extraItems: { q: string; a: string }[] = [],
+) {
   return [
+    ...extraItems,
     {
       q: 'Mi az a davelopment booking?',
       a: 'Online időpont- és asztalfoglaló rendszer szakembereknek és éttermeknek — fodrászoknak, kozmetikusoknak, masszőröknek, edzőknek és hasonló szolgáltatóknak, illetve vendéglátóhelyeknek. A vendégeid a saját, egyedi foglalási oldaladon keresztül maguk foglalhatnak időpontot vagy asztalt, te pedig egy helyen kezeled a naptárat, a munkatársakat, az értesítéseket és a fizetéseket.',

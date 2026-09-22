@@ -463,8 +463,20 @@ function RestaurantLayout() {
 
 // ─── Fő szekció ───────────────────────────────────────────────────────────────
 
-export function SegmentToggle() {
-  const [active, setActive] = useState<'salon' | 'restaurant'>('salon')
+export function SegmentToggle({
+  segment: fixedSegment,
+  title,
+  subtitle,
+}: {
+  /** Iparági landingeknél a szegmens fix — ilyenkor nincs értelme a szakember/étterem
+   *  váltónak, azt el is rejtjük, csak a releváns nézet jelenik meg. */
+  segment?: 'salon' | 'restaurant'
+  /** Iparági landingeknél felülírja a homepage-alapértelmezett fejlécet. */
+  title?: string
+  subtitle?: string
+} = {}) {
+  const [internalActive, setInternalActive] = useState<'salon' | 'restaurant'>(fixedSegment ?? 'salon')
+  const active = fixedSegment ?? internalActive
 
   return (
     <section className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28">
@@ -476,38 +488,40 @@ export function SegmentToggle() {
         className="flex flex-col items-center gap-4 mb-12 text-center"
       >
         <h2 className="font-onest font-medium text-[clamp(2rem,5.5vw,3rem)] leading-[1.15] tracking-[-0.05em] text-brand-ink">
-          Látod mi történik az üzletedben.
+          {title ?? 'Látod mi történik az üzletedben.'}
         </h2>
         <p className="font-onest text-[clamp(1rem,2vw,1.25rem)] tracking-[-0.05em] text-brand-ink/50">
-          Tedd hatékonyabbá az üzleted
+          {subtitle ?? 'Tedd hatékonyabbá az üzleted'}
         </p>
 
-        <div className="flex items-center gap-1 bg-white rounded-full p-2.5 mt-6">
-          {(['salon', 'restaurant'] as const).map((seg) => {
-            const label = seg === 'salon' ? 'Szakembereknek' : 'Éttermeknek'
-            const isActive = active === seg
-            return (
-              <motion.button
-                key={seg}
-                onClick={() => setActive(seg)}
-                variants={buttonHover}
-                initial="rest"
-                whileHover="hover"
-                className="relative px-6 py-4 rounded-full text-[clamp(1rem,2vw,1.25rem)] font-onest font-light tracking-[-0.04em] transition-colors duration-200"
-                style={{ color: isActive ? '#ffffff' : '#3B3B3B' }}
-              >
-                {isActive && (
-                  <motion.span
-                    layoutId="seg-pill"
-                    className="absolute inset-0 rounded-full bg-brand-ink"
-                    transition={SPRING_SNAPPY}
-                  />
-                )}
-                <span className="relative z-10">{label}</span>
-              </motion.button>
-            )
-          })}
-        </div>
+        {!fixedSegment && (
+          <div className="flex items-center gap-1 bg-white rounded-full p-2.5 mt-6">
+            {(['salon', 'restaurant'] as const).map((seg) => {
+              const label = seg === 'salon' ? 'Szakembereknek' : 'Éttermeknek'
+              const isActive = active === seg
+              return (
+                <motion.button
+                  key={seg}
+                  onClick={() => setInternalActive(seg)}
+                  variants={buttonHover}
+                  initial="rest"
+                  whileHover="hover"
+                  className="relative px-6 py-4 rounded-full text-[clamp(1rem,2vw,1.25rem)] font-onest font-light tracking-[-0.04em] transition-colors duration-200"
+                  style={{ color: isActive ? '#ffffff' : '#3B3B3B' }}
+                >
+                  {isActive && (
+                    <motion.span
+                      layoutId="seg-pill"
+                      className="absolute inset-0 rounded-full bg-brand-ink"
+                      transition={SPRING_SNAPPY}
+                    />
+                  )}
+                  <span className="relative z-10">{label}</span>
+                </motion.button>
+              )
+            })}
+          </div>
+        )}
       </motion.div>
 
       <AnimatePresence mode="wait">

@@ -173,7 +173,14 @@ function BookingTrendCard() {
 
 // ─── Section ──────────────────────────────────────────────────────────────────
 
-export function CalendarSection() {
+export function CalendarSection({
+  title,
+  subtitle,
+}: {
+  /** Iparági landingeknél felülírja a homepage-alapértelmezett fejlécet. */
+  title?: React.ReactNode
+  subtitle?: string
+} = {}) {
   const cImg = useCard()
   const cRight = useCard()
 
@@ -192,10 +199,10 @@ export function CalendarSection() {
         </span>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
           <h2 className="font-semibold text-[clamp(2.25rem,5.5vw,72px)] leading-[0.94] tracking-[-0.05em] text-brand-ink max-w-2xl">
-            Mindenki naptára,<br className="hidden sm:block" /> egy képernyőn.
+            {title ?? (<>Mindenki naptára,<br className="hidden sm:block" /> egy képernyőn.</>)}
           </h2>
           <p className="text-[16px] leading-[1.6] text-brand-ink/55 max-w-sm lg:pb-1">
-            Valós idejű foglalások, szakembersávok, szabadnapok — húzd át, kattints, kész.
+            {subtitle ?? 'Valós idejű foglalások, szakembersávok, szabadnapok — húzd át, kattints, kész.'}
           </p>
         </div>
       </motion.div>

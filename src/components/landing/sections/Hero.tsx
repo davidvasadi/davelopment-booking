@@ -658,7 +658,16 @@ function HeroNav({ theme = 'dark', pillId = 'hero-nav-pill' }: { theme?: 'dark' 
 }
 
 // ─── Hero ─────────────────────────────────────────────────────────────────────
-export function Hero({ pricing }: { pricing: LandingPricing }) {
+export function Hero({
+  pricing,
+  title,
+  subtitle,
+}: {
+  pricing: LandingPricing
+  /** Iparági landingeknél felülírja a homepage-alapértelmezett címet/alcímet (pl. fodrász-specifikus üzenet). */
+  title?: React.ReactNode
+  subtitle?: React.ReactNode
+}) {
   const [pairIdx, setPairIdx] = useState(0)
   const [mounted, setMounted] = useState(false)
   const sectionRef = useRef<HTMLElement>(null)
@@ -764,14 +773,22 @@ export function Hero({ pricing }: { pricing: LandingPricing }) {
             className="flex flex-col gap-5"
           >
             <h1 className="font-onest font-light text-[clamp(2rem,5vw,3.5rem)] leading-[1.14] tracking-[-0.05em] text-[#f5f5f5]">
-              Nem csak a vendégeidnek.{' '}
-              <br className="hidden lg:block" />
-              A csapatodnak is.
+              {title ?? (
+                <>
+                  Nem csak a vendégeidnek.{' '}
+                  <br className="hidden lg:block" />
+                  A csapatodnak is.
+                </>
+              )}
             </h1>
             <p className="font-onest text-[clamp(.875rem,1.4vw,1.15rem)] tracking-[-0.04em] leading-relaxed text-[#f5f5f5]/65">
-              Foglalj. Vezess csapatot. Számolj bért.
-              <br />
-              Az egyetlen app amire egy üzletnek szüksége van.
+              {subtitle ?? (
+                <>
+                  Foglalj. Vezess csapatot. Számolj bért.
+                  <br />
+                  Az egyetlen app amire egy üzletnek szüksége van.
+                </>
+              )}
             </p>
           </motion.div>
 

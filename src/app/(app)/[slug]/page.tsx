@@ -3,8 +3,11 @@ import Image from 'next/image'
 import Script from 'next/script'
 import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
-import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd } from '@/lib/publicSeo'
+import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, SITE_URL } from '@/lib/publicSeo'
 import { getReviewSummary } from '@/lib/reviews'
+import { getPricing } from '@/lib/pricing'
+import { INDUSTRY_LANDINGS } from '@/lib/industryLandings'
+import HomeClient from '../HomeClient'
 import type { Media } from '@/payload/payload-types'
 import { MapPin, Tag, Users } from 'lucide-react'
 import { RatingStars } from '@/components/booking/RatingStars'
@@ -22,6 +25,32 @@ import { t, resolveAvailableLocales } from '@/lib/i18n'
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params
+
+  // Iparág-specifikus SEO landing (pl. /fodrasz-idopontfoglalas) — a szűkebb, fenntartott
+  // listával ellenőrizzük ELŐSZÖR, hogy ne fussunk le két felesleges DB-lekérdezést (szalon +
+  // étterem keresés) minden landing-oldal-kérésnél.
+  const landing = INDUSTRY_LANDINGS[slug]
+  if (landing) {
+    const url = `${SITE_URL}/${slug}`
+    return {
+      title: landing.seoTitle,
+      description: landing.seoDescription,
+      alternates: { canonical: url },
+      openGraph: {
+        type: 'website',
+        title: landing.seoTitle,
+        description: landing.seoDescription,
+        url,
+        siteName: 'davelopment booking',
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: landing.seoTitle,
+        description: landing.seoDescription,
+      },
+    }
+  }
+
   const salonData = await getPublicSalon(slug, 'hu')
   if (salonData) return placeMetadata(salonData.salon, 'salon')
   const restaurantData = await getPublicRestaurant(slug, 'hu')
@@ -37,6 +66,21 @@ export default async function SalonPublicPage({
   searchParams: Promise<{ embed?: string }>
 }) {
   const { slug } = await params
+
+  const landing = INDUSTRY_LANDINGS[slug]
+  if (landing) {
+    const pricing = await getPricing()
+    return (
+      <>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(siteJsonLd(pricing, landing.faqItems)) }}
+        />
+        <HomeClient pricing={pricing} industry={landing} />
+      </>
+    )
+  }
+
   const embed = (await searchParams).embed === '1'
   const requested = await getLocale()
 

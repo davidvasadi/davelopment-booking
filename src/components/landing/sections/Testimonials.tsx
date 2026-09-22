@@ -1,7 +1,7 @@
 'use client'
 
-import { useId } from 'react'
-import { motion } from 'framer-motion'
+import { useRef } from 'react'
+import { motion, useInView } from 'framer-motion'
 import { Activity, SquareKanban, CreditCard, ArrowDown, ArrowUp, ArrowRight } from 'lucide-react'
 import { float } from '@/components/landing/Motion'
 import { SectionLabel } from '@/components/landing/SectionLabel'
@@ -25,10 +25,14 @@ const GRID_ROWS = 5
 
 const CURVE_BAND = 'bottom-[18%] h-[40%]'
 
+// Az `amp` (lebegés-amplitúdó) kicsi (2-2.5px), mert a `float()` CSAK felfelé mozog a nyugalmi
+// pontból (`y: [0, -amp, 0]`), soha lefelé — az x/y koordináták a görbe pontos illesztésére
+// vannak számolva, egy nagyobb amplitúdó a buborékot vizuálisan folyamatosan a vonal fölé
+// emelné, sosem alá, így "leválna" a görbéről.
 const BUBBLES = [
-  { x: 0.07, y: 0.677, label: '-4,2%',  dir: 'down' as const, Icon: SquareKanban, amp: 6, dur: 5.5, delay: 0 },
-  { x: 0.28, y: 0.320, label: '+12,4%', dir: 'up'   as const, Icon: Activity,     amp: 7, dur: 6,   delay: 0.4 },
-  { x: 0.78, y: 0.243, label: '+28,6%', dir: 'up'   as const, Icon: CreditCard,   amp: 6, dur: 5,   delay: 0.8 },
+  { x: 0.07, y: 0.50, label: '-4,2%',  dir: 'down' as const, Icon: SquareKanban, amp: 2,   dur: 5.5, delay: 0 },
+  { x: 0.29, y: 0.24, label: '+12,4%', dir: 'up'   as const, Icon: Activity,     amp: 2.5, dur: 6,   delay: 0.4 },
+  { x: 0.78, y: 0.11, label: '+28,6%', dir: 'up'   as const, Icon: CreditCard,   amp: 2,   dur: 5,   delay: 0.8 },
 ]
 
 const AVATARS = [
@@ -41,8 +45,22 @@ const AVATARS = [
 ]
 
 
-export function Testimonials({ trial_days }: { trial_days: number }) {
-  const clipId = useId()
+export function Testimonials({
+  trial_days,
+  joinLine,
+}: {
+  trial_days: number
+  /** Iparági landingeknél felülírja a homepage-alapértelmezett "Csatlakozz..." sort. */
+  joinLine?: string
+}) {
+  // A görbe "kirajzolás" animációja korábban egy SVG `<clipPath>`-en (`<defs>`) belüli `<rect>`-et
+  // animált — annak nincs valós layout-geometriája, ezért a rajta lévő `whileInView`/`useInView`
+  // sosem észlelte a láthatóvá válást, a görbe örökre width:0-n, azaz teljesen levágva maradt.
+  // Megoldás: a láthatóságot egy VALÓS, renderelt elemen (a grafikon-zóna maga) figyeljük, és egy
+  // sima CSS `clip-path: inset()`-et animálunk egy látható `motion.div`-en — nincs SVG-defs, nincs
+  // `url(#id)`-hivatkozás, csak egy közvetlenül animált, látható elem.
+  const graphRef = useRef<HTMLDivElement>(null)
+  const graphInView = useInView(graphRef, { once: true, amount: 0.2 })
   return (
     <section id="velemenyek" className="mx-auto max-w-7xl px-4 lg:px-5 pb-8">
       <motion.div
@@ -96,7 +114,7 @@ export function Testimonials({ trial_days }: { trial_days: number }) {
         <div className="relative bg-brand-accent flex-1 flex flex-col lg:flex-row items-stretch overflow-hidden min-h-[240px] lg:min-h-[383px]">
 
           {/* Grafikon-zóna */}
-          <div className="relative w-full lg:w-[44%] shrink-0 self-stretch min-h-[240px] lg:min-h-[383px]">
+          <div ref={graphRef} className="relative w-full lg:w-[44%] shrink-0 self-stretch min-h-[240px] lg:min-h-[383px]">
 
             {/* Rács — fade-in */}
             <motion.div
@@ -116,37 +134,34 @@ export function Testimonials({ trial_days }: { trial_days: number }) {
 
             {/* Görbe + buborékok */}
             <div className={`absolute inset-x-0 ${CURVE_BAND}`}>
-              <svg
-                viewBox="0 0 379.649 149.743"
-                preserveAspectRatio="none"
-                className="absolute inset-0 h-full w-full"
-                fill="none"
-                aria-hidden
+              {/* Bal→jobb "kirajzolás": egy VALÓS, látható `motion.div`-en animált CSS
+                  `clip-path: inset()` takarja el balról jobbra a (torzítatlan, teljes méretű)
+                  SVG-t — NEM framer `pathLength` stroke-dasharray-jal, mert a
+                  `preserveAspectRatio="none"` miatt a doboz nem egyenletesen (X/Y külön
+                  arányban) nyújtja a görbét, és a dasharray-alapú ívhossz-animáció ilyenkor
+                  rosszul jelenik meg (a vonal a görbültebb szakaszokon "túlrajzol" / elcsúszik
+                  a valós végponthoz képest). */}
+              <motion.div
+                className="absolute inset-0"
+                initial={{ clipPath: 'inset(0 100% 0 0)' }}
+                animate={{ clipPath: graphInView ? 'inset(0 0% 0 0)' : 'inset(0 100% 0 0)' }}
+                transition={{ duration: 1.4, ease: EASE, delay: 0.15 }}
               >
-                {/* Bal→jobb "kirajzolás" clip-path szélesség-animációval, NEM framer
-                    `pathLength` stroke-dasharray-jal — a `preserveAspectRatio="none"` miatt a
-                    doboz nem egyenletesen (X/Y külön arányban) nyújtja a görbét, és a
-                    dasharray-alapú ívhossz-animáció ilyenkor rosszul jelenik meg (a vonal a
-                    görbültebb szakaszokon "túlrajzol" / elcsúszik a valós végponthoz képest). */}
-                <defs>
-                  <clipPath id={clipId}>
-                    <motion.rect
-                      x="0" y="0" height="149.743"
-                      initial={{ width: 0 }}
-                      whileInView={{ width: 379.649 }}
-                      viewport={{ once: true, amount: 0.2 }}
-                      transition={{ duration: 1.4, ease: EASE, delay: 0.15 }}
-                    />
-                  </clipPath>
-                </defs>
-                <path
-                  d={CURVE}
-                  stroke="#191314"
-                  strokeWidth="2"
-                  vectorEffect="non-scaling-stroke"
-                  clipPath={`url(#${clipId})`}
-                />
-              </svg>
+                <svg
+                  viewBox="0 0 379.649 149.743"
+                  preserveAspectRatio="none"
+                  className="absolute inset-0 h-full w-full"
+                  fill="none"
+                  aria-hidden
+                >
+                  <path
+                    d={CURVE}
+                    stroke="#191314"
+                    strokeWidth="2"
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </svg>
+              </motion.div>
 
               {BUBBLES.map((b, i) => (
                 // Külső wrapper: belépő (opacity+scale), nem ütközik a float translate-vel
@@ -193,7 +208,7 @@ export function Testimonials({ trial_days }: { trial_days: number }) {
               viewport={{ once: true, amount: 0.3 }}
               transition={{ duration: 0.45, ease: EASE }}
             >
-              Csatlakozz a vállalkozásokhoz, akik már minket használnak.
+              {joinLine ?? 'Csatlakozz a vállalkozásokhoz, akik már minket használnak.'}
             </motion.p>
 
             {/* Avatar stack — staggerelt belépő */}
@@ -210,15 +225,6 @@ export function Testimonials({ trial_days }: { trial_days: number }) {
                   transition={{ duration: 0.38, ease: EASE, delay: 0.1 + i * 0.07 }}
                 />
               ))}
-              <motion.span
-                className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-brand-accent bg-white text-[17px] font-semibold tracking-[-0.6px] text-brand-ink"
-                initial={{ opacity: 0, x: -14 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, amount: 0.3 }}
-                transition={{ duration: 0.38, ease: EASE, delay: 0.1 + AVATARS.length * 0.07 }}
-              >
-                +1K
-              </motion.span>
             </div>
 
             {SHOW_REVIEW_CTA && (

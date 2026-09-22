@@ -2,6 +2,7 @@ import type { MetadataRoute } from 'next'
 import { getPayloadClient } from '@/lib/payload'
 import { SITE_URL } from '@/lib/publicSeo'
 import { TIPS } from '@/lib/tips-content'
+import { INDUSTRY_LANDINGS } from '@/lib/industryLandings'
 
 /**
  * Dinamikus sitemap: minden aktív üzlet publikus profil-oldala (/[slug]).
@@ -33,6 +34,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ]
     for (const tip of TIPS) {
       entries.push({ url: `${SITE_URL}/tips/${tip.slug}`, changeFrequency: 'monthly', priority: 0.6 })
+    }
+    for (const landing of Object.values(INDUSTRY_LANDINGS)) {
+      entries.push({ url: `${SITE_URL}/${landing.slug}`, changeFrequency: 'monthly', priority: 0.7 })
     }
     for (const s of salons.docs) {
       if (s.slug) entries.push({ url: `${SITE_URL}/${s.slug}`, changeFrequency: 'weekly', priority: 0.8 })

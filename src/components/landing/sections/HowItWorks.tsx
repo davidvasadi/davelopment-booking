@@ -32,10 +32,22 @@ const STEPS = [
   },
 ]
 
-export function HowItWorks() {
+export function HowItWorks({
+  title,
+  subtitle,
+  steps,
+}: {
+  /** Iparági landingeknél felülírja a homepage-alapértelmezett fejlécet. */
+  title?: string
+  subtitle?: string
+  /** Iparági landingeknél felülírja a 3 lépés cím/szövegét (a képek megmaradnak — azok
+   *  általános termék-screenshotok, nincs hozzájuk iparáganként külön asset). */
+  steps?: { title: string; body: string }[]
+} = {}) {
   const [active, setActive] = useState(0)
   const cardRef = useRef<HTMLDivElement>(null)
   const cardInView = useInView(cardRef, { once: true, margin: '-80px 0px' })
+  const resolvedSteps = steps ? STEPS.map((s, i) => ({ ...s, title: steps[i].title, body: steps[i].body })) : STEPS
 
   return (
     <section id="hogyan" className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28">
@@ -52,10 +64,10 @@ export function HowItWorks() {
         </span>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
           <h2 className="font-semibold text-[clamp(2.25rem,5.5vw,72px)] leading-[0.94] tracking-[-0.05em] text-brand-ink max-w-2xl">
-            Kezd el 3 egyszerű lépésben.
+            {title ?? 'Kezd el 3 egyszerű lépésben.'}
           </h2>
           <p className="text-[16px] leading-[1.6] text-brand-ink/55 max-w-sm lg:pb-1">
-            5 perc és éles vagy
+            {subtitle ?? '5 perc és éles vagy'}
           </p>
         </div>
       </motion.div>
@@ -71,7 +83,7 @@ export function HowItWorks() {
 
         {/* ── Egységes layout: mobilon flex-col, desktopon flex-row ── */}
         <div className="flex flex-col gap-3 lg:flex-row lg:h-[360px]">
-          {STEPS.map((step, i) => {
+          {resolvedSteps.map((step, i) => {
             const isActive = active === i
             return (
               <motion.div

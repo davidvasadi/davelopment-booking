@@ -113,8 +113,15 @@ function FaqAccordion({ items }: { items: { q: string; a: string }[] }) {
   )
 }
 
-export function Faq({ pricing }: { pricing: LandingPricing }) {
-  const items = buildFaqItems(pricing)
+export function Faq({
+  pricing,
+  extraItems,
+}: {
+  pricing: LandingPricing
+  /** Iparági landingeknél a szakmának szóló extra GYIK-pontok, a lista végén. */
+  extraItems?: { q: string; a: string }[]
+}) {
+  const items = buildFaqItems(pricing, extraItems)
   return (
     <section id="gyik" className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28 flex flex-col gap-[54px]">
       {/* Fejléc: eyebrow + nagy cím (bal) | leírás (jobb felső) */}

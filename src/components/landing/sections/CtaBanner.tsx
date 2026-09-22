@@ -6,7 +6,14 @@ import { FadeUp } from '@/components/landing/Motion'
 import { EASE, buttonHover } from '@/lib/motion'
 import { Grain } from '@/components/landing/Grain'
 
-export function CtaBanner({ trial_days }: { trial_days: number }) {
+export function CtaBanner({
+  trial_days,
+  title,
+}: {
+  trial_days: number
+  /** Iparági landingeknél felülírja a homepage-alapértelmezett banner-címet. */
+  title?: string
+}) {
   return (
     <section className=" mx-auto max-w-7xl px-4 lg:px-5 pb-8">
       <FadeUp>
@@ -36,7 +43,7 @@ export function CtaBanner({ trial_days }: { trial_days: number }) {
                   className="font-geist font-medium text-[#f4f2ee] leading-[1.05] tracking-[-0.05em]"
                   style={{ fontSize: 'clamp(1.75rem, 4vw, 2.75rem)' }}
                 >
-                  Tartsd kézben a vállalkozásod minden percét.
+                  {title ?? 'Tartsd kézben a vállalkozásod minden percét.'}
                 </h2>
                 <motion.a
                   href="/register"

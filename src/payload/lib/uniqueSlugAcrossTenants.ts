@@ -1,4 +1,5 @@
 import type { TextFieldSingleValidation } from 'payload'
+import { RESERVED_INDUSTRY_SLUGS } from '@/lib/industryLandings'
 
 /**
  * Salons and restaurants share a single public URL namespace (domain.com/[slug]),
@@ -14,6 +15,13 @@ export function uniqueSlugAcrossTenants(
 ): TextFieldSingleValidation {
   return async (value, { req }) => {
     if (!value || typeof value !== 'string') return true
+
+    // A `/[slug]` route ezekre a nevekre egy fix SEO landinget renderel (ld. industryLandings.ts)
+    // egy üzlet-lookup HELYETT — ha egy üzlet ezt választaná slugnak, örökre elfedné a saját
+    // oldalát a landing mögött.
+    if (RESERVED_INDUSTRY_SLUGS.includes(value)) {
+      return 'Ez a slug foglalt (rendszer által fenntartott). Válassz másikat.'
+    }
 
     const existing = await req.payload.find({
       collection: otherCollection,

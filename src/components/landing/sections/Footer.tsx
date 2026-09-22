@@ -50,15 +50,23 @@ const NAV_LINKS = [
   { href: '#kapcsolat', label: 'Kapcsolat' },
   { href: '/login', label: 'Bejelentkezés' },
 ]
+// A saját iparági SEO-landingekre mutat (lásd `src/lib/industryLandings.ts`) — nem `/register`-re.
+// A footer minden oldalon megjelenik, így ez a legerősebb, mindenhonnan induló belső link
+// ezekre az oldalakra, ami segíti a keresőmotoros súlyukat.
 const INDUSTRY_LINKS = [
-  { href: '/register-restaurant', label: 'Éttermeknek' },
-  { href: '/register', label: 'Fodrászatoknak' },
-  { href: '/register', label: 'Szépségszalonoknak' },
-  { href: '/register', label: 'Körömszalonoknak' },
-  { href: '/register', label: 'Masszázs & Spa' },
-  { href: '/register', label: 'Orvosoknak' },
-  { href: '/register', label: 'Fogászatoknak' },
-  { href: '/register', label: 'Edzőknek' },
+  { href: '/etterem-asztalfoglalas', label: 'Éttermeknek' },
+  { href: '/fodrasz-idopontfoglalas', label: 'Fodrászoknak' },
+  { href: '/kozmetikus-idopontfoglalas', label: 'Kozmetikusoknak' },
+  { href: '/mukormos-idopontfoglalas', label: 'Műkörmösöknek' },
+  { href: '/masszor-idopontfoglalas', label: 'Masszőröknek' },
+  { href: '/csontkovacs-idopontfoglalas', label: 'Csontkovácsoknak' },
+  { href: '/fogorvos-idopontfoglalas', label: 'Fogorvosoknak' },
+  { href: '/maganrendelo-idopontfoglalas', label: 'Magánrendelőknek' },
+  { href: '/barber-idopontfoglalas', label: 'Barbereknek' },
+  { href: '/szemelyi-edzo-idopontfoglalas', label: 'Személyi edzőknek' },
+  { href: '/pilates-idopontfoglalas', label: 'Pilates stúdióknak' },
+  { href: '/joga-idopontfoglalas', label: 'Jóga oktatóknak' },
+  { href: '/csapatkezeles-kisvallalkozasoknak', label: 'Csapatkezeléshez' },
 ]
 const LEGAL_LINKS = [
   { href: '/terms', label: 'Felhasználási feltételek' },

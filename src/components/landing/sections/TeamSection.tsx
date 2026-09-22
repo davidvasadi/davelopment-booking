@@ -87,7 +87,14 @@ const STATS = [
 
 // ─── Section ──────────────────────────────────────────────────────────────────
 
-export function TeamSection() {
+export function TeamSection({
+  title,
+  subtitle,
+}: {
+  /** Iparági landingeknél felülírja a homepage-alapértelmezett fejlécet. */
+  title?: React.ReactNode
+  subtitle?: string
+} = {}) {
   const cImg = useCard()
   const cCta = useCard()
 
@@ -107,10 +114,10 @@ export function TeamSection() {
         </span>
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-5">
           <h2 className="font-semibold text-[clamp(2.25rem,5.5vw,72px)] leading-[0.94] tracking-[-0.05em] text-brand-ink max-w-2xl">
-            Az egész csapat,<br className="hidden sm:block" /> egy képernyőn.
+            {title ?? (<>Az egész csapat,<br className="hidden sm:block" /> egy képernyőn.</>)}
           </h2>
           <p className="text-[16px] leading-[1.6] text-brand-ink/55 max-w-sm lg:pb-1">
-            Beosztások, teljesítmény, kommunikáció — mindenki látja, ami rá tartozik.
+            {subtitle ?? 'Beosztások, teljesítmény, kommunikáció — mindenki látja, ami rá tartozik.'}
           </p>
         </div>
       </motion.div>
