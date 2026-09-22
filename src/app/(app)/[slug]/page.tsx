@@ -32,6 +32,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const landing = INDUSTRY_LANDINGS[slug]
   if (landing) {
     const url = `${SITE_URL}/${slug}`
+    const ogImage = `${SITE_URL}/api/og/landing?title=${encodeURIComponent(landing.heroTitle)}`
     return {
       title: landing.seoTitle,
       description: landing.seoDescription,
@@ -42,11 +43,13 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
         description: landing.seoDescription,
         url,
         siteName: 'davelopment booking',
+        images: [{ url: ogImage, width: 1200, height: 630, alt: landing.heroTitle }],
       },
       twitter: {
         card: 'summary_large_image',
         title: landing.seoTitle,
         description: landing.seoDescription,
+        images: [ogImage],
       },
     }
   }
