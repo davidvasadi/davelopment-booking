@@ -384,6 +384,8 @@ export function RestaurantSettingsForm({
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
 
+  const MAX_UPLOAD_MB = 15
+
   const uploadImage = async (
     file: File,
     setPreview: (url: string | null) => void,
@@ -391,6 +393,10 @@ export function RestaurantSettingsForm({
     setUploading: (v: boolean) => void,
     setModified: (v: boolean) => void,
   ) => {
+    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
+      toast.error(`A kép mérete legfeljebb ${MAX_UPLOAD_MB} MB lehet.`)
+      return
+    }
     setUploading(true)
     setPreview(URL.createObjectURL(file))
     try {
@@ -624,6 +630,7 @@ export function RestaurantSettingsForm({
             </>
           )}
         </div>
+        <p className="text-[11px] text-ink-soft2">JPG, PNG vagy WEBP, legfeljebb {MAX_UPLOAD_MB} MB.</p>
         {focalEditorOpen && coverPreview && (
           <CoverFocalPointEditor
             imageUrl={coverPreview}
@@ -685,7 +692,7 @@ export function RestaurantSettingsForm({
               )}
             </div>
             <p className="text-xs text-ink-soft leading-relaxed">
-              PNG vagy SVG, áttetsző háttérrel a legjobb.
+              PNG vagy SVG, áttetsző háttérrel a legjobb. Legfeljebb {MAX_UPLOAD_MB} MB.
             </p>
             <input
               ref={logoRef}
