@@ -1040,7 +1040,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                         const photo = st?.avatarUrl
                         return (
                           <span key={s.id} title={`${st?.name ?? ''} · ${statusLabel(s)}`}
-                            className={`flex h-4 w-4 flex-shrink-0 items-center justify-center overflow-hidden rounded-full transition-opacity sm:h-5 sm:w-5${idx > 0 ? ' -ml-[4px]' : ''}`}
+                            className={`flex h-4 w-4 flex-shrink-0 items-center justify-center overflow-hidden rounded-full transition-opacity sm:h-5 sm:w-5${idx > 0 ? ' -ml-[8px] sm:-ml-[10px]' : ''}`}
                             style={{ background: photo ? '#F0EAD8' : cs.bg, color: cs.fg, boxShadow: isSelSt ? `0 0 0 1.5px ${cs.bg}, 0 0 0 3px #fff` : `0 0 0 1.5px ${cs.bg}`, zIndex: 3 - idx, opacity: (focusPerson && !selectedDay && !isSelSt) ? 0.2 : 1 }}>
                             {photo ? <img src={photo} alt="" className="h-full w-full object-cover object-top" /> : <User className="h-[56%] w-[56%] opacity-70" strokeWidth={1.9} />}
                           </span>
@@ -1053,7 +1053,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                             <div className="flex items-center">
                               {row2.map((s, i) => avaSpan(s, i))}
                               {remaining > 0 && (
-                                <span className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[#EDE7D7] text-[6px] font-bold text-ink-soft sm:h-5 sm:w-5 sm:text-[7px]${row2.length > 0 ? ' -ml-[4px]' : ''}`}>
+                                <span className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-[#EDE7D7] text-[6px] font-bold text-ink-soft sm:h-5 sm:w-5 sm:text-[7px]${row2.length > 0 ? ' -ml-[8px] sm:-ml-[10px]' : ''}`}>
                                   +{remaining}
                                 </span>
                               )}
