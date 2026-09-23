@@ -714,13 +714,15 @@ export function Hero({
         className="relative flex flex-col overflow-hidden rounded-[30px] px-5 lg:px-8 h-[calc(100svh-32px)]"
         style={{ background: 'linear-gradient(241deg, #141210 2.7%, #1e1b14 100%)' }}
       >
-        {/* Videó */}
+        {/* Videó — a webm ugyan kisebb, de alacsonyabb frissítésű/szaggatott, a felhasználó
+            visszajelzése alapján NE azt használjuk — az mp4 a jó minőségű (60fps) verzió, marad
+            az egyetlen forrás. `preload="metadata"` — csak a poster/metaadat töltődik azonnal,
+            maga a videó csak akkor, amikor a böngésző ténylegesen lejátszásra készül. */}
         <video
           className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-50"
-          autoPlay muted loop playsInline aria-hidden
+          autoPlay muted loop playsInline aria-hidden preload="metadata"
           poster="/videos/szalon-foglalas-hatter-poster.jpg"
         >
-          <source src="/videos/szalon-foglalas-hatter.mp4" type="video/mp4" />
           <source src="/videos/szalon-foglalas-hatter.mp4" type="video/mp4" />
         </video>
 
