@@ -117,10 +117,10 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
           <nav className="relative z-50 flex items-center justify-between px-5 py-5 lg:px-8 lg:py-6">
             <div className="flex items-center gap-3">
               <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6 lg:h-7" />
-              {logoUrl && <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
+              {logoUrl && <div className={`h-7 w-px lg:h-8 ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
               {logoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt={restaurant.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
+                <img src={logoUrl} alt={restaurant.name} className="h-9 w-auto max-w-[140px] rounded-[6px] object-contain lg:h-10 lg:max-w-[150px]" />
               )}
             </div>
             {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}

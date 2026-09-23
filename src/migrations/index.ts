@@ -33,6 +33,8 @@ import * as migration_20260921_120000_multi_breaks from './20260921_120000_multi
 import * as migration_20260921_130000_drop_old_break_columns from './20260921_130000_drop_old_break_columns';
 import * as migration_20260923_090000_relax_service_category_not_null from './20260923_090000_relax_service_category_not_null';
 import * as migration_20260923_100000_add_services_uncategorized_sort_order from './20260923_100000_add_services_uncategorized_sort_order';
+import * as migration_20260923_110000_add_services_expanded_on_main from './20260923_110000_add_services_expanded_on_main';
+import * as migration_20260923_120000_add_show_catalog_counts_on_public from './20260923_120000_add_show_catalog_counts_on_public';
 import * as migration_20260923_130000_add_booking_price_snapshot from './20260923_130000_add_booking_price_snapshot';
 
 export const migrations = [
@@ -210,6 +212,16 @@ export const migrations = [
     up: migration_20260923_100000_add_services_uncategorized_sort_order.up,
     down: migration_20260923_100000_add_services_uncategorized_sort_order.down,
     name: '20260923_100000_add_services_uncategorized_sort_order',
+  },
+  {
+    up: migration_20260923_110000_add_services_expanded_on_main.up,
+    down: migration_20260923_110000_add_services_expanded_on_main.down,
+    name: '20260923_110000_add_services_expanded_on_main',
+  },
+  {
+    up: migration_20260923_120000_add_show_catalog_counts_on_public.up,
+    down: migration_20260923_120000_add_show_catalog_counts_on_public.down,
+    name: '20260923_120000_add_show_catalog_counts_on_public',
   },
   {
     up: migration_20260923_130000_add_booking_price_snapshot.up,

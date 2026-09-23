@@ -136,6 +136,8 @@ export default async function SalonPublicPage({
   const hasCover = !!coverUrl
   const heroText = hasCover ? 'text-white' : 'text-[#1D1C19]'
   const heroSub  = hasCover ? 'text-white/60' : 'text-[#86826F]'
+  // `booking_rules.show_catalog_counts_on_public` — alapértelmezett true (nincs érték = mutassuk).
+  const showCatalogCounts = salon.booking_rules?.show_catalog_counts_on_public !== false
 
   return (
     <div
@@ -198,52 +200,56 @@ export default async function SalonPublicPage({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6" />
-                {logoUrl && <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
+                {logoUrl && <div className={`h-7 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
                 {logoUrl && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoUrl} alt={salon.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
+                  <img src={logoUrl} alt={salon.name} className="h-9 w-auto max-w-[140px] rounded-[6px] object-contain" />
                 )}
               </div>
               {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
             </div>
-            <div className="flex items-center justify-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <Tag className={`h-3.5 w-3.5 ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
-                <span className={`text-sm font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{services.length}</span>
-                <span className={`text-[11px] ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
+            {showCatalogCounts && (
+              <div className="flex items-center justify-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <Tag className={`h-3.5 w-3.5 ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+                  <span className={`text-sm font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{services.length}</span>
+                  <span className={`text-[11px] ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
+                </div>
+                <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
+                <div className="flex items-center gap-1.5">
+                  <Users className={`h-3.5 w-3.5 ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+                  <span className={`text-sm font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{staff.length}</span>
+                  <span className={`text-[11px] ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
+                </div>
               </div>
-              <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
-              <div className="flex items-center gap-1.5">
-                <Users className={`h-3.5 w-3.5 ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
-                <span className={`text-sm font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{staff.length}</span>
-                <span className={`text-[11px] ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
-              </div>
-            </div>
+            )}
           </nav>
 
           {/* Desktop navbar — eredeti egysoros elrendezés, abszolút-középre pozicionált számlálóval. */}
           <nav className="relative z-50 hidden items-center justify-between px-8 py-6 lg:flex">
             <div className="flex items-center gap-3">
               <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-7" />
-              {logoUrl && <div className={`h-4 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
+              {logoUrl && <div className={`h-8 w-px ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
               {logoUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt={salon.name} className="h-7 w-auto max-w-[120px] rounded-[6px] object-contain" />
+                <img src={logoUrl} alt={salon.name} className="h-10 w-auto max-w-[150px] rounded-[6px] object-contain" />
               )}
             </div>
-            <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-5">
-              <div className="flex items-center gap-2">
-                <Tag className={`h-[15px] w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
-                <span className={`text-base font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{services.length}</span>
-                <span className={`text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
+            {showCatalogCounts && (
+              <div className="absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center gap-5">
+                <div className="flex items-center gap-2">
+                  <Tag className={`h-[15px] w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+                  <span className={`text-base font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{services.length}</span>
+                  <span className={`text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
+                </div>
+                <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
+                <div className="flex items-center gap-2">
+                  <Users className={`h-[15px] w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
+                  <span className={`text-base font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{staff.length}</span>
+                  <span className={`text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
+                </div>
               </div>
-              <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
-              <div className="flex items-center gap-2">
-                <Users className={`h-[15px] w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
-                <span className={`text-base font-semibold ${hasCover ? 'text-white' : 'text-ink'}`}>{staff.length}</span>
-                <span className={`text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
-              </div>
-            </div>
+            )}
             {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
           </nav>
 
@@ -327,6 +333,7 @@ export default async function SalonPublicPage({
         consentText={salon.consent_settings?.template_text}
         customQuestions={salon.custom_questions}
         embed={embed}
+        servicesExpandedOnMain={!!salon.booking_rules?.services_expanded_on_main}
         company={{
           name: salon.name,
           legal_name: salon.legal_name,

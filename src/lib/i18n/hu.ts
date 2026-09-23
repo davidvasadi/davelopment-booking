@@ -122,6 +122,7 @@ export const hu: Record<string, string> = {
   'public.chooseService': 'Válassz szolgáltatást',
   'public.servicesEyebrow': 'Kínálatunk',
   'public.serviceCount': '{{n}} szolgáltatás',
+  'public.free': 'Ingyenes',
   'public.staff': 'Munkatársak',
   'public.staffEyebrow': 'Csapatunk',
   'public.bookCta': 'Időpontfoglalás',

@@ -98,6 +98,12 @@ export const settingsExtensionFields: Field[] = [
         label: 'Cím-kérés indoklása a vendégnek',
         admin: { description: 'Ez a szöveg jelenik meg a vendégnek a cím-mező alatt, hogy értse, miért kérjük. Üresen hagyva egy általános szöveg jelenik meg.' },
       },
+      // Csak a szalon-oldalon van UI-ja (dashboard Szolgáltatások oldal, fejléc-ikon) — a
+      // szalonnak és az étteremnek közös `booking_rules` csoport miatt a mező az étterem
+      // rekordon is létezik, de ott sosem olvasódik/íródik (nincs saját katalógus-nézete,
+      // lásd RestaurantCard).
+      { name: 'services_expanded_on_main', type: 'checkbox', defaultValue: false, label: 'Szolgáltatások kibontva a főnézeten' },
+      { name: 'show_catalog_counts_on_public', type: 'checkbox', defaultValue: true, label: 'Szolgáltatás/munkatárs-szám a publikus fejlécen' },
     ],
   },
   {

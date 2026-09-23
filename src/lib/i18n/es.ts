@@ -116,6 +116,7 @@ export const es: Record<string, string> = {
   'public.chooseService': 'Elige un servicio',
   'public.servicesEyebrow': 'Nuestra oferta',
   'public.serviceCount': '{{n}} servicios',
+  'public.free': 'Gratis',
   'public.staff': 'Equipo',
   'public.staffEyebrow': 'Nuestro equipo',
   'public.bookCta': 'Reservar cita',

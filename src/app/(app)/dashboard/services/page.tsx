@@ -108,6 +108,8 @@ export default async function ServicesPage() {
         canManage={can(capabilities, 'catalog.manage')}
         logoUrl={logoUrl}
         uncategorizedSortOrder={salon.services_uncategorized_sort_order ?? null}
+        servicesExpandedOnMain={salon.booking_rules?.services_expanded_on_main ?? false}
+        showCatalogCountsOnPublic={salon.booking_rules?.show_catalog_counts_on_public ?? true}
       />
     </div>
   )

@@ -143,6 +143,8 @@ export interface Restaurant {
     cancellation_protection?: boolean | null
     require_address?: boolean | null
     require_address_note?: string | null
+    services_expanded_on_main?: boolean | null
+    show_catalog_counts_on_public?: boolean | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null
@@ -745,6 +747,8 @@ export interface Salon {
     cancellation_protection?: boolean | null
     require_address?: boolean | null
     require_address_note?: string | null
+    services_expanded_on_main?: boolean | null
+    show_catalog_counts_on_public?: boolean | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null

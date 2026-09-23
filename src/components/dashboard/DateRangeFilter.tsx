@@ -93,6 +93,14 @@ export function DateRangeFilter({ basePath }: { basePath: string }) {
     return () => window.removeEventListener('resize', check)
   }, [])
 
+  // Mobilon a saját trigger-gombja rejtve van (a fejléc DashboardNav ikonja nyitja helyette),
+  // lásd a `hidden lg:flex` osztályt a trigger-en lent.
+  useEffect(() => {
+    const onOpen = () => setOpen(true)
+    window.addEventListener('davelopment:open-analytics-daterange', onOpen)
+    return () => window.removeEventListener('davelopment:open-analytics-daterange', onOpen)
+  }, [])
+
   // Sync calendar state from URL when panel opens
   useEffect(() => {
     if (!open) return
@@ -275,7 +283,9 @@ export function DateRangeFilter({ basePath }: { basePath: string }) {
         initial="rest"
         whileHover="hover"
         whileTap="hover"
-        className="flex items-center gap-2 h-11 lg:h-9 px-4 lg:px-3 bg-[var(--dav-glass-strong)] border border-line rounded-[12px] text-sm font-semibold text-ink hover:border-line-strong transition-colors"
+        // Mobilon (lg alatt) rejtve — a DashboardNav fejléc-ikonja nyitja helyette
+        // (`davelopment:open-analytics-daterange`), hogy ne duplázódjon a gomb.
+        className="hidden items-center gap-2 h-11 lg:h-9 px-4 lg:px-3 bg-[var(--dav-glass-strong)] border border-line rounded-[12px] text-sm font-semibold text-ink hover:border-line-strong transition-colors lg:flex"
       >
         <CalendarDays className="h-[15px] w-[15px] text-ink-soft shrink-0" />
         <span>{currentLabel(period, fromParam, toParam)}</span>

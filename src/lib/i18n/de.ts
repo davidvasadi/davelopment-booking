@@ -116,6 +116,7 @@ export const de: Record<string, string> = {
   'public.chooseService': 'Leistung auswählen',
   'public.servicesEyebrow': 'Unser Angebot',
   'public.serviceCount': '{{n}} Leistungen',
+  'public.free': 'Kostenlos',
   'public.staff': 'Team',
   'public.staffEyebrow': 'Unser Team',
   'public.bookCta': 'Termin buchen',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -657,6 +657,15 @@ export function AnalyticsOverview({
     return () => cancelAnimationFrame(id)
   }, [sheetMetricId, scrollToViewId])
 
+  // Mobilon a fejléc-ikonjai (DashboardNav) nyitják a CSV-letöltést — a valódi <a href>-et
+  // programozottan kattintjuk meg, hogy a böngésző letöltés-viselkedése ugyanaz maradjon.
+  const csvLinkRef = useRef<HTMLAnchorElement>(null)
+  useEffect(() => {
+    const onCsv = () => csvLinkRef.current?.click()
+    window.addEventListener('davelopment:open-analytics-csv', onCsv)
+    return () => window.removeEventListener('davelopment:open-analytics-csv', onCsv)
+  }, [])
+
   if (!primary || !selected) return null
 
   const showPrevLegend = selected.deltaPct !== undefined && Number.isFinite(selected.deltaPct)
@@ -678,11 +687,14 @@ export function AnalyticsOverview({
 
   return (
     <section className="font-onest space-y-4">
-      {/* Fejléc-cím NINCS (a page-ben már „Statisztikák") — csak időszak + CSV, jobbra */}
-      <div className="flex items-center justify-end gap-2">
+      {/* Fejléc-cím NINCS (a page-ben már „Statisztikák") — csak időszak + CSV, jobbra.
+          Mobilon (lg alatt) ez a sor rejtve van, ugyanezek a fejléc-ikonjaiból (DashboardNav)
+          nyílnak/indulnak — lásd a `davelopment:open-analytics-*` event-listenereket. */}
+      <div className="hidden items-center justify-end gap-2 lg:flex">
         {filter}
         {csvHref && (
           <motion.a
+            ref={csvLinkRef}
             href={csvHref}
             variants={buttonHover}
             initial="rest"

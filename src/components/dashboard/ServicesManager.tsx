@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Tag, Lock, GripVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Tag, Lock, GripVertical, SlidersHorizontal } from 'lucide-react'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
@@ -68,6 +68,12 @@ interface Props {
   /** A kategória nélküli szolgáltatás-blokk pozíciója a kategória-kártyák között (drag & drop
    *  sorrend-hint, a Salon rekordon tárolva) — null = mindig a lista végén. */
   uncategorizedSortOrder?: number | null
+  /** `booking_rules.services_expanded_on_main` — a publikus foglaló főnézetén a katalógus
+   *  rögtön kibontva jelenjen-e meg a "Válassz szolgáltatást" gomb helyett. */
+  servicesExpandedOnMain?: boolean
+  /** `booking_rules.show_catalog_counts_on_public` — a publikus foglaló fejlécén középen
+   *  megjelenjen-e a "N Szolgáltatás | M Munkatárs" számláló. */
+  showCatalogCountsOnPublic?: boolean
 }
 
 /** A staff-avatar VAGY (ha nincs) a személy saját profilképe email-egyezéssel. */
@@ -190,7 +196,7 @@ function ServiceRow({
       <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] bg-[#EFEEE9] px-3 py-1.5 text-[13px] font-medium text-ink sm:inline-flex">
         <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
       </span>
-      <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{formatPrice(s.price, s.currency)}</span>
+      <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{s.price === 0 ? 'Ingyenes' : formatPrice(s.price, s.currency)}</span>
       {canManage && (
         <>
           <Switch checked={active} onChange={onToggleActive} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
@@ -382,7 +388,7 @@ function UncategorizedServiceGroup({
 }
 
 
-export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory, avatarUrlByEmail, invitedEmails, canManage = false, logoUrl = null, uncategorizedSortOrder = null }: Props) {
+export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory, avatarUrlByEmail, invitedEmails, canManage = false, logoUrl = null, uncategorizedSortOrder = null, servicesExpandedOnMain: initialServicesExpandedOnMain = false, showCatalogCountsOnPublic: initialShowCatalogCountsOnPublic = true }: Props) {
   const [services, setServices] = useState(initialServices)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
@@ -429,6 +435,28 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
     })
   }, [categories])
 
+  // Katalógus-beállítások popup (fejléc-ikon) — a publikus foglalót érintő 2 kapcsoló. A
+  // `booking_rules` csoport RÉSZLEGES PATCH-elése biztonságos (Payload a hiányzó testvér-mezőket
+  // a jelenlegi tárolt értékükkel tölti fel, nem defaultra), ezért elég csak ezt a 2 kulcsot
+  // küldeni, nem kell az egész booking_rules-t ismerni.
+  const [catalogSettingsOpen, setCatalogSettingsOpen] = useState(false)
+  const [servicesExpandedOnMain, setServicesExpandedOnMain] = useState(initialServicesExpandedOnMain)
+  const [showCatalogCountsOnPublic, setShowCatalogCountsOnPublic] = useState(initialShowCatalogCountsOnPublic)
+  const saveBookingRule = async (key: 'services_expanded_on_main' | 'show_catalog_counts_on_public', value: boolean, revert: () => void) => {
+    try {
+      const res = await fetch('/api/salon/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ booking_rules: { [key]: value } }),
+      })
+      if (!res.ok) throw new Error()
+    } catch {
+      revert()
+      toast.error('Nem sikerült frissíteni')
+    }
+  }
+
   const [newCatName, setNewCatName] = useState('')
 
   // Category metadata editing — most ID alapján (a szerkesztett kategória rekordja).
@@ -466,6 +494,20 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
     setSelectedStaffIds([])
     setOpen(true)
   }
+
+  // Mobil fejléc-ikonok (DashboardNav dispatch-eli, lásd a séma-pattern más aloldalaknál is:
+  // Naptár/Munkatársak/stb.) — a "+" az openAdd-ot nyitja, a csúszka-ikon a katalógus-beállítás
+  // popup-ot.
+  useEffect(() => {
+    const onAdd = () => openAdd()
+    const onFilter = () => setCatalogSettingsOpen(true)
+    window.addEventListener('davelopment:open-services-add', onAdd)
+    window.addEventListener('davelopment:open-services-filter', onFilter)
+    return () => {
+      window.removeEventListener('davelopment:open-services-add', onAdd)
+      window.removeEventListener('davelopment:open-services-filter', onFilter)
+    }
+  }, [])
 
   const openEdit = (s: Service) => {
     reset({
@@ -907,13 +949,25 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
         description="Aktív kínálat, árak és időtartamok kategóriánként"
         action={
           canManage && (
-            <button
-              onClick={openAdd}
-              aria-label="Új szolgáltatás"
-              className="flex h-11 items-center gap-2 rounded-dav-pill bg-ink-dark px-3.5 text-sm font-semibold text-white transition-colors hover:bg-ink sm:px-5"
-            >
-              <Plus className="h-4 w-4" /><span className="hidden sm:inline">Új szolgáltatás</span>
-            </button>
+            // Mobilon a DashboardNav fejléc-ikonjai (csúszka + "+") nyitják ugyanezeket —
+            // desktopon (lg+) itt a helyük, ugyanaz a minta, mint a Munkatársak oldalon.
+            <div className="hidden items-center gap-2 lg:flex">
+              <button
+                onClick={() => setCatalogSettingsOpen(true)}
+                aria-label="Katalógus-beállítások"
+                title="Katalógus-beállítások"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+              </button>
+              <button
+                onClick={openAdd}
+                aria-label="Új szolgáltatás"
+                className="flex h-11 items-center gap-2 rounded-dav-pill bg-ink-dark px-3.5 text-sm font-semibold text-white transition-colors hover:bg-ink sm:px-5"
+              >
+                <Plus className="h-4 w-4" /><span className="hidden sm:inline">Új szolgáltatás</span>
+              </button>
+            </div>
           )
         }
         className="mb-6"
@@ -1263,6 +1317,39 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
               </button>
             )}
           </div>
+      </PopupModal>
+
+      <PopupModal open={catalogSettingsOpen} onClose={() => setCatalogSettingsOpen(false)} title="Katalógus-beállítások">
+        <div className="divide-y divide-line">
+          <div className="flex items-center justify-between gap-4 py-4">
+            <div className="min-w-0">
+              <p className="text-[14.5px] font-semibold text-ink">Szolgáltatások kibontva a főnézeten</p>
+              <p className="mt-0.5 text-[12.5px] text-ink-soft">A vendég rögtön a főnézeten látja a szolgáltatás-listát a publikus foglalón, nem kell a „Válassz szolgáltatást” gombra kattintania</p>
+            </div>
+            <Switch
+              checked={servicesExpandedOnMain}
+              onChange={(next) => {
+                setServicesExpandedOnMain(next)
+                saveBookingRule('services_expanded_on_main', next, () => setServicesExpandedOnMain(!next))
+              }}
+              ariaLabel="Szolgáltatások kibontva a főnézeten"
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 py-4">
+            <div className="min-w-0">
+              <p className="text-[14.5px] font-semibold text-ink">Szolgáltatás/munkatárs-szám a publikus fejlécen</p>
+              <p className="mt-0.5 text-[12.5px] text-ink-soft">A "N Szolgáltatás · M Munkatárs" számláló megjelenjen-e felül középen a publikus foglalón</p>
+            </div>
+            <Switch
+              checked={showCatalogCountsOnPublic}
+              onChange={(next) => {
+                setShowCatalogCountsOnPublic(next)
+                saveBookingRule('show_catalog_counts_on_public', next, () => setShowCatalogCountsOnPublic(!next))
+              }}
+              ariaLabel="Szolgáltatás/munkatárs-szám a publikus fejlécen"
+            />
+          </div>
+        </div>
       </PopupModal>
     </>
   )

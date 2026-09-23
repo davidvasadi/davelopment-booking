@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard, BarChart3, Plus, Printer, Download } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard, BarChart3, Plus, Printer, Download, CalendarDays, Building2, UserRound } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import { can, type Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -546,6 +546,70 @@ export function DashboardNav({
             </>
           )}
           {/* Munkatársak ikonok — export + új munkatárs; a staff oldalakon (szalon + étterem). */}
+          {/* Statisztikák — nézet-váltó (Üzlet/Saját munka, csak szalonnál és csak
+              analytics.view jogosultsággal), időszak-választó, CSV-export; szalon + étterem. */}
+          {pathname.endsWith('/analytics') && (
+            <>
+              {pathname.endsWith('/dashboard/analytics') && can(capabilities, 'analytics.view') && (() => {
+                const scope = searchParams.get('scope') === 'own' ? 'own' : 'business'
+                const nextScope = scope === 'business' ? 'own' : 'business'
+                const from = searchParams.get('from')
+                const to = searchParams.get('to')
+                const period = searchParams.get('period') ?? '30'
+                const rangeQuery = from && to ? `from=${from}&to=${to}` : `period=${period}`
+                const nextHref = `${pathname}?${rangeQuery}&scope=${nextScope}`
+                return (
+                  <button
+                    type="button"
+                    onClick={() => router.push(nextHref)}
+                    aria-label={scope === 'business' ? 'Váltás saját munkára' : 'Váltás üzleti nézetre'}
+                    title={scope === 'business' ? 'Üzlet — koppints a saját munkára váltáshoz' : 'Saját munka — koppints az üzleti nézetre váltáshoz'}
+                    className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+                  >
+                    {scope === 'business' ? <Building2 className="h-[19px] w-[19px]" strokeWidth={2} /> : <UserRound className="h-[19px] w-[19px]" strokeWidth={2} />}
+                  </button>
+                )
+              })()}
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-analytics-daterange'))}
+                aria-label="Időszak"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <CalendarDays className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-analytics-csv'))}
+                aria-label="CSV export"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <Download className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+            </>
+          )}
+          {/* Szolgáltatások — katalógus-beállítások (csúszka) + "Új szolgáltatás"; csak a
+              services oldalon. */}
+          {pathname.endsWith('/services') && can(capabilities, 'catalog.manage') && (
+            <>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-services-filter'))}
+                aria-label="Katalógus-beállítások"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-services-add'))}
+                aria-label="Új szolgáltatás"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
+              >
+                <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
+              </button>
+            </>
+          )}
           {pathname.endsWith('/staff') && can(capabilities, 'staff.manage') && (
             <>
               <button

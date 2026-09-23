@@ -74,6 +74,9 @@ interface Props {
   /** Beágyazott (iframe) nézet — a widget normál, statikus blokkként jelenik meg a lebegő
    *  hero-kártya pozicionálás helyett (nincs teljes-viewport hero, amihez képest lebeghetne). */
   embed?: boolean
+  /** `booking_rules.services_expanded_on_main` — bekapcsolva a szolgáltatás-katalógus rögtön
+   *  kibontva jelenik meg a főnézeten, a "Válassz szolgáltatást" gomb helyett. */
+  servicesExpandedOnMain?: boolean
 }
 
 function getCategoryId(cat: Service['category']): string | null {
@@ -91,7 +94,7 @@ export function ProfileCard({
   addressRequired = false, addressRequiredNote = null,
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
   consentEnabled = false, consentTitle = null, consentText = null,
-  customQuestions = null, embed = false,
+  customQuestions = null, embed = false, servicesExpandedOnMain = false,
 }: Props) {
   const tt = makeT(locale)
 
@@ -251,10 +254,12 @@ export function ProfileCard({
   const bookingStaff = bookingStaffId ? (staff.find(m => String(m.id) === String(bookingStaffId)) ?? null) : null
   const bookingDateParsed = new Date(bookingDate + 'T00:00:00')
 
-  // A lépés-fejlécben mindvégig látható "kiválasztott szakember" csík forrása: a szolgáltatás-
-  // választás lépésein (services/serviceDetail) a preStaff, utána (datetime-tól) a végleges
-  // bookingStaff — "Bármelyik szakember" esetén nincs konkrét személy, a csík nem jelenik meg.
-  const displayStaff = (view === 'services' || view === 'serviceDetail') ? preStaff : bookingStaff
+  // A lépés-fejlécben mindvégig látható "kiválasztott szakember" csík forrása: a főnézeten (ha
+  // csak 1 szakember van, ő a csík alanya — kompakt infó a nagy, üresen ható választó-rács
+  // helyett), a szolgáltatás-választás lépésein (services/serviceDetail) a preStaff, utána
+  // (datetime-tól) a végleges bookingStaff — "Bármelyik szakember" esetén nincs konkrét személy,
+  // a csík nem jelenik meg.
+  const displayStaff = view === 'main' ? soleStaff : (view === 'services' || view === 'serviceDetail') ? preStaff : bookingStaff
 
   const goTo = (
     newView: View,
@@ -566,6 +571,10 @@ export function ProfileCard({
 
   const staffCols = staff.length === 1 ? 'grid-cols-1' : staff.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
 
+  // 0 Ft-os szolgáltatásnál nem árat írunk ki, hanem hogy "Ingyenes" — a "0 Ft" hiányzó
+  // adatnak/hibának tűnne, holott szándékosan díjmentes szolgáltatásról van szó.
+  const priceLabel = (price: number, currency?: string | null) => (price === 0 ? tt('public.free') : formatPrice(price, currency ?? undefined))
+
   // Egy szolgáltatás-sor közös megjelenítése — a kategória-nélküli szolgáltatások közvetlen
   // listázásánál ÉS a "belül vagyunk egy kategóriában / nincs is kategória" nézetnél is
   // ugyanezt használjuk, hogy a két hely sose csússzon szét.
@@ -590,7 +599,7 @@ export function ProfileCard({
           </p>
         </div>
         <div className="mr-3 flex shrink-0 items-center gap-2">
-          <p className="text-[13px] font-bold text-white">{formatPrice(s.price, s.currency)}</p>
+          <p className="text-[13px] font-bold text-white">{priceLabel(s.price, s.currency)}</p>
           <ChevronRight className="h-3.5 w-3.5 text-white/35" />
         </div>
       </button>
@@ -726,8 +735,9 @@ export function ProfileCard({
             Kattintásra HELYBEN kinyílik (nem navigál el), hogy egy hosszabb bemutatkozás is
             elférjen — a szakember-váltás külön, explicit gombbal történik a kinyílt panelben,
             nem a kártya egészének (nem egyértelmű) kattintásával. "Bármelyik szakember"
-            esetén nincs kit mutatni. */}
-        {view !== 'main' && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && displayStaff && (() => {
+            esetén nincs kit mutatni. A főnézeten is megjelenik, ha csak 1 szakember van (helyette
+            a nagy választó-csempéket nem mutatjuk) — így ez a kompakt csík marad a helyükön. */}
+        {(view !== 'main' || soleStaff) && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && displayStaff && (() => {
           const avatarUrl = displayStaff.avatar && typeof displayStaff.avatar === 'object' ? (displayStaff.avatar as Media).url ?? null : null
           const links = (displayStaff.social_links ?? []).map((s) => s.url).filter(Boolean)
           return (
@@ -869,17 +879,56 @@ export function ProfileCard({
                         <Tag className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.services')}</p>
                       </div>
-                      <button
-                        onClick={() => { setPreStaffId(null); goTo('services', null) }}
-                        className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99]"
-                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-                      >
-                        <div>
-                          <p className="text-[13px] font-semibold text-white">{tt('public.chooseService')}</p>
-                          <p className="text-[11px] text-white/45">{tt('public.serviceCount', { n: bookableServices.length })}</p>
+                      {servicesExpandedOnMain ? (
+                        // `booking_rules.services_expanded_on_main` — a katalógus rögtön kibontva,
+                        // a "Válassz szolgáltatást" gomb nélkül. Kategóriánál a csempe még mindig
+                        // a `services` nézetbe navigál (a konkrét szolgáltatás kiválasztásához úgyis
+                        // kell egy további lépés), de a kezdő plusz-kattintás megspórolódik.
+                        <div className="space-y-1.5">
+                          {categoryGroups.length > 0 ? (
+                            <>
+                              {categoryGroups.map(group => {
+                                const catImgUrl = group.image && typeof group.image === 'object'
+                                  ? (group.image as Media).url ?? null : null
+                                return (
+                                  <button
+                                    key={group.id}
+                                    onClick={() => { setPreStaffId(null); goTo('services', group.id) }}
+                                    className="flex w-full items-center justify-between overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.08]"
+                                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+                                  >
+                                    {catImgUrl && (
+                                      <div className="h-[60px] w-[60px] shrink-0 overflow-hidden" style={{ borderRadius: '10px 0 0 10px' }}>
+                                        <img src={catImgUrl} alt={group.name} className="h-full w-full object-cover" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0 flex-1 px-3 py-3">
+                                      <p className="text-[13px] font-semibold text-white">{group.name}</p>
+                                      <p className="mt-0.5 text-[11px] text-white/45">{tt('public.serviceCount', { n: group.services.length })}</p>
+                                    </div>
+                                    <ChevronRight className="mr-3 h-3.5 w-3.5 shrink-0 text-white/35" />
+                                  </button>
+                                )
+                              })}
+                              {uncategorizedServices.map(s => renderServiceRow(s, () => { setPreStaffId(null); goTo('serviceDetail', null, String(s.id)) }))}
+                            </>
+                          ) : (
+                            bookableServices.map(s => renderServiceRow(s, () => { setPreStaffId(null); goTo('serviceDetail', null, String(s.id)) }))
+                          )}
                         </div>
-                        <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
-                      </button>
+                      ) : (
+                        <button
+                          onClick={() => { setPreStaffId(null); goTo('services', null) }}
+                          className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99]"
+                          style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+                        >
+                          <div>
+                            <p className="text-[13px] font-semibold text-white">{tt('public.chooseService')}</p>
+                            <p className="text-[11px] text-white/45">{tt('public.serviceCount', { n: bookableServices.length })}</p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
+                        </button>
+                      )}
                     </div>
                   )}
                   {voucherEnabled && (
@@ -1030,7 +1079,7 @@ export function ProfileCard({
                   )}
                   <h3 className="mb-1 text-[22px] font-light tracking-[-0.02em] text-white">{selectedService.name}</h3>
                   <p className="flex items-center gap-1 text-[12px] text-white/45">
-                    <Clock className="h-3 w-3" />{selectedService.duration_minutes} {tt('booking.minutes')} · {formatPrice(selectedService.price, selectedService.currency)}
+                    <Clock className="h-3 w-3" />{selectedService.duration_minutes} {tt('booking.minutes')} · {priceLabel(selectedService.price, selectedService.currency)}
                   </p>
                   {selectedService.description && (
                     <p className="mt-3 text-[13px] leading-relaxed text-white/60">{selectedService.description}</p>
@@ -1446,7 +1495,7 @@ export function ProfileCard({
                       { label: tt('booking.step.service'), value: bookingService.name },
                       { label: tt('booking.step.staff'), value: bookingStaffId ? (bookingStaff?.name ?? '–') : tt('booking.staff.any') },
                       { label: tt('booking.step.datetime'), value: `${format(bookingDateParsed, 'MMM d.', { locale: dfLocale(locale) })} · ${bookingSlot.start}` },
-                      { label: tt('booking.price'), value: formatPrice(bookingService.price, bookingService.currency) },
+                      { label: tt('booking.price'), value: priceLabel(bookingService.price, bookingService.currency) },
                       ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: formatPrice(depositAmountHuf, 'HUF') }] : []),
                       ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: formatPrice(redeemValid.amount_huf, 'HUF') }] : []),
                     ].map(({ label, value }, i, arr) => (
