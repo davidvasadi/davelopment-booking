@@ -721,6 +721,7 @@ export interface Salon {
   website?: string | null
   social_links?: { url: string; id?: string | null }[] | null
   booking_buffer_minutes?: number | null
+  services_uncategorized_sort_order?: number | null
   booking_window_days?: number | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null

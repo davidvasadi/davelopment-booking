@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Scissors, Layers, Tag, Lock, GripVertical } from 'lucide-react'
+import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Tag, Lock, GripVertical } from 'lucide-react'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
@@ -27,7 +27,7 @@ import { compressImage } from '@/lib/compressImage'
 const schema = z.object({
   name: z.string().min(1, 'Kötelező'),
   description: z.string().optional(),
-  category: z.string().min(1, 'Kötelező'),
+  category: z.string().optional(),
   duration_minutes: z.number().min(5),
   price: z.number().min(0),
   currency: z.enum(['HUF', 'EUR']),
@@ -45,6 +45,7 @@ function relId(v: unknown): string | null {
 
 // A „+ Új kategória" select-érték szentinel — ekkor szabadszöveges mezőt mutatunk.
 const NEW_CAT = '__new__'
+const NO_CAT = '__none__'
 
 interface Props {
   salonId: string
@@ -64,6 +65,9 @@ interface Props {
   /** A cég logója — csak ADMIN-nézeti placeholder, ha egy kategóriának/szolgáltatásnak nincs
    *  saját képe (a publikus foglalón NEM jelenik meg logó pótlásként, ott üresen marad). */
   logoUrl?: string | null
+  /** A kategória nélküli szolgáltatás-blokk pozíciója a kategória-kártyák között (drag & drop
+   *  sorrend-hint, a Salon rekordon tárolva) — null = mindig a lista végén. */
+  uncategorizedSortOrder?: number | null
 }
 
 /** A staff-avatar VAGY (ha nincs) a személy saját profilképe email-egyezéssel. */
@@ -109,13 +113,17 @@ function compactFt(n: number): string {
  *  `key`-t a szülő a `s.id`-ból adja, nem az objektum-referenciából, így gépeléskor/mentéskor
  *  sem mountol újra (ugyanaz a tanulság, mint az egyedi kérdéseknél). */
 function ServiceRow({
-  s, tint, canManage, avatarUrlByEmail, logoUrl, onOpenEdit, onToggleActive, onDelete,
+  s, tint, canManage, avatarUrlByEmail, logoUrl, draggable = true, onOpenEdit, onToggleActive, onDelete,
 }: {
   s: Service
   tint: ReturnType<typeof tintFor>
   canManage: boolean
   avatarUrlByEmail?: Record<string, string>
   logoUrl?: string | null
+  /** Egyetlen elemű listánál a Framer Motion Reorder-je beragad húzás után (a transform sosem
+   *  áll vissza, mert nincs mivel felcserélni) — ilyenkor sima div-ként rendereljük, fogantyú
+   *  nélkül, hiszen egy elemet úgysincs mihez átrendezni. */
+  draggable?: boolean
   onOpenEdit: () => void
   onToggleActive: () => void
   onDelete: () => void
@@ -124,16 +132,11 @@ function ServiceRow({
   const active = s.is_active !== false
   const staffMembers = (s.staff ?? []).filter((x): x is StaffMember => typeof x === 'object' && x !== null)
   const dragControls = useDragControls()
+  const rowClassName = "group flex items-center gap-2 rounded-[16px] px-1 py-3 transition-colors hover:bg-[var(--dav-glass)] sm:gap-3 sm:px-2"
 
-  return (
-    <Reorder.Item
-      as="div"
-      value={s}
-      dragListener={false}
-      dragControls={dragControls}
-      className="group flex items-center gap-2 rounded-[16px] px-1 py-3 transition-colors hover:bg-[var(--dav-glass)] sm:gap-3 sm:px-2"
-    >
-      {canManage && (
+  const inner = (
+    <>
+      {draggable && canManage && (
         <div
           onPointerDown={(e) => dragControls.start(e)}
           className="flex h-8 w-6 shrink-0 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
@@ -151,8 +154,8 @@ function ServiceRow({
           {imgUrl
             ? <img src={imgUrl} alt={s.name} className="h-full w-full object-cover object-top" />
             : logoUrl
-              ? <img src={logoUrl} alt="" className="h-full w-full object-contain p-1.5 opacity-70" />
-              : <Scissors className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
+              ? <img src={logoUrl} alt="" className="h-full w-full object-cover object-top" />
+              : <Tag className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
         </span>
         <div className="min-w-0">
           <p className="truncate text-[15px] font-semibold text-ink">{s.name}</p>
@@ -195,6 +198,16 @@ function ServiceRow({
           <button onClick={onDelete} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
         </>
       )}
+    </>
+  )
+
+  if (!draggable) {
+    return <div className={rowClassName}>{inner}</div>
+  }
+
+  return (
+    <Reorder.Item as="div" value={s} dragListener={false} dragControls={dragControls} className={rowClassName}>
+      {inner}
     </Reorder.Item>
   )
 }
@@ -203,7 +216,7 @@ function ServiceRow({
  *  lévő `Reorder.Group`-ba illesztve. Modul-szinten (nem a render belsejében), ugyanazért, mint
  *  a `ServiceRow`-nál: soronkénti `useDragControls`. */
 function CategoryGroup({
-  categoryId, items, catRecord, catLabel, tint, canManage, avatarUrlByEmail, logoUrl,
+  categoryId, items, catRecord, catLabel, tint, canManage, avatarUrlByEmail, logoUrl, draggable = true,
   onOpenCatEdit, onOpenEdit, onToggleActive, onDelete, onReorderServices,
 }: {
   categoryId: string
@@ -214,6 +227,9 @@ function CategoryGroup({
   canManage: boolean
   avatarUrlByEmail?: Record<string, string>
   logoUrl?: string | null
+  /** Egyetlen kategóriánál (nincs mihez képest átrendezni) a Framer Reorder beragad húzás
+   *  után — ilyenkor sima div, kategória-fogantyú nélkül. Lásd `ServiceRow`-nál is. */
+  draggable?: boolean
   onOpenCatEdit: () => void
   onOpenEdit: (s: Service) => void
   onToggleActive: (s: Service) => void
@@ -222,18 +238,13 @@ function CategoryGroup({
 }) {
   const catImgUrl = categoryImageUrl(catRecord)
   const dragControls = useDragControls()
+  const cardClassName = "dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5"
 
-  return (
-    <Reorder.Item
-      as="div"
-      value={categoryId}
-      dragListener={false}
-      dragControls={dragControls}
-      className="dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5"
-    >
+  const header = (
+    <>
       <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
         <div className="flex min-w-0 items-center gap-3">
-          {canManage && (
+          {draggable && canManage && (
             <div
               onPointerDown={(e) => dragControls.start(e)}
               className="flex h-8 w-5 shrink-0 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
@@ -248,12 +259,12 @@ function CategoryGroup({
               <img src={catImgUrl} alt={catLabel} className="h-full w-full object-cover" />
             </div>
           ) : logoUrl ? (
-            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-white">
-              <img src={logoUrl} alt="" className="h-full w-full object-contain p-1.5 opacity-70" />
+            <div className="h-[42px] w-[42px] shrink-0 overflow-hidden rounded-[12px]">
+              <img src={logoUrl} alt="" className="h-full w-full object-cover object-top" />
             </div>
           ) : (
             <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px]" style={{ background: tint.head }}>
-              <Scissors className="h-[19px] w-[19px] text-ink/55" strokeWidth={1.7} />
+              <Tag className="h-[19px] w-[19px] text-ink/55" strokeWidth={1.7} />
             </div>
           )}
           <div className="min-w-0">
@@ -286,52 +297,61 @@ function CategoryGroup({
             canManage={canManage}
             avatarUrlByEmail={avatarUrlByEmail}
             logoUrl={logoUrl}
+            draggable={items.length > 1}
             onOpenEdit={() => onOpenEdit(s)}
             onToggleActive={() => onToggleActive(s)}
             onDelete={() => onDelete(String(s.id))}
           />
         ))}
       </Reorder.Group>
+    </>
+  )
+
+  if (!draggable) {
+    return <div className={cardClassName}>{header}</div>
+  }
+
+  return (
+    <Reorder.Item as="div" value={categoryId} dragListener={false} dragControls={dragControls} className={cardClassName}>
+      {header}
     </Reorder.Item>
   )
 }
 
-/** Az „Egyéb" (kategória nélküli) csoport — nincs mögötte valódi kategória-rekord, ezért nem
- *  húzható (nincs drag-fogantyú, nincs `Reorder.Item`), mindig a lista végén jelenik meg. */
-function CategoryGroupStatic({
-  items, catLabel, tint, canManage, avatarUrlByEmail, logoUrl, onOpenEdit, onToggleActive, onDelete, onReorderServices,
+/** Kategória nélküli szolgáltatások — nincs mögöttük valódi kategória-rekord, ezért nincs
+ *  cím/ikon, csak egy fogantyú a bal szélen (ugyanabban az oszlopban, mint a kategória-kártyák
+ *  fejléc-fogantyúja), amivel a blokk pozícióját a kategória-kártyák közé lehet húzni. */
+function UncategorizedServiceGroup({
+  groupId, items, tint, canManage, avatarUrlByEmail, logoUrl, draggable = true, onOpenEdit, onToggleActive, onDelete, onReorderServices,
 }: {
+  groupId: string
   items: Service[]
-  catLabel: string
   tint: ReturnType<typeof tintFor>
   canManage: boolean
   avatarUrlByEmail?: Record<string, string>
   logoUrl?: string | null
+  draggable?: boolean
   onOpenEdit: (s: Service) => void
   onToggleActive: (s: Service) => void
   onDelete: (id: string) => void
   onReorderServices: (next: Service[]) => void
 }) {
-  return (
-    <div className="dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5">
-      <div className="flex items-center justify-between gap-3 border-b border-line pb-3.5">
-        <div className="flex min-w-0 items-center gap-3">
-          {logoUrl ? (
-            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center overflow-hidden rounded-[12px] bg-white">
-              <img src={logoUrl} alt="" className="h-full w-full object-contain p-1.5 opacity-70" />
-            </div>
-          ) : (
-            <div className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px]" style={{ background: tint.head }}>
-              <Scissors className="h-[19px] w-[19px] text-ink/55" strokeWidth={1.7} />
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="truncate text-[17px] font-semibold text-ink">{catLabel}</p>
-            <p className="mt-0.5 text-[12.5px] text-ink-soft2">{items.length} szolgáltatás</p>
-          </div>
+  const dragControls = useDragControls()
+  const cardClassName = "dav-card-glass rounded-[22px] px-3.5 py-4 sm:rounded-[26px] sm:px-[22px] sm:py-5"
+
+  const body = (
+    <div className="flex items-center gap-3">
+      {draggable && canManage && (
+        <div
+          onPointerDown={(e) => dragControls.start(e)}
+          className="flex h-8 w-5 shrink-0 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+          style={{ touchAction: 'none' }}
+          title="Húzd az átrendezéshez"
+        >
+          <GripVertical className="h-4 w-4" />
         </div>
-      </div>
-      <Reorder.Group as="div" axis="y" values={items} onReorder={onReorderServices} className="mt-1 divide-y divide-line/70">
+      )}
+      <Reorder.Group as="div" axis="y" values={items} onReorder={onReorderServices} className="min-w-0 flex-1 divide-y divide-line/70">
         {items.map((s) => (
           <ServiceRow
             key={s.id}
@@ -340,6 +360,7 @@ function CategoryGroupStatic({
             canManage={canManage}
             avatarUrlByEmail={avatarUrlByEmail}
             logoUrl={logoUrl}
+            draggable={items.length > 1}
             onOpenEdit={() => onOpenEdit(s)}
             onToggleActive={() => onToggleActive(s)}
             onDelete={() => onDelete(String(s.id))}
@@ -348,10 +369,20 @@ function CategoryGroupStatic({
       </Reorder.Group>
     </div>
   )
+
+  if (!draggable) {
+    return <div className={cardClassName}>{body}</div>
+  }
+
+  return (
+    <Reorder.Item as="div" value={groupId} dragListener={false} dragControls={dragControls} className={cardClassName}>
+      {body}
+    </Reorder.Item>
+  )
 }
 
 
-export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory, avatarUrlByEmail, invitedEmails, canManage = false, logoUrl = null }: Props) {
+export default function ServicesManager({ salonId, initialServices, staffList, initialCategories, supportedLocales, revenueByCategory, avatarUrlByEmail, invitedEmails, canManage = false, logoUrl = null, uncategorizedSortOrder = null }: Props) {
   const [services, setServices] = useState(initialServices)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<Service | null>(null)
@@ -373,6 +404,30 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
   // csoportosítás is ID-alapú, a megjelenített név a rekord name-je.
   const [categories, setCategories] = useState<ServiceCategory[]>(initialCategories)
   const catById = new Map(categories.map(c => [String(c.id), c]))
+
+  // A kategória-kártyák ÉS a kategória nélküli blokk ('__none__') együttes drag-sorrendje. Első
+  // betöltéskor a kategóriák `sort_order`-je + a salon `services_uncategorized_sort_order`-je
+  // alapján állítjuk össze; utána tisztán kliens-oldali (a reorderCategories vezérli tovább).
+  const [groupOrder, setGroupOrder] = useState<string[]>(() => {
+    const real = [...initialCategories].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map(c => String(c.id))
+    if (uncategorizedSortOrder == null) return [...real, '__none__']
+    const insertAt = initialCategories
+      .slice()
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .findIndex(c => (c.sort_order ?? 0) > uncategorizedSortOrder)
+    return insertAt === -1 ? [...real, '__none__'] : [...real.slice(0, insertAt), '__none__', ...real.slice(insertAt)]
+  })
+
+  // Új kategória létrehozásakor/törlésekor a groupOrder-t is szinkronban tartjuk — az újakat a
+  // végére fűzzük, a törölteket kiszűrjük, a '__none__'-t mindig megtartjuk.
+  useEffect(() => {
+    setGroupOrder(prev => {
+      const realIds = new Set(categories.map(c => String(c.id)))
+      const kept = prev.filter(id => id === '__none__' || realIds.has(id))
+      const missing = categories.map(c => String(c.id)).filter(id => !kept.includes(id))
+      return [...kept, ...missing]
+    })
+  }, [categories])
 
   const [newCatName, setNewCatName] = useState('')
 
@@ -615,7 +670,7 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
       const { category: _c, ...rest } = data
       const body: Record<string, unknown> = {
         ...rest,
-        category: Number(categoryId),
+        category: categoryId ? Number(categoryId) : null,
         salon: salonId,
         staff: selectedStaffIds.map(Number),
       }
@@ -776,26 +831,37 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
     }, 400)
   }
 
-  // Fő kategória-CSOPORTOK drag & drop átrendezése — ugyanaz a védett minta, mint fent.
+  // Fő kategória-CSOPORTOK (+ a '__none__' kategória nélküli blokk) drag & drop átrendezése —
+  // ugyanaz a védett minta, mint fent. A '__none__' nem valódi kategória-rekord, ezért külön
+  // végponton (salon settings) perzisztálódik, nem a service-categories PATCH-en.
   const reorderCategories = (newIds: string[]) => {
+    setGroupOrder(newIds)
     setCategories(prev => {
       const idToCat = new Map(prev.map(c => [String(c.id), c]))
-      const draggableSet = new Set(newIds)
-      const newOrderCats = newIds.map(id => idToCat.get(id)).filter((c): c is ServiceCategory => !!c)
+      const realNewIds = newIds.filter(id => id !== '__none__')
+      const draggableSet = new Set(realNewIds)
+      const newOrderCats = realNewIds.map(id => idToCat.get(id)).filter((c): c is ServiceCategory => !!c)
       let idx = 0
       return prev.map(c => (draggableSet.has(String(c.id)) ? (newOrderCats[idx++] ?? c) : c))
     })
     if (categoryReorderTimer.current) clearTimeout(categoryReorderTimer.current)
     categoryReorderTimer.current = setTimeout(async () => {
       try {
-        const results = await Promise.all(newIds.map((id, i) =>
-          fetch(`/api/service-categories/${id}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ sort_order: i }),
-          })
-        ))
+        const results = await Promise.all(newIds.map((id, i) => (
+          id === '__none__'
+            ? fetch('/api/salon/settings', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ services_uncategorized_sort_order: i }),
+              })
+            : fetch(`/api/service-categories/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ sort_order: i }),
+              })
+        )))
         if (results.some(r => !r.ok)) throw new Error()
       } catch {
         toast.error('A kategória-sorrend mentése nem sikerült')
@@ -814,9 +880,9 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
 
   const catName = (id: string): string => (id === '__none__' ? 'Egyéb' : catById.get(id)?.name ?? 'Egyéb')
 
-  // A valódi kategória-rekordok (`categories`, `sort_order` szerint rendezve) sorrendje adja a
-  // húzható csoportok sorrendjét — csak azok, amiknek van ténylegesen szolgáltatása (categoryMap).
-  const orderedCategoryIds = categories.map(c => String(c.id)).filter(id => categoryMap[id])
+  // A `groupOrder` (kategóriák + a '__none__' blokk együttes drag-sorrendje) adja a megjelenítési
+  // sorrendet — csak azok kerülnek ki, amiknek van ténylegesen szolgáltatása (categoryMap).
+  const orderedCategoryIds = groupOrder.filter(id => !!categoryMap[id])
 
   const catCount = new Set(services.map(s => relId(s.category) ?? '__none__')).size
 
@@ -870,53 +936,55 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
           />
         )}
         <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-          <CountUpKpi icon="scissors" value={services.length} label="Szolgáltatás" />
+          <CountUpKpi icon="tag" value={services.length} label="Szolgáltatás" />
           <CountUpKpi icon="layers" value={catCount} label="Kategória" />
         </div>
       </div>
 
       {services.length === 0 ? (
         <DashboardCard noPadding>
-          <EmptyState icon={Scissors} title="Még nincs szolgáltatás" description="Add hozzá az elsőt a katalógushoz!" />
+          <EmptyState icon={Tag} title="Még nincs szolgáltatás" description="Add hozzá az elsőt a katalógushoz!" />
         </DashboardCard>
       ) : (
         <div className="space-y-4">
           <Reorder.Group as="div" axis="y" values={orderedCategoryIds} onReorder={reorderCategories} className="space-y-4">
-            {orderedCategoryIds.map((categoryId, catIdx) => (
-              <CategoryGroup
-                key={categoryId}
-                categoryId={categoryId}
-                items={categoryMap[categoryId]}
-                catRecord={catById.get(categoryId)}
-                catLabel={catName(categoryId)}
-                tint={tintFor(catIdx)}
-                canManage={canManage}
-                avatarUrlByEmail={avatarUrlByEmail}
-                logoUrl={logoUrl}
-                onOpenCatEdit={() => openCatEdit(categoryId)}
-                onOpenEdit={openEdit}
-                onToggleActive={toggleActive}
-                onDelete={(id) => deleteService(id)}
-                onReorderServices={(next) => reorderCategory(categoryId, next)}
-              />
+            {orderedCategoryIds.map((groupId, idx) => (
+              groupId === '__none__' ? (
+                <UncategorizedServiceGroup
+                  key="__none__"
+                  groupId="__none__"
+                  items={categoryMap['__none__']}
+                  tint={tintFor(idx)}
+                  canManage={canManage}
+                  avatarUrlByEmail={avatarUrlByEmail}
+                  logoUrl={logoUrl}
+                  draggable={orderedCategoryIds.length > 1}
+                  onOpenEdit={openEdit}
+                  onToggleActive={toggleActive}
+                  onDelete={(id) => deleteService(id)}
+                  onReorderServices={(next) => reorderCategory('__none__', next)}
+                />
+              ) : (
+                <CategoryGroup
+                  key={groupId}
+                  categoryId={groupId}
+                  items={categoryMap[groupId]}
+                  catRecord={catById.get(groupId)}
+                  catLabel={catName(groupId)}
+                  tint={tintFor(idx)}
+                  canManage={canManage}
+                  avatarUrlByEmail={avatarUrlByEmail}
+                  logoUrl={logoUrl}
+                  draggable={orderedCategoryIds.length > 1}
+                  onOpenCatEdit={() => openCatEdit(groupId)}
+                  onOpenEdit={openEdit}
+                  onToggleActive={toggleActive}
+                  onDelete={(id) => deleteService(id)}
+                  onReorderServices={(next) => reorderCategory(groupId, next)}
+                />
+              )
             ))}
           </Reorder.Group>
-          {/* „Egyéb" (kategória nélküli) csoport — nem valódi kategória-rekord, ezért nem húzható,
-              mindig a lista végén marad. */}
-          {categoryMap['__none__'] && (
-            <CategoryGroupStatic
-              items={categoryMap['__none__']}
-              catLabel={catName('__none__')}
-              tint={tintFor(orderedCategoryIds.length)}
-              canManage={canManage}
-              avatarUrlByEmail={avatarUrlByEmail}
-              logoUrl={logoUrl}
-              onOpenEdit={openEdit}
-              onToggleActive={toggleActive}
-              onDelete={(id) => deleteService(id)}
-              onReorderServices={(next) => reorderCategory('__none__', next)}
-            />
-          )}
         </div>
       )}
 
@@ -991,11 +1059,12 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
             {editLocale === 'hu' && (
             <>
             <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Kategória *</Label>
+                <Label className="text-sm font-medium">Kategória (opcionális)</Label>
                 <div className="flex gap-2">
-                  <Select value={watch('category') || ''} onValueChange={v => setValue('category', v)}>
+                  <Select value={watch('category') || NO_CAT} onValueChange={v => setValue('category', v === NO_CAT ? '' : v)}>
                     <SelectTrigger className="h-11 flex-1 rounded-xl"><SelectValue placeholder="Válassz kategóriát" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value={NO_CAT}>Nincs kategória</SelectItem>
                       {categories.map(c => (
                         <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
                       ))}
@@ -1005,7 +1074,7 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
                   {watch('category') && watch('category') !== NEW_CAT && (
                     <button
                       type="button"
-                      onClick={() => openCatEdit(watch('category'))}
+                      onClick={() => openCatEdit(watch('category')!)}
                       className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-line text-ink-soft hover:bg-paper transition-colors"
                       title="Kategória szerkesztése / törlése"
                     >

@@ -105,6 +105,7 @@ export default async function ServicesPage() {
         invitedEmails={invitedEmails}
         canManage={can(capabilities, 'catalog.manage')}
         logoUrl={logoUrl}
+        uncategorizedSortOrder={salon.services_uncategorized_sort_order ?? null}
       />
     </div>
   )

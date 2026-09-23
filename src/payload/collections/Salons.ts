@@ -238,6 +238,11 @@ export const Salons: CollectionConfig = {
               label: 'Foglalások közti szünet (perc)',
             },
             {
+              name: 'services_uncategorized_sort_order',
+              type: 'number',
+              admin: { hidden: true },
+            },
+            {
               name: 'booking_window_days',
               type: 'number',
               defaultValue: 60,
