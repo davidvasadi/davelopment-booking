@@ -106,6 +106,13 @@ export function siteJsonLd(pricing: Pricing, extraFaqItems?: { q: string; a: str
         name: 'davelopment booking',
         url: SITE_URL,
         logo: `${SITE_URL}/icons/favico_dark.svg`,
+        // A davelopment (anyacég) publikus profiljai más platformokon — segít a Google-nek
+        // egyetlen valós entitásként összekötni a márkát a különböző oldalakon.
+        sameAs: [
+          'https://davelopment.hu',
+          'https://csomad.cylex.hu/ceg-info/davelopment-1317774.html',
+          'https://firmania.hu/csom%C3%A1d/davelopment-532512',
+        ],
       },
       {
         '@type': 'SoftwareApplication',

@@ -44,6 +44,9 @@ export type IndustryLanding = {
   faqItems: { q: string; a: string }[]
   seoTitle: string
   seoDescription: string
+  /** 2-3 rokon iparág slugja — belső linkelés a landing alján ("Kapcsolódó iparágak"), hogy a
+   *  Google topikus klaszterként lássa a 13 oldalt, ne 13 elszigetelt lapként. */
+  relatedSlugs: string[]
 }
 
 export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
@@ -84,9 +87,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Igen, az ajándékutalvány-értékesítés beépített funkció — a vendégeid közvetlenül a foglalási oldaladon vásárolhatnak utalványt, amit bármelyik szolgáltatásodra beválthatnak.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló fodrászoknak | davelopment booking',
+    seoTitle: 'Fodrász Időpontfoglaló Rendszer Egyénileg és Csapatban | davelopment booking',
     seoDescription:
-      'Csapatkezeléssel, előleg-védelemmel és ajándékutalvánnyal — online időpontfoglaló fodrászatoknak. Próbáld ki ingyen, bankkártya nélkül.',
+      'Fodrász időpontfoglaló rendszer egyénileg és csapatban is — jogosultságkezeléssel, előleg-védelemmel, ajándékutalvánnyal. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['barber-idopontfoglalas', 'kozmetikus-idopontfoglalas', 'mukormos-idopontfoglalas'],
   },
 
   // ── Kozmetikus — az ajándékutalvány (szépségápolási kezelés mint ajándék) és a
@@ -126,9 +130,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'A beépített vendég-térkép és élő analitika a foglalási adatokból mutatja, mely városrészekből jön a legtöbb vendég — ez segít eldönteni, hol érdemes hirdetni.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló kozmetikusoknak | davelopment booking',
+    seoTitle: 'Kozmetikus Időpontfoglaló Rendszer Ajándékutalvánnyal | davelopment booking',
     seoDescription:
-      'Szépségszalonoknak, kozmetikáknak készült online időpontfoglaló, ajándékutalvány-értékesítéssel és vendég-analitikával. Próbáld ki ingyen, bankkártya nélkül.',
+      'Kozmetikus időpontfoglaló rendszer ajándékutalvány-értékesítéssel, vendég-térképpel és élő analitikával — lásd, honnan jönnek a vendégeid. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['mukormos-idopontfoglalas', 'fodrasz-idopontfoglalas', 'joga-idopontfoglalas'],
   },
 
   // ── Műkörmös — az ajándékutalvány (körömépítés mint ajándék) és a kezelések közti
@@ -136,7 +141,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   'mukormos-idopontfoglalas': {
     slug: 'mukormos-idopontfoglalas',
     segment: 'salon',
-    heroTitle: 'Online időpontfoglaló műkörmösöknek.',
+    heroTitle: 'Online időpontfoglaló és ajándékutalvány-értékesítés műkörmösöknek.',
     heroSubtitle:
       'A vendégeid maguktól foglalnak időpontot a neten, ajándékutalványt is vásárolhatnak, a kezelések közé pedig beállíthatsz pihenőidőt, hogy sose csússzon egymásra két vendég.',
     howItWorksTitle: 'Indulj el műkörmösként 3 lépésben.',
@@ -168,9 +173,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Automatikus emlékeztető megy ki minden foglalás előtt, ami csökkenti a lemondásokat — igény esetén előleg-kérést is bekapcsolhatsz a nem-megjelenések ellen.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló műkörmösöknek | davelopment booking',
+    seoTitle: 'Műkörmös Időpontfoglaló Rendszer Ajándékutalvánnyal | davelopment booking',
     seoDescription:
-      'Műkörmösöknek készült online időpontfoglaló, ajándékutalvány-értékesítéssel és beépített pihenőidő-kezeléssel. Próbáld ki ingyen, bankkártya nélkül.',
+      'Műkörmös időpontfoglaló rendszer ajándékutalvány-értékesítéssel és beépített pihenőidő-kezeléssel a kezelések között. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['kozmetikus-idopontfoglalas', 'fodrasz-idopontfoglalas', 'masszor-idopontfoglalas'],
   },
 
   // ── Masszőr — jellemzően egyéni/kis praxis, a kezelések közti pihenő-idő (puffer) és a
@@ -210,9 +216,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Bekapcsolhatod, hogy bizonyos foglalásoknál a vendég bankkártyával előre fizessen egy előleget a saját Stripe-fiókodba — ez jelentősen csökkenti a nem-megjelenéseket.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló masszőröknek | davelopment booking',
+    seoTitle: 'Masszőr Időpontfoglaló Rendszer Pihenőidő-kezeléssel | davelopment booking',
     seoDescription:
-      'Masszőröknek és terapeutáknak készült online időpontfoglaló, beépített pihenőidő-kezeléssel — egyénileg is, csapatban is. Próbáld ki ingyen, bankkártya nélkül.',
+      'Masszőr és terapeuta időpontfoglaló rendszer beépített pihenőidő-kezeléssel — egyénileg is, csapatban is, előleg-védelemmel. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['csontkovacs-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas', 'mukormos-idopontfoglalas'],
   },
 
   // ── Csontkovács — bizalmi, egészségügyi jellegű kezelés: a digitális beleegyező
@@ -220,7 +227,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   'csontkovacs-idopontfoglalas': {
     slug: 'csontkovacs-idopontfoglalas',
     segment: 'salon',
-    heroTitle: 'Online időpontfoglaló csontkovácsoknak.',
+    heroTitle: 'Online időpontfoglaló és digitális beleegyező nyilatkozat csontkovácsoknak.',
     heroSubtitle:
       'A páciensek maguktól foglalnak időpontot a neten, digitálisan fogadják el a beleegyező nyilatkozatot, te pedig automatikus emlékeztetővel csökkented a kihagyott alkalmakat.',
     howItWorksTitle: 'Indulj el csontkovácsként 3 lépésben.',
@@ -252,9 +259,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Igen — egyéni vállalkozóként ugyanúgy használható, mint egy több szakemberes rendelőben. Egy fő esetén csak az alapdíjat fizeted.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló csontkovácsoknak | davelopment booking',
+    seoTitle: 'Csontkovács Időpontfoglaló Digitális Beleegyezéssel | davelopment booking',
     seoDescription:
-      'Csontkovácsoknak készült online időpontfoglaló, digitális beleegyező nyilatkozattal és automatikus emlékeztetővel. Próbáld ki ingyen, bankkártya nélkül.',
+      'Csontkovács időpontfoglaló rendszer digitális beleegyező nyilatkozattal, automatikus emlékeztetővel és előleg-védelemmel. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['fogorvos-idopontfoglalas', 'maganrendelo-idopontfoglalas', 'masszor-idopontfoglalas'],
   },
 
   // ── Fogorvos — a kezelési beleegyező nyilatkozat és a drága, kihagyott időpontok elleni
@@ -262,7 +270,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   'fogorvos-idopontfoglalas': {
     slug: 'fogorvos-idopontfoglalas',
     segment: 'salon',
-    heroTitle: 'Online időpontfoglaló fogorvosoknak.',
+    heroTitle: 'Online időpontfoglaló és előleg-védelem fogorvosi rendelőknek.',
     heroSubtitle:
       'A páciensek maguktól foglalnak időpontot a neten, digitálisan fogadják el a kezelési nyilatkozatot, te pedig automatikus emlékeztetővel és előleg-kéréssel védekezel a kihagyott alkalmak ellen.',
     howItWorksTitle: 'Indulj el fogorvosként 3 lépésben.',
@@ -294,9 +302,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Igen, minden munkatársnak saját naptára van, és a jogosultságkezelővel szabályozod, ki láthatja/módosíthatja csak a sajátját, és ki fér hozzá a rendelő egészéhez.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló fogorvosoknak | davelopment booking',
+    seoTitle: 'Fogorvosi Időpontfoglaló Rendszer Előleg-védelemmel | davelopment booking',
     seoDescription:
-      'Fogorvosi rendelőknek készült online időpontfoglaló, digitális beleegyező nyilatkozattal és előleg-védelemmel. Próbáld ki ingyen, bankkártya nélkül.',
+      'Fogorvosi időpontfoglaló rendszer digitális beleegyező nyilatkozattal és előleg-védelemmel a kihagyott időpontok ellen. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['csontkovacs-idopontfoglalas', 'maganrendelo-idopontfoglalas', 'kozmetikus-idopontfoglalas'],
   },
 
   // ── Magánrendelő — általános magánrendelő/szakrendelés (nem kifejezetten fogászat): a
@@ -304,7 +313,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   'maganrendelo-idopontfoglalas': {
     slug: 'maganrendelo-idopontfoglalas',
     segment: 'salon',
-    heroTitle: 'Online időpontfoglaló magánrendelőknek.',
+    heroTitle: 'Online időpontfoglaló és jogosultságkezelés magánrendelőknek.',
     heroSubtitle:
       'A páciensek maguktól foglalnak időpontot a neten, minden szakembernek saját naptára és jogosultsági szintje van, a kezelés előtt pedig digitális nyilatkozatot fogadtathatsz el velük.',
     howItWorksTitle: 'Indulj el magánrendelőként 3 lépésben.',
@@ -336,9 +345,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Automatikus emlékeztető megy ki minden foglalás előtt, ami csökkenti a lemondásokat — igény esetén előleg-kérést is bekapcsolhatsz a kihagyott alkalmak ellen.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló magánrendelőknek | davelopment booking',
+    seoTitle: 'Magánrendelői Időpontfoglaló Jogosultságkezeléssel | davelopment booking',
     seoDescription:
-      'Magánrendelőknek, szakrendeléseknek készült online időpontfoglaló, jogosultságkezeléssel és digitális beleegyező nyilatkozattal. Próbáld ki ingyen, bankkártya nélkül.',
+      'Magánrendelői és szakrendelési időpontfoglaló rendszer jogosultságkezeléssel, digitális beleegyező nyilatkozattal és emlékeztetővel. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['fogorvos-idopontfoglalas', 'csontkovacs-idopontfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
   },
 
   // ── Barber — jellemzően több borbélyos, közösségi-média-erős szakma: a csapat-naptár és a
@@ -346,7 +356,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   'barber-idopontfoglalas': {
     slug: 'barber-idopontfoglalas',
     segment: 'salon',
-    heroTitle: 'Online időpontfoglaló barber szalonoknak.',
+    heroTitle: 'Online időpontfoglaló és csapat-naptár barber szalonoknak.',
     heroSubtitle:
       'Minden borbélynak külön naptára van a saját elérhetőségével, a foglalási linket pedig egy kattintással megoszthatod Instagramon vagy a bio-linkedben.',
     howItWorksTitle: 'Indulj el barberként 3 lépésben.',
@@ -378,9 +388,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Automatikus emlékeztető megy ki minden foglalás előtt, ami csökkenti a lemondásokat — igény esetén előleg-kérést is bekapcsolhatsz a nem-megjelenések ellen.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló barber szalonoknak | davelopment booking',
+    seoTitle: 'Barber Szalon Időpontfoglaló Csapat-naptárral | davelopment booking',
     seoDescription:
-      'Barber szalonoknak készült online időpontfoglaló, csapat-naptárral és közösségi-média-megosztható foglalási linkkel. Próbáld ki ingyen, bankkártya nélkül.',
+      'Barber szalon időpontfoglaló rendszer csapat-naptárral és Instagram/bio-linkről megosztható foglalási oldallal. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['fodrasz-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
   },
 
   // ── Személyi edző — gyakran több helyszínen (terem, szabadtér) dolgozik, a Google/Apple
@@ -388,7 +399,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   'szemelyi-edzo-idopontfoglalas': {
     slug: 'szemelyi-edzo-idopontfoglalas',
     segment: 'salon',
-    heroTitle: 'Online időpontfoglaló személyi edzőknek.',
+    heroTitle: 'Online időpontfoglaló és naptár-szinkron személyi edzőknek.',
     heroSubtitle:
       'A foglalásaid automatikusan szinkronizálódnak a Google/Apple naptáradba is, így akkor is átlátod a napod, ha teremben és szabadtéren is edzel.',
     howItWorksTitle: 'Indulj el személyi edzőként 3 lépésben.',
@@ -420,9 +431,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Bekapcsolhatod, hogy a vendég bankkártyával előre fizessen egy előleget a saját Stripe-fiókodba — ez jelentősen csökkenti a kihagyott alkalmakat.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló személyi edzőknek | davelopment booking',
+    seoTitle: 'Személyi Edző Időpontfoglaló Naptár-szinkronnal | davelopment booking',
     seoDescription:
-      'Személyi edzőknek és fitneszoktatóknak készült online időpontfoglaló, Google/Apple naptár-szinkronnal. Próbáld ki ingyen, bankkártya nélkül.',
+      'Személyi edző és fitneszoktató időpontfoglaló rendszer Google/Apple naptár-szinkronnal és előleg-védelemmel. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['pilates-idopontfoglalas', 'joga-idopontfoglalas', 'masszor-idopontfoglalas'],
   },
 
   // ── Pilates — jellemzően több oktatós stúdió: a csapat-naptár/jogosultság és az
@@ -430,7 +442,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   'pilates-idopontfoglalas': {
     slug: 'pilates-idopontfoglalas',
     segment: 'salon',
-    heroTitle: 'Online időpontfoglaló pilates stúdióknak.',
+    heroTitle: 'Online időpontfoglaló és csapat-naptár pilates stúdióknak.',
     heroSubtitle:
       'A tanítványaid maguktól foglalnak órát a neten, minden oktatónak saját naptára van, a foglalásaid pedig szinkronizálódnak a Google/Apple naptáradba is.',
     howItWorksTitle: 'Indulj el pilates oktatóként 3 lépésben.',
@@ -462,9 +474,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Egy naptár-feeddel a foglalásaid automatikusan megjelennek a saját naptáradban is — nem kell két helyen vezetned a beosztásod.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló pilates stúdióknak | davelopment booking',
+    seoTitle: 'Pilates Stúdió Időpontfoglaló Csapat-naptárral | davelopment booking',
     seoDescription:
-      'Pilates stúdióknak és oktatóknak készült online időpontfoglaló, csapat-naptárral és naptár-szinkronnal. Próbáld ki ingyen, bankkártya nélkül.',
+      'Pilates stúdió időpontfoglaló rendszer csapat-naptárral, naptár-szinkronnal és előleg-védelemmel a kihagyott órák ellen. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['joga-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas', 'mukormos-idopontfoglalas'],
   },
 
   // ── Jóga — hasonlóan a pilateszhez: több oktatós stúdiók, a naptár-szinkron (gyakran
@@ -472,7 +485,7 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
   'joga-idopontfoglalas': {
     slug: 'joga-idopontfoglalas',
     segment: 'salon',
-    heroTitle: 'Online időpontfoglaló jóga oktatóknak.',
+    heroTitle: 'Online időpontfoglaló és ajándékutalvány-értékesítés jóga oktatóknak.',
     heroSubtitle:
       'A tanítványaid maguktól foglalnak órát a neten, a foglalásaid pedig automatikusan szinkronizálódnak a saját Google/Apple naptáradba is, ha több helyszínen is tanítasz.',
     howItWorksTitle: 'Indulj el jóga oktatóként 3 lépésben.',
@@ -504,9 +517,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Az ajándékutalvány-értékesítés beépített funkció — a tanítványaid közvetlenül a foglalási oldaladon vásárolhatnak utalványt, amit később beválthatnak.',
       },
     ],
-    seoTitle: 'Online időpontfoglaló jóga oktatóknak | davelopment booking',
+    seoTitle: 'Jóga Stúdió Időpontfoglaló Ajándékutalvánnyal | davelopment booking',
     seoDescription:
-      'Jóga stúdióknak és oktatóknak készült online időpontfoglaló, naptár-szinkronnal és ajándékutalvány-értékesítéssel. Próbáld ki ingyen, bankkártya nélkül.',
+      'Jóga stúdió és oktató időpontfoglaló rendszer naptár-szinkronnal és ajándékutalvány-értékesítéssel, akár több helyszínen is. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['pilates-idopontfoglalas', 'szemelyi-edzo-idopontfoglalas', 'kozmetikus-idopontfoglalas'],
   },
 
   // ── Étterem — a csoportos foglalás+előleg, a valós idejű kapacitáskezelés és a napi
@@ -546,9 +560,10 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'A rendszer napi központi borravaló-összeget kezel, amit automatikusan eloszt a csapat között — mindenki látja a saját részét, nem kell külön Excel-ben vezetni.',
       },
     ],
-    seoTitle: 'Online asztalfoglalás éttermeknek | davelopment booking',
+    seoTitle: 'Éttermi Asztalfoglaló Rendszer Valós Idejű Kapacitással | davelopment booking',
     seoDescription:
-      'Éttermeknek készült online asztalfoglaló rendszer, valós idejű kapacitáskezeléssel és borravaló-elosztással. Próbáld ki ingyen, bankkártya nélkül.',
+      'Éttermi online asztalfoglaló rendszer valós idejű kapacitáskezeléssel, csoportos foglalással és napi borravaló-elosztással. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['csapatkezeles-kisvallalkozasoknak', 'barber-idopontfoglalas', 'fodrasz-idopontfoglalas'],
   },
 
   // ── Csapatkezelés — nem egy konkrét szakma, hanem egy funkció-szög: azoknak szól, akik
@@ -589,11 +604,31 @@ export const INDUSTRY_LANDINGS: Record<string, IndustryLanding> = {
         a: 'Minden munkatársnak saját naptára és beosztása van, napi több szünettel is (pl. ebéd + délutáni pihenő) — te látod át az egész csapat elfoglaltságát egyben.',
       },
     ],
-    seoTitle: 'Csapatkezelő rendszer kisvállalkozásoknak | davelopment booking',
+    seoTitle: 'Csapatkezelő Rendszer Kisvállalkozásoknak Audit-naplóval | davelopment booking',
     seoDescription:
-      'Munkatárs-jogosultságkezelés, beosztás- és szünetkezelés, audit-napló — mindez online időpontfoglalással egy rendszerben. Próbáld ki ingyen, bankkártya nélkül.',
+      'Munkatárs-jogosultságkezelés, beosztás- és szünetkezelés, audit-napló egy rendszerben az online időpontfoglalással kisvállalkozásoknak. Próbáld ki ingyen, bankkártya nélkül.',
+    relatedSlugs: ['fodrasz-idopontfoglalas', 'etterem-asztalfoglalas', 'maganrendelo-idopontfoglalas'],
   },
 }
 
 /** Fenntartott slugok — regisztrációnál/slug-módosításnál ezekkel nem foglalhat el egy üzlet. */
 export const RESERVED_INDUSTRY_SLUGS: string[] = Object.keys(INDUSTRY_LANDINGS)
+
+/** Rövid, kártyára/chipre illő megnevezés a slughoz — nem a teljes (kulcsszó-optimalizált)
+ *  heroTitle, ami mondat-hosszú lenne belső linkeknél. Közös hely, hogy a landing-oldali
+ *  "Kapcsolódó iparágak" és a tippek-cikkek alján lévő linkek ne térjenek el egymástól. */
+export const INDUSTRY_SHORT_LABEL: Record<string, string> = {
+  'fodrasz-idopontfoglalas': 'Fodrász',
+  'kozmetikus-idopontfoglalas': 'Kozmetikus',
+  'mukormos-idopontfoglalas': 'Műkörmös',
+  'masszor-idopontfoglalas': 'Masszőr',
+  'csontkovacs-idopontfoglalas': 'Csontkovács',
+  'fogorvos-idopontfoglalas': 'Fogorvos',
+  'maganrendelo-idopontfoglalas': 'Magánrendelő',
+  'barber-idopontfoglalas': 'Barber szalon',
+  'szemelyi-edzo-idopontfoglalas': 'Személyi edző',
+  'pilates-idopontfoglalas': 'Pilates stúdió',
+  'joga-idopontfoglalas': 'Jóga stúdió',
+  'etterem-asztalfoglalas': 'Étterem',
+  'csapatkezeles-kisvallalkozasoknak': 'Csapatkezelés',
+}

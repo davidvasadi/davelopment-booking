@@ -10,6 +10,7 @@ import { Faq } from '@/components/landing/sections/Faq'
 import { SegmentToggle } from '@/components/landing/sections/SegmentToggle'
 import { TeamSection } from '@/components/landing/sections/TeamSection'
 import { CtaBanner } from '@/components/landing/sections/CtaBanner'
+import { RelatedIndustries } from '@/components/landing/sections/RelatedIndustries'
 import { TipsTeaser } from '@/components/landing/sections/TipsTeaser'
 import { ContactSection } from '@/components/landing/sections/ContactSection'
 import { DavelopmentBanner } from '@/components/landing/sections/DavelopmentBanner'
@@ -52,6 +53,7 @@ export default function HomeClient({
       <Faq pricing={pricing} extraItems={industry?.faqItems} />
       <CtaBanner trial_days={pricing.trial_days} title={industry?.ctaTitle} />
       <Pricing pricing={pricing} segment={industry?.segment} />
+      {industry && industry.relatedSlugs.length > 0 && <RelatedIndustries slugs={industry.relatedSlugs} />}
       <TipsTeaser />
       <ContactSection />
       <DavelopmentBanner />
