@@ -10,9 +10,35 @@ export type Tip = {
   excerpt: string
   intro: string
   image: string
+  /** A borítókép object-position igazítása a listakártyák "object-cover" vágásánál (a cikk-oldal
+   *  fejlécén "object-contain" fut, ott ez a beállítás nem vág, csak finoman igazít) — alapból
+   *  "top" (a régi, mindig-felülre-igazított viselkedés), de ha a kép fő eleme (pl. egy laptop)
+   *  középen/lejjebb ül a képen és felülről vágva belelógna, itt "center"-re állítható. */
+  imagePosition?: 'top' | 'center'
+  /** Finomhangolt vízszintes vágási pont a lista-/teaser-kártyák "object-cover" borítóképén —
+   *  felülírja az alap középre-igazítást. Szám esetén %-ban értendő (0-100, a kép bal szélétől;
+   *  kisebb érték a bal oldalát tartja meg, nagyobb a jobbat), vagy közvetlen CSS-érték is adható
+   *  (pl. "calc(30% + 10px)") egy már bevált %-ponthoz képesti apró px-es finomításhoz. Nem érinti
+   *  a cikk-oldal fejléc-képét. */
+  coverPositionX?: number | string
+  /** A cikk-oldal fejléc-képének megjelenítési módja — alapból "contain" (nem vág, csak a
+   *  keretbe illeszti, ha a kép aránya nem passzol pillérezést hagyhat), "cover"-rel kitölti a
+   *  teljes keretet (vághat, ha a kép aránya nagyon eltér a konténerétől). */
+  headerImageFit?: 'contain' | 'cover'
+  /** Finomhangolt függőleges vágási pont (0-100, a kép tetejétől %-ban) a cikk-oldal fejléc-képén
+   *  "cover" módban — felülírja az `imagePosition`-t erre a helyre. Pl. 20 = a kép tetejétől 20%-kal
+   *  lejjebbről induljon a látható rész (kevesebb üres háttér, több a tényleges tartalomból). */
+  headerImagePositionY?: number
+  /** Finom nagyítás (CSS transform scale) a cikk-oldal fejléc-képén, ha a kép tartalma (pl. egy
+   *  kis laptop-mockup sok üres hellyel körülötte) túl kicsinek tűnik a "contain" módban. 1 = nincs
+   *  nagyítás. A keret `overflow-hidden`, a túllógó rész levágódik. */
+  headerImageZoom?: number
   sections: TipSection[]
   /** Záró bekezdés — a davelopment booking mint megoldás, a valódi tanácsok UTÁN. */
   closing: string
+  /** 2-3 iparág-landing slugja, amikhez a cikk témája leginkább kapcsolódik — belső linkelés a
+   *  cikk alján, hogy a Google topikus klaszterként lássa a tartalmat, ne szigetként. */
+  relatedIndustrySlugs?: string[]
 }
 
 // Minden tipp ugyanazon a napon publikálva — ha ez változik, itt kell tippenként szétbontani.
@@ -45,6 +71,8 @@ const TIP_IMAGES: Record<string, string> = {
   'mikor-eri-meg-online-foglalo': '/landing/tips/mikor-eri-meg-online-foglalot-bevezetni-davelopment-booking.png',
   'csapat-beosztas-hatekonyan': '/landing/tips/csapat-beosztas-hatekonyan-davelopment-booking.png',
   'torzsvendegek-megtartasa': '/landing/tips/hogyan-tartsd-meg-a-torzsvendegeidet-ne-csak-ujakat-szerezz.png',
+  'hogyan-valassz-idopontfoglalo-rendszert': '/landing/tips/hogyan-valassz-idopontfoglalo-rendszert-davelopment-booking.jpg',
+  'mennyibe-kerul-idopontfoglalo-szoftver': '/landing/tips/atlathato-arazas-davelopment-booking.jpg',
 }
 
 const RAW_TIPS: Omit<Tip, 'image'>[] = [
@@ -61,6 +89,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Nézd meg, mikor a legmagasabb az arány', body: 'A legtöbb helyen van 1-2 visszatérő mintázat (pl. hétfő reggel, péntek késő délután) — ha ezt tudod, célzottan tudsz rájuk erősebb emlékeztetőt vagy előleget kérni.' },
     ],
     closing: 'A davelopment booking mindezt automatikusan kezeli: időzített emlékeztetőt küld, a lemondás egy kattintás, a mintázatokat pedig a statisztikák mutatják — nem kell külön odafigyelned rá.',
+    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'fogorvos-idopontfoglalas', 'csontkovacs-idopontfoglalas'],
   },
   {
     slug: 'mikor-eri-meg-online-foglalo',
@@ -74,7 +103,8 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Mikor volt utoljára dupla foglalásod?', body: 'Ha ez már megtörtént (vagy fennáll a kockázata, mert több helyen is jegyzed az időpontokat), az azt jelenti, hogy a jelenlegi rendszered nem skálázódik tovább.' },
       { title: 'Tudod-e fejből a legforgalmasabb napszakodat?', body: 'Ha nem, akkor vakon tervezel — egy rendszer ezt automatikusan megmutatja, és ez alapján tudsz árazni vagy beosztani.' },
     ],
-    closing: 'Ha kettőnél többre igent mondtál, itt az idő — a davelopment booking 22 napig ingyen kipróbálható, kártya nélkül.',
+    closing: 'Ha kettőnél többre igent mondtál, itt az idő — a davelopment booking 30 napig ingyen kipróbálható, kártya nélkül.',
+    relatedIndustrySlugs: ['fodrasz-idopontfoglalas', 'etterem-asztalfoglalas', 'csapatkezeles-kisvallalkozasoknak'],
   },
   {
     slug: 'csapat-beosztas-hatekonyan',
@@ -89,6 +119,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'A műszak-átfedést kézzel is nézd át', body: 'A vendég-foglalásoknál a legtöbb rendszer automatikusan blokkolja az ütközést — de azt, hogy két munkatárs beosztása nem csúszik-e egymásba, gyakran senki nem ellenőrzi automatikusan. Ez rajtad marad, néhány perc alatt átnézhető.' },
     ],
     closing: 'A davelopment bookingban a beosztást a tulajdonos és a vezetők (illetve akik erre jogosultságot kapnak) állítják össze — mindenki más csak a saját sávját látja. A vendég-foglalásoknál a rendszer automatikusan blokkolja az ütközést, a szabadnap pedig azonnal kizárja az adott napot a foglalható időpontok közül.',
+    relatedIndustrySlugs: ['csapatkezeles-kisvallalkozasoknak', 'fodrasz-idopontfoglalas', 'etterem-asztalfoglalas'],
   },
   {
     slug: 'emlekeztetok-automatizalasa',
@@ -103,6 +134,7 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Bárki jelezhessen, ne csak egy ember', body: 'Ha csak a tulajdonos vezetheti a listát, ő lesz a szűk keresztmetszet. Hagyd, hogy a csapat bármely tagja felírjon és kipipáljon egy teendőt.' },
     ],
     closing: 'A davelopment bookingban minden csapattag (tulajdonos, vezető, munkatárs) ugyanazt a napi teendő-listát látja és szerkesztheti — a mai, holnapi és korábbi feladatok külön fülön, dátumhoz kötve. Nem kell hozzá külön alkalmazás vagy csoportchat.',
+    relatedIndustrySlugs: ['csapatkezeles-kisvallalkozasoknak', 'maganrendelo-idopontfoglalas', 'etterem-asztalfoglalas'],
   },
   {
     slug: 'torzsvendegek-megtartasa',
@@ -117,6 +149,67 @@ const RAW_TIPS: Omit<Tip, 'image'>[] = [
       { title: 'Célozz a csúcsidőszakod alapján', body: 'Ha tudod, mikor a legmagasabb a törzsvendég-arányod, azokban az idősávokban éri meg leginkább kedvezményt vagy prioritást adni nekik — nem vaktában.' },
     ],
     closing: 'A davelopment booking a vendégek dashboardján automatikusan méri a visszatérési arányt (új / visszatérő / törzsvendég bontásban) — ehhez nem kell külön eszköz vagy táblázat.',
+    relatedIndustrySlugs: ['kozmetikus-idopontfoglalas', 'joga-idopontfoglalas', 'masszor-idopontfoglalas'],
+  },
+  {
+    slug: 'hogyan-valassz-idopontfoglalo-rendszert',
+    category: 'Döntés',
+    date: '2026. augusztus 1.',
+    title: 'Hogyan válassz időpontfoglaló rendszert: 5 szempont, amit tényleg érdemes nézni',
+    excerpt: 'Papíron a legtöbb rendszer ugyanazt ígéri. Az öt szempont, ami a gyakorlatban tényleg számít, mire eldöntöd, melyiket választod.',
+    intro: 'Egy gyors keresésre tucatnyi időpontfoglaló rendszer jön fel, és papíron szinte mindegyik ugyanazt ígéri: online foglalás, emlékeztető, naptár. A különbség ott derül ki, amikor a napi működésedhez illesztve nézed őket — ez az öt szempont segít objektíven összehasonlítani.',
+    headerImageFit: 'cover',
+    headerImagePositionY: 40,
+    sections: [
+      {
+        title: 'Nézd meg, mennyire illik a TE iparágadhoz',
+        body: 'Egy fodrászatnak más a valódi igénye, mint egy fogorvosi rendelőnek vagy egy étteremnek — az egyiknek csapat-jogosultság és ajándékutalvány kell, a másiknak digitális beleegyező nyilatkozat, a harmadiknak kapacitáskezelés asztalonként. Egy általános, "mindenkinek jó" rendszer gyakran épp azt a funkciót nem tudja, ami a te szakmádban ténylegesen számít — kérdezz rá konkrétan a próba előtt.',
+      },
+      {
+        title: 'Számold ki a TÉNYLEGES havi költséget, ne csak a hirdetett árat',
+        body: 'A kiírt havidíj gyakran csak a kiindulópont — sok rendszernél külön fizetsz minden extra munkatársért, SMS-emlékeztetőért vagy a kártyás fizetés jutalékáért. Kérdezz rá konkrétan, mennyi lenne a számlád a TE csapatod méretével és foglalás-számoddal, ne csak az alapcsomag árát nézd.',
+      },
+      {
+        title: 'Próbáld ki éles foglalásokkal, ne csak a demóban kattintgass',
+        body: 'Egy bemutató videó vagy demo-fiók mindig makulátlanul néz ki. A valódi teszt az, ha a próbaidő alatt tényleg élő vendégekkel, valós foglalásokkal használod — így kiderül, mennyire egyszerű a vendégnek, és mennyi manuális munka marad neked.',
+      },
+    ],
+    closing: 'A davelopment booking pontosan ezért ad kártyaszám nélküli, teljes hozzáférésű próbaidőt — a saját szolgáltatásaiddal, saját csapatoddal tesztelheted, mielőtt döntenél.',
+    relatedIndustrySlugs: ['kozmetikus-idopontfoglalas', 'fogorvos-idopontfoglalas', 'pilates-idopontfoglalas'],
+  },
+  {
+    slug: 'mennyibe-kerul-idopontfoglalo-szoftver',
+    category: 'Döntés',
+    date: '2026. augusztus 1.',
+    title: 'Mennyibe kerül egy időpontfoglaló szoftver? Amit az árazási oldalak nem írnak ki',
+    excerpt: 'A havi alapdíj csak a történet fele. Mire figyelj, hogy ne érjen meglepetés a számládon 2-3 hónap után.',
+    intro: 'Az árazási oldalak első pillantásra egyszerűnek tűnnek: egy szám, havonta. A valóságban a végösszeget gyakran 3-4 külön tényező adja — ezeket érdemes átlátni még a döntés előtt, nem az első számla megérkezésekor.',
+    // A borítókép laptopja középen ül a keretben (nem felül) — object-top helyett center-rel a
+    // lista-kártya vágása a fehér margóból eszik, nem magából a laptopból.
+    imagePosition: 'center',
+    // A kép sok üres margót tartalmaz a laptop körül — "contain" módban emiatt aprónak tűnne a
+    // cikk-oldal fejlécén, ezért egy kis (30%-os) nagyítást kap.
+    headerImageZoom: 1.3,
+    // A lista-/teaser-kártyákon a vágási pontot a bal oldal felé toljuk, hogy a laptop bal fele
+    // maradjon látható, a jobb oldali üres margó vágódjon le (alap 50% helyett) — a 30%-os
+    // alapponthoz képest még +10px-es finomítással jobbra.
+    coverPositionX: 'calc(30% + 10px)',
+    sections: [
+      {
+        title: 'Fix díj vagy per-fő árazás — nézd meg, melyik skálázódik veled',
+        body: 'A per-fő (munkatársankénti) árazás olcsónak tűnhet egyedül, de ha bővül a csapatod, a költség lineárisan nő vele — egy fix, csapatméret-független díj hosszabb távon kiszámíthatóbb lehet. Fordítva is igaz: ha egyedül dolgozol, egy szalonméretre árazott fix csomag felesleges plusz kiadás.',
+      },
+      {
+        title: 'A tranzakciós díjak (SMS, kártyás előleg) gyakran külön sorban vannak',
+        body: 'Az emlékeztető-SMS-ek és a bankkártyás előleg-fizetés jutaléka sok rendszernél NEM része az alapdíjnak — ezek forgalomarányosan nőnek. Kérdezz rá konkrétan ezekre a tételekre, különben a becsült havi költséged jóval a valóság alatt marad.',
+      },
+      {
+        title: 'A próbaidő alatt derül ki, elég lesz-e az alap csomag',
+        body: 'A legtöbb szolgáltató több csomagszintet kínál, és a felső szintek funkciói (pl. csapatkezelés, egyedi jogosultság, előleg-kérés) gyakran csak akkor derülnek ki hiányzónak, amikor már éles használatban vagy. Egy valódi, teljes hozzáférésű próbaidő alatt ezt előre látod, nem utólag váltasz csomagot.',
+      },
+    ],
+    closing: 'A davelopment booking árazása átlátható és csomagfüggetlenül tartalmazza a hírlevél-küldést is — nincs elrejtett, csak apró betűvel jelzett extra tétel. A próbaidő alatt a teljes funkciókészletet használhatod, hogy pontosan lásd, melyik csomag lesz elég.',
+    relatedIndustrySlugs: ['maganrendelo-idopontfoglalas', 'joga-idopontfoglalas', 'barber-idopontfoglalas'],
   },
 ]
 

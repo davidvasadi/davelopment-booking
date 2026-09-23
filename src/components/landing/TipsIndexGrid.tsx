@@ -1,5 +1,6 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { EASE } from '@/lib/motion'
@@ -42,7 +43,16 @@ export function TipsIndexGrid({ tips }: { tips: Tip[] }) {
               <img
                 src={tip.image}
                 alt={tip.title}
-                className="absolute inset-0 h-full w-full object-cover object-top transition-transform duration-300 ease-out group-hover:scale-[1.04]"
+                className={`absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out group-hover:scale-[1.04] ${
+                  tip.coverPositionX == null ? (tip.imagePosition === 'center' ? 'object-center' : 'object-top') : ''
+                }`}
+                style={
+                  tip.coverPositionX != null
+                    ? ({
+                        objectPosition: `${typeof tip.coverPositionX === 'number' ? `${tip.coverPositionX}%` : tip.coverPositionX} ${tip.imagePosition === 'center' ? '50%' : '0%'}`,
+                      } as CSSProperties)
+                    : undefined
+                }
               />
               <span
                 className="relative inline-flex items-center rounded-full px-3 py-1.5 font-onest text-[12px] font-medium"

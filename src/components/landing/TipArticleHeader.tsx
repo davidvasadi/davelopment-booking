@@ -41,7 +41,17 @@ export function TipArticleHeader({ tip }: { tip: Tip }) {
       </motion.div>
 
       <motion.div variants={inner} className="relative h-[240px] rounded-[16px] overflow-hidden" style={{ background: '#f7f7f7' }}>
-        <img src={tip.image} alt={tip.title} className="absolute inset-0 h-full w-full object-contain object-top" />
+        <img
+          src={tip.image}
+          alt={tip.title}
+          className={`absolute inset-0 h-full w-full ${tip.headerImageFit === 'cover' ? 'object-cover' : 'object-contain'} ${
+            tip.headerImagePositionY == null ? (tip.imagePosition === 'center' ? 'object-center' : 'object-top') : ''
+          }`}
+          style={{
+            ...(tip.headerImagePositionY != null ? { objectPosition: `50% ${tip.headerImagePositionY}%` } : {}),
+            ...(tip.headerImageZoom ? { transform: `scale(${tip.headerImageZoom})` } : {}),
+          }}
+        />
         <span
           className="absolute top-4 left-4 inline-flex items-center rounded-full px-3.5 py-1.5 font-onest text-[13px] font-medium"
           style={{ background: '#FFD85F', color: '#1D1C19' }}

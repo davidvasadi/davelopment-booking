@@ -8,6 +8,7 @@ import { Footer } from '@/components/landing/sections/Footer'
 import { TipsTeaser } from '@/components/landing/sections/TipsTeaser'
 import { getPricing } from '@/lib/pricing'
 import { getTip, TIPS, articleJsonLd } from '@/lib/tips-content'
+import { INDUSTRY_SHORT_LABEL } from '@/lib/industryLandings'
 
 export function generateStaticParams() {
   return TIPS.map((t) => ({ slug: t.slug }))
@@ -85,6 +86,22 @@ export default async function TipArticlePage({ params }: { params: Promise<{ slu
           <div className="rounded-[16px] p-5" style={{ background: '#f7f7f7' }}>
             <p className="text-[15px] leading-[1.6] text-brand-ink/70">{tip.closing}</p>
           </div>
+
+          {tip.relatedIndustrySlugs && tip.relatedIndustrySlugs.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="mr-1 text-[13px] text-brand-ink/45">Kapcsolódó iparágak:</span>
+              {tip.relatedIndustrySlugs.map((slug) => (
+                <Link
+                  key={slug}
+                  href={`/${slug}`}
+                  className="inline-flex items-center rounded-full px-3.5 py-1.5 text-[13px] font-medium text-white transition-opacity hover:opacity-80"
+                  style={{ background: '#1D1C19' }}
+                >
+                  {INDUSTRY_SHORT_LABEL[slug]}
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </article>
 

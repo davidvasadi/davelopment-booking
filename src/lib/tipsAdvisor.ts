@@ -485,6 +485,19 @@ function buildGrowthCards(
       action: { kind: 'nav', href: `${base}/settings?tab=booking` },
     })
 
+    // Nincs tárolt jel arra, hogy a tulaj tényleg kitette-e a widgetet a saját oldalára, ezért ez
+    // (a hírlevél-kampányhoz hasonlóan) mindig "apply" állapotú, visszatérő ajánlás, nem egy
+    // egyszeri be/ki kapcsoló.
+    cards.push({
+      id: 'growth-embed',
+      category: 'marketing',
+      title: 'Ágyazd be a foglaló widgetet a saját oldaladra',
+      desc: 'Egy pár soros kóddal a saját weboldaladon is megjelenik a foglaló — a vendég nem hagyja el az oldaladat, és minden beágyazás láthatóságot is hoz.',
+      impact: 'extra foglalási csatorna',
+      state: 'apply',
+      action: { kind: 'nav', href: `${base}/settings?tab=integrations` },
+    })
+
     const reviewOn = !!b.feature_modules?.reviews_on && !!(b.feature_modules?.google_review_url ?? '').trim()
     cards.push({
       id: 'growth-reviews',
