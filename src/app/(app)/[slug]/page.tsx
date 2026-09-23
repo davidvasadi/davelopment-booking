@@ -249,7 +249,7 @@ export default async function SalonPublicPage({
 
           {/* Szalon neve + cím — mobil hero (kártya megnyitása előtt) */}
           <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
-            <h1 className={`text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
+            <h1 className={`line-clamp-2 break-words text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
               {salon.name}
             </h1>
             {(salon.address || salon.city) && (
@@ -269,8 +269,8 @@ export default async function SalonPublicPage({
           </div>
 
           {/* Szalon neve + CTA — desktop, bal alul */}
-          <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
-            <h1 className={`text-[3rem] font-light leading-none tracking-[-0.02em] mb-2 ${heroText}`}>
+          <div className="absolute bottom-10 left-8 z-20 hidden max-w-[50%] lg:block">
+            <h1 className={`line-clamp-2 break-words text-[3rem] font-light leading-tight tracking-[-0.02em] mb-2 ${heroText}`}>
               {salon.name}
             </h1>
             {(salon.address || salon.city) && (

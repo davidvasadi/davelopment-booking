@@ -128,7 +128,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
 
           {/* Étterem neve + cím — mobil hero */}
           <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
-            <h1 className={`text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
+            <h1 className={`line-clamp-2 break-words text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
               {restaurant.name}
             </h1>
             {(restaurant.address || restaurant.city) && (
@@ -148,8 +148,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
           </div>
 
           {/* Étterem neve + cím — desktop bal alul */}
-          <div className="absolute bottom-10 left-8 z-20 hidden lg:block">
-            <h1 className={`text-[3rem] font-light leading-none tracking-[-0.02em] mb-2 ${heroText}`}>
+          <div className="absolute bottom-10 left-8 z-20 hidden max-w-[50%] lg:block">
+            <h1 className={`line-clamp-2 break-words text-[3rem] font-light leading-tight tracking-[-0.02em] mb-2 ${heroText}`}>
               {restaurant.name}
             </h1>
             {(restaurant.address || restaurant.city) && (
