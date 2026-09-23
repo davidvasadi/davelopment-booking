@@ -254,12 +254,12 @@ export function ProfileCard({
   const bookingStaff = bookingStaffId ? (staff.find(m => String(m.id) === String(bookingStaffId)) ?? null) : null
   const bookingDateParsed = new Date(bookingDate + 'T00:00:00')
 
-  // A lépés-fejlécben mindvégig látható "kiválasztott szakember" csík forrása: a főnézeten (ha
-  // csak 1 szakember van, ő a csík alanya — kompakt infó a nagy, üresen ható választó-rács
-  // helyett), a szolgáltatás-választás lépésein (services/serviceDetail) a preStaff, utána
-  // (datetime-tól) a végleges bookingStaff — "Bármelyik szakember" esetén nincs konkrét személy,
-  // a csík nem jelenik meg.
-  const displayStaff = view === 'main' ? soleStaff : (view === 'services' || view === 'serviceDetail') ? preStaff : bookingStaff
+  // A lépés-fejlécben mindvégig látható "kiválasztott szakember" csík forrása: a főnézeten SOHA
+  // nem jelenik meg (ott a Munkatársak-rács mutatja a szakembert/szakembereket, 1 fő esetén is —
+  // konzisztens a több szakemberes nézettel), a szolgáltatás-választás lépésein
+  // (services/serviceDetail) a preStaff, utána (datetime-tól) a végleges bookingStaff —
+  // "Bármelyik szakember" esetén nincs konkrét személy, a csík nem jelenik meg.
+  const displayStaff = view === 'main' ? null : (view === 'services' || view === 'serviceDetail') ? preStaff : bookingStaff
 
   const goTo = (
     newView: View,
@@ -569,7 +569,9 @@ export function ProfileCard({
     setSheetOpen(false)
   }
 
-  const staffCols = staff.length === 1 ? 'grid-cols-1' : staff.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
+  // 1 szakembernél is 2-oszlopos rács — így a kártya csak félszélességű (nem tölti ki az egész
+  // kártyát egy irreálisan nagy csempeként), a szabad oldal egyszerűen üresen marad mellette.
+  const staffCols = staff.length <= 2 ? 'grid-cols-2' : 'grid-cols-3'
 
   // 0 Ft-os szolgáltatásnál nem árat írunk ki, hanem hogy "Ingyenes" — a "0 Ft" hiányzó
   // adatnak/hibának tűnne, holott szándékosan díjmentes szolgáltatásról van szó.
@@ -735,9 +737,9 @@ export function ProfileCard({
             Kattintásra HELYBEN kinyílik (nem navigál el), hogy egy hosszabb bemutatkozás is
             elférjen — a szakember-váltás külön, explicit gombbal történik a kinyílt panelben,
             nem a kártya egészének (nem egyértelmű) kattintásával. "Bármelyik szakember"
-            esetén nincs kit mutatni. A főnézeten is megjelenik, ha csak 1 szakember van (helyette
-            a nagy választó-csempéket nem mutatjuk) — így ez a kompakt csík marad a helyükön. */}
-        {(view !== 'main' || soleStaff) && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && displayStaff && (() => {
+            esetén nincs kit mutatni. A főnézeten SOHA nem jelenik meg (1 szakembernél is a lenti
+            Munkatársak-rács mutatja, konzisztensen a több szakemberes esettel). */}
+        {view !== 'main' && view !== 'success' && view !== 'voucher' && view !== 'voucherSuccess' && displayStaff && (() => {
           const avatarUrl = displayStaff.avatar && typeof displayStaff.avatar === 'object' ? (displayStaff.avatar as Media).url ?? null : null
           const links = (displayStaff.social_links ?? []).map((s) => s.url).filter(Boolean)
           return (
@@ -950,9 +952,9 @@ export function ProfileCard({
                       </button>
                     </div>
                   )}
-                  {/* Csak 2+ szakembernél mutatjuk a választó-csempéket — 1 fő esetén nincs
-                      választás, a "Szolgáltatások" gomb egyértelműen hozzá vezet. */}
-                  {staff.length > 1 && (
+                  {/* 1 szakembernél is mutatjuk (egyetlen csempeként) — konzisztens elrendezés
+                      a több szakemberes nézettel, nem külön kompakt fejléc-csíkkal. */}
+                  {staff.length > 0 && (
                     <div>
                       <div className="mb-3 flex items-center gap-2">
                         <Users className="h-3.5 w-3.5 text-white/40" />
