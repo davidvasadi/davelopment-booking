@@ -62,6 +62,10 @@ const nextConfig: NextConfig = {
       {
         protocol: 'http',
         hostname: 'localhost',
+        // Port nélkül a Next.js csak az adott protokoll ALAPÉRTELMEZETT portjára illeszt
+        // (http: 80) — a helyi dev-szerver 3001-en fut, ezt explicit meg kell adni, különben
+        // minden localhost-os médiakép 400-at kap a `/_next/image` optimalizálótól.
+        port: '3001',
         pathname: '/api/media/**',
       },
       {
@@ -74,6 +78,12 @@ const nextConfig: NextConfig = {
         hostname: 'images.unsplash.com',
       },
     ],
+    // A `localhost` mindig privát/loopback IP-re oldódik fel (127.0.0.1 / ::1) — a Next.js
+    // ezt SSRF-védelemből ALAPBÓL elutasítja a képoptimalizálónál, FÜGGETLENÜL a fenti
+    // remotePatterns-egyezéstől ("upstream image ... resolved to private ip" hiba). Ez csak a
+    // helyi fejlesztést érinti (élesben valódi domain van, sosem localhost), ezért csak dev
+    // módban engedjük — élesben szándékosan VÁLTOZATLANUL tiltott marad.
+    dangerouslyAllowLocalIP: process.env.NODE_ENV === 'development',
   },
   experimental: {
     optimizePackageImports: ['@radix-ui'],
