@@ -55,15 +55,19 @@ const nextConfig: NextConfig = {
     : {}),
   images: {
     remotePatterns: [
+      // A Payload a médiafájlokat a saját `/api/media/file/...` REST-útvonalán szolgálja ki
+      // (nem a `/uploads/...` statikus mappán keresztül közvetlenül) — a `next/image` a
+      // `remotePatterns`-hez NEM illeszkedő URL-eket 400-zal utasítja el, ezért ennek pontosan
+      // egyeznie kell a valós kiszolgálási útvonallal.
       {
         protocol: 'http',
         hostname: 'localhost',
-        pathname: '/uploads/**',
+        pathname: '/api/media/**',
       },
       {
         protocol: 'https',
         hostname: 'booking.davelopment.hu',
-        pathname: '/uploads/**',
+        pathname: '/api/media/**',
       },
       {
         protocol: 'https',
