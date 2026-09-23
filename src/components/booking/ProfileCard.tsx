@@ -209,9 +209,19 @@ export function ProfileCard({
   const isServiceEligibleForStaff = (s: Service, staffId: string) => staffIdsOf(s).includes(staffId)
   const bookableServices = services.filter(s => staffIdsOf(s).length > 0)
   const visibleServices = preStaffId ? bookableServices.filter(s => isServiceEligibleForStaff(s, preStaffId)) : bookableServices
-  const preStaff = preStaffId ? staff.find(m => String(m.id) === preStaffId) ?? null : null
+  // Ha a szalonnak csak EGY szakembere van, nincs értelme külön "bármelyik szabad" vs. "ez a
+  // konkrét személy" választásnak — a kettő ugyanoda vezet. Ilyenkor ő automatikusan a
+  // megjelenített szakember, függetlenül attól, melyik útvonalon (Szolgáltatások vagy a
+  // szakember-csempe) indult a vendég a főnézeten.
+  const soleStaff = staff.length === 1 ? staff[0] : null
+  const preStaff = soleStaff ?? (preStaffId ? staff.find(m => String(m.id) === preStaffId) ?? null : null)
 
+  // A `category` a Services collectionben opcionális — egy szolgáltatásnak nem kötelező
+  // kategóriája legyen. Az ilyen, kategória nélküli szolgáltatásokat NEM egy mesterséges
+  // "Egyéb" kategória-csempébe tesszük (az felesleges plusz kattintás lenne), hanem közvetlenül,
+  // a saját nevükkel listázzuk a kategória-választó nézeten, a kategória-csempék alatt.
   const hasCategories = serviceCategories.length > 0
+  const uncategorizedServices = visibleServices.filter(s => getCategoryId(s.category) === null)
   const categoryGroups = hasCategories
     ? serviceCategories
         .map(cat => ({
@@ -556,6 +566,37 @@ export function ProfileCard({
 
   const staffCols = staff.length === 1 ? 'grid-cols-1' : staff.length === 2 ? 'grid-cols-2' : 'grid-cols-3'
 
+  // Egy szolgáltatás-sor közös megjelenítése — a kategória-nélküli szolgáltatások közvetlen
+  // listázásánál ÉS a "belül vagyunk egy kategóriában / nincs is kategória" nézetnél is
+  // ugyanezt használjuk, hogy a két hely sose csússzon szét.
+  const renderServiceRow = (s: Service, onClick: () => void) => {
+    const sImgUrl = s.image && typeof s.image === 'object' ? (s.image as Media).url ?? null : null
+    return (
+      <button
+        key={s.id}
+        onClick={onClick}
+        className="flex w-full items-center justify-between overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.08]"
+        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
+      >
+        {sImgUrl && (
+          <div className="h-[60px] w-[60px] shrink-0 overflow-hidden" style={{ borderRadius: '10px 0 0 10px' }}>
+            <img src={sImgUrl} alt={s.name} className="h-full w-full object-cover" />
+          </div>
+        )}
+        <div className={cn('min-w-0 flex-1', sImgUrl ? 'px-3 py-3' : 'py-3 pl-3')}>
+          <p className="text-[13px] font-semibold text-white">{s.name}</p>
+          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-white/45">
+            <Clock className="h-2.5 w-2.5" />{s.duration_minutes} {tt('booking.minutes')}
+          </p>
+        </div>
+        <div className="mr-3 flex shrink-0 items-center gap-2">
+          <p className="text-[13px] font-bold text-white">{formatPrice(s.price, s.currency)}</p>
+          <ChevronRight className="h-3.5 w-3.5 text-white/35" />
+        </div>
+      </button>
+    )
+  }
+
   return (
     <>
     {/* Backdrop — kártya mögé, kattintásra zár (embed módban nincs mobil-sheet, nem kell) */}
@@ -736,13 +777,15 @@ export function ProfileCard({
                             </a>
                           )
                         })}
-                        <button
-                          type="button"
-                          onClick={() => { setStaffStripOpen(false); goTo('main', null, null, -1) }}
-                          className="ml-auto text-[12px] font-medium text-white/45 underline-offset-2 transition-colors hover:text-white hover:underline"
-                        >
-                          Szakember váltása
-                        </button>
+                        {staff.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => { setStaffStripOpen(false); goTo('main', null, null, -1) }}
+                            className="ml-auto text-[12px] font-medium text-white/45 underline-offset-2 transition-colors hover:text-white hover:underline"
+                          >
+                            Szakember váltása
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.div>
@@ -858,7 +901,9 @@ export function ProfileCard({
                       </button>
                     </div>
                   )}
-                  {staff.length > 0 && (
+                  {/* Csak 2+ szakembernél mutatjuk a választó-csempéket — 1 fő esetén nincs
+                      választás, a "Szolgáltatások" gomb egyértelműen hozzá vezet. */}
+                  {staff.length > 1 && (
                     <div>
                       <div className="mb-3 flex items-center gap-2">
                         <Users className="h-3.5 w-3.5 text-white/40" />
@@ -952,6 +997,13 @@ export function ProfileCard({
                       )
                     })}
                   </div>
+                  {/* Kategória nélküli szolgáltatások — közvetlenül, a saját nevükkel, a
+                      kategória-csempék alatt, mesterséges "Egyéb" csoport nélkül. */}
+                  {uncategorizedServices.length > 0 && (
+                    <div className="mt-1.5 space-y-1.5">
+                      {uncategorizedServices.map(s => renderServiceRow(s, () => goTo('serviceDetail', null, String(s.id))))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -963,33 +1015,7 @@ export function ProfileCard({
                     <p className="mb-4 text-[12px] text-white/45">{preStaff.name} szolgáltatásai</p>
                   )}
                   <div className={cn('space-y-1.5', !preStaff && 'mt-4')}>
-                    {servicesInView.map(s => {
-                      const sImgUrl = s.image && typeof s.image === 'object' ? (s.image as Media).url ?? null : null
-                      return (
-                      <button
-                        key={s.id}
-                        onClick={() => goTo('serviceDetail', selectedCategoryId, String(s.id))}
-                        className="flex w-full items-center justify-between overflow-hidden rounded-xl text-left transition-colors hover:bg-white/[0.08]"
-                        style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
-                      >
-                        {sImgUrl && (
-                          <div className="h-[60px] w-[60px] shrink-0 overflow-hidden" style={{ borderRadius: '10px 0 0 10px' }}>
-                            <img src={sImgUrl} alt={s.name} className="h-full w-full object-cover" />
-                          </div>
-                        )}
-                        <div className={cn('min-w-0 flex-1', sImgUrl ? 'px-3 py-3' : 'py-3 pl-3')}>
-                          <p className="text-[13px] font-semibold text-white">{s.name}</p>
-                          <p className="mt-0.5 flex items-center gap-1 text-[11px] text-white/45">
-                            <Clock className="h-2.5 w-2.5" />{s.duration_minutes} {tt('booking.minutes')}
-                          </p>
-                        </div>
-                        <div className="mr-3 flex shrink-0 items-center gap-2">
-                          <p className="text-[13px] font-bold text-white">{formatPrice(s.price, s.currency)}</p>
-                          <ChevronRight className="h-3.5 w-3.5 text-white/35" />
-                        </div>
-                      </button>
-                      )
-                    })}
+                    {servicesInView.map(s => renderServiceRow(s, () => goTo('serviceDetail', selectedCategoryId, String(s.id))))}
                   </div>
                 </div>
               )}
