@@ -121,7 +121,7 @@ export function siteJsonLd(pricing: Pricing, extraFaqItems?: { q: string; a: str
         applicationCategory: 'BusinessApplication',
         operatingSystem: 'Web',
         description:
-          'Online időpont- és asztalfoglaló rendszer éttermeknek, fodrászatoknak és szépségszalonoknak.',
+          'Online időpont- és asztalfoglaló rendszer szakembereknek és szolgáltató vállalkozásoknak — szépségszalonoktól az étteremig.',
         offers: {
           '@type': 'Offer',
           price: lowestPrice,
@@ -200,14 +200,18 @@ export function placeJsonLd(
 }
 
 /**
- * Breadcrumb JSON-LD a profil-oldalhoz (Főoldal > [Város] > [Hely neve]) — a `/[slug]/book`
- * foglaló wizard szándékosan `robots.txt`-tel le van tiltva a crawlolástól, ezért oda NEM kerül
- * strukturált adat (fölösleges lenne egy nem-indexelt oldalon), csak ide, az indexelt profilra.
+ * Breadcrumb JSON-LD a profil-oldalhoz (Főoldal > [Hely neve]) — a `/[slug]/book` foglaló wizard
+ * szándékosan `robots.txt`-tel le van tiltva a crawlolástól, ezért oda NEM kerül strukturált adat
+ * (fölösleges lenne egy nem-indexelt oldalon), csak ide, az indexelt profilra.
+ *
+ * Nincs külön "Város" szint — a Google irányelve szerint a BreadcrumbList minden köztes elemének
+ * valós, létező oldalra kell mutatnia, itt viszont nincs "böngéssz város szerint" oldal a
+ * rendszerben. Egy nem-létező oldalra mutató köztes szint hibás strukturált adatnak számítana,
+ * ezért inkább egy egyszerű, 2 szintű (és teljesen valid) morzsamenüt adunk.
  */
 export function placeBreadcrumbJsonLd(place: PlaceLike): Record<string, unknown> {
   const items = [
     { name: 'Főoldal', item: SITE_URL },
-    ...(place.city ? [{ name: place.city, item: `${SITE_URL}/?city=${encodeURIComponent(place.city)}` }] : []),
     { name: place.name, item: `${SITE_URL}/${place.slug}` },
   ]
   return {

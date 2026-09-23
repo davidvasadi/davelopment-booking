@@ -6,7 +6,7 @@ import HomeClient from './HomeClient'
 export const metadata: Metadata = {
   title: '[davelopment]® Booking — Online Időpontfoglaló Rendszer',
   description:
-    'Egyszerű, modern online időpontfoglaló rendszer éttermeknek, fodrászatoknak és szépségszalonoknak. Hagyd, hogy ügyfeleid maguk foglaljanak — te csak a munkádra figyelj. Próbáld ki ingyen.',
+    'Online időpontfoglaló rendszer szakembereknek és szolgáltató vállalkozásoknak — szépségszalonoktól az étteremig. Próbáld ki ingyen, kártya nélkül.',
   keywords: [
     'online időpontfoglaló',
     'időpontfoglaló rendszer',
