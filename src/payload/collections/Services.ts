@@ -45,7 +45,6 @@ export const Services: CollectionConfig = {
       type: 'relationship',
       relationTo: 'service-categories',
       hasMany: false,
-      required: true,
       label: 'Fő kategória',
     },
     {

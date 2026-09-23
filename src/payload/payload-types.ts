@@ -888,7 +888,7 @@ export interface Service {
   id: string
   name: string
   description?: string | null
-  category: string | ServiceCategory
+  category?: string | ServiceCategory | null
   subcategory?: string | ServiceCategory | null
   image?: string | Media | null
   salon: string | Salon
