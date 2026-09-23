@@ -666,6 +666,9 @@ export async function POST(req: NextRequest) {
     // ── BOOKINGS (default) ────────────────────────────────────────────────
     } else {
       const serviceCache: Record<string, string> = {}
+      // Ár pillanatfelvételhez — a foglalás-import is a `price_snapshot`-ot tölti, nem a
+      // szolgáltatás mindenkori árát olvassa majd élőben. ID → {price, currency}.
+      const servicePriceById: Record<string, { price: number; currency: string }> = {}
       const staffCache: Record<string, string> = {}
       let defaultStaffId: string | null = null
       let defaultServiceId: string | null = null
@@ -680,6 +683,7 @@ export async function POST(req: NextRequest) {
 
         for (const s of svcs.docs as Service[]) {
           serviceCache[s.name.toLowerCase()] = String(s.id)
+          servicePriceById[String(s.id)] = { price: s.price, currency: s.currency ?? 'HUF' }
           if (!defaultServiceId) defaultServiceId = String(s.id)
         }
         for (const s of staffList.docs as StaffMember[]) {
@@ -792,6 +796,7 @@ export async function POST(req: NextRequest) {
                 })
                 serviceId = String(created.id)
                 serviceCache[serviceName.toLowerCase()] = serviceId
+                servicePriceById[serviceId] = { price, currency: 'HUF' }
               } catch { serviceId = defaultServiceId }
             } else if (!serviceId) {
               serviceId = defaultServiceId
@@ -826,10 +831,13 @@ export async function POST(req: NextRequest) {
               continue
             }
 
+            const svcPrice = servicePriceById[serviceId]
             await payload.create({
               collection: 'bookings',
               data: {
                 salon: businessId, service: serviceId, staff: staffId,
+                price_snapshot: svcPrice?.price ?? 0,
+                price_snapshot_currency: svcPrice?.currency ?? 'HUF',
                 date, start_time: startTime, end_time: endTime,
                 customer_name: customerName || 'Importált ügyfél',
                 customer_email: customerEmail || 'import@placeholder.local',

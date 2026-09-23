@@ -281,6 +281,10 @@ export async function POST(request: NextRequest) {
         data: {
           salon: Number(salonId),
           service: Number(serviceId),
+          // Az ár pillanatfelvétele foglaláskor — lásd Bookings.ts komment: nélküle egy
+          // utólagos ár-változtatás visszamenőleg átírná a bevétel-statisztikákat.
+          price_snapshot: service.price,
+          price_snapshot_currency: service.currency ?? 'HUF',
           staff: Number(staffId),
           customer_name,
           customer_email,

@@ -919,6 +919,8 @@ export interface Booking {
   id: string
   salon: string | Salon
   service: string | Service
+  price_snapshot?: number | null
+  price_snapshot_currency?: ('HUF' | 'EUR') | null
   staff: string | StaffMember
   customer_name: string
   customer_email: string

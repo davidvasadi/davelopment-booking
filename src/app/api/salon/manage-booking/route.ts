@@ -129,6 +129,10 @@ export async function POST(req: NextRequest) {
 
   const data: Partial<Booking> = {
     service: Number(serviceId) as unknown as Booking['service'],
+    // Ár pillanatfelvétele — létrehozáskor az induló érték, szerkesztésnél (szolgáltatás-
+    // áthelyezéskor) újra rögzítjük az ÚJ szolgáltatás akkor-aktuális árát. Lásd Bookings.ts.
+    price_snapshot: service.price,
+    price_snapshot_currency: service.currency ?? 'HUF',
     staff: Number(staffId) as unknown as Booking['staff'],
     date,
     start_time,

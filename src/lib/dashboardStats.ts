@@ -80,7 +80,12 @@ export interface DashboardStats {
   failedPaymentsToday: number
 }
 
+// A foglaláskori ár-pillanatfelvételt (`price_snapshot`) részesítjük előnyben a szolgáltatás
+// MINDENKORI aktuális árával szemben — így egy utólagos ár-módosítás nem írja át visszamenőleg
+// a korábbi foglalások bevételét. Régi (a mező bevezetése előtti, migrációval fel nem töltött)
+// foglalásoknál esik vissza az élő árra.
 function getPrice(b: Booking): number {
+  if (typeof b.price_snapshot === 'number') return b.price_snapshot
   const s = b.service
   if (!s || typeof s !== 'object') return 0
   return (s as Service).price ?? 0
@@ -198,7 +203,7 @@ export async function getDashboardStats(
     if (!svc || typeof svc !== 'object') continue
     const id = String(svc.id)
     if (!serviceMap[id]) serviceMap[id] = { name: svc.name, revenue: 0, bookings: 0 }
-    serviceMap[id].revenue += svc.price ?? 0
+    serviceMap[id].revenue += getPrice(b)
     serviceMap[id].bookings += 1
   }
   const byService = Object.values(serviceMap).sort((a, b) => b.revenue - a.revenue).slice(0, 6)

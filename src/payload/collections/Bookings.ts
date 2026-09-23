@@ -39,6 +39,22 @@ export const Bookings: CollectionConfig = {
       hasMany: false,
       required: true,
     },
+    // A szolgáltatás ÁRÁNAK pillanatfelvétele a foglalás létrehozásakor (service-áthelyezéskor
+    // is frissül) — enélkül minden bevétel-statisztika a szolgáltatás MINDENKORI aktuális árát
+    // olvasná élőben, ezért egy utólagos ár-változtatás visszamenőleg átírná a korábbi
+    // foglalások bevételét is. Régi (a mező bevezetése előtti) foglalásoknál a migráció
+    // egyszeri, akkor-aktuális árral tölti fel — onnantól befagy.
+    { name: 'price_snapshot', type: 'number', label: 'Ár a foglaláskor', admin: { position: 'sidebar', readOnly: true } },
+    {
+      name: 'price_snapshot_currency',
+      type: 'select',
+      options: [
+        { label: 'HUF', value: 'HUF' },
+        { label: 'EUR', value: 'EUR' },
+      ],
+      label: 'Pénznem a foglaláskor',
+      admin: { position: 'sidebar', readOnly: true },
+    },
     {
       name: 'staff',
       type: 'relationship',

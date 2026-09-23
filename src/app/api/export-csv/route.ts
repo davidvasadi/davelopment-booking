@@ -70,12 +70,16 @@ export async function GET(req: NextRequest) {
   const isRestaurant = active ? active.type === 'restaurant' : moduleParam === 'restaurant'
 
   let rows: string[]
+  // A fájlnév a TULAJ üzletét azonosítsa, ne a platform nevét (a "davelopment-foglalasok"
+  // korábban minden szalonnál/étteremnél ugyanaz volt, félrevezető volt több exportnál).
+  let businessSlug = 'foglalasok'
 
   if (isRestaurant) {
     const restaurant = active
       ? ((await payload.findByID({ collection: 'restaurants', id: active.id, overrideAccess: true })) as Restaurant)
       : ((await payload.find({ collection: 'restaurants', where: { owner: { equals: user.id } }, limit: 1, overrideAccess: true })).docs[0] as Restaurant)
     if (!restaurant) return NextResponse.json({ error: 'Restaurant not found' }, { status: 404 })
+    businessSlug = restaurant.slug || businessSlug
 
     const reservations = await payload.find({
       collection: 'reservations',
@@ -121,6 +125,7 @@ export async function GET(req: NextRequest) {
       ? ((await payload.findByID({ collection: 'salons', id: active.id, overrideAccess: true })) as Salon)
       : ((await payload.find({ collection: 'salons', where: { owner: { equals: user.id } }, limit: 1, overrideAccess: true })).docs[0] as Salon)
     if (!salon) return NextResponse.json({ error: 'Salon not found' }, { status: 404 })
+    businessSlug = salon.slug || businessSlug
 
     const bookings = await payload.find({
       collection: 'bookings',
@@ -152,7 +157,7 @@ export async function GET(req: NextRequest) {
         escapeCsv(typeof svc === 'object' ? svc?.name : ''),
         escapeCsv(typeof staff === 'object' ? staff?.name : ''),
         escapeCsv(typeof svc === 'object' ? svc?.duration_minutes : ''),
-        escapeCsv(typeof svc === 'object' ? svc?.price : ''),
+        escapeCsv(typeof b.price_snapshot === 'number' ? b.price_snapshot : (typeof svc === 'object' ? svc?.price : '')),
         escapeCsv(STATUS_LABEL[b.status] ?? b.status),
         escapeCsv(b.notes),
       ].join(','))
@@ -160,7 +165,7 @@ export async function GET(req: NextRequest) {
   }
 
   const csv = rows.join('\n')
-  const filename = `davelopment-foglalasok-${since}_${until}.csv`
+  const filename = `${businessSlug}-foglalasok-${since}_${until}.csv`
 
   return new NextResponse(csv, {
     headers: {

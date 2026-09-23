@@ -26,7 +26,11 @@ export default async function SalonGuestsPage() {
 
   const serviceName = (svc: Booking['service']): string =>
     svc && typeof svc === 'object' ? (svc as Service).name : ''
-  const servicePrice = (svc: Booking['service']): number | null => {
+  // A `price_snapshot`-ot (foglaláskori ár) részesítjük előnyben a szolgáltatás mindenkori
+  // aktuális árával szemben — lásd dashboardStats.ts azonos logikáját.
+  const servicePrice = (b: Booking): number | null => {
+    if (typeof b.price_snapshot === 'number') return b.price_snapshot
+    const svc = b.service
     if (svc && typeof svc === 'object') {
       const p = (svc as Service & { price?: number | null }).price
       return typeof p === 'number' ? p : null
@@ -51,7 +55,7 @@ export default async function SalonGuestsPage() {
     status: b.status,
     time: b.start_time,
     svcName: serviceName(b.service),
-    price: servicePrice(b.service),
+    price: servicePrice(b),
     note: (b as { notes?: string | null }).notes ?? null,
     customAnswers: b.custom_answers ?? null,
   }))

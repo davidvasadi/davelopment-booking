@@ -81,12 +81,14 @@ export default async function ServicesPage() {
   })
   const invitedEmails = new Set((invitedRes.docs as { email?: string | null }[]).map((m) => (m.email ?? '').toLowerCase()).filter(Boolean))
 
-  // Bevétel kategóriánként (kategória-ID → Ft; besorolatlan → '__none__').
+  // Bevétel kategóriánként (kategória-ID → Ft; besorolatlan → '__none__'). A `price_snapshot`-ot
+  // (foglaláskori ár) részesítjük előnyben a szolgáltatás mindenkori aktuális árával szemben —
+  // így egy utólagos ár-módosítás nem írja át visszamenőleg a korábbi bevételt.
   const revenueByCategory: Record<string, number> = {}
   for (const b of bookingsResult.docs as Booking[]) {
     const svc = b.service
     if (!svc || typeof svc !== 'object') continue
-    const price = (svc as Service).price || 0
+    const price = typeof b.price_snapshot === 'number' ? b.price_snapshot : (svc as Service).price || 0
     const cat = (svc as Service).category
     const catId = cat == null ? '__none__' : typeof cat === 'object' ? String(cat.id) : String(cat)
     revenueByCategory[catId] = (revenueByCategory[catId] ?? 0) + price
