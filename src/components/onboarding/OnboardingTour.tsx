@@ -47,6 +47,7 @@ const DONE = (where: string): Step => ({
 const STEPS: Record<Variant, Step[]> = {
   restaurant: [
     WELCOME,
+    { icon: Smartphone, title: 'Telepíthető alkalmazás', body: 'Telefonra és asztali gépre is felrakható appként — App Store nélkül, közvetlenül a böngészőből. Ikon kerül a főképernyőre, és push értesítéssel azonnal tudsz minden új foglalásról, bárhol vagy.', previewKey: 'pwa', href: '/restaurant/settings?tab=notifications' },
     { icon: LayoutDashboard, title: 'Áttekintés', body: 'A kezdőképernyőd: a mai foglalások, a kihasználtság és a legfontosabb számok egy pillantásra — azonnal látod, hol van még szabad kapacitásod.', previewKey: 'overview', href: '/restaurant' },
     { icon: CalendarDays, title: 'Foglalások', body: 'A nap vendégei három nézetben: lista, idősáv, és egy élő teremtérkép, amin egyetlen pillantással látod, melyik asztal foglalt és melyik szabad — gyorsabb döntés, kevesebb torlódás csúcsidőben. Beeső és telefonos foglalást is rögzíthetsz, a napi listát pedig kinyomtathatod a felszolgálóknak.', previewKey: 'bookings', href: '/restaurant/bookings' },
     { icon: CalendarRange, title: 'Naptár', body: 'Havi nézetben tartod kézben a csapat beosztását — ki mikor dolgozik, ki van szabadságon, és egy napra kattintva a napi borravalót is rögzítheted. Jól időzített beosztással sosem maradsz kevés kézzel egy zsúfolt napon.', previewKey: 'schedule', href: '/restaurant/schedule' },
@@ -56,11 +57,11 @@ const STEPS: Record<Variant, Step[]> = {
     { icon: BarChart2, title: 'Statisztikák', body: 'Kövesd a kihasználtságot, a lemondásokat és a beesők arányát — itt látod pontosan, mi hozza a bevételt és hol veszítesz vendéget. Exportálhatod is CSV-be bármikor.', previewKey: 'analytics', href: '/restaurant/analytics' },
     { icon: Lightbulb, title: 'Tippek', body: 'Ide térsz vissza, ha többet akarsz kihozni a foglalásokból — a valós adataidból folyamatosan frissülő, konkrét javaslatokat kapsz több bevételhez és jobb vendégélményhez.', previewKey: 'tips', href: '/restaurant/tips' },
     { icon: Settings, title: 'Beállítások', body: 'A profilod, az e-mailsablonok, a számlázás és a csapat jogosultságai — mindent itt kezelsz. Itt kötöd be a Google-t is: a "Foglalj most" gombot egyenesen a Google keresésbe és Maps-re (ingyen, extra forgalom), és az automatikus értékeléskérést, hogy a jó vélemények tényleg megjelenjenek nálad. Az ajándékutalványt itt kapcsolhatod be, a hírlevél pedig már alapból benne van az előfizetésedben — csak küldened kell egy kampányt.', previewKey: 'settings', href: '/restaurant/settings' },
-    { icon: Smartphone, title: 'Telepíthető alkalmazás', body: 'Telefonra és asztali gépre is felrakható appként — App Store nélkül, közvetlenül a böngészőből. Ikon kerül a főképernyőre, és push értesítéssel azonnal tudsz minden új foglalásról, bárhol vagy.', previewKey: 'pwa', href: '/restaurant/settings?tab=notifications' },
     DONE('Jó munkát! ✨'),
   ],
   salon: [
     WELCOME,
+    { icon: Smartphone, title: 'Telepíthető alkalmazás', body: 'Telefonra és asztali gépre is felrakható appként — App Store nélkül, közvetlenül a böngészőből. Ikon kerül a főképernyőre, és push értesítéssel azonnal tudsz minden új foglalásról, bárhol vagy.', previewKey: 'pwa', href: '/dashboard/settings?tab=notifications' },
     { icon: LayoutDashboard, title: 'Áttekintés', body: 'A kezdőképernyőd: a mai időpontok, a bevétel és a legfontosabb számok egy pillantásra — azonnal látod, hol van még szabad kapacitásod ma.', previewKey: 'overview', href: '/dashboard' },
     { icon: CalendarDays, title: 'Időpontok', body: 'A foglalásaidat naptár- és listanézetben látod. Új időpontot kézzel is rögzíthetsz, az online foglalások automatikusan megjelennek — így egyetlen időpont sem vész el papíron vagy telefonban.', previewKey: 'bookings', href: '/dashboard/bookings' },
     { icon: CalendarRange, title: 'Naptár', body: 'Havi nézetben tartod kézben a csapat beosztását — ki mikor dolgozik, ki van szabadságon. Egy napra kattintva szerkeszted a műszakokat — jól időzített beosztással sosem maradsz szakember nélkül egy zsúfolt napon.', previewKey: 'schedule', href: '/dashboard/schedule' },
@@ -70,7 +71,6 @@ const STEPS: Record<Variant, Step[]> = {
     { icon: BarChart2, title: 'Statisztikák', body: 'Kövesd a bevételt és a kihasználtságot — itt látod pontosan, mely szolgáltatás és mely szakember hozza a legtöbbet. Exportálhatod is CSV-be bármikor.', previewKey: 'analytics', href: '/dashboard/analytics' },
     { icon: Lightbulb, title: 'Tippek', body: 'Ide térsz vissza, ha többet akarsz kihozni a foglalásokból — a valós adataidból folyamatosan frissülő, konkrét javaslatokat kapsz több bevételhez és jobb vendégélményhez.', previewKey: 'tips', href: '/dashboard/tips' },
     { icon: Settings, title: 'Beállítások', body: 'A profilod, az e-mailsablonok, a számlázás és a csapat jogosultságai — mindent itt kezelsz. Itt kötöd be a Google-t is: a "Foglalj most" gombot egyenesen a Google keresésbe és Maps-re (ingyen, extra forgalom), és az automatikus értékeléskérést, hogy a jó vélemények tényleg megjelenjenek nálad. Az ajándékutalványt itt kapcsolhatod be, a hírlevél pedig már alapból benne van az előfizetésedben — csak küldened kell egy kampányt.', previewKey: 'settings', href: '/dashboard/settings' },
-    { icon: Smartphone, title: 'Telepíthető alkalmazás', body: 'Telefonra és asztali gépre is felrakható appként — App Store nélkül, közvetlenül a böngészőből. Ikon kerül a főképernyőre, és push értesítéssel azonnal tudsz minden új foglalásról, bárhol vagy.', previewKey: 'pwa', href: '/dashboard/settings?tab=notifications' },
     DONE('Sok sikert! ✨'),
   ],
 }
