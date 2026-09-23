@@ -167,12 +167,13 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   const openMin = hhmmToMinutes(workStart)
   const closeMin = hhmmToMinutes(workEnd)
 
-  // 5. Generate candidate slots — 15 PERCES rácson (NEM a szolgáltatás-hosszal léptetve).
-  // Duration-lépéssel a rács igazodása miatt egy a nyitástól "elcsúszó" foglalás
-  // (pl. 09:30–10:30, 60 perces szolgáltatásnál) az ÖSSZES ráeső jelölt slotot (09:00, 10:00)
-  // kitakarja, miközben ténylegesen szabad idő marad köztük (pl. 10:30-tól) — ezt a fix
-  // 15 perces rács elkerüli, mert minden lehetséges kezdő-időpontot jelöltnek tekint.
-  const STEP_MIN = 15
+  // 5. Generate candidate slots — a lépésköz a szalon SAJÁT "Szünet a foglalások között"
+  // beállítása (nem egy mindenkire ráerőltetett fix érték, és NEM a szolgáltatás-hosszal
+  // léptetve). A tulaj dönti el, mennyi időt hagy magának két vendég között — ez adja a
+  // kínált időpontok természetes ritmusát is, nem csak egy meglévő foglalás UTÁNI kizárást.
+  // Minimum 5 perc, hogy 0 perces beállításnál se ragadjon végtelen ciklusba, és maradjon
+  // értelmes felbontás.
+  const STEP_MIN = Math.max(bufferMinutes, 5)
   const candidates: number[] = []
   let cursor = openMin
   while (cursor + durationMinutes <= closeMin) {
