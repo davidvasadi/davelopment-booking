@@ -38,6 +38,20 @@ async function withAvatarFallback(
   })
 }
 
+/** A foglalási kártyák a `booking.staff`-ból veszik az avatart — ez viszont a nyers staff-rekord,
+ *  a fenti email-alapú fallback nélkül. Ezért a kártyán nem jelent meg az a fotó, ami a fejlécben
+ *  igen. A kifejtett `booking.staff` avatarját a (fallbackkel dúsított) staff-listából pótoljuk. */
+function withBookingStaffAvatars(bookings: Booking[], staff: StaffMember[]): Booking[] {
+  const avatarById = new Map<string, StaffMember['avatar']>()
+  for (const s of staff) if (s.avatar && typeof s.avatar === 'object') avatarById.set(String(s.id), s.avatar)
+  return bookings.map((b) => {
+    const st = b.staff
+    if (!st || typeof st !== 'object' || (st.avatar && typeof st.avatar === 'object')) return b
+    const avatar = avatarById.get(String(st.id))
+    return avatar ? { ...b, staff: { ...st, avatar } } : b
+  })
+}
+
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
@@ -185,7 +199,7 @@ export default async function BookingsPage({
 
     const staff = await withAvatarFallback(payload, staffRes.docs as StaffMember[])
     const services = servicesRes.docs as Service[]
-    const bookings = bookingsRes.docs as Booking[]
+    const bookings = withBookingStaffAvatars(bookingsRes.docs as Booking[], staff)
     const rule = availRes.docs[0] as Availability | undefined
     // staffId → napi szünet (Shifts.breaks) — vizuálisan a "zárva" stílussal jelenik meg. Egy nap
     // TÖBB szünetet is tarthat, de ez a timeline-nézet (egyelőre) csak az ELSŐT jeleníti meg —
@@ -317,7 +331,7 @@ export default async function BookingsPage({
   ])
   const staff = await withAvatarFallback(payload, staffRes.docs as StaffMember[])
   const services = servicesRes.docs as Service[]
-  const bookings = bookingsRes.docs as Booking[]
+  const bookings = withBookingStaffAvatars(bookingsRes.docs as Booking[], staff)
 
   // Szakember-id → nap (`YYYY-MM-DD`) → teljes napos távollét-típus, a heti/havi rácshoz
   // (ugyanaz a Shifts.type forrás, mint a napi nézet staffOffType-ja, csak a teljes tartományra).
