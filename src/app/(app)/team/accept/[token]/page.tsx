@@ -183,7 +183,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
                 type="email"
                 value={info.email ?? ''}
                 readOnly
-                className="w-full h-12 rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-100 dark:bg-white/5 px-4 text-sm text-zinc-500 dark:text-white/50"
+                className="w-full h-12 rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-100 dark:bg-white/5 px-4 text-[16px] lg:text-sm text-zinc-500 dark:text-white/50"
               />
               <input
                 type="text"
@@ -191,7 +191,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
                 onChange={(e) => setRegName(e.target.value)}
                 placeholder="Teljes neved"
                 autoComplete="name"
-                className="w-full h-12 rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400"
+                className="w-full h-12 rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 text-[16px] lg:text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400"
               />
               <input
                 type="password"
@@ -200,7 +200,7 @@ export default function TeamAcceptPage({ params }: { params: Promise<{ token: st
                 onKeyDown={(e) => e.key === 'Enter' && !regBusy && register()}
                 placeholder="Jelszó (min. 6 karakter)"
                 autoComplete="new-password"
-                className="w-full h-12 rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400"
+                className="w-full h-12 rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 text-[16px] lg:text-sm text-zinc-900 dark:text-white focus:outline-none focus:border-zinc-400"
               />
             </div>
             {regError && <p className="mt-3 text-sm text-red-500">{regError}</p>}

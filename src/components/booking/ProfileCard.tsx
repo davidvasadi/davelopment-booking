@@ -808,7 +808,7 @@ export function ProfileCard({
         })()}
 
         {/* Scrollable content — header + tartalom együtt scrollozik */}
-        <div className="min-h-0 flex-1 overflow-y-auto px-6" data-lenis-prevent style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
+        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6" data-lenis-prevent style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}>
           <div className={view === 'main' ? 'pb-4 pt-5 lg:pt-6' : 'pb-4 pt-2'}>
             {view === 'main' ? (
               <>
@@ -858,7 +858,9 @@ export function ProfileCard({
             ) : null}
             <div className="mt-4 h-px bg-white/[0.08]" />
           </div>
-          <div className="pt-0">
+          {/* overflow-x-clip: a lépésváltó ±40px-es csúszása és a hibás mezőre fókuszálás ne
+              tudja vízszintesen elgörgetni a tartalmat (a hidden ezt programból még engedné). */}
+          <div className="overflow-x-clip pt-0">
 
 
           <AnimatePresence mode="wait" custom={dir} initial={false}>

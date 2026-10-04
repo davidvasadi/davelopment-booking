@@ -123,7 +123,7 @@ export function infoRow(icon: DetailIcon, label: string, value: string): string 
   return `<tr>
     <td style="${borderCell};padding:13px 0 13px 20px;vertical-align:middle;width:28px">${svg}</td>
     <td style="${borderCell};padding:13px 10px;color:${COLORS.textSoft};font-size:13px;vertical-align:middle">${label}</td>
-    <td style="${borderCell};padding:13px 20px 13px 0;color:${COLORS.text};font-size:13px;font-weight:600;text-align:right;vertical-align:middle;white-space:nowrap">${value}</td>
+    <td style="${borderCell};padding:13px 20px 13px 0;color:${COLORS.text};font-size:13px;font-weight:600;text-align:right;vertical-align:middle;word-break:break-word;overflow-wrap:anywhere">${value}</td>
   </tr>`
 }
 
@@ -452,8 +452,8 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
   <meta name="supported-color-schemes" content="light">
 </head>
 <body style="margin:0;padding:0;background:#EFEFEF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EFEFEF" style="background:#EFEFEF;background-image:radial-gradient(130% 90% at 96% -6%, rgba(255,216,95,0.52) 0%, rgba(255,216,95,0) 50%),linear-gradient(160deg,#FBFBFB 0%,#EDEDED 55%,#E0E0E0 100%);min-height:100vh;padding:44px 16px">
-    <tr><td align="center" style="padding:0">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EFEFEF" style="background:#EFEFEF;background-image:radial-gradient(130% 90% at 96% -6%, rgba(255,216,95,0.52) 0%, rgba(255,216,95,0) 50%),linear-gradient(160deg,#FBFBFB 0%,#EDEDED 55%,#E0E0E0 100%);min-height:100vh">
+    <tr><td align="center" style="padding:44px 12px">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;table-layout:fixed;border-radius:30px;overflow:hidden;border:1px solid rgba(255,255,255,0.6);box-shadow:0 30px 60px -30px rgba(40,40,40,0.30),0 2px 8px rgba(40,40,40,0.06)">
 
         ${headerHtml}
