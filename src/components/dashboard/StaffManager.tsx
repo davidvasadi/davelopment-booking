@@ -60,6 +60,9 @@ const schema = z.object({
   // kézzel felvett munkatársaknak (pl. a tulaj saját magának) sosem volt hova beírni, ezért a
   // Munkatársak/Naptár/foglalás-választó mindenhol üresen mutatta a pozíciójukat.
   role_title: z.string().optional(),
+  // Személyenkénti foglalási szabályok (szöveg-mező, mentéskor számmá alakítva; üres = alap).
+  booking_buffer_minutes: z.string().optional(),
+  min_lead_hours: z.string().optional(),
   is_active: z.boolean(),
 })
 type FormData = z.infer<typeof schema>
@@ -197,7 +200,7 @@ export default function StaffManager({
   const [selectedRoleId, setSelectedRoleId] = useState<string>('')
 
   const openAdd = () => {
-    reset({ name: '', bio: '', email: '', role_title: '', is_active: true })
+    reset({ name: '', bio: '', email: '', role_title: '', booking_buffer_minutes: '', min_lead_hours: '', is_active: true })
     setEditing(null)
     setEditLocale('hu')
     setAvatarId(null)
@@ -226,7 +229,7 @@ export default function StaffManager({
   }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEdit = (m: StaffMember) => {
-    reset({ name: m.name, bio: m.bio ?? '', email: m.email ?? '', role_title: m.role_title ?? '', is_active: m.is_active ?? true })
+    reset({ name: m.name, bio: m.bio ?? '', email: m.email ?? '', role_title: m.role_title ?? '', booking_buffer_minutes: m.booking_buffer_minutes != null ? String(m.booking_buffer_minutes) : '', min_lead_hours: m.min_lead_hours != null ? String(m.min_lead_hours) : '', is_active: m.is_active ?? true })
     setEditing(m)
     setEditLocale('hu')
     const url = avatarUrl(m, avatarUrlByEmail)
@@ -323,6 +326,12 @@ export default function StaffManager({
       }
 
       const body: Record<string, unknown> = { ...data, salon: salonId }
+      const toNum = (v: string | undefined, max: number): number | null => {
+        const n = Number(String(v ?? '').replace(',', '.'))
+        return String(v ?? '').trim() === '' || !Number.isFinite(n) || n < 0 ? null : Math.min(n, max)
+      }
+      body.booking_buffer_minutes = toNum(data.booking_buffer_minutes, 240)
+      body.min_lead_hours = toNum(data.min_lead_hours, 720)
       body.social_links = socialLinks.filter((u) => u.trim()).map((url) => ({ url }))
       if (avatarModified) body.avatar = avatarId ?? null
       else if (avatarId) body.avatar = avatarId
@@ -859,6 +868,19 @@ export default function StaffManager({
             <div className="space-y-1.5">
               <Label className="text-sm font-medium">Pozíció</Label>
               <Input className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('role_title')} placeholder="Műszakvezető · Stylist" />
+            </div>
+            )}
+            {editLocale === 'hu' && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Szünet foglalások között <span className="font-normal text-ink-soft2">(perc)</span></Label>
+                <Input type="number" inputMode="numeric" min={0} max={240} className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('booking_buffer_minutes')} placeholder="Szalon alapja" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-medium">Minimum foglalás előre <span className="font-normal text-ink-soft2">(óra)</span></Label>
+                <Input type="number" inputMode="decimal" min={0} max={720} step={0.5} className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('min_lead_hours')} placeholder="Nincs korlát" />
+              </div>
+              <p className="text-[11.5px] text-ink-soft2 sm:col-span-2">Üresen hagyva a szalon alapbeállítása érvényes. A minimum idő csak az online foglalást korlátozza, a te kézi foglalásodat nem.</p>
             </div>
             )}
             {editLocale === 'hu' && !editing && salonRoles.length > 0 && (

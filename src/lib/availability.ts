@@ -125,9 +125,14 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   const service = await payload.findByID({ collection: 'services', id: serviceId })
   const durationMinutes = service.duration_minutes
 
-  // 2. Fetch salon to get buffer
+  // 2. Szünet a foglalások között: a munkatárs SAJÁT beállítása, ha van; különben a szalon-szintű.
+  //    Ugyanígy a minimum foglalási idő előre (csak munkatársanként állítható).
   const salon = await payload.findByID({ collection: 'salons', id: salonId })
-  const bufferMinutes = salon.booking_buffer_minutes ?? 15
+  const staffDoc = staffId
+    ? await payload.findByID({ collection: 'staff', id: staffId, depth: 0, overrideAccess: true }).catch(() => null)
+    : null
+  const bufferMinutes = staffDoc?.booking_buffer_minutes ?? salon.booking_buffer_minutes ?? 15
+  const minLeadMs = Math.max(0, Number(staffDoc?.min_lead_hours) || 0) * 3600_000
 
   // 3b. Ha a munkatársnak van erre a napra "szabadság/beteg/fizetett szabadság" beosztás-
   // rekordja (Shifts), aznap egyáltalán nem foglalható — üres slot-listát adunk vissza, ami
@@ -201,8 +206,14 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
     ? new Date().getHours() * 60 + new Date().getMinutes()
     : 0
 
+  // Minimum foglalási idő: a vendég (publikus foglaló) csak ennyivel előre foglalhat. A tulaj
+  // dashboardos foglalását (`includePast`) nem korlátozza. Szerver-helyi idő, mint a fenti.
+  const [yy, mm, dd] = date.split('-').map(Number)
+  const earliestAllowed = Date.now() + minLeadMs
+
   const free = candidates.filter((slotStart) => {
     if (!includePast && slotStart <= nowMinutes && date === todayStr) return false
+    if (!includePast && minLeadMs > 0 && new Date(yy, mm - 1, dd, 0, slotStart).getTime() < earliestAllowed) return false
     const slotEnd = slotStart + durationMinutes
     return !occupied.some((o) => slotStart < o.end && slotEnd > o.start)
   })

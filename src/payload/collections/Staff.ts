@@ -131,6 +131,24 @@ export const Staff: CollectionConfig = {
       label: 'Heti óraszám',
     },
     {
+      // Személyenkénti szünet két foglalás között (perc). Üres → a szalon „Foglalási időköz"
+      // beállítása (`booking_buffer_minutes`) érvényes.
+      name: 'booking_buffer_minutes',
+      type: 'number',
+      min: 0,
+      max: 240,
+      label: 'Szünet a foglalások között (perc)',
+    },
+    {
+      // Legalább ennyivel a kezdés előtt lehet online foglalni ehhez a munkatárshoz (óra, pl. 3
+      // vagy 0.5). Üres/0 → nincs korlát. A tulaj kézi (dashboard) foglalását nem korlátozza.
+      name: 'min_lead_hours',
+      type: 'number',
+      min: 0,
+      max: 720,
+      label: 'Minimum foglalási idő előre (óra)',
+    },
+    {
       // Több alap-szünet is megadható (pl. ebéd + délutáni pihenő) — a beosztás-automatizáló
       // minden napra ráírja mindet, egyedi napokon (vagy tartományon/"minden napra" felülíráson
       // keresztül) módosítható. A korábbi egyszeres `default_break_start`/`_end` oszlopok az

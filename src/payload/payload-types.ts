@@ -862,6 +862,8 @@ export interface StaffMember {
   birthday?: string | null
   join_date?: string | null
   weekly_hours?: number | null
+  booking_buffer_minutes?: number | null
+  min_lead_hours?: number | null
   default_breaks?: BreakWindow[] | null
   phone?: string | null
   email?: string | null
