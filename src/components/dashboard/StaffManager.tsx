@@ -1,5 +1,6 @@
 'use client'
 
+import { StaffWeeklyHours } from '@/components/dashboard/StaffWeeklyHours'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -881,6 +882,12 @@ export default function StaffManager({
                 <Input type="number" inputMode="decimal" min={0} max={720} step={0.5} className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('min_lead_hours')} placeholder="Nincs korlát" />
               </div>
               <p className="text-[11.5px] text-ink-soft2 sm:col-span-2">Üresen hagyva a szalon alapbeállítása érvényes. A minimum idő csak az online foglalást korlátozza, a te kézi foglalásodat nem.</p>
+            </div>
+            )}
+            {editLocale === 'hu' && editing && (
+            <div className="space-y-1.5">
+              <Label className="text-sm font-medium">Heti munkaidő</Label>
+              <StaffWeeklyHours salonId={String(salonId)} staffId={String(editing.id)} />
             </div>
             )}
             {editLocale === 'hu' && !editing && salonRoles.length > 0 && (
