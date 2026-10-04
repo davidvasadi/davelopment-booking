@@ -94,6 +94,13 @@ export const Reservations: CollectionConfig = {
       admin: { position: 'sidebar', readOnly: true },
     },
     {
+      // Több emlékeztető (pl. 48 és 3 órával előtte): a legutóbb kiküldött időzítés (óra).
+      // A cron csak az ennél KÖZELEBBI időzítést küldi — így egyik sem megy ki kétszer.
+      name: 'reminder_last_offset',
+      type: 'number',
+      admin: { position: 'sidebar', readOnly: true },
+    },
+    {
       name: 'feedback_sent',
       type: 'checkbox',
       defaultValue: false,

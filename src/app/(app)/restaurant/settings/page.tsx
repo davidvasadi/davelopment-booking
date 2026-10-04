@@ -209,6 +209,8 @@ export default async function RestaurantSettingsPage() {
           reminder_t_24h: fm.reminder_t_24h ?? true,
           reminder_t_3h: fm.reminder_t_3h ?? true,
           reminder_t_1h: fm.reminder_t_1h ?? false,
+          reminder_t_48h: fm.reminder_t_48h ?? false,
+          reminder_custom_hours: fm.reminder_custom_hours ?? null,
           waitlist_on: fm.waitlist_on ?? false,
           waitlist_auto_promote: fm.waitlist_auto_promote ?? false,
           recurring_on: fm.recurring_on ?? false,

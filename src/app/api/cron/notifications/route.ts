@@ -37,11 +37,32 @@ function toMinutes(date: string, time: string): number {
   return new Date(y, m - 1, d, h, min).getTime()
 }
 
-function earliestReminderHours(fm: Salon['feature_modules'] | Restaurant['feature_modules']): number | null {
-  if (fm?.reminder_t_24h) return 24
-  if (fm?.reminder_t_3h) return 3
-  if (fm?.reminder_t_1h) return 1
-  return null
+/** A bekapcsolt emlékeztető-időzítések órában, csökkenő sorrendben (pl. [48, 3]). Mindegyik
+ *  kimegy, a saját idejében — korábban több bejelölt időzítésből is csak egy ment ki. */
+function reminderOffsets(fm: Salon['feature_modules'] | Restaurant['feature_modules']): number[] {
+  const set = new Set<number>()
+  if (fm?.reminder_t_48h) set.add(48)
+  if (fm?.reminder_t_24h) set.add(24)
+  if (fm?.reminder_t_3h) set.add(3)
+  if (fm?.reminder_t_1h) set.add(1)
+  const custom = Number(fm?.reminder_custom_hours)
+  if (Number.isFinite(custom) && custom > 0) set.add(Math.min(custom, MAX_REMINDER_HOURS))
+  return Array.from(set).sort((a, b) => b - a)
+}
+
+const MAX_REMINDER_HOURS = 336 // 14 nap — a settingsFields `reminder_custom_hours` max-ja
+
+/**
+ * Melyik emlékeztető esedékes most? A legkisebb olyan időzítés, aminek az ablakába már
+ * beléptünk, és ami közelebbi, mint a legutóbb kiküldött. `null` → most nincs teendő.
+ */
+function dueReminder(offsets: number[], start: number, now: number, lastOffset: number | null | undefined): number | null {
+  if (now >= start) return null
+  const inWindow = offsets.filter((h) => now >= start - h * 3600_000)
+  if (inWindow.length === 0) return null
+  const due = Math.min(...inWindow)
+  if (lastOffset != null && due >= lastOffset) return null
+  return due
 }
 
 /** Közvetlenül a kezdés előtti emlékeztető-ablakon BELÜL létrejött foglalásnak nem küldünk
@@ -161,27 +182,38 @@ async function handle(request: NextRequest) {
     const payload = await getPayloadClient()
 
     // ── SALON: emlékeztetők ────────────────────────────────────────────────
+    // Futásonkénti cache: a 15 napos ablakban sok foglalás tartozik ugyanahhoz az üzlethez.
+    const salonCache = new Map<string, Salon>()
+    const restaurantCache = new Map<string, Restaurant>()
     const salonReminderCandidates = await payload.find({
       collection: 'bookings',
       // Csak a következő napok foglalásai: korábban a múltbeli (sosem emlékeztetett) foglalások is
       // jelöltek voltak, és idővel kiszorították a jövőbelieket az 500-as limitből. 'pending'
       // (még jóvá nem hagyott) foglalásra nem megy emlékeztető.
-      where: { reminder_sent: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'pending'] }, date: { greater_than_equal: ymdOffset(-1), less_than_equal: ymdOffset(3) } },
-      depth: 0, limit: 500, overrideAccess: true,
+      where: { reminder_sent: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'pending'] }, date: { greater_than_equal: ymdOffset(-1), less_than_equal: ymdOffset(15) } },
+      depth: 0, limit: 2000, overrideAccess: true,
     })
 
     for (const doc of salonReminderCandidates.docs as Booking[]) {
       try {
         const salonId = relId(doc.salon)
         if (!salonId) continue
-        const salon = (await payload.findByID({ collection: 'salons', id: salonId, overrideAccess: true, locale: (doc.locale ?? 'hu') as 'hu', fallbackLocale: 'hu' })) as Salon
+        const salonKey = `${salonId}:${doc.locale ?? 'hu'}`
+        let salon = salonCache.get(salonKey)
+        if (!salon) {
+          salon = (await payload.findByID({ collection: 'salons', id: salonId, overrideAccess: true, locale: (doc.locale ?? 'hu') as 'hu', fallbackLocale: 'hu' })) as Salon
+          salonCache.set(salonKey, salon)
+        }
         if (!reminderEnabled(salon)) continue
-        const hours = earliestReminderHours(salon.feature_modules)
-        if (hours == null) continue
+        const offsets = reminderOffsets(salon.feature_modules)
+        if (offsets.length === 0) continue
         const start = toMinutes(doc.date, doc.start_time)
-        if (now < start - hours * 3600_000 || now >= start) continue
+        const hours = dueReminder(offsets, start, now, doc.reminder_last_offset)
+        if (hours == null) continue
+        // Az utolsó (legközelebbi) időzítés után a foglalás „kész" — többet nem jelölt.
+        const reminderDone = { reminder_last_offset: hours, reminder_sent: hours === offsets[offsets.length - 1] }
         if (bookedInsideReminderWindow(doc.createdAt, start, hours)) {
-          await payload.update({ collection: 'bookings', id: doc.id, data: { reminder_sent: true }, overrideAccess: true })
+          await payload.update({ collection: 'bookings', id: doc.id, data: reminderDone, overrideAccess: true })
           continue
         }
 
@@ -193,7 +225,7 @@ async function handle(request: NextRequest) {
           payload.findByID({ collection: 'staff', id: staffId, overrideAccess: true, locale: (doc.locale ?? 'hu') as 'hu', fallbackLocale: 'hu' }) as Promise<StaffMember>,
         ])
         await sendSalonReminder({ booking: doc, salon, service, staff })
-        await payload.update({ collection: 'bookings', id: doc.id, data: { reminder_sent: true }, overrideAccess: true })
+        await payload.update({ collection: 'bookings', id: doc.id, data: reminderDone, overrideAccess: true })
         summary.reminders++
       } catch (err) {
         summary.errors++
@@ -237,8 +269,8 @@ async function handle(request: NextRequest) {
     // ── RESTAURANT: emlékeztetők ───────────────────────────────────────────
     const resReminderCandidates = await payload.find({
       collection: 'reservations',
-      where: { reminder_sent: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'no_show', 'pending'] }, date: { greater_than_equal: ymdOffset(-1), less_than_equal: ymdOffset(3) } },
-      depth: 0, limit: 500, overrideAccess: true,
+      where: { reminder_sent: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'no_show', 'pending'] }, date: { greater_than_equal: ymdOffset(-1), less_than_equal: ymdOffset(15) } },
+      depth: 0, limit: 2000, overrideAccess: true,
     })
 
     for (const doc of resReminderCandidates.docs as Reservation[]) {
@@ -246,19 +278,26 @@ async function handle(request: NextRequest) {
         if (!doc.customer_email) continue
         const restId = relId(doc.restaurant)
         if (!restId) continue
-        const restaurant = (await payload.findByID({ collection: 'restaurants', id: restId, overrideAccess: true, locale: (doc.locale ?? 'hu') as 'hu', fallbackLocale: 'hu' })) as Restaurant
+        const restKey = `${restId}:${doc.locale ?? 'hu'}`
+        let restaurant = restaurantCache.get(restKey)
+        if (!restaurant) {
+          restaurant = (await payload.findByID({ collection: 'restaurants', id: restId, overrideAccess: true, locale: (doc.locale ?? 'hu') as 'hu', fallbackLocale: 'hu' })) as Restaurant
+          restaurantCache.set(restKey, restaurant)
+        }
         if (!reminderEnabled(restaurant)) continue
-        const hours = earliestReminderHours(restaurant.feature_modules)
-        if (hours == null) continue
+        const offsets = reminderOffsets(restaurant.feature_modules)
+        if (offsets.length === 0) continue
         const start = toMinutes(doc.date, doc.start_time)
-        if (now < start - hours * 3600_000 || now >= start) continue
+        const hours = dueReminder(offsets, start, now, doc.reminder_last_offset)
+        if (hours == null) continue
+        const reminderDone = { reminder_last_offset: hours, reminder_sent: hours === offsets[offsets.length - 1] }
         if (bookedInsideReminderWindow(doc.createdAt, start, hours)) {
-          await payload.update({ collection: 'reservations', id: doc.id, data: { reminder_sent: true }, overrideAccess: true })
+          await payload.update({ collection: 'reservations', id: doc.id, data: reminderDone, overrideAccess: true })
           continue
         }
 
         await sendRestaurantReminder({ reservation: doc, restaurant })
-        await payload.update({ collection: 'reservations', id: doc.id, data: { reminder_sent: true }, overrideAccess: true })
+        await payload.update({ collection: 'reservations', id: doc.id, data: reminderDone, overrideAccess: true })
         summary.reminders++
       } catch (err) {
         summary.errors++

@@ -150,9 +150,11 @@ export interface Restaurant {
     reminders_on?: boolean | null
     reminder_ch_email?: boolean | null
     reminder_ch_push?: boolean | null
+    reminder_t_48h?: boolean | null
     reminder_t_24h?: boolean | null
     reminder_t_3h?: boolean | null
     reminder_t_1h?: boolean | null
+    reminder_custom_hours?: number | null
     waitlist_on?: boolean | null
     waitlist_auto_promote?: boolean | null
     recurring_on?: boolean | null
@@ -311,6 +313,7 @@ export interface Reservation {
   status: 'pending' | 'confirmed' | 'seated' | 'completed' | 'no_show' | 'cancelled'
   source: 'online' | 'walk_in' | 'phone'
   reminder_sent?: boolean | null
+  reminder_last_offset?: number | null
   feedback_sent?: boolean | null
   email_open_check_24h?: boolean | null
   email_open_check_12h?: boolean | null
@@ -754,9 +757,11 @@ export interface Salon {
     reminders_on?: boolean | null
     reminder_ch_email?: boolean | null
     reminder_ch_push?: boolean | null
+    reminder_t_48h?: boolean | null
     reminder_t_24h?: boolean | null
     reminder_t_3h?: boolean | null
     reminder_t_1h?: boolean | null
+    reminder_custom_hours?: number | null
     waitlist_on?: boolean | null
     waitlist_auto_promote?: boolean | null
     recurring_on?: boolean | null
@@ -938,6 +943,7 @@ export interface Booking {
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
   notes?: string | null
   reminder_sent?: boolean | null
+  reminder_last_offset?: number | null
   feedback_sent?: boolean | null
   email_open_check_24h?: boolean | null
   email_open_check_12h?: boolean | null

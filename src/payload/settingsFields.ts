@@ -114,9 +114,12 @@ export const settingsExtensionFields: Field[] = [
       { name: 'reminders_on', type: 'checkbox', defaultValue: true },
       { name: 'reminder_ch_email', type: 'checkbox', defaultValue: true },
       { name: 'reminder_ch_push', type: 'checkbox', defaultValue: false },
+      { name: 'reminder_t_48h', type: 'checkbox', defaultValue: false },
       { name: 'reminder_t_24h', type: 'checkbox', defaultValue: false },
       { name: 'reminder_t_3h', type: 'checkbox', defaultValue: true },
       { name: 'reminder_t_1h', type: 'checkbox', defaultValue: false },
+      // Egyedi időzítés órában (pl. 72 = 3 nappal előtte). Üres/0 = nincs.
+      { name: 'reminder_custom_hours', type: 'number', min: 0, max: 336 },
       { name: 'waitlist_on', type: 'checkbox', defaultValue: false },
       { name: 'waitlist_auto_promote', type: 'checkbox', defaultValue: false },
       { name: 'recurring_on', type: 'checkbox', defaultValue: false },

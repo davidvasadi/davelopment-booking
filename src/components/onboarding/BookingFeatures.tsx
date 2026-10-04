@@ -25,6 +25,8 @@ export type FeatureModules = {
   reminders_on: boolean
   reminder_ch_email: boolean; reminder_ch_push: boolean
   reminder_t_24h: boolean; reminder_t_3h: boolean; reminder_t_1h: boolean
+  reminder_t_48h?: boolean | null
+  reminder_custom_hours?: number | null
   waitlist_on: boolean; waitlist_auto_promote: boolean
   recurring_on: boolean
   reviews_on: boolean
@@ -107,14 +109,15 @@ function GroupLabel({ children }: { children: React.ReactNode }) {
 
 
 type Feats = {
-  reminders: { on: boolean; times: { h24: boolean; h3: boolean; h1: boolean }; channels: { email: boolean; push: boolean } }
+  reminders: { on: boolean; times: { h48: boolean; h24: boolean; h3: boolean; h1: boolean }; customHours: number | null; channels: { email: boolean; push: boolean } }
 }
 
 function featsFrom(fm: FeatureModules): Feats {
   return {
     reminders: {
       on: fm.reminders_on,
-      times: { h24: fm.reminder_t_24h, h3: fm.reminder_t_3h, h1: fm.reminder_t_1h },
+      times: { h48: !!fm.reminder_t_48h, h24: fm.reminder_t_24h, h3: fm.reminder_t_3h, h1: fm.reminder_t_1h },
+      customHours: fm.reminder_custom_hours ?? null,
       channels: { email: fm.reminder_ch_email, push: fm.reminder_ch_push },
     },
   }
@@ -137,9 +140,11 @@ function featsToModules(
     reminders_on: f.reminders.on,
     reminder_ch_email: f.reminders.channels.email,
     reminder_ch_push: f.reminders.channels.push,
+    reminder_t_48h: f.reminders.times.h48,
     reminder_t_24h: f.reminders.times.h24,
     reminder_t_3h: f.reminders.times.h3,
     reminder_t_1h: f.reminders.times.h1,
+    reminder_custom_hours: f.reminders.customHours,
     waitlist_on: preserve.waitlist_on,
     waitlist_auto_promote: preserve.waitlist_auto_promote,
     recurring_on: preserve.recurring_on,
@@ -172,7 +177,7 @@ export function BookingFeatures({
 }) {
   const baseline = useMemo<Feats>(
     () => (initial ? featsFrom(initial) : {
-      reminders: { on: true, times: { h24: true, h3: true, h1: false }, channels: { email: true, push: false } },
+      reminders: { on: true, times: { h48: false, h24: true, h3: true, h1: false }, customHours: null, channels: { email: true, push: false } },
     }),
     [initial],
   )
@@ -253,6 +258,7 @@ export function BookingFeatures({
               <GroupLabel>Időzítés a foglalás előtt</GroupLabel>
               <div className="flex flex-wrap gap-2.5">
                 {([
+                  ['h48', '2 nappal'],
                   ['h24', '24 órával'],
                   ['h3', '3 órával'],
                   ['h1', '1 órával'],
@@ -271,6 +277,23 @@ export function BookingFeatures({
                   </Chip>
                 ))}
               </div>
+              <label className="mt-3 flex items-center gap-2 text-[13px] text-ink-soft">
+                Egyedi:
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={336}
+                  value={feats.reminders.customHours ?? ''}
+                  onChange={(e) => {
+                    const n = e.target.value === '' ? null : Math.max(1, Math.min(336, Math.round(Number(e.target.value))))
+                    update((f) => ({ ...f, reminders: { ...f.reminders, customHours: Number.isFinite(n as number) ? n : null } }))
+                  }}
+                  placeholder="pl. 72"
+                  className="h-9 w-20 rounded-[10px] border border-line-strong bg-white px-2.5 text-[16px] text-ink focus:outline-none lg:text-[13px]"
+                />
+                órával előtte
+              </label>
             </div>
             <div>
               <GroupLabel>Csatorna</GroupLabel>

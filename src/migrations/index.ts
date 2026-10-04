@@ -37,6 +37,7 @@ import * as migration_20260923_110000_add_services_expanded_on_main from './2026
 import * as migration_20260923_120000_add_show_catalog_counts_on_public from './20260923_120000_add_show_catalog_counts_on_public';
 import * as migration_20260923_130000_add_booking_price_snapshot from './20260923_130000_add_booking_price_snapshot';
 import * as migration_20261004_100000_booking_email_optional from './20261004_100000_booking_email_optional';
+import * as migration_20261004_110000_reminder_options from './20261004_110000_reminder_options';
 
 export const migrations = [
   {
@@ -233,5 +234,10 @@ export const migrations = [
     up: migration_20261004_100000_booking_email_optional.up,
     down: migration_20261004_100000_booking_email_optional.down,
     name: '20261004_100000_booking_email_optional',
+  },
+  {
+    up: migration_20261004_110000_reminder_options.up,
+    down: migration_20261004_110000_reminder_options.down,
+    name: '20261004_110000_reminder_options',
   },
 ];
