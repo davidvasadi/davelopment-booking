@@ -44,6 +44,20 @@ function earliestReminderHours(fm: Salon['feature_modules'] | Restaurant['featur
   return null
 }
 
+/** Közvetlenül a kezdés előtti emlékeztető-ablakon BELÜL létrejött foglalásnak nem küldünk
+ *  emlékeztetőt: a visszaigazolót épp most kapta meg, egy azonnal utána érkező emlékeztető
+ *  felesleges (ez volt a „megerősítés után rögtön jön az emlékeztető is" hiba). */
+function bookedInsideReminderWindow(createdAt: string | null | undefined, start: number, hours: number): boolean {
+  const created = createdAt ? Date.parse(createdAt) : NaN
+  return Number.isFinite(created) && created >= start - hours * 3600_000
+}
+
+/** YYYY-MM-DD (szerver-idő) — a jelölt-lekérdezés szűkítéséhez. */
+function ymdOffset(days: number): string {
+  const d = new Date(Date.now() + days * 86_400_000)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function reminderEnabled(biz: Salon | Restaurant): boolean {
   return !!(biz.feature_modules?.reminders_on && biz.feature_modules?.reminder_ch_email)
 }
@@ -149,7 +163,10 @@ async function handle(request: NextRequest) {
     // ── SALON: emlékeztetők ────────────────────────────────────────────────
     const salonReminderCandidates = await payload.find({
       collection: 'bookings',
-      where: { reminder_sent: { not_equals: true }, status: { not_in: ['cancelled', 'completed'] } },
+      // Csak a következő napok foglalásai: korábban a múltbeli (sosem emlékeztetett) foglalások is
+      // jelöltek voltak, és idővel kiszorították a jövőbelieket az 500-as limitből. 'pending'
+      // (még jóvá nem hagyott) foglalásra nem megy emlékeztető.
+      where: { reminder_sent: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'pending'] }, date: { greater_than_equal: ymdOffset(-1), less_than_equal: ymdOffset(3) } },
       depth: 0, limit: 500, overrideAccess: true,
     })
 
@@ -163,6 +180,10 @@ async function handle(request: NextRequest) {
         if (hours == null) continue
         const start = toMinutes(doc.date, doc.start_time)
         if (now < start - hours * 3600_000 || now >= start) continue
+        if (bookedInsideReminderWindow(doc.createdAt, start, hours)) {
+          await payload.update({ collection: 'bookings', id: doc.id, data: { reminder_sent: true }, overrideAccess: true })
+          continue
+        }
 
         const serviceId = relId(doc.service)
         const staffId = relId(doc.staff)
@@ -216,7 +237,7 @@ async function handle(request: NextRequest) {
     // ── RESTAURANT: emlékeztetők ───────────────────────────────────────────
     const resReminderCandidates = await payload.find({
       collection: 'reservations',
-      where: { reminder_sent: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'no_show'] } },
+      where: { reminder_sent: { not_equals: true }, status: { not_in: ['cancelled', 'completed', 'no_show', 'pending'] }, date: { greater_than_equal: ymdOffset(-1), less_than_equal: ymdOffset(3) } },
       depth: 0, limit: 500, overrideAccess: true,
     })
 
@@ -231,6 +252,10 @@ async function handle(request: NextRequest) {
         if (hours == null) continue
         const start = toMinutes(doc.date, doc.start_time)
         if (now < start - hours * 3600_000 || now >= start) continue
+        if (bookedInsideReminderWindow(doc.createdAt, start, hours)) {
+          await payload.update({ collection: 'reservations', id: doc.id, data: { reminder_sent: true }, overrideAccess: true })
+          continue
+        }
 
         await sendRestaurantReminder({ reservation: doc, restaurant })
         await payload.update({ collection: 'reservations', id: doc.id, data: { reminder_sent: true }, overrideAccess: true })
