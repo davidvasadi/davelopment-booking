@@ -148,7 +148,16 @@ export async function PATCH(request: NextRequest) {
     // Payload v3/Drizzle locales-join bug: _locale/_parent_id leak into validation on first
     // call for localized collections. Second attempt always succeeds — retry transparently.
     if (err && typeof err === 'object' && 'name' in err && (err as { name: string }).name === 'ValidationError') {
-      await doUpdate()
+      // Második próbálkozás (a fenti Payload-bug miatt). Ha ez is validációs hiba, az VALÓDI —
+      // a mezőt és az okot visszaadjuk, hogy a felület ki tudja írni (korábban 500 + „Mentés
+      // sikertelen" lett belőle, és nem derült ki, mi a baj).
+      try {
+        await doUpdate()
+      } catch (retryErr: unknown) {
+        const res = validationErrorResponse(retryErr)
+        if (res) return res
+        throw retryErr
+      }
     } else {
       throw err
     }
@@ -168,4 +177,12 @@ export async function PATCH(request: NextRequest) {
   }
 
   return NextResponse.json({ ok: true })
+}
+
+/** Payload ValidationError → 400 a hibás mezők listájával (`path: üzenet`). */
+function validationErrorResponse(err: unknown): NextResponse | null {
+  if (!err || typeof err !== 'object' || (err as { name?: string }).name !== 'ValidationError') return null
+  const errors = (err as { data?: { errors?: { path?: string; message?: string }[] } }).data?.errors ?? []
+  const detail = errors.map((e) => [e.path, e.message].filter(Boolean).join(': ')).filter(Boolean).join('; ')
+  return NextResponse.json({ error: detail ? `Hibás mező: ${detail}` : 'Érvénytelen adat' }, { status: 400 })
 }

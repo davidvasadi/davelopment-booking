@@ -206,14 +206,20 @@ export function useLocalizedFields(opts: {
           ...(collection === 'restaurants' ? { event_types: values.event_types } : {}),
         }),
       })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.error ?? `HTTP ${res.status}`)
+      }
       // A sikeresen mentett állapot a mostantól „érintetlen" baseline — így egy KÉSŐBBI
       // szerkesztés+Mégse ide áll vissza, nem az eredeti, session-eleji értékre.
       pristineRef.current[editLocale] = values
       setDirty(false)
       return true
-    } catch {
-      toast.error('Mentés sikertelen')
+    } catch (e) {
+      // A szerver konkrét hibája (pl. melyik mező érvénytelen) — ugyanez a kérés menti az
+      // email-sablonokat, a „Jó tudni"-t, a feltételeket és az egyedi kérdéseket is, így egy
+      // máshol hibás mező miatt az email-sablon mentése is elbukott, ok nélkül.
+      toast.error(`Mentés sikertelen${e instanceof Error && e.message ? `: ${e.message}` : ''}`)
       return false
     }
   }, [collection, apiBase, editLocale])
