@@ -28,12 +28,12 @@ export async function compressImage(
       canvas.width = width
       canvas.height = height
       const ctx = canvas.getContext('2d')
-      if (!ctx) { reject(new Error('Canvas not available')); return }
+      if (!ctx) { reject(new Error('a böngésző nem tudta feldolgozni a képet')); return }
       ctx.drawImage(img, 0, 0, width, height)
 
       canvas.toBlob(
         (blob) => {
-          if (!blob) { reject(new Error('Compression failed')); return }
+          if (!blob) { reject(new Error('a kép tömörítése nem sikerült')); return }
           const name = file.name.replace(/\.[^.]+$/, '.webp')
           resolve(new File([blob], name, { type: 'image/webp' }))
         },
@@ -44,7 +44,7 @@ export async function compressImage(
 
     img.onerror = () => {
       URL.revokeObjectURL(url)
-      reject(new Error('Image load failed'))
+      reject(new Error('a kép nem olvasható be — nem támogatott formátum (pl. HEIC)? Próbáld JPG vagy PNG fájllal'))
     }
 
     img.src = url

@@ -123,12 +123,17 @@ export function VoucherTypeManager({ variant, businessId, initialTypes, minAmoun
       fd.append('file', compressed)
       fd.set('_payload', JSON.stringify({ alt: file.name }))
       const res = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
-      if (!res.ok) throw new Error()
+      if (!res.ok) {
+        // A szerver tényleges hibaüzenete (pl. túl nagy fájl, nem támogatott formátum) — enélkül
+        // csak egy általános „sikertelen" látszott, és nem derült ki, miért.
+        const err = await res.json().catch(() => null)
+        throw new Error(err?.errors?.[0]?.message ?? (res.status === 413 ? 'a fájl túl nagy' : `HTTP ${res.status}`))
+      }
       const json = await res.json()
       setImageId(json.doc.id)
       setImagePreview(json.doc.url)
-    } catch {
-      toast.error('Kép feltöltése sikertelen')
+    } catch (e) {
+      toast.error(`Kép feltöltése sikertelen: ${e instanceof Error && e.message ? e.message : 'ismeretlen hiba'}`)
       setImagePreview(null)
       setImageId(null)
     } finally {
