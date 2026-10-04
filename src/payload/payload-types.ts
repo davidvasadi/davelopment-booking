@@ -927,7 +927,7 @@ export interface Booking {
   price_snapshot_currency?: ('HUF' | 'EUR') | null
   staff: string | StaffMember
   customer_name: string
-  customer_email: string
+  customer_email?: string | null
   customer_phone?: string | null
   customer_city?: string | null
   customer_address?: string | null

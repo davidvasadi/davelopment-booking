@@ -123,6 +123,9 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
+  // A dashboardon e-mail nélkül is rögzíthető foglalás — ilyenkor nincs kinek küldeni.
+  const to = booking.customer_email
+  if (!to) return
   const cancellationToken = (booking as { cancellation_token?: string }).cancellation_token
   const cancelUrl = cancellationToken
     ? `${APP_URL}/booking/confirm-cancel/${cancellationToken}`
@@ -137,7 +140,7 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(salon.name),
       reply_to: salon.email || undefined,
-      to: booking.customer_email,
+      to,
       subject,
       html: confirmationHtml(data, cancelUrl),
       attachments: [
@@ -147,10 +150,10 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
         },
       ],
     })
-    await logEmail('booking_confirmation', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
+    await logEmail('booking_confirmation', to, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Booking confirmation failed:', err)
-    await logEmail('booking_confirmation', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
+    await logEmail('booking_confirmation', to, subject, false, String(err), { bookingId: booking.id })
   }
 }
 
@@ -201,6 +204,9 @@ export async function sendCancellationEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
+  // A dashboardon e-mail nélkül is rögzíthető foglalás — ilyenkor nincs kinek küldeni.
+  const to = booking.customer_email
+  if (!to) return
   const locale = normalizeLocale((booking as { locale?: string }).locale)
   const subjectTpl = (salon.cancel_email_subject ?? '').trim()
   const subject = subjectTpl
@@ -210,14 +216,14 @@ export async function sendCancellationEmail(data: BookingEmailData) {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(salon.name),
       reply_to: salon.email || undefined,
-      to: booking.customer_email,
+      to,
       subject,
       html: cancellationHtml(data),
     })
-    await logEmail('cancellation', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
+    await logEmail('cancellation', to, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Cancellation email failed:', err)
-    await logEmail('cancellation', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
+    await logEmail('cancellation', to, subject, false, String(err), { bookingId: booking.id })
   }
 }
 
@@ -225,6 +231,9 @@ export async function sendReminderEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
+  // A dashboardon e-mail nélkül is rögzíthető foglalás — ilyenkor nincs kinek küldeni.
+  const to = booking.customer_email
+  if (!to) return
   const cancellationToken = (booking as { cancellation_token?: string }).cancellation_token
   const cancelUrl = cancellationToken
     ? `${APP_URL}/booking/confirm-cancel/${cancellationToken}`
@@ -237,14 +246,14 @@ export async function sendReminderEmail(data: BookingEmailData) {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(salon.name),
       reply_to: salon.email || undefined,
-      to: booking.customer_email,
+      to,
       subject,
       html: reminderHtml(data, cancelUrl),
     })
-    await logEmail('reminder', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
+    await logEmail('reminder', to, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Reminder email failed:', err)
-    await logEmail('reminder', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
+    await logEmail('reminder', to, subject, false, String(err), { bookingId: booking.id })
   }
 }
 
@@ -520,7 +529,7 @@ function bookingRows(data: BookingEmailData): string {
   const location = salon.address ? `${salon.address}${salon.city ? ', ' + salon.city : ''}` : null
   return [
     infoRow('user', t(locale, 'email.label.name'), booking.customer_name),
-    infoRow('mail', t(locale, 'email.label.email'), booking.customer_email),
+    booking.customer_email ? infoRow('mail', t(locale, 'email.label.email'), booking.customer_email) : '',
     infoRow('scissors', t(locale, 'email.label.service'), service.name),
     infoRow('user', t(locale, 'email.label.staff'), staff.name),
     infoRow('calendar', t(locale, 'email.label.date'), formatBookingDate(booking.date, locale)),
@@ -584,7 +593,7 @@ function notificationHtml(data: BookingEmailData): string {
   const rows = [
     infoRow('user', 'Ügyfél', booking.customer_name),
     booking.customer_phone ? infoRow('phone', 'Telefon', booking.customer_phone) : '',
-    infoRow('mail', 'Email', booking.customer_email),
+    booking.customer_email ? infoRow('mail', 'Email', booking.customer_email) : '',
     infoRow('scissors', 'Szolgáltatás', service.name),
     infoRow('user', 'Munkatárs', staff.name),
     infoRow('calendar', 'Dátum', booking.date),
@@ -714,19 +723,22 @@ export async function sendBookingModification(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
   if (!resend) return
+  // A dashboardon e-mail nélkül is rögzíthető foglalás — ilyenkor nincs kinek küldeni.
+  const to = booking.customer_email
+  if (!to) return
   const subject = `Foglalásod módosítva – ${salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
       from: fromHeader(salon.name),
       reply_to: salon.email || undefined,
-      to: booking.customer_email,
+      to,
       subject,
       html: modificationHtml(data),
     })
-    await logEmail('modification', booking.customer_email, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
+    await logEmail('modification', to, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
   } catch (err) {
     console.error('[Email] Booking modification failed:', err)
-    await logEmail('modification', booking.customer_email, subject, false, String(err), { bookingId: booking.id })
+    await logEmail('modification', to, subject, false, String(err), { bookingId: booking.id })
   }
 }
 

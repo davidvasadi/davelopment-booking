@@ -75,7 +75,9 @@ export const Bookings: CollectionConfig = {
     {
       name: 'customer_email',
       type: 'email',
-      required: true,
+      // Nem kötelező: a dashboardon kézzel rögzített (pl. telefonos) foglalásnál a vendég
+      // e-mail címe gyakran nem ismert. Ilyenkor nem megy ki vendég-email. A publikus foglaló
+      // továbbra is megköveteli (api/bookings).
       label: 'Ügyfél email',
     },
     {

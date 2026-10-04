@@ -376,11 +376,8 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isEdit, statusTouched, startTime, duration, selectedDate])
 
-  const emailErr = !email.trim()
-    ? 'Az e-mail cím kötelező'
-    : !EMAIL_RE.test(email.trim())
-      ? 'Érvénytelen e-mail cím'
-      : null
+  // Az e-mail opcionális (telefonos foglalásnál gyakran nincs) — csak a formátumot ellenőrizzük.
+  const emailErr = email.trim() && !EMAIL_RE.test(email.trim()) ? 'Érvénytelen e-mail cím' : null
 
   const draftFields = () => ({
     date: selectedDate,
@@ -776,8 +773,8 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
-                        <Label>Email</Label>
-                        {isEdit && booking?.id && (
+                        <Label>Email <span className="font-normal text-zinc-400">(opcionális)</span></Label>
+                        {isEdit && booking?.id && booking.customer_email && (
                           <EmailStatusBadge
                             endpoint={`/api/salon/booking-email-status?bookingId=${booking.id}`}
                             resendEndpoint="/api/salon/resend-booking-email"

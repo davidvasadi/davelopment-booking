@@ -60,10 +60,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Hiányzó adat (szolgáltatás, szakember, dátum, idő)' }, { status: 400 })
   }
 
-  // A Bookings.customer_email kollekció-szinten kötelező → itt is megköveteljük (érvényes formátum).
-  const email = (body.customer_email ?? '').trim()
-  if (!email) return NextResponse.json({ error: 'Az e-mail cím megadása kötelező' }, { status: 400 })
-  if (!EMAIL_RE.test(email)) return NextResponse.json({ error: 'Érvénytelen e-mail cím' }, { status: 400 })
+  // Az e-mail cím opcionális (pl. telefonos foglalás) — ha meg van adva, érvényes legyen.
+  // E-mail nélkül a vendég nem kap visszaigazolót / emlékeztetőt.
+  const email = (body.customer_email ?? '').trim() || null
+  if (email && !EMAIL_RE.test(email)) return NextResponse.json({ error: 'Érvénytelen e-mail cím' }, { status: 400 })
 
   const { payload, salon } = await getOwnerSalon(user)
   if (!salon) return NextResponse.json({ error: 'Nincs aktív szalon' }, { status: 404 })
