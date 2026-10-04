@@ -3,6 +3,7 @@ import { notifyOnBooking } from '../hooks/notifyOnBooking'
 import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
 import { capabilityScoped } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
+import { confirmOnApproval } from '../hooks/confirmOnApproval'
 
 export const Bookings: CollectionConfig = {
   slug: 'bookings',
@@ -289,7 +290,7 @@ export const Bookings: CollectionConfig = {
     { name: 'custom_answers', type: 'json', label: 'Egyedi kérdések válaszai', admin: { position: 'sidebar', readOnly: true } },
   ],
   hooks: {
-    afterChange: [notifyOnBooking('salon'), sseAfterChange('salon'), auditAfterChange('Foglalás', 'salon')],
+    afterChange: [notifyOnBooking('salon'), sseAfterChange('salon'), auditAfterChange('Foglalás', 'salon'), confirmOnApproval('salon')],
     afterDelete: [sseAfterDelete('salon'), auditAfterDelete('Foglalás', 'salon')],
   },
   timestamps: true,

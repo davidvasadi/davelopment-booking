@@ -251,9 +251,11 @@ export async function POST(request: NextRequest) {
       voucher = { id: found.id, code: found.code, amount_huf: found.amount_huf }
     }
 
-    // Szalonoknál nincs külön "függőben" munkafolyamat — minden online foglalás rögtön
-    // megerősítve jön be (a lemondás/befejezés a kezelés útja, nem egy köztes jóváhagyás).
-    const bookingStatus: 'confirmed' = 'confirmed'
+    // Automatikus megerősítés (Beállítások → Foglalási szabályok): alap (null/true) → 'confirmed'.
+    // Kikapcsolva → 'pending', a tulaj hagyja jóvá; a vendég visszaigazolója a jóváhagyáskor megy
+    // ki (`confirmOnApproval` hook). Korábban a kapcsolót a szalon-foglalás figyelmen kívül hagyta.
+    const bookingStatus: 'confirmed' | 'pending' =
+      salon.booking_rules?.auto_confirm === false ? 'pending' : 'confirmed'
 
     // Ismétlődés csak akkor él, ha jött `repeat` ÉS a modul be van kapcsolva. Máskülönben
     // (nincs repeat, vagy recurring_on ki) → egyszeri foglalás, közös series_id nélkül.
@@ -341,7 +343,7 @@ export async function POST(request: NextRequest) {
       void upsertMarketingConsent({ kind: 'salon', businessId: salonId, name: customer_name, email: customer_email, phone: customer_phone, city: customer_city })
     }
     const emailData = { booking, salon, service, staff }
-    if (salon.notification_prefs?.confirm_email !== false) {
+    if (salon.notification_prefs?.confirm_email !== false && bookingStatus === 'confirmed') {
       // A sorozat minden létrejött alkalmára megy visszaigazoló (a meglévő minta szerint).
       for (const b of created) void sendBookingConfirmation({ booking: b, salon, service, staff })
     }

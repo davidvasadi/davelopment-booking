@@ -4,6 +4,7 @@ import { notifyOnBooking } from '../hooks/notifyOnBooking'
 import { sseAfterChange, sseAfterDelete } from '../hooks/emitSseEvent'
 import { revalidateOnReservationChange, revalidateOnReservationDelete } from '../hooks/revalidateRestaurant'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
+import { confirmOnApproval } from '../hooks/confirmOnApproval'
 
 export const Reservations: CollectionConfig = {
   slug: 'reservations',
@@ -241,7 +242,7 @@ export const Reservations: CollectionConfig = {
         return data
       },
     ],
-    afterChange: [notifyOnBooking('restaurant'), sseAfterChange('restaurant'), revalidateOnReservationChange, auditAfterChange('Asztalfoglalás', 'restaurant')],
+    afterChange: [notifyOnBooking('restaurant'), sseAfterChange('restaurant'), revalidateOnReservationChange, auditAfterChange('Asztalfoglalás', 'restaurant'), confirmOnApproval('restaurant')],
     afterDelete: [sseAfterDelete('restaurant'), revalidateOnReservationDelete, auditAfterDelete('Asztalfoglalás', 'restaurant')],
   },
   timestamps: true,

@@ -276,7 +276,9 @@ export async function POST(request: NextRequest) {
       void upsertMarketingConsent({ kind: 'restaurant', businessId: restaurantId, name: customer_name, email: customer_email, phone: customer_phone, city: customer_city, country })
     }
     // Emailek — best-effort, ne blokkoljanak hibára. Sorozatnál minden alkalomra megy.
-    if (restaurant.notification_prefs?.confirm_email !== false) {
+    // Függő (nem automatikusan megerősített) foglalásnál a visszaigazoló a jóváhagyáskor megy ki
+    // (`confirmOnApproval` hook) — korábban azonnal kiment, mintha meg lenne erősítve.
+    if (restaurant.notification_prefs?.confirm_email !== false && reservationStatus === 'confirmed') {
       for (const r of created) void sendReservationConfirmation({ reservation: r, restaurant })
     }
     // Nincs owner email — a digest összefoglalja a napot.
