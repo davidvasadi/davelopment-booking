@@ -74,7 +74,7 @@ export async function PATCH(req: Request) {
   return NextResponse.json({ ok: true })
 }
 
-// DELETE — egyetlen értesítés törlése (a saját helyen)
+// DELETE — egyetlen értesítés (`?id=`) vagy az összes (`?all=1`) törlése (a saját helyen)
 export async function DELETE(req: Request) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'unauthorized' }, { status: 401 })
@@ -84,12 +84,14 @@ export async function DELETE(req: Request) {
 
   const { searchParams } = new URL(req.url)
   const id = searchParams.get('id')
-  if (!id) return NextResponse.json({ error: 'missing id' }, { status: 400 })
+  const all = searchParams.get('all') === '1'
+  if (!id && !all) return NextResponse.json({ error: 'missing id' }, { status: 400 })
 
   const payload = await getPayloadClient()
   await payload.delete({
     collection: 'notifications',
-    where: { ...where, id: { equals: id } },
+    // `?all=1` → a felhasználó összes látható értesítése (ugyanaz a hely-szűrő, mint a GET-nél).
+    where: all ? where : { ...where, id: { equals: id } },
     overrideAccess: true,
   })
 

@@ -97,6 +97,7 @@ export function useNotifications(onNavigate?: () => void) {
   // (null = még nem volt betöltés) — csak az ELSŐ betöltés UTÁN érkező, tehát ÚJ digest
   // triggerel automatikus popupot, a bejelentkezéskor már meglévő, régi digest nem.
   const seenIdsRef = useRef<Set<Notification['id']> | null>(null)
+  const newestSeenRef = useRef<string | null>(null)
   const [newDigest, setNewDigest] = useState<Notification | null>(null)
 
   const load = useCallback(async () => {
@@ -106,12 +107,17 @@ export function useNotifications(onNavigate?: () => void) {
       const data = await res.json()
       const next: Notification[] = data.notifications ?? []
       if (seenIdsRef.current) {
+        // Csak a legfrissebb ismertnél ÚJABB digest számít érkezettnek — törlés után a lista
+        // alján felbukkanó régi (eddig a 20-as limiten kívüli) digest ne nyisson popupot.
+        const newestSeen = newestSeenRef.current
         const arrived = next.find(
-          (n) => (n.type === 'digest_morning' || n.type === 'digest_evening') && !seenIdsRef.current!.has(n.id),
+          (n) => (n.type === 'digest_morning' || n.type === 'digest_evening') && !seenIdsRef.current!.has(n.id)
+            && (!newestSeen || n.createdAt > newestSeen),
         )
         if (arrived) setNewDigest(arrived)
       }
-      seenIdsRef.current = new Set(next.map((n) => n.id))
+      seenIdsRef.current = new Set([...(seenIdsRef.current ?? []), ...next.map((n) => n.id)])
+      for (const n of next) if (!newestSeenRef.current || n.createdAt > newestSeenRef.current) newestSeenRef.current = n.createdAt
       setItems(next)
       setUnread(data.unread ?? 0)
     } catch {
@@ -135,14 +141,18 @@ export function useNotifications(onNavigate?: () => void) {
     }
   }, [load])
 
+  // A szerver egyszerre csak a legutóbbi 20-at adja: törlés után újratöltünk, hogy a régebbiek
+  // a helyükre csússzanak (különben pár törlés után üres lett a lista, holott volt még értesítés).
+  // Az olvasatlan-számlálót is az újratöltés állítja be (a szerver-oldali pontos értékre) — a
+  // korábbi helyi „-1" olvasott elem törlésekor is csökkentette.
   const remove = useCallback(async (id: number | string) => {
     setItems((prev) => prev.filter((n) => n.id !== id))
-    setUnread((u) => Math.max(0, u - 1))
     await fetch(`/api/notifications?id=${encodeURIComponent(String(id))}`, {
       method: 'DELETE',
       credentials: 'include',
     }).catch(() => null)
-  }, [])
+    await load()
+  }, [load])
 
   const markRead = useCallback(async (id: number | string) => {
     setItems((prev) => prev.map((n) => n.id === id ? { ...n, read: true } : n))
@@ -155,20 +165,16 @@ export function useNotifications(onNavigate?: () => void) {
     }).catch(() => null)
   }, [])
 
+  // Az összes törlése szerver-oldalon (`?all=1`) — nem csak a betöltött 20-at.
   const clearAll = useCallback(async () => {
-    setItems((prev) => {
-      Promise.all(
-        prev.map((n) =>
-          fetch(`/api/notifications?id=${encodeURIComponent(String(n.id))}`, {
-            method: 'DELETE',
-            credentials: 'include',
-          }).catch(() => null),
-        ),
-      )
-      return []
-    })
+    setItems([])
     setUnread(0)
-  }, [])
+    await fetch('/api/notifications?all=1', {
+      method: 'DELETE',
+      credentials: 'include',
+    }).catch(() => null)
+    await load()
+  }, [load])
 
   const openItem = useCallback((n: Notification) => {
     onNavigate?.()
