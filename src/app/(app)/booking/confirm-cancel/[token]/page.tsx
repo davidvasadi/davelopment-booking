@@ -114,12 +114,16 @@ export default async function ConfirmCancelPage({
         </div>
 
         <div className="space-y-3">
-          <Link
-            href={`/api/cancel/${token}`}
-            className="block w-full h-12 rounded-full bg-red-500 hover:bg-red-600 text-white font-semibold text-sm flex items-center justify-center transition-colors"
-          >
-            {t(locale, 'public.cancel.yes')}
-          </Link>
+          {/* Űrlap (POST), nem <Link>: a Link prefetch-e GET-tel már a gomb megjelenésekor
+              lefuttatta volna a lemondást. */}
+          <form action={`/api/cancel/${encodeURIComponent(token)}`} method="post">
+            <button
+              type="submit"
+              className="block w-full h-12 rounded-full bg-red-500 hover:bg-red-600 text-white font-semibold text-sm flex items-center justify-center transition-colors"
+            >
+              {t(locale, 'public.cancel.yes')}
+            </button>
+          </form>
           <Link
             href={salonSlug ? `/${salonSlug}` : '/'}
             className="block w-full h-12 rounded-full bg-white/[0.08] hover:bg-white/[0.12] text-white font-semibold text-sm flex items-center justify-center transition-colors"
