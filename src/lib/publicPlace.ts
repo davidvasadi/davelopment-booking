@@ -113,7 +113,15 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
   // Fallback-avatar EMAIL alapján: ha a tulaj sosem töltött fel külön staff-avatart, de a
   // személy a SAJÁT profiljában igen (`Users.avatar_url`), a publikus oldalon is azt mutassuk —
   // ugyanaz a minta, mint a dashboard Munkatársak/Naptár oldalain.
-  const staffDocs = staffResult.docs as StaffMember[]
+  // Csak a foglalható munkatársak kerülnek a publikus foglalóba: akit egyetlen aktív
+  // szolgáltatáshoz sem rendeltek (pl. asszisztens), az ne jelenjen meg választhatóként és a
+  // létszámban sem — különben a vendég olyan személyt látott, akihez nem is lehet foglalni.
+  const bookableStaffIds = new Set(
+    (servicesResult.docs as Service[]).flatMap((svc) =>
+      (svc.staff ?? []).map((m) => String(m && typeof m === 'object' ? m.id : m)),
+    ),
+  )
+  const staffDocs = (staffResult.docs as StaffMember[]).filter((s) => bookableStaffIds.has(String(s.id)))
   const staffEmails = staffDocs.map((s) => s.email).filter((e): e is string => !!e)
   let staffWithFallback = staffDocs
   if (staffEmails.length > 0) {
