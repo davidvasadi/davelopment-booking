@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { BusinessQrCard } from '@/components/settings/BusinessQrCard'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -776,6 +777,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
             Megnyitás
           </a>
         </div>
+        <BusinessQrCard url={publicUrl} businessName={salon.name} subtitle="Foglalj időpontot online" />
       </Section>
 
       <Section id="good-to-know" title="Jó tudni (foglaló oldal)" full collapsible>

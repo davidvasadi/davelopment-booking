@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { BusinessQrCard } from '@/components/settings/BusinessQrCard'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -801,6 +802,7 @@ export function RestaurantSettingsForm({
             Megnyitás
           </a>
         </div>
+        <BusinessQrCard url={publicUrl} businessName={form.name} subtitle="Foglalj asztalt online" />
       </Section>
 
       <Section id="good-to-know" title="Jó tudni (foglaló oldal)" full collapsible>
