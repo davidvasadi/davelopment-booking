@@ -38,3 +38,24 @@ export function emailPreviewUrl(
   })
   return `/api/email-preview?${q.toString()}`
 }
+
+/** Az előnézetet új lapon nyitja, űrlap-POST-tal (nem URL-paraméterekkel): a bevezető HTML
+ *  hosszabb tartalomnál túllépte az URL-hossz korlátot, és az előnézet nem nyílt meg. */
+export function openEmailPreview(...args: Parameters<typeof emailPreviewUrl>): void {
+  const url = new URL(emailPreviewUrl(...args), window.location.origin)
+  const form = document.createElement('form')
+  form.method = 'post'
+  form.action = url.pathname
+  form.target = '_blank'
+  form.style.display = 'none'
+  for (const [k, v] of url.searchParams.entries()) {
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = k
+    input.value = v
+    form.appendChild(input)
+  }
+  document.body.appendChild(form)
+  form.submit()
+  form.remove()
+}

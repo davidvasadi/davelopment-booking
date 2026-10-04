@@ -37,7 +37,19 @@ function mediaUrl(field: string | Media | null | undefined): string | null {
  *   ?intro=… · ?phone/cmail/addr/dir=1|0 · ?contactPhone/dirAddr=…
  */
 export async function GET(req: NextRequest) {
-  const p = req.nextUrl.searchParams
+  return renderPreview(req.nextUrl.searchParams)
+}
+
+/** Ugyanaz, űrlap-POST-tal: a bevezető HTML hosszabb tartalomnál nem fér el az URL-ben (a
+ *  szerver/proxy 414-gyel vagy 400-zal eldobta) — ezért „nálam működik, másnál nem" volt. */
+export async function POST(req: NextRequest) {
+  const form = await req.formData()
+  const p = new URLSearchParams()
+  for (const [k, v] of form.entries()) if (typeof v === 'string') p.set(k, v)
+  return renderPreview(p)
+}
+
+async function renderPreview(p: URLSearchParams) {
   const type = p.get('type') === 'salon' ? 'salon' : 'restaurant'
   const state = p.get('state') ?? 'confirm' // confirm | notify | cancel
   // A szerkesztési nyelv (a settings nyelvváltójából) — a preview ezen rendereli a vázat,

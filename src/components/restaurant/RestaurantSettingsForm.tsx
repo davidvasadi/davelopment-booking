@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
 import { NumberStepper } from '@/components/ui/NumberStepper'
 import { Camera, Loader2, ImagePlus, X, Trash2, Eye, Move, ChevronDown } from 'lucide-react'
-import { emailPreviewUrl } from '@/components/settings/emailPreviewUrl'
+import { openEmailPreview } from '@/components/settings/emailPreviewUrl'
 import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor, type TermsSection } from '@/components/settings/TermsSectionsEditor'
@@ -954,7 +954,7 @@ export function RestaurantSettingsForm({
           <EmailTemplatesEditor
             variant="restaurant"
             loc={loc}
-            onPreview={(state, intro) => window.open(emailPreviewUrl('restaurant', form, loc.editLocale, state, intro), '_blank', 'noopener')}
+            onPreview={(state, intro) => openEmailPreview('restaurant', form, loc.editLocale, state, intro)}
           />
         </Section>
 
@@ -1003,7 +1003,7 @@ export function RestaurantSettingsForm({
           </div>
         </Section>
 
-        {!embedded && <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => window.open(emailPreviewUrl('restaurant', { ...form, booking_email_intro: loc.current.booking_email_intro }, loc.editLocale), '_blank', 'noopener')} />}
+        {!embedded && <SaveBar dirty={tabDirty('email')} submitting={submitting} onSave={() => saveTab('email')} onPreview={() => openEmailPreview('restaurant', { ...form, booking_email_intro: loc.current.booking_email_intro }, loc.editLocale)} />}
       </div>
       )}
 
