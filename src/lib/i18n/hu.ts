@@ -24,6 +24,8 @@ export const hu: Record<string, string> = {
   'booking.noSlots': 'Erre a napra nincs szabad időpont.',
   'booking.noSlotsHint': 'Válassz másik napot.',
   'booking.details.title': 'Az adataid',
+  'booking.details.remembered': 'Az előző foglalásod adataival kitöltöttük. Nem te vagy?',
+  'booking.details.forget': 'Adatok törlése',
   'booking.details.subtitle': 'Töltsd ki az adataidat a foglalás megerősítéséhez',
   'booking.summary': 'Foglalás összegzése',
   'booking.field.name': 'Teljes név *',

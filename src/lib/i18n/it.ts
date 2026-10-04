@@ -18,6 +18,8 @@ export const it: Record<string, string> = {
   'booking.noSlots': 'Nessun orario disponibile in questo giorno.',
   'booking.noSlotsHint': 'Scegli un altro giorno.',
   'booking.details.title': 'I tuoi dati',
+  'booking.details.remembered': 'Compilato con i dati della tua prenotazione precedente. Non sei tu?',
+  'booking.details.forget': 'Cancella dati',
   'booking.details.subtitle': 'Compila i tuoi dati per confermare la prenotazione',
   'booking.summary': 'Riepilogo prenotazione',
   'booking.field.name': 'Nome completo *',

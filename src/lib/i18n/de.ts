@@ -18,6 +18,8 @@ export const de: Record<string, string> = {
   'booking.noSlots': 'An diesem Tag sind keine Termine frei.',
   'booking.noSlotsHint': 'Bitte wählen Sie einen anderen Tag.',
   'booking.details.title': 'Ihre Angaben',
+  'booking.details.remembered': 'Mit den Daten Ihrer letzten Buchung ausgefüllt. Nicht Sie?',
+  'booking.details.forget': 'Daten löschen',
   'booking.details.subtitle': 'Füllen Sie Ihre Daten aus, um die Buchung zu bestätigen',
   'booking.summary': 'Buchungsübersicht',
   'booking.field.name': 'Vollständiger Name *',

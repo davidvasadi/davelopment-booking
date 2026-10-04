@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { loadGuest, saveGuest, forgetGuest } from '@/lib/guestMemory'
 import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useDragControls } from 'framer-motion'
@@ -121,6 +122,23 @@ export function ProfileCard({
   const [customerIsCompany, setCustomerIsCompany] = useState(false)
   const [customerTaxNumber, setCustomerTaxNumber] = useState('')
   const [customerNotes, setCustomerNotes] = useState('')
+  // Visszatérő vendég: az előző foglalás adatai ebben a böngészőben (lásd lib/guestMemory).
+  const [rememberedGuest, setRememberedGuest] = useState(false)
+  useEffect(() => {
+    const g = loadGuest(salonId)
+    if (!g) return
+    setCustomerName((v) => v || g.name)
+    setCustomerEmail((v) => v || g.email)
+    setCustomerPhone((v) => v || g.phone)
+    setCustomerCountry(g.country || 'HU')
+    setCustomerCity((v) => v || g.city)
+    setRememberedGuest(true)
+  }, [salonId])
+  const forgetRememberedGuest = () => {
+    forgetGuest(salonId)
+    setCustomerName(''); setCustomerEmail(''); setCustomerPhone(''); setCustomerCity('')
+    setRememberedGuest(false)
+  }
   // GDPR opt-in — SOSE előre kipipált, a foglaláskor mentődik tartósan a Customers táblába.
   const [marketingConsent, setMarketingConsent] = useState(false)
   // Beleegyező nyilatkozat elfogadása — SOSE előre bekapcsolva, per-foglalás mentődik.
@@ -449,6 +467,8 @@ export function ProfileCard({
         const err = await res.json()
         throw new Error(err.error ?? tt('booking.err.generic'))
       }
+      saveGuest(salonId, { name: customerName.trim(), email: customerEmail.trim(), phone: customerPhone.trim(), country: customerCountry, city: customerCity.trim() })
+      setRememberedGuest(true)
       setSuccessDetails({
         service: bookingService?.name ?? '',
         staff: bookingStaffId ? (bookingStaff?.name ?? '') : tt('booking.staff.any'),
@@ -1263,6 +1283,14 @@ export function ProfileCard({
               {view === 'details' && (
                 <div>
                   <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.details.title')}</h2>
+                  {rememberedGuest && (
+                    <p className="-mt-2 mb-3 text-[12px] text-white/50">
+                      {tt('booking.details.remembered')}{' '}
+                      <button type="button" onClick={forgetRememberedGuest} className="font-semibold text-white/80 underline underline-offset-2 hover:text-white">
+                        {tt('booking.details.forget')}
+                      </button>
+                    </p>
+                  )}
                   <div className="space-y-2 pb-4">
                     <div key={`name-${detailsShakeKey}`} className={cn('space-y-1', errors.name && 'animate-shake')}>
                       <Label htmlFor="bk-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.name')}</Label>

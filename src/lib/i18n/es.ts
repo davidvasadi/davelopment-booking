@@ -18,6 +18,8 @@ export const es: Record<string, string> = {
   'booking.noSlots': 'No hay horas disponibles este día.',
   'booking.noSlotsHint': 'Elige otro día.',
   'booking.details.title': 'Tus datos',
+  'booking.details.remembered': 'Rellenado con los datos de tu reserva anterior. ¿No eres tú?',
+  'booking.details.forget': 'Borrar datos',
   'booking.details.subtitle': 'Rellena tus datos para confirmar la reserva',
   'booking.summary': 'Resumen de la reserva',
   'booking.field.name': 'Nombre completo *',

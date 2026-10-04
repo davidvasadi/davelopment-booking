@@ -174,6 +174,10 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
   const [phone, setPhone] = useState('')
   const [country, setCountry] = useState('HU')
   const [email, setEmail] = useState('')
+  // Visszatérő vendég automatikus kitöltése (csak új foglalásnál): a név/telefon/e-mail
+  // gépelésére a korábbi vendégekből javaslatot kérünk, kattintásra kitöltjük az adatokat.
+  const [lookupQ, setLookupQ] = useState('')
+  const [suggestions, setSuggestions] = useState<{ name: string; email: string | null; phone: string | null; city: string | null }[]>([])
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState<Booking['status']>('confirmed')
   const [statusTouched, setStatusTouched] = useState(false)
@@ -253,6 +257,8 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     setCountry(parsedPhone.country)
     setPhone(parsedPhone.phone)
     setEmail(b?.customer_email ?? '')
+    setLookupQ('')
+    setSuggestions([])
     setNotes(b?.notes ?? '')
     setStatus(initStatus)
     setStatusTouched(false)
@@ -375,6 +381,33 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     setStatus(computeDefaultStatus(selectedDate, startTime, duration))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isEdit, statusTouched, startTime, duration, selectedDate])
+
+  useEffect(() => {
+    if (!open || isEdit) return
+    const q = lookupQ.trim()
+    if (q.length < 2) { setSuggestions([]); return }
+    const ctrl = new AbortController()
+    const t = setTimeout(() => {
+      fetch(`/api/customers/search?q=${encodeURIComponent(q)}`, { credentials: 'include', signal: ctrl.signal })
+        .then((r) => (r.ok ? r.json() : { results: [] }))
+        .then((d) => setSuggestions(d.results ?? []))
+        .catch(() => {})
+    }, 250)
+    return () => { clearTimeout(t); ctrl.abort() }
+  }, [lookupQ, open, isEdit])
+
+  const applySuggestion = (g: { name: string; email: string | null; phone: string | null; city: string | null }) => {
+    setName(g.name)
+    if (g.email) setEmail(g.email)
+    if (g.city) setCity(g.city)
+    if (g.phone) {
+      const p = splitLocalPhone(g.phone, country)
+      setCountry(p.country)
+      setPhone(p.phone)
+    }
+    setSuggestions([])
+    setLookupQ('')
+  }
 
   // Az e-mail opcionális (telefonos foglalásnál gyakran nincs) — csak a formátumot ellenőrizzük.
   const emailErr = email.trim() && !EMAIL_RE.test(email.trim()) ? 'Érvénytelen e-mail cím' : null
@@ -748,7 +781,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                       <div className="flex items-center justify-between gap-2">
                         <Label>Vendég neve <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
                       </div>
-                      <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Pl. Kovács Anna" />
+                      <Input value={name} onChange={(e) => { setName(e.target.value); setLookupQ(e.target.value) }} placeholder="Pl. Kovács Anna" autoComplete="off" />
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
@@ -757,6 +790,23 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                       <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Pl. Budapest" />
                     </div>
                   </div>
+
+                  {!isEdit && suggestions.length > 0 && (
+                    <div className="overflow-hidden rounded-[12px] border border-zinc-200">
+                      <div className="bg-zinc-50 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Korábbi vendég — kattints a kitöltéshez</div>
+                      {suggestions.map((g, i) => (
+                        <button
+                          key={`${g.email ?? g.phone ?? ''}-${i}`}
+                          type="button"
+                          onClick={() => applySuggestion(g)}
+                          className="flex w-full flex-col items-start border-t border-zinc-100 px-3.5 py-2 text-left transition-colors hover:bg-zinc-50"
+                        >
+                          <span className="text-sm font-medium text-zinc-900">{g.name}</span>
+                          <span className="text-[12px] text-zinc-500">{[g.phone, g.email].filter(Boolean).join(' · ')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
@@ -767,7 +817,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                         country={country}
                         phone={phone}
                         onCountryChange={setCountry}
-                        onPhoneChange={setPhone}
+                        onPhoneChange={(v) => { setPhone(v); setLookupQ(v) }}
                         inputClass="h-10 rounded-lg border border-zinc-200 px-3 text-sm text-zinc-900 outline-none"
                       />
                     </div>
@@ -784,7 +834,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                       </div>
                       <Input
                         value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        onChange={(e) => { setEmail(e.target.value); setLookupQ(e.target.value) }}
                         placeholder="vendeg@example.com"
                         aria-invalid={!!emailErr}
                         className={emailErr ? 'border-red-400 focus-visible:ring-red-400' : undefined}

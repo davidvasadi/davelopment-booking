@@ -20,6 +20,8 @@ export const en: Record<string, string> = {
   'booking.noSlots': 'No available times on this day.',
   'booking.noSlotsHint': 'Please choose another day.',
   'booking.details.title': 'Your details',
+  'booking.details.remembered': 'Filled in from your previous booking. Not you?',
+  'booking.details.forget': 'Clear details',
   'booking.details.subtitle': 'Fill in your details to confirm the booking',
   'booking.summary': 'Booking summary',
   'booking.field.name': 'Full name *',

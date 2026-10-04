@@ -18,6 +18,8 @@ export const fr: Record<string, string> = {
   'booking.noSlots': 'Aucun créneau disponible ce jour-là.',
   'booking.noSlotsHint': 'Veuillez choisir un autre jour.',
   'booking.details.title': 'Vos coordonnées',
+  'booking.details.remembered': 'Rempli avec les données de votre réservation précédente. Ce n\'est pas vous ?',
+  'booking.details.forget': 'Effacer les données',
   'booking.details.subtitle': 'Renseignez vos coordonnées pour confirmer la réservation',
   'booking.summary': 'Récapitulatif de la réservation',
   'booking.field.name': 'Nom complet *',
