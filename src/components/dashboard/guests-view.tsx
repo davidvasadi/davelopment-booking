@@ -9,7 +9,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle } from 'lucide-react'
+import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle, UserPlus } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { TIER_LABEL, flagEmoji, countryName, type GuestTier, type CountryBucket } from '@/lib/guests'
 import { StatusPills, type StatusSeg } from '@/components/dashboard/StatusPills'
@@ -184,6 +184,10 @@ export function GuestsView({
   const [blockTarget, setBlockTarget] = useState<GuestVM | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GuestVM | null>(null)
   const [blockReason, setBlockReason] = useState('')
+  // Új vendég kézi felvétele (még foglalás nélkül) — a meglévő upsert-végponttal.
+  const [newOpen, setNewOpen] = useState(false)
+  const [newForm, setNewForm] = useState({ name: '', phone: '', email: '', note: '' })
+  const [newError, setNewError] = useState<string | null>(null)
   const detailRef = useRef<HTMLDivElement>(null)
   const profileRef = useRef<HTMLDivElement>(null)
   const [isMobile, setIsMobile] = useState(false)
@@ -206,6 +210,42 @@ export function GuestsView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
+      router.refresh()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function createGuest() {
+    const name = newForm.name.trim()
+    const email = newForm.email.trim().toLowerCase()
+    const phone = newForm.phone.trim()
+    if (!name) return setNewError('A név megadása kötelező.')
+    if (!email && !phone) return setNewError('Adj meg telefonszámot vagy e-mail címet.')
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setNewError('Érvénytelen e-mail cím.')
+    setBusy(true)
+    setNewError(null)
+    try {
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email || null,
+          phone: phone || null,
+          name,
+          newEmail: email || null,
+          newPhone: phone || null,
+          notes: newForm.note.trim() || null,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => null)
+        setNewError(err?.error ?? 'Nem sikerült menteni.')
+        return
+      }
+      setNewOpen(false)
+      setNewForm({ name: '', phone: '', email: '', note: '' })
+      setSelKey(email || phone)
       router.refresh()
     } finally {
       setBusy(false)
@@ -336,9 +376,21 @@ export function GuestsView({
   return (
     <div className="space-y-6 p-5 font-onest lg:p-0">
       {/* ── FEJLÉC A: cím ── */}
-      <div>
-        <h1 className="text-[34px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[43px]">Vendégek</h1>
-        <p className="mt-1 text-[13.5px] font-medium text-ink-soft">Törzsvendég-kezelés · CRM</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-[34px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[43px]">Vendégek</h1>
+          <p className="mt-1 text-[13.5px] font-medium text-ink-soft">Törzsvendég-kezelés · CRM</p>
+        </div>
+        {canManage && (
+          <button
+            type="button"
+            onClick={() => { setNewError(null); setNewOpen(true) }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-[14px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <UserPlus className="h-4 w-4" strokeWidth={1.8} />
+            Új vendég
+          </button>
+        )}
       </div>
 
       {/* ── FEJLÉC B: animált megoszlás-pillek (bal) + felszámoló számok (jobb) ── */}
@@ -798,6 +850,46 @@ export function GuestsView({
           </div>
         </div>
       </div>
+
+      {/* Új vendég modal */}
+      {newOpen && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setNewOpen(false)}>
+          <div className="w-full max-w-[460px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/20 text-ink">
+                <UserPlus className="h-5 w-5" strokeWidth={1.8} />
+              </div>
+              <div>
+                <div className="text-[16px] font-semibold text-ink">Új vendég</div>
+                <div className="text-[12.5px] text-ink-soft">Telefonszám vagy e-mail cím szükséges</div>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-x-3 gap-y-3 sm:grid-cols-2">
+              <label className="flex flex-col gap-1 sm:col-span-2">
+                <span className="text-[11.5px] font-semibold text-ink-soft">Név</span>
+                <input autoFocus value={newForm.name} onChange={(e) => setNewForm((f) => ({ ...f, name: e.target.value }))} placeholder="Vendég neve" className="rounded-[12px] border border-line bg-[#FCFCFB] px-3 py-2 text-[16px] text-ink placeholder:text-ink-soft2 focus:outline-none lg:text-[13.5px]" />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11.5px] font-semibold text-ink-soft">Telefon</span>
+                <input type="tel" value={newForm.phone} onChange={(e) => setNewForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+36 20 123 4567" className="rounded-[12px] border border-line bg-[#FCFCFB] px-3 py-2 text-[16px] text-ink placeholder:text-ink-soft2 focus:outline-none lg:text-[13.5px]" />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-[11.5px] font-semibold text-ink-soft">E-mail</span>
+                <input type="email" value={newForm.email} onChange={(e) => setNewForm((f) => ({ ...f, email: e.target.value }))} placeholder="vendeg@example.com" className="rounded-[12px] border border-line bg-[#FCFCFB] px-3 py-2 text-[16px] text-ink placeholder:text-ink-soft2 focus:outline-none lg:text-[13.5px]" />
+              </label>
+              <label className="flex flex-col gap-1 sm:col-span-2">
+                <span className="text-[11.5px] font-semibold text-ink-soft">Belső jegyzet (opcionális)</span>
+                <input value={newForm.note} onChange={(e) => setNewForm((f) => ({ ...f, note: e.target.value }))} placeholder="Csak a személyzet látja" className="rounded-[12px] border border-line bg-[#FCFCFB] px-3 py-2 text-[16px] text-ink placeholder:text-ink-soft2 focus:outline-none lg:text-[13.5px]" />
+              </label>
+            </div>
+            {newError && <p className="mt-3 text-[12.5px] font-medium text-[#C0453F]">{newError}</p>}
+            <div className="mt-4 flex justify-end gap-2">
+              <button type="button" onClick={() => setNewOpen(false)} className="rounded-[13px] bg-[#F1F1EF] px-4 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
+              <button type="button" onClick={createGuest} disabled={busy} className="rounded-[13px] bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Mentés</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tiltás-modal (Crextio) — indok bekérése */}
       {blockTarget && (

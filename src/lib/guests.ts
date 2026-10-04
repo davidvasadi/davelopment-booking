@@ -160,6 +160,50 @@ export function aggregateGuests(sources: GuestSource[]): Guest[] {
 }
 
 /**
+ * Kézzel felvett (még foglalás nélküli) vendégek hozzáadása a listához. A vendéglista a
+ * foglalásokból épül — a Vendégek oldalon felvett vendégnek viszont még nincs foglalása, így
+ * enélkül sosem jelent meg. Csak az a Customers-rekord kerül be, amelyik egyetlen meglévő
+ * vendéggel sem egyezik (e-mail vagy telefon alapján), 0 látogatással.
+ */
+export function withManualGuests(
+  guests: Guest[],
+  customers: { customer_name?: string | null; customer_email?: string | null; customer_phone?: string | null }[],
+): Guest[] {
+  const known = new Set<string>()
+  for (const g of guests) {
+    known.add(g.key)
+    if (g.email) known.add(g.email.toLowerCase())
+    if (g.phone) known.add(g.phone.trim())
+  }
+  const extra: Guest[] = []
+  for (const c of customers) {
+    const src = { name: c.customer_name ?? '', email: c.customer_email, phone: c.customer_phone }
+    const email = c.customer_email?.trim().toLowerCase() || null
+    const phone = c.customer_phone?.trim() || null
+    if ((email && known.has(email)) || (phone && known.has(phone))) continue
+    if (!isRealGuest(src)) continue
+    const key = guestKeyOf(src)
+    if (!key || known.has(key)) continue
+    known.add(key)
+    if (email) known.add(email)
+    if (phone) known.add(phone)
+    extra.push({
+      key,
+      name: displayName(src),
+      email,
+      phone,
+      visits: 0,
+      lastVisit: null,
+      totalPax: 0,
+      country: isoFromPhone(phone) || null,
+      returning: false,
+      tier: 1,
+    })
+  }
+  return extra.length ? [...guests, ...extra] : guests
+}
+
+/**
  * Ország ISO2 → [lat, lng] centroid. Minden országot lefed, amit a telefon-előhívó
  * választó (PhoneCountryInput) felkínál — így egy vendég sem esik vissza a
  * DEFAULT_CENTROID-ra (ami Közép-Európa volt, ezért kerültek pl. a tajvani / Fülöp-

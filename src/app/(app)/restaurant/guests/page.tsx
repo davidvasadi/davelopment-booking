@@ -3,7 +3,7 @@ import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
-import { aggregateGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
+import { aggregateGuests, withManualGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
 import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit, reviewRowValue } from '@/lib/guestsView'
 import { getGuestReviewMap } from '@/lib/reviews'
 import type { Reservation, Customer } from '@/payload/payload-types'
@@ -113,7 +113,7 @@ export default async function RestaurantGuestsPage() {
 
   const reviewMap = await getGuestReviewMap('restaurant', restaurant.id)
 
-  const guests = aggregateGuests(sources)
+  const guests = withManualGuests(aggregateGuests(sources), custRes.docs as Customer[])
   const buckets = bucketByCountry(sources)
   const total = guests.length
   const retPct = returningPct(guests)
