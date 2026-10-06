@@ -20,7 +20,7 @@ import { getUserBusinesses } from '@/lib/activeBusiness'
 import { can } from '@/lib/permissions'
 import { getLocale } from '@/lib/i18n/server'
 import { hasActivePackage } from '@/lib/newsletterLimits'
-import { resolveAvailableLocales } from '@/lib/i18n'
+import { resolveAvailableLocales, LOCALES, type Locale } from '@/lib/i18n'
 
 export async function generateMetadata({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ editor?: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -67,7 +67,7 @@ export default async function SalonPublicPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>
-  searchParams: Promise<{ embed?: string; editor?: string }>
+  searchParams: Promise<{ embed?: string; editor?: string; lang?: string }>
 }) {
   const { slug } = await params
 
@@ -88,7 +88,8 @@ export default async function SalonPublicPage({
   const sp = await searchParams
   const embed = sp.embed === '1'
   const editorRequested = sp.editor === '1' && !embed
-  const requested = await getLocale()
+  // A szerkesztő a szerkesztett nyelvet `?lang=`-gal kéri (a látogató nyelv-sütijét nem írjuk át).
+  const requested = editorRequested && (LOCALES as string[]).includes(sp.lang ?? '') ? (sp.lang as Locale) : await getLocale()
 
   const base = await getPublicSalon(slug, 'hu')
 

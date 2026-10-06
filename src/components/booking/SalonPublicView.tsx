@@ -47,7 +47,12 @@ export type SalonViewData = {
   card: Omit<ProfileCardProps, 'nextSlotNode' | 'salonName' | 'salonDescription' | 'salonAddress' | 'salonCity' | 'locale' | 'slug' | 'embed'>
 }
 
-type Patch = Partial<Omit<SalonViewData, 'card'>> & { card?: Partial<SalonViewData['card']> }
+type StaffEdit = { name?: string; bio?: string | null; role_title?: string | null; social_links?: { url: string }[] }
+type Patch = Partial<Omit<SalonViewData, 'card'>> & {
+  card?: Partial<SalonViewData['card']>
+  /** Munkatársankénti, még nem mentett módosítások (id → mezők). */
+  staffEdits?: Record<string, StaffEdit>
+}
 
 export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: SalonViewData; nextSlotNode?: ReactNode; editor?: boolean }) {
   const [patch, setPatch] = useState<Patch>({})
@@ -66,7 +71,10 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
     return () => window.removeEventListener('message', onMessage)
   }, [editor])
 
-  const d: SalonViewData = { ...data, ...patch, card: { ...data.card, ...(patch.card ?? {}) } }
+  const { staffEdits, card: cardPatch, ...topPatch } = patch
+  const mergedCard = { ...data.card, ...(cardPatch ?? {}) }
+  if (staffEdits) mergedCard.staff = mergedCard.staff.map((m) => ({ ...m, ...(staffEdits[String(m.id)] ?? {}) }))
+  const d: SalonViewData = { ...data, ...topPatch, card: mergedCard }
   const { slug, locale, available, embed } = d
   const hasCover = !!d.coverUrl
   const heroText = hasCover ? 'text-white' : 'text-[#1D1C19]'

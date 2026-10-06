@@ -25,7 +25,7 @@ import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext
 import {
   Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
   Plus, ScrollText, Building2, Mail, Check, Languages, FileText, Star,
-  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, type LucideIcon,
+  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, PanelsTopLeft, type LucideIcon,
 } from 'lucide-react'
 import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
@@ -42,6 +42,7 @@ import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscript
 import type { AccountBilling } from '@/lib/accountBilling'
 import type { Pricing } from '@/lib/pricing'
 import { can, type Capability } from '@/lib/permissions'
+import { BookingPageEditor, type BookingPageEditorInitial } from '@/components/settings/booking-page/BookingPageEditor'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
 // Értesítések = tranzakciós emailek. Az emlékeztető/visszajelzés a Funkciók gazdája.
@@ -84,7 +85,7 @@ function StatusBadge({ status }: { status: BillingData['subscriptionStatus'] }) 
 
 
 type RailId =
-  | 'profile' | 'booking' | 'languages' | 'email'
+  | 'site' | 'profile' | 'booking' | 'languages' | 'email'
   | 'notifications' | 'team' | 'audit'
   | 'self' | 'documents' | 'billing' | 'sites'
   | 'integrations' | 'danger' | 'payments' | 'google'
@@ -98,6 +99,7 @@ const FORM_TABS: Record<string, string> = {
 
 // A kiválasztott szekció neve = a tartalom címe (mivel nincs felső fül-sor, ez jelzi „hol vagy").
 const RAIL_LABELS: Record<RailId, string> = {
+  site: 'Foglalóoldal',
   profile: 'Üzlet profil', booking: 'Foglalás', languages: 'Nyelvek', email: 'Email-sablonok',
   notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
   self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés & számlázás', sites: 'Telephelyek',
@@ -197,6 +199,8 @@ export interface SettingsHubProps {
   /** Foglalási funkciók (`feature_modules`) kezdőérték — a beágyazott BookingFeatures panelnek. */
   featureModules: FeatureModules
   profilePanel: ReactNode          // a MEGLÉVŐ settings-form (Üzlet profil)
+  /** Beállítások → Foglalóoldal élő szerkesztő kezdőadatai (csak szalonnál). */
+  bookingPageEditor?: BookingPageEditorInitial
   selfProfile?: ReactNode          // „Saját profil" — a bejelentkezett user szerkesztője (ProfileEditor)
   rules: RulesData
   senderLabel: string              // Értesítések: jelenlegi feladó
@@ -291,6 +295,7 @@ export function SettingsHub({
   depositSettings, invoiceSettings, voucherSettings, consentSettings, stripeConnectAccountId, stripeConnectOnboarded,
   businessTier,
   supportedLocales,
+  bookingPageEditor,
 }: SettingsHubProps) {
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
@@ -455,6 +460,7 @@ export function SettingsHub({
   const integPanel = usePanelRegistration()
   const integPaymentsPanel = usePanelRegistration()
   const googlePanel = usePanelRegistration()
+  const sitePanel = usePanelRegistration()
 
   /** Egy group PATCH-elése a valós collection-endpointra (credentials:'include'). */
   const patchGroup = async (body: Record<string, unknown>): Promise<boolean> => {
@@ -825,8 +831,28 @@ export function SettingsHub({
     }
   }, [googleSaved, googlePanel.dirty])
 
+  // A „Foglalóoldal" szerkesztő — saját draft, a közös sávból ment.
+  const [siteSaved, setSiteSaved] = useState(false)
+  const saveSiteTab = useCallback(async () => {
+    setSaving(true)
+    try {
+      const ok = await sitePanel.apiRef.current?.save()
+      if (ok) setSiteSaved(true)
+    } finally {
+      setSaving(false)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (siteSaved && !sitePanel.dirty) {
+      const t = setTimeout(() => setSiteSaved(false), 1200)
+      return () => clearTimeout(t)
+    }
+  }, [siteSaved, sitePanel.dirty])
+
   const activeBar =
-    active === 'booking'
+    active === 'site'
+      ? { dirty: sitePanel.dirty, saved: siteSaved, onSave: saveSiteTab, onCancel: () => sitePanel.apiRef.current?.discard() }
+      : active === 'booking'
       ? {
           dirty: formDirty || rulesDirty || featuresPanel.dirty,
           saved: formSaved || rulesSaved,
@@ -886,6 +912,7 @@ export function SettingsHub({
   const navGroups: { group: string; items: NavItem[] }[] = canFullSettings
     ? [
         { group: 'Üzlet', items: [
+          ...(bookingPageEditor ? [{ kind: 'btn' as const, id: 'site' as RailId, icon: PanelsTopLeft, label: 'Foglalóoldal', badge: 'ÚJ' }] : []),
           { kind: 'btn', id: 'profile', icon: Home, label: 'Üzlet profil' },
           { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
           { kind: 'btn', id: 'languages', icon: Languages, label: 'Nyelvek' },
@@ -1219,6 +1246,15 @@ export function SettingsHub({
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.16, ease: EASE }}
           >
+
+          {active === 'site' && bookingPageEditor && (
+            <BookingPageEditor
+              initial={bookingPageEditor}
+              onDirtyChange={sitePanel.onDirtyChange}
+              registerApi={sitePanel.registerApi}
+              onNavigate={(tab) => { if (tab in RAIL_LABELS) setActive(tab as RailId) }}
+            />
+          )}
 
           {active === 'payments' && (
             <PaymentsSettingsPanel

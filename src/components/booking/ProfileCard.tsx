@@ -799,7 +799,7 @@ export function ProfileCard({
           const avatarUrl = displayStaff.avatar && typeof displayStaff.avatar === 'object' ? (displayStaff.avatar as Media).url ?? null : null
           const links = (displayStaff.social_links ?? []).map((s) => s.url).filter(Boolean)
           return (
-            <div className="mx-5 mb-2 shrink-0 overflow-hidden rounded-2xl lg:mx-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div data-edit-id={`staff:${displayStaff.id}`} className="mx-5 mb-2 shrink-0 overflow-hidden rounded-2xl lg:mx-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
               <button
                 type="button"
                 onClick={() => setStaffStripOpen(o => !o)}
@@ -869,14 +869,14 @@ export function ProfileCard({
             {view === 'main' ? (
               <>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/35">{tl(locale, 'public.eyebrow')}</p>
-                <h2 className="mt-0.5 text-[20px] font-light leading-tight tracking-[-0.02em] text-white">{salonName}</h2>
+                <h2 data-edit-id="name" className="mt-0.5 text-[20px] font-light leading-tight tracking-[-0.02em] text-white">{salonName}</h2>
                 {(salonDescription || salonAddress || salonCity) && (
                   <div className="mt-4 space-y-2.5">
                     {salonDescription && (
-                      <p className="line-clamp-2 text-[12px] leading-relaxed text-white/50">{salonDescription}</p>
+                      <p data-edit-id="desc" className="line-clamp-2 text-[12px] leading-relaxed text-white/50">{salonDescription}</p>
                     )}
                     {(salonAddress || salonCity) && (
-                      <p className="flex items-center gap-1.5 text-[12px] text-white/55">
+                      <p data-edit-id="address" className="flex items-center gap-1.5 text-[12px] text-white/55">
                         <MapPin className="h-3 w-3 shrink-0" />
                         {[salonAddress, salonCity].filter(Boolean).join(', ')}
                       </p>
@@ -884,7 +884,7 @@ export function ProfileCard({
                   </div>
                 )}
                 {(phone || email || website || (socialLinks ?? []).some(Boolean)) && (
-                  <div className="mt-3 flex flex-wrap gap-2">
+                  <div data-edit-id="contact" className="mt-3 flex flex-wrap gap-2">
                     {phone && (
                       <a href={`tel:${phone}`} className="inline-flex min-h-[44px] items-center gap-1.5 rounded-full bg-white/[0.06] px-4 py-2.5 text-[12px] font-medium text-white/60 transition-colors hover:text-white active:scale-[0.97]" style={{ border: '1px solid rgba(255,255,255,0.10)' }}>
                         <Phone className="h-3.5 w-3.5 shrink-0" />{phone}
@@ -934,7 +934,7 @@ export function ProfileCard({
               {view === 'main' && (
                 <div className="space-y-5 pb-2">
                   {bookableServices.length > 0 && (
-                    <div>
+                    <div data-edit-id="sec:services">
                       <div className="mb-3 flex items-center gap-2">
                         <Tag className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.services')}</p>
@@ -992,7 +992,7 @@ export function ProfileCard({
                     </div>
                   )}
                   {voucherEnabled && (
-                    <div>
+                    <div data-edit-id="sec:voucher">
                       <div className="mb-3 flex items-center gap-2">
                         <Gift className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tt('public.voucher')}</p>
@@ -1013,7 +1013,7 @@ export function ProfileCard({
                   {/* 1 szakembernél is mutatjuk (egyetlen csempeként) — konzisztens elrendezés
                       a több szakemberes nézettel, nem külön kompakt fejléc-csíkkal. */}
                   {staff.length > 0 && (
-                    <div>
+                    <div data-edit-id="sec:staff">
                       <div className="mb-3 flex items-center gap-2">
                         <Users className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.staff')}</p>
@@ -1025,6 +1025,7 @@ export function ProfileCard({
                           return (
                             <div
                               key={m.id}
+                              data-edit-id={`staff:${m.id}`}
                               role="button"
                               tabIndex={0}
                               onClick={() => { setPreStaffId(String(m.id)); goTo('services', null) }}
@@ -1076,7 +1077,7 @@ export function ProfileCard({
                   )}
 
                   {google && (
-                    <GoogleReviewsBlock google={google} locale={locale} className="mt-6" title={tt('public.googleReviews')} countLabel={tt('public.googleReviewsCount')} allLabel={tt('public.googleReviewsAll')} />
+                    <div data-edit-id="sec:reviews"><GoogleReviewsBlock google={google} locale={locale} className="mt-6" title={tt('public.googleReviews')} countLabel={tt('public.googleReviewsCount')} allLabel={tt('public.googleReviewsAll')} /></div>
                   )}
                 </div>
               )}
@@ -1583,7 +1584,7 @@ export function ProfileCard({
                     ))}
                   </div>
                   {(goodToKnow ?? []).filter(p => p?.title || p?.body).length > 0 && (
-                    <div className="mb-3 rounded-2xl p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+                    <div data-edit-id="gtk" className="mb-3 rounded-2xl p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
                       <div className="flex items-center gap-2 mb-1">
                         <Info className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tt('goodToKnow.title')}</p>

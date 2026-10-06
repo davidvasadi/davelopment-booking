@@ -18,7 +18,9 @@ import { getPricing } from '@/lib/pricing'
 import { can } from '@/lib/permissions'
 import { createHmac } from 'crypto'
 import type { AccountBilling } from '@/lib/accountBilling'
-import type { Invoice, Role } from '@/payload/payload-types'
+import type { Invoice, Role, Media } from '@/payload/payload-types'
+import type { BookingPageEditorInitial } from '@/components/settings/booking-page/BookingPageEditor'
+import { resolveAvailableLocales } from '@/lib/i18n'
 
 const EMPTY_ACCOUNT_BILLING: AccountBilling = {
   items: [], totalMonthlyHuf: 0, listMonthlyHuf: 0, cycle: 'monthly', annualDiscountPct: 0, count: 0, accountStatus: null,
@@ -176,6 +178,50 @@ export default async function SettingsPage() {
 
   const senderLabel = `${salon.name}${salon.email ? ` <${salon.email}>` : ''}`
 
+  // ── Foglalóoldal-szerkesztő kezdőadatai (csak beállítás-joggal) ──
+  const mediaOf = (m: unknown) => (m && typeof m === 'object' ? { id: Number((m as Media).id), url: (m as Media).url ?? null } : { id: null, url: null })
+  const bookingPageEditor: BookingPageEditorInitial | undefined = can(capabilities, 'settings.profile')
+    ? await (async () => {
+        const staffRes = await payload.find({
+          collection: 'staff',
+          where: { and: [{ salon: { equals: salon.id } }, { is_active: { not_equals: false } }] },
+          sort: 'name', depth: 0, limit: 100, overrideAccess: true,
+        })
+        const cover = mediaOf(salon.cover_image)
+        const logo = mediaOf(salon.logo)
+        return {
+          slug: salon.slug,
+          supportedLocales: resolveAvailableLocales(salon.supported_locales),
+          name: salon.name,
+          address: salon.address ?? '',
+          city: salon.city ?? '',
+          phone: salon.phone ?? '',
+          email: salon.email ?? '',
+          website: salon.website ?? '',
+          description: typeof salon.description === 'string' ? salon.description : '',
+          socialLinks: (salon.social_links ?? []).map((l) => l.url),
+          coverId: cover.id,
+          coverUrl: cover.url,
+          coverFocalX: salon.cover_focal_x ?? 50,
+          coverFocalY: salon.cover_focal_y ?? 50,
+          coverZoom: salon.cover_zoom ?? 1,
+          logoId: logo.id,
+          logoUrl: logo.url,
+          goodToKnow: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
+          showCatalogCounts: salon.booking_rules?.show_catalog_counts_on_public !== false,
+          servicesExpandedOnMain: !!salon.booking_rules?.services_expanded_on_main,
+          bookingRules: (salon.booking_rules ?? {}) as Record<string, unknown>,
+          staff: staffRes.docs.map((m) => ({
+            id: String(m.id),
+            name: m.name,
+            role_title: m.role_title ?? '',
+            bio: m.bio ?? '',
+            social_links: (m.social_links ?? []).map((l: { url: string }) => l.url),
+          })),
+        }
+      })()
+    : undefined
+
   const np = salon.notification_prefs ?? {}
   const br = salon.booking_rules ?? {}
   const fm = salon.feature_modules ?? {}
@@ -291,6 +337,7 @@ export default async function SettingsPage() {
           />
         }
         profilePanel={<SalonSettingsForm salon={salon} businessCount={businessCount} />}
+        bookingPageEditor={bookingPageEditor}
       />
     </div>
   )

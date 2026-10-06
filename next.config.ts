@@ -11,7 +11,8 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https: http://localhost:*",
   "font-src 'self' data:",
-  "frame-src https://js.stripe.com https://hooks.stripe.com",
+  // 'self': a Beállítások → Foglalóoldal szerkesztő a saját foglalóoldalt iframe-ben mutatja.
+  "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
   "connect-src 'self' https://api.stripe.com https://*.stripe.com https://nominatim.openstreetmap.org https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://www.facebook.com",
   "frame-ancestors 'none'",
 ].join('; ')
