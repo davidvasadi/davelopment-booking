@@ -197,6 +197,7 @@ export default async function SettingsPage() {
           name: salon.name,
           address: salon.address ?? '',
           city: salon.city ?? '',
+          postalCode: salon.postal_code ?? '',
           phone: salon.phone ?? '',
           email: salon.email ?? '',
           website: salon.website ?? '',
@@ -387,6 +388,7 @@ export default async function SettingsPage() {
         }
         profilePanel={<SalonSettingsForm salon={salon} businessCount={businessCount} />}
         bookingPageEditor={bookingPageEditor}
+        notifyNewBookings={salon.notify_new_bookings ?? true}
       />
     </div>
   )

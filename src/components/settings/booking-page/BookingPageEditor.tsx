@@ -9,6 +9,7 @@ import { Toggle } from '@/components/settings/SettingsToggle'
 import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
 import { GoodToKnowEditor, type GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
 import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
+import { BusinessQrCard } from '@/components/settings/BusinessQrCard'
 import { compressImage } from '@/lib/compressImage'
 import { LOCALE_LABELS, resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { isEditorMessage, postToPreview, type PreviewToEditor } from '@/lib/editorBridge'
@@ -41,6 +42,7 @@ export type BookingPageEditorInitial = {
   name: string
   address: string
   city: string
+  postalCode: string
   phone: string
   email: string
   website: string
@@ -88,7 +90,7 @@ export type BookingPageEditorInitial = {
   flags: { deposit: boolean; depositLabel: string; voucher: boolean; newsletter: boolean }
 }
 
-type Draft = Omit<BookingPageEditorInitial, 'slug' | 'bookingRules' | 'notificationPrefs' | 'featureModules' | 'flags'>
+type Draft = Omit<BookingPageEditorInitial, 'bookingRules' | 'notificationPrefs' | 'featureModules' | 'flags'>
 /** Nyelvenként fordítható mezők (a magyar a `Draft`-ban él). */
 type LocDraft = {
   description: string
@@ -119,7 +121,7 @@ const fieldCls =
   'w-full rounded-[12px] border border-line-strong bg-white px-3 py-2.5 text-[16px] text-ink placeholder:text-ink-soft2/60 focus:border-gold/60 focus:outline-none focus:ring-2 focus:ring-gold/25 lg:text-[14px]'
 
 const ELEMENT_TITLES: Record<string, string> = {
-  cover: 'Borítókép', logo: 'Logó', name: 'Üzlet neve', address: 'Cím', desc: 'Leírás', counts: 'Számláló sáv',
+  cover: 'Borítókép', logo: 'Logó', name: 'Üzlet neve', address: 'Cím', desc: 'Leírás', counts: 'Számláló sáv', link: 'Link & QR-kód',
   langs: 'Nyelvek', contact: 'Kapcsolat', 'sec:services': 'Szolgáltatások', 'sec:staff': 'Munkatársak',
   'sec:voucher': 'Ajándékutalvány', 'sec:reviews': 'Google-értékelések', gtk: 'Jó tudni',
   rules: 'Foglalási szabályok', confirm: 'Visszaigazolás & emlékeztetők', 'field:name': 'Név mező', 'field:email': 'E-mail mező',
@@ -129,7 +131,7 @@ const ELEMENT_TITLES: Record<string, string> = {
 }
 
 const draftFrom = (i: BookingPageEditorInitial): Draft => {
-  const { slug: _slug, bookingRules: _br, notificationPrefs: _np, featureModules: _fm, flags: _fl, ...rest } = i
+  const { bookingRules: _br, notificationPrefs: _np, featureModules: _fm, flags: _fl, ...rest } = i
   return rest
 }
 
@@ -298,6 +300,11 @@ export function BookingPageEditor({
       const d = draft
       const body: Record<string, unknown> = {}
       const changed = <K extends keyof Draft>(k: K) => JSON.stringify(d[k]) !== JSON.stringify(b[k])
+      if (changed('slug')) {
+        if (!/^[a-z0-9-]+$/.test(d.slug)) throw new Error('Az URL azonosító csak kisbetűt, számot és kötőjelet tartalmazhat')
+        body.slug = d.slug
+      }
+      if (changed('postalCode')) body.postal_code = d.postalCode
       if (changed('name')) body.name = d.name
       if (changed('address')) body.address = d.address
       if (changed('city')) body.city = d.city
@@ -349,7 +356,16 @@ export function BookingPageEditor({
         body.consent_settings = { enabled: d.consentEnabled, title: d.consentTitle, template_text: d.consentText }
       }
       if (changed('customQuestions')) body.custom_questions = d.customQuestions
-      if (Object.keys(body).length > 0) await patchJson('/api/salon/settings', body)
+      if (Object.keys(body).length > 0) {
+        try {
+          await patchJson('/api/salon/settings', body)
+        } catch (e) {
+          // Foglalt URL-azonosító: a szerver egyediségi hibát ad vissza.
+          const msg = e instanceof Error ? e.message.toLowerCase() : ''
+          if ('slug' in body && (msg.includes('unique') || msg.includes('slug'))) throw new Error('Ez az URL már foglalt — próbálj másik azonosítót')
+          throw e
+        }
+      }
 
       for (const m of d.staff) {
         const before = b.staff.find((x) => x.id === m.id)
@@ -438,7 +454,8 @@ export function BookingPageEditor({
   }, [])
   const frame = FRAME[device]
   const scale = canvasW > 0 ? Math.min(1, canvasW / frame.w) : 0
-  const src = `/${initial.slug}?editor=1${lang !== 'hu' ? `&lang=${lang}` : ''}`
+  // A MENTETT azonosítón fut az előnézet (a még nem mentett új URL-en nincs oldal).
+  const src = `/${baseline.slug}?editor=1${lang !== 'hu' ? `&lang=${lang}` : ''}`
   // Új nyelv = új iframe-betöltés: a `ready` üzenetig nem küldünk semmit.
   useEffect(() => { setReady(false) }, [src])
 
@@ -463,6 +480,10 @@ export function BookingPageEditor({
 
   const staffId = sel?.startsWith('staff:') ? sel.slice(6) : null
   const member = staffId ? draft.staff.find((m) => m.id === staffId) ?? null : null
+  const [origin, setOrigin] = useState('')
+  useEffect(() => { setOrigin(window.location.origin) }, [])
+  const publicUrl = `${origin}/${baseline.slug}`
+
   const stepLabel = STEPS.find((st) => st.id === step)?.label ?? ''
   const title = member ? member.name : sel ? ELEMENT_TITLES[sel] ?? 'Elem' : step === 'main' ? 'Az oldal elemei' : stepLabel
 
@@ -566,7 +587,7 @@ export function BookingPageEditor({
 
           {!sel && step === 'main' && (
             <div className="space-y-2">
-              {(['cover', 'logo', 'name', 'address', 'desc', 'counts', 'contact', 'langs'] as const).map((id) => (
+              {(['cover', 'logo', 'name', 'address', 'desc', 'counts', 'contact', 'langs', 'link'] as const).map((id) => (
                 <Row key={id} label={ELEMENT_TITLES[id]} onClick={() => setSel(id)} />
               ))}
               <div className="pt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft2">Szakaszok · húzd a sorrendhez</div>
@@ -639,8 +660,11 @@ export function BookingPageEditor({
 
           {sel === 'address' && (
             <>
-              <Field label="Cím"><input className={fieldCls} value={draft.address} onChange={(e) => set('address', e.target.value)} /></Field>
-              <Field label="Város"><input className={fieldCls} value={draft.city} onChange={(e) => set('city', e.target.value)} /></Field>
+              <Field label="Cím"><input className={fieldCls} value={draft.address} placeholder="Utca, házszám" onChange={(e) => set('address', e.target.value)} /></Field>
+              <div className="grid grid-cols-[110px_1fr] gap-2">
+                <Field label="Irányítószám"><input className={fieldCls} value={draft.postalCode} onChange={(e) => set('postalCode', e.target.value)} /></Field>
+                <Field label="Város"><input className={fieldCls} value={draft.city} onChange={(e) => set('city', e.target.value)} /></Field>
+              </div>
             </>
           )}
 
@@ -691,6 +715,25 @@ export function BookingPageEditor({
 
           {sel === 'logo' && (
             <ImagePicker url={draft.logoUrl} busy={uploading === 'logo'} onPick={(f) => upload('logo', f)} onRemove={() => setDraft((d) => ({ ...d, logoId: null, logoUrl: null }))} />
+          )}
+
+          {sel === 'link' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">Ezen a linken tudnak a vendégek online időpontot foglalni.</p>
+              <div className="flex gap-2">
+                <code className="flex h-11 min-w-0 flex-1 items-center truncate rounded-[12px] border border-line bg-white px-3 text-[13px] text-ink">{publicUrl}</code>
+                <a href={`/${baseline.slug}`} target="_blank" rel="noopener noreferrer" className="flex h-11 shrink-0 items-center rounded-full border border-line-strong bg-white px-4 text-[13px] font-semibold text-ink">Megnyitás</a>
+              </div>
+              <Field label="URL azonosító" hint="Csak kisbetű, szám és kötőjel.">
+                <div className="flex items-center gap-1"><span className="text-[14px] text-ink-soft">/</span><input className={fieldCls} value={draft.slug} onChange={(e) => set('slug', e.target.value.toLowerCase())} /></div>
+              </Field>
+              {draft.slug !== baseline.slug && (
+                <p className="rounded-[14px] border border-amber-300 bg-amber-50 px-3.5 py-3 text-[12.5px] leading-relaxed text-amber-900">
+                  <b>A foglalási link megváltozik!</b> A régi URL-en (/{baseline.slug}) érkező vendégek hibát kapnak. Mentés után értesítsd őket az új linkről.
+                </p>
+              )}
+              <BusinessQrCard url={publicUrl} businessName={draft.name} subtitle="Foglalj időpontot online" />
+            </>
           )}
 
           {sel === 'counts' && (
