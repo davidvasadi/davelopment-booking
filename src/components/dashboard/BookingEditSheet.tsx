@@ -601,6 +601,15 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                           Előleg visszatérítve
                         </span>
                       )}
+                      {/* Ajándékutalvánnyal (részben) kifizetett foglalás — a beváltott kód és a fedezett összeg. */}
+                      {target?.booking?.voucher_code && (
+                        <span
+                          title={`Utalvány-kód: ${target.booking.voucher_code}`}
+                          className="inline-flex items-center gap-1 rounded-full bg-[#FFF1C2] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-[#7A5B00]"
+                        >
+                          Utalvánnyal fizetve{target.booking.voucher_discount_huf ? ` · ${target.booking.voucher_discount_huf.toLocaleString('hu-HU')} Ft` : ''} · {target.booking.voucher_code}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
