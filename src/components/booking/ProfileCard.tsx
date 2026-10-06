@@ -89,7 +89,13 @@ interface Props {
   confirmEmailEnabled?: boolean
   /** Az e-mailes emlékeztetők időzítése órában (üres = nincs emlékeztető). */
   reminderHours?: number[]
+  /** Szerkesztő-előnézet: ezt a lépést mutassa mintaadatokkal (null = normál működés). */
+  editorView?: EditorView | null
+  /** Szerkesztő-előnézet: automatikus megerősítés (a Visszaigazolás lépés szövegéhez). */
+  editorAutoConfirm?: boolean
 }
+
+export type EditorView = 'main' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher'
 
 /** „24 órával és 2 nappal” — az emlékeztető-időzítés szövege a visszaigazoló képernyőn. */
 const REMINDER_WORDS: Record<string, { h: string; d: string; and: string }> = {
@@ -122,7 +128,7 @@ export function ProfileCard({
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
   consentEnabled = false, consentTitle = null, consentText = null,
   customQuestions = null, embed = false, servicesExpandedOnMain = false,
-  confirmEmailEnabled = true, reminderHours = [],
+  confirmEmailEnabled = true, reminderHours = [], editorView = null, editorAutoConfirm = true,
 }: Props) {
   const tt = makeT(locale)
 
@@ -312,6 +318,34 @@ export function ProfileCard({
   // (services/serviceDetail) a preStaff, utána (datetime-tól) a végleges bookingStaff —
   // "Bármelyik szakember" esetén nincs konkrét személy, a csík nem jelenik meg.
   const displayStaff = view === 'main' ? null : (view === 'services' || view === 'serviceDetail') ? preStaff : bookingStaff
+
+  // Szerkesztő-előnézet: a kért lépésre ugrunk, mintaadatokkal (első foglalható szolgáltatás,
+  // annak első szakembere, holnap 14:00) — így minden lépés valódi formájában szerkeszthető.
+  useEffect(() => {
+    if (!editorView) return
+    setDir(1)
+    if (editorView === 'main') { setView('main'); setSheetOpen(false); return }
+    const svc = bookableServices[0] ?? null
+    const member = svc ? staff.find((m) => staffIdsOf(svc).includes(String(m.id))) ?? null : null
+    const tomorrow = format(new Date(Date.now() + 86400000), 'yyyy-MM-dd')
+    const end = new Date(0, 0, 1, 14, svc?.duration_minutes ?? 45)
+    setSelectedServiceId(svc ? String(svc.id) : null)
+    setBookingStaffId(member ? String(member.id) : null)
+    setBookingDate(tomorrow)
+    setBookingSlot({ start: '14:00', end: format(end, 'HH:mm') })
+    setCustomerName('Minta Vendég')
+    setCustomerEmail('vendeg@pelda.hu')
+    setCustomerPhone('30 123 4567')
+    if (editorView === 'success') {
+      setSuccessDetails({
+        service: svc?.name ?? '', staff: member?.name ?? tt('booking.staff.any'),
+        date: format(new Date(tomorrow + 'T00:00:00'), 'MMM d.', { locale: dfLocale(locale) }), time: '14:00',
+        confirmed: editorAutoConfirm, icsToken: null, hasEmail: true,
+      })
+    }
+    setView(editorView)
+    setSheetOpen(true)
+  }, [editorView, editorAutoConfirm]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const goTo = (
     newView: View,
@@ -672,6 +706,7 @@ export function ProfileCard({
         {isMobile && sheetOpen && (
           <motion.div
             key="sheet-backdrop"
+            data-edit-pass
             className="fixed inset-0 z-[29] lg:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -697,6 +732,7 @@ export function ProfileCard({
             transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.3 }}
           >
             <button
+              data-edit-pass
               onClick={() => setSheetOpen(true)}
               className="flex w-full h-14 items-center justify-center gap-2 rounded-full text-[15px] font-semibold text-ink-dark"
               style={{ background: '#FFD85F', boxShadow: '0 4px 32px rgba(0,0,0,0.45)' }}
@@ -1255,7 +1291,7 @@ export function ProfileCard({
                   <p className="mb-4 text-xs text-white/45">
                     {bookingStaffId ? bookingStaff?.name : tt('booking.staff.any')} · {bookingService.name} · {bookingService.duration_minutes} {tt('booking.minutes')}
                   </p>
-                  <div className="mb-3 overflow-hidden rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                  <div data-edit-id="rules" className="mb-3 overflow-hidden rounded-2xl p-3" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
                     <DateStrip
                       selected={bookingDate}
                       onChange={d => { setBookingDate(d); setBookingSlot(null) }}
@@ -1264,7 +1300,7 @@ export function ProfileCard({
                       dark
                     />
                   </div>
-                  <div className="rounded-2xl p-4 pb-6" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                  <div data-edit-id="rules" className="rounded-2xl p-4 pb-6" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
                     <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
                       {format(bookingDateParsed, 'EEEE, MMMM d.', { locale: dfLocale(locale) })}
                     </p>
@@ -1333,7 +1369,7 @@ export function ProfileCard({
                     </p>
                   )}
                   <div className="space-y-2 pb-4">
-                    <div key={`name-${detailsShakeKey}`} className={cn('space-y-1', errors.name && 'animate-shake')}>
+                    <div data-edit-id="field:name" key={`name-${detailsShakeKey}`} className={cn('space-y-1', errors.name && 'animate-shake')}>
                       <Label htmlFor="bk-name" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.name')}</Label>
                       <Input
                         id="bk-name" ref={fieldRefs.name} value={customerName}
@@ -1345,7 +1381,7 @@ export function ProfileCard({
                       />
                       {errors.name && <p role="alert" className="text-[12px] text-red-400">{errors.name}</p>}
                     </div>
-                    <div key={`email-${detailsShakeKey}`} className={cn('space-y-1', errors.email && 'animate-shake')}>
+                    <div data-edit-id="field:email" key={`email-${detailsShakeKey}`} className={cn('space-y-1', errors.email && 'animate-shake')}>
                       <Label htmlFor="bk-email" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.email')}</Label>
                       <Input
                         id="bk-email" ref={fieldRefs.email} type="email" inputMode="email" autoComplete="email" value={customerEmail}
@@ -1357,7 +1393,7 @@ export function ProfileCard({
                       />
                       {errors.email && <p role="alert" className="text-[12px] text-red-400">{errors.email}</p>}
                     </div>
-                    <div key={`phone-${detailsShakeKey}`} className={cn('space-y-1', errors.phone && 'animate-shake')}>
+                    <div data-edit-id="field:phone" key={`phone-${detailsShakeKey}`} className={cn('space-y-1', errors.phone && 'animate-shake')}>
                       <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.phone')}{requirePhone ? ' *' : ''}</Label>
                       <PhoneCountryInput
                         inputRef={fieldRefs.phone} country={customerCountry} phone={customerPhone}
@@ -1369,7 +1405,7 @@ export function ProfileCard({
                       />
                       {errors.phone && <p role="alert" className="text-[12px] text-red-400">{errors.phone}</p>}
                     </div>
-                    <div key={`city-${detailsShakeKey}`} className={cn('space-y-1', errors.city && 'animate-shake')}>
+                    <div data-edit-id="field:address" key={`city-${detailsShakeKey}`} className={cn('space-y-1', errors.city && 'animate-shake')}>
                       <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
                         {addressGateOn ? `${tt('booking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.city')}
                       </Label>
@@ -1384,7 +1420,7 @@ export function ProfileCard({
                       {errors.city && <p role="alert" className="text-[12px] text-red-400">{errors.city}</p>}
                       {addressGateOn && !errors.city && <p className="text-[11px] text-white/40">{addressNote}</p>}
                     </div>
-                    <div key={`address-${detailsShakeKey}`} className={cn('space-y-1', errors.address && 'animate-shake')}>
+                    <div data-edit-id="field:address" key={`address-${detailsShakeKey}`} className={cn('space-y-1', errors.address && 'animate-shake')}>
                       <Label htmlFor="bk-address" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
                         {addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address')}
                       </Label>
@@ -1421,7 +1457,7 @@ export function ProfileCard({
                         )}
                       </>
                     )}
-                    {customQuestionsList.map((q) => {
+                    {customQuestionsList.length > 0 && <div data-edit-id="questions" className="space-y-2">{customQuestionsList.map((q) => {
                       const key = q.id ?? ''
                       const val = customAnswers[key] ?? ''
                       const err = customErrors[key]
@@ -1467,8 +1503,8 @@ export function ProfileCard({
                           {err && <p role="alert" className="text-[12px] text-red-400">{err}</p>}
                         </div>
                       )
-                    })}
-                    <div className="space-y-1">
+                    })}</div>}
+                    <div data-edit-id="field:notes" className="space-y-1">
                       <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('booking.field.note')}</Label>
                       <Textarea
                         value={customerNotes} onChange={e => setCustomerNotes(e.target.value)}
@@ -1477,7 +1513,7 @@ export function ProfileCard({
                       />
                     </div>
                     {voucherEnabled && (
-                      <div className="space-y-2">
+                      <div data-edit-id="redeem" className="space-y-2">
                         {!redeemOpen ? (
                           <button
                             type="button"
@@ -1506,7 +1542,7 @@ export function ProfileCard({
                       </div>
                     )}
                     {newsletterEnabled && (
-                      <div className="space-y-1.5">
+                      <div data-edit-id="newsletter" className="space-y-1.5">
                         <div className="flex items-center justify-between gap-3 py-1">
                           <span className="text-[13px] text-white/70">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
                           <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
@@ -1526,7 +1562,11 @@ export function ProfileCard({
                   <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('public.deposit.title')}</h2>
                   {/* bookingStaffId lehet null ("Bármelyik szakember") — a deposit-intent route
                       old fel egy konkrét, szabad szakembert, ha nincs megadva. */}
-                  {selectedServiceId && bookingSlot && (
+                  {editorView ? (
+                    <div data-edit-id="deposit" className="rounded-2xl p-4 text-[13px] leading-relaxed text-white/70" style={{ background: 'rgba(241,206,69,0.10)', border: '1px solid rgba(241,206,69,0.30)' }}>
+                      Itt fizeti a vendég kártyával az előleget (Stripe). A szerkesztőben nincs valódi fizetés.
+                    </div>
+                  ) : selectedServiceId && bookingSlot && (
                     <DepositStep
                       dark
                       locale={locale}
@@ -1544,7 +1584,7 @@ export function ProfileCard({
 
               {/* CONSENT — digitális beleegyező nyilatkozat */}
               {view === 'consent' && consentEnabled && (
-                <div>
+                <div data-edit-id="consent">
                   <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{consentTitle?.trim() || tt('public.consent.title')}</h2>
                   <div
                     className="mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed text-white/75"
@@ -1563,7 +1603,7 @@ export function ProfileCard({
               {view === 'summary' && bookingService && bookingSlot && (
                 <div>
                   <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.summary.title')}</h2>
-                  <div className="mb-4 rounded-2xl px-4 py-1" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+                  <div data-edit-id="summary" className="mb-4 rounded-2xl px-4 py-1" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
                     {[
                       { label: tt('booking.step.service'), value: bookingService.name },
                       { label: tt('booking.step.staff'), value: bookingStaffId ? (bookingStaff?.name ?? '–') : tt('booking.staff.any') },
@@ -1611,7 +1651,7 @@ export function ProfileCard({
               {/* SUCCESS — ikon + cím az automatikus megerősítés szerint, e-mail / emlékeztető
                   tájékoztatás, két egyforma gomb (naptár + kész). Minden szöveg törik, 320 px-en sem lóg ki. */}
               {view === 'success' && (
-                <div className="flex min-h-[50vh] flex-col items-center justify-center px-1 py-8 text-center">
+                <div data-edit-id="confirm" className="flex min-h-[50vh] flex-col items-center justify-center px-1 py-8 text-center">
                   <motion.div
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
@@ -1671,7 +1711,7 @@ export function ProfileCard({
 
               {/* VOUCHER — vásárlás */}
               {view === 'voucher' && (
-                <div className="pb-2">
+                <div data-edit-id="sec:voucher" className="pb-2">
                   <button onClick={() => goTo('main', null)} className="mb-4 inline-flex items-center gap-1.5 text-[12px] font-medium text-white/45 transition-colors hover:text-white/70">
                     <ArrowLeft className="h-3.5 w-3.5" /> {tt('public.back')}
                   </button>
@@ -1912,7 +1952,7 @@ export function ProfileCard({
                   {!submitting && (view === 'details' || (view === 'consent' && consentGiven)) && <Check className="h-4 w-4 opacity-70" />}
                 </button>
                 {view === 'summary' && (
-                  <div className="text-center text-xs text-white/40">
+                  <div data-edit-id="terms" className="text-center text-xs text-white/40">
                     {tt('rbooking.termsPrefix')}{' '}
                     <TermsModal sections={termsSections} company={company} locale={locale} />
                   </div>

@@ -5,6 +5,7 @@
  * admin → előnézet
  *   - `draft`:  a még nem mentett változások (a SalonViewData mezőire illeszkedő patch)
  *   - `select`: a kijelölt elem azonosítója (sárga keret), null = nincs kijelölés
+ *   - `view`:   a foglalás melyik lépését mutassa az előnézet (mintaadatokkal)
  * előnézet → admin
  *   - `ready`:  az előnézet betöltött, várja az aktuális draftot
  *   - `pick`:   a vendég-nézetben erre az elemre kattintottak (`data-edit-id`)
@@ -14,6 +15,7 @@ export const EDITOR_MSG = 'dav-editor'
 export type EditorToPreview =
   | { source: typeof EDITOR_MSG; type: 'draft'; patch: Record<string, unknown> }
   | { source: typeof EDITOR_MSG; type: 'select'; id: string | null }
+  | { source: typeof EDITOR_MSG; type: 'view'; view: string }
 
 export type PreviewToEditor =
   | { source: typeof EDITOR_MSG; type: 'ready' }

@@ -11,6 +11,9 @@ import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPi
 import { compressImage } from '@/lib/compressImage'
 import { LOCALE_LABELS, resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { isEditorMessage, postToPreview, type PreviewToEditor } from '@/lib/editorBridge'
+import { reminderOffsets } from '@/lib/reminders'
+import { CustomQuestionsEditor, type CustomQuestion } from '@/components/settings/CustomQuestionsEditor'
+import type { EditorView } from '@/components/booking/ProfileCard'
 import { cn } from '@/lib/utils'
 
 /**
@@ -55,12 +58,45 @@ export type BookingPageEditorInitial = {
   /** A teljes `booking_rules` csoport — a Payload PATCH az egész csoportot cseréli, ezért
    *  mentéskor ebbe fésüljük bele a módosított mezőket. */
   bookingRules: Record<string, unknown>
+  /** Ugyanígy a teljes `notification_prefs` / `feature_modules` / `consent_settings` csoport. */
+  notificationPrefs: Record<string, unknown>
+  featureModules: Record<string, unknown>
   staff: EditorStaff[]
+  // ── Foglalási folyamat ──
+  bookingWindowDays: number
+  bufferMinutes: number
+  requirePhone: boolean
+  autoConfirm: boolean
+  requireAddress: boolean
+  requireAddressNote: string
+  confirmEmail: boolean
+  reminders: { on: boolean; h48: boolean; h24: boolean; h3: boolean; h1: boolean; custom: number | null; chEmail: boolean; chPush: boolean }
+  consentEnabled: boolean
+  consentTitle: string
+  consentText: string
+  customQuestions: CustomQuestion[]
+  /** Csak olvasható állapotok — a gazdájuk a Fizetés fül. */
+  flags: { deposit: boolean; depositLabel: string; voucher: boolean; newsletter: boolean }
 }
 
-type Draft = Omit<BookingPageEditorInitial, 'slug' | 'bookingRules'>
+type Draft = Omit<BookingPageEditorInitial, 'slug' | 'bookingRules' | 'notificationPrefs' | 'featureModules' | 'flags'>
 /** Nyelvenként fordítható mezők (a magyar a `Draft`-ban él). */
-type LocDraft = { description: string; goodToKnow: GoodToKnowItem[]; staffBio: Record<string, string> }
+type LocDraft = {
+  description: string
+  goodToKnow: GoodToKnowItem[]
+  staffBio: Record<string, string>
+  consentTitle: string
+  consentText: string
+  customQuestions: CustomQuestion[]
+}
+
+const STEPS: { id: EditorView; label: string }[] = [
+  { id: 'main', label: 'Főoldal' }, { id: 'datetime', label: 'Időpont' }, { id: 'details', label: 'Adatok' },
+  { id: 'deposit', label: 'Előleg' }, { id: 'consent', label: 'Nyilatkozat' }, { id: 'summary', label: 'Összegzés' },
+  { id: 'success', label: 'Visszaigazolás' }, { id: 'voucher', label: 'Utalvány' },
+]
+
+const REMINDER_CHIPS = [['h48', '2 nappal'], ['h24', '24 órával'], ['h3', '3 órával'], ['h1', '1 órával']] as const
 
 type Device = 'desktop' | 'mobile'
 const FRAME: Record<Device, { w: number; h: number }> = {
@@ -75,12 +111,21 @@ const ELEMENT_TITLES: Record<string, string> = {
   cover: 'Borítókép', logo: 'Logó', name: 'Üzlet neve', address: 'Cím', desc: 'Leírás', counts: 'Számláló sáv',
   langs: 'Nyelvek', contact: 'Kapcsolat', 'sec:services': 'Szolgáltatások', 'sec:staff': 'Munkatársak',
   'sec:voucher': 'Ajándékutalvány', 'sec:reviews': 'Google-értékelések', gtk: 'Jó tudni',
+  rules: 'Foglalási szabályok', confirm: 'Visszaigazolás & emlékeztetők', 'field:name': 'Név mező', 'field:email': 'E-mail mező',
+  'field:phone': 'Telefonszám mező', 'field:address': 'Cím mező', 'field:notes': 'Megjegyzés mező', questions: 'Egyedi kérdések',
+  consent: 'Hozzájáruló nyilatkozat', deposit: 'Előleg', terms: 'Foglalási feltételek', newsletter: 'Hírlevél-feliratkozás',
+  summary: 'Összegzés', redeem: 'Utalvány beváltása',
 }
 
 const draftFrom = (i: BookingPageEditorInitial): Draft => {
-  const { slug: _slug, bookingRules: _br, ...rest } = i
+  const { slug: _slug, bookingRules: _br, notificationPrefs: _np, featureModules: _fm, flags: _fl, ...rest } = i
   return rest
 }
+
+/** A draft emlékeztető-beállításai → az időzítések órában (ugyanaz a logika, mint a cronban). */
+const reminderHoursOf = (r: Draft['reminders']) => (r.on && r.chEmail
+  ? reminderOffsets({ reminder_t_48h: r.h48, reminder_t_24h: r.h24, reminder_t_3h: r.h3, reminder_t_1h: r.h1, reminder_custom_hours: r.custom } as never)
+  : [])
 
 export function BookingPageEditor({
   initial,
@@ -104,6 +149,7 @@ export function BookingPageEditor({
   const [langMenu, setLangMenu] = useState(false)
   const [device, setDevice] = useState<Device>('desktop')
   const [sel, setSel] = useState<string | null>(null)
+  const [step, setStep] = useState<EditorView>('main')
   const [ready, setReady] = useState(false)
   const frameRef = useRef<HTMLIFrameElement>(null)
 
@@ -141,6 +187,15 @@ export function BookingPageEditor({
           icon: (g.icon as string) ?? 'info', title: (g.title as string) ?? '', body: (g.body as string) ?? '',
         })),
         staffBio,
+        consentTitle: typeof doc.consent_settings?.title === 'string' ? doc.consent_settings.title : '',
+        consentText: typeof doc.consent_settings?.template_text === 'string' ? doc.consent_settings.template_text : '',
+        customQuestions: (Array.isArray(doc.custom_questions) ? doc.custom_questions : []).map((q: Record<string, unknown>) => ({
+          id: (q.id as string) ?? crypto.randomUUID(),
+          label: (q.label as string) ?? '',
+          type: (q.type as CustomQuestion['type']) ?? 'text',
+          options: Array.isArray(q.options) ? (q.options as Record<string, unknown>[]).map((o) => ({ value: (o.value as string) ?? '' })) : [],
+          required: !!q.required,
+        })),
       }
       setLocBaseline((b) => ({ ...b, [next]: loaded }))
       setLocDrafts((d) => ({ ...d, [next]: loaded }))
@@ -183,6 +238,17 @@ export function BookingPageEditor({
         socialLinks: draft.socialLinks.filter((u) => u.trim()),
         goodToKnow,
         servicesExpandedOnMain: draft.servicesExpandedOnMain,
+        bookingWindowDays: draft.bookingWindowDays,
+        requirePhone: draft.requirePhone,
+        addressRequired: draft.requireAddress,
+        addressRequiredNote: draft.requireAddressNote || null,
+        consentEnabled: draft.consentEnabled && !!(loc?.consentText || draft.consentText).trim(),
+        consentTitle: loc?.consentTitle || draft.consentTitle || null,
+        consentText: loc?.consentText || draft.consentText || null,
+        customQuestions: (loc && loc.customQuestions.length === draft.customQuestions.length ? loc.customQuestions.map((q, i) => ({ ...draft.customQuestions[i], label: q.label || draft.customQuestions[i].label, options: q.options })) : draft.customQuestions),
+        confirmEmailEnabled: draft.confirmEmail,
+        reminderHours: reminderHoursOf(draft.reminders),
+        editorAutoConfirm: draft.autoConfirm,
       },
       staffEdits,
     }
@@ -200,6 +266,7 @@ export function BookingPageEditor({
   }, [])
   useEffect(() => { if (ready) postToPreview(frameRef.current, { type: 'draft', patch: previewPatch }) }, [ready, previewPatch])
   useEffect(() => { if (ready) postToPreview(frameRef.current, { type: 'select', id: sel }) }, [ready, sel])
+  useEffect(() => { if (ready) postToPreview(frameRef.current, { type: 'view', view: step }) }, [ready, step])
 
   // ── Mentés ──
   const save = useCallback(async (): Promise<boolean> => {
@@ -232,13 +299,32 @@ export function BookingPageEditor({
       if (changed('logoId')) body.logo = d.logoId
       if (changed('goodToKnow')) body.good_to_know = d.goodToKnow
       if (changed('supportedLocales')) body.supported_locales = d.supportedLocales
-      if (changed('showCatalogCounts') || changed('servicesExpandedOnMain')) {
+      if (changed('showCatalogCounts') || changed('servicesExpandedOnMain') || changed('autoConfirm') || changed('requireAddress') || changed('requireAddressNote')) {
         body.booking_rules = {
           ...initial.bookingRules,
           show_catalog_counts_on_public: d.showCatalogCounts,
           services_expanded_on_main: d.servicesExpandedOnMain,
+          auto_confirm: d.autoConfirm,
+          require_address: d.requireAddress,
+          require_address_note: d.requireAddressNote.trim() || null,
         }
       }
+      if (changed('bookingWindowDays')) body.booking_window_days = d.bookingWindowDays
+      if (changed('bufferMinutes')) body.booking_buffer_minutes = d.bufferMinutes
+      if (changed('requirePhone')) body.require_phone = d.requirePhone
+      if (changed('confirmEmail')) body.notification_prefs = { ...initial.notificationPrefs, confirm_email: d.confirmEmail }
+      if (changed('reminders')) {
+        const r = d.reminders
+        body.feature_modules = {
+          ...initial.featureModules,
+          reminders_on: r.on, reminder_t_48h: r.h48, reminder_t_24h: r.h24, reminder_t_3h: r.h3, reminder_t_1h: r.h1,
+          reminder_custom_hours: r.custom, reminder_ch_email: r.chEmail, reminder_ch_push: r.chPush,
+        }
+      }
+      if (changed('consentEnabled') || changed('consentTitle') || changed('consentText')) {
+        body.consent_settings = { enabled: d.consentEnabled, title: d.consentTitle, template_text: d.consentText }
+      }
+      if (changed('customQuestions')) body.custom_questions = d.customQuestions
       if (Object.keys(body).length > 0) await patchJson('/api/salon/settings', body)
 
       for (const m of d.staff) {
@@ -255,8 +341,16 @@ export function BookingPageEditor({
       for (const [code, value] of Object.entries(locDrafts) as [Locale, LocDraft][]) {
         const before = locBaseline[code]
         if (!before || JSON.stringify(before) === JSON.stringify(value)) continue
-        if (before.description !== value.description || JSON.stringify(before.goodToKnow) !== JSON.stringify(value.goodToKnow)) {
-          await patchJson(`/api/salon/settings?locale=${code}`, { description: value.description, good_to_know: value.goodToKnow })
+        const { staffBio: _a, ...beforeSalon } = before
+        const { staffBio: _b, ...valueSalon } = value
+        if (JSON.stringify(beforeSalon) !== JSON.stringify(valueSalon)) {
+          await patchJson(`/api/salon/settings?locale=${code}`, {
+            description: value.description,
+            good_to_know: value.goodToKnow,
+            // A csoportot a PATCH egészében cseréli — az `enabled` (nem fordított) mezőt is küldjük.
+            consent_settings: { enabled: d.consentEnabled, title: value.consentTitle, template_text: value.consentText },
+            custom_questions: value.customQuestions,
+          })
         }
         for (const [id, bio] of Object.entries(value.staffBio)) {
           if (before.staffBio[id] !== bio) await patchJson(`/api/staff/${id}?locale=${code}`, { bio })
@@ -274,7 +368,7 @@ export function BookingPageEditor({
       toast.error(`Mentés sikertelen${e instanceof Error && e.message ? `: ${e.message}` : ''}`)
       return false
     }
-  }, [baseline, draft, locBaseline, locDrafts, initial.bookingRules, router])
+  }, [baseline, draft, locBaseline, locDrafts, initial.bookingRules, initial.notificationPrefs, initial.featureModules, router])
 
   const discard = useCallback(() => {
     setDraft(baseline)
@@ -324,9 +418,28 @@ export function BookingPageEditor({
   // Új nyelv = új iframe-betöltés: a `ready` üzenetig nem küldünk semmit.
   useEffect(() => { setReady(false) }, [src])
 
+  const consentOn = draft.consentEnabled && !!draft.consentText.trim()
+  const flow = STEPS.filter((st) =>
+    st.id === 'deposit' ? initial.flags.deposit : st.id === 'consent' ? consentOn : st.id === 'voucher' ? initial.flags.voucher : true)
+  // Kikapcsolt lépésen maradni nincs értelme — vissza az Adatokra.
+  useEffect(() => { if (!flow.some((f) => f.id === step)) setStep('details') }, [flow, step])
+  const goStep = (id: EditorView) => { setStep(id); setSel(null) }
+  const setRem = (patch: Partial<Draft['reminders']>) => setDraft((d) => ({ ...d, reminders: { ...d.reminders, ...patch } }))
+  const remHours = reminderHoursOf(draft.reminders)
+  const rulesSummary: { label: string; value: string; step: EditorView; sel: string | null; off?: boolean }[] = [
+    { label: 'Foglalható előre', value: `${draft.bookingWindowDays} nap`, step: 'datetime', sel: 'rules' },
+    { label: 'Szünet a foglalások között', value: draft.bufferMinutes ? `${draft.bufferMinutes} perc` : 'Nincs', step: 'datetime', sel: 'rules', off: !draft.bufferMinutes },
+    { label: 'Automatikus megerősítés', value: draft.autoConfirm ? 'Be' : 'Ki', step: 'success', sel: 'confirm', off: !draft.autoConfirm },
+    { label: 'Visszaigazoló e-mail', value: draft.confirmEmail ? 'Be' : 'Ki', step: 'success', sel: 'confirm', off: !draft.confirmEmail },
+    { label: 'Emlékeztető', value: remHours.length ? remHours.map((h) => `${h} ó`).join(', ') : 'Ki', step: 'success', sel: 'confirm', off: !remHours.length },
+    { label: 'Telefonszám kötelező', value: draft.requirePhone ? 'Igen' : 'Nem', step: 'details', sel: 'field:phone', off: !draft.requirePhone },
+    { label: 'Előleg', value: initial.flags.deposit ? initial.flags.depositLabel : 'Ki', step: initial.flags.deposit ? 'deposit' : 'details', sel: initial.flags.deposit ? 'deposit' : null, off: !initial.flags.deposit },
+  ]
+
   const staffId = sel?.startsWith('staff:') ? sel.slice(6) : null
   const member = staffId ? draft.staff.find((m) => m.id === staffId) ?? null : null
-  const title = member ? member.name : sel ? ELEMENT_TITLES[sel] ?? 'Elem' : 'Az oldal elemei'
+  const stepLabel = STEPS.find((st) => st.id === step)?.label ?? ''
+  const title = member ? member.name : sel ? ELEMENT_TITLES[sel] ?? 'Elem' : step === 'main' ? 'Az oldal elemei' : stepLabel
 
   return (
     <div className="space-y-4">
@@ -378,6 +491,25 @@ export function BookingPageEditor({
         </div>
       </div>
 
+      {/* A foglalás teljes folyamata — a kikapcsolt opcionális lépés nem jelenik meg */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1">
+        <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-ink-soft2">Folyamat</span>
+        <div className="flex shrink-0 items-center gap-0.5 rounded-full border border-line bg-white/60 p-1">
+          {flow.map((st, i) => (
+            <span key={st.id} className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => goStep(st.id)}
+                className={cn('h-8 rounded-full px-3 text-[12.5px] font-semibold transition-colors', step === st.id ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink')}
+              >
+                {st.label}
+              </button>
+              {i < flow.length - 1 && <ChevronRight className="h-3 w-3 text-ink-soft2/60" />}
+            </span>
+          ))}
+        </div>
+      </div>
+
       <div className="flex flex-col gap-4 xl:flex-row">
         {/* Vászon */}
         <div ref={canvasRef} className="min-w-0 flex-1">
@@ -399,19 +531,58 @@ export function BookingPageEditor({
         <aside className="w-full shrink-0 space-y-4 rounded-[26px] dav-card-glass p-5 xl:w-[340px]">
           {sel && (
             <button type="button" onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-soft hover:text-ink">
-              <ChevronLeft className="h-3.5 w-3.5" /> Az oldal elemei
+              <ChevronLeft className="h-3.5 w-3.5" /> {step === 'main' ? 'Az oldal elemei' : `${stepLabel} lépés`}
             </button>
           )}
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft2">{sel ? 'Kijelölt elem' : 'Foglalóoldal'}</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft2">{sel ? 'Kijelölt elem' : step === 'main' ? 'Foglalóoldal' : 'Foglalás folyamata'}</div>
             <div className="mt-1 text-[21px] font-normal tracking-[-0.01em] text-ink">{title}</div>
           </div>
 
-          {!sel && (
+          {!sel && step === 'main' && (
             <div className="space-y-2">
-              {(['cover', 'logo', 'name', 'address', 'desc', 'counts', 'contact', 'sec:services', 'sec:staff', 'gtk', 'langs'] as const).map((id) => (
+              {(['cover', 'logo', 'name', 'address', 'desc', 'counts', 'contact', 'sec:services', 'sec:staff', 'langs'] as const).map((id) => (
                 <Row key={id} label={ELEMENT_TITLES[id]} onClick={() => setSel(id)} />
               ))}
+            </div>
+          )}
+
+          {!sel && step !== 'main' && (
+            <div className="space-y-2">
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">Így halad végig a vendég a foglaláson. Kattints egy elemre az előnézetben a szerkesztéséhez.</p>
+              {(step === 'details'
+                ? (['field:name', 'field:email', 'field:phone', 'field:address', 'field:notes', 'questions'] as const)
+                : step === 'datetime' ? (['rules'] as const)
+                : step === 'consent' ? (['consent'] as const)
+                : step === 'summary' ? (['summary', 'gtk', 'terms', ...(initial.flags.newsletter ? ['newsletter' as const] : [])] as const)
+                : step === 'success' ? (['confirm'] as const)
+                : step === 'deposit' ? (['deposit'] as const)
+                : (['sec:voucher'] as const)
+              ).map((id) => <Row key={id} label={ELEMENT_TITLES[id]} onClick={() => setSel(id)} />)}
+              <ToggleRow label="Hozzájáruló nyilatkozat lépés" hint="Elfogadása kötelező a foglaláshoz." checked={draft.consentEnabled} onChange={() => set('consentEnabled', !draft.consentEnabled)} />
+            </div>
+          )}
+
+          {!sel && (
+            <div className="space-y-2 border-t border-line pt-4">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft2">Foglalási szabályok</div>
+              <div className="overflow-hidden rounded-[16px] border border-line bg-white">
+                {rulesSummary.map((r) => (
+                  <button
+                    key={r.label}
+                    type="button"
+                    onClick={() => { setStep(r.step); setSel(r.sel) }}
+                    className="flex h-11 w-full items-center justify-between gap-3 border-b border-line px-3.5 text-left text-[13px] text-ink last:border-0 hover:bg-black/[0.02]"
+                  >
+                    <span className="min-w-0 truncate">{r.label}</span>
+                    <span className={cn('shrink-0 font-semibold', r.off ? 'text-ink-soft2' : 'text-ink')}>{r.value} ›</span>
+                  </button>
+                ))}
+                <button type="button" onClick={() => onNavigate?.('notifications')} className="flex h-11 w-full items-center justify-between gap-3 px-3.5 text-left text-[13px] text-ink hover:bg-black/[0.02]">
+                  <span className="min-w-0 truncate">Új foglalás értesítés neked</span>
+                  <span className="shrink-0 font-semibold text-ink">Értesítések ›</span>
+                </button>
+              </div>
             </div>
           )}
 
@@ -477,7 +648,7 @@ export function BookingPageEditor({
               <Field label="Telefon"><input className={fieldCls} value={draft.phone} onChange={(e) => set('phone', e.target.value)} /></Field>
               <Field label="E-mail"><input className={fieldCls} value={draft.email} onChange={(e) => set('email', e.target.value)} /></Field>
               <Field label="Weboldal"><input className={fieldCls} value={draft.website} onChange={(e) => set('website', e.target.value)} /></Field>
-              <Field label="Közösségi linkek" hint="Csak illeszd be a linket — az ikont felismerjük.">
+              <Field group label="Közösségi linkek" hint="Csak illeszd be a linket — az ikont felismerjük.">
                 <SocialLinksEditor value={draft.socialLinks} onChange={(v) => set('socialLinks', v)} inputClassName={fieldCls} />
               </Field>
             </>
@@ -513,7 +684,7 @@ export function BookingPageEditor({
                   onChange={(e) => (loc ? setLoc({ staffBio: { ...loc.staffBio, [member.id]: e.target.value } }) : setStaff(member.id, { bio: e.target.value }))}
                 />
               </Field>
-              <Field label="Közösségi linkek">
+              <Field group label="Közösségi linkek">
                 <SocialLinksEditor value={member.social_links} onChange={(v) => setStaff(member.id, { social_links: v })} inputClassName={fieldCls} />
               </Field>
               <LinkButton href="/dashboard/staff">Munkaidő, szolgáltatások, min. foglalási idő</LinkButton>
@@ -535,6 +706,131 @@ export function BookingPageEditor({
             </>
           )}
 
+          {sel === 'rules' && (
+            <>
+              <Field label="Foglalható napok előre" hint="Naponta automatikusan tovább gördül.">
+                <div className="flex items-center gap-2">
+                  <input type="number" min={1} max={365} className={cn(fieldCls, 'w-24 text-center')} value={draft.bookingWindowDays}
+                    onChange={(e) => set('bookingWindowDays', Math.max(1, Math.min(365, Number(e.target.value) || 1)))} />
+                  <span className="text-[13px] text-ink-soft">nap</span>
+                </div>
+              </Field>
+              <Chips options={[30, 60, 90, 180].map((v) => ({ label: `${v} nap`, on: draft.bookingWindowDays === v, onClick: () => set('bookingWindowDays', v) }))} />
+              <Field group label="Szünet a foglalások között" hint="A szabad időpontok a mentés után igazodnak hozzá.">
+                <Chips options={[0, 5, 10, 15, 30].map((v) => ({ label: v ? `${v} perc` : 'Nincs', on: draft.bufferMinutes === v, onClick: () => set('bufferMinutes', v) }))} />
+              </Field>
+              <p className="text-[12px] leading-relaxed text-ink-soft">A minimum foglalási idő és a munkaidő munkatársanként állítható.</p>
+              <LinkButton href="/dashboard/staff">Munkatársankénti beállítások</LinkButton>
+            </>
+          )}
+
+          {sel === 'confirm' && (
+            <>
+              <ToggleRow label="Automatikus megerősítés" hint="Kikapcsolva te hagyod jóvá; a vendég „beérkezett” üzenetet lát." checked={draft.autoConfirm} onChange={() => set('autoConfirm', !draft.autoConfirm)} />
+              <ToggleRow label="Visszaigazoló e-mail a vendégnek" hint={draft.autoConfirm ? 'Azonnal a foglalás után.' : 'Amikor jóváhagyod.'} checked={draft.confirmEmail} onChange={() => set('confirmEmail', !draft.confirmEmail)} />
+              <div className="border-t border-line pt-4">
+                <ToggleRow label="Automata emlékeztetők" hint="A foglalás előtt." checked={draft.reminders.on} onChange={() => setRem({ on: !draft.reminders.on })} />
+              </div>
+              {draft.reminders.on && (
+                <>
+                  <Field group label="Időzítés a foglalás előtt">
+                    <Chips options={REMINDER_CHIPS.map(([k, label]) => ({ label, on: draft.reminders[k], onClick: () => setRem({ [k]: !draft.reminders[k] }) }))} />
+                  </Field>
+                  <div className="flex flex-wrap items-center gap-2 text-[13px] text-ink-soft">
+                    Egyedi:
+                    <input type="number" min={1} max={336} placeholder="pl. 72" className={cn(fieldCls, 'w-20 text-center')} value={draft.reminders.custom ?? ''}
+                      onChange={(e) => setRem({ custom: e.target.value === '' ? null : Math.max(1, Math.min(336, Math.round(Number(e.target.value)) || 1)) })} />
+                    órával előtte
+                  </div>
+                  <Field group label="Csatorna">
+                    <Chips options={[
+                      { label: 'E-mail', on: draft.reminders.chEmail, onClick: () => setRem({ chEmail: !draft.reminders.chEmail }) },
+                      { label: 'Push', on: draft.reminders.chPush, onClick: () => setRem({ chPush: !draft.reminders.chPush }) },
+                    ]} />
+                  </Field>
+                </>
+              )}
+              <NavButton onClick={() => onNavigate?.('email')}>E-mail sablonok</NavButton>
+              <p className="rounded-[14px] bg-black/[0.03] px-3.5 py-3 text-[12.5px] leading-relaxed text-ink-soft">Az új foglalásról neked szóló értesítést az Értesítések között állítod.</p>
+            </>
+          )}
+
+          {(sel === 'field:name' || sel === 'field:email') && (
+            <p className="text-[12.5px] leading-relaxed text-ink-soft">{sel === 'field:name' ? 'A név mindig kötelező.' : 'Az e-mail mindig kötelező — ide megy a visszaigazolás és az emlékeztető.'}</p>
+          )}
+          {sel === 'field:phone' && (
+            <ToggleRow label="Kötelező kitölteni" checked={draft.requirePhone} onChange={() => set('requirePhone', !draft.requirePhone)} />
+          )}
+          {sel === 'field:address' && (
+            <>
+              <ToggleRow label="Cím megadása mindig kötelező" hint={initial.flags.deposit ? 'Előleg mellett mindenképp kötelező.' : undefined} checked={draft.requireAddress} onChange={() => set('requireAddress', !draft.requireAddress)} />
+              {draft.requireAddress && (
+                <Field label="Miért kéred? (a vendég látja a mező alatt)">
+                  <input className={fieldCls} value={draft.requireAddressNote} placeholder="Pl. a házhoz menő szolgáltatáshoz kell" onChange={(e) => set('requireAddressNote', e.target.value)} />
+                </Field>
+              )}
+            </>
+          )}
+          {sel === 'field:notes' && <p className="text-[12.5px] leading-relaxed text-ink-soft">Szabad szöveges megjegyzés — mindig opcionális.</p>}
+
+          {sel === 'questions' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">Saját kérdések az Adatok lépésen ({LOCALE_LABELS[lang]}).</p>
+              {loc ? (
+                <CustomQuestionsEditor
+                  value={loc.customQuestions.length === draft.customQuestions.length ? loc.customQuestions : draft.customQuestions.map((q) => ({ ...q, label: '', options: q.options.map(() => ({ value: '' })) }))}
+                  onChange={(v) => setLoc({ customQuestions: v })}
+                />
+              ) : (
+                <CustomQuestionsEditor value={draft.customQuestions} onChange={(v) => set('customQuestions', v)} />
+              )}
+            </>
+          )}
+
+          {sel === 'consent' && (
+            <>
+              <ToggleRow label="Nyilatkozat bekérése" hint="Külön lépés; elfogadása kötelező." checked={draft.consentEnabled} onChange={() => set('consentEnabled', !draft.consentEnabled)} />
+              <Field label={`Cím (${LOCALE_LABELS[lang]})`}>
+                <input className={fieldCls} value={loc ? loc.consentTitle : draft.consentTitle} placeholder={loc ? draft.consentTitle : 'Hozzájáruló nyilatkozat'}
+                  onChange={(e) => (loc ? setLoc({ consentTitle: e.target.value }) : set('consentTitle', e.target.value))} />
+              </Field>
+              <Field label="Szöveg">
+                <textarea rows={6} className={cn(fieldCls, 'resize-y leading-relaxed')} value={loc ? loc.consentText : draft.consentText} placeholder={loc ? draft.consentText : undefined}
+                  onChange={(e) => (loc ? setLoc({ consentText: e.target.value }) : set('consentText', e.target.value))} />
+              </Field>
+            </>
+          )}
+
+          {sel === 'deposit' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">Előleg: <b className="text-ink">{initial.flags.depositLabel}</b>. Az összeget, a visszatérítést és a Stripe-fiókot a Fizetés fülön állítod.</p>
+              <NavButton onClick={() => onNavigate?.('payments')}>Előleg beállításai</NavButton>
+            </>
+          )}
+
+          {sel === 'terms' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">A foglalási feltételek szakaszait (lemondás, késés, adatkezelés) a Dokumentumok & jogi fülön szerkesztheted.</p>
+              <NavButton onClick={() => onNavigate?.('documents')}>Foglalási feltételek</NavButton>
+            </>
+          )}
+
+          {sel === 'newsletter' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">A hírlevél-feliratkozás minden csomagban be van kapcsolva — a vendég az Adatok lépésen iratkozhat fel.</p>
+              <NavButton onClick={() => onNavigate?.('payments')}>Hírlevél</NavButton>
+            </>
+          )}
+
+          {sel === 'summary' && <p className="text-[12.5px] leading-relaxed text-ink-soft">Az összegzés a vendég választásaiból és adataiból áll össze — nincs mit szerkeszteni rajta.</p>}
+
+          {sel === 'redeem' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">Csak akkor látszik, ha az ajándékutalvány be van kapcsolva.</p>
+              <NavButton onClick={() => onNavigate?.('payments')}>Ajándékutalvány beállításai</NavButton>
+            </>
+          )}
+
           {sel === 'sec:reviews' && (
             <>
               <p className="text-[12.5px] leading-relaxed text-ink-soft">A megjelenő értékelések az összekapcsolt Google-profilból jönnek.</p>
@@ -549,13 +845,16 @@ export function BookingPageEditor({
 
 /* ── Panel-építőkockák ── */
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
+/** Felirat + mező. `group`: gombcsoportnál (chipek, link-lista) `div`, hogy a feliratra
+ *  kattintás ne „nyomja meg” az első gombot (a `<label>` azt tenné). */
+function Field({ label, hint, group = false, children }: { label: string; hint?: string; group?: boolean; children: ReactNode }) {
+  const Tag = group ? 'div' : 'label'
   return (
-    <label className="block space-y-1.5">
+    <Tag className="block space-y-1.5">
       <span className="block text-[12px] font-semibold text-ink-soft">{label}</span>
       {children}
       {hint && <span className="block text-[11.5px] leading-relaxed text-ink-soft2">{hint}</span>}
-    </label>
+    </Tag>
   )
 }
 
@@ -613,6 +912,23 @@ function ImagePicker({ url, busy, onPick, onRemove, tall = false }: { url: strin
           </button>
         )}
       </div>
+    </div>
+  )
+}
+
+function Chips({ options }: { options: { label: string; on: boolean; onClick: () => void }[] }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {options.map((o) => (
+        <button
+          key={o.label}
+          type="button"
+          onClick={o.onClick}
+          className={cn('h-9 rounded-[12px] border px-3 text-[12.5px] font-semibold transition-colors', o.on ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong bg-white text-ink-soft hover:text-ink')}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }

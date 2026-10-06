@@ -21,6 +21,8 @@ import type { AccountBilling } from '@/lib/accountBilling'
 import type { Invoice, Role, Media } from '@/payload/payload-types'
 import type { BookingPageEditorInitial } from '@/components/settings/booking-page/BookingPageEditor'
 import { resolveAvailableLocales } from '@/lib/i18n'
+import { hasActivePackage } from '@/lib/newsletterLimits'
+import { randomUUID } from 'crypto'
 
 const EMPTY_ACCOUNT_BILLING: AccountBilling = {
   items: [], totalMonthlyHuf: 0, listMonthlyHuf: 0, cycle: 'monthly', annualDiscountPct: 0, count: 0, accountStatus: null,
@@ -211,6 +213,43 @@ export default async function SettingsPage() {
           showCatalogCounts: salon.booking_rules?.show_catalog_counts_on_public !== false,
           servicesExpandedOnMain: !!salon.booking_rules?.services_expanded_on_main,
           bookingRules: (salon.booking_rules ?? {}) as Record<string, unknown>,
+          notificationPrefs: (salon.notification_prefs ?? {}) as Record<string, unknown>,
+          featureModules: (salon.feature_modules ?? {}) as Record<string, unknown>,
+          bookingWindowDays: salon.booking_window_days ?? 60,
+          bufferMinutes: salon.booking_buffer_minutes ?? 15,
+          requirePhone: salon.require_phone ?? true,
+          autoConfirm: salon.booking_rules?.auto_confirm ?? true,
+          requireAddress: !!salon.booking_rules?.require_address,
+          requireAddressNote: salon.booking_rules?.require_address_note ?? '',
+          confirmEmail: salon.notification_prefs?.confirm_email !== false,
+          reminders: {
+            on: salon.feature_modules?.reminders_on ?? true,
+            h48: !!salon.feature_modules?.reminder_t_48h,
+            h24: !!salon.feature_modules?.reminder_t_24h,
+            h3: salon.feature_modules?.reminder_t_3h ?? true,
+            h1: !!salon.feature_modules?.reminder_t_1h,
+            custom: salon.feature_modules?.reminder_custom_hours ?? null,
+            chEmail: salon.feature_modules?.reminder_ch_email ?? true,
+            chPush: !!salon.feature_modules?.reminder_ch_push,
+          },
+          consentEnabled: !!salon.consent_settings?.enabled,
+          consentTitle: salon.consent_settings?.title ?? '',
+          consentText: salon.consent_settings?.template_text ?? '',
+          customQuestions: (salon.custom_questions ?? []).map((q) => ({
+            id: q.id ?? randomUUID(),
+            label: q.label ?? '',
+            type: (q.type ?? 'text') as 'text' | 'yesno' | 'select',
+            options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),
+            required: !!q.required,
+          })),
+          flags: {
+            deposit: !!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded,
+            depositLabel: salon.deposit_settings?.type === 'percent'
+              ? `${salon.deposit_settings?.percent_value ?? 0}%`
+              : `${(salon.deposit_settings?.fixed_amount_huf ?? 0).toLocaleString('hu-HU')} Ft`,
+            voucher: !!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded,
+            newsletter: hasActivePackage(salon.newsletter_settings?.package),
+          },
           staff: staffRes.docs.map((m) => ({
             id: String(m.id),
             name: m.name,

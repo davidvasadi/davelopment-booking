@@ -7,7 +7,7 @@ import { RatingStars } from '@/components/booking/RatingStars'
 import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
 import { LangSwitcher } from '@/components/booking/LangSwitcher'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ProfileCard, type ProfileCardProps } from '@/components/booking/ProfileCard'
+import { ProfileCard, type ProfileCardProps, type EditorView } from '@/components/booking/ProfileCard'
 import { SalonCtaWrapper } from '@/components/booking/SalonCtaWrapper'
 import { nextImageSrc } from '@/lib/utils'
 import { t, type Locale } from '@/lib/i18n'
@@ -58,6 +58,7 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
   const [patch, setPatch] = useState<Patch>({})
   const [selected, setSelected] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
+  const [editorView, setEditorView] = useState<EditorView | null>(null)
 
   useEffect(() => {
     if (!editor) return
@@ -65,6 +66,7 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
       if (!isEditorMessage<EditorToPreview>(e)) return
       if (e.data.type === 'draft') setPatch(e.data.patch as Patch)
       else if (e.data.type === 'select') setSelected(e.data.id)
+      else if (e.data.type === 'view') setEditorView(e.data.view as EditorView)
     }
     window.addEventListener('message', onMessage)
     postToEditor({ type: 'ready' })
@@ -254,6 +256,7 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
         salonAddress={d.address}
         salonCity={d.city}
         nextSlotNode={nextSlotNode}
+        editorView={editor ? editorView : null}
       />
 
       {editor && <SelectionRing id={hovered && hovered !== selected ? hovered : null} soft />}
