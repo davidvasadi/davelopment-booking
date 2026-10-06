@@ -210,7 +210,17 @@ export default async function SettingsPage() {
           logoId: logo.id,
           logoUrl: logo.url,
           goodToKnow: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
-          showCatalogCounts: salon.booking_rules?.show_catalog_counts_on_public !== false,
+          coverFocalMobileX: salon.cover_focal_mobile_x ?? null,
+          coverFocalMobileY: salon.cover_focal_mobile_y ?? null,
+          showServiceCount: salon.booking_rules?.show_service_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public !== false,
+          showStaffCount: salon.booking_rules?.show_staff_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public !== false,
+          sectionOrder: (() => {
+            const all = ['services', 'voucher', 'staff', 'reviews']
+            const saved = (salon.booking_rules?.public_section_order ?? []).filter((x) => all.includes(x))
+            return [...saved, ...all.filter((x) => !saved.includes(x))]
+          })(),
+          hiddenSections: salon.booking_rules?.public_sections_hidden ?? [],
+          minLeadHours: salon.booking_rules?.min_lead_hours ?? null,
           servicesExpandedOnMain: !!salon.booking_rules?.services_expanded_on_main,
           bookingRules: (salon.booking_rules ?? {}) as Record<string, unknown>,
           notificationPrefs: (salon.notification_prefs ?? {}) as Record<string, unknown>,

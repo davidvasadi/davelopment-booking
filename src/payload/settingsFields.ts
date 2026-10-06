@@ -103,7 +103,18 @@ export const settingsExtensionFields: Field[] = [
       // rekordon is létezik, de ott sosem olvasódik/íródik (nincs saját katalógus-nézete,
       // lásd RestaurantCard).
       { name: 'services_expanded_on_main', type: 'checkbox', defaultValue: false, label: 'Szolgáltatások kibontva a főnézeten' },
+      // RÉGI, közös kapcsoló — a két külön kapcsoló (alább) váltja; a migráció átmásolta az
+      // értékét, olvasni már csak akkor olvassuk, ha az újak még nincsenek kitöltve.
       { name: 'show_catalog_counts_on_public', type: 'checkbox', defaultValue: true, label: 'Szolgáltatás/munkatárs-szám a publikus fejlécen' },
+      { name: 'show_service_count_on_public', type: 'checkbox', label: 'Szolgáltatás-szám a publikus fejlécen' },
+      { name: 'show_staff_count_on_public', type: 'checkbox', label: 'Munkatárs-szám a publikus fejlécen' },
+      // Üzlet-szintű alapértelmezett minimum foglalási idő (óra); munkatársanként felülírható
+      // (`staff.min_lead_hours`). Üres = nincs korlát.
+      { name: 'min_lead_hours', type: 'number', min: 0, max: 720, label: 'Minimum idő a foglalás előtt (óra)' },
+      // A foglaló kártya főnézetének szakasz-sorrendje és rejtett szakaszai (Foglalóoldal-szerkesztő).
+      // Üres = alapsorrend, minden látható. Azonosítók: services | voucher | staff | reviews.
+      { name: 'public_section_order', type: 'json', label: 'Foglalóoldal szakasz-sorrend' },
+      { name: 'public_sections_hidden', type: 'json', label: 'Foglalóoldal rejtett szakaszai' },
     ],
   },
   {

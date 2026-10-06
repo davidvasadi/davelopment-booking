@@ -89,6 +89,10 @@ interface Props {
   confirmEmailEnabled?: boolean
   /** Az e-mailes emlékeztetők időzítése órában (üres = nincs emlékeztető). */
   reminderHours?: number[]
+  /** `booking_rules.public_section_order` / `public_sections_hidden` — a főnézet szakaszai
+   *  (services | voucher | staff | reviews). Üres = alapsorrend, minden látható. */
+  sectionOrder?: string[] | null
+  hiddenSections?: string[] | null
   /** Szerkesztő-előnézet: ezt a lépést mutassa mintaadatokkal (null = normál működés). */
   editorView?: EditorView | null
   /** Szerkesztő-előnézet: automatikus megerősítés (a Visszaigazolás lépés szövegéhez). */
@@ -129,7 +133,18 @@ export function ProfileCard({
   consentEnabled = false, consentTitle = null, consentText = null,
   customQuestions = null, embed = false, servicesExpandedOnMain = false,
   confirmEmailEnabled = true, reminderHours = [], editorView = null, editorAutoConfirm = true,
+  sectionOrder = null, hiddenSections = null,
 }: Props) {
+  // A főnézet szakaszai a beállított sorrendben (CSS `order`), a rejtettek nélkül — a
+  // szerkesztő-előnézetben a rejtett szakasz halványan látszik, hogy vissza lehessen kapcsolni.
+  const SECTION_IDS = ['services', 'voucher', 'staff', 'reviews']
+  const order = [...(sectionOrder ?? []).filter((id) => SECTION_IDS.includes(id)), ...SECTION_IDS.filter((id) => !(sectionOrder ?? []).includes(id))]
+  const sectionShown = (id: string) => !!editorView || !(hiddenSections ?? []).includes(id)
+  const sectionProps = (id: string) => ({
+    'data-edit-id': `sec:${id}`,
+    style: { order: order.indexOf(id) },
+    className: editorView && (hiddenSections ?? []).includes(id) ? 'opacity-35' : undefined,
+  })
   const tt = makeT(locale)
 
   // Browse navigation state
@@ -968,9 +983,9 @@ export function ProfileCard({
 
               {/* MAIN */}
               {view === 'main' && (
-                <div className="space-y-5 pb-2">
-                  {bookableServices.length > 0 && (
-                    <div data-edit-id="sec:services">
+                <div className="flex flex-col gap-5 pb-2">
+                  {sectionShown('services') && bookableServices.length > 0 && (
+                    <div {...sectionProps('services')}>
                       <div className="mb-3 flex items-center gap-2">
                         <Tag className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.services')}</p>
@@ -1027,8 +1042,8 @@ export function ProfileCard({
                       )}
                     </div>
                   )}
-                  {voucherEnabled && (
-                    <div data-edit-id="sec:voucher">
+                  {sectionShown('voucher') && voucherEnabled && (
+                    <div {...sectionProps('voucher')}>
                       <div className="mb-3 flex items-center gap-2">
                         <Gift className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tt('public.voucher')}</p>
@@ -1048,8 +1063,8 @@ export function ProfileCard({
                   )}
                   {/* 1 szakembernél is mutatjuk (egyetlen csempeként) — konzisztens elrendezés
                       a több szakemberes nézettel, nem külön kompakt fejléc-csíkkal. */}
-                  {staff.length > 0 && (
-                    <div data-edit-id="sec:staff">
+                  {sectionShown('staff') && staff.length > 0 && (
+                    <div {...sectionProps('staff')}>
                       <div className="mb-3 flex items-center gap-2">
                         <Users className="h-3.5 w-3.5 text-white/40" />
                         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tl(locale, 'public.staff')}</p>
@@ -1112,8 +1127,8 @@ export function ProfileCard({
                     </div>
                   )}
 
-                  {google && (
-                    <div data-edit-id="sec:reviews"><GoogleReviewsBlock google={google} locale={locale} className="mt-6" title={tt('public.googleReviews')} countLabel={tt('public.googleReviewsCount')} allLabel={tt('public.googleReviewsAll')} /></div>
+                  {sectionShown('reviews') && google && (
+                    <div {...sectionProps('reviews')}><GoogleReviewsBlock google={google} locale={locale} className="mt-6" title={tt('public.googleReviews')} countLabel={tt('public.googleReviewsCount')} allLabel={tt('public.googleReviewsAll')} /></div>
                   )}
                 </div>
               )}

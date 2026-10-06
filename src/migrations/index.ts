@@ -42,6 +42,7 @@ import * as migration_20261004_120000_staff_buffer_lead from './20261004_120000_
 import * as migration_20261006_100000_voucher_allow_company from './20261006_100000_voucher_allow_company';
 import * as migration_20261006_110000_voucher_payment_method from './20261006_110000_voucher_payment_method';
 import * as migration_20261006_120000_google_reviews from './20261006_120000_google_reviews';
+import * as migration_20261006_130000_booking_page_editor from './20261006_130000_booking_page_editor';
 
 export const migrations = [
   {
@@ -263,5 +264,10 @@ export const migrations = [
     up: migration_20261006_120000_google_reviews.up,
     down: migration_20261006_120000_google_reviews.down,
     name: '20261006_120000_google_reviews',
+  },
+  {
+    up: migration_20261006_130000_booking_page_editor.up,
+    down: migration_20261006_130000_booking_page_editor.down,
+    name: '20261006_130000_booking_page_editor',
   },
 ];

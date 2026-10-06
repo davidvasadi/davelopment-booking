@@ -39,8 +39,12 @@ export type SalonViewData = {
   coverFocalX: number
   coverFocalY: number
   coverZoom: number
+  /** Külön mobil (álló kivágás) fókuszpont — null = a desktop fókusz. */
+  coverFocalMobileX: number | null
+  coverFocalMobileY: number | null
   logoUrl: string | null
-  showCatalogCounts: boolean
+  showServiceCount: boolean
+  showStaffCount: boolean
   serviceCount: number
   staffCount: number
   rating: { average: number; count: number | null; source?: string } | null
@@ -82,6 +86,7 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
   const heroText = hasCover ? 'text-white' : 'text-[#1D1C19]'
   const heroSub = hasCover ? 'text-white/60' : 'text-[#86826F]'
   const coverFocal = `${d.coverFocalX}% ${d.coverFocalY}%`
+  const coverFocalMobile = `${d.coverFocalMobileX ?? d.coverFocalX}% ${d.coverFocalMobileY ?? d.coverFocalY}%`
   const place = [d.address, d.city].filter(Boolean).join(', ')
 
   const onClickCapture = (e: MouseEvent) => {
@@ -100,19 +105,19 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
     setHovered(el?.getAttribute('data-edit-id') ?? null)
   }
 
-  const counts = d.showCatalogCounts && (
+  const counts = (d.showServiceCount || d.showStaffCount) && (
     <>
-      <div className="flex items-center gap-1.5 lg:gap-2">
+      {d.showServiceCount && <div className="flex items-center gap-1.5 lg:gap-2">
         <Tag className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
         <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{d.serviceCount}</span>
         <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.service')}</span>
-      </div>
-      <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />
-      <div className="flex items-center gap-1.5 lg:gap-2">
+      </div>}
+      {d.showServiceCount && d.showStaffCount && <div className={`h-4 w-px ${hasCover ? 'bg-white/15' : 'bg-ink/12'}`} />}
+      {d.showStaffCount && <div className="flex items-center gap-1.5 lg:gap-2">
         <Users className={`h-3.5 w-3.5 lg:h-[15px] lg:w-[15px] ${hasCover ? 'text-white/50' : 'text-ink/60'}`} />
         <span className={`text-sm font-semibold lg:text-base ${hasCover ? 'text-white' : 'text-ink'}`}>{d.staffCount}</span>
         <span className={`text-[11px] lg:text-xs ${hasCover ? 'text-white/45' : 'text-ink/45'}`}>{t(locale, 'booking.step.staff')}</span>
-      </div>
+      </div>}
     </>
   )
   const rating = (className?: string) => d.rating && (
@@ -144,8 +149,10 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
             fill
             priority
             sizes="100vw"
-            className="z-0 object-cover"
-            style={{ objectPosition: coverFocal, transform: `scale(${d.coverZoom})`, transformOrigin: coverFocal }}
+            // Mobilon (lg alatt) a mobil fókuszpont, desktopon a desktop — CSS-változóval, hogy a
+            // szerver által renderelt kép is rögtön a jó kivágással jelenjen meg.
+            className="z-0 object-cover [object-position:var(--cover-focal-m)] [transform-origin:var(--cover-focal-m)] lg:[object-position:var(--cover-focal-d)] lg:[transform-origin:var(--cover-focal-d)]"
+            style={{ ['--cover-focal-d' as string]: coverFocal, ['--cover-focal-m' as string]: coverFocalMobile, transform: `scale(${d.coverZoom})` }}
           />
           <div
             className="pointer-events-none absolute inset-0 z-[1]"

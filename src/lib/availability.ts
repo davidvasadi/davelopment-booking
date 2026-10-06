@@ -126,13 +126,13 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   const durationMinutes = service.duration_minutes
 
   // 2. Szünet a foglalások között: a munkatárs SAJÁT beállítása, ha van; különben a szalon-szintű.
-  //    Ugyanígy a minimum foglalási idő előre (csak munkatársanként állítható).
+  //    Ugyanígy a minimum foglalási idő előre: munkatárs → üzlet-szintű alap → nincs korlát.
   const salon = await payload.findByID({ collection: 'salons', id: salonId })
   const staffDoc = staffId
     ? await payload.findByID({ collection: 'staff', id: staffId, depth: 0, overrideAccess: true }).catch(() => null)
     : null
   const bufferMinutes = staffDoc?.booking_buffer_minutes ?? salon.booking_buffer_minutes ?? 15
-  const minLeadMs = Math.max(0, Number(staffDoc?.min_lead_hours) || 0) * 3600_000
+  const minLeadMs = Math.max(0, Number(staffDoc?.min_lead_hours ?? salon.booking_rules?.min_lead_hours) || 0) * 3600_000
 
   // 3b. Ha a munkatársnak van erre a napra "szabadság/beteg/fizetett szabadság" beosztás-
   // rekordja (Shifts), aznap egyáltalán nem foglalható — üres slot-listát adunk vissza, ami

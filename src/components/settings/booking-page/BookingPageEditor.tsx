@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
+import { Reorder } from 'framer-motion'
 import { toast } from 'sonner'
-import { ChevronLeft, ChevronRight, Globe, Loader2, Monitor, Smartphone, Upload, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Globe, GripVertical, Loader2, Monitor, Smartphone, Upload, X } from 'lucide-react'
 import { Toggle } from '@/components/settings/SettingsToggle'
 import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
 import { GoodToKnowEditor, type GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
@@ -53,8 +54,16 @@ export type BookingPageEditorInitial = {
   logoId: number | null
   logoUrl: string | null
   goodToKnow: GoodToKnowItem[]
-  showCatalogCounts: boolean
+  coverFocalMobileX: number | null
+  coverFocalMobileY: number | null
+  showServiceCount: boolean
+  showStaffCount: boolean
   servicesExpandedOnMain: boolean
+  /** A főnézet szakaszainak sorrendje és rejtett szakaszai (services | voucher | staff | reviews). */
+  sectionOrder: string[]
+  hiddenSections: string[]
+  /** Üzlet-szintű minimum foglalási idő (óra); null = nincs korlát. */
+  minLeadHours: number | null
   /** A teljes `booking_rules` csoport — a Payload PATCH az egész csoportot cseréli, ezért
    *  mentéskor ebbe fésüljük bele a módosított mezőket. */
   bookingRules: Record<string, unknown>
@@ -95,6 +104,8 @@ const STEPS: { id: EditorView; label: string }[] = [
   { id: 'deposit', label: 'Előleg' }, { id: 'consent', label: 'Nyilatkozat' }, { id: 'summary', label: 'Összegzés' },
   { id: 'success', label: 'Visszaigazolás' }, { id: 'voucher', label: 'Utalvány' },
 ]
+
+const SECTION_LABELS: Record<string, string> = { services: 'Szolgáltatások', voucher: 'Ajándékutalvány', staff: 'Munkatársak', reviews: 'Google-értékelések' }
 
 const REMINDER_CHIPS = [['h48', '2 nappal'], ['h24', '24 órával'], ['h3', '3 órával'], ['h1', '1 órával']] as const
 
@@ -229,8 +240,11 @@ export function BookingPageEditor({
       coverFocalX: draft.coverFocalX,
       coverFocalY: draft.coverFocalY,
       coverZoom: draft.coverZoom,
+      coverFocalMobileX: draft.coverFocalMobileX,
+      coverFocalMobileY: draft.coverFocalMobileY,
       logoUrl: draft.logoUrl,
-      showCatalogCounts: draft.showCatalogCounts,
+      showServiceCount: draft.showServiceCount,
+      showStaffCount: draft.showStaffCount,
       card: {
         phone: draft.phone || null,
         email: draft.email || null,
@@ -238,6 +252,8 @@ export function BookingPageEditor({
         socialLinks: draft.socialLinks.filter((u) => u.trim()),
         goodToKnow,
         servicesExpandedOnMain: draft.servicesExpandedOnMain,
+        sectionOrder: draft.sectionOrder,
+        hiddenSections: draft.hiddenSections,
         bookingWindowDays: draft.bookingWindowDays,
         requirePhone: draft.requirePhone,
         addressRequired: draft.requireAddress,
@@ -296,14 +312,22 @@ export function BookingPageEditor({
         body.cover_focal_y = d.coverFocalY
         body.cover_zoom = d.coverZoom
       }
+      if (changed('coverFocalMobileX') || changed('coverFocalMobileY')) {
+        body.cover_focal_mobile_x = d.coverFocalMobileX
+        body.cover_focal_mobile_y = d.coverFocalMobileY
+      }
       if (changed('logoId')) body.logo = d.logoId
       if (changed('goodToKnow')) body.good_to_know = d.goodToKnow
       if (changed('supportedLocales')) body.supported_locales = d.supportedLocales
-      if (changed('showCatalogCounts') || changed('servicesExpandedOnMain') || changed('autoConfirm') || changed('requireAddress') || changed('requireAddressNote')) {
+      if (['showServiceCount', 'showStaffCount', 'servicesExpandedOnMain', 'autoConfirm', 'requireAddress', 'requireAddressNote', 'sectionOrder', 'hiddenSections', 'minLeadHours'].some((k) => changed(k as keyof Draft))) {
         body.booking_rules = {
           ...initial.bookingRules,
-          show_catalog_counts_on_public: d.showCatalogCounts,
+          show_service_count_on_public: d.showServiceCount,
+          show_staff_count_on_public: d.showStaffCount,
           services_expanded_on_main: d.servicesExpandedOnMain,
+          public_section_order: d.sectionOrder,
+          public_sections_hidden: d.hiddenSections,
+          min_lead_hours: d.minLeadHours,
           auto_confirm: d.autoConfirm,
           require_address: d.requireAddress,
           require_address_note: d.requireAddressNote.trim() || null,
@@ -429,6 +453,7 @@ export function BookingPageEditor({
   const rulesSummary: { label: string; value: string; step: EditorView; sel: string | null; off?: boolean }[] = [
     { label: 'Foglalható előre', value: `${draft.bookingWindowDays} nap`, step: 'datetime', sel: 'rules' },
     { label: 'Szünet a foglalások között', value: draft.bufferMinutes ? `${draft.bufferMinutes} perc` : 'Nincs', step: 'datetime', sel: 'rules', off: !draft.bufferMinutes },
+    { label: 'Minimum idő előtte', value: draft.minLeadHours ? `${draft.minLeadHours} óra` : 'Nincs', step: 'datetime', sel: 'rules', off: !draft.minLeadHours },
     { label: 'Automatikus megerősítés', value: draft.autoConfirm ? 'Be' : 'Ki', step: 'success', sel: 'confirm', off: !draft.autoConfirm },
     { label: 'Visszaigazoló e-mail', value: draft.confirmEmail ? 'Be' : 'Ki', step: 'success', sel: 'confirm', off: !draft.confirmEmail },
     { label: 'Emlékeztető', value: remHours.length ? remHours.map((h) => `${h} ó`).join(', ') : 'Ki', step: 'success', sel: 'confirm', off: !remHours.length },
@@ -541,9 +566,31 @@ export function BookingPageEditor({
 
           {!sel && step === 'main' && (
             <div className="space-y-2">
-              {(['cover', 'logo', 'name', 'address', 'desc', 'counts', 'contact', 'sec:services', 'sec:staff', 'langs'] as const).map((id) => (
+              {(['cover', 'logo', 'name', 'address', 'desc', 'counts', 'contact', 'langs'] as const).map((id) => (
                 <Row key={id} label={ELEMENT_TITLES[id]} onClick={() => setSel(id)} />
               ))}
+              <div className="pt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft2">Szakaszok · húzd a sorrendhez</div>
+              <Reorder.Group axis="y" values={draft.sectionOrder} onReorder={(v) => set('sectionOrder', v)} className="space-y-2">
+                {draft.sectionOrder.map((id) => {
+                  const hidden = draft.hiddenSections.includes(id)
+                  return (
+                    <Reorder.Item key={id} value={id} className="flex h-11 cursor-grab items-center gap-2 rounded-[14px] border border-line bg-white pl-2.5 pr-1.5 active:cursor-grabbing">
+                      <GripVertical className="h-4 w-4 shrink-0 text-ink-soft2" />
+                      <button type="button" onClick={() => setSel(`sec:${id}`)} className={cn('min-w-0 flex-1 truncate text-left text-[13.5px] font-medium', hidden ? 'text-ink-soft2' : 'text-ink')}>
+                        {SECTION_LABELS[id]}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={hidden ? 'Megjelenítés' : 'Elrejtés'}
+                        onClick={() => set('hiddenSections', hidden ? draft.hiddenSections.filter((x) => x !== id) : [...draft.hiddenSections, id])}
+                        className={cn('flex h-8 shrink-0 items-center gap-1 rounded-[10px] px-2.5 text-[12px] font-semibold', hidden ? 'bg-black/[0.05] text-ink-soft' : 'bg-ok-bg text-ok')}
+                      >
+                        {hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}{hidden ? 'Rejtve' : 'Látható'}
+                      </button>
+                    </Reorder.Item>
+                  )
+                })}
+              </Reorder.Group>
             </div>
           )}
 
@@ -620,8 +667,22 @@ export function BookingPageEditor({
               />
               {draft.coverUrl && (
                 <>
-                  <Slider label="Fókusz vízszintesen" value={draft.coverFocalX} min={0} max={100} onChange={(v) => set('coverFocalX', v)} />
-                  <Slider label="Fókusz függőlegesen" value={draft.coverFocalY} min={0} max={100} onChange={(v) => set('coverFocalY', v)} />
+                  <p className="text-[12px] leading-relaxed text-ink-soft">
+                    {device === 'mobile'
+                      ? 'Mobil fókusz — telefonon álló a kivágás, ezért külön állítható. Asztali nézetben a desktop fókuszt állítod.'
+                      : 'Asztali fókusz. Telefonra külön fókuszpont adható: válts mobil nézetre.'}
+                  </p>
+                  {device === 'mobile' ? (
+                    <>
+                      <Slider label="Fókusz vízszintesen (mobil)" value={draft.coverFocalMobileX ?? draft.coverFocalX} min={0} max={100} onChange={(v) => set('coverFocalMobileX', v)} />
+                      <Slider label="Fókusz függőlegesen (mobil)" value={draft.coverFocalMobileY ?? draft.coverFocalY} min={0} max={100} onChange={(v) => set('coverFocalMobileY', v)} />
+                    </>
+                  ) : (
+                    <>
+                      <Slider label="Fókusz vízszintesen" value={draft.coverFocalX} min={0} max={100} onChange={(v) => set('coverFocalX', v)} />
+                      <Slider label="Fókusz függőlegesen" value={draft.coverFocalY} min={0} max={100} onChange={(v) => set('coverFocalY', v)} />
+                    </>
+                  )}
                   <Slider label="Nagyítás" value={Math.round(draft.coverZoom * 100)} min={100} max={200} suffix="%" onChange={(v) => set('coverZoom', v / 100)} />
                 </>
               )}
@@ -633,7 +694,11 @@ export function BookingPageEditor({
           )}
 
           {sel === 'counts' && (
-            <ToggleRow label="Szolgáltatások és szakemberek száma" hint="A foglalóoldal tetején, középen (mobilon a logó alatt)." checked={draft.showCatalogCounts} onChange={() => set('showCatalogCounts', !draft.showCatalogCounts)} />
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">A foglalóoldal tetején, középen (mobilon a logó alatt).</p>
+              <ToggleRow label="Szolgáltatások száma" checked={draft.showServiceCount} onChange={() => set('showServiceCount', !draft.showServiceCount)} />
+              <ToggleRow label="Szakemberek száma" checked={draft.showStaffCount} onChange={() => set('showStaffCount', !draft.showStaffCount)} />
+            </>
           )}
 
           {sel === 'langs' && (
@@ -719,7 +784,9 @@ export function BookingPageEditor({
               <Field group label="Szünet a foglalások között" hint="A szabad időpontok a mentés után igazodnak hozzá.">
                 <Chips options={[0, 5, 10, 15, 30].map((v) => ({ label: v ? `${v} perc` : 'Nincs', on: draft.bufferMinutes === v, onClick: () => set('bufferMinutes', v) }))} />
               </Field>
-              <p className="text-[12px] leading-relaxed text-ink-soft">A minimum foglalási idő és a munkaidő munkatársanként állítható.</p>
+              <Field group label="Minimum idő a foglalás előtt" hint="Alapértelmezés — munkatársanként felülírható.">
+                <Chips options={[[null, 'Nincs'], [1, '1 óra'], [2, '2 óra'], [4, '4 óra'], [24, '1 nap']].map(([v, label]) => ({ label: label as string, on: draft.minLeadHours === v, onClick: () => set('minLeadHours', v as number | null) }))} />
+              </Field>
               <LinkButton href="/dashboard/staff">Munkatársankénti beállítások</LinkButton>
             </>
           )}

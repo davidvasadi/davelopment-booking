@@ -195,6 +195,21 @@ export const Salons: CollectionConfig = {
               admin: { hidden: true },
             },
             {
+              // Mobil (álló) képkivágás külön fókuszpontja — üres = a desktop fókuszpont.
+              name: 'cover_focal_mobile_x',
+              type: 'number',
+              min: 0,
+              max: 100,
+              admin: { hidden: true },
+            },
+            {
+              name: 'cover_focal_mobile_y',
+              type: 'number',
+              min: 0,
+              max: 100,
+              admin: { hidden: true },
+            },
+            {
               name: 'address',
               type: 'text',
               label: 'Cím',

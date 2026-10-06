@@ -109,7 +109,8 @@ export default async function ServicesPage() {
         logoUrl={logoUrl}
         uncategorizedSortOrder={salon.services_uncategorized_sort_order ?? null}
         servicesExpandedOnMain={salon.booking_rules?.services_expanded_on_main ?? false}
-        showCatalogCountsOnPublic={salon.booking_rules?.show_catalog_counts_on_public ?? true}
+        showCatalogCountsOnPublic={(salon.booking_rules?.show_service_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public ?? true)
+          || (salon.booking_rules?.show_staff_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public ?? true)}
       />
     </div>
   )

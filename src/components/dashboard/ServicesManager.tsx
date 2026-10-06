@@ -453,7 +453,11 @@ export default function ServicesManager({ salonId, initialServices, staffList, i
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ booking_rules: { [key]: value } }),
+        // A számláló azóta két külön kapcsoló (szolgáltatás / munkatárs, ld. Foglalóoldal-szerkesztő)
+        // — ez a közös kapcsoló mindkettőt együtt állítja.
+        body: JSON.stringify({ booking_rules: key === 'show_catalog_counts_on_public'
+          ? { [key]: value, show_service_count_on_public: value, show_staff_count_on_public: value }
+          : { [key]: value } }),
       })
       if (!res.ok) throw new Error()
     } catch {

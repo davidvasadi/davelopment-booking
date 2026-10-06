@@ -145,6 +145,11 @@ export interface Restaurant {
     require_address_note?: string | null
     services_expanded_on_main?: boolean | null
     show_catalog_counts_on_public?: boolean | null
+    show_service_count_on_public?: boolean | null
+    show_staff_count_on_public?: boolean | null
+    min_lead_hours?: number | null
+    public_section_order?: string[] | null
+    public_sections_hidden?: string[] | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null
@@ -727,6 +732,8 @@ export interface Salon {
   cover_focal_x?: number | null
   cover_focal_y?: number | null
   cover_zoom?: number | null
+  cover_focal_mobile_x?: number | null
+  cover_focal_mobile_y?: number | null
   address?: string | null
   city?: string | null
   postal_code?: string | null
@@ -761,6 +768,11 @@ export interface Salon {
     require_address_note?: string | null
     services_expanded_on_main?: boolean | null
     show_catalog_counts_on_public?: boolean | null
+    show_service_count_on_public?: boolean | null
+    show_staff_count_on_public?: boolean | null
+    min_lead_hours?: number | null
+    public_section_order?: string[] | null
+    public_sections_hidden?: string[] | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null

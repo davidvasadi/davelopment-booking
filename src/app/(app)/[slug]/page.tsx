@@ -150,9 +150,13 @@ export default async function SalonPublicPage({
     coverFocalX: salon.cover_focal_x ?? 50,
     coverFocalY: salon.cover_focal_y ?? 50,
     coverZoom: salon.cover_zoom ?? 1,
+    coverFocalMobileX: salon.cover_focal_mobile_x ?? null,
+    coverFocalMobileY: salon.cover_focal_mobile_y ?? null,
     logoUrl,
-    // `booking_rules.show_catalog_counts_on_public` — alapértelmezett true (nincs érték = mutassuk).
-    showCatalogCounts: salon.booking_rules?.show_catalog_counts_on_public !== false,
+    // A két külön kapcsoló; ha még nincs kitöltve, a régi közös `show_catalog_counts_on_public`
+    // dönt (alapértelmezett true — nincs érték = mutassuk).
+    showServiceCount: salon.booking_rules?.show_service_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public !== false,
+    showStaffCount: salon.booking_rules?.show_staff_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public !== false,
     serviceCount: services.length,
     staffCount: staff.length,
     rating: reviews.count > 0
@@ -185,6 +189,8 @@ export default async function SalonPublicPage({
       consentText: salon.consent_settings?.template_text,
       customQuestions: salon.custom_questions,
       servicesExpandedOnMain: !!salon.booking_rules?.services_expanded_on_main,
+      sectionOrder: salon.booking_rules?.public_section_order ?? null,
+      hiddenSections: salon.booking_rules?.public_sections_hidden ?? null,
       confirmEmailEnabled: salon.notification_prefs?.confirm_email !== false,
       reminderHours: reminderEnabled(salon) ? reminderOffsets(salon.feature_modules) : [],
       company: {
