@@ -161,6 +161,16 @@ export function BookingPageEditor({
   const [langLoading, setLangLoading] = useState(false)
   const [langMenu, setLangMenu] = useState(false)
   const [device, setDevice] = useState<Device>('desktop')
+  // Telefonon (lg alatt) nincs eszközváltó: mindig a mobil előnézet, és a kijelölt elem
+  // panelje alulról felcsúszó lapként jelenik meg (a tartalom közös, a desktopra is hat).
+  const [narrow, setNarrow] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 1023px)')
+    const update = () => { setNarrow(mq.matches); if (mq.matches) setDevice('mobile') }
+    update()
+    mq.addEventListener('change', update)
+    return () => mq.removeEventListener('change', update)
+  }, [])
   const [sel, setSel] = useState<string | null>(null)
   const [step, setStep] = useState<EditorView>('main')
   const [ready, setReady] = useState(false)
@@ -491,7 +501,7 @@ export function BookingPageEditor({
     <div className="space-y-4">
       {/* Fejléc: eszköz + szerkesztett nyelv */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-[13px] font-medium text-ink-soft">Kattints bármire az oldalon — jobbra szerkesztheted.</p>
+        <p className="text-[13px] font-medium text-ink-soft">{narrow ? 'Koppints bármire az oldalon — alulról jön a szerkesztő.' : 'Kattints bármire az oldalon — jobbra szerkesztheted.'}</p>
         <div className="flex items-center gap-2">
           <div className="hidden gap-1 rounded-full border border-line bg-white/60 p-1 lg:flex">
             {([['mobile', Smartphone, 'Mobil nézet'], ['desktop', Monitor, 'Asztali nézet']] as const).map(([d, Icon, label]) => (
@@ -574,7 +584,24 @@ export function BookingPageEditor({
         </div>
 
         {/* Tulajdonság-panel */}
-        <aside className="w-full shrink-0 space-y-4 rounded-[26px] dav-card-glass p-5 xl:w-[340px]">
+        {narrow && sel && <div className="fixed inset-0 z-[60] bg-black/25" onClick={() => setSel(null)} aria-hidden />}
+        <aside
+          className={cn(
+            'w-full shrink-0 space-y-4 p-5 xl:w-[340px]',
+            narrow && sel
+              ? 'fixed inset-x-0 bottom-0 z-[61] max-h-[72dvh] overflow-y-auto rounded-t-[26px] bg-[#F4F3EF] pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-[0_-20px_50px_-20px_rgba(40,35,15,.45)]'
+              : 'rounded-[26px] dav-card-glass',
+          )}
+        >
+          {narrow && sel && (
+            <div className="-mt-2 flex items-center justify-between">
+              <span className="w-9" />
+              <span className="h-1 w-10 rounded-full bg-black/15" />
+              <button type="button" onClick={() => setSel(null)} aria-label="Bezárás" className="flex h-9 w-9 items-center justify-center rounded-full bg-black/[0.05] text-ink-soft">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {sel && (
             <button type="button" onClick={() => setSel(null)} className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-soft hover:text-ink">
               <ChevronLeft className="h-3.5 w-3.5" /> {step === 'main' ? 'Az oldal elemei' : `${stepLabel} lépés`}

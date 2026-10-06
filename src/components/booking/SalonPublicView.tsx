@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type MouseEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode, type MouseEvent, type PointerEvent } from 'react'
 import Image from 'next/image'
 import { MapPin, Tag, Users } from 'lucide-react'
 import { RatingStars } from '@/components/booking/RatingStars'
@@ -99,8 +99,9 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
     setSelected(id)
     postToEditor({ type: 'pick', id })
   }
-  const onMouseOver = (e: MouseEvent) => {
-    if (!editor) return
+  // Csak valódi egérnél — érintésnél a „hover” keret a koppintás után ottragadna.
+  const onPointerOver = (e: PointerEvent) => {
+    if (!editor || e.pointerType !== 'mouse') return
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-edit-id]')
     setHovered(el?.getAttribute('data-edit-id') ?? null)
   }
@@ -128,7 +129,7 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
     <div
       data-edit-id={editor ? 'cover' : undefined}
       onClickCapture={editor ? onClickCapture : undefined}
-      onMouseOver={editor ? onMouseOver : undefined}
+      onPointerOver={editor ? onPointerOver : undefined}
       onMouseLeave={editor ? () => setHovered(null) : undefined}
       className={`font-onest relative overflow-hidden ${embed ? 'min-h-[640px]' : 'min-h-[100dvh]'}`}
       style={embed ? { background: 'transparent' } : hasCover ? { background: '#111' } : {
