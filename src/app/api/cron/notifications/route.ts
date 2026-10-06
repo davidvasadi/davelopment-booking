@@ -23,6 +23,7 @@ import { buildSalonAdvisor, buildRestaurantAdvisor, type SetupFlags } from '@/li
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { purgeAbandonedAccounts } from '@/lib/accountCleanup'
+import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
 import { ALL_CAPABILITIES } from '@/lib/permissions'
 import type { Salon, Service, StaffMember, Booking, Restaurant, Reservation, User, Membership } from '@/payload/payload-types'
 
@@ -36,21 +37,6 @@ function toMinutes(date: string, time: string): number {
   const [h, min] = time.split(':').map(Number)
   return new Date(y, m - 1, d, h, min).getTime()
 }
-
-/** A bekapcsolt emlékeztető-időzítések órában, csökkenő sorrendben (pl. [48, 3]). Mindegyik
- *  kimegy, a saját idejében — korábban több bejelölt időzítésből is csak egy ment ki. */
-function reminderOffsets(fm: Salon['feature_modules'] | Restaurant['feature_modules']): number[] {
-  const set = new Set<number>()
-  if (fm?.reminder_t_48h) set.add(48)
-  if (fm?.reminder_t_24h) set.add(24)
-  if (fm?.reminder_t_3h) set.add(3)
-  if (fm?.reminder_t_1h) set.add(1)
-  const custom = Number(fm?.reminder_custom_hours)
-  if (Number.isFinite(custom) && custom > 0) set.add(Math.min(custom, MAX_REMINDER_HOURS))
-  return Array.from(set).sort((a, b) => b - a)
-}
-
-const MAX_REMINDER_HOURS = 336 // 14 nap — a settingsFields `reminder_custom_hours` max-ja
 
 /**
  * Melyik emlékeztető esedékes most? A legkisebb olyan időzítés, aminek az ablakába már
@@ -77,10 +63,6 @@ function bookedInsideReminderWindow(createdAt: string | null | undefined, start:
 function ymdOffset(days: number): string {
   const d = new Date(Date.now() + days * 86_400_000)
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function reminderEnabled(biz: Salon | Restaurant): boolean {
-  return !!(biz.feature_modules?.reminders_on && biz.feature_modules?.reminder_ch_email)
 }
 
 function feedbackEnabled(biz: Salon | Restaurant): boolean {
