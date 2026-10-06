@@ -16,6 +16,17 @@ export function LiveRefreshProvider({ businessKey }: Props) {
   useEffect(() => {
     const es = new EventSource(`/api/events`)
     let debounceTimer: ReturnType<typeof setTimeout> | null = null
+    // Megszakadt kapcsolat (pl. alvó laptop, hálózatváltás): a böngésző magától újracsatlakozik —
+    // ekkor egyszer felzárkózunk, mert a kiesés alatt érkezett események elvesztek. Ha a szerver
+    // elutasította (pl. lejárt bejelentkezés), a böngésző lezárja és nem próbálkozik tovább.
+    let dropped = false
+    es.onerror = () => { dropped = true }
+    es.onopen = () => {
+      if (!dropped) return
+      dropped = false
+      window.dispatchEvent(new Event('notification-changed'))
+      router.refresh()
+    }
 
     es.onmessage = (e: MessageEvent<string>) => {
       try {
@@ -35,8 +46,8 @@ export function LiveRefreshProvider({ businessKey }: Props) {
             window.dispatchEvent(new Event('booking-changed'))
           }, 400)
         } else if (data.type === 'notification') {
-          // Új harang-értesítés (pl. kapcsolatfelvétel, új regisztráció) — a useNotifications
-          // hook erre azonnal újratölti a listát, nem kell a 60mp-es pollingra várni.
+          // Új harang-értesítés (pl. új foglalás, kapcsolatfelvétel) — a közös értesítés-tár
+          // (useNotifications) erre azonnal újratölt; időzített lekérdezés nincs.
           window.dispatchEvent(new Event('notification-changed'))
         }
       } catch {}

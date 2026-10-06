@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Sunset, CalendarRange, MailWarning, Mail, Megaphone, type LucideIcon } from 'lucide-react'
 
@@ -88,58 +88,102 @@ export function notifDate(dateStr: string): string {
   return `${yearPrefix}${month} ${day}. · ${hh}:${mm}`
 }
 
-export function useNotifications(onNavigate?: () => void) {
-  const router = useRouter()
-  const [items, setItems] = useState<Notification[]>([])
-  const [unread, setUnread] = useState(0)
+/**
+ * KÖZÖS értesítés-tár: a harang, az Értesítések oldal és a felugró ablakok (digest, broadcast)
+ * ugyanazt a listát használják — korábban mindegyik külön, percenként pollozott (4 kérés/perc,
+ * kijelentkezett/lejárt munkamenetnél végtelen 401-sorozat). Most NINCS időzített lekérdezés:
+ *  - az élő SSE-csatorna (LiveRefreshProvider → 'notification-changed') azonnal jelez, ha jön valami;
+ *  - a fülre visszatéréskor (pl. alvó laptop, megszakadt SSE) egy felzárkózó lekérés, max. 30 mp-enként;
+ *  - 401-nél (nincs/lejárt bejelentkezés) a tár leáll, többet nem kérdez.
+ */
+type StoreState = { items: Notification[]; unread: number; newDigest: Notification | null }
+const store = {
+  state: { items: [], unread: 0, newDigest: null } as StoreState,
+  listeners: new Set<() => void>(),
+  seenIds: null as Set<Notification['id']> | null,
+  newestSeen: null as string | null,
+  inFlight: null as Promise<void> | null,
+  stopped: false,
+  lastLoad: 0,
+  detach: null as null | (() => void),
+}
 
-  // Az „ÉPP MOST érkezett digest" felugró popuphoz: a legutóbbi pollingból ismert id-k
-  // (null = még nem volt betöltés) — csak az ELSŐ betöltés UTÁN érkező, tehát ÚJ digest
-  // triggerel automatikus popupot, a bejelentkezéskor már meglévő, régi digest nem.
-  const seenIdsRef = useRef<Set<Notification['id']> | null>(null)
-  const newestSeenRef = useRef<string | null>(null)
-  const [newDigest, setNewDigest] = useState<Notification | null>(null)
+function setState(patch: Partial<StoreState>) {
+  store.state = { ...store.state, ...patch }
+  store.listeners.forEach((l) => l())
+}
 
-  const load = useCallback(async () => {
+async function loadNotifications(): Promise<void> {
+  if (store.stopped) return
+  if (store.inFlight) return store.inFlight
+  store.inFlight = (async () => {
     try {
       const res = await fetch('/api/notifications', { credentials: 'include' })
+      store.lastLoad = Date.now()
+      if (res.status === 401) { store.stopped = true; return }
       if (!res.ok) return
       const data = await res.json()
       const next: Notification[] = data.notifications ?? []
-      if (seenIdsRef.current) {
+      let newDigest = store.state.newDigest
+      if (store.seenIds) {
         // Csak a legfrissebb ismertnél ÚJABB digest számít érkezettnek — törlés után a lista
         // alján felbukkanó régi (eddig a 20-as limiten kívüli) digest ne nyisson popupot.
-        const newestSeen = newestSeenRef.current
+        const newestSeen = store.newestSeen
         const arrived = next.find(
-          (n) => (n.type === 'digest_morning' || n.type === 'digest_evening') && !seenIdsRef.current!.has(n.id)
+          (n) => (n.type === 'digest_morning' || n.type === 'digest_evening') && !store.seenIds!.has(n.id)
             && (!newestSeen || n.createdAt > newestSeen),
         )
-        if (arrived) setNewDigest(arrived)
+        if (arrived) newDigest = arrived
       }
-      seenIdsRef.current = new Set([...(seenIdsRef.current ?? []), ...next.map((n) => n.id)])
-      for (const n of next) if (!newestSeenRef.current || n.createdAt > newestSeenRef.current) newestSeenRef.current = n.createdAt
-      setItems(next)
-      setUnread(data.unread ?? 0)
+      store.seenIds = new Set([...(store.seenIds ?? []), ...next.map((n) => n.id)])
+      for (const n of next) if (!store.newestSeen || n.createdAt > store.newestSeen) store.newestSeen = n.createdAt
+      setState({ items: next, unread: data.unread ?? 0, newDigest })
     } catch {
       /* csendben — best-effort */
+    } finally {
+      store.inFlight = null
     }
-  }, [])
+  })()
+  return store.inFlight
+}
 
-  const clearNewDigest = useCallback(() => setNewDigest(null), [])
+function attachTriggers() {
+  const onChanged = () => { void loadNotifications() }
+  const onVisible = () => {
+    if (document.visibilityState === 'visible' && Date.now() - store.lastLoad > 30_000) void loadNotifications()
+  }
+  window.addEventListener('notification-changed', onChanged)
+  document.addEventListener('visibilitychange', onVisible)
+  return () => {
+    window.removeEventListener('notification-changed', onChanged)
+    document.removeEventListener('visibilitychange', onVisible)
+  }
+}
 
-  useEffect(() => {
-    load()
-    // A 60mp-es polling csak biztonsági háló — az SSE (LiveRefreshProvider →
-    // 'notification-changed') azonnal frissít, amint tényleg érkezik valami.
-    const t = setInterval(load, 60_000)
-    window.addEventListener('booking-changed', load)
-    window.addEventListener('notification-changed', load)
-    return () => {
-      clearInterval(t)
-      window.removeEventListener('booking-changed', load)
-      window.removeEventListener('notification-changed', load)
-    }
-  }, [load])
+function subscribe(listener: () => void) {
+  store.listeners.add(listener)
+  if (store.listeners.size === 1) {
+    // Első feliratkozó (pl. a dashboard betöltése, újra-bejelentkezés után is): friss indulás —
+    // egy korábbi 401 miatti leállás nem ragadhat be a következő munkamenetre.
+    store.stopped = false
+    store.detach = attachTriggers()
+    void loadNotifications()
+  }
+  return () => {
+    store.listeners.delete(listener)
+    if (store.listeners.size === 0) { store.detach?.(); store.detach = null }
+  }
+}
+
+const getSnapshot = () => store.state
+
+export function useNotifications(onNavigate?: () => void) {
+  const router = useRouter()
+  const { items, unread, newDigest } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  const load = loadNotifications
+  const setItems = (fn: (prev: Notification[]) => Notification[]) => setState({ items: fn(store.state.items) })
+  const setUnread = (fn: (u: number) => number) => setState({ unread: fn(store.state.unread) })
+  const clearNewDigest = useCallback(() => setState({ newDigest: null }), [])
 
   // A szerver egyszerre csak a legutóbbi 20-at adja: törlés után újratöltünk, hogy a régebbiek
   // a helyükre csússzanak (különben pár törlés után üres lett a lista, holott volt még értesítés).
@@ -167,8 +211,7 @@ export function useNotifications(onNavigate?: () => void) {
 
   // Az összes törlése szerver-oldalon (`?all=1`) — nem csak a betöltött 20-at.
   const clearAll = useCallback(async () => {
-    setItems([])
-    setUnread(0)
+    setState({ items: [], unread: 0 })
     await fetch('/api/notifications?all=1', {
       method: 'DELETE',
       credentials: 'include',
