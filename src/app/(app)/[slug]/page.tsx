@@ -1,3 +1,4 @@
+import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
 import type { Metadata } from 'next'
 import Image from 'next/image'
 import Script from 'next/script'
@@ -347,6 +348,8 @@ export default async function SalonPublicPage({
         customQuestions={salon.custom_questions}
         embed={embed}
         servicesExpandedOnMain={!!salon.booking_rules?.services_expanded_on_main}
+        confirmEmailEnabled={salon.notification_prefs?.confirm_email !== false}
+        reminderHours={reminderEnabled(salon) ? reminderOffsets(salon.feature_modules) : []}
         company={{
           name: salon.name,
           legal_name: salon.legal_name,

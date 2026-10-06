@@ -83,6 +83,25 @@ interface Props {
   /** `booking_rules.services_expanded_on_main` — bekapcsolva a szolgáltatás-katalógus rögtön
    *  kibontva jelenik meg a főnézeten, a "Válassz szolgáltatást" gomb helyett. */
   servicesExpandedOnMain?: boolean
+  /** `notification_prefs.confirm_email` — megy-e visszaigazoló e-mail a vendégnek. */
+  confirmEmailEnabled?: boolean
+  /** Az e-mailes emlékeztetők időzítése órában (üres = nincs emlékeztető). */
+  reminderHours?: number[]
+}
+
+/** „24 órával és 2 nappal” — az emlékeztető-időzítés szövege a visszaigazoló képernyőn. */
+const REMINDER_WORDS: Record<string, { h: string; d: string; and: string }> = {
+  hu: { h: 'órával', d: 'nappal', and: 'és' },
+  en: { h: 'hours', d: 'days', and: 'and' },
+  de: { h: 'Stunden', d: 'Tage', and: 'und' },
+  es: { h: 'horas', d: 'días', and: 'y' },
+  fr: { h: 'heures', d: 'jours', and: 'et' },
+  it: { h: 'ore', d: 'giorni', and: 'e' },
+}
+function reminderWhen(locale: string, hours: number[]): string {
+  const w = REMINDER_WORDS[locale] ?? REMINDER_WORDS.en
+  const parts = hours.map((h) => (h >= 48 && h % 24 === 0 ? `${h / 24} ${w.d}` : `${h} ${w.h}`))
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} ${w.and} ${parts[parts.length - 1]}` : (parts[0] ?? '')
 }
 
 function getCategoryId(cat: Service['category']): string | null {
@@ -101,6 +120,7 @@ export function ProfileCard({
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
   consentEnabled = false, consentTitle = null, consentText = null,
   customQuestions = null, embed = false, servicesExpandedOnMain = false,
+  confirmEmailEnabled = true, reminderHours = [],
 }: Props) {
   const tt = makeT(locale)
 
@@ -154,7 +174,14 @@ export function ProfileCard({
   const [customErrors, setCustomErrors] = useState<Record<string, string>>({})
   const [paymentIntentId, setPaymentIntentId] = useState<string | null>(null)
   const [depositAmountHuf, setDepositAmountHuf] = useState<number | null>(null)
-  const [successDetails, setSuccessDetails] = useState<{ service: string; staff: string; date: string; time: string } | null>(null)
+  const [successDetails, setSuccessDetails] = useState<{
+    service: string; staff: string; date: string; time: string
+    /** `confirmed` = automatikus megerősítés; `pending` = a tulaj még jóváhagyja. */
+    confirmed: boolean
+    /** A .ics letöltéshez (a lemondó link tokenje); null, ha a szerver nem adta vissza. */
+    icsToken: string | null
+    hasEmail: boolean
+  } | null>(null)
   const [slots, setSlots] = useState<Slot[]>([])
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [slotsError, setSlotsError] = useState(false)
@@ -468,10 +495,9 @@ export function ProfileCard({
             : {}),
         }),
       })
-      if (!res.ok) {
-        const err = await res.json()
-        throw new Error(err.error ?? tt('booking.err.generic'))
-      }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error ?? tt('booking.err.generic'))
+      const created = (data.booking ?? {}) as { status?: string; cancellation_token?: string | null }
       saveGuest(salonId, { name: customerName.trim(), email: customerEmail.trim(), phone: customerPhone.trim(), country: customerCountry, city: customerCity.trim() })
       setRememberedGuest(true)
       setSuccessDetails({
@@ -479,6 +505,9 @@ export function ProfileCard({
         staff: bookingStaffId ? (bookingStaff?.name ?? '') : tt('booking.staff.any'),
         date: format(bookingDateParsed, 'MMM d.', { locale: dfLocale(locale) }),
         time: bookingSlot.start,
+        confirmed: created.status !== 'pending',
+        icsToken: created.cancellation_token ?? null,
+        hasEmail: !!customerEmail.trim(),
       })
       trackBookingConversion()
       setDir(1)
@@ -1531,38 +1560,23 @@ export function ProfileCard({
               {view === 'summary' && bookingService && bookingSlot && (
                 <div>
                   <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.summary.title')}</h2>
-                  <div className="mb-3 space-y-2.5 rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+                  <div className="mb-4 rounded-2xl px-4 py-1" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
                     {[
                       { label: tt('booking.step.service'), value: bookingService.name },
                       { label: tt('booking.step.staff'), value: bookingStaffId ? (bookingStaff?.name ?? '–') : tt('booking.staff.any') },
-                      { label: tt('booking.step.datetime'), value: `${format(bookingDateParsed, 'MMM d.', { locale: dfLocale(locale) })} · ${bookingSlot.start}` },
-                      { label: tt('booking.price'), value: priceLabel(bookingService.price, bookingService.currency) },
-                      ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: formatPrice(depositAmountHuf, 'HUF') }] : []),
-                      ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: formatPrice(redeemValid.amount_huf, 'HUF') }] : []),
-                    ].map(({ label, value }, i, arr) => (
-                      <div key={label}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-white/45">{label}</span>
-                          <span className="text-sm font-semibold text-white">{value}</span>
-                        </div>
-                        {i < arr.length - 1 && <div className="mt-2.5 h-px bg-white/[0.08]" />}
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mb-4 space-y-2.5 rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
-                    {[
+                      { label: tt('booking.step.datetime'), value: `${format(bookingDateParsed, 'MMM d., EEEE', { locale: dfLocale(locale) })} · ${bookingSlot.start}` },
                       { label: tt('booking.field.name'), value: customerName || null },
                       { label: tt('booking.field.email'), value: customerEmail || null },
                       { label: tt('booking.field.phone'), value: customerPhone ? `${DIAL_BY_CODE[customerCountry] ?? ''} ${customerPhone}`.trim() : null },
                       { label: tt('booking.field.city'), value: customerCity || null },
                       { label: tt('booking.field.note'), value: customerNotes || null },
-                    ].filter(r => r.value).map(({ label, value }, i, arr) => (
-                      <div key={label}>
-                        <div className="flex items-start justify-between gap-3">
-                          <span className="text-xs text-white/45 shrink-0 pt-0.5">{label}</span>
-                          <span className="text-sm font-semibold text-white text-right break-all">{value}</span>
-                        </div>
-                        {i < arr.length - 1 && <div className="mt-2.5 h-px bg-white/[0.08]" />}
+                      { label: tt('booking.price'), value: priceLabel(bookingService.price, bookingService.currency) },
+                      ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: formatPrice(depositAmountHuf, 'HUF') }] : []),
+                      ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: formatPrice(redeemValid.amount_huf, 'HUF') }] : []),
+                    ].filter((r): r is { label: string; value: string } => !!r.value).map(({ label, value }, i, arr) => (
+                      <div key={label} className={cn('flex items-start justify-between gap-3 py-2.5', i < arr.length - 1 && 'border-b border-white/[0.08]')}>
+                        <span className="shrink-0 pt-0.5 text-xs text-white/45">{label}</span>
+                        <span className="min-w-0 text-right text-sm font-semibold text-white [overflow-wrap:anywhere]">{value}</span>
                       </div>
                     ))}
                   </div>
@@ -1591,39 +1605,63 @@ export function ProfileCard({
                 </div>
               )}
 
-              {/* SUCCESS */}
+              {/* SUCCESS — ikon + cím az automatikus megerősítés szerint, e-mail / emlékeztető
+                  tájékoztatás, két egyforma gomb (naptár + kész). Minden szöveg törik, 320 px-en sem lóg ki. */}
               {view === 'success' && (
                 <div className="flex min-h-[50vh] flex-col items-center justify-center px-1 py-8 text-center">
                   <motion.div
                     initial={{ scale: 0.7, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                    className="mb-6 flex h-20 w-20 items-center justify-center rounded-full"
-                    style={{ background: 'rgba(52,211,153,0.15)' }}
+                    className="mb-5 flex h-16 w-16 items-center justify-center rounded-full"
+                    style={{ background: successDetails?.confirmed === false ? 'rgba(255,255,255,0.85)' : '#FFD85F' }}
                   >
-                    <CheckCircle className="h-10 w-10 text-emerald-400" />
+                    {successDetails?.confirmed === false
+                      ? <Clock className="h-7 w-7 text-ink-dark" strokeWidth={2} />
+                      : <Check className="h-8 w-8 text-ink-dark" strokeWidth={2.5} />}
                   </motion.div>
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: 0.15 }}
+                    className="w-full min-w-0"
                   >
-                    <h2 className="mb-2 text-2xl font-light tracking-[-0.01em] text-white">{tt('public.success.title')}</h2>
-                    <p className="mb-8 text-sm text-white/55">{tt('public.success.subtitle')}</p>
+                    <h2 className="mb-2 text-2xl font-light tracking-[-0.01em] text-white [overflow-wrap:anywhere]">
+                      {successDetails?.confirmed === false ? tt('public.success.titlePending') : tt('public.success.title')}
+                    </h2>
+                    <p className="mb-5 text-sm leading-relaxed text-white/60">
+                      {successDetails?.confirmed === false ? tt('public.success.pendingBody') : tt('public.success.welcome')}
+                      {successDetails?.hasEmail && confirmEmailEnabled && (
+                        <> {successDetails.confirmed ? tt('public.success.subtitle') : tt('public.success.emailLater')}</>
+                      )}
+                    </p>
                     {successDetails && (
-                      <div className="mb-8 rounded-[16px] px-5 py-4 text-left" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                        <p className="mb-1 text-xs text-white/45">{tt('booking.summary.title')}</p>
-                        <p className="font-semibold text-gold">{successDetails.service}</p>
-                        <p className="mt-1 text-sm text-white/60">{successDetails.staff} · {successDetails.date} · {successDetails.time}</p>
+                      <div className="mb-3 rounded-[14px] px-4 py-3 text-[13px] leading-snug text-white/75 [overflow-wrap:anywhere]" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                        <span className="font-semibold text-white">{successDetails.service}</span> · {successDetails.staff} · {successDetails.date} {successDetails.time}
                       </div>
                     )}
-                    <button
-                      onClick={handleCloseSuccess}
-                      className="flex h-12 w-full items-center justify-center rounded-full text-[14px] font-semibold text-ink-dark"
-                      style={{ background: '#FFD85F' }}
-                    >
-                      {tt('public.success.back')}
-                    </button>
+                    {successDetails?.hasEmail && reminderHours.length > 0 && (
+                      <p className="mb-2 text-[12px] leading-relaxed text-white/50">
+                        {tt('public.success.reminder', { when: reminderWhen(locale, reminderHours) })}
+                      </p>
+                    )}
+                    <div className="mt-5 flex w-full gap-2">
+                      {successDetails?.icsToken && (
+                        <a
+                          href={`/api/ics/booking/${encodeURIComponent(successDetails.icsToken)}`}
+                          className="flex h-12 min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-full px-3 text-[14px] font-semibold text-white transition-colors hover:bg-white/[0.16]"
+                          style={{ background: 'rgba(255,255,255,0.10)' }}
+                        >
+                          {tt('email.addToCalendar')}
+                        </a>
+                      )}
+                      <button
+                        onClick={handleCloseSuccess}
+                        className="flex h-12 min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-full bg-white px-3 text-[14px] font-semibold text-ink-dark"
+                      >
+                        {tt('public.success.done')}
+                      </button>
+                    </div>
                   </motion.div>
                 </div>
               )}
