@@ -64,6 +64,8 @@ export type BookingPageEditorInitial = {
   /** A főnézet szakaszainak sorrendje és rejtett szakaszai (services | voucher | staff | reviews). */
   sectionOrder: string[]
   hiddenSections: string[]
+  /** Az Adatok lépés mező-blokkjainak sorrendje (name | email | phone | address | questions | notes). */
+  fieldOrder: string[]
   /** Üzlet-szintű minimum foglalási idő (óra); null = nincs korlát. */
   minLeadHours: number | null
   /** A teljes `booking_rules` csoport — a Payload PATCH az egész csoportot cseréli, ezért
@@ -266,6 +268,7 @@ export function BookingPageEditor({
         servicesExpandedOnMain: draft.servicesExpandedOnMain,
         sectionOrder: draft.sectionOrder,
         hiddenSections: draft.hiddenSections,
+        fieldOrder: draft.fieldOrder,
         bookingWindowDays: draft.bookingWindowDays,
         requirePhone: draft.requirePhone,
         addressRequired: draft.requireAddress,
@@ -336,7 +339,7 @@ export function BookingPageEditor({
       if (changed('logoId')) body.logo = d.logoId
       if (changed('goodToKnow')) body.good_to_know = d.goodToKnow
       if (changed('supportedLocales')) body.supported_locales = d.supportedLocales
-      if (['showServiceCount', 'showStaffCount', 'servicesExpandedOnMain', 'autoConfirm', 'requireAddress', 'requireAddressNote', 'sectionOrder', 'hiddenSections', 'minLeadHours'].some((k) => changed(k as keyof Draft))) {
+      if (['showServiceCount', 'showStaffCount', 'servicesExpandedOnMain', 'autoConfirm', 'requireAddress', 'requireAddressNote', 'sectionOrder', 'hiddenSections', 'minLeadHours', 'fieldOrder'].some((k) => changed(k as keyof Draft))) {
         body.booking_rules = {
           ...initial.bookingRules,
           show_service_count_on_public: d.showServiceCount,
@@ -344,6 +347,7 @@ export function BookingPageEditor({
           services_expanded_on_main: d.servicesExpandedOnMain,
           public_section_order: d.sectionOrder,
           public_sections_hidden: d.hiddenSections,
+          form_field_order: d.fieldOrder,
           min_lead_hours: d.minLeadHours,
           auto_confirm: d.autoConfirm,
           require_address: d.requireAddress,
@@ -645,8 +649,31 @@ export function BookingPageEditor({
           {!sel && step !== 'main' && (
             <div className="space-y-2">
               <p className="text-[12.5px] leading-relaxed text-ink-soft">Így halad végig a vendég a foglaláson. Kattints egy elemre az előnézetben a szerkesztéséhez.</p>
+              {step === 'details' && (
+                <>
+                  <div className="pt-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft2">Űrlap mezői · húzd a sorrendhez</div>
+                  <Reorder.Group axis="y" values={draft.fieldOrder} onReorder={(v) => set('fieldOrder', v)} className="space-y-2">
+                    {draft.fieldOrder.map((id) => {
+                      const selId = id === 'questions' ? 'questions' : `field:${id}`
+                      const badge = id === 'name' || id === 'email' ? 'Kötelező'
+                        : id === 'phone' ? (draft.requirePhone ? 'Kötelező' : 'Opcionális')
+                        : id === 'address' ? (draft.requireAddress || initial.flags.deposit ? 'Kötelező' : 'Opcionális')
+                        : id === 'questions' ? `${draft.customQuestions.length} db` : 'Opcionális'
+                      return (
+                        <Reorder.Item key={id} value={id} className="flex h-11 cursor-grab items-center gap-2 rounded-[14px] border border-line bg-white pl-2.5 pr-1.5 active:cursor-grabbing">
+                          <GripVertical className="h-4 w-4 shrink-0 text-ink-soft2" />
+                          <button type="button" onClick={() => setSel(selId)} className="min-w-0 flex-1 truncate text-left text-[13.5px] font-medium text-ink">
+                            {ELEMENT_TITLES[selId]}
+                          </button>
+                          <span className={cn('shrink-0 rounded-[10px] px-2.5 py-1 text-[11.5px] font-semibold', badge === 'Kötelező' ? 'bg-ink-dark text-gold' : 'bg-black/[0.05] text-ink-soft')}>{badge}</span>
+                        </Reorder.Item>
+                      )
+                    })}
+                  </Reorder.Group>
+                </>
+              )}
               {(step === 'details'
-                ? (['field:name', 'field:email', 'field:phone', 'field:address', 'field:notes', 'questions'] as const)
+                ? ([] as const)
                 : step === 'datetime' ? (['rules'] as const)
                 : step === 'consent' ? (['consent'] as const)
                 : step === 'summary' ? (['summary', 'gtk', 'terms', ...(initial.flags.newsletter ? ['newsletter' as const] : [])] as const)

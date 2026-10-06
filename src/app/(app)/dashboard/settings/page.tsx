@@ -221,6 +221,11 @@ export default async function SettingsPage() {
             return [...saved, ...all.filter((x) => !saved.includes(x))]
           })(),
           hiddenSections: salon.booking_rules?.public_sections_hidden ?? [],
+          fieldOrder: (() => {
+            const all = ['name', 'email', 'phone', 'address', 'questions', 'notes']
+            const saved = (salon.booking_rules?.form_field_order ?? []).filter((x) => all.includes(x))
+            return [...saved, ...all.filter((x) => !saved.includes(x))]
+          })(),
           minLeadHours: salon.booking_rules?.min_lead_hours ?? null,
           servicesExpandedOnMain: !!salon.booking_rules?.services_expanded_on_main,
           bookingRules: (salon.booking_rules ?? {}) as Record<string, unknown>,

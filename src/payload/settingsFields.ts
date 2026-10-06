@@ -115,6 +115,8 @@ export const settingsExtensionFields: Field[] = [
       // Üres = alapsorrend, minden látható. Azonosítók: services | voucher | staff | reviews.
       { name: 'public_section_order', type: 'json', label: 'Foglalóoldal szakasz-sorrend' },
       { name: 'public_sections_hidden', type: 'json', label: 'Foglalóoldal rejtett szakaszai' },
+      // Az Adatok lépés mező-blokkjainak sorrendje (name | email | phone | address | questions | notes).
+      { name: 'form_field_order', type: 'json', label: 'Foglalási űrlap mezőinek sorrendje' },
     ],
   },
   {

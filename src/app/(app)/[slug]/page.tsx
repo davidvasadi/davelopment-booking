@@ -191,6 +191,7 @@ export default async function SalonPublicPage({
       servicesExpandedOnMain: !!salon.booking_rules?.services_expanded_on_main,
       sectionOrder: salon.booking_rules?.public_section_order ?? null,
       hiddenSections: salon.booking_rules?.public_sections_hidden ?? null,
+      fieldOrder: salon.booking_rules?.form_field_order ?? null,
       confirmEmailEnabled: salon.notification_prefs?.confirm_email !== false,
       reminderHours: reminderEnabled(salon) ? reminderOffsets(salon.feature_modules) : [],
       company: {

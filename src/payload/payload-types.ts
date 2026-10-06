@@ -150,6 +150,7 @@ export interface Restaurant {
     min_lead_hours?: number | null
     public_section_order?: string[] | null
     public_sections_hidden?: string[] | null
+    form_field_order?: string[] | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null
@@ -773,6 +774,7 @@ export interface Salon {
     min_lead_hours?: number | null
     public_section_order?: string[] | null
     public_sections_hidden?: string[] | null
+    form_field_order?: string[] | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null
