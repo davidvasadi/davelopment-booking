@@ -5,7 +5,9 @@ import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
 import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, SITE_URL } from '@/lib/publicSeo'
 import { getReviewSummary } from '@/lib/reviews'
-import { storedGoogleReviews } from '@/lib/googleReviews'
+import { storedGoogleReviews, refreshGoogleReviewsIfStale } from '@/lib/googleReviews'
+import { getPayloadClient } from '@/lib/payload'
+import { after } from 'next/server'
 import { getPricing } from '@/lib/pricing'
 import { INDUSTRY_LANDINGS } from '@/lib/industryLandings'
 import { nextImageSrc } from '@/lib/utils'
@@ -112,6 +114,8 @@ export default async function SalonPublicPage({
   }))
 
   const reviews = await getReviewSummary('salon', salon.id)
+  // Google-értékelések: kérésre frissül (24 óránál régebbi tárolt adatnál), a válasz elküldése után.
+  after(async () => refreshGoogleReviewsIfStale(await getPayloadClient(), 'salon', salon))
 
   // `typeof === 'string'` védelem: a `description` mostanáig richText-objektum volt, egy
   // korlátlanul cache-elt (`getPublicSalon`), séma-váltás előtti bejegyzés még a régi alakot

@@ -5,8 +5,9 @@ import type { Payload } from 'payload'
  * (`GOOGLE_PLACES_API_KEY` env). Az üzletnek nem kell Google-fiókot összekötnie: az értékelések
  * nyilvánosak, csak a saját Google-profilját (Place ID) választja ki a beállításokban.
  *
- * Költség-kontroll: a publikus oldal SOSEM hívja a Google-t — üzletenként naponta egyszer
- * frissítjük (`refreshAllGoogleReviews`, a napi cron), és a tárolt másolatot mutatjuk. A Google
+ * Költség-kontroll: KÉRÉSRE frissül, cron nélkül — amikor valaki megnyitja az üzlet oldalát, és a
+ * tárolt másolat 24 óránál régebbi, a háttérben (a válasz után) frissítjük (`refreshGoogleReviewsIfStale`).
+ * A látogató sosem vár a Google-re, és egy nem látogatott üzlet egyáltalán nem kerül pénzbe. A Google
  * helyenként legfeljebb 5 értékelést ad vissza (a legrelevánsabbakat) + az átlagot és a darabszámot.
  * Kulcs nélkül minden függvény csendben semmit sem csinál — a funkció rejtve marad.
  */
@@ -93,7 +94,7 @@ export async function fetchPlaceDetails(placeId: string, languageCode = 'hu') {
   }
 }
 
-/** Egy üzlet gyorsítótárának frissítése (a kiválasztáskor azonnal, utána naponta). */
+/** Egy üzlet gyorsítótárának frissítése (a kiválasztáskor azonnal, utána kérésre, legfeljebb naponta). */
 export async function refreshBusinessGoogleReviews(payload: Payload, kind: 'salon' | 'restaurant', id: string | number): Promise<boolean> {
   if (!googlePlacesEnabled()) return false
   const collection = kind === 'salon' ? 'salons' : 'restaurants'
@@ -117,32 +118,36 @@ export async function refreshBusinessGoogleReviews(payload: Payload, kind: 'salo
   return true
 }
 
-/** Napi frissítés minden olyan üzletre, amelyiknek van kiválasztott Google-profilja. */
-export async function refreshAllGoogleReviews(payload: Payload): Promise<{ refreshed: number; errors: number }> {
-  const summary = { refreshed: 0, errors: 0 }
-  if (!googlePlacesEnabled()) return summary
-  for (const kind of ['salon', 'restaurant'] as const) {
-    const res = await payload.find({
-      collection: kind === 'salon' ? 'salons' : 'restaurants',
-      where: { google_place_id: { exists: true } },
-      depth: 0,
-      limit: 1000,
-      overrideAccess: true,
-    })
-    for (const doc of res.docs as { id: string | number; google_place_id?: string | null }[]) {
-      if (!doc.google_place_id) continue
-      try {
-        if (await refreshBusinessGoogleReviews(payload, kind, doc.id)) summary.refreshed++
-      } catch (err) {
-        summary.errors++
-        payload.logger.error(`[googleReviews] ${kind} ${String(doc.id)}: ${String(err)}`)
-      }
-    }
-  }
-  return summary
-}
-
 /** A tárolt értékelések biztonságos kiolvasása (a json mező bármi lehet). */
 export function storedGoogleReviews(v: unknown): GoogleReview[] {
   return Array.isArray(v) ? (v as GoogleReview[]).filter((r) => r && typeof r.rating === 'number') : []
+}
+
+const STALE_MS = 24 * 3600_000
+const inFlight = new Set<string>()
+
+/**
+ * A publikus oldal hívja (a válasz elküldése UTÁN, `after()`-ből): ha van kiválasztott Google-
+ * profil és a tárolt adat 24 óránál régebbi, frissít. Folyamaton belül egy üzletre egyszerre csak
+ * egy frissítés fut. A frissítés után a Salons/Restaurants afterChange hookja érvényteleníti a
+ * publikus oldal cache-ét, így a következő betöltés már az új adatot mutatja.
+ */
+export async function refreshGoogleReviewsIfStale(
+  payload: Payload,
+  kind: 'salon' | 'restaurant',
+  biz: { id: string | number; google_place_id?: string | null; google_reviews_updated_at?: string | null },
+): Promise<void> {
+  if (!googlePlacesEnabled() || !biz.google_place_id) return
+  const last = biz.google_reviews_updated_at ? Date.parse(biz.google_reviews_updated_at) : 0
+  if (Number.isFinite(last) && Date.now() - last < STALE_MS) return
+  const key = `${kind}:${String(biz.id)}`
+  if (inFlight.has(key)) return
+  inFlight.add(key)
+  try {
+    await refreshBusinessGoogleReviews(payload, kind, biz.id)
+  } catch (err) {
+    payload.logger.error(`[googleReviews] ${key}: ${String(err)}`)
+  } finally {
+    inFlight.delete(key)
+  }
 }

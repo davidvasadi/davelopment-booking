@@ -14,7 +14,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
-import { refreshAllGoogleReviews } from '@/lib/googleReviews'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,14 +52,5 @@ async function handle(request: NextRequest) {
     }
   }
 
-  // Google-értékelések napi frissítése (üzletenként 1 hívás/nap) — ide kötve, mert ez a cron
-  // naponta egyszer fut, így nem kell külön VPS-időzítés. Kulcs nélkül no-op.
-  let googleReviews = { refreshed: 0, errors: 0 }
-  try {
-    googleReviews = await refreshAllGoogleReviews(payload)
-  } catch (err) {
-    payload.logger.error(`[cron/schedule-autofill] google-reviews hiba: ${String(err)}`)
-  }
-
-  return NextResponse.json({ ok: true, ...summary, googleReviews })
+  return NextResponse.json({ ok: true, ...summary })
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { GoogleReviewsBlock, type GoogleReviewsData } from '@/components/booking/GoogleReviewsBlock'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence, useDragControls } from 'framer-motion'
@@ -54,6 +55,7 @@ export function RestaurantCard({
   depositEnabled,
   invoicingEnabled,
   voucherCompanyEnabled = true,
+  google = null,
   addressRequired,
   addressRequiredNote,
   voucherEnabled,
@@ -87,6 +89,8 @@ export function RestaurantCard({
   depositEnabled?: boolean
   invoicingEnabled?: boolean
   voucherCompanyEnabled?: boolean
+  /** Google-értékelések (tárolt, kérésre frissülő másolat) — üres → nem jelenik meg. */
+  google?: GoogleReviewsData | null
   addressRequired?: boolean
   addressRequiredNote?: string | null
   voucherEnabled?: boolean
@@ -291,6 +295,10 @@ export function RestaurantCard({
           {restaurantDescription.slice(0, 220)}
           {restaurantDescription.length > 220 ? '…' : ''}
         </p>
+      )}
+
+      {google && (
+        <GoogleReviewsBlock google={google} locale={locale} title={t(locale, 'public.googleReviews')} countLabel={t(locale, 'public.googleReviewsCount')} allLabel={t(locale, 'public.googleReviewsAll')} />
       )}
 
       <div className="flex flex-wrap gap-2">

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { loadGuest, saveGuest, forgetGuest } from '@/lib/guestMemory'
-import type { GoogleReview } from '@/lib/googleReviews'
+import { GoogleReviewsBlock, type GoogleReviewsData } from '@/components/booking/GoogleReviewsBlock'
 import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useDragControls } from 'framer-motion'
@@ -59,7 +59,7 @@ interface Props {
   depositEnabled?: boolean
   invoicingEnabled?: boolean
   /** Google-értékelések (napi frissítésű tárolt másolat, lib/googleReviews.ts) — üres → nem jelenik meg. */
-  google?: { rating: number | null; count: number | null; mapsUrl: string | null; reviews: GoogleReview[] } | null
+  google?: GoogleReviewsData | null
   /** `voucher_settings.allow_company` — a „Cégként vásárolok” opció az utalvány-vásárlásnál. */
   voucherCompanyEnabled?: boolean
   addressRequired?: boolean
@@ -1044,41 +1044,8 @@ export function ProfileCard({
                     </div>
                   )}
 
-                  {/* Google-értékelések — a Google szerzői/forrás-megjelölésével (a Places API feltétele). */}
-                  {google && google.rating != null && (
-                    <div className="mt-6">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tt('public.googleReviews')}</p>
-                        <span className="text-[12px] font-medium text-white/60">
-                          ★ {google.rating.toLocaleString(locale, { maximumFractionDigits: 1 })} · {google.count ?? 0} {tt('public.googleReviewsCount')}
-                        </span>
-                      </div>
-                      <div className="space-y-2.5">
-                        {google.reviews.filter(r => r.text).slice(0, 5).map((r, i) => (
-                          <div key={i} className="rounded-2xl p-3.5" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                            <div className="flex items-center gap-2.5">
-                              {r.photoUrl
-                                // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={r.photoUrl} alt="" className="h-7 w-7 rounded-full object-cover" referrerPolicy="no-referrer" />
-                                : <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white/10 text-[12px] font-semibold text-white">{r.author.slice(0, 1)}</span>}
-                              <div className="min-w-0 flex-1">
-                                {r.authorUrl
-                                  ? <a href={r.authorUrl} target="_blank" rel="noopener noreferrer" className="block truncate text-[13px] font-semibold text-white hover:underline">{r.author}</a>
-                                  : <p className="truncate text-[13px] font-semibold text-white">{r.author}</p>}
-                                <p className="text-[11px] text-white/45"><span className="text-gold">{'★'.repeat(Math.round(r.rating))}</span> · {r.relativeTime}</p>
-                              </div>
-                            </div>
-                            <p className="mt-2 line-clamp-4 text-[12.5px] leading-relaxed text-white/75">{r.text}</p>
-                          </div>
-                        ))}
-                      </div>
-                      {google.mapsUrl && (
-                        <a href={google.mapsUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-block text-[12px] font-semibold text-white/70 underline underline-offset-2 hover:text-white">
-                          {tt('public.googleReviewsAll')} →
-                        </a>
-                      )}
-                      <p className="mt-1.5 text-[10.5px] text-white/35">Google</p>
-                    </div>
+                  {google && (
+                    <GoogleReviewsBlock google={google} locale={locale} className="mt-6" title={tt('public.googleReviews')} countLabel={tt('public.googleReviewsCount')} allLabel={tt('public.googleReviewsAll')} />
                   )}
                 </div>
               )}

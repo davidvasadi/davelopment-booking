@@ -1,6 +1,9 @@
 import Image from 'next/image'
 import { getPublicRestaurant } from '@/lib/publicPlace'
 import { getReviewSummary } from '@/lib/reviews'
+import { storedGoogleReviews, refreshGoogleReviewsIfStale } from '@/lib/googleReviews'
+import { getPayloadClient } from '@/lib/payload'
+import { after } from 'next/server'
 import { getMaxPax } from '@/lib/restaurantBooking'
 import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import { MapPin } from 'lucide-react'
@@ -34,6 +37,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
     getReviewSummary('restaurant', restaurant.id),
     getMaxPax(restaurant.id),
   ])
+  // Google-értékelések: kérésre frissül (24 óránál régebbi tárolt adatnál), a válasz elküldése után.
+  after(async () => refreshGoogleReviewsIfStale(await getPayloadClient(), 'restaurant', restaurant))
 
   const openingHours = data.openingHours.map((h) => ({
     day_of_week: h.day_of_week,
@@ -137,9 +142,13 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
                 {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
               </p>
             )}
-            {reviews.count > 0 && (
+            {reviews.count > 0 ? (
               <div className="mt-2">
                 <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
+              </div>
+            ) : restaurant.google_rating != null && (
+              <div className="mt-2">
+                <RatingStars rating={restaurant.google_rating} count={restaurant.google_rating_count} source="Google-értékelés" dark={hasCover} />
               </div>
             )}
             {restaurant.description && (
@@ -158,7 +167,9 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
                 {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
               </p>
             )}
-            {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-4" dark={hasCover} />}
+            {reviews.count > 0
+              ? <RatingStars rating={reviews.average} count={reviews.count} className="mb-4" dark={hasCover} />
+              : restaurant.google_rating != null && <RatingStars rating={restaurant.google_rating} count={restaurant.google_rating_count} source="Google-értékelés" className="mb-4" dark={hasCover} />}
             <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
           </div>
         </>
@@ -196,6 +207,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
         depositEnabled={!!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded}
         invoicingEnabled={!!restaurant.invoice_settings?.invoice_provider && restaurant.invoice_settings.invoice_provider !== 'none'}
         voucherCompanyEnabled={restaurant.voucher_settings?.allow_company !== false}
+        google={restaurant.google_rating != null ? { rating: restaurant.google_rating, count: restaurant.google_rating_count ?? null, mapsUrl: restaurant.google_maps_url ?? null, reviews: storedGoogleReviews(restaurant.google_reviews) } : null}
         addressRequired={!!restaurant.booking_rules?.require_address}
         addressRequiredNote={restaurant.booking_rules?.require_address_note}
         voucherEnabled={!!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0}
