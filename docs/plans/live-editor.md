@@ -203,3 +203,30 @@ Minden fázis után: `npx tsc --noEmit -p .`, kézi próba a `npm run dev` alatt
 - Számla automatikus kiállítása utalvány-vásárláskor / előlegnél (a makettben csak javaslat).
 - A munkatárs „látható a foglalóoldalon” kapcsoló: elég-e a meglévő `is_active`, vagy kell külön mező.
 - Étterem-változat: ugyanez a szerkesztő a `RestaurantPublicView`-ra (asztalfoglalás-specifikus lépésekkel) — külön terv.
+
+---
+
+## Állapot (2026-10-06)
+
+Minden fázis külön commitban, a `claude/sharp-bardeen-k60h5e` ágon:
+
+| Fázis | Commit | Tartalom |
+|---|---|---|
+| Terv | `a4e1364` | ez a dokumentum |
+| 0 | `50acb15`, `5329100` | emlékeztető-logika `lib/reminders.ts`-be; új Összegzés + Visszaigazolás képernyő |
+| 1 | `1cb512e` | közös `SalonPublicView`, `?editor=1` előnézet-mód (jogosultság, postMessage, kijelölés-keret) |
+| 2–3 | `4ec21de` | Beállítások → Foglalóoldal szerkesztő: vászon, panel, draft + mentés, főoldal elemei, nyelvenkénti szövegek |
+| 4 | `0ebf6f5` | folyamat-sáv és lépések mintaadatokkal; szabályok a helyükön (időpont, adatok, visszaigazolás, nyilatkozat) |
+| 5 | `f969d05` | migráció `20261006_130000`: két számláló-kapcsoló, üzlet-szintű min. idő, szakasz-sorrend/rejtés, mobil fókusz |
+| 6 | `b7f8928` | új menü (szalon), Vendég e-mailek, külön Hírlevél / Ajándékutalvány / Számlázás, link & QR a szerkesztőben |
+| 7 | `84ac36e` | telefonos szerkesztés: mindig mobil előnézet, alulról felcsúszó panel |
+| 5b | `ca97a2c` | migráció `20261006_140000`: űrlapmezők sorrendje húzással |
+
+Deploykor 2 új migráció fut (`20261006_130000_booking_page_editor`, `20261006_140000_form_field_order`), az ág korábbi 7 migrációja mellett.
+
+### Nyitva maradt
+
+- Az „Értesítő” e-mail sablon (a tulajnak szóló levél) még a Vendég e-mailek sablonjai között van — a tervben az Értesítésekhez kerülne.
+- A régi Üzlet profil / Foglalás / Nyelvek fül kódja még bent van (szalonnál már nem érhető el) — takarítás a 8. fázisban.
+- Étterem-változat (RestaurantPublicView) — külön terv.
+- A szerkesztő előnézetében a hős-blokk „Időpontfoglalás” gombja a borítót jelöli ki, nem indítja a folyamatot (a folyamat-sávból indítható).
