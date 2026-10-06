@@ -74,6 +74,7 @@ export async function POST(request: NextRequest) {
     const voucherTypeId = intent.metadata?.voucherTypeId
 
     const result = await createGiftVoucher({
+      paymentMethod: 'online',
       kind: data.kind,
       business,
       amountHuf,

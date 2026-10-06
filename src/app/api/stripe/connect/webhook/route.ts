@@ -95,6 +95,7 @@ export async function POST(req: Request) {
               : ((await payload.findByID({ collection: 'restaurants', id: md.restaurantId, overrideAccess: true }).catch(() => null)) as Restaurant | null)
             if (business) {
               await createGiftVoucher({
+                paymentMethod: 'payment_link',
                 kind,
                 business,
                 amountHuf: Math.round(intent.amount / 100),

@@ -26,10 +26,22 @@ export type VoucherRow = {
   amount_huf: number
   type_name?: string | null
   purchaser_name: string
+  payment_method?: 'online' | 'payment_link' | 'cash' | 'pos_card' | 'transfer' | 'other' | null
   status: 'active' | 'redeemed' | 'expired' | 'refunded'
   expires_at: string
   redeemed_at?: string | null
   createdAt: string
+}
+
+/** Fizetési mód felirat (null = régi, helyben kiállított utalvány, ahol nem rögzítettük). */
+export const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  online: 'Online kártya',
+  payment_link: 'Fizetési link',
+  cash: 'Készpénz',
+  pos_card: 'Bankkártya',
+  transfer: 'Átutalás',
+  other: 'Egyéb',
+  unknown: 'Nincs rögzítve',
 }
 
 interface Props {
@@ -63,6 +75,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
   // után is a régi maradna, csak teljes oldal-újratöltésnél frissülne.
   useEffect(() => { setVouchers(initialVouchers) }, [initialVouchers])
   const [statusFilter, setStatusFilter] = useState<'all' | VoucherRow['status']>('all')
+  const [methodFilter, setMethodFilter] = useState<string>('all')
   const [query, setQuery] = useState('')
   const [redeemOpen, setRedeemOpen] = useState(false)
   const [mode, setMode] = useState<'code' | 'camera'>('code')
@@ -129,13 +142,14 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
     const q = query.trim().toLowerCase()
     return vouchers.filter(v => {
       if (statusFilter !== 'all' && v.status !== statusFilter) return false
+      if (methodFilter !== 'all' && (v.payment_method ?? 'unknown') !== methodFilter) return false
       if (!q) return true
       return v.code.toLowerCase().includes(q) || v.purchaser_name.toLowerCase().includes(q) || (v.type_name ?? '').toLowerCase().includes(q)
     }).sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  }, [vouchers, statusFilter, query])
+  }, [vouchers, statusFilter, methodFilter, query])
 
   // Szűrés/keresés váltásakor a lapozás visszaáll az elejére.
-  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [statusFilter, query])
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [statusFilter, methodFilter, query])
   const visible = filtered.slice(0, visibleCount)
 
   const redeem = async (rawCode: string) => {
@@ -280,6 +294,18 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
               </select>
               <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             </div>
+            <div className="relative shrink-0">
+              <select
+                value={methodFilter}
+                onChange={(e) => setMethodFilter(e.target.value)}
+                aria-label="Fizetési mód"
+                className="cursor-pointer appearance-none rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
+              >
+                <option value="all">Minden fizetés</option>
+                {Object.entries(PAYMENT_METHOD_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
+            </div>
             <div className="flex w-[140px] sm:min-w-[110px] sm:flex-1 items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
               <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
               <input
@@ -340,6 +366,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                     {v.type_name && <p className="truncate text-[12px] font-medium text-ink-soft">{v.type_name}</p>}
                   </div>
                   <div className="truncate text-[13.5px] font-medium text-ink">{v.purchaser_name}</div>
+                  <div className="truncate text-[11.5px] text-ink-soft">{PAYMENT_METHOD_LABEL[v.payment_method ?? 'unknown']}</div>
                   <div className="text-[13.5px] font-medium text-ink">{formatPrice(v.amount_huf, 'HUF')}</div>
                   <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(v.expires_at)}</div>
                   <div className="relative">
@@ -392,7 +419,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                 <div className="flex items-center justify-between gap-3 px-3.5 py-3 lg:hidden">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold tracking-wide text-ink">{v.code}</p>
-                    <p className="truncate text-[12.5px] font-medium text-ink-soft">{v.purchaser_name} · {formatPrice(v.amount_huf, 'HUF')}</p>
+                    <p className="truncate text-[12.5px] font-medium text-ink-soft">{v.purchaser_name} · {formatPrice(v.amount_huf, 'HUF')} · {PAYMENT_METHOD_LABEL[v.payment_method ?? 'unknown']}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <div className="relative shrink-0">

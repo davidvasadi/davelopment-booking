@@ -390,6 +390,7 @@ export interface GiftVoucher {
   message?: string | null
   status: 'active' | 'redeemed' | 'expired' | 'refunded'
   payment_intent_id: string
+  payment_method?: ('online' | 'payment_link' | 'cash' | 'pos_card' | 'transfer' | 'other') | null
   expires_at: string
   redeemed_at?: string | null
   redeemed_booking?: string | Booking | null

@@ -38,6 +38,7 @@ export default async function RestaurantVouchersPage() {
     amount_huf: v.amount_huf,
     type_name: v.type_name,
     purchaser_name: v.purchaser_name,
+    payment_method: v.payment_method ?? null,
     status: v.status,
     expires_at: v.expires_at,
     redeemed_at: v.redeemed_at,

@@ -142,7 +142,7 @@ export function VoucherCreateWizard({ open, onClose, variant, businessId, vouche
     goTo('payment', 1)
   }
 
-  const submit = async (paymentMode: 'paid' | 'link') => {
+  const submit = async (paymentMode: 'paid' | 'link', paidMethod?: 'cash' | 'pos_card' | 'transfer') => {
     setSubmitting(true)
     try {
       const res = await fetch('/api/gift-vouchers/manual-create', {
@@ -153,6 +153,7 @@ export function VoucherCreateWizard({ open, onClose, variant, businessId, vouche
           ...(variant === 'salon' ? { kind: 'salon', salonId: businessId } : { kind: 'restaurant', restaurantId: businessId }),
           voucherTypeId: selectedTypeId,
           paymentMode,
+          ...(paidMethod ? { paidMethod } : {}),
           purchaserName, purchaserEmail,
           purchaserCity: purchaserCity.trim(),
           purchaserAddress: purchaserAddress.trim(),
@@ -364,18 +365,24 @@ export function VoucherCreateWizard({ open, onClose, variant, businessId, vouche
           <button onClick={() => goTo('buyer', -1)} className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink">
             <ArrowLeft className="h-3.5 w-3.5" /> Vissza
           </button>
-          <button
-            type="button"
-            disabled={submitting}
-            onClick={() => submit('paid')}
-            className="flex w-full items-center justify-between rounded-[14px] border border-line px-4 py-3.5 text-left transition-colors hover:bg-paper disabled:opacity-60"
-          >
-            <div>
-              <div className="text-[13.5px] font-semibold text-ink">Már kifizetve</div>
-              <div className="text-[12px] text-ink-soft">Helyszíni készpénz/kártya — a kód azonnal kiállításra kerül.</div>
+          <div className="rounded-[14px] border border-line px-4 py-3.5">
+            <div className="text-[13.5px] font-semibold text-ink">Már kifizetve, helyben</div>
+            <div className="text-[12px] text-ink-soft">A kód azonnal kiállításra kerül. Hogyan fizettek?</div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {([['cash', 'Készpénz'], ['pos_card', 'Bankkártya'], ['transfer', 'Átutalás']] as const).map(([m, label]) => (
+                <button
+                  key={m}
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => submit('paid', m)}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-[10px] bg-ink-dark px-3.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {label}
+                </button>
+              ))}
+              {submitting && <Loader2 className="h-4 w-4 self-center animate-spin text-ink-soft" />}
             </div>
-            {submitting && <Loader2 className="h-4 w-4 shrink-0 animate-spin text-ink-soft" />}
-          </button>
+          </div>
           <button
             type="button"
             disabled={submitting}

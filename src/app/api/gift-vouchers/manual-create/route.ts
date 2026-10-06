@@ -17,6 +17,8 @@ const buyerFields = {
   message: z.string().optional(),
   voucherTypeId: z.string().min(1),
   paymentMode: z.enum(['paid', 'link']),
+  // Helyben fizetett utalványnál: hogyan fizettek (a dashboard szűréséhez).
+  paidMethod: z.enum(['cash', 'pos_card', 'transfer', 'other']).optional(),
 }
 const schema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('salon'), salonId: z.coerce.string(), ...buyerFields }),
@@ -69,6 +71,7 @@ export async function POST(request: NextRequest) {
         amountHuf: voucherType.amount_huf,
         voucherTypeId: voucherType.id,
         paymentIntentId: code,
+        paymentMethod: data.paidMethod ?? 'other',
         buyer: { name: data.purchaserName, email: data.purchaserEmail, city: data.purchaserCity, address: data.purchaserAddress, taxNumber: data.purchaserTaxNumber },
         recipient: { name: data.recipientName, email: data.recipientEmail, message: data.message },
       })

@@ -89,6 +89,22 @@ export const GiftVouchers: CollectionConfig = {
       ],
     },
     { name: 'payment_intent_id', type: 'text', required: true, unique: true, index: true, admin: { position: 'sidebar', readOnly: true } },
+    {
+      // Hogyan fizették ki — a dashboard Utalványok oldalán szűrhető. Online (Stripe, publikus
+      // vásárlás), fizetési link (a tulaj küldte), vagy helyben: készpénz / POS-kártya / átutalás.
+      name: 'payment_method',
+      type: 'select',
+      label: 'Fizetési mód',
+      options: [
+        { label: 'Online kártya', value: 'online' },
+        { label: 'Fizetési link', value: 'payment_link' },
+        { label: 'Készpénz', value: 'cash' },
+        { label: 'Bankkártya (POS)', value: 'pos_card' },
+        { label: 'Átutalás', value: 'transfer' },
+        { label: 'Egyéb', value: 'other' },
+      ],
+      admin: { position: 'sidebar' },
+    },
     { name: 'expires_at', type: 'date', required: true, label: 'Lejárat', admin: { position: 'sidebar' } },
     { name: 'redeemed_at', type: 'date', label: 'Beváltás dátuma', admin: { position: 'sidebar' } },
     { name: 'redeemed_booking', type: 'relationship', relationTo: 'bookings', label: 'Beváltó foglalás (szalon)', admin: { position: 'sidebar' } },

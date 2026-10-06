@@ -23,6 +23,7 @@ export async function createGiftVoucher(params: {
   amountHuf: number
   voucherTypeId?: string | null
   paymentIntentId: string
+  paymentMethod?: 'online' | 'payment_link' | 'cash' | 'pos_card' | 'transfer' | 'other'
   /** `city` ÉS `address` KÖTELEZŐ (nem opcionális!) — a Számlázz.hu enélkül nem tudja kiküldeni
    *  emailben a számlát (nem csak a kiállítás hasal el rajta, lásd `depositInvoice.ts`). Minden
    *  hívónak zod-szinten is `.min(1)`-gyel kell kikényszerítenie, ne csak UI-oldalon. */
@@ -30,7 +31,7 @@ export async function createGiftVoucher(params: {
   recipient?: { name?: string | null; email?: string | null; message?: string | null }
   locale?: string | null
 }): Promise<{ code: string; amountHuf: number; qrCodeDataUrl: string }> {
-  const { kind, business, amountHuf, voucherTypeId, paymentIntentId, buyer, recipient, locale } = params
+  const { kind, business, amountHuf, voucherTypeId, paymentIntentId, paymentMethod, buyer, recipient, locale } = params
   const payload = await getPayloadClient()
 
   const voucherType = voucherTypeId
@@ -62,6 +63,7 @@ export async function createGiftVoucher(params: {
       message: recipient?.message || undefined,
       status: 'active',
       payment_intent_id: paymentIntentId,
+      payment_method: paymentMethod ?? null,
       expires_at: expiresAt.toISOString(),
       locale: locale || 'hu',
     },
