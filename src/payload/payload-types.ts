@@ -238,6 +238,13 @@ export interface Restaurant {
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string
+  google_place_id?: string | null
+  google_place_name?: string | null
+  google_maps_url?: string | null
+  google_rating?: number | null
+  google_rating_count?: number | null
+  google_reviews?: unknown
+  google_reviews_updated_at?: string | null
   updatedAt: string
 }
 
@@ -846,6 +853,13 @@ export interface Salon {
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string
+  google_place_id?: string | null
+  google_place_name?: string | null
+  google_maps_url?: string | null
+  google_rating?: number | null
+  google_rating_count?: number | null
+  google_reviews?: unknown
+  google_reviews_updated_at?: string | null
   updatedAt: string
 }
 

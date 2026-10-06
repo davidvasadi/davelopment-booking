@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
 import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, SITE_URL } from '@/lib/publicSeo'
 import { getReviewSummary } from '@/lib/reviews'
+import { storedGoogleReviews } from '@/lib/googleReviews'
 import { getPricing } from '@/lib/pricing'
 import { INDUSTRY_LANDINGS } from '@/lib/industryLandings'
 import { nextImageSrc } from '@/lib/utils'
@@ -264,9 +265,13 @@ export default async function SalonPublicPage({
                 {[salon.address, salon.city].filter(Boolean).join(', ')}
               </p>
             )}
-            {reviews.count > 0 && (
+            {reviews.count > 0 ? (
               <div className="mt-2">
                 <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
+              </div>
+            ) : salon.google_rating != null && (
+              <div className="mt-2">
+                <RatingStars rating={salon.google_rating} count={salon.google_rating_count} source="Google-értékelés" dark={hasCover} />
               </div>
             )}
             {salonDescription && (
@@ -285,7 +290,9 @@ export default async function SalonPublicPage({
                 {[salon.address, salon.city].filter(Boolean).join(', ')}
               </p>
             )}
-            {reviews.count > 0 && <RatingStars rating={reviews.average} count={reviews.count} className="mb-5" dark={hasCover} />}
+            {reviews.count > 0
+              ? <RatingStars rating={reviews.average} count={reviews.count} className="mb-5" dark={hasCover} />
+              : salon.google_rating != null && <RatingStars rating={salon.google_rating} count={salon.google_rating_count} source="Google-értékelés" className="mb-5" dark={hasCover} />}
             <div className="flex flex-wrap items-center gap-3">
               <SalonCtaWrapper>
                 <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
@@ -324,6 +331,7 @@ export default async function SalonPublicPage({
         depositEnabled={!!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded}
         invoicingEnabled={!!salon.invoice_settings?.invoice_provider && salon.invoice_settings.invoice_provider !== 'none'}
         voucherCompanyEnabled={salon.voucher_settings?.allow_company !== false}
+        google={salon.google_rating != null ? { rating: salon.google_rating, count: salon.google_rating_count ?? null, mapsUrl: salon.google_maps_url ?? null, reviews: storedGoogleReviews(salon.google_reviews) } : null}
         addressRequired={!!salon.booking_rules?.require_address}
         addressRequiredNote={salon.booking_rules?.require_address_note}
         voucherEnabled={!!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded && voucherTypes.length > 0}

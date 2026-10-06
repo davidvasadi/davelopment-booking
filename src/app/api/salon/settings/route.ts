@@ -10,7 +10,9 @@ import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
 // `overrideAccess: true`-val ment, ami a mező-szintű admin-only `access.update`-et (lásd
 // settingsFields.ts) megkerülné, ha nem itt is ki lenne zárva. Egy owner NE tudja magát
 // `stripe_connect_onboarded: true`-ra állítani Stripe-KYC nélkül.
-const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt', 'stripe_connect_account_id', 'stripe_connect_onboarded'])
+const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt', 'stripe_connect_account_id', 'stripe_connect_onboarded',
+  // Google-értékelés gyorsítótár: csak a szerver-oldali frissítés írhatja (különben hamisítható).
+  'google_place_name', 'google_maps_url', 'google_rating', 'google_rating_count', 'google_reviews', 'google_reviews_updated_at'])
 
 function stripPayloadInternals(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(stripPayloadInternals)

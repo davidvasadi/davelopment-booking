@@ -8,7 +8,9 @@ import { encryptInvoiceKeysInBody } from '@/lib/encryption'
 // Ezeket NEM szabad patch-elni ezen a végponton (owner/tier csak admin módosíthatja).
 // `stripe_connect_*`: KIZÁRÓLAG szerver-oldali Connect onboarding/webhook írhatja — lásd a
 // salon/settings route azonos megjegyzését.
-const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt', 'stripe_connect_account_id', 'stripe_connect_onboarded'])
+const FORBIDDEN_KEYS = new Set(['id', 'owner', 'tier', 'createdAt', 'updatedAt', 'stripe_connect_account_id', 'stripe_connect_onboarded',
+  // Google-értékelés gyorsítótár: csak a szerver-oldali frissítés írhatja (különben hamisítható).
+  'google_place_name', 'google_maps_url', 'google_rating', 'google_rating_count', 'google_reviews', 'google_reviews_updated_at'])
 
 function stripPayloadInternals(obj: unknown): unknown {
   if (Array.isArray(obj)) return obj.map(stripPayloadInternals)

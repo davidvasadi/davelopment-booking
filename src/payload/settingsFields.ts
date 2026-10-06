@@ -432,3 +432,19 @@ export const emailTemplateFields: Field[] = [
   ...emailContentPair('feedback', 'Visszajelzés-kérő'),
   ...emailContentPair('notify', 'Értesítő (tulajdonosnak)'),
 ]
+
+/**
+ * Google-értékelések (Places API). A tulaj a Beállítások → Google fülön kiválasztja a saját
+ * Google-profilját (`google_place_id`); a többi mezőt a napi frissítés tölti (lib/googleReviews.ts)
+ * — a publikus oldal ezt a tárolt másolatot mutatja, nem hívja a Google-t látogatásonként.
+ * A gyorsítótár-mezőket a beállítás-route-ok nem engedik a kliensnek írni (FORBIDDEN_KEYS).
+ */
+export const googlePlaceFields: Field[] = [
+  { name: 'google_place_id', type: 'text', label: 'Google-profil (Place ID)', admin: { position: 'sidebar' } },
+  { name: 'google_place_name', type: 'text', label: 'Google-profil neve', admin: { position: 'sidebar', readOnly: true } },
+  { name: 'google_maps_url', type: 'text', label: 'Google Térkép link', admin: { position: 'sidebar', readOnly: true } },
+  { name: 'google_rating', type: 'number', label: 'Google-értékelés átlaga', admin: { position: 'sidebar', readOnly: true } },
+  { name: 'google_rating_count', type: 'number', label: 'Google-értékelések száma', admin: { position: 'sidebar', readOnly: true } },
+  { name: 'google_reviews', type: 'json', label: 'Google-értékelések (gyorsítótár)', admin: { readOnly: true } },
+  { name: 'google_reviews_updated_at', type: 'date', label: 'Google-értékelések frissítve', admin: { position: 'sidebar', readOnly: true } },
+]

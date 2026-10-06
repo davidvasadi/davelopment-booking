@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
 import { MapPin, Star, ChevronDown, Check, ExternalLink } from 'lucide-react'
 import { IntegCard, UrlRow, Steps } from './IntegCardKit'
+import { GooglePlacePicker } from './GooglePlacePicker'
 import { Toggle } from './SettingsToggle'
 import { EASE, DUR } from '@/lib/motion'
 import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
@@ -154,6 +155,9 @@ export function GoogleSettingsPanel({
       <p className="text-[13px] text-ink-soft">
         Minden Google-vonatkozású beállítás egy helyen: értékelés-kérés, „Foglalj most" gomb a keresésben/Maps-en, naptár-szinkron.
       </p>
+
+      {/* ── Google-értékelések megjelenítése a foglaló oldalon (Places API, napi frissítés) ── */}
+      <GooglePlacePicker />
 
       {/* ── Értékelések — custom kártya (URL mindig látható, toggle csak URL után aktív) ── */}
       <div className="rounded-dav-lg dav-card-glass p-5 lg:p-6">
