@@ -323,6 +323,7 @@ export default async function SalonPublicPage({
         goodToKnow={salon.good_to_know}
         depositEnabled={!!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded}
         invoicingEnabled={!!salon.invoice_settings?.invoice_provider && salon.invoice_settings.invoice_provider !== 'none'}
+        voucherCompanyEnabled={salon.voucher_settings?.allow_company !== false}
         addressRequired={!!salon.booking_rules?.require_address}
         addressRequiredNote={salon.booking_rules?.require_address_note}
         voucherEnabled={!!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded && voucherTypes.length > 0}

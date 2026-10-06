@@ -248,6 +248,7 @@ export default async function SettingsPage() {
           minAmountHuf: salon.voucher_settings?.min_amount_huf ?? 2000,
           maxAmountHuf: salon.voucher_settings?.max_amount_huf ?? 100000,
           validityMonths: salon.voucher_settings?.validity_months ?? 12,
+          allowCompany: salon.voucher_settings?.allow_company !== false,
         }}
         consentSettings={{
           enabled: salon.consent_settings?.enabled ?? false,

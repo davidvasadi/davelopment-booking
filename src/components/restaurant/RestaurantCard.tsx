@@ -53,6 +53,7 @@ export function RestaurantCard({
   company,
   depositEnabled,
   invoicingEnabled,
+  voucherCompanyEnabled = true,
   addressRequired,
   addressRequiredNote,
   voucherEnabled,
@@ -85,6 +86,7 @@ export function RestaurantCard({
   company?: CompanyInfo | null
   depositEnabled?: boolean
   invoicingEnabled?: boolean
+  voucherCompanyEnabled?: boolean
   addressRequired?: boolean
   addressRequiredNote?: string | null
   voucherEnabled?: boolean
@@ -566,13 +568,13 @@ export function RestaurantCard({
                 {voucherFieldErrors.address ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.address}</p> : <p className="text-[11px] text-white/40">{t(locale, 'public.voucher.addressHint')}</p>}
               </div>
 
-              {invoicingEnabled && (
+              {invoicingEnabled && voucherCompanyEnabled && (
               <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">
                 <span className="text-[13px] text-white/80">{t(locale, 'public.voucher.companyToggle')}</span>
                 <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel={t(locale, 'public.voucher.companyToggle')} />
               </div>
               )}
-              {invoicingEnabled && voucherIsCompany && (
+              {invoicingEnabled && voucherCompanyEnabled && voucherIsCompany && (
                 <div key={`taxNumber-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.taxNumber && 'animate-shake')}>
                   <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{t(locale, 'public.voucher.taxNumber')} *</Label>
                   <Input

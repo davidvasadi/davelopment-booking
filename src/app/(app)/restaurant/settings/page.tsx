@@ -236,6 +236,7 @@ export default async function RestaurantSettingsPage() {
           minAmountHuf: r.voucher_settings?.min_amount_huf ?? 2000,
           maxAmountHuf: r.voucher_settings?.max_amount_huf ?? 100000,
           validityMonths: r.voucher_settings?.validity_months ?? 12,
+          allowCompany: r.voucher_settings?.allow_company !== false,
         }}
         consentSettings={{
           enabled: r.consent_settings?.enabled ?? false,

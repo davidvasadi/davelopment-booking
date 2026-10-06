@@ -43,6 +43,7 @@ export interface VoucherSettingsData {
   minAmountHuf: number
   maxAmountHuf: number
   validityMonths: number
+  allowCompany?: boolean
 }
 
 export interface ConsentSettingsData {
@@ -173,6 +174,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             min_amount_huf: v.minAmountHuf,
             max_amount_huf: v.maxAmountHuf,
             validity_months: v.validityMonths,
+            allow_company: v.allowCompany !== false,
           }
         }
         if (consentDirty) {
@@ -477,6 +479,18 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               />
               <p className="mt-1 text-[12px] text-ink-soft2">A vásárlástól számítva ennyi hónapig váltható be az utalvány.</p>
             </div>
+            <label className="flex items-start gap-2.5 text-sm text-ink sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={v.allowCompany !== false}
+                onChange={(e) => setV((s) => ({ ...s, allowCompany: e.target.checked }))}
+                className="mt-0.5 h-4 w-4 accent-[#1D1C19]"
+              />
+              <span>
+                „Cégként vásárolok” opció a vásárlásnál
+                <span className="block text-[12px] text-ink-soft2">Adószámos számlát kérhet a vásárló. Csak beállított számlázóval (Számlázás fül) jelenik meg.</span>
+              </span>
+            </label>
           </div>
         )}
       </div>

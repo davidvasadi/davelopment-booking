@@ -208,6 +208,9 @@ export const voucherSettingsFields: Field[] = [
       { name: 'enabled', type: 'checkbox', defaultValue: false, label: 'Ajándékutalvány bekapcsolva' },
       { name: 'min_amount_huf', type: 'number', min: 0, defaultValue: 2000, label: 'Minimum összeg (Ft)' },
       { name: 'max_amount_huf', type: 'number', min: 0, defaultValue: 100000, label: 'Maximum összeg (Ft)' },
+      // „Cégként vásárolok (adószámos számla)” opció a vásárlásnál — a tulaj kikapcsolhatja.
+      // Csak beállított számlázó (Billingo/Számlázz.hu) mellett jelenik meg.
+      { name: 'allow_company', type: 'checkbox', defaultValue: true, label: 'Céges vásárlás engedélyezése' },
       {
         name: 'validity_months',
         type: 'number',

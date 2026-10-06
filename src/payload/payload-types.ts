@@ -175,6 +175,7 @@ export interface Restaurant {
     enabled?: boolean | null
     min_amount_huf?: number | null
     max_amount_huf?: number | null
+    allow_company?: boolean | null
     validity_months?: number | null
   } | null
   newsletter_settings?: {
@@ -782,6 +783,7 @@ export interface Salon {
     enabled?: boolean | null
     min_amount_huf?: number | null
     max_amount_huf?: number | null
+    allow_company?: boolean | null
     validity_months?: number | null
   } | null
   newsletter_settings?: {

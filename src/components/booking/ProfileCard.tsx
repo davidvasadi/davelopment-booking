@@ -57,6 +57,8 @@ interface Props {
   goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
   depositEnabled?: boolean
   invoicingEnabled?: boolean
+  /** `voucher_settings.allow_company` — a „Cégként vásárolok” opció az utalvány-vásárlásnál. */
+  voucherCompanyEnabled?: boolean
   addressRequired?: boolean
   addressRequiredNote?: string | null
   voucherEnabled?: boolean
@@ -91,7 +93,7 @@ export function ProfileCard({
   services, staff, serviceCategories,
   phone, email, website, socialLinks, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
-  termsSections, company, goodToKnow, depositEnabled = false, invoicingEnabled = false,
+  termsSections, company, goodToKnow, depositEnabled = false, invoicingEnabled = false, voucherCompanyEnabled = true,
   addressRequired = false, addressRequiredNote = null,
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
   consentEnabled = false, consentTitle = null, consentText = null,
@@ -1698,13 +1700,13 @@ export function ProfileCard({
                         {voucherFieldErrors.address ? <p role="alert" className="text-[12px] text-red-400">{voucherFieldErrors.address}</p> : <p className="text-[11px] text-white/40">{tt('public.voucher.addressHint')}</p>}
                       </div>
 
-                      {invoicingEnabled && (
+                      {invoicingEnabled && voucherCompanyEnabled && (
                       <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">
                         <span className="text-[13px] text-white/80">{tt('public.voucher.companyToggle')}</span>
                         <Switch checked={voucherIsCompany} onChange={setVoucherIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                       </div>
                       )}
-                      {invoicingEnabled && voucherIsCompany && (
+                      {invoicingEnabled && voucherCompanyEnabled && voucherIsCompany && (
                         <div key={`taxNumber-${voucherShakeKey}`} className={cn('space-y-1', voucherFieldErrors.taxNumber && 'animate-shake')}>
                           <Label className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">{tt('public.voucher.taxNumber')} *</Label>
                           <Input
