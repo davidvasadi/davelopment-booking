@@ -35,6 +35,8 @@ type Slot = { start: string; end: string }
 type View = 'main' | 'services' | 'serviceDetail' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher' | 'voucherSuccess'
 type FieldKey = 'name' | 'email' | 'phone' | 'city' | 'address' | 'taxNumber'
 
+export type ProfileCardProps = Props
+
 interface Props {
   slug: string
   salonId: string

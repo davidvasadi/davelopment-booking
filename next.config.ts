@@ -20,6 +20,8 @@ const CSP = [
 // változatlan, csak a frame-ancestors enged bármilyen külső oldalt iframe-ként.
 // NINCS X-Frame-Options mellette (az elavult és nem támogat wildcardot).
 const EMBED_CSP = CSP.replace("frame-ancestors 'none'", 'frame-ancestors *')
+// A foglalóoldal-szerkesztő előnézete (`?editor=1`) — csak a SAJÁT admin keretezheti.
+const EDITOR_CSP = CSP.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -27,7 +29,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: '/(.*)',
-        missing: [{ type: 'query', key: 'embed', value: '1' }],
+        missing: [{ type: 'query', key: 'embed', value: '1' }, { type: 'query', key: 'editor', value: '1' }],
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
@@ -46,6 +48,19 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           { key: 'Content-Security-Policy', value: EMBED_CSP },
+        ],
+      },
+      {
+        // A szerkesztő-előnézet: azonos originről keretezhető, máshonnan nem.
+        source: '/(.*)',
+        has: [{ type: 'query', key: 'editor', value: '1' }],
+        missing: [{ type: 'query', key: 'embed', value: '1' }],
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
+          { key: 'Content-Security-Policy', value: EDITOR_CSP },
         ],
       },
     ]

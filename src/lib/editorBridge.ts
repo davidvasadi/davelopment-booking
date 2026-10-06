@@ -1,0 +1,35 @@
+/**
+ * A foglalóoldal-szerkesztő (admin) és az előnézet (`/{slug}?editor=1` iframe) közti üzenetek.
+ * Mindkét fél azonos originről fut, minden üzenetet az origin ellenőrzésével fogadunk.
+ *
+ * admin → előnézet
+ *   - `draft`:  a még nem mentett változások (a SalonViewData mezőire illeszkedő patch)
+ *   - `select`: a kijelölt elem azonosítója (sárga keret), null = nincs kijelölés
+ * előnézet → admin
+ *   - `ready`:  az előnézet betöltött, várja az aktuális draftot
+ *   - `pick`:   a vendég-nézetben erre az elemre kattintottak (`data-edit-id`)
+ */
+export const EDITOR_MSG = 'dav-editor'
+
+export type EditorToPreview =
+  | { source: typeof EDITOR_MSG; type: 'draft'; patch: Record<string, unknown> }
+  | { source: typeof EDITOR_MSG; type: 'select'; id: string | null }
+
+export type PreviewToEditor =
+  | { source: typeof EDITOR_MSG; type: 'ready' }
+  | { source: typeof EDITOR_MSG; type: 'pick'; id: string }
+
+/** Union-tagonként alkalmazott Omit (a sima Omit egy union közös mezőire szűkítene). */
+type WithoutSource<T> = T extends unknown ? Omit<T, 'source'> : never
+
+export function isEditorMessage<T extends { source: string }>(e: MessageEvent): e is MessageEvent<T> {
+  return e.origin === window.location.origin && !!e.data && (e.data as { source?: unknown }).source === EDITOR_MSG
+}
+
+export function postToEditor(msg: WithoutSource<PreviewToEditor>) {
+  window.parent?.postMessage({ source: EDITOR_MSG, ...msg }, window.location.origin)
+}
+
+export function postToPreview(frame: HTMLIFrameElement | null, msg: WithoutSource<EditorToPreview>) {
+  frame?.contentWindow?.postMessage({ source: EDITOR_MSG, ...msg }, window.location.origin)
+}
