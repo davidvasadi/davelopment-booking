@@ -344,7 +344,7 @@ export default async function RestaurantDashboardPage() {
           <StoreSwitcher name={restaurant.name} logoUrl={logoUrl} businesses={businesses} activeKey={active ? `${active.type}:${active.id}` : null} />
           <HoverButtonLink
             href="/restaurant/bookings"
-            className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-dav-pill bg-ink-dark px-5 text-sm font-semibold text-white"
+            className="hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-dav-pill bg-ink-dark px-5 text-sm font-semibold text-white lg:inline-flex"
           >
             <Plus className="h-4 w-4" strokeWidth={2.4} /> Új foglalás
           </HoverButtonLink>

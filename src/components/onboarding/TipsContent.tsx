@@ -790,7 +790,7 @@ export function TipsContent({ variant, capabilities }: { variant: Variant; capab
         action={
           <button
             onClick={restartTour}
-            className="inline-flex items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
+            className="hidden items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98] lg:inline-flex"
           >
             <Sparkles className="h-4 w-4 text-gold" strokeWidth={1.8} />
             Bevezető indítása

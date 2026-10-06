@@ -163,8 +163,12 @@ function ServiceRow({
               ? <img src={logoUrl} alt="" className="h-full w-full object-cover object-top" />
               : <Tag className="h-5 w-5 text-ink/55" strokeWidth={1.7} />}
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-semibold text-ink">{s.name}</p>
+          {/* Mobilon az időtartam + ár a név alatt (jobbra nem fér el a név mellett). */}
+          <p className="mt-0.5 text-[12.5px] font-medium tabular-nums text-ink sm:hidden">
+            {s.duration_minutes} perc · {s.price === 0 ? 'Ingyenes' : formatPrice(s.price, s.currency)}
+          </p>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
             {!active ? (
               <span className="rounded-[7px] bg-[#E7E1D0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">Inaktív</span>
@@ -196,11 +200,12 @@ function ServiceRow({
       <span className="hidden shrink-0 items-center gap-1.5 rounded-[10px] bg-[#EFEEE9] px-3 py-1.5 text-[13px] font-medium text-ink sm:inline-flex">
         <Clock className="h-3.5 w-3.5 text-ink-soft" />{s.duration_minutes} perc
       </span>
-      <span className="shrink-0 text-right text-[15px] font-semibold tabular-nums text-ink sm:text-[16px]">{s.price === 0 ? 'Ingyenes' : formatPrice(s.price, s.currency)}</span>
+      <span className="hidden shrink-0 text-right text-[16px] font-semibold tabular-nums text-ink sm:inline">{s.price === 0 ? 'Ingyenes' : formatPrice(s.price, s.currency)}</span>
       {canManage && (
         <>
           <Switch checked={active} onChange={onToggleActive} size="sm" ariaLabel={active ? 'Aktív' : 'Inaktív'} />
-          <button onClick={onOpenEdit} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
+          {/* Mobilon a sorra koppintás nyitja a szerkesztést — a ceruza ott csak helyet foglalna. */}
+          <button onClick={onOpenEdit} className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink sm:flex" title="Szerkesztés"><Pencil className="h-[14px] w-[14px]" /></button>
           <button onClick={onDelete} className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-red-50 hover:text-red-500" title="Törlés"><Trash2 className="h-[14px] w-[14px]" /></button>
         </>
       )}

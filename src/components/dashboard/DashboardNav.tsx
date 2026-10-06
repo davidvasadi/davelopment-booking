@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard, BarChart3, Plus, Printer, Download, CalendarDays, Building2, UserRound } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard, BarChart3, Plus, Printer, Download, CalendarDays, Building2, UserRound, Sparkles } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import { can, type Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -456,6 +456,28 @@ export function DashboardNav({
                 <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
               </button>
             </>
+          )}
+          {/* Főoldal (Áttekintés): „Új foglalás" ikonként a fejlécben — átvisz a Foglalásokra és
+              rögtön megnyitja az új-foglalás panelt (`?new=1`). Mobilon az oldalon lévő gomb rejtve. */}
+          {(pathname === '/dashboard' || pathname === '/restaurant') && (
+            <Link
+              href={`${pathname}/bookings?new=1`}
+              aria-label="Új foglalás"
+              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
+            >
+              <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
+            </Link>
+          )}
+          {/* Súgó: „Bevezető indítása" ikonként a fejlécben (ugyanaz az esemény, mint a TipsContent gombja). */}
+          {pathname.endsWith('/help') && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('davelopment:open-onboarding'))}
+              aria-label="Bevezető indítása"
+              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-gold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
+            >
+              <Sparkles className="h-[19px] w-[19px]" strokeWidth={1.8} />
+            </button>
           )}
           {/* Súgó kereső — csak /help oldalon; kattintásra animáltan kinyílik. */}
           {pathname.endsWith('/help') && (

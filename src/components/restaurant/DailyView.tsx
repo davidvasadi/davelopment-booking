@@ -278,6 +278,16 @@ export function DailyView(props: DailyViewProps) {
     return () => window.removeEventListener('davelopment:open-bookings-create', handler)
   }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A főoldal fejléc-ikonja `?new=1`-gyel érkezik ide → rögtön megnyitjuk az új-foglalás panelt,
+  // és a paramétert eltávolítjuk az URL-ből (frissítésnél ne nyíljon meg újra).
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('new') !== '1') return
+    url.searchParams.delete('new')
+    window.history.replaceState(null, '', url.pathname + url.search)
+    openCreate()
+  }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // Foglalás áthelyezése drag&drop-ból: új időpont és/vagy asztal. A szerver validál
   // (ütközés, nyitvatartás, kapacitás) — hibánál a router.refresh visszaállítja az
   // eredeti pozíciót, és toast jelzi az okot. Vázlatot (offline draft) nem mozgatunk.

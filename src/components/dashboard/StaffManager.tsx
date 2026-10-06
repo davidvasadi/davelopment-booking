@@ -537,7 +537,7 @@ export default function StaffManager({
       {/* ── MAPPA-FÜL kártya (davelopment App 67–75): NORMÁL folyású fül + homorú notch-ív (nem takarja a stat-csíkot) ── */}
       <div className="relative">
         {/* Fül: szűrők + kereső — a kártya bal-felső sarkára ül, jobbra homorú ív köti a kártyához */}
-        <div className="relative z-10 flex h-[48px] w-fit max-w-[600px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:w-full sm:px-6">
+        <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-28px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:w-full sm:max-w-[600px] sm:px-6">
           {/* Szűrő: állapot */}
           <div className="relative shrink-0">
             <select
@@ -568,7 +568,7 @@ export default function StaffManager({
             </div>
           )}
           {/* Kereső — kisebb szélesség mobilon */}
-          <div className="flex w-[140px] sm:min-w-[110px] sm:flex-1 items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
+          <div className="flex w-[140px] min-w-0 shrink items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:min-w-[110px] sm:flex-1 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
             <input
               value={query}

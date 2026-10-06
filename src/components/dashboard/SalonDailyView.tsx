@@ -232,6 +232,16 @@ export function SalonDailyView(props: SalonDailyViewProps) {
     return () => window.removeEventListener('davelopment:open-bookings-create', handler)
   }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
+  // A főoldal fejléc-ikonja `?new=1`-gyel érkezik ide → rögtön megnyitjuk az új-foglalás panelt,
+  // és a paramétert eltávolítjuk az URL-ből (frissítésnél ne nyíljon meg újra).
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    if (url.searchParams.get('new') !== '1') return
+    url.searchParams.delete('new')
+    window.history.replaceState(null, '', url.pathname + url.search)
+    openCreate()
+  }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
+
   // Áthelyezés drag&drop-ból: új időpont és/vagy szakember. A szerver validál (átfedés).
   // Hibánál a router.refresh visszaállítja az eredeti pozíciót, és toast jelzi az okot.
   const moveBooking = async (b: Booking, newStart: string, newStaffId: string | number) => {

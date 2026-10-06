@@ -281,7 +281,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
 
       {/* ── MAPPA-FÜL kártya (davelopment App): NORMÁL folyású fül + szűrők + kereső + homorú notch-ív ── */}
       <div className="relative">
-        <div className="relative z-10 flex h-[48px] w-fit max-w-[600px] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 backdrop-blur-[20px] sm:w-full sm:px-6 print:hidden">
+        <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-28px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:w-full sm:max-w-[600px] sm:px-6 print:hidden">
           {/* Szűrő: állapot */}
           <div className="relative shrink-0">
             <select
@@ -310,7 +310,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
           {/* Kereső — kisebb szélesség mobilon */}
-          <div className="flex w-[140px] sm:min-w-[110px] sm:flex-1 items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
+          <div className="flex w-[140px] min-w-0 shrink items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:min-w-[110px] sm:flex-1 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
             <input
               value={query}
