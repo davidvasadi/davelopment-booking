@@ -125,6 +125,10 @@ export function storedGoogleReviews(v: unknown): GoogleReview[] {
 
 const STALE_MS = 24 * 3600_000
 const inFlight = new Set<string>()
+// Sikertelen hívás után (pl. hibás kulcs, Google-leállás) ne próbálkozzon minden látogatásnál
+// újra — üzletenként legfeljebb óránként egy kísérlet.
+const RETRY_AFTER_FAILURE_MS = 3600_000
+const lastFailure = new Map<string, number>()
 
 /**
  * A publikus oldal hívja (a válasz elküldése UTÁN, `after()`-ből): ha van kiválasztott Google-
@@ -142,10 +146,13 @@ export async function refreshGoogleReviewsIfStale(
   if (Number.isFinite(last) && Date.now() - last < STALE_MS) return
   const key = `${kind}:${String(biz.id)}`
   if (inFlight.has(key)) return
+  if (Date.now() - (lastFailure.get(key) ?? 0) < RETRY_AFTER_FAILURE_MS) return
   inFlight.add(key)
   try {
     await refreshBusinessGoogleReviews(payload, kind, biz.id)
+    lastFailure.delete(key)
   } catch (err) {
+    lastFailure.set(key, Date.now())
     payload.logger.error(`[googleReviews] ${key}: ${String(err)}`)
   } finally {
     inFlight.delete(key)
