@@ -42,8 +42,22 @@ const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 /** RFC 5322 "From" fejléc az üzlet nevével megjelenítési névként (idézőjelezve, hogy a névben lévő speciális karakter — vessző, idézőjel — ne törje el a fejlécet). */
-function fromHeader(name: string): string {
-  return `"${name.replace(/"/g, '\\"')}" <${FROM}>`
+function fromHeader(name: string, slug?: string | null): string {
+  return `"${name.replace(/"/g, '\\"')}" <${fromAddress(slug)}>`
+}
+
+/**
+ * Üzletenkénti feladó-cím a hitelesített domainen (pl. `bella-szalon@davelopment.hu`): ha minden
+ * üzlet ugyanarról a címről küld, a Gmail egy címhez egy nevet jegyez meg, és a vendégnél
+ * összekeverednek az üzletnevek. Postafiók nem kell hozzá (a Resend a hitelesített domain bármely
+ * címéről küld), a válasz a `reply_to`-val továbbra is az üzlet saját címére megy.
+ * `RESEND_PER_BUSINESS_FROM=0` → mindenki a közös címről küld (a korábbi viselkedés).
+ */
+function fromAddress(slug?: string | null): string {
+  if (process.env.RESEND_PER_BUSINESS_FROM === '0' || !slug) return FROM
+  const domain = FROM.split('@')[1]
+  const local = slug.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60)
+  return domain && local ? `${local}@${domain}` : FROM
 }
 
 export interface BookingEmailData {
@@ -138,7 +152,7 @@ export async function sendBookingConfirmation(data: BookingEmailData) {
     : t(locale, 'email.confirm.subjectFallback', { place: salon.name })
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(salon.name),
+      from: fromHeader(salon.name, salon.slug),
       reply_to: salon.email || undefined,
       to,
       subject,
@@ -182,7 +196,7 @@ export async function sendNewBookingNotification(data: BookingEmailData, fallbac
     : `Új foglalás: ${data.booking.customer_name} — ${data.booking.date} ${data.booking.start_time}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(salon.name),
+      from: fromHeader(salon.name, salon.slug),
       to: recipients,
       subject,
       html: notificationHtml(data),
@@ -214,7 +228,7 @@ export async function sendCancellationEmail(data: BookingEmailData) {
     : t(locale, 'email.cancel.subjectFallback', { place: salon.name })
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(salon.name),
+      from: fromHeader(salon.name, salon.slug),
       reply_to: salon.email || undefined,
       to,
       subject,
@@ -244,7 +258,7 @@ export async function sendReminderEmail(data: BookingEmailData) {
     : `Emlékeztető: közeleg a foglalásod – ${salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(salon.name),
+      from: fromHeader(salon.name, salon.slug),
       reply_to: salon.email || undefined,
       to,
       subject,
@@ -268,7 +282,7 @@ export async function sendFeedbackRequestEmail(data: BookingEmailData) {
     : `Milyen volt nálunk? Értékeld a látogatásod – ${salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(salon.name),
+      from: fromHeader(salon.name, salon.slug),
       reply_to: salon.email || undefined,
       to: booking.customer_email,
       subject,
@@ -300,7 +314,7 @@ export async function sendWaitlistSignupEmail(data: WaitlistEmailData) {
   const subject = `Felkerültél a várólistára – ${data.salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(data.salon.name),
+      from: fromHeader(data.salon.name, data.salon.slug),
       reply_to: data.salon.email || undefined,
       to: data.customer_email,
       subject,
@@ -332,7 +346,7 @@ export async function sendWaitlistOpeningEmail(data: WaitlistEmailData) {
   const subject = `Felszabadult egy időpont – ${data.salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(data.salon.name),
+      from: fromHeader(data.salon.name, data.salon.slug),
       reply_to: data.salon.email || undefined,
       to: data.customer_email,
       subject,
@@ -406,7 +420,7 @@ export async function sendVoucherPurchaseEmail(data: VoucherEmailData) {
   const subject = `Ajándékutalvány megvásárolva – ${data.salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(data.salon.name),
+      from: fromHeader(data.salon.name, data.salon.slug),
       reply_to: data.salon.email || undefined,
       to: data.purchaserEmail,
       subject,
@@ -426,7 +440,7 @@ export async function sendVoucherGiftEmail(data: VoucherEmailData) {
   const subject = `Ajándékutalványt kaptál – ${data.salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(data.salon.name),
+      from: fromHeader(data.salon.name, data.salon.slug),
       reply_to: data.salon.email || undefined,
       to: data.recipientEmail,
       subject,
@@ -460,7 +474,7 @@ export async function sendVoucherPaymentLinkEmail(data: { salon: Salon; purchase
   `)
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(data.salon.name),
+      from: fromHeader(data.salon.name, data.salon.slug),
       reply_to: data.salon.email || undefined,
       to: data.purchaserEmail,
       subject,
@@ -729,7 +743,7 @@ export async function sendBookingModification(data: BookingEmailData) {
   const subject = `Foglalásod módosítva – ${salon.name}`
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(salon.name),
+      from: fromHeader(salon.name, salon.slug),
       reply_to: salon.email || undefined,
       to,
       subject,
@@ -885,7 +899,7 @@ export async function sendSalonDigestEmail(data: SalonDigestEmailData) {
 
   try {
     const { data: sendResult } = await resend.emails.send({
-      from: fromHeader(salon.name),
+      from: fromHeader(salon.name, salon.slug),
       to: ownerEmail,
       subject,
       html,
