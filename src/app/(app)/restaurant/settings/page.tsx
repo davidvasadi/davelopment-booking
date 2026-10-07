@@ -5,6 +5,8 @@ import { requireAuth } from '@/lib/auth'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { findAccountSubscription } from '@/lib/accountSubscription'
 import { RestaurantSettingsForm } from '@/components/restaurant/RestaurantSettingsForm'
+import { buildBookingPageEditorInitial } from '@/lib/bookingPageEditorInitial'
+import { getMaxPax } from '@/lib/restaurantBooking'
 import { parseEmailBlocks } from '@/lib/emailBlocks'
 import { ProfileEditor } from '@/components/dashboard/ProfileEditor'
 import { getTeamForBusiness } from '@/lib/teamContext'
@@ -169,6 +171,11 @@ export default async function RestaurantSettingsPage() {
 
   const senderLabel = `${r.name}${r.email ? ` <${r.email}>` : ''}`
 
+  // ── Foglalóoldal-szerkesztő kezdőadatai (csak beállítás-joggal) — ugyanaz a builder, mint a szalonnál ──
+  const bookingPageEditor = can(capabilities, 'settings.profile')
+    ? buildBookingPageEditorInitial('restaurant', r, { maxPax: await getMaxPax(r.id) })
+    : undefined
+
   const np = r.notification_prefs ?? {}
   const br = r.booking_rules ?? {}
   const fm = r.feature_modules ?? {}
@@ -176,6 +183,8 @@ export default async function RestaurantSettingsPage() {
   return (
     <div className="p-5 lg:p-0">
       <SettingsHub
+        bookingPageEditor={bookingPageEditor}
+        notifyNewBookings={r.notify_new_bookings ?? true}
         variant="restaurant"
         subtitle={subtitle}
         availabilityHref="/restaurant/availability"
