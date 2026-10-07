@@ -244,3 +244,18 @@ Ugyanaz a szerkesztő, menü és képernyő-terv az éttermekre is — közös k
 | R5 | Migráció: `restaurants.cover_focal_mobile_x/y`; az étterem olvasói: szakasz-sorrend/rejtés, űrlapmező-sorrend, üzlet-szintű min. foglalási idő a slot-számításban |
 | R6 | Étterem Beállítások: ugyanaz az új menü (Üzlet / Vendégek / Pénzügy / Kapcsolatok / Csapat / Fiók) |
 | R7 | Telefonos szerkesztés — közös a szalonnal, csak ellenőrzés |
+
+### Állapot (2026-10-07)
+
+| Fázis | Commit | Tartalom |
+|---|---|---|
+| R0 | `0aff56e` | közös `BookingSuccess` képernyő; étterem Összegzés egy kártyán; a foglalás-API visszaadja a státuszt |
+| R1 | `b4b937a` | `PublicPlaceView` (szalon + étterem), `canEditPlace`; étterem `?editor=1` előnézet |
+| R5 | `4abd7c4` | migráció `20261007_100000`: `restaurants.cover_focal_mobile_x/y`; étterem szakasz- és űrlapmező-sorrend |
+| R2–4 | `9ac2c26` | `BookingPageEditor` étterem-módban: létszám, alkalmak, foglalás hossza / lépésköz / utolsó ültetés; „Jó tudni” az étterem összegzésén |
+| R6 | `1e269a7` | étterem Beállítások: új menü + Foglalóoldal szerkesztő |
+| R7 | — | telefonos szerkesztés étteremmel ellenőrizve (390 px: alsó panel, folyamat-lépések, nincs vízszintes görgetés) |
+
+Deploykor összesen 3 új szerkesztő-migráció fut (`20261006_130000`, `20261006_140000`, `20261007_100000`); az ágon így 10 migráció van.
+
+Étteremnél még nyitott: a leírás a kártyán 160 karakterre vágódik (korábban 220).
