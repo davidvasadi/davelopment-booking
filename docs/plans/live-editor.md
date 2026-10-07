@@ -228,5 +228,19 @@ Deploykor 2 új migráció fut (`20261006_130000_booking_page_editor`, `20261006
 
 - Az „Értesítő” e-mail sablon (a tulajnak szóló levél) még a Vendég e-mailek sablonjai között van — a tervben az Értesítésekhez kerülne.
 - A régi Üzlet profil / Foglalás / Nyelvek fül kódja még bent van (szalonnál már nem érhető el) — takarítás a 8. fázisban.
-- Étterem-változat (RestaurantPublicView) — külön terv.
 - A szerkesztő előnézetében a hős-blokk „Időpontfoglalás” gombja a borítót jelöli ki, nem indítja a folyamatot (a folyamat-sávból indítható).
+
+---
+
+## Étterem (egységesítés)
+
+Ugyanaz a szerkesztő, menü és képernyő-terv az éttermekre is — közös kóddal, nem másolattal.
+
+| Fázis | Tartalom |
+|---|---|
+| R0 | Étterem Összegzés + Visszaigazolás a szalonnal azonos módon (megerősítve / beérkezett, e-mail, emlékeztető, naptár + kész); a foglalás-API visszaadja a státuszt |
+| R1 | A `SalonPublicView` általánosítása `PublicPlaceView`-vá (szalon: `ProfileCard`, étterem: `RestaurantCard`); `RestaurantPublicView` csak adatot épít; `?editor=1` az étterem tagjainak is |
+| R2–4 | `BookingPageEditor` étterem-módban: főoldal elemei, folyamat (Időpont + létszám + alkalom, Adatok, Előleg, Nyilatkozat, Összegzés, Visszaigazolás, Utalvány); étterem-specifikus panelek: alkalmak (event types), asztalfoglalás hossza és lépésköze, asztalok / nyitvatartás link |
+| R5 | Migráció: `restaurants.cover_focal_mobile_x/y`; az étterem olvasói: szakasz-sorrend/rejtés, űrlapmező-sorrend, üzlet-szintű min. foglalási idő a slot-számításban |
+| R6 | Étterem Beállítások: ugyanaz az új menü (Üzlet / Vendégek / Pénzügy / Kapcsolatok / Csapat / Fiók) |
+| R7 | Telefonos szerkesztés — közös a szalonnal, csak ellenőrzés |
