@@ -115,6 +115,8 @@ export interface Restaurant {
   cover_focal_x?: number | null
   cover_focal_y?: number | null
   cover_zoom?: number | null
+  cover_focal_mobile_x?: number | null
+  cover_focal_mobile_y?: number | null
   logo?: string | Media | null
   turn_duration_minutes?: number | null
   slot_step_minutes?: number | null

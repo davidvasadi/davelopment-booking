@@ -44,6 +44,7 @@ import * as migration_20261006_110000_voucher_payment_method from './20261006_11
 import * as migration_20261006_120000_google_reviews from './20261006_120000_google_reviews';
 import * as migration_20261006_130000_booking_page_editor from './20261006_130000_booking_page_editor';
 import * as migration_20261006_140000_form_field_order from './20261006_140000_form_field_order';
+import * as migration_20261007_100000_restaurant_cover_mobile_focus from './20261007_100000_restaurant_cover_mobile_focus';
 
 export const migrations = [
   {
@@ -275,5 +276,10 @@ export const migrations = [
     up: migration_20261006_140000_form_field_order.up,
     down: migration_20261006_140000_form_field_order.down,
     name: '20261006_140000_form_field_order',
+  },
+  {
+    up: migration_20261007_100000_restaurant_cover_mobile_focus.up,
+    down: migration_20261007_100000_restaurant_cover_mobile_focus.down,
+    name: '20261007_100000_restaurant_cover_mobile_focus',
   },
 ];

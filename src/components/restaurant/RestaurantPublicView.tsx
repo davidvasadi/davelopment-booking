@@ -72,9 +72,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
     coverFocalX: restaurant.cover_focal_x ?? 50,
     coverFocalY: restaurant.cover_focal_y ?? 50,
     coverZoom: restaurant.cover_zoom ?? 1,
-    // Külön mobil fókusz étteremnél még nincs (R5 migráció) — addig a desktop fókusz.
-    coverFocalMobileX: null,
-    coverFocalMobileY: null,
+    coverFocalMobileX: restaurant.cover_focal_mobile_x ?? null,
+    coverFocalMobileY: restaurant.cover_focal_mobile_y ?? null,
     logoUrl,
     // Étteremnél nincs szolgáltatás/munkatárs-katalógus → nincs számláló.
     showServiceCount: false,
@@ -119,6 +118,9 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       consentTitle: restaurant.consent_settings?.title,
       consentText: restaurant.consent_settings?.template_text,
       customQuestions: restaurant.custom_questions,
+      sectionOrder: restaurant.booking_rules?.public_section_order ?? null,
+      hiddenSections: restaurant.booking_rules?.public_sections_hidden ?? null,
+      fieldOrder: restaurant.booking_rules?.form_field_order ?? null,
       confirmEmailEnabled: restaurant.notification_prefs?.confirm_email !== false,
       reminderHours: reminderEnabled(restaurant) ? reminderOffsets(restaurant.feature_modules) : [],
     },

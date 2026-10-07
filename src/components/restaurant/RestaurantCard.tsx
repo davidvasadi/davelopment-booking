@@ -83,7 +83,15 @@ export type RestaurantCardProps = {
   reminderHours?: number[]
   /** Szerkesztő-előnézet: ezt a lépést mutassa mintaadatokkal (null = normál működés). */
   editorView?: EditorView | null
+  /** `booking_rules.public_section_order` / `public_sections_hidden` — a főnézet szakaszai
+   *  (reviews | slots | voucher). Üres = alapsorrend, minden látható. */
+  sectionOrder?: string[] | null
+  hiddenSections?: string[] | null
+  /** `booking_rules.form_field_order` — a varázsló Adatok lépésének mezősorrendje. */
+  fieldOrder?: string[] | null
 }
+
+const RESTAURANT_SECTION_IDS = ['reviews', 'slots', 'voucher']
 
 export function RestaurantCard({
   slug,
@@ -121,7 +129,21 @@ export function RestaurantCard({
   embed = false,
   confirmEmailEnabled = true,
   reminderHours = [],
+  editorView = null,
+  sectionOrder = null,
+  hiddenSections = null,
+  fieldOrder = null,
 }: RestaurantCardProps) {
+  // A főnézet szakaszai a beállított sorrendben (CSS `order`) — a szerkesztő-előnézetben a
+  // rejtett szakasz halványan látszik, hogy vissza lehessen kapcsolni (ugyanaz, mint a szalonnál).
+  const order = [...(sectionOrder ?? []).filter((id) => RESTAURANT_SECTION_IDS.includes(id)), ...RESTAURANT_SECTION_IDS.filter((id) => !(sectionOrder ?? []).includes(id))]
+  const sectionShown = (id: string) => !!editorView || !(hiddenSections ?? []).includes(id)
+  const sectionProps = (id: string) => ({
+    'data-edit-id': `sec:${id}`,
+    style: { order: 2 + order.indexOf(id) },
+    className: editorView && (hiddenSections ?? []).includes(id) ? 'opacity-35' : undefined,
+  })
+
   const [sheetOpen, setSheetOpen] = useState(false)
   const sheetDragControls = useDragControls()
   const [isMobile, setIsMobile] = useState(true)
@@ -291,7 +313,7 @@ export function RestaurantCard({
   }
 
   const mainView = (
-    <div className="space-y-5 px-5 pb-6 pt-6 lg:px-6">
+    <div className="flex flex-col gap-5 px-5 pb-6 pt-6 lg:px-6">
       <div>
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
           {t(locale, 'public.bookTable')}
@@ -313,11 +335,11 @@ export function RestaurantCard({
         </p>
       )}
 
-      {google && (
-        <div data-edit-id="sec:reviews"><GoogleReviewsBlock google={google} locale={locale} title={t(locale, 'public.googleReviews')} countLabel={t(locale, 'public.googleReviewsCount')} allLabel={t(locale, 'public.googleReviewsAll')} /></div>
+      {sectionShown('reviews') && google && (
+        <div {...sectionProps('reviews')}><GoogleReviewsBlock google={google} locale={locale} title={t(locale, 'public.googleReviews')} countLabel={t(locale, 'public.googleReviewsCount')} allLabel={t(locale, 'public.googleReviewsAll')} /></div>
       )}
 
-      <div data-edit-id="contact" className="flex flex-wrap gap-2">
+      <div data-edit-id="contact" className="flex flex-wrap gap-2" style={{ order: 1 }}>
         {addressLine && (
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium text-white/60"
@@ -373,8 +395,9 @@ export function RestaurantCard({
         })}
       </div>
 
-      {openingHours.length > 0 && (
-        <div data-edit-id="sec:slots" className="space-y-3">
+      {sectionShown('slots') && openingHours.length > 0 && (
+        <div {...sectionProps('slots')}>
+        <div className="space-y-3">
           <NextAvailableSlots
             restaurantId={restaurantId}
             slug={slug}
@@ -384,11 +407,12 @@ export function RestaurantCard({
           />
           <OpeningHoursLive hours={openingHours} locale={locale} variant="dark" />
         </div>
+        </div>
       )}
 
-      {voucherEnabled && (
+      {sectionShown('voucher') && voucherEnabled && (
+        <div {...sectionProps('voucher')}>
         <button
-          data-edit-id="sec:voucher"
           onClick={() => setView('voucher')}
           className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99]"
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}
@@ -402,6 +426,7 @@ export function RestaurantCard({
           </div>
           <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
         </button>
+        </div>
       )}
 
     </div>
@@ -436,6 +461,7 @@ export function RestaurantCard({
         consentTitle={consentTitle}
         consentText={consentText}
         customQuestions={customQuestions}
+        fieldOrder={fieldOrder}
       />
     </div>
   )

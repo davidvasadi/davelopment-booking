@@ -166,6 +166,9 @@ export const Restaurants: CollectionConfig = {
     { name: 'cover_focal_x', type: 'number', defaultValue: 50, admin: { hidden: true } },
     { name: 'cover_focal_y', type: 'number', defaultValue: 50, admin: { hidden: true } },
     { name: 'cover_zoom', type: 'number', defaultValue: 1, admin: { hidden: true } },
+    // Mobil (álló) képkivágás külön fókuszpontja — üres = a desktop fókuszpont.
+    { name: 'cover_focal_mobile_x', type: 'number', min: 0, max: 100, admin: { hidden: true } },
+    { name: 'cover_focal_mobile_y', type: 'number', min: 0, max: 100, admin: { hidden: true } },
     {
       name: 'logo',
       type: 'upload',

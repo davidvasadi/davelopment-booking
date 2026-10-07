@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, Fragment, type ReactNode } from 'react'
+import { FORM_FIELD_IDS, type FormFieldId } from '@/components/booking/ProfileCard'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
@@ -49,6 +50,7 @@ export function RestaurantBookingWizard({
   consentTitle = null,
   consentText = null,
   customQuestions = null,
+  fieldOrder = null,
 }: {
   restaurantId: string | number
   slug: string
@@ -76,6 +78,8 @@ export function RestaurantBookingWizard({
   consentEnabled?: boolean
   consentTitle?: string | null
   consentText?: string | null
+  /** `booking_rules.form_field_order` — az Adatok lépés mezőinek sorrendje. Üres = alapsorrend. */
+  fieldOrder?: string[] | null
   customQuestions?: {
     id?: string | null
     label: string
@@ -87,6 +91,10 @@ export function RestaurantBookingWizard({
   const dk = variant === 'dark'
   const router = useRouter()
   const tt = makeT(locale)
+  const formFieldOrder: FormFieldId[] = [
+    ...(fieldOrder ?? []).filter((id): id is FormFieldId => (FORM_FIELD_IDS as readonly string[]).includes(id)),
+    ...FORM_FIELD_IDS.filter((id) => !(fieldOrder ?? []).includes(id)),
+  ]
   // A review-lépés indexe: nincs előleg/nyilatkozat → MARAD 2 (mai viselkedés, változatlan).
   // Van előleg és/vagy nyilatkozat → 1-2 új lépés ékelődik a details ÉS a review közé.
   const DEPOSIT_STEP = depositEnabled ? 2 : null
@@ -478,156 +486,175 @@ export function RestaurantBookingWizard({
 
               <div className={`${cardClass} space-y-3`} style={cardStyle}>
                 <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt("rbooking.details")}</p>
-                <div key={`name-${detailsShakeKey}`} className={cn(errors.name && 'animate-shake')}>
-                  <input
-                    ref={fieldRefs.name}
-                    className={cn(inputClass, errors.name && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                    placeholder={tt("rbooking.field.name")}
-                    aria-label={tt("rbooking.field.name")}
-                    value={name}
-                    onChange={(e) => { setName(e.target.value); clearError('name') }}
-                    onBlur={() => onFieldBlur('name')}
-                    autoComplete="name"
-                    aria-invalid={!!errors.name}
-                    aria-describedby={errors.name ? 'rbk-name-err' : undefined}
-                  />
-                  {errors.name && <p id="rbk-name-err" role="alert" className="mt-1 text-[12px] text-red-500">{errors.name}</p>}
-                </div>
-                <div key={`email-${detailsShakeKey}`} className={cn(errors.email && 'animate-shake')}>
-                  <input
-                    ref={fieldRefs.email}
-                    className={cn(inputClass, errors.email && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    placeholder={tt("rbooking.field.email")}
-                    aria-label={tt("rbooking.field.email")}
-                    value={email}
-                    onChange={(e) => { setEmail(e.target.value); clearError('email') }}
-                    onBlur={() => onFieldBlur('email')}
-                    aria-invalid={!!errors.email}
-                    aria-describedby={errors.email ? 'rbk-email-err' : undefined}
-                  />
-                  {errors.email && <p id="rbk-email-err" role="alert" className="mt-1 text-[12px] text-red-500">{errors.email}</p>}
-                </div>
-                <div key={`phone-${detailsShakeKey}`} className={cn(errors.phone && 'animate-shake')}>
-                  <PhoneCountryInput
-                    inputRef={fieldRefs.phone}
-                    country={country}
-                    phone={phone}
-                    onCountryChange={setCountry}
-                    onPhoneChange={(p) => { setPhone(p); clearError('phone') }}
-                    onBlur={() => onFieldBlur('phone')}
-                    required={requirePhone}
-                    inputClass={cn(
-                      phoneInputClass,
-                      errors.phone && 'ring-2 ring-red-400 focus-visible:ring-red-400'
-                    )}
-                  />
-                  {errors.phone && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.phone}</p>}
-                </div>
-                <div key={`city-${detailsShakeKey}`} className={cn(errors.city && 'animate-shake')}>
-                  <input
-                    ref={fieldRefs.city}
-                    className={cn(inputClass, errors.city && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                    autoComplete="address-level2"
-                    placeholder={addressGateOn ? `${tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('rbooking.field.city')}
-                    aria-label={addressGateOn ? tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '') : tt('rbooking.field.city')}
-                    aria-invalid={!!errors.city}
-                    value={city}
-                    onChange={(e) => { setCity(e.target.value); clearError('city') }}
-                    onBlur={() => onFieldBlur('city')}
-                  />
-                  {errors.city && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.city}</p>}
-                  {addressGateOn && !errors.city && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
-                </div>
-                <div key={`address-${detailsShakeKey}`} className={cn(errors.address && 'animate-shake')}>
-                  <input
-                    ref={fieldRefs.address}
-                    className={cn(inputClass, errors.address && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                    autoComplete="street-address"
-                    placeholder={addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address')}
-                    aria-label={addressGateOn ? tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '') : tt('booking.field.address')}
-                    aria-invalid={!!errors.address}
-                    value={address}
-                    onChange={(e) => { setAddress(e.target.value); clearError('address') }}
-                    onBlur={() => onFieldBlur('address')}
-                  />
-                  {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
-                  {addressGateOn && !errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
-                </div>
-                {depositEnabled && invoicingEnabled && (
-                  <>
-                    <div className={cn('flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-3', dk ? 'bg-white/[0.06]' : 'bg-paper')}>
-                      <span className={`text-[13px] ${textCls}`}>{tt('public.voucher.companyToggle')}</span>
-                      <Switch checked={isCompany} onChange={setIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
-                    </div>
-                    {isCompany && (
-                      <div key={`taxNumber-${detailsShakeKey}`} className={cn(errors.taxNumber && 'animate-shake')}>
-                        <input
-                          ref={fieldRefs.taxNumber}
-                          className={cn(inputClass, errors.taxNumber && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                          placeholder="12345678-1-42"
-                          aria-label={tt('public.voucher.taxNumber')}
-                          aria-invalid={!!errors.taxNumber}
-                          value={taxNumber}
-                          onChange={(e) => { setTaxNumber(e.target.value); clearError('taxNumber') }}
-                          onBlur={() => onFieldBlur('taxNumber')}
-                        />
-                        {errors.taxNumber ? <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.taxNumber}</p> : <p className={`mt-1 text-[11px] ${labelCls}`}>{tt('public.voucher.taxNumberHint')}</p>}
+                {/* Az űrlap mezői a beállított sorrendben (`booking_rules.form_field_order`) — ugyanaz a
+                    blokk-felosztás, mint a szalon foglalóján. */}
+                {(() => {
+                  const fieldBlocks: Record<FormFieldId, ReactNode> = {
+                    name: (<div data-edit-id="field:name">
+                  <div key={`name-${detailsShakeKey}`} className={cn(errors.name && 'animate-shake')}>
+                    <input
+                      ref={fieldRefs.name}
+                      className={cn(inputClass, errors.name && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      placeholder={tt("rbooking.field.name")}
+                      aria-label={tt("rbooking.field.name")}
+                      value={name}
+                      onChange={(e) => { setName(e.target.value); clearError('name') }}
+                      onBlur={() => onFieldBlur('name')}
+                      autoComplete="name"
+                      aria-invalid={!!errors.name}
+                      aria-describedby={errors.name ? 'rbk-name-err' : undefined}
+                    />
+                    {errors.name && <p id="rbk-name-err" role="alert" className="mt-1 text-[12px] text-red-500">{errors.name}</p>}
+                  </div>
+                    </div>),
+                    email: (<div data-edit-id="field:email">
+                  <div key={`email-${detailsShakeKey}`} className={cn(errors.email && 'animate-shake')}>
+                    <input
+                      ref={fieldRefs.email}
+                      className={cn(inputClass, errors.email && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      type="email"
+                      inputMode="email"
+                      autoComplete="email"
+                      placeholder={tt("rbooking.field.email")}
+                      aria-label={tt("rbooking.field.email")}
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); clearError('email') }}
+                      onBlur={() => onFieldBlur('email')}
+                      aria-invalid={!!errors.email}
+                      aria-describedby={errors.email ? 'rbk-email-err' : undefined}
+                    />
+                    {errors.email && <p id="rbk-email-err" role="alert" className="mt-1 text-[12px] text-red-500">{errors.email}</p>}
+                  </div>
+                    </div>),
+                    phone: (<div data-edit-id="field:phone">
+                  <div key={`phone-${detailsShakeKey}`} className={cn(errors.phone && 'animate-shake')}>
+                    <PhoneCountryInput
+                      inputRef={fieldRefs.phone}
+                      country={country}
+                      phone={phone}
+                      onCountryChange={setCountry}
+                      onPhoneChange={(p) => { setPhone(p); clearError('phone') }}
+                      onBlur={() => onFieldBlur('phone')}
+                      required={requirePhone}
+                      inputClass={cn(
+                        phoneInputClass,
+                        errors.phone && 'ring-2 ring-red-400 focus-visible:ring-red-400'
+                      )}
+                    />
+                    {errors.phone && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.phone}</p>}
+                  </div>
+                    </div>),
+                    address: (<div data-edit-id="field:address" className="space-y-3">
+                  <div key={`city-${detailsShakeKey}`} className={cn(errors.city && 'animate-shake')}>
+                    <input
+                      ref={fieldRefs.city}
+                      className={cn(inputClass, errors.city && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      autoComplete="address-level2"
+                      placeholder={addressGateOn ? `${tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('rbooking.field.city')}
+                      aria-label={addressGateOn ? tt('rbooking.field.city').replace(/\s*\([^)]*\)\s*$/, '') : tt('rbooking.field.city')}
+                      aria-invalid={!!errors.city}
+                      value={city}
+                      onChange={(e) => { setCity(e.target.value); clearError('city') }}
+                      onBlur={() => onFieldBlur('city')}
+                    />
+                    {errors.city && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.city}</p>}
+                    {addressGateOn && !errors.city && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
+                  </div>
+                  <div key={`address-${detailsShakeKey}`} className={cn(errors.address && 'animate-shake')}>
+                    <input
+                      ref={fieldRefs.address}
+                      className={cn(inputClass, errors.address && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                      autoComplete="street-address"
+                      placeholder={addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address')}
+                      aria-label={addressGateOn ? tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '') : tt('booking.field.address')}
+                      aria-invalid={!!errors.address}
+                      value={address}
+                      onChange={(e) => { setAddress(e.target.value); clearError('address') }}
+                      onBlur={() => onFieldBlur('address')}
+                    />
+                    {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
+                    {addressGateOn && !errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
+                  </div>
+                  {depositEnabled && invoicingEnabled && (
+                    <>
+                      <div className={cn('flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-3', dk ? 'bg-white/[0.06]' : 'bg-paper')}>
+                        <span className={`text-[13px] ${textCls}`}>{tt('public.voucher.companyToggle')}</span>
+                        <Switch checked={isCompany} onChange={setIsCompany} ariaLabel={tt('public.voucher.companyToggle')} />
                       </div>
-                    )}
-                  </>
-                )}
-                {customQuestionsList.map((q) => {
-                  const key = q.id ?? ''
-                  const val = customAnswers[key] ?? ''
-                  const err = customErrors[key]
-                  if (q.type === 'yesno') {
-                    return (
-                      <div key={key} className="flex items-center justify-between gap-4 py-1">
-                        <span className={`text-[13px] font-medium ${textCls}`}>{q.label}</span>
-                        <Switch
-                          checked={val === 'Igen'}
-                          onChange={(v) => setCustomAnswers(a => ({ ...a, [key]: v ? 'Igen' : 'Nem' }))}
-                          ariaLabel={q.label}
-                        />
-                      </div>
-                    )
-                  }
-                  if (q.type === 'select') {
+                      {isCompany && (
+                        <div key={`taxNumber-${detailsShakeKey}`} className={cn(errors.taxNumber && 'animate-shake')}>
+                          <input
+                            ref={fieldRefs.taxNumber}
+                            className={cn(inputClass, errors.taxNumber && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                            placeholder="12345678-1-42"
+                            aria-label={tt('public.voucher.taxNumber')}
+                            aria-invalid={!!errors.taxNumber}
+                            value={taxNumber}
+                            onChange={(e) => { setTaxNumber(e.target.value); clearError('taxNumber') }}
+                            onBlur={() => onFieldBlur('taxNumber')}
+                          />
+                          {errors.taxNumber ? <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.taxNumber}</p> : <p className={`mt-1 text-[11px] ${labelCls}`}>{tt('public.voucher.taxNumberHint')}</p>}
+                        </div>
+                      )}
+                    </>
+                  )}
+                    </div>),
+                    questions: (customQuestionsList.length > 0 && <div data-edit-id="questions" className="space-y-3">{
+                  customQuestionsList.map((q) => {
+                    const key = q.id ?? ''
+                    const val = customAnswers[key] ?? ''
+                    const err = customErrors[key]
+                    if (q.type === 'yesno') {
+                      return (
+                        <div key={key} className="flex items-center justify-between gap-4 py-1">
+                          <span className={`text-[13px] font-medium ${textCls}`}>{q.label}</span>
+                          <Switch
+                            checked={val === 'Igen'}
+                            onChange={(v) => setCustomAnswers(a => ({ ...a, [key]: v ? 'Igen' : 'Nem' }))}
+                            ariaLabel={q.label}
+                          />
+                        </div>
+                      )
+                    }
+                    if (q.type === 'select') {
+                      return (
+                        <div key={`${key}-${detailsShakeKey}`} className={cn(err && 'animate-shake')}>
+                          <select
+                            value={val}
+                            onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
+                            aria-label={q.label}
+                            className={cn(inputClass, err && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                          >
+                            <option value="">{q.label}{q.required ? ' *' : ''}</option>
+                            {(q.options ?? []).map((o, oi) => o.value ? (
+                              <option key={oi} value={o.value}>{o.value}</option>
+                            ) : null)}
+                          </select>
+                          {err && <p role="alert" className="mt-1 text-[12px] text-red-500">{err}</p>}
+                        </div>
+                      )
+                    }
                     return (
                       <div key={`${key}-${detailsShakeKey}`} className={cn(err && 'animate-shake')}>
-                        <select
+                        <input
+                          className={cn(inputClass, err && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
+                          placeholder={`${q.label}${q.required ? ' *' : ''}`}
+                          aria-label={q.label}
+                          aria-invalid={!!err}
                           value={val}
                           onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
-                          aria-label={q.label}
-                          className={cn(inputClass, err && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                        >
-                          <option value="">{q.label}{q.required ? ' *' : ''}</option>
-                          {(q.options ?? []).map((o, oi) => o.value ? (
-                            <option key={oi} value={o.value}>{o.value}</option>
-                          ) : null)}
-                        </select>
+                        />
                         {err && <p role="alert" className="mt-1 text-[12px] text-red-500">{err}</p>}
                       </div>
                     )
+                  })
+                    }</div>),
+                    notes: (
+                  <textarea data-edit-id="field:notes" className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                    ),
                   }
-                  return (
-                    <div key={`${key}-${detailsShakeKey}`} className={cn(err && 'animate-shake')}>
-                      <input
-                        className={cn(inputClass, err && 'ring-2 ring-red-400 focus-visible:ring-red-400')}
-                        placeholder={`${q.label}${q.required ? ' *' : ''}`}
-                        aria-label={q.label}
-                        aria-invalid={!!err}
-                        value={val}
-                        onChange={(e) => { setCustomAnswers(a => ({ ...a, [key]: e.target.value })); setCustomErrors(er => ({ ...er, [key]: '' })) }}
-                      />
-                      {err && <p role="alert" className="mt-1 text-[12px] text-red-500">{err}</p>}
-                    </div>
-                  )
-                })}
-                <textarea className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  return formFieldOrder.map((k) => <Fragment key={k}>{fieldBlocks[k]}</Fragment>)
+                })()}
                 {voucherEnabled && (
                   <div className="space-y-2">
                     {!redeemOpen ? (
