@@ -45,3 +45,34 @@ function GoodToKnowCard({ icon: Icon, title, body }: { icon: LucideIcon; title: 
     </div>
   )
 }
+
+/**
+ * Kompakt, sötét „Jó tudni” blokk a foglalás Összegzés lépéséhez — KÖZÖS a szalon
+ * (`ProfileCard`) és az étterem (`RestaurantBookingWizard`) foglalóján.
+ */
+export function GoodToKnowCompact({ items, locale = 'hu', className = '' }: { items?: Item[] | null; locale?: Locale; className?: string }) {
+  const filled = (items ?? []).filter((p) => p?.title || p?.body)
+  if (filled.length === 0) return null
+  return (
+    <div data-edit-id="gtk" className={`space-y-2.5 rounded-2xl p-4 ${className}`} style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
+      <div className="mb-1 flex items-center gap-2">
+        <Info className="h-3.5 w-3.5 text-white/40" />
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{t(locale, 'goodToKnow.title')}</p>
+      </div>
+      {filled.map((p, i) => {
+        const Icon = iconByKey(p?.icon)
+        return (
+          <div key={p?.id ?? i} className="flex gap-2.5">
+            <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.12]">
+              <Icon className="h-3 w-3 text-white" />
+            </div>
+            <div className="min-w-0">
+              {p?.title && <p className="text-[12px] font-semibold text-white">{p.title}</p>}
+              {p?.body && <p className="text-[11px] text-white/55">{p.body}</p>}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}

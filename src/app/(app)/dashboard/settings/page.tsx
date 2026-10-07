@@ -18,11 +18,9 @@ import { getPricing } from '@/lib/pricing'
 import { can } from '@/lib/permissions'
 import { createHmac } from 'crypto'
 import type { AccountBilling } from '@/lib/accountBilling'
-import type { Invoice, Role, Media } from '@/payload/payload-types'
+import type { Invoice, Role } from '@/payload/payload-types'
 import type { BookingPageEditorInitial } from '@/components/settings/booking-page/BookingPageEditor'
-import { resolveAvailableLocales } from '@/lib/i18n'
-import { hasActivePackage } from '@/lib/newsletterLimits'
-import { randomUUID } from 'crypto'
+import { buildBookingPageEditorInitial } from '@/lib/bookingPageEditorInitial'
 
 const EMPTY_ACCOUNT_BILLING: AccountBilling = {
   items: [], totalMonthlyHuf: 0, listMonthlyHuf: 0, cycle: 'monthly', annualDiscountPct: 0, count: 0, accountStatus: null,
@@ -180,101 +178,21 @@ export default async function SettingsPage() {
 
   const senderLabel = `${salon.name}${salon.email ? ` <${salon.email}>` : ''}`
 
-  // ── Foglalóoldal-szerkesztő kezdőadatai (csak beállítás-joggal) ──
-  const mediaOf = (m: unknown) => (m && typeof m === 'object' ? { id: Number((m as Media).id), url: (m as Media).url ?? null } : { id: null, url: null })
+  // ── Foglalóoldal-szerkesztő kezdőadatai (csak beállítás-joggal) — közös builder a szalonnal/étteremmel ──
   const bookingPageEditor: BookingPageEditorInitial | undefined = can(capabilities, 'settings.profile')
-    ? await (async () => {
-        const staffRes = await payload.find({
+    ? buildBookingPageEditorInitial('salon', salon, {
+        staff: (await payload.find({
           collection: 'staff',
           where: { and: [{ salon: { equals: salon.id } }, { is_active: { not_equals: false } }] },
           sort: 'name', depth: 0, limit: 100, overrideAccess: true,
-        })
-        const cover = mediaOf(salon.cover_image)
-        const logo = mediaOf(salon.logo)
-        return {
-          slug: salon.slug,
-          supportedLocales: resolveAvailableLocales(salon.supported_locales),
-          name: salon.name,
-          address: salon.address ?? '',
-          city: salon.city ?? '',
-          postalCode: salon.postal_code ?? '',
-          phone: salon.phone ?? '',
-          email: salon.email ?? '',
-          website: salon.website ?? '',
-          description: typeof salon.description === 'string' ? salon.description : '',
-          socialLinks: (salon.social_links ?? []).map((l) => l.url),
-          coverId: cover.id,
-          coverUrl: cover.url,
-          coverFocalX: salon.cover_focal_x ?? 50,
-          coverFocalY: salon.cover_focal_y ?? 50,
-          coverZoom: salon.cover_zoom ?? 1,
-          logoId: logo.id,
-          logoUrl: logo.url,
-          goodToKnow: (salon.good_to_know ?? []).map((g) => ({ icon: g.icon ?? 'info', title: g.title ?? '', body: g.body ?? '' })),
-          coverFocalMobileX: salon.cover_focal_mobile_x ?? null,
-          coverFocalMobileY: salon.cover_focal_mobile_y ?? null,
-          showServiceCount: salon.booking_rules?.show_service_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public !== false,
-          showStaffCount: salon.booking_rules?.show_staff_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public !== false,
-          sectionOrder: (() => {
-            const all = ['services', 'voucher', 'staff', 'reviews']
-            const saved = (salon.booking_rules?.public_section_order ?? []).filter((x) => all.includes(x))
-            return [...saved, ...all.filter((x) => !saved.includes(x))]
-          })(),
-          hiddenSections: salon.booking_rules?.public_sections_hidden ?? [],
-          fieldOrder: (() => {
-            const all = ['name', 'email', 'phone', 'address', 'questions', 'notes']
-            const saved = (salon.booking_rules?.form_field_order ?? []).filter((x) => all.includes(x))
-            return [...saved, ...all.filter((x) => !saved.includes(x))]
-          })(),
-          minLeadHours: salon.booking_rules?.min_lead_hours ?? null,
-          servicesExpandedOnMain: !!salon.booking_rules?.services_expanded_on_main,
-          bookingRules: (salon.booking_rules ?? {}) as Record<string, unknown>,
-          notificationPrefs: (salon.notification_prefs ?? {}) as Record<string, unknown>,
-          featureModules: (salon.feature_modules ?? {}) as Record<string, unknown>,
-          bookingWindowDays: salon.booking_window_days ?? 60,
-          bufferMinutes: salon.booking_buffer_minutes ?? 15,
-          requirePhone: salon.require_phone ?? true,
-          autoConfirm: salon.booking_rules?.auto_confirm ?? true,
-          requireAddress: !!salon.booking_rules?.require_address,
-          requireAddressNote: salon.booking_rules?.require_address_note ?? '',
-          confirmEmail: salon.notification_prefs?.confirm_email !== false,
-          reminders: {
-            on: salon.feature_modules?.reminders_on ?? true,
-            h48: !!salon.feature_modules?.reminder_t_48h,
-            h24: !!salon.feature_modules?.reminder_t_24h,
-            h3: salon.feature_modules?.reminder_t_3h ?? true,
-            h1: !!salon.feature_modules?.reminder_t_1h,
-            custom: salon.feature_modules?.reminder_custom_hours ?? null,
-            chEmail: salon.feature_modules?.reminder_ch_email ?? true,
-            chPush: !!salon.feature_modules?.reminder_ch_push,
-          },
-          consentEnabled: !!salon.consent_settings?.enabled,
-          consentTitle: salon.consent_settings?.title ?? '',
-          consentText: salon.consent_settings?.template_text ?? '',
-          customQuestions: (salon.custom_questions ?? []).map((q) => ({
-            id: q.id ?? randomUUID(),
-            label: q.label ?? '',
-            type: (q.type ?? 'text') as 'text' | 'yesno' | 'select',
-            options: (q.options ?? []).map((o) => ({ value: o.value ?? '' })),
-            required: !!q.required,
-          })),
-          flags: {
-            deposit: !!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded,
-            depositLabel: salon.deposit_settings?.type === 'percent'
-              ? `${salon.deposit_settings?.percent_value ?? 0}%`
-              : `${(salon.deposit_settings?.fixed_amount_huf ?? 0).toLocaleString('hu-HU')} Ft`,
-            voucher: !!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded,
-            newsletter: hasActivePackage(salon.newsletter_settings?.package),
-          },
-          staff: staffRes.docs.map((m) => ({
-            id: String(m.id),
-            name: m.name,
-            role_title: m.role_title ?? '',
-            bio: m.bio ?? '',
-            social_links: (m.social_links ?? []).map((l: { url: string }) => l.url),
-          })),
-        }
-      })()
+        })).docs.map((m) => ({
+          id: String(m.id),
+          name: m.name,
+          role_title: m.role_title ?? '',
+          bio: m.bio ?? '',
+          social_links: (m.social_links ?? []).map((l: { url: string }) => l.url),
+        })),
+      })
     : undefined
 
   const np = salon.notification_prefs ?? {}

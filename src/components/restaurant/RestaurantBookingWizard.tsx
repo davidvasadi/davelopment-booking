@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, Fragment, type ReactNode } from 'react'
 import { FORM_FIELD_IDS, type FormFieldId } from '@/components/booking/ProfileCard'
+import { GoodToKnowCompact } from '@/components/booking/GoodToKnowSection'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
@@ -51,6 +52,8 @@ export function RestaurantBookingWizard({
   consentText = null,
   customQuestions = null,
   fieldOrder = null,
+  editorStep = null,
+  goodToKnow = null,
 }: {
   restaurantId: string | number
   slug: string
@@ -80,6 +83,10 @@ export function RestaurantBookingWizard({
   consentText?: string | null
   /** `booking_rules.form_field_order` — az Adatok lépés mezőinek sorrendje. Üres = alapsorrend. */
   fieldOrder?: string[] | null
+  /** „Jó tudni” pontok — az Összegzés lépésen, ugyanúgy, mint a szalon foglalóján. */
+  goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
+  /** Szerkesztő-előnézet: erre a lépésre ugrik mintaadatokkal (null = normál működés). */
+  editorStep?: 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | null
   customQuestions?: {
     id?: string | null
     label: string
@@ -117,6 +124,20 @@ export function RestaurantBookingWizard({
     setDir(next >= step ? 1 : -1)
     setStep(next)
   }
+
+  // Szerkesztő-előnézet: a kért lépésre ugrunk mintaadatokkal (holnap 19:00, minta vendég).
+  useEffect(() => {
+    if (!editorStep) return
+    setDate(format(new Date(Date.now() + 86400000), 'yyyy-MM-dd'))
+    setTime('19:00')
+    setName('Minta Vendég')
+    setEmail('vendeg@pelda.hu')
+    setPhone('30 123 4567')
+    const target = editorStep === 'datetime' ? 0 : editorStep === 'details' ? 1
+      : editorStep === 'deposit' ? (DEPOSIT_STEP ?? 1) : editorStep === 'consent' ? (CONSENT_STEP ?? 1) : REVIEW_STEP
+    setDir(1)
+    setStep(target)
+  }, [editorStep]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const [pax, setPax] = useState(initialPax >= 1 && initialPax <= maxPax ? initialPax : 2)
   const [date, setDate] = useState(() =>
@@ -379,7 +400,7 @@ export function RestaurantBookingWizard({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0 }}
               >
-              <div className={cardClass} style={cardStyle}>
+              <div data-edit-id="pax" className={cardClass} style={cardStyle}>
                 <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{tt("rbooking.partySize")}</p>
                 <div className="flex items-center justify-center gap-6">
                   <button
@@ -404,7 +425,7 @@ export function RestaurantBookingWizard({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0.07 }}
               >
-              <div className={cardClass} style={cardStyle}>
+              <div data-edit-id="rules" className={cardClass} style={cardStyle}>
                 <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{tt("rbooking.when")}</p>
                 <DateStrip selected={date} onChange={setDate} dayCount={bookingWindowDays} locale={locale} dark={dk} />
               </div>
@@ -415,7 +436,7 @@ export function RestaurantBookingWizard({
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0.14 }}
               >
-              <div className={cardClass} style={cardStyle}>
+              <div data-edit-id="rules" className={cardClass} style={cardStyle}>
                 <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-4 ${labelCls}`}>{tt("rbooking.time")}</p>
                 {loadingSlots ? (
                   <div className="flex justify-center py-6"><Loader2 className={`h-5 w-5 animate-spin ${labelCls}`} /></div>
@@ -696,7 +717,7 @@ export function RestaurantBookingWizard({
 
               {/* Alkalom-választó — a tulaj esemény-típusaiból, Lucide-ikonos pillekkel. Opcionális. */}
               {eventTypes.length > 0 && (
-                <div className={`${cardClass} space-y-3`} style={cardStyle}>
+                <div data-edit-id="occasions" className={`${cardClass} space-y-3`} style={cardStyle}>
                   <div>
                     <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt('rbooking.occasion')}</p>
                     <p className={`mt-0.5 text-[12px] ${dk ? 'text-white/40' : 'text-ink-soft2'}`}>{tt('rbooking.occasionHint')}</p>
@@ -756,9 +777,11 @@ export function RestaurantBookingWizard({
 
           {/* Step 2 (ha van előleg): Előleg-fizetés */}
           {step === DEPOSIT_STEP && depositEnabled && (
-            <div className={cardClass} style={cardStyle}>
+            <div data-edit-id="deposit" className={cardClass} style={cardStyle}>
               <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{tt('public.deposit.title')}</p>
-              {time && (
+              {editorStep ? (
+                <p className={`text-[13px] leading-relaxed ${labelCls}`}>Itt fizeti a vendég kártyával az előleget (Stripe). A szerkesztőben nincs valódi fizetés.</p>
+              ) : time && (
                 <DepositStep
                   dark={dk}
                   requestBody={{ kind: 'restaurant', restaurantId, date, start_time: time, pax, email: email || undefined }}
@@ -774,7 +797,7 @@ export function RestaurantBookingWizard({
 
           {/* Beleegyező nyilatkozat */}
           {step === CONSENT_STEP && consentEnabled && (
-            <div className={cardClass} style={cardStyle}>
+            <div data-edit-id="consent" className={cardClass} style={cardStyle}>
               <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{consentTitle?.trim() || tt('public.consent.title')}</p>
               <div
                 className={`mb-4 max-h-[40vh] overflow-y-auto whitespace-pre-wrap rounded-2xl p-4 text-[13.5px] leading-relaxed ${dk ? 'text-white/75' : 'text-ink-soft'}`}
@@ -824,6 +847,8 @@ export function RestaurantBookingWizard({
                   </div>
                 ))}
               </div>
+
+              {dk && <GoodToKnowCompact items={goodToKnow} locale={locale} />}
 
               {/* Megerősítés gomb */}
               <button

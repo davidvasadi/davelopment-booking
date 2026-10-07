@@ -118,6 +118,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       consentTitle: restaurant.consent_settings?.title,
       consentText: restaurant.consent_settings?.template_text,
       customQuestions: restaurant.custom_questions,
+      goodToKnow: restaurant.good_to_know,
       sectionOrder: restaurant.booking_rules?.public_section_order ?? null,
       hiddenSections: restaurant.booking_rules?.public_sections_hidden ?? null,
       fieldOrder: restaurant.booking_rules?.form_field_order ?? null,

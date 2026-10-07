@@ -16,6 +16,7 @@ import { isEditorMessage, postToPreview, type PreviewToEditor } from '@/lib/edit
 import { reminderOffsets } from '@/lib/reminders'
 import { CustomQuestionsEditor, type CustomQuestion } from '@/components/settings/CustomQuestionsEditor'
 import type { EditorView } from '@/components/booking/ProfileCard'
+import { EventTypesEditor, type EventTypeItem } from '@/components/settings/EventTypesEditor'
 import { cn } from '@/lib/utils'
 
 /**
@@ -37,6 +38,9 @@ export type EditorStaff = {
 }
 
 export type BookingPageEditorInitial = {
+  /** Szalon vagy étterem — ugyanaz a szerkesztő, csak a mentés-végpont, néhány elem és a
+   *  foglalási szabályok térnek el (étteremnél: létszám, alkalmak, foglalás hossza, lépték). */
+  variant: 'salon' | 'restaurant'
   slug: string
   supportedLocales: Locale[]
   name: string
@@ -90,9 +94,20 @@ export type BookingPageEditorInitial = {
   customQuestions: CustomQuestion[]
   /** Csak olvasható állapotok — a gazdájuk a Fizetés fül. */
   flags: { deposit: boolean; depositLabel: string; voucher: boolean; newsletter: boolean }
+  // ── Csak étterem ──
+  /** `turn_duration_minutes` — egy foglalás mennyi ideig tartja az asztalt. */
+  turnMinutes: number
+  /** `slot_step_minutes` — milyen sűrűn kínálunk időpontot. */
+  slotStepMinutes: number
+  /** `last_seating_buffer_minutes` — mennyivel zárás előtt van az utolsó kezdő időpont. */
+  lastSeatingMinutes: number
+  /** `event_types` — a vendég által választható alkalmak. */
+  eventTypes: EventTypeItem[]
+  /** A legnagyobb foglalható létszám (az asztalokból számolva, csak megjelenítéshez). */
+  maxPax: number
 }
 
-type Draft = Omit<BookingPageEditorInitial, 'bookingRules' | 'notificationPrefs' | 'featureModules' | 'flags'>
+type Draft = Omit<BookingPageEditorInitial, 'variant' | 'maxPax' | 'bookingRules' | 'notificationPrefs' | 'featureModules' | 'flags'>
 /** Nyelvenként fordítható mezők (a magyar a `Draft`-ban él). */
 type LocDraft = {
   description: string
@@ -101,6 +116,8 @@ type LocDraft = {
   consentTitle: string
   consentText: string
   customQuestions: CustomQuestion[]
+  /** Étterem: az alkalmak megnevezése ezen a nyelven (index szerint a magyar listához). */
+  eventTypeLabels: string[]
 }
 
 const STEPS: { id: EditorView; label: string }[] = [
@@ -109,7 +126,7 @@ const STEPS: { id: EditorView; label: string }[] = [
   { id: 'success', label: 'Visszaigazolás' }, { id: 'voucher', label: 'Utalvány' },
 ]
 
-const SECTION_LABELS: Record<string, string> = { services: 'Szolgáltatások', voucher: 'Ajándékutalvány', staff: 'Munkatársak', reviews: 'Google-értékelések' }
+const SECTION_LABELS: Record<string, string> = { services: 'Szolgáltatások', voucher: 'Ajándékutalvány', staff: 'Munkatársak', reviews: 'Google-értékelések', slots: 'Szabad időpontok & nyitvatartás' }
 
 const REMINDER_CHIPS = [['h48', '2 nappal'], ['h24', '24 órával'], ['h3', '3 órával'], ['h1', '1 órával']] as const
 
@@ -129,11 +146,11 @@ const ELEMENT_TITLES: Record<string, string> = {
   rules: 'Foglalási szabályok', confirm: 'Visszaigazolás & emlékeztetők', 'field:name': 'Név mező', 'field:email': 'E-mail mező',
   'field:phone': 'Telefonszám mező', 'field:address': 'Cím mező', 'field:notes': 'Megjegyzés mező', questions: 'Egyedi kérdések',
   consent: 'Hozzájáruló nyilatkozat', deposit: 'Előleg', terms: 'Foglalási feltételek', newsletter: 'Hírlevél-feliratkozás',
-  summary: 'Összegzés', redeem: 'Utalvány beváltása',
+  summary: 'Összegzés', redeem: 'Utalvány beváltása', 'sec:slots': 'Szabad időpontok & nyitvatartás', pax: 'Létszám', occasions: 'Alkalmak',
 }
 
 const draftFrom = (i: BookingPageEditorInitial): Draft => {
-  const { bookingRules: _br, notificationPrefs: _np, featureModules: _fm, flags: _fl, ...rest } = i
+  const { variant: _v, maxPax: _mp, bookingRules: _br, notificationPrefs: _np, featureModules: _fm, flags: _fl, ...rest } = i
   return rest
 }
 
@@ -155,6 +172,9 @@ export function BookingPageEditor({
   onNavigate?: (tab: string) => void
 }) {
   const router = useRouter()
+  const isRestaurant = initial.variant === 'restaurant'
+  const apiBase = isRestaurant ? '/api/restaurant/settings' : '/api/salon/settings'
+  const adminBase = isRestaurant ? '/restaurant' : '/dashboard'
   const [baseline, setBaseline] = useState<Draft>(() => draftFrom(initial))
   const [draft, setDraft] = useState<Draft>(baseline)
   const [locBaseline, setLocBaseline] = useState<Partial<Record<Locale, LocDraft>>>({})
@@ -197,7 +217,7 @@ export function BookingPageEditor({
     if (next === 'hu' || locDrafts[next]) { setLang(next); return }
     setLangLoading(true)
     try {
-      const res = await fetch(`/api/salon/settings?locale=${next}&fallback-locale=null`, { credentials: 'include' })
+      const res = await fetch(`${apiBase}?locale=${next}&fallback-locale=null`, { credentials: 'include' })
       if (!res.ok) throw new Error()
       const doc = await res.json()
       const staffBio: Record<string, string> = {}
@@ -221,6 +241,10 @@ export function BookingPageEditor({
           options: Array.isArray(q.options) ? (q.options as Record<string, unknown>[]).map((o) => ({ value: (o.value as string) ?? '' })) : [],
           required: !!q.required,
         })),
+        eventTypeLabels: draft.eventTypes.map((_, i) => {
+          const e = Array.isArray(doc.event_types) ? doc.event_types[i] : null
+          return typeof e?.label === 'string' ? e.label : ''
+        }),
       }
       setLocBaseline((b) => ({ ...b, [next]: loaded }))
       setLocDrafts((d) => ({ ...d, [next]: loaded }))
@@ -280,6 +304,12 @@ export function BookingPageEditor({
         confirmEmailEnabled: draft.confirmEmail,
         reminderHours: reminderHoursOf(draft.reminders),
         editorAutoConfirm: draft.autoConfirm,
+        ...(isRestaurant ? {
+          eventTypes: draft.eventTypes
+            .map((e, i) => ({ ...e, label: loc?.eventTypeLabels[i] || e.label }))
+            .filter((e) => e.enabled !== false && e.label)
+            .map((e) => ({ icon: e.icon, label: e.label })),
+        } : {}),
       },
       staffEdits,
     }
@@ -348,14 +378,22 @@ export function BookingPageEditor({
           public_section_order: d.sectionOrder,
           public_sections_hidden: d.hiddenSections,
           form_field_order: d.fieldOrder,
-          min_lead_hours: d.minLeadHours,
+          ...(isRestaurant ? {} : { min_lead_hours: d.minLeadHours }),
           auto_confirm: d.autoConfirm,
           require_address: d.requireAddress,
           require_address_note: d.requireAddressNote.trim() || null,
         }
       }
       if (changed('bookingWindowDays')) body.booking_window_days = d.bookingWindowDays
-      if (changed('bufferMinutes')) body.booking_buffer_minutes = d.bufferMinutes
+      if (!isRestaurant && changed('bufferMinutes')) body.booking_buffer_minutes = d.bufferMinutes
+      if (isRestaurant) {
+        if (changed('turnMinutes')) body.turn_duration_minutes = d.turnMinutes
+        if (changed('slotStepMinutes')) body.slot_step_minutes = d.slotStepMinutes
+        if (changed('lastSeatingMinutes')) body.last_seating_buffer_minutes = d.lastSeatingMinutes
+        // Étteremnél a saját `lead_time_hours` mező a minimum foglalási idő.
+        if (changed('minLeadHours')) body.lead_time_hours = d.minLeadHours ?? 0
+        if (changed('eventTypes')) body.event_types = d.eventTypes
+      }
       if (changed('requirePhone')) body.require_phone = d.requirePhone
       if (changed('confirmEmail')) body.notification_prefs = { ...initial.notificationPrefs, confirm_email: d.confirmEmail }
       if (changed('reminders')) {
@@ -372,7 +410,7 @@ export function BookingPageEditor({
       if (changed('customQuestions')) body.custom_questions = d.customQuestions
       if (Object.keys(body).length > 0) {
         try {
-          await patchJson('/api/salon/settings', body)
+          await patchJson(apiBase, body)
         } catch (e) {
           // Foglalt URL-azonosító: a szerver egyediségi hibát ad vissza.
           const msg = e instanceof Error ? e.message.toLowerCase() : ''
@@ -398,12 +436,13 @@ export function BookingPageEditor({
         const { staffBio: _a, ...beforeSalon } = before
         const { staffBio: _b, ...valueSalon } = value
         if (JSON.stringify(beforeSalon) !== JSON.stringify(valueSalon)) {
-          await patchJson(`/api/salon/settings?locale=${code}`, {
+          await patchJson(`${apiBase}?locale=${code}`, {
             description: value.description,
             good_to_know: value.goodToKnow,
             // A csoportot a PATCH egészében cseréli — az `enabled` (nem fordított) mezőt is küldjük.
             consent_settings: { enabled: d.consentEnabled, title: value.consentTitle, template_text: value.consentText },
             custom_questions: value.customQuestions,
+            ...(isRestaurant ? { event_types: d.eventTypes.map((e, i) => ({ ...e, label: value.eventTypeLabels[i] ?? '' })) } : {}),
           })
         }
         for (const [id, bio] of Object.entries(value.staffBio)) {
@@ -483,7 +522,9 @@ export function BookingPageEditor({
   const remHours = reminderHoursOf(draft.reminders)
   const rulesSummary: { label: string; value: string; step: EditorView; sel: string | null; off?: boolean }[] = [
     { label: 'Foglalható előre', value: `${draft.bookingWindowDays} nap`, step: 'datetime', sel: 'rules' },
-    { label: 'Szünet a foglalások között', value: draft.bufferMinutes ? `${draft.bufferMinutes} perc` : 'Nincs', step: 'datetime', sel: 'rules', off: !draft.bufferMinutes },
+    isRestaurant
+      ? { label: 'Foglalás hossza', value: `${draft.turnMinutes} perc`, step: 'datetime', sel: 'rules' }
+      : { label: 'Szünet a foglalások között', value: draft.bufferMinutes ? `${draft.bufferMinutes} perc` : 'Nincs', step: 'datetime', sel: 'rules', off: !draft.bufferMinutes },
     { label: 'Minimum idő előtte', value: draft.minLeadHours ? `${draft.minLeadHours} óra` : 'Nincs', step: 'datetime', sel: 'rules', off: !draft.minLeadHours },
     { label: 'Automatikus megerősítés', value: draft.autoConfirm ? 'Be' : 'Ki', step: 'success', sel: 'confirm', off: !draft.autoConfirm },
     { label: 'Visszaigazoló e-mail', value: draft.confirmEmail ? 'Be' : 'Ki', step: 'success', sel: 'confirm', off: !draft.confirmEmail },
@@ -618,7 +659,10 @@ export function BookingPageEditor({
 
           {!sel && step === 'main' && (
             <div className="space-y-2">
-              {(['cover', 'logo', 'name', 'address', 'desc', 'counts', 'contact', 'langs', 'link'] as const).map((id) => (
+              {(isRestaurant
+                ? (['cover', 'logo', 'name', 'address', 'desc', 'contact', 'langs', 'link'] as const)
+                : (['cover', 'logo', 'name', 'address', 'desc', 'counts', 'contact', 'langs', 'link'] as const)
+              ).map((id) => (
                 <Row key={id} label={ELEMENT_TITLES[id]} onClick={() => setSel(id)} />
               ))}
               <div className="pt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft2">Szakaszok · húzd a sorrendhez</div>
@@ -670,11 +714,12 @@ export function BookingPageEditor({
                       )
                     })}
                   </Reorder.Group>
+                  {isRestaurant && <Row label={ELEMENT_TITLES.occasions} onClick={() => setSel('occasions')} />}
                 </>
               )}
               {(step === 'details'
                 ? ([] as const)
-                : step === 'datetime' ? (['rules'] as const)
+                : step === 'datetime' ? (isRestaurant ? (['pax', 'rules'] as const) : (['rules'] as const))
                 : step === 'consent' ? (['consent'] as const)
                 : step === 'summary' ? (['summary', 'gtk', 'terms', ...(initial.flags.newsletter ? ['newsletter' as const] : [])] as const)
                 : step === 'success' ? (['confirm'] as const)
@@ -715,10 +760,14 @@ export function BookingPageEditor({
           {sel === 'address' && (
             <>
               <Field label="Cím"><input className={fieldCls} value={draft.address} placeholder="Utca, házszám" onChange={(e) => set('address', e.target.value)} /></Field>
-              <div className="grid grid-cols-[110px_1fr] gap-2">
-                <Field label="Irányítószám"><input className={fieldCls} value={draft.postalCode} onChange={(e) => set('postalCode', e.target.value)} /></Field>
+              {isRestaurant ? (
                 <Field label="Város"><input className={fieldCls} value={draft.city} onChange={(e) => set('city', e.target.value)} /></Field>
-              </div>
+              ) : (
+                <div className="grid grid-cols-[110px_1fr] gap-2">
+                  <Field label="Irányítószám"><input className={fieldCls} value={draft.postalCode} onChange={(e) => set('postalCode', e.target.value)} /></Field>
+                  <Field label="Város"><input className={fieldCls} value={draft.city} onChange={(e) => set('city', e.target.value)} /></Field>
+                </div>
+              )}
             </>
           )}
 
@@ -878,13 +927,29 @@ export function BookingPageEditor({
                 </div>
               </Field>
               <Chips options={[30, 60, 90, 180].map((v) => ({ label: `${v} nap`, on: draft.bookingWindowDays === v, onClick: () => set('bookingWindowDays', v) }))} />
-              <Field group label="Szünet a foglalások között" hint="A szabad időpontok a mentés után igazodnak hozzá.">
-                <Chips options={[0, 5, 10, 15, 30].map((v) => ({ label: v ? `${v} perc` : 'Nincs', on: draft.bufferMinutes === v, onClick: () => set('bufferMinutes', v) }))} />
+              {isRestaurant ? (
+                <>
+                  <Field group label="Foglalás hossza" hint="Ennyi ideig tartja a foglalás az asztalt.">
+                    <Chips options={[60, 90, 120, 150, 180].map((v) => ({ label: `${v} perc`, on: draft.turnMinutes === v, onClick: () => set('turnMinutes', v) }))} />
+                  </Field>
+                  <Field group label="Időpont-lépték" hint="Milyen sűrűn kínálunk kezdő időpontot.">
+                    <Chips options={[15, 30, 60].map((v) => ({ label: `${v} perc`, on: draft.slotStepMinutes === v, onClick: () => set('slotStepMinutes', v) }))} />
+                  </Field>
+                  <Field group label="Utolsó foglalás zárás előtt" hint="0 = zárásig lehet kezdeni (a foglalás belelóghat a zárásba).">
+                    <Chips options={[0, 30, 60, 90, 120].map((v) => ({ label: v ? `${v} perc` : 'Zárásig', on: draft.lastSeatingMinutes === v, onClick: () => set('lastSeatingMinutes', v) }))} />
+                  </Field>
+                </>
+              ) : (
+                <Field group label="Szünet a foglalások között" hint="A szabad időpontok a mentés után igazodnak hozzá.">
+                  <Chips options={[0, 5, 10, 15, 30].map((v) => ({ label: v ? `${v} perc` : 'Nincs', on: draft.bufferMinutes === v, onClick: () => set('bufferMinutes', v) }))} />
+                </Field>
+              )}
+              <Field group label="Minimum idő a foglalás előtt" hint={isRestaurant ? 'Ennél korábbra nem lehet asztalt foglalni.' : 'Alapértelmezés — munkatársanként felülírható.'}>
+                <Chips options={[[null, 'Nincs'], [1, '1 óra'], [2, '2 óra'], [4, '4 óra'], [24, '1 nap']].map(([v, label]) => ({ label: label as string, on: (draft.minLeadHours || null) === v, onClick: () => set('minLeadHours', v as number | null) }))} />
               </Field>
-              <Field group label="Minimum idő a foglalás előtt" hint="Alapértelmezés — munkatársanként felülírható.">
-                <Chips options={[[null, 'Nincs'], [1, '1 óra'], [2, '2 óra'], [4, '4 óra'], [24, '1 nap']].map(([v, label]) => ({ label: label as string, on: draft.minLeadHours === v, onClick: () => set('minLeadHours', v as number | null) }))} />
-              </Field>
-              <LinkButton href="/dashboard/staff">Munkatársankénti beállítások</LinkButton>
+              {isRestaurant
+                ? <LinkButton href={`${adminBase}/availability`}>Nyitvatartás</LinkButton>
+                : <LinkButton href="/dashboard/staff">Munkatársankénti beállítások</LinkButton>}
             </>
           )}
 
@@ -992,6 +1057,41 @@ export function BookingPageEditor({
             <>
               <p className="text-[12.5px] leading-relaxed text-ink-soft">Csak akkor látszik, ha az ajándékutalvány be van kapcsolva.</p>
               <NavButton onClick={() => onNavigate?.('payments')}>Ajándékutalvány beállításai</NavButton>
+            </>
+          )}
+
+          {sel === 'pax' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">A legnagyobb foglalható létszám az asztalaidból jön: most <b className="text-ink">{initial.maxPax} fő</b>.</p>
+              <LinkButton href={`${adminBase}/tables`}>Asztalok kezelése</LinkButton>
+            </>
+          )}
+
+          {sel === 'occasions' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">Milyen alkalomból foglalhat a vendég ({LOCALE_LABELS[lang]}). Kikapcsolva nem jelenik meg; ha mind ki van kapcsolva, az alapkészlet látszik.</p>
+              {loc ? (
+                <div className="space-y-2">
+                  {draft.eventTypes.map((e, i) => (
+                    <input
+                      key={i}
+                      className={fieldCls}
+                      value={loc.eventTypeLabels[i] ?? ''}
+                      placeholder={e.label}
+                      onChange={(ev) => setLoc({ eventTypeLabels: draft.eventTypes.map((_, x) => (x === i ? ev.target.value : loc.eventTypeLabels[x] ?? '')) })}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EventTypesEditor value={draft.eventTypes} onChange={(v) => set('eventTypes', v)} />
+              )}
+            </>
+          )}
+
+          {sel === 'sec:slots' && (
+            <>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">A legközelebbi szabad időpontok és a nyitvatartás a beállított nyitvatartásból és az asztalokból számolódnak.</p>
+              <LinkButton href={`${adminBase}/availability`}>Nyitvatartás</LinkButton>
             </>
           )}
 

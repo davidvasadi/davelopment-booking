@@ -27,6 +27,7 @@ import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import type { Section } from '@/components/booking/TermsContent'
 import { DepositStep } from '@/components/booking/DepositStep'
 import { BookingSuccess } from '@/components/booking/BookingSuccess'
+import { GoodToKnowCompact } from '@/components/booking/GoodToKnowSection'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 
@@ -1655,28 +1656,7 @@ export function ProfileCard({
                       </div>
                     ))}
                   </div>
-                  {(goodToKnow ?? []).filter(p => p?.title || p?.body).length > 0 && (
-                    <div data-edit-id="gtk" className="mb-3 rounded-2xl p-4 space-y-2.5" style={{ background: 'rgba(255,255,255,0.06)', border: '1.5px solid rgba(255,255,255,0.10)' }}>
-                      <div className="flex items-center gap-2 mb-1">
-                        <Info className="h-3.5 w-3.5 text-white/40" />
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/40">{tt('goodToKnow.title')}</p>
-                      </div>
-                      {(goodToKnow ?? []).filter(p => p?.title || p?.body).map((p, i) => {
-                        const Icon = iconByKey(p?.icon)
-                        return (
-                          <div key={p?.id ?? i} className="flex gap-2.5">
-                            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white/[0.12] mt-0.5">
-                              <Icon className="h-3 w-3 text-white" />
-                            </div>
-                            <div className="min-w-0">
-                              {p?.title && <p className="text-[12px] font-semibold text-white">{p.title}</p>}
-                              {p?.body && <p className="text-[11px] text-white/55">{p.body}</p>}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
+                  <GoodToKnowCompact items={goodToKnow} locale={locale} className="mb-3" />
                 </div>
               )}
 

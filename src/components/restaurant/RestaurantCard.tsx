@@ -89,6 +89,10 @@ export type RestaurantCardProps = {
   hiddenSections?: string[] | null
   /** `booking_rules.form_field_order` — a varázsló Adatok lépésének mezősorrendje. */
   fieldOrder?: string[] | null
+  /** Szerkesztő-előnézet: automatikus megerősítés (a Visszaigazolás lépés szövegéhez). */
+  editorAutoConfirm?: boolean
+  /** „Jó tudni” pontok — a foglalás Összegzés lépésén. */
+  goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
 }
 
 const RESTAURANT_SECTION_IDS = ['reviews', 'slots', 'voucher']
@@ -133,6 +137,8 @@ export function RestaurantCard({
   sectionOrder = null,
   hiddenSections = null,
   fieldOrder = null,
+  editorAutoConfirm = true,
+  goodToKnow = null,
 }: RestaurantCardProps) {
   // A főnézet szakaszai a beállított sorrendben (CSS `order`) — a szerkesztő-előnézetben a
   // rejtett szakasz halványan látszik, hogy vissza lehessen kapcsolni (ugyanaz, mint a szalonnál).
@@ -198,6 +204,24 @@ export function RestaurantCard({
   }, [searchParams])
 
   const addressLine = [restaurantAddress, restaurantCity].filter(Boolean).join(', ')
+
+  // Szerkesztő-előnézet: a kért lépésre ugrunk (a foglalás lépéseit a varázsló mintaadatokkal
+  // mutatja, a visszaigazolást mintafoglalással) — ugyanaz a viselkedés, mint a szalon kártyáján.
+  const wizardStep = editorView && ['datetime', 'details', 'deposit', 'consent', 'summary'].includes(editorView)
+    ? editorView as 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' : null
+  useEffect(() => {
+    if (!editorView) return
+    if (editorView === 'main') { setView('main'); setSheetOpen(false); return }
+    if (editorView === 'success') {
+      setSuccessDetails({
+        date: format(new Date(Date.now() + 86400000), 'yyyy-MM-dd'), time: '19:00', pax: 2,
+        confirmed: editorAutoConfirm, icsToken: null, hasEmail: true, occasion: eventTypes[0]?.label ?? null,
+      })
+      setView('success')
+    } else if (editorView === 'voucher') setView('voucher')
+    else setView('book')
+    setSheetOpen(true)
+  }, [editorView, editorAutoConfirm]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSlotClick = (date: string, time: string, pax: number) => {
     setBookInitial(date || time ? { date, time, pax } : null)
@@ -462,6 +486,8 @@ export function RestaurantCard({
         consentText={consentText}
         customQuestions={customQuestions}
         fieldOrder={fieldOrder}
+        editorStep={wizardStep}
+        goodToKnow={goodToKnow}
       />
     </div>
   )
@@ -489,7 +515,7 @@ export function RestaurantCard({
   )
 
   const voucherView = (
-    <div className="px-5 pb-6 pt-6 lg:px-6">
+    <div data-edit-id="sec:voucher" className="px-5 pb-6 pt-6 lg:px-6">
       {voucherResult ? (
         <div className="flex min-h-[50vh] flex-col items-center justify-center py-8 text-center">
           <motion.div
@@ -677,6 +703,7 @@ export function RestaurantCard({
           {isMobile && sheetOpen && (
             <motion.div
               key="restaurant-sheet-backdrop"
+              data-edit-pass
               className="fixed inset-0 z-[29] lg:hidden"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -704,6 +731,7 @@ export function RestaurantCard({
               transition={{ type: 'spring', stiffness: 400, damping: 30, delay: 0.3 }}
             >
               <button
+                data-edit-pass
                 onClick={() => { setSheetOpen(true) }}
                 className="flex w-full h-14 items-center justify-center gap-2 rounded-full text-[15px] font-semibold text-ink-dark"
                 style={{ background: '#FFD85F', boxShadow: '0 4px 32px rgba(0,0,0,0.45)' }}
