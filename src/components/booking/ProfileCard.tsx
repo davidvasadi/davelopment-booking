@@ -26,6 +26,7 @@ import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import type { Section } from '@/components/booking/TermsContent'
 import { DepositStep } from '@/components/booking/DepositStep'
+import { BookingSuccess } from '@/components/booking/BookingSuccess'
 import { iconByKey } from '@/components/settings/goodToKnowIcons'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 
@@ -106,21 +107,6 @@ export const FORM_FIELD_IDS = ['name', 'email', 'phone', 'address', 'questions',
 export type FormFieldId = (typeof FORM_FIELD_IDS)[number]
 
 export type EditorView = 'main' | 'datetime' | 'details' | 'deposit' | 'consent' | 'summary' | 'success' | 'voucher'
-
-/** „24 órával és 2 nappal” — az emlékeztető-időzítés szövege a visszaigazoló képernyőn. */
-const REMINDER_WORDS: Record<string, { h: string; d: string; and: string }> = {
-  hu: { h: 'órával', d: 'nappal', and: 'és' },
-  en: { h: 'hours', d: 'days', and: 'and' },
-  de: { h: 'Stunden', d: 'Tage', and: 'und' },
-  es: { h: 'horas', d: 'días', and: 'y' },
-  fr: { h: 'heures', d: 'jours', and: 'et' },
-  it: { h: 'ore', d: 'giorni', and: 'e' },
-}
-function reminderWhen(locale: string, hours: number[]): string {
-  const w = REMINDER_WORDS[locale] ?? REMINDER_WORDS.en
-  const parts = hours.map((h) => (h >= 48 && h % 24 === 0 ? `${h / 24} ${w.d}` : `${h} ${w.h}`))
-  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} ${w.and} ${parts[parts.length - 1]}` : (parts[0] ?? '')
-}
 
 function getCategoryId(cat: Service['category']): string | null {
   if (!cat) return null
@@ -1664,7 +1650,7 @@ export function ProfileCard({
                       ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: formatPrice(redeemValid.amount_huf, 'HUF') }] : []),
                     ].filter((r): r is { label: string; value: string } => !!r.value).map(({ label, value }, i, arr) => (
                       <div key={label} className={cn('flex items-start justify-between gap-3 py-2.5', i < arr.length - 1 && 'border-b border-white/[0.08]')}>
-                        <span className="shrink-0 pt-0.5 text-xs text-white/45">{label}</span>
+                        <span className="shrink-0 pt-0.5 text-xs text-white/45">{label.replace(/\s*\*$/, '')}</span>
                         <span className="min-w-0 text-right text-sm font-semibold text-white [overflow-wrap:anywhere]">{value}</span>
                       </div>
                     ))}
@@ -1694,65 +1680,18 @@ export function ProfileCard({
                 </div>
               )}
 
-              {/* SUCCESS — ikon + cím az automatikus megerősítés szerint, e-mail / emlékeztető
-                  tájékoztatás, két egyforma gomb (naptár + kész). Minden szöveg törik, 320 px-en sem lóg ki. */}
+              {/* SUCCESS — közös visszaigazoló képernyő (szalon + étterem). */}
               {view === 'success' && (
-                <div data-edit-id="confirm" className="flex min-h-[50vh] flex-col items-center justify-center px-1 py-8 text-center">
-                  <motion.div
-                    initial={{ scale: 0.7, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                    className="mb-5 flex h-16 w-16 items-center justify-center rounded-full"
-                    style={{ background: successDetails?.confirmed === false ? 'rgba(255,255,255,0.85)' : '#FFD85F' }}
-                  >
-                    {successDetails?.confirmed === false
-                      ? <Clock className="h-7 w-7 text-ink-dark" strokeWidth={2} />
-                      : <Check className="h-8 w-8 text-ink-dark" strokeWidth={2.5} />}
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.3, delay: 0.15 }}
-                    className="w-full min-w-0"
-                  >
-                    <h2 className="mb-2 text-2xl font-light tracking-[-0.01em] text-white [overflow-wrap:anywhere]">
-                      {successDetails?.confirmed === false ? tt('public.success.titlePending') : tt('public.success.title')}
-                    </h2>
-                    <p className="mb-5 text-sm leading-relaxed text-white/60">
-                      {successDetails?.confirmed === false ? tt('public.success.pendingBody') : tt('public.success.welcome')}
-                      {successDetails?.hasEmail && confirmEmailEnabled && (
-                        <> {successDetails.confirmed ? tt('public.success.subtitle') : tt('public.success.emailLater')}</>
-                      )}
-                    </p>
-                    {successDetails && (
-                      <div className="mb-3 rounded-[14px] px-4 py-3 text-[13px] leading-snug text-white/75 [overflow-wrap:anywhere]" style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}>
-                        <span className="font-semibold text-white">{successDetails.service}</span> · {successDetails.staff} · {successDetails.date} {successDetails.time}
-                      </div>
-                    )}
-                    {successDetails?.hasEmail && reminderHours.length > 0 && (
-                      <p className="mb-2 text-[12px] leading-relaxed text-white/50">
-                        {tt('public.success.reminder', { when: reminderWhen(locale, reminderHours) })}
-                      </p>
-                    )}
-                    <div className="mt-5 flex w-full gap-2">
-                      {successDetails?.icsToken && (
-                        <a
-                          href={`/api/ics/booking/${encodeURIComponent(successDetails.icsToken)}`}
-                          className="flex h-12 min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-full px-3 text-[14px] font-semibold text-white transition-colors hover:bg-white/[0.16]"
-                          style={{ background: 'rgba(255,255,255,0.10)' }}
-                        >
-                          {tt('email.addToCalendar')}
-                        </a>
-                      )}
-                      <button
-                        onClick={handleCloseSuccess}
-                        className="flex h-12 min-w-0 flex-1 items-center justify-center whitespace-nowrap rounded-full bg-white px-3 text-[14px] font-semibold text-ink-dark"
-                      >
-                        {tt('public.success.done')}
-                      </button>
-                    </div>
-                  </motion.div>
-                </div>
+                <BookingSuccess
+                  locale={locale}
+                  confirmed={successDetails?.confirmed !== false}
+                  hasEmail={!!successDetails?.hasEmail}
+                  confirmEmailEnabled={confirmEmailEnabled}
+                  reminderHours={reminderHours}
+                  summary={successDetails && (<><span className="font-semibold text-white">{successDetails.service}</span> · {successDetails.staff} · {successDetails.date} {successDetails.time}</>)}
+                  icsHref={successDetails?.icsToken ? `/api/ics/booking/${encodeURIComponent(successDetails.icsToken)}` : null}
+                  onDone={handleCloseSuccess}
+                />
               )}
 
               {/* VOUCHER — vásárlás */}

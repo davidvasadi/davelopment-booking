@@ -79,6 +79,8 @@ export const es: Record<string, string> = {
   'rbooking.err.slots': 'No se pudieron cargar los horarios',
   'rbooking.retry': 'Reintentar',
   'rbooking.guests': '{{n}} personas',
+  'rbooking.label.guests': 'Personas',
+  'rbooking.label.occasion': 'Ocasión',
 
   // ── Tira de fechas — abreviaturas de días, desde domingo ──
   'dateStrip.days': 'Do,Lu,Ma,Mi,Ju,Vi,Sá',

@@ -79,6 +79,8 @@ export const de: Record<string, string> = {
   'rbooking.err.slots': 'Zeitfenster konnten nicht geladen werden',
   'rbooking.retry': 'Erneut versuchen',
   'rbooking.guests': '{{n}} Personen',
+  'rbooking.label.guests': 'Personen',
+  'rbooking.label.occasion': 'Anlass',
 
   // ── Datumsleiste — Tageskürzel, ab Sonntag ──
   'dateStrip.days': 'So,Mo,Di,Mi,Do,Fr,Sa',

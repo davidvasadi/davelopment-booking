@@ -18,6 +18,7 @@ import type { Media, Restaurant } from '@/payload/payload-types'
 import { t, resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { hasActivePackage } from '@/lib/newsletterLimits'
 import { nextImageSrc } from '@/lib/utils'
+import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
 
 /**
  * Renders an active restaurant's public landing page.
@@ -218,6 +219,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
         consentText={restaurant.consent_settings?.template_text}
         customQuestions={restaurant.custom_questions}
         embed={embed}
+        confirmEmailEnabled={restaurant.notification_prefs?.confirm_email !== false}
+        reminderHours={reminderEnabled(restaurant) ? reminderOffsets(restaurant.feature_modules) : []}
       />
     </div>
   )

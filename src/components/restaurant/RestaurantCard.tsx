@@ -9,7 +9,9 @@ import { toast } from 'sonner'
 import { formatPrice, cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
 import { APP_URL } from '@/lib/brand'
-import { t, type Locale } from '@/lib/i18n'
+import { t, dfLocale, type Locale } from '@/lib/i18n'
+import { format } from 'date-fns'
+import { BookingSuccess } from '@/components/booking/BookingSuccess'
 import { RatingStars } from '@/components/booking/RatingStars'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 import { DepositStep } from '@/components/booking/DepositStep'
@@ -66,6 +68,8 @@ export function RestaurantCard({
   consentText,
   customQuestions,
   embed = false,
+  confirmEmailEnabled = true,
+  reminderHours = [],
 }: {
   slug: string
   restaurantId: string | number
@@ -108,13 +112,20 @@ export function RestaurantCard({
   }[] | null
   /** Beágyazott (iframe) nézet — normál, statikus blokkként jelenik meg lebegő kártya helyett. */
   embed?: boolean
+  /** `notification_prefs.confirm_email` — megy-e visszaigazoló e-mail a vendégnek. */
+  confirmEmailEnabled?: boolean
+  /** Az e-mailes emlékeztetők időzítése órában (üres = nincs emlékeztető). */
+  reminderHours?: number[]
 }) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const sheetDragControls = useDragControls()
   const [isMobile, setIsMobile] = useState(true)
   const [view, setView] = useState<View>('main')
   const [bookInitial, setBookInitial] = useState<{ date: string; time: string; pax: number } | null>(null)
-  const [successDetails, setSuccessDetails] = useState<{ date: string; time: string; pax: number } | null>(null)
+  const [successDetails, setSuccessDetails] = useState<{
+    date: string; time: string; pax: number
+    confirmed: boolean; icsToken: string | null; hasEmail: boolean; occasion: string | null
+  } | null>(null)
   const searchParams = useSearchParams()
   const autoOpenedRef = useRef(false)
 
@@ -167,8 +178,8 @@ export function RestaurantCard({
     setSheetOpen(true)
   }
 
-  const handleSuccess = (date: string, time: string, pax: number) => {
-    setSuccessDetails({ date, time, pax })
+  const handleSuccess = (date: string, time: string, pax: number, extra?: { confirmed: boolean; icsToken: string | null; hasEmail: boolean; occasion: string | null }) => {
+    setSuccessDetails({ date, time, pax, confirmed: extra?.confirmed ?? true, icsToken: extra?.icsToken ?? null, hasEmail: extra?.hasEmail ?? true, occasion: extra?.occasion ?? null })
     setView('success')
   }
 
@@ -423,46 +434,25 @@ export function RestaurantCard({
     </div>
   )
 
+  // Közös visszaigazoló képernyő (ugyanaz, mint a szalon foglalóján).
   const successView = (
-    <div className="flex flex-col items-center justify-center min-h-[50vh] px-6 py-8 text-center">
-      <motion.div
-        initial={{ scale: 0.7, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-        className="mb-6 flex h-20 w-20 items-center justify-center rounded-full"
-        style={{ background: 'rgba(52,211,153,0.15)' }}
-      >
-        <CheckCircle className="h-10 w-10 text-emerald-400" />
-      </motion.div>
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3, delay: 0.15 }}
-      >
-        <h2 className="text-2xl font-light tracking-[-0.01em] text-white mb-2">
-          {t(locale, 'public.success.title')}
-        </h2>
-        <p className="text-sm text-white/55 mb-8">
-          {t(locale, 'public.success.subtitle')}
-        </p>
-        {successDetails && (
-          <div
-            className="mb-8 rounded-[16px] px-5 py-4 text-left"
-            style={{ background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.10)' }}
-          >
-            <p className="text-xs text-white/45 mb-1">{t(locale, 'rbooking.summary')}</p>
-            <p className="text-gold font-semibold">{t(locale, 'rbooking.guests', { n: successDetails.pax })}</p>
-            <p className="text-sm text-white/60 mt-1">{successDetails.date} · {successDetails.time}</p>
-          </div>
+    <div className="px-5 lg:px-6">
+      <BookingSuccess
+        locale={locale}
+        confirmed={successDetails?.confirmed !== false}
+        hasEmail={!!successDetails?.hasEmail}
+        confirmEmailEnabled={confirmEmailEnabled}
+        reminderHours={reminderHours}
+        summary={successDetails && (
+          <>
+            <span className="font-semibold text-white">{t(locale, 'rbooking.guests', { n: successDetails.pax })}</span>
+            {' · '}{format(new Date(successDetails.date + 'T00:00:00'), 'MMM d., EEEE', { locale: dfLocale(locale) })} {successDetails.time}
+            {successDetails.occasion ? ` · ${successDetails.occasion}` : ''}
+          </>
         )}
-        <button
-          onClick={handleCloseSuccess}
-          className="flex w-full h-12 items-center justify-center rounded-full text-[14px] font-semibold text-ink-dark"
-          style={{ background: '#FFD85F' }}
-        >
-          {t(locale, 'public.success.back')}
-        </button>
-      </motion.div>
+        icsHref={successDetails?.icsToken ? `/api/ics/reservation/${encodeURIComponent(successDetails.icsToken)}` : null}
+        onDone={handleCloseSuccess}
+      />
     </div>
   )
 

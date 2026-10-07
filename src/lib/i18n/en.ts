@@ -81,6 +81,8 @@ export const en: Record<string, string> = {
   'rbooking.err.slots': 'Could not load time slots',
   'rbooking.retry': 'Try again',
   'rbooking.guests': '{{n}} guests',
+  'rbooking.label.guests': 'Guests',
+  'rbooking.label.occasion': 'Occasion',
 
   // ── Date strip — day abbreviations, starting Sunday ──
   'dateStrip.days': 'Su,Mo,Tu,We,Th,Fr,Sa',

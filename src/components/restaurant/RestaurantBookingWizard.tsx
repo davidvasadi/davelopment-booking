@@ -60,7 +60,8 @@ export function RestaurantBookingWizard({
   company?: CompanyInfo | null
   locale?: Locale
   onBack?: () => void
-  onSuccess?: (date: string, time: string, pax: number) => void
+  /** `extra`: a visszaigazoló képernyőhöz — megerősített-e, .ics-token, adott-e meg e-mailt, alkalom. */
+  onSuccess?: (date: string, time: string, pax: number, extra?: { confirmed: boolean; icsToken: string | null; hasEmail: boolean; occasion: string | null }) => void
   variant?: 'light' | 'dark'
   initialDateProp?: string
   initialTimeProp?: string
@@ -285,7 +286,12 @@ export function RestaurantBookingWizard({
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? tt('rbooking.err.generic'))
       trackBookingConversion()
-      if (onSuccess) onSuccess(date, time!, pax)
+      if (onSuccess) onSuccess(date, time!, pax, {
+        confirmed: data.status !== 'pending',
+        icsToken: typeof data.cancel_token === 'string' ? data.cancel_token : null,
+        hasEmail: !!email.trim(),
+        occasion: occasionIdx != null ? eventTypes[occasionIdx]?.label ?? null : null,
+      })
       else router.push(`/${slug}/book/success`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : tt('rbooking.err.generic'))
@@ -769,36 +775,27 @@ export function RestaurantBookingWizard({
           {/* Összefoglalás + megerősítés */}
           {step === REVIEW_STEP && (
             <>
-              {/* Foglalás összegzése */}
-              <div className="bg-ink-dark rounded-[20px] p-5">
-                <p className="text-white/60 text-xs font-medium mb-1">{tt('rbooking.summary')}</p>
-                <p className="text-gold font-semibold text-lg">{tt('rbooking.guests', { n: pax })}</p>
-                <p className="text-white/60 text-sm mt-1">{format(selectedDateObj, 'MMM d.', { locale: dfLocale(locale) })} · {time}</p>
-                {occasionIdx !== null && eventTypes[occasionIdx] && (
-                  <p className="text-white/50 text-xs mt-2">{eventTypes[occasionIdx].label}</p>
-                )}
-                {paymentIntentId && depositAmountHuf && (
-                  <p className="text-gold/80 text-xs mt-2">Előleg fizetve: {depositAmountHuf.toLocaleString('hu-HU')} Ft</p>
-                )}
-              </div>
-
-              {/* Személyes adatok áttekintése */}
-              <div className={cardClass} style={cardStyle}>
-                <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-3 ${labelCls}`}>{tt('rbooking.details')}</p>
-                <div className="space-y-0">
-                  {[
-                    { label: tt('rbooking.field.name'), value: name.trim() || null },
-                    { label: tt('rbooking.field.email'), value: email.trim() || null },
-                    { label: tt('rbooking.field.email').replace('Email', 'Tel'), value: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : null },
-                    { label: tt('rbooking.field.city'), value: city.trim() || null },
-                    { label: tt('rbooking.field.note'), value: notes.trim() || null },
-                  ].filter(({ value }) => value !== null).map(({ label, value }) => (
-                    <div key={label} className={`flex justify-between gap-4 py-2.5 border-b ${dk ? 'border-white/[0.07]' : 'border-line/60'} last:border-0`}>
-                      <span className={`text-[12px] shrink-0 ${labelCls}`}>{label}</span>
-                      <span className={`text-[13px] font-medium text-right ${textCls}`}>{value}</span>
-                    </div>
-                  ))}
-                </div>
+              {/* Összegzés — egy kártyában, ugyanabban a sorrendben, mint a szalon foglalóján
+                  (foglalás → vendég adatai → előleg / utalvány). A hosszú értékek törnek. */}
+              <h2 className={`text-[22px] font-light tracking-[-0.02em] ${textCls}`}>{tt('booking.summary.title')}</h2>
+              <div data-edit-id="summary" className={cn(cardClass, 'py-1')} style={cardStyle}>
+                {[
+                  { label: tt('rbooking.label.guests'), value: tt('rbooking.guests', { n: pax }) },
+                  { label: tt('booking.step.datetime'), value: `${format(selectedDateObj, 'MMM d., EEEE', { locale: dfLocale(locale) })} · ${time}` },
+                  { label: tt('rbooking.label.occasion'), value: occasionIdx !== null ? eventTypes[occasionIdx]?.label ?? null : null },
+                  { label: tt('booking.field.name'), value: name.trim() || null },
+                  { label: tt('booking.field.email'), value: email.trim() || null },
+                  { label: tt('booking.field.phone'), value: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : null },
+                  { label: tt('booking.field.city'), value: city.trim() || null },
+                  { label: tt('booking.field.note'), value: notes.trim() || null },
+                  ...(paymentIntentId && depositAmountHuf ? [{ label: 'Előleg (fizetve)', value: `${depositAmountHuf.toLocaleString('hu-HU')} Ft` }] : []),
+                  ...(redeemValid && redeemCode.trim() ? [{ label: 'Utalvánnyal fedezve', value: `${redeemValid.amount_huf.toLocaleString('hu-HU')} Ft` }] : []),
+                ].filter((r): r is { label: string; value: string } => !!r.value).map(({ label, value }, i, arr) => (
+                  <div key={label} className={cn('flex items-start justify-between gap-3 py-2.5', i < arr.length - 1 && (dk ? 'border-b border-white/[0.08]' : 'border-b border-line/60'))}>
+                    <span className={`shrink-0 pt-0.5 text-xs ${labelCls}`}>{label.replace(/\s*\*$/, '')}</span>
+                    <span className={`min-w-0 text-right text-sm font-semibold [overflow-wrap:anywhere] ${textCls}`}>{value}</span>
+                  </div>
+                ))}
               </div>
 
               {/* Megerősítés gomb */}
@@ -816,7 +813,7 @@ export function RestaurantBookingWizard({
                 )}
               </button>
               {((termsSections && termsSections.length > 0) || company) && (
-                <div className={`text-center text-xs ${dk ? 'text-white/40' : 'text-ink-soft'}`}>
+                <div data-edit-id="terms" className={`text-center text-xs ${dk ? 'text-white/40' : 'text-ink-soft'}`}>
                   {tt('rbooking.termsPrefix')}{' '}
                   <TermsModal sections={termsSections} company={company} locale={locale} />
                 </div>

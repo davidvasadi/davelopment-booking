@@ -300,12 +300,13 @@ export async function POST(request: NextRequest) {
         ok: true,
         reservationId: reservation.id,
         cancel_token: reservation.cancel_token,
+        status: reservationStatus,
         series_id: seriesId,
         created_count: created.length,
         skipped_dates: skipped,
       })
     }
-    return NextResponse.json({ ok: true, reservationId: reservation.id, cancel_token: reservation.cancel_token })
+    return NextResponse.json({ ok: true, reservationId: reservation.id, cancel_token: reservation.cancel_token, status: reservationStatus })
   } catch (err) {
     console.error('[Restaurant Reservations API]', err)
     return NextResponse.json({ error: 'Szerver hiba' }, { status: 500 })

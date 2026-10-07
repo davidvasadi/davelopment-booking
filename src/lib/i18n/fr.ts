@@ -79,6 +79,8 @@ export const fr: Record<string, string> = {
   'rbooking.err.slots': 'Impossible de charger les créneaux',
   'rbooking.retry': 'Réessayer',
   'rbooking.guests': '{{n}} personnes',
+  'rbooking.label.guests': 'Personnes',
+  'rbooking.label.occasion': 'Occasion',
 
   // ── Bande de dates — abréviations des jours, à partir de dimanche ──
   'dateStrip.days': 'Di,Lu,Ma,Me,Je,Ve,Sa',

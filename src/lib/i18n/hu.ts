@@ -85,6 +85,8 @@ export const hu: Record<string, string> = {
   'rbooking.err.slots': 'Nem sikerült betölteni az időpontokat',
   'rbooking.retry': 'Újrapróbálom',
   'rbooking.guests': '{{n}} fő',
+  'rbooking.label.guests': 'Létszám',
+  'rbooking.label.occasion': 'Alkalom',
 
   // ── Dátum-csík (DateStrip) — nap-rövidítések, V-tól ──
   'dateStrip.days': 'V,H,K,Sz,Cs,P,Szo',
