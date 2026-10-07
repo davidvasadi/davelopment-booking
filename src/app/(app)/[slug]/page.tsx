@@ -14,10 +14,8 @@ import type { Media } from '@/payload/payload-types'
 import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
 import { RestaurantPublicView } from '@/components/restaurant/RestaurantPublicView'
 import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
-import { SalonPublicView, type SalonViewData } from '@/components/booking/SalonPublicView'
-import { getCurrentUser } from '@/lib/auth'
-import { getUserBusinesses } from '@/lib/activeBusiness'
-import { can } from '@/lib/permissions'
+import { PublicPlaceView, type PlaceViewData } from '@/components/booking/PublicPlaceView'
+import { canEditPlace } from '@/lib/canEditPlace'
 import { getLocale } from '@/lib/i18n/server'
 import { hasActivePackage } from '@/lib/newsletterLimits'
 import { resolveAvailableLocales, LOCALES, type Locale } from '@/lib/i18n'
@@ -94,7 +92,7 @@ export default async function SalonPublicPage({
   const base = await getPublicSalon(slug, 'hu')
 
   if (!base) {
-    const restaurantView = await RestaurantPublicView({ slug, requested, embed })
+    const restaurantView = await RestaurantPublicView({ slug, requested, embed, editorRequested })
     if (restaurantView) return restaurantView
     notFound()
   }
@@ -119,7 +117,7 @@ export default async function SalonPublicPage({
 
   // Szerkesztő-előnézet (Beállítások → Foglalóoldal iframe-je): csak az üzlet saját,
   // beállítás-joggal rendelkező tagja kapja meg; mindenki más a normál oldalt látja.
-  const editor = editorRequested && await canEditSalon(salon.id)
+  const editor = editorRequested && await canEditPlace('salon', salon.id)
 
   // `typeof === 'string'` védelem: a `description` mostanáig richText-objektum volt, egy
   // korlátlanul cache-elt (`getPublicSalon`), séma-váltás előtti bejegyzés még a régi alakot
@@ -138,7 +136,8 @@ export default async function SalonPublicPage({
     ? <HeroNextSlot slug={slug} locale={locale} source={{ kind: 'salon', id: salon.id, serviceId: services[0].id }} />
     : null
 
-  const view: SalonViewData = {
+  const view: PlaceViewData = {
+    kind: 'salon',
     slug, locale, available, embed,
     name: salon.name,
     address: salon.address ?? null,
@@ -222,16 +221,7 @@ export default async function SalonPublicPage({
           <MarketingTrackingScripts ga4Id={salon.marketing_tracking?.ga4_measurement_id} facebookPixelId={salon.marketing_tracking?.facebook_pixel_id} />
         </>
       )}
-      <SalonPublicView data={view} nextSlotNode={nextSlotNode} editor={editor} />
+      <PublicPlaceView data={view} nextSlotNode={nextSlotNode} editor={editor} />
     </>
   )
-}
-
-/** Szerkesztheti-e a bejelentkezett felhasználó ennek a szalonnak a foglalóoldalát. */
-async function canEditSalon(salonId: string | number): Promise<boolean> {
-  const user = await getCurrentUser()
-  if (!user) return false
-  const businesses = await getUserBusinesses(user.id)
-  const biz = businesses.find((b) => b.type === 'salon' && String(b.id) === String(salonId))
-  return !!biz && can(biz.capabilities, 'settings.profile')
 }

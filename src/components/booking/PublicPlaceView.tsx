@@ -8,13 +8,15 @@ import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
 import { LangSwitcher } from '@/components/booking/LangSwitcher'
 import { BrandLogo } from '@/components/BrandLogo'
 import { ProfileCard, type ProfileCardProps, type EditorView } from '@/components/booking/ProfileCard'
+import { RestaurantCard, type RestaurantCardProps } from '@/components/restaurant/RestaurantCard'
 import { SalonCtaWrapper } from '@/components/booking/SalonCtaWrapper'
 import { nextImageSrc } from '@/lib/utils'
 import { t, type Locale } from '@/lib/i18n'
 import { isEditorMessage, postToEditor, type EditorToPreview } from '@/lib/editorBridge'
 
 /**
- * A szalon külső foglalóoldala (borító, felső sáv, hős-blokk, foglaló kártya).
+ * Egy üzlet külső foglalóoldala (borító, felső sáv, hős-blokk, foglaló kártya) — KÖZÖS a
+ * szalonnak (`ProfileCard`) és az étteremnek (`RestaurantCard`); csak a kártya és a CTA más.
  *
  * Ugyanezt a komponenst használja az éles oldal (`/[slug]`) és a Beállítások → Foglalóoldal
  * szerkesztő előnézete (`/[slug]?editor=1` iframe-ben) — így a kettő nem tud elcsúszni.
@@ -25,7 +27,7 @@ import { isEditorMessage, postToEditor, type EditorToPreview } from '@/lib/edito
  *    (`pick`), a link/gomb nem hajtódik végre (kivéve `data-edit-pass` elemeken);
  *  - a kijelölt elem körül sárga keret, az egér alatti körül halvány keret jelenik meg.
  */
-export type SalonViewData = {
+type PlaceViewBase = {
   slug: string
   locale: Locale
   available: Locale[]
@@ -48,17 +50,22 @@ export type SalonViewData = {
   serviceCount: number
   staffCount: number
   rating: { average: number; count: number | null; source?: string } | null
-  card: Omit<ProfileCardProps, 'nextSlotNode' | 'salonName' | 'salonDescription' | 'salonAddress' | 'salonCity' | 'locale' | 'slug' | 'embed'>
 }
+export type SalonCardData = Omit<ProfileCardProps, 'nextSlotNode' | 'salonName' | 'salonDescription' | 'salonAddress' | 'salonCity' | 'locale' | 'slug' | 'embed'>
+export type RestaurantCardData = Omit<RestaurantCardProps, 'restaurantName' | 'restaurantDescription' | 'restaurantAddress' | 'restaurantCity' | 'locale' | 'slug' | 'embed'>
+export type PlaceViewData = PlaceViewBase & (
+  | { kind: 'salon'; card: SalonCardData }
+  | { kind: 'restaurant'; card: RestaurantCardData }
+)
 
 type StaffEdit = { name?: string; bio?: string | null; role_title?: string | null; social_links?: { url: string }[] }
-type Patch = Partial<Omit<SalonViewData, 'card'>> & {
-  card?: Partial<SalonViewData['card']>
+type Patch = Partial<PlaceViewBase> & {
+  card?: Partial<SalonCardData> & Partial<RestaurantCardData>
   /** Munkatársankénti, még nem mentett módosítások (id → mezők). */
   staffEdits?: Record<string, StaffEdit>
 }
 
-export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: SalonViewData; nextSlotNode?: ReactNode; editor?: boolean }) {
+export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: PlaceViewData; nextSlotNode?: ReactNode; editor?: boolean }) {
   const [patch, setPatch] = useState<Patch>({})
   const [selected, setSelected] = useState<string | null>(null)
   const [hovered, setHovered] = useState<string | null>(null)
@@ -78,9 +85,8 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
   }, [editor])
 
   const { staffEdits, card: cardPatch, ...topPatch } = patch
-  const mergedCard = { ...data.card, ...(cardPatch ?? {}) }
-  if (staffEdits) mergedCard.staff = mergedCard.staff.map((m) => ({ ...m, ...(staffEdits[String(m.id)] ?? {}) }))
-  const d: SalonViewData = { ...data, ...topPatch, card: mergedCard }
+  const d = { ...data, ...topPatch, card: { ...data.card, ...(cardPatch ?? {}) } } as PlaceViewData
+  if (staffEdits && d.kind === 'salon') d.card = { ...d.card, staff: d.card.staff.map((m) => ({ ...m, ...(staffEdits[String(m.id)] ?? {}) })) }
   const { slug, locale, available, embed } = d
   const hasCover = !!d.coverUrl
   const heroText = hasCover ? 'text-white' : 'text-[#1D1C19]'
@@ -239,33 +245,51 @@ export function SalonPublicView({ data, nextSlotNode, editor = false }: { data: 
               </p>
             )}
             {rating('mb-5')}
-            <div className="flex flex-wrap items-center gap-3">
-              <SalonCtaWrapper>
-                <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
-              </SalonCtaWrapper>
-              {nextSlotNode && (
+            {d.kind === 'salon' ? (
+              <div className="flex flex-wrap items-center gap-3">
                 <SalonCtaWrapper>
-                  {nextSlotNode}
+                  <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
                 </SalonCtaWrapper>
-              )}
-            </div>
+                {nextSlotNode && (
+                  <SalonCtaWrapper>
+                    {nextSlotNode}
+                  </SalonCtaWrapper>
+                )}
+              </div>
+            ) : (
+              <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
+            )}
           </div>
         </>
       )}
 
-      {/* Interaktív profil kártya */}
-      <ProfileCard
-        {...d.card}
-        slug={slug}
-        locale={locale}
-        embed={embed}
-        salonName={d.name}
-        salonDescription={d.description}
-        salonAddress={d.address}
-        salonCity={d.city}
-        nextSlotNode={nextSlotNode}
-        editorView={editor ? editorView : null}
-      />
+      {/* Interaktív foglaló kártya — szalonnál a ProfileCard, étteremnél a RestaurantCard */}
+      {d.kind === 'salon' ? (
+        <ProfileCard
+          {...d.card}
+          slug={slug}
+          locale={locale}
+          embed={embed}
+          salonName={d.name}
+          salonDescription={d.description}
+          salonAddress={d.address}
+          salonCity={d.city}
+          nextSlotNode={nextSlotNode}
+          editorView={editor ? editorView : null}
+        />
+      ) : (
+        <RestaurantCard
+          {...d.card}
+          slug={slug}
+          locale={locale}
+          embed={embed}
+          restaurantName={d.name}
+          restaurantDescription={d.description}
+          restaurantAddress={d.address}
+          restaurantCity={d.city}
+          editorView={editor ? editorView : null}
+        />
+      )}
 
       {editor && <SelectionRing id={hovered && hovered !== selected ? hovered : null} soft />}
       {editor && <SelectionRing id={selected} />}

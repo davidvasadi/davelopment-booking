@@ -12,6 +12,7 @@ import { APP_URL } from '@/lib/brand'
 import { t, dfLocale, type Locale } from '@/lib/i18n'
 import { format } from 'date-fns'
 import { BookingSuccess } from '@/components/booking/BookingSuccess'
+import type { EditorView } from '@/components/booking/ProfileCard'
 import { RatingStars } from '@/components/booking/RatingStars'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 import { DepositStep } from '@/components/booking/DepositStep'
@@ -34,43 +35,7 @@ type OpeningHour = {
   close_time?: string | null
 }
 
-export function RestaurantCard({
-  slug,
-  restaurantId,
-  locale,
-  restaurantName,
-  restaurantDescription,
-  restaurantAddress,
-  restaurantCity,
-  phone,
-  email,
-  website,
-  socialLinks,
-  openingHours,
-  reviews,
-  requirePhone,
-  maxPax,
-  bookingWindowDays,
-  eventTypes,
-  termsSections,
-  company,
-  depositEnabled,
-  invoicingEnabled,
-  voucherCompanyEnabled = true,
-  google = null,
-  addressRequired,
-  addressRequiredNote,
-  voucherEnabled,
-  voucherTypes = [],
-  newsletterEnabled,
-  consentEnabled,
-  consentTitle,
-  consentText,
-  customQuestions,
-  embed = false,
-  confirmEmailEnabled = true,
-  reminderHours = [],
-}: {
+export type RestaurantCardProps = {
   slug: string
   restaurantId: string | number
   locale: Locale
@@ -116,7 +81,47 @@ export function RestaurantCard({
   confirmEmailEnabled?: boolean
   /** Az e-mailes emlékeztetők időzítése órában (üres = nincs emlékeztető). */
   reminderHours?: number[]
-}) {
+  /** Szerkesztő-előnézet: ezt a lépést mutassa mintaadatokkal (null = normál működés). */
+  editorView?: EditorView | null
+}
+
+export function RestaurantCard({
+  slug,
+  restaurantId,
+  locale,
+  restaurantName,
+  restaurantDescription,
+  restaurantAddress,
+  restaurantCity,
+  phone,
+  email,
+  website,
+  socialLinks,
+  openingHours,
+  reviews,
+  requirePhone,
+  maxPax,
+  bookingWindowDays,
+  eventTypes,
+  termsSections,
+  company,
+  depositEnabled,
+  invoicingEnabled,
+  voucherCompanyEnabled = true,
+  google = null,
+  addressRequired,
+  addressRequiredNote,
+  voucherEnabled,
+  voucherTypes = [],
+  newsletterEnabled,
+  consentEnabled,
+  consentTitle,
+  consentText,
+  customQuestions,
+  embed = false,
+  confirmEmailEnabled = true,
+  reminderHours = [],
+}: RestaurantCardProps) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const sheetDragControls = useDragControls()
   const [isMobile, setIsMobile] = useState(true)
@@ -291,7 +296,7 @@ export function RestaurantCard({
         <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
           {t(locale, 'public.bookTable')}
         </p>
-        <h2 className="text-[28px] font-light leading-tight tracking-[-0.02em] text-white">
+        <h2 data-edit-id="name" className="text-[28px] font-light leading-tight tracking-[-0.02em] text-white">
           {restaurantName}
         </h2>
         {reviews.count > 0 && (
@@ -302,17 +307,17 @@ export function RestaurantCard({
       </div>
 
       {restaurantDescription && (
-        <p className="text-[14px] leading-relaxed text-white/60">
+        <p data-edit-id="desc" className="text-[14px] leading-relaxed text-white/60">
           {restaurantDescription.slice(0, 220)}
           {restaurantDescription.length > 220 ? '…' : ''}
         </p>
       )}
 
       {google && (
-        <GoogleReviewsBlock google={google} locale={locale} title={t(locale, 'public.googleReviews')} countLabel={t(locale, 'public.googleReviewsCount')} allLabel={t(locale, 'public.googleReviewsAll')} />
+        <div data-edit-id="sec:reviews"><GoogleReviewsBlock google={google} locale={locale} title={t(locale, 'public.googleReviews')} countLabel={t(locale, 'public.googleReviewsCount')} allLabel={t(locale, 'public.googleReviewsAll')} /></div>
       )}
 
-      <div className="flex flex-wrap gap-2">
+      <div data-edit-id="contact" className="flex flex-wrap gap-2">
         {addressLine && (
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[12px] font-medium text-white/60"
@@ -369,7 +374,7 @@ export function RestaurantCard({
       </div>
 
       {openingHours.length > 0 && (
-        <div className="space-y-3">
+        <div data-edit-id="sec:slots" className="space-y-3">
           <NextAvailableSlots
             restaurantId={restaurantId}
             slug={slug}
@@ -383,6 +388,7 @@ export function RestaurantCard({
 
       {voucherEnabled && (
         <button
+          data-edit-id="sec:voucher"
           onClick={() => setView('voucher')}
           className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left transition-colors hover:bg-white/[0.08] active:scale-[0.99]"
           style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}

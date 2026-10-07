@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils'
 /**
  * Beállítások → Foglalóoldal: Framer-szerű élő szerkesztő.
  *
- * A vásznon a VALÓDI foglalóoldal fut (`/{slug}?editor=1` iframe, ld. SalonPublicView),
+ * A vásznon a VALÓDI foglalóoldal fut (`/{slug}?editor=1` iframe, ld. PublicPlaceView),
  * fix szélességen renderelve és a helyre kicsinyítve. Bármire kattintasz → kijelölődik →
  * minden szerkesztés a jobb oldali panelben történik. A még nem mentett állapot (draft)
  * `postMessage`-dzsel azonnal megjelenik az előnézetben; mentés a Beállítások közös
@@ -232,7 +232,7 @@ export function BookingPageEditor({
     }
   }
 
-  // ── Előnézet: a draft → SalonViewData-patch ──
+  // ── Előnézet: a draft → PlaceViewData-patch ──
   const previewPatch = useMemo(() => {
     const description = (loc?.description || draft.description).trim().slice(0, 160) || null
     const goodToKnow = loc && loc.goodToKnow.some((g) => g.title || g.body) ? loc.goodToKnow : draft.goodToKnow

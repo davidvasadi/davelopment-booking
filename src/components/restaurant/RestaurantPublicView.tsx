@@ -1,4 +1,3 @@
-import Image from 'next/image'
 import { getPublicRestaurant } from '@/lib/publicPlace'
 import { getReviewSummary } from '@/lib/reviews'
 import { storedGoogleReviews, refreshGoogleReviewsIfStale } from '@/lib/googleReviews'
@@ -6,26 +5,21 @@ import { getPayloadClient } from '@/lib/payload'
 import { after } from 'next/server'
 import { getMaxPax } from '@/lib/restaurantBooking'
 import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
-import { MapPin } from 'lucide-react'
-import { RatingStars } from '@/components/booking/RatingStars'
-import { LangSwitcher } from '@/components/booking/LangSwitcher'
-import { BrandLogo } from '@/components/BrandLogo'
-import { BookCtaMorph } from '@/components/booking/BookCtaMorph'
-import { RestaurantCard } from '@/components/restaurant/RestaurantCard'
 import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
+import { PublicPlaceView, type PlaceViewData } from '@/components/booking/PublicPlaceView'
 import { placeJsonLd, placeBreadcrumbJsonLd } from '@/lib/publicSeo'
 import type { Media, Restaurant } from '@/payload/payload-types'
-import { t, resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { hasActivePackage } from '@/lib/newsletterLimits'
-import { nextImageSrc } from '@/lib/utils'
 import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
+import { canEditPlace } from '@/lib/canEditPlace'
 
 /**
  * Renders an active restaurant's public landing page.
  * Returns null when no active restaurant matches the slug, so callers
  * (the shared [slug] route) can fall through to notFound().
  */
-export async function RestaurantPublicView({ slug, requested = 'hu', embed = false }: { slug: string; requested?: Locale; embed?: boolean }) {
+export async function RestaurantPublicView({ slug, requested = 'hu', embed = false, editorRequested = false }: { slug: string; requested?: Locale; embed?: boolean; editorRequested?: boolean }) {
   const base = await getPublicRestaurant(slug, 'hu')
   if (!base) return null
 
@@ -41,6 +35,10 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
   // Google-értékelések: kérésre frissül (24 óránál régebbi tárolt adatnál), a válasz elküldése után.
   after(async () => refreshGoogleReviewsIfStale(await getPayloadClient(), 'restaurant', restaurant))
 
+  // Szerkesztő-előnézet (Beállítások → Foglalóoldal iframe-je): csak az étterem saját,
+  // beállítás-joggal rendelkező tagja kapja meg; mindenki más a normál oldalt látja.
+  const editor = editorRequested && await canEditPlace('restaurant', restaurant.id)
+
   const openingHours = data.openingHours.map((h) => ({
     day_of_week: h.day_of_week,
     is_open: h.is_open ?? false,
@@ -51,8 +49,6 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
   const coverUrl = restaurant.cover_image && typeof restaurant.cover_image === 'object'
     ? (restaurant.cover_image as Media).url ?? null
     : null
-  const coverFocal = `${restaurant.cover_focal_x ?? 50}% ${restaurant.cover_focal_y ?? 50}%`
-  const coverZoom = restaurant.cover_zoom ?? 1
   const logoUrl = restaurant.logo && typeof restaurant.logo === 'object'
     ? (restaurant.logo as Media).url ?? null
     : null
@@ -64,164 +60,87 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
     ? enabledEvents
     : DEFAULT_EVENT_TYPES.map((e) => ({ icon: e.icon, label: e.label }))
 
-  const hasCover = !!coverUrl
-  const heroText = hasCover ? 'text-white' : 'text-[#1D1C19]'
-  const heroSub  = hasCover ? 'text-white/60' : 'text-[#86826F]'
+  // Ugyanaz a közös nézet, mint a szalonnál (PublicPlaceView) — csak a kártya más.
+  const view: PlaceViewData = {
+    kind: 'restaurant',
+    slug, locale, available, embed,
+    name: restaurant.name,
+    address: restaurant.address ?? null,
+    city: restaurant.city ?? null,
+    description: restaurant.description ? restaurant.description.trim().slice(0, 160) || null : null,
+    coverUrl,
+    coverFocalX: restaurant.cover_focal_x ?? 50,
+    coverFocalY: restaurant.cover_focal_y ?? 50,
+    coverZoom: restaurant.cover_zoom ?? 1,
+    // Külön mobil fókusz étteremnél még nincs (R5 migráció) — addig a desktop fókusz.
+    coverFocalMobileX: null,
+    coverFocalMobileY: null,
+    logoUrl,
+    // Étteremnél nincs szolgáltatás/munkatárs-katalógus → nincs számláló.
+    showServiceCount: false,
+    showStaffCount: false,
+    serviceCount: 0,
+    staffCount: 0,
+    rating: reviews.count > 0
+      ? { average: reviews.average, count: reviews.count }
+      : restaurant.google_rating != null ? { average: restaurant.google_rating, count: restaurant.google_rating_count ?? null, source: 'Google-értékelés' } : null,
+    card: {
+      restaurantId: restaurant.id,
+      phone: restaurant.phone,
+      email: restaurant.email,
+      website: restaurant.website,
+      socialLinks: (restaurant.social_links ?? []).map((s) => s.url),
+      openingHours,
+      reviews,
+      requirePhone: restaurant.require_phone ?? true,
+      maxPax: maxPax || 20,
+      bookingWindowDays: restaurant.booking_window_days ?? 60,
+      eventTypes,
+      termsSections: restaurant.terms_sections,
+      company: {
+        name: restaurant.name,
+        legal_name: restaurant.legal_name,
+        tax_number: restaurant.tax_number,
+        company_reg_number: restaurant.company_reg_number,
+        registered_seat: restaurant.registered_seat,
+        email: restaurant.email,
+        phone: restaurant.phone,
+      },
+      depositEnabled: !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded,
+      invoicingEnabled: !!restaurant.invoice_settings?.invoice_provider && restaurant.invoice_settings.invoice_provider !== 'none',
+      voucherCompanyEnabled: restaurant.voucher_settings?.allow_company !== false,
+      google: restaurant.google_rating != null ? { rating: restaurant.google_rating, count: restaurant.google_rating_count ?? null, mapsUrl: restaurant.google_maps_url ?? null, reviews: storedGoogleReviews(restaurant.google_reviews) } : null,
+      addressRequired: !!restaurant.booking_rules?.require_address,
+      addressRequiredNote: restaurant.booking_rules?.require_address_note,
+      voucherEnabled: !!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0,
+      voucherTypes,
+      newsletterEnabled: hasActivePackage(restaurant.newsletter_settings?.package),
+      consentEnabled: !!restaurant.consent_settings?.enabled && !!restaurant.consent_settings?.template_text?.trim(),
+      consentTitle: restaurant.consent_settings?.title,
+      consentText: restaurant.consent_settings?.template_text,
+      customQuestions: restaurant.custom_questions,
+      confirmEmailEnabled: restaurant.notification_prefs?.confirm_email !== false,
+      reminderHours: reminderEnabled(restaurant) ? reminderOffsets(restaurant.feature_modules) : [],
+    },
+  }
 
   return (
-    <div
-      className={`font-onest relative overflow-hidden ${embed ? 'min-h-[640px]' : 'min-h-[100dvh]'}`}
-      style={embed ? { background: 'transparent' } : hasCover ? { background: '#111' } : {
-        background: 'radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%), linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%)',
-      }}
-    >
-      {/* A globals.css `html` elemnek van egy kemény krém háttérszíne — embed módban ez
-          átütne az átlátszó oldal mögött, ezt írjuk itt felül. */}
-      {embed && <style>{'html, body { background: transparent !important; }'}</style>}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(restaurant, 'restaurant', reviews, openingHours)) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(placeBreadcrumbJsonLd(restaurant)) }}
-      />
-      <MarketingTrackingScripts ga4Id={restaurant.marketing_tracking?.ga4_measurement_id} facebookPixelId={restaurant.marketing_tracking?.facebook_pixel_id} />
-
-      {/* Borítókép + overlay rétegek — embed módban nem jelenik meg. */}
-      {!embed && hasCover && (
+    <>
+      {/* SEO + marketing-követés — a szerkesztő-előnézetben nem kell. */}
+      {!editor && (
         <>
-          <Image
-            src={nextImageSrc(coverUrl!)}
-            alt=""
-            aria-hidden
-            fill
-            priority
-            sizes="100vw"
-            className="z-0 object-cover"
-            style={{ objectPosition: coverFocal, transform: `scale(${coverZoom})`, transformOrigin: coverFocal }}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(placeJsonLd(restaurant, 'restaurant', reviews, openingHours)) }}
           />
-          <div
-            className="pointer-events-none absolute inset-0 z-[1]"
-            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.52) 0%, rgba(0,0,0,0.18) 40%, rgba(0,0,0,0.35) 100%)' }}
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(placeBreadcrumbJsonLd(restaurant)) }}
           />
-          {/* Dedikált felső árnyék — a navbar mindig olvasható maradjon */}
-          <div
-            className="pointer-events-none absolute top-0 left-0 right-0 z-[2]"
-            style={{ height: '22%', background: 'linear-gradient(to bottom, rgba(0,0,0,0.55) 0%, transparent 100%)' }}
-          />
-          <div
-            className="pointer-events-none absolute bottom-0 left-0 right-0 z-[2]"
-            style={{ height: '70%', background: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.8) 100%)' }}
-          />
+          <MarketingTrackingScripts ga4Id={restaurant.marketing_tracking?.ga4_measurement_id} facebookPixelId={restaurant.marketing_tracking?.facebook_pixel_id} />
         </>
       )}
-
-      {!embed && (
-        <>
-          {/* Navbar */}
-          <nav className="relative z-50 flex items-center justify-between px-5 py-5 lg:px-8 lg:py-6">
-            <div className="flex items-center gap-3">
-              <BrandLogo variant={hasCover ? 'dark' : 'light'} className="h-6 lg:h-7" />
-              {logoUrl && <div className={`h-7 w-px lg:h-8 ${hasCover ? 'bg-white/20' : 'bg-black/15'}`} />}
-              {logoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={logoUrl} alt={restaurant.name} className="h-9 w-auto max-w-[140px] rounded-[6px] object-contain lg:h-10 lg:max-w-[150px]" />
-              )}
-            </div>
-            {available.length > 1 && <LangSwitcher current={locale} available={available} variant={hasCover ? 'dark' : 'light'} />}
-          </nav>
-
-          {/* Étterem neve + cím — mobil hero */}
-          <div className="absolute bottom-[calc(max(2.5rem,env(safe-area-inset-bottom))+5rem)] left-0 right-0 z-10 px-6 lg:hidden">
-            <h1 className={`line-clamp-2 break-words text-[2.75rem] font-light leading-tight tracking-[-0.02em] ${heroText}`}>
-              {restaurant.name}
-            </h1>
-            {(restaurant.address || restaurant.city) && (
-              <p className={`mt-1 flex items-center gap-1.5 text-sm ${heroSub}`}>
-                <MapPin className="h-3.5 w-3.5 shrink-0" />
-                {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
-              </p>
-            )}
-            {reviews.count > 0 ? (
-              <div className="mt-2">
-                <RatingStars rating={reviews.average} count={reviews.count} dark={hasCover} />
-              </div>
-            ) : restaurant.google_rating != null && (
-              <div className="mt-2">
-                <RatingStars rating={restaurant.google_rating} count={restaurant.google_rating_count} source="Google-értékelés" dark={hasCover} />
-              </div>
-            )}
-            {restaurant.description && (
-              <p className={`mt-2 line-clamp-2 text-[13px] leading-relaxed ${heroSub}`}>{restaurant.description.trim().slice(0, 160)}</p>
-            )}
-          </div>
-
-          {/* Étterem neve + cím — desktop bal alul */}
-          <div className="absolute bottom-10 left-8 z-20 hidden max-w-[50%] lg:block">
-            <h1 className={`line-clamp-2 break-words text-[3rem] font-light leading-tight tracking-[-0.02em] mb-2 ${heroText}`}>
-              {restaurant.name}
-            </h1>
-            {(restaurant.address || restaurant.city) && (
-              <p className={`flex items-center gap-1.5 text-sm mb-4 ${heroSub}`}>
-                <MapPin className="h-3.5 w-3.5" />
-                {[restaurant.address, restaurant.city].filter(Boolean).join(', ')}
-              </p>
-            )}
-            {reviews.count > 0
-              ? <RatingStars rating={reviews.average} count={reviews.count} className="mb-4" dark={hasCover} />
-              : restaurant.google_rating != null && <RatingStars rating={restaurant.google_rating} count={restaurant.google_rating_count} source="Google-értékelés" className="mb-4" dark={hasCover} />}
-            <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
-          </div>
-        </>
-      )}
-
-      {/* Interaktív étterem-kártya */}
-      <RestaurantCard
-        slug={slug}
-        restaurantId={restaurant.id}
-        locale={locale}
-        restaurantName={restaurant.name}
-        restaurantDescription={restaurant.description}
-        restaurantAddress={restaurant.address}
-        restaurantCity={restaurant.city}
-        phone={restaurant.phone}
-        email={restaurant.email}
-        website={restaurant.website}
-        socialLinks={(restaurant.social_links ?? []).map((s) => s.url)}
-        openingHours={openingHours}
-        reviews={reviews}
-        requirePhone={restaurant.require_phone ?? true}
-        maxPax={maxPax || 20}
-        bookingWindowDays={restaurant.booking_window_days ?? 60}
-        eventTypes={eventTypes}
-        termsSections={restaurant.terms_sections}
-        company={{
-          name: restaurant.name,
-          legal_name: restaurant.legal_name,
-          tax_number: restaurant.tax_number,
-          company_reg_number: restaurant.company_reg_number,
-          registered_seat: restaurant.registered_seat,
-          email: restaurant.email,
-          phone: restaurant.phone,
-        }}
-        depositEnabled={!!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded}
-        invoicingEnabled={!!restaurant.invoice_settings?.invoice_provider && restaurant.invoice_settings.invoice_provider !== 'none'}
-        voucherCompanyEnabled={restaurant.voucher_settings?.allow_company !== false}
-        google={restaurant.google_rating != null ? { rating: restaurant.google_rating, count: restaurant.google_rating_count ?? null, mapsUrl: restaurant.google_maps_url ?? null, reviews: storedGoogleReviews(restaurant.google_reviews) } : null}
-        addressRequired={!!restaurant.booking_rules?.require_address}
-        addressRequiredNote={restaurant.booking_rules?.require_address_note}
-        voucherEnabled={!!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0}
-        voucherTypes={voucherTypes}
-        newsletterEnabled={hasActivePackage(restaurant.newsletter_settings?.package)}
-        consentEnabled={!!restaurant.consent_settings?.enabled && !!restaurant.consent_settings?.template_text?.trim()}
-        consentTitle={restaurant.consent_settings?.title}
-        consentText={restaurant.consent_settings?.template_text}
-        customQuestions={restaurant.custom_questions}
-        embed={embed}
-        confirmEmailEnabled={restaurant.notification_prefs?.confirm_email !== false}
-        reminderHours={reminderEnabled(restaurant) ? reminderOffsets(restaurant.feature_modules) : []}
-      />
-    </div>
+      <PublicPlaceView data={view} editor={editor} />
+    </>
   )
 }

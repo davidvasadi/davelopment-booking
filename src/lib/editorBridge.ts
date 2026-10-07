@@ -3,7 +3,7 @@
  * Mindkét fél azonos originről fut, minden üzenetet az origin ellenőrzésével fogadunk.
  *
  * admin → előnézet
- *   - `draft`:  a még nem mentett változások (a SalonViewData mezőire illeszkedő patch)
+ *   - `draft`:  a még nem mentett változások (a PlaceViewData mezőire illeszkedő patch)
  *   - `select`: a kijelölt elem azonosítója (sárga keret), null = nincs kijelölés
  *   - `view`:   a foglalás melyik lépését mutassa az előnézet (mintaadatokkal)
  * előnézet → admin
