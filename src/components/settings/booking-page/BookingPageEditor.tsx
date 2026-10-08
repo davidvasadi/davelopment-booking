@@ -315,12 +315,13 @@ export function BookingPageEditor({
     }
   }, [draft, loc])
 
-  // Az előnézet üzenetei: `ready` → küldjük a draftot + kijelölést; `pick` → kijelölés.
+  // Az előnézet üzenetei: `ready` → küldjük a draftot + kijelölést; `pick` → kijelölés; `step` → lépésváltás.
   useEffect(() => {
     const onMessage = (e: MessageEvent) => {
       if (!isEditorMessage<PreviewToEditor>(e) || e.source !== frameRef.current?.contentWindow) return
       if (e.data.type === 'ready') setReady(true)
       else if (e.data.type === 'pick') setSel(e.data.id)
+      else if (e.data.type === 'step') { setStep(e.data.view as EditorView); setSel(null) }
     }
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)

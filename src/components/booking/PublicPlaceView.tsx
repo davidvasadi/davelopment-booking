@@ -97,10 +97,13 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
 
   const onClickCapture = (e: MouseEvent) => {
     if (!editor) return
-    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-edit-id], [data-edit-pass]')
+    const el = (e.target as HTMLElement).closest<HTMLElement>('[data-edit-id], [data-edit-pass], [data-edit-step]')
     if (el?.hasAttribute('data-edit-pass')) return
     e.preventDefault()
     e.stopPropagation()
+    // Foglalás-indító gomb: nem kijelöl, hanem a szerkesztő a folyamat adott lépésére vált.
+    const stepTo = el?.getAttribute('data-edit-step')
+    if (stepTo) { postToEditor({ type: 'step', view: stepTo }); return }
     const id = el?.getAttribute('data-edit-id') ?? 'cover'
     setSelected(id)
     postToEditor({ type: 'pick', id })
@@ -248,7 +251,9 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
             {d.kind === 'salon' ? (
               <div className="flex flex-wrap items-center gap-3">
                 <SalonCtaWrapper>
-                  <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
+                  <span data-edit-step="datetime" className="contents">
+                    <BookCtaMorph href={`/${slug}/book`} label={t(locale, 'public.bookCta')} />
+                  </span>
                 </SalonCtaWrapper>
                 {nextSlotNode && (
                   <SalonCtaWrapper>
@@ -257,7 +262,9 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
                 )}
               </div>
             ) : (
-              <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
+              <span data-edit-step="datetime" className="contents">
+                <BookCtaMorph href={`/${slug}?book=1`} label={t(locale, 'public.bookTable')} />
+              </span>
             )}
           </div>
         </>

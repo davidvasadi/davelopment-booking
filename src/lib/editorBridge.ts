@@ -9,6 +9,7 @@
  * előnézet → admin
  *   - `ready`:  az előnézet betöltött, várja az aktuális draftot
  *   - `pick`:   a vendég-nézetben erre az elemre kattintottak (`data-edit-id`)
+ *   - `step`:   foglalás-indító gombra kattintottak (`data-edit-step`) → a szerkesztő arra a lépésre vált
  */
 export const EDITOR_MSG = 'dav-editor'
 
@@ -20,6 +21,7 @@ export type EditorToPreview =
 export type PreviewToEditor =
   | { source: typeof EDITOR_MSG; type: 'ready' }
   | { source: typeof EDITOR_MSG; type: 'pick'; id: string }
+  | { source: typeof EDITOR_MSG; type: 'step'; view: string }
 
 /** Union-tagonként alkalmazott Omit (a sima Omit egy union közös mezőire szűkítene). */
 type WithoutSource<T> = T extends unknown ? Omit<T, 'source'> : never
