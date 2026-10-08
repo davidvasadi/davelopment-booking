@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Eye } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -245,13 +245,23 @@ export function EmailTemplatesEditor({
   variant,
   loc,
   onPreview,
+  scope = 'all',
 }: {
   variant: 'restaurant' | 'salon'
   loc: Loc
   onPreview: (state: string, intro: ComposerBlock[]) => void
+  /** `guest` = csak a vendégnek menő levelek (Vendég e-mailek), `owner` = csak a tulajnak szóló
+   *  Értesítő (Értesítések), `all` = mind (régi, önálló form). */
+  scope?: 'all' | 'guest' | 'owner'
 }) {
-  const [sel, setSel] = useState<EmailTypeDef>(EMAIL_TYPES[0])
+  const types = scope === 'all' ? EMAIL_TYPES : EMAIL_TYPES.filter((et) => SINGLE_LANGUAGE_KEYS.has(et.key) === (scope === 'owner'))
+  const [sel, setSel] = useState<EmailTypeDef>(types[0])
   const isSingleLanguage = SINGLE_LANGUAGE_KEYS.has(sel.key)
+  // Csak-magyar sablonnal nyílt (Értesítések) → a szerkesztési nyelv is HU legyen.
+  useEffect(() => {
+    if (isSingleLanguage && loc.editLocale !== 'hu') loc.selectLocale('hu')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSingleLanguage])
   const subject = loc.current[sel.subjectField]
   const intro = loc.current[sel.introField]
   const subjectPh = sel.subjectPh[isSingleLanguage ? 'hu' : loc.editLocale]
@@ -259,9 +269,10 @@ export function EmailTemplatesEditor({
 
   return (
     <div className="space-y-4">
-      {/* Email-típus választó (pill-sor) */}
+      {/* Email-típus választó (pill-sor) — egyetlen típusnál nincs mit váltani */}
+      {types.length > 1 && (
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 no-scrollbar" data-lenis-prevent>
-        {EMAIL_TYPES.map((et) => (
+        {types.map((et) => (
           <button
             key={et.key}
             type="button"
@@ -277,6 +288,7 @@ export function EmailTemplatesEditor({
           </button>
         ))}
       </div>
+      )}
       <p className="text-xs text-ink-soft">{sel.hint}</p>
 
       {!isSingleLanguage && (

@@ -330,9 +330,10 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
     booking: ['booking_buffer_minutes', 'booking_window_days', 'require_phone', 'notify_new_bookings'],
     email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address', 'email_show_terms'],
     documents: [],
+    ownerEmail: [],
   }
   // Mely fülön van localizált tartalom (a `loc.dirty` is számít a fül „mentetlen" jelzésénél).
-  const LOC_TABS = new Set(['general', 'booking', 'email', 'documents'])
+  const LOC_TABS = new Set(['general', 'booking', 'email', 'ownerEmail', 'documents'])
   const [internalTab, setActiveTab] = useState('general')
   // Vezérelt mód: ha a Beállítások-hub Providere körénk renderel, a context/prop dönt a fülről
   // ÉS elrejtjük a saját vízszintes fül-sort; különben a belső állapot + saját fülsor.
@@ -878,6 +879,18 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
       </div>
       )}
 
+      {/* A tulajnak szóló „Értesítő” sablon — a hubban az Értesítések fülön, nem a vendég-levelek között. */}
+      {activeTab === 'ownerEmail' && (
+        <Section title="Értesítő e-mail új foglalásról">
+          <EmailTemplatesEditor
+            variant="salon"
+            loc={loc}
+            scope="owner"
+            onPreview={(state, intro) => openEmailPreview('salon', watch(), loc.editLocale, state, intro)}
+          />
+        </Section>
+      )}
+
       {activeTab === 'email' && (
       <div className="space-y-[5px]">
         {/* Email-sablonok — típusonkénti (visszaigazolás/lemondás/emlékeztető/visszajelzés) tárgy + bevezető */}
@@ -885,6 +898,7 @@ export default function SalonSettingsForm({ salon, businessCount = 1, controlled
           <EmailTemplatesEditor
             variant="salon"
             loc={loc}
+            scope={embedded ? 'guest' : 'all'}
             onPreview={(state, intro) => openEmailPreview('salon', watch(), loc.editLocale, state, intro)}
           />
         </Section>

@@ -327,6 +327,8 @@ export function SettingsHub({
     return t as RailId
   })()
   const [active, setActive] = useState<RailId>(initialTab)
+  // Új menüben az Értesítések fül alján a tulajnak szóló „Értesítő” e-mail sablonja (profil-form).
+  const ownerEmailTab = active === 'notifications' && newLayout
   const [saving, setSaving] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
@@ -885,6 +887,7 @@ export function SettingsHub({
     }
   }, [splitSaved, splitPanel?.dirty])
   // „Vendég e-mailek" (új menü): a sablonok (profil-form) ÉS a küldési kapcsolók együtt mentődnek.
+  // Ugyanígy az Értesítések: a kapcsolók + a tulajnak szóló Értesítő sablon.
   const saveGuestEmailTab = async () => {
     if (notifDirty) await saveNotif()
     if (formDirty) await saveForm()
@@ -893,7 +896,7 @@ export function SettingsHub({
   const activeBar =
     splitPanel
       ? { dirty: splitPanel.dirty, saved: splitSaved, onSave: saveSplitTab, onCancel: () => splitPanel.apiRef.current?.discard() }
-      : active === 'email' && newLayout
+      : (active === 'email' && newLayout) || ownerEmailTab
       ? { dirty: formDirty || notifDirty, saved: formSaved || notifSaved, onSave: saveGuestEmailTab, onCancel: () => { formApiRef.current?.discard(); resetNotif() } }
       : active === 'site'
       ? { dirty: sitePanel.dirty, saved: siteSaved, onSave: saveSiteTab, onCancel: () => sitePanel.apiRef.current?.discard() }
@@ -1209,8 +1212,8 @@ export function SettingsHub({
           </>}
         </nav>
 
-        {/* PANEL */}
-        <div className="min-w-0">
+        {/* PANEL — az Értesítéseknél a profil-form (Értesítő sablon) a kapcsolók ALÁ kerül (order-last). */}
+        <div className={ownerEmailTab ? 'flex min-w-0 flex-col' : 'min-w-0'}>
           {/* Szekció-cím (desktop) — mobilon a legördülő gomb jelzi az aktív szekciót. */}
           <div className="hidden lg:mb-5 lg:flex lg:items-center lg:justify-between">
             <h2 className="text-[22px] font-medium tracking-[-0.01em] text-ink">{RAIL_LABELS[active]}</h2>
@@ -1225,8 +1228,8 @@ export function SettingsHub({
               MINDIG mountolva marad (a mentetlen mezők ne vesszenek el lista-váltáskor), csak a
               láthatóságot váltjuk. A fület a bal lista vezérli — a formhoz CONTEXTen át jut le
               (RSC-határon a cloneElement-prop nem megbízható), így a form a saját fül-sorát is elrejti. */}
-          <SettingsFormContext.Provider value={{ controlledTab: FORM_TABS[active] ?? 'general', reportDirty, registerApi }}>
-            <div className={active in FORM_TABS ? '' : 'hidden'}>{profilePanel}</div>
+          <SettingsFormContext.Provider value={{ controlledTab: ownerEmailTab ? 'ownerEmail' : FORM_TABS[active] ?? 'general', reportDirty, registerApi }}>
+            <div className={ownerEmailTab ? 'order-last mt-4' : active in FORM_TABS ? '' : 'hidden'}>{profilePanel}</div>
           </SettingsFormContext.Provider>
 
           {/* ── „Foglalás" fül folytatása — a profil-form saját booking-fülje UTÁN, ugyanazon

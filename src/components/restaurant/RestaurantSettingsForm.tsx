@@ -317,8 +317,9 @@ export function RestaurantSettingsForm({
     ],
     email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address', 'email_show_terms'],
     documents: [],
+    ownerEmail: [],
   }
-  const LOC_TABS = new Set(['general', 'booking', 'email', 'documents'])
+  const LOC_TABS = new Set(['general', 'booking', 'email', 'ownerEmail', 'documents'])
   const [internalTab, setActiveTab] = useState('general')
   // Vezérelt mód: ha a Beállítások-hub Providere körénk renderel, a context/prop dönt a fülről
   // ÉS elrejtjük a saját vízszintes fül-sort; különben a belső állapot + saját fülsor.
@@ -949,6 +950,18 @@ export function RestaurantSettingsForm({
       </div>
       )}
 
+      {/* A tulajnak szóló „Értesítő” sablon — a hubban az Értesítések fülön, nem a vendég-levelek között. */}
+      {activeTab === 'ownerEmail' && (
+        <Section title="Értesítő e-mail új foglalásról">
+          <EmailTemplatesEditor
+            variant="restaurant"
+            loc={loc}
+            scope="owner"
+            onPreview={(state, intro) => openEmailPreview('restaurant', form, loc.editLocale, state, intro)}
+          />
+        </Section>
+      )}
+
       {activeTab === 'email' && (
       <div className="space-y-[5px]">
         {/* Email-sablonok — típusonkénti (visszaigazolás/lemondás/emlékeztető/visszajelzés) tárgy + bevezető */}
@@ -956,6 +969,7 @@ export function RestaurantSettingsForm({
           <EmailTemplatesEditor
             variant="restaurant"
             loc={loc}
+            scope={embedded ? 'guest' : 'all'}
             onPreview={(state, intro) => openEmailPreview('restaurant', form, loc.editLocale, state, intro)}
           />
         </Section>
