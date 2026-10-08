@@ -35,7 +35,7 @@ type PlaceViewBase = {
   name: string
   address: string | null
   city: string | null
-  /** A hős-blokkban látszó rövid leírás (max. 160 karakter). */
+  /** A teljes leírás — a hős-blokk 160, az étterem-kártya 220 karakternél vágja. */
   description: string | null
   coverUrl: string | null
   coverFocalX: number
@@ -229,7 +229,7 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
             )}
             {d.rating && <div className="mt-2">{rating()}</div>}
             {d.description && (
-              <p data-edit-id="desc" className={`mt-2 line-clamp-2 text-[13px] leading-relaxed ${heroSub}`}>{d.description}</p>
+              <p data-edit-id="desc" className={`mt-2 line-clamp-2 text-[13px] leading-relaxed ${heroSub}`}>{d.description.slice(0, 160)}</p>
             )}
           </div>
 
@@ -271,7 +271,7 @@ export function PublicPlaceView({ data, nextSlotNode, editor = false }: { data: 
           locale={locale}
           embed={embed}
           salonName={d.name}
-          salonDescription={d.description}
+          salonDescription={d.description?.slice(0, 160) ?? null}
           salonAddress={d.address}
           salonCity={d.city}
           nextSlotNode={nextSlotNode}

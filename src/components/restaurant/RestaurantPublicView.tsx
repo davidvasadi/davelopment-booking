@@ -67,7 +67,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
     name: restaurant.name,
     address: restaurant.address ?? null,
     city: restaurant.city ?? null,
-    description: restaurant.description ? restaurant.description.trim().slice(0, 160) || null : null,
+    description: restaurant.description ? restaurant.description.trim() || null : null,
     coverUrl,
     coverFocalX: restaurant.cover_focal_x ?? 50,
     coverFocalY: restaurant.cover_focal_y ?? 50,
