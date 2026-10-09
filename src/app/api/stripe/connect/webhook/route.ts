@@ -85,7 +85,10 @@ export async function POST(req: Request) {
         // `/api/vouchers` route-on, ez itt csak a link-alapú útra vonatkozik). A metadata a
         // `manual-create` route-ban lett feltöltve. Dupla-védelem: ha már létezik voucher
         // ezzel a payment_intent_id-vel (pl. a kliens-oldal is lefutott), nem hoz létre újat.
-        if (intent.metadata?.kind === 'gift-voucher') {
+        // A vendég-vásárlás (`gift-voucher-guest`) ide nem tartozik. A régi, még `gift-voucher`
+        // jelölésű vendég-intentek vevő-adat nélküliek — ezeket is kihagyjuk, különben a webhook
+        // a kliens `/api/vouchers` hívása ELŐTT név/e-mail nélkül hozná létre az utalványt.
+        if (intent.metadata?.kind === 'gift-voucher' && intent.metadata?.purchaserEmail) {
           const existing = await payload.find({ collection: 'gift-vouchers', where: { payment_intent_id: { equals: intent.id } }, limit: 1, overrideAccess: true })
           if (existing.totalDocs === 0) {
             const md = intent.metadata

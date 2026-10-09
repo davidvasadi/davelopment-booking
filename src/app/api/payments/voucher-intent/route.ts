@@ -65,7 +65,9 @@ export async function POST(request: NextRequest) {
         automatic_payment_methods: { enabled: true },
         receipt_email: data.email,
         metadata: {
-          kind: 'gift-voucher',
+          // Külön jelölés a vendég-vásárlásnak: ezt a kliens zárja le a `/api/vouchers` hívással,
+          // a Connect-webhook csak a `gift-voucher` (admin fizetési link) utat kezeli.
+          kind: 'gift-voucher-guest',
           ...(data.kind === 'salon' ? { salonId: data.salonId } : { restaurantId: data.restaurantId }),
           voucherTypeId: String(voucherType.id),
           amountHuf: String(amountHuf),
