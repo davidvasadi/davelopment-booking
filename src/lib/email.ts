@@ -42,7 +42,7 @@ const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 /** RFC 5322 "From" fejléc az üzlet nevével megjelenítési névként (idézőjelezve, hogy a névben lévő speciális karakter — vessző, idézőjel — ne törje el a fejlécet). */
-function fromHeader(name: string, slug?: string | null): string {
+export function fromHeader(name: string, slug?: string | null): string {
   return `"${name.replace(/"/g, '\\"')}" <${fromAddress(slug)}>`
 }
 

@@ -9,6 +9,7 @@ import { logEmail } from '@/lib/emailLog'
 import { signUnsubscribeToken } from '@/lib/marketingUnsubscribeToken'
 import { emailLayout, brandHeroBlock, richContentBlock, bottomSpacer, COLORS } from '@/lib/emailLayout'
 import type { Salon, Restaurant, Customer, Media } from '@/payload/payload-types'
+import { fromHeader } from '@/lib/email'
 
 const RESEND_BATCH_SIZE = 100
 
@@ -17,7 +18,6 @@ function getResend(): Resend | null {
   return new Resend(process.env.RESEND_API_KEY)
 }
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? 'noreply@davelopment.hu'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 
 function startOfMonthIso(): string {
@@ -130,7 +130,9 @@ export async function POST(request: NextRequest) {
 
     const businessName = business.name
     const logoUrl = logoUrlOf(business.logo)
-    const from = `"${businessName.replace(/"/g, '\\"')}" <${FROM}>`
+    // Üzletenkénti feladócím (mint a tranzakciós leveleknél) — a közös címről különböző
+    // üzletnevekkel küldve a Gmail összekeverte a neveket.
+    const from = fromHeader(businessName, business.slug)
 
     // A kampány-rekord ELŐBB jön létre (recipient_count = szándékolt címzett-szám) — a per-
     // címzett email-log sorok erre mutatnak, a küldés végén a tényleges sikeres darabszámra
@@ -176,7 +178,7 @@ export async function POST(request: NextRequest) {
       const chunk = items.slice(i, i + RESEND_BATCH_SIZE)
       try {
         const { data, error } = await resend.batch.send(
-          chunk.map((it) => ({ from, to: it.to, subject: subject.trim(), html: it.html })),
+          chunk.map((it) => ({ from, ...(business.email ? { reply_to: business.email } : {}), to: it.to, subject: subject.trim(), html: it.html })),
         )
         if (error) throw new Error(error.message)
         chunk.forEach((it, idx) => {
