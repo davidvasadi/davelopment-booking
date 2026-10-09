@@ -69,8 +69,8 @@ Alapelv itt is: **egységes módosítás** — ami a szalonnál változik, az az
 - Étterem foglalás-szerkesztő: „Utalvánnyal fizetve” jelvény (egységesítés).
 - Napi nézetekben utalvány-jelvény mindkét típusnál.
 
-**Döntés kell:** kell-e a foglaláshoz rögzíthető fizetési mód (pl. a vendég helyben fizetett
-kártyával / készpénzzel)? Ha igen: új mező + migráció + megjelenítés a listákban.
+**Döntés (2026-10-09):** foglaláshoz **nem** kell fizetési módot rögzíteni. Marad az
+előleg- és utalvány-jelvények egységesítése (étterem + napi nézetek).
 
 ---
 
@@ -92,7 +92,7 @@ kártyával / készpénzzel)? Ha igen: új mező + migráció + megjelenítés a
 - `validate` végpont bővítése ezekkel az adatokkal.
 - Utalványok oldali beváltás: megerősítő előnézet beváltás előtt.
 
-**Döntés kell:** maradjon az egyszeri teljes beváltás, vagy legyen részleges (maradék egyenleg)?
+**Döntés (2026-10-09):** marad az egyszeri **teljes beváltás**, nincs maradék egyenleg.
 
 ---
 
@@ -114,8 +114,11 @@ kártyával / készpénzzel)? Ha igen: új mező + migráció + megjelenítés a
 - Utalványok lista: számla státusz, szám, PDF link; „Számla újraküldése” gomb sikertelennél.
 - Billingo payload ellenőrzése a hivatalos API ellen (teszt-fiókkal).
 
-**Döntés kell:** ÁFA-kulcs beállítható legyen (nem mindenki alanyi mentes)? Kell-e sztornó
-visszatérítésnél?
+**Javaslat (a tulaj nem szakértő, könyvelővel egyeztetendő):** a Számlázás beállításban egy
+„ÁFA” választó: *alanyi adómentes (AAM)* — ez marad az alap —, illetve *27%*, *18%*, *5%*.
+Aki évi árbevétele miatt ÁFA-köteles, azt állítja be, amit a könyvelője mond; mindenki másnak
+nem változik semmi. Az utalványok ÁFA-kezelése (eladáskor vagy beváltáskor) könyvelői kérdés —
+a felület mellé egy rövid súgószöveg kerül erről. Sztornó visszatérítésnél: később.
 
 ---
 
@@ -138,8 +141,11 @@ visszatérítésnél?
 - Szalon + étterem: egységes, budapesti időzónás ablak-számítás közös helyen, a slot API-k is
   használják; az egy napos eltérés rendezése.
 
-**Döntés kell:** mit jelent pontosan az „automatikus ciklus”? Pl. „minden hónap 1-jén megnyílik a
-következő hónap”, vagy „minden hétfőn a következő 4 hét”? Ehhez új beállítás kell.
+**Tulaj kérése (2026-10-09):** „ha lejár a 60 nap, újítsa meg automatikusan, és menjen értesítés,
+hogy hamarosan lejár.” Megjegyzés: a mai gördülő ablak már naponta magától megújul, tehát nem
+jár le. Tisztázandó, hogy a tulaj a mai működést szeretné-e megtartani (ekkor nincs teendő), vagy
+időszakos megnyitást: 60 napos időszak → lejárat előtt (pl. 7 nappal) értesítés a tulajnak →
+a lejáratkor automatikusan újabb 60 nap nyílik (kikapcsolható megújítással).
 
 ---
 
