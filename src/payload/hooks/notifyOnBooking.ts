@@ -35,6 +35,49 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
     const placeId = relId(placeRef)
     if (!placeId) return doc
 
+    // ── Módosítás e-mail a vendégnek — EGYETLEN küldési pont (korábban a manage-booking /
+    //    manage-reservation route is küldte, így egy szerkesztés két levelet is okozhatott, a route
+    //    ráadásul minden mentésnél, csak megjegyzés-változásnál is). Csak valódi módosításnál
+    //    (dátum/idő/szakember/asztal), csak ha a tulaj bekapcsolta (alap: ki), és független az
+    //    app-on belüli értesítés (`notify_new_bookings`) kapcsolójától.
+    if (isModification) {
+      try {
+        const emailPlace = await req.payload.findByID({
+          collection: kind === 'restaurant' ? 'restaurants' : 'salons',
+          id: placeId,
+          depth: 1,
+          overrideAccess: true,
+          req,
+        })
+        const modEnabled = (emailPlace?.notification_prefs as { modification_email?: boolean | null } | null)?.modification_email === true
+        if (emailPlace && modEnabled) {
+          if (kind === 'salon') {
+            const fullBooking = await req.payload.findByID({ collection: 'bookings', id: doc.id, depth: 2, overrideAccess: true, req })
+            if (fullBooking?.customer_email && fullBooking.service && fullBooking.staff) {
+              const { sendBookingModification } = await import('../../lib/email')
+              await sendBookingModification({
+                booking: fullBooking as Parameters<typeof sendBookingModification>[0]['booking'],
+                salon: emailPlace as Parameters<typeof sendBookingModification>[0]['salon'],
+                service: fullBooking.service as Parameters<typeof sendBookingModification>[0]['service'],
+                staff: fullBooking.staff as Parameters<typeof sendBookingModification>[0]['staff'],
+              })
+            }
+          } else {
+            const fullReservation = await req.payload.findByID({ collection: 'reservations', id: doc.id, depth: 1, overrideAccess: true, req })
+            if (fullReservation?.customer_email) {
+              const { sendReservationModification } = await import('../../lib/restaurantEmail')
+              await sendReservationModification({
+                reservation: fullReservation as Parameters<typeof sendReservationModification>[0]['reservation'],
+                restaurant: emailPlace as Parameters<typeof sendReservationModification>[0]['restaurant'],
+              })
+            }
+          }
+        }
+      } catch (emailErr) {
+        req.payload.logger.error(`notifyOnBooking modification email (${kind}) hiba: ${String(emailErr)}`)
+      }
+    }
+
     try {
       const place = await req.payload.findByID({
         collection: kind === 'restaurant' ? 'restaurants' : 'salons',
@@ -76,50 +119,6 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
         req,
         data: notifData,
       })
-
-      // ── Módosítás email a vendégnek (ha be van kapcsolva a notification_prefs-ben).
-      if (isModification) {
-        const modEnabled = (place.notification_prefs as { modification_email?: boolean | null } | null)?.modification_email
-        if (modEnabled !== false) {
-          try {
-            if (kind === 'salon') {
-              const fullBooking = await req.payload.findByID({
-                collection: 'bookings',
-                id: doc.id,
-                depth: 2,
-                overrideAccess: true,
-                req,
-              })
-              if (fullBooking?.customer_email && fullBooking.service && fullBooking.staff) {
-                const { sendBookingModification } = await import('../../lib/email')
-                await sendBookingModification({
-                  booking: fullBooking as Parameters<typeof sendBookingModification>[0]['booking'],
-                  salon: place as Parameters<typeof sendBookingModification>[0]['salon'],
-                  service: fullBooking.service as Parameters<typeof sendBookingModification>[0]['service'],
-                  staff: fullBooking.staff as Parameters<typeof sendBookingModification>[0]['staff'],
-                })
-              }
-            } else {
-              const fullReservation = await req.payload.findByID({
-                collection: 'reservations',
-                id: doc.id,
-                depth: 1,
-                overrideAccess: true,
-                req,
-              })
-              if (fullReservation?.customer_email) {
-                const { sendReservationModification } = await import('../../lib/restaurantEmail')
-                await sendReservationModification({
-                  reservation: fullReservation as Parameters<typeof sendReservationModification>[0]['reservation'],
-                  restaurant: place as Parameters<typeof sendReservationModification>[0]['restaurant'],
-                })
-              }
-            }
-          } catch (emailErr) {
-            req.payload.logger.error(`notifyOnBooking modification email (${kind}) hiba: ${String(emailErr)}`)
-          }
-        }
-      }
 
       // ── WEB PUSH: a tulaj mindig, a tagok a szerepük „Foglalás-értesítés" szintje szerint —
       //    korábban EZ HIÁNYZOTT: minden aktív tag push-ot kapott MINDEN foglalásról, függetlenül

@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { hhmmToMinutes, minutesToHHMM } from '@/lib/utils'
-import { sendBookingConfirmation, sendNewBookingNotification, sendBookingModification } from '@/lib/email'
+import { sendBookingConfirmation, sendNewBookingNotification } from '@/lib/email'
 import { sendPushToUsers } from '@/lib/webPush'
 import type { User, Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
@@ -153,14 +153,7 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       user,
     })
-    // Módosítás email a vendégnek — alapból KIKAPCSOLVA (a mezők defaultValue-ja is false),
-    // csak ha a tulaj kifejezetten bekapcsolta a Beállításokban.
-    if (salon.notification_prefs?.modification_email === true) {
-      const updatedBooking = updated as unknown as Booking
-      if (updatedBooking.customer_email) {
-        void sendBookingModification({ booking: updatedBooking, salon, service, staff })
-      }
-    }
+    // A módosítás e-mailt a `notifyOnBooking` hook küldi (csak valódi dátum/idő/hely-változásnál).
     return NextResponse.json({ ok: true, booking: updated })
   }
 

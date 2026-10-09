@@ -4,7 +4,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { validateManualReservation } from '@/lib/restaurantBooking'
-import { sendReservationConfirmation, sendReservationModification } from '@/lib/restaurantEmail'
+import { sendReservationConfirmation } from '@/lib/restaurantEmail'
 import type { User, Restaurant, Reservation } from '@/payload/payload-types'
 
 /**
@@ -130,12 +130,7 @@ export async function POST(req: NextRequest) {
       overrideAccess: true,
       user,
     })
-    // Módosítás email a vendégnek — alapból KIKAPCSOLVA (a mezők defaultValue-ja is false),
-    // csak ha a tulaj kifejezetten bekapcsolta a Beállításokban.
-    const updatedRes = updated as unknown as Reservation
-    if (restaurant.notification_prefs?.modification_email === true && updatedRes.customer_email) {
-      void sendReservationModification({ reservation: updatedRes, restaurant })
-    }
+    // A módosítás e-mailt a `notifyOnBooking` hook küldi (csak valódi dátum/idő/hely-változásnál).
     return NextResponse.json({ ok: true, reservation: updated })
   }
 
