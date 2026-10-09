@@ -9,6 +9,7 @@ import { isGuestBlocked } from '@/lib/blocklist'
 import { getStripe, hufToStripeMinor } from '@/lib/stripe'
 import { computeRestaurantDepositHuf } from '@/lib/depositCalc'
 import { issueDepositInvoiceBestEffort } from '@/lib/depositInvoice'
+import { isWithinBookingWindow } from '@/lib/bookingWindow'
 import { upsertMarketingConsent } from '@/lib/customerConsent'
 import type { Restaurant, Reservation } from '@/payload/payload-types'
 
@@ -80,6 +81,12 @@ export async function POST(request: NextRequest) {
       fallbackLocale: 'hu',
     })) as Restaurant | null
     if (!restaurant) return NextResponse.json({ error: 'Étterem nem található' }, { status: 404 })
+
+    // Foglalási ablak — ugyanaz a szabály, mint a szalonnál (eddig itt egyáltalán nem volt
+    // ellenőrizve, közvetlen API-hívással bármilyen távoli napra lehetett foglalni).
+    if (!isWithinBookingWindow(restaurant, date)) {
+      return NextResponse.json({ error: 'Erre a napra még nem lehet foglalni.' }, { status: 400 })
+    }
 
     if (restaurant.require_phone && !customer_phone?.trim()) {
       return NextResponse.json({ error: 'A telefonszám megadása kötelező' }, { status: 400 })

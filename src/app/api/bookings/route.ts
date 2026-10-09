@@ -11,6 +11,7 @@ import { isGuestBlocked } from '@/lib/blocklist'
 import { getStripe, hufToStripeMinor } from '@/lib/stripe'
 import { computeSalonDepositHuf } from '@/lib/depositCalc'
 import { issueDepositInvoiceBestEffort } from '@/lib/depositInvoice'
+import { isWithinBookingWindow } from '@/lib/bookingWindow'
 import { upsertMarketingConsent } from '@/lib/customerConsent'
 import type { Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
@@ -146,12 +147,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A foglaláshoz szükséges adatok nem találhatók. Kérjük, kezdd újra a foglalást.' }, { status: 400 })
     }
 
-    // Foglalási ablak (pl. 60 nap): a mai naptól GÖRDÜLŐ — minden nap egy nappal tovább nyílik.
-    // Eddig csak a foglaló felülete korlátozta; itt szerver-oldalon is kikényszerítjük.
-    const windowDays = salon.booking_window_days ?? 60
-    const lastBookable = new Date()
-    lastBookable.setDate(lastBookable.getDate() + windowDays)
-    if (date > lastBookable.toISOString().split('T')[0]) {
+    // Foglalási ablak (pl. 60 nap) — ugyanaz a számítás, mint a foglaló dátumsávján (budapesti nap).
+    if (!isWithinBookingWindow(salon, date)) {
       return NextResponse.json({ error: 'Erre a napra még nem lehet foglalni.' }, { status: 400 })
     }
 

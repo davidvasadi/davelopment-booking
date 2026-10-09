@@ -13,6 +13,7 @@ import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { hasActivePackage } from '@/lib/newsletterLimits'
 import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
 import { canEditPlace } from '@/lib/canEditPlace'
+import { bookableDayCount } from '@/lib/bookingWindow'
 
 /**
  * Renders an active restaurant's public landing page.
@@ -93,7 +94,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       reviews,
       requirePhone: restaurant.require_phone ?? true,
       maxPax: maxPax || 20,
-      bookingWindowDays: restaurant.booking_window_days ?? 60,
+      bookingWindowDays: bookableDayCount(restaurant),
       eventTypes,
       termsSections: restaurant.terms_sections,
       company: {

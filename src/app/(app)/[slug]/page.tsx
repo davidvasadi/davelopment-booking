@@ -19,6 +19,7 @@ import { canEditPlace } from '@/lib/canEditPlace'
 import { getLocale } from '@/lib/i18n/server'
 import { hasActivePackage } from '@/lib/newsletterLimits'
 import { resolveAvailableLocales, LOCALES, type Locale } from '@/lib/i18n'
+import { bookableDayCount } from '@/lib/bookingWindow'
 
 export async function generateMetadata({ params, searchParams }: { params: Promise<{ slug: string }>; searchParams: Promise<{ editor?: string }> }): Promise<Metadata> {
   const { slug } = await params
@@ -171,7 +172,7 @@ export default async function SalonPublicPage({
       website: salon.website,
       socialLinks: (salon.social_links ?? []).map((s) => s.url),
       requirePhone: salon.require_phone ?? true,
-      bookingWindowDays: salon.booking_window_days ?? 60,
+      bookingWindowDays: bookableDayCount(salon),
       termsSections: salon.terms_sections,
       goodToKnow: salon.good_to_know,
       depositEnabled: !!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded,
