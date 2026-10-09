@@ -258,4 +258,13 @@ Ugyanaz a szerkesztő, menü és képernyő-terv az éttermekre is — közös k
 
 Deploykor összesen 3 új szerkesztő-migráció fut (`20261006_130000`, `20261006_140000`, `20261007_100000`); az ágon így 10 migráció van.
 
-Étteremnél még nyitott: a leírás a kártyán 160 karakterre vágódik (korábban 220).
+### Utómunkák (2026-10-09)
+
+| Commit | Tartalom |
+|---|---|
+| `479f396` | étterem-kártya: a leírás ismét 220 karakterig látszik (a hős-blokk 160) |
+| `7696eea` | előnézet: a borító foglalás-gombja az Időpont lépésre visz (új `step` üzenet) |
+| `5eea85e` | a tulajnak szóló „Értesítő” sablon a Vendég e-mailek helyett az Értesítések alján |
+| (ez után) | a régi Üzlet profil / Foglalás / Nyelvek fülek kódjának törlése (−1300 sor) |
+
+Nyitott: ajándékutalvány-tételek (cégként vásárlás, adatmegadás, fizetési mód, státusz, számlázás), előre foglalás ciklus, Google API, „szalon neve keveredik az e-mailben” — pontosítás után.
