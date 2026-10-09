@@ -111,6 +111,7 @@ export const Notifications: CollectionConfig = {
         { label: 'Próbaidőszak hamarosan lejár', value: 'trial_ending' },
         { label: 'Visszaterhelés (chargeback)', value: 'dispute_created' },
         { label: 'Korai csalás-gyanú', value: 'fraud_warning' },
+        { label: 'Foglalási időszak', value: 'booking_window' },
       ],
     },
     { name: 'title', type: 'text', required: true, label: 'Cím' },

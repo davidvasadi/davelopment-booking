@@ -5,6 +5,7 @@ import { assertCapability } from '@/lib/apiCapability'
 import { emitBookingChange } from '@/lib/sseEmitter'
 import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
 import type { StaffMember } from '@/payload/payload-types'
+import { bookableDayCount, type BookingWindowSource } from '@/lib/bookingWindow'
 
 /**
  * Egy szalon-munkatárs kezelése: GET (locale-lekérés), PATCH (mentés / lokalizált bio),
@@ -167,7 +168,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if ('default_breaks' in body) {
       try {
         const salon = await loaded.payload.findByID({ collection: 'salons', id: loaded.salonId, depth: 0, overrideAccess: true })
-        if (salon) await autofillSalonSchedule(loaded.payload, String(loaded.salonId), salon.booking_window_days ?? 60)
+        if (salon) await autofillSalonSchedule(loaded.payload, String(loaded.salonId), bookableDayCount(salon as BookingWindowSource))
       } catch (e) {
         console.error('[api/staff PATCH] szünet schedule-autofill szinkron hiba', e)
       }

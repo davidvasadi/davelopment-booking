@@ -4,14 +4,16 @@
  * VPS cron hívja (percenként vagy óránként), CRON_SECRET-tel védve, pl.:
  *   * * * * * curl -s -H "x-cron-secret: $CRON_SECRET" https://booking.davelopment.hu/api/cron/notifications
  *
- * Négy feladat:
+ * Öt feladat:
  *  1) Emlékeztető: közelgő, még ki nem küldött (reminder_sent=false) foglalások.
  *  2) Visszajelzés-kérés: lezajlott (múltbeli), feedback_sent=false foglalások.
  *  3) Digest összefoglaló: minden üzlet a SAJÁT nyitás/zárás idejéhez igazítva.
  *     - Szalon: nyitáskor → reggeli (in-app + email), záráskor → esti (in-app + email)
  *     - Étterem: nyitáskor → reggeli (in-app + push), záráskor → esti (in-app + push)
  *     - Idempotens: ha az adott típus ma már ment, nem küldi újra.
- *  4) Takarítás: 90 napnál régebbi in-app értesítések + 30+ napja elhagyott (0 üzlet/sub/
+ *  4) Időszakos foglalási megnyitás: „hamarosan lejár” értesítés + automatikus megújítás
+ *     (lib/bookingWindowNotices.ts).
+ *  5) Takarítás: 90 napnál régebbi in-app értesítések + 30+ napja elhagyott (0 üzlet/sub/
  *     tagság) regisztrációk törlése — lásd lib/accountCleanup.ts.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -23,6 +25,7 @@ import { buildSalonAdvisor, buildRestaurantAdvisor, type SetupFlags } from '@/li
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { purgeAbandonedAccounts } from '@/lib/accountCleanup'
+import { processBookingWindows } from '@/lib/bookingWindowNotices'
 import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
 import { ALL_CAPABILITIES } from '@/lib/permissions'
 import type { Salon, Service, StaffMember, Booking, Restaurant, Reservation, User, Membership } from '@/payload/payload-types'
@@ -158,7 +161,7 @@ async function handle(request: NextRequest) {
   const forceTip = process.env.NODE_ENV !== 'production' && request.nextUrl.searchParams.get('forceTip') === '1'
 
   const now = Date.now()
-  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, weeklyTips: 0, notificationsCleaned: 0, accountsPurged: 0, errors: 0 }
+  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, weeklyTips: 0, bookingWindows: 0, notificationsCleaned: 0, accountsPurged: 0, errors: 0 }
 
   try {
     const payload = await getPayloadClient()
@@ -1147,6 +1150,16 @@ async function handle(request: NextRequest) {
       summary.notificationsCleaned = Array.isArray(deleted.docs) ? deleted.docs.length : 0
     } catch (err) {
       console.error('[Cron] Notifications cleanup failed', err)
+    }
+
+    // ── Időszakos foglalási megnyitás: lejárat előtti értesítés + automatikus megújítás ──
+    // Idempotens (a „már értesítve” és az új időszak-vége elmentődik), ezért percenként is futhat.
+    try {
+      const bw = await processBookingWindows(payload)
+      summary.bookingWindows = bw.renewed + bw.noticed
+      summary.errors += bw.errors
+    } catch (err) {
+      console.error('[Cron] Booking window processing failed', err)
     }
 
     // ── Elhagyott regisztrációk törlése (0 üzlet, 0 sub, 0 tagság, 30+ napja regisztrált) ──

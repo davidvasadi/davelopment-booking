@@ -435,6 +435,7 @@ export function RestaurantBookingWizard({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1], delay: 0.14 }}
+                className={bookingWindowDays > 0 ? undefined : 'hidden'}
               >
               <div data-edit-id="rules" className={cardClass} style={cardStyle}>
                 <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] mb-4 ${labelCls}`}>{tt("rbooking.time")}</p>

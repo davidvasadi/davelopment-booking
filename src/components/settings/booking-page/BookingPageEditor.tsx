@@ -14,6 +14,7 @@ import { compressImage } from '@/lib/compressImage'
 import { LOCALE_LABELS, resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { isEditorMessage, postToPreview, type PreviewToEditor } from '@/lib/editorBridge'
 import { reminderOffsets } from '@/lib/reminders'
+import { bookableDayCount, budapestToday, daysBetween, effectiveWindowEnd, huDate, periodEndFrom, type BookingWindowSource } from '@/lib/bookingWindow'
 import { CustomQuestionsEditor, type CustomQuestion } from '@/components/settings/CustomQuestionsEditor'
 import type { EditorView } from '@/components/booking/ProfileCard'
 import { EventTypesEditor, type EventTypeItem } from '@/components/settings/EventTypesEditor'
@@ -81,6 +82,10 @@ export type BookingPageEditorInitial = {
   staff: EditorStaff[]
   // ── Foglalási folyamat ──
   bookingWindowDays: number
+  /** Időszakos megnyitás: N napos időszakok `windowEnd` napig, lejáratkor (opcionálisan) megújul. */
+  windowPeriodic: boolean
+  windowEnd: string | null
+  windowAutoRenew: boolean
   bufferMinutes: number
   requirePhone: boolean
   autoConfirm: boolean
@@ -293,7 +298,7 @@ export function BookingPageEditor({
         sectionOrder: draft.sectionOrder,
         hiddenSections: draft.hiddenSections,
         fieldOrder: draft.fieldOrder,
-        bookingWindowDays: draft.bookingWindowDays,
+        bookingWindowDays: bookableDayCount({ booking_window_days: draft.bookingWindowDays, booking_window_periodic: draft.windowPeriodic, booking_window_end: draft.windowEnd, booking_window_auto_renew: draft.windowAutoRenew }),
         requirePhone: draft.requirePhone,
         addressRequired: draft.requireAddress,
         addressRequiredNote: draft.requireAddressNote || null,
@@ -386,6 +391,9 @@ export function BookingPageEditor({
         }
       }
       if (changed('bookingWindowDays')) body.booking_window_days = d.bookingWindowDays
+      if (changed('windowPeriodic')) body.booking_window_periodic = d.windowPeriodic
+      if (changed('windowEnd')) { body.booking_window_end = d.windowEnd; body.booking_window_notice_for = null }
+      if (changed('windowAutoRenew')) body.booking_window_auto_renew = d.windowAutoRenew
       if (!isRestaurant && changed('bufferMinutes')) body.booking_buffer_minutes = d.bufferMinutes
       if (isRestaurant) {
         if (changed('turnMinutes')) body.turn_duration_minutes = d.turnMinutes
@@ -521,8 +529,10 @@ export function BookingPageEditor({
   const goStep = (id: EditorView) => { setStep(id); setSel(null) }
   const setRem = (patch: Partial<Draft['reminders']>) => setDraft((d) => ({ ...d, reminders: { ...d.reminders, ...patch } }))
   const remHours = reminderHoursOf(draft.reminders)
+  const draftWindow: BookingWindowSource = { booking_window_days: draft.bookingWindowDays, booking_window_periodic: draft.windowPeriodic, booking_window_end: draft.windowEnd, booking_window_auto_renew: draft.windowAutoRenew }
+  const draftWindowEnd = effectiveWindowEnd(draftWindow)
   const rulesSummary: { label: string; value: string; step: EditorView; sel: string | null; off?: boolean }[] = [
-    { label: 'Foglalható előre', value: `${draft.bookingWindowDays} nap`, step: 'datetime', sel: 'rules' },
+    { label: 'Foglalható előre', value: draft.windowPeriodic ? (draftWindowEnd ? `${huDate(draftWindowEnd)}-ig` : 'Lejárt') : `${draft.bookingWindowDays} nap`, step: 'datetime', sel: 'rules', off: draft.windowPeriodic && !draftWindowEnd },
     isRestaurant
       ? { label: 'Foglalás hossza', value: `${draft.turnMinutes} perc`, step: 'datetime', sel: 'rules' }
       : { label: 'Szünet a foglalások között', value: draft.bufferMinutes ? `${draft.bufferMinutes} perc` : 'Nincs', step: 'datetime', sel: 'rules', off: !draft.bufferMinutes },
@@ -920,7 +930,7 @@ export function BookingPageEditor({
 
           {sel === 'rules' && (
             <>
-              <Field label="Foglalható napok előre" hint="Naponta automatikusan tovább gördül.">
+              <Field label={draft.windowPeriodic ? 'Egy időszak hossza' : 'Foglalható napok előre'} hint={draft.windowPeriodic ? 'Ennyi nap nyílik meg egyszerre.' : 'Naponta automatikusan tovább gördül.'}>
                 <div className="flex items-center gap-2">
                   <input type="number" min={1} max={365} className={cn(fieldCls, 'w-24 text-center')} value={draft.bookingWindowDays}
                     onChange={(e) => set('bookingWindowDays', Math.max(1, Math.min(365, Number(e.target.value) || 1)))} />
@@ -928,6 +938,26 @@ export function BookingPageEditor({
                 </div>
               </Field>
               <Chips options={[30, 60, 90, 180].map((v) => ({ label: `${v} nap`, on: draft.bookingWindowDays === v, onClick: () => set('bookingWindowDays', v) }))} />
+              <Field group label="Megnyitás módja" hint={draft.windowPeriodic ? 'Egyszerre egy időszak nyílik meg; lejárat előtt 7 nappal értesítést kapsz.' : 'Mindig a következő napok foglalhatók, nincs lejárat.'}>
+                <Chips options={[
+                  { label: 'Folyamatos', on: !draft.windowPeriodic, onClick: () => set('windowPeriodic', false) },
+                  { label: 'Időszakonként', on: draft.windowPeriodic, onClick: () => setDraft((d) => ({ ...d, windowPeriodic: true, windowEnd: d.windowEnd ?? periodEndFrom({ booking_window_days: d.bookingWindowDays }, budapestToday()) })) },
+                ]} />
+              </Field>
+              {draft.windowPeriodic && (
+                <div className="space-y-3 rounded-[16px] bg-black/[0.03] p-3.5">
+                  <p className="text-[12.5px] leading-relaxed text-ink-soft">
+                    {draftWindowEnd
+                      ? <>Jelenlegi időszak: <b className="font-semibold text-ink">ma – {huDate(draftWindowEnd)}</b> (még {daysBetween(budapestToday(), draftWindowEnd) + 1} nap).</>
+                      : <>Az időszak lejárt — a vendégek most nem tudnak foglalni.</>}
+                  </p>
+                  <ToggleRow label="Automatikus megújítás" hint={`Lejáratkor újabb ${draft.bookingWindowDays} nap nyílik meg.`} checked={draft.windowAutoRenew} onChange={() => set('windowAutoRenew', !draft.windowAutoRenew)} />
+                  <button type="button" onClick={() => set('windowEnd', periodEndFrom({ booking_window_days: draft.bookingWindowDays }, budapestToday()))}
+                    className="h-9 rounded-full border border-line-strong bg-white px-4 text-[12.5px] font-semibold text-ink hover:border-ink/40">
+                    Új időszak indítása mától
+                  </button>
+                </div>
+              )}
               {isRestaurant ? (
                 <>
                   <Field group label="Foglalás hossza" hint="Ennyi ideig tartja a foglalás az asztalt.">

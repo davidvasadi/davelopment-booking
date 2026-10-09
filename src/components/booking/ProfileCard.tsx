@@ -1312,7 +1312,7 @@ export function ProfileCard({
                       dark
                     />
                   </div>
-                  <div data-edit-id="rules" className="rounded-2xl p-4 pb-6" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                  <div data-edit-id="rules" className={cn('rounded-2xl p-4 pb-6', bookingWindowDays <= 0 && 'hidden')} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.10)' }}>
                     <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-white/45">
                       {format(bookingDateParsed, 'EEEE, MMMM d.', { locale: dfLocale(locale) })}
                     </p>

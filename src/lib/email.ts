@@ -910,3 +910,45 @@ export async function sendSalonDigestEmail(data: SalonDigestEmailData) {
     await logEmail(isEvening ? 'digest_evening' : 'digest_morning', ownerEmail, subject, false, String(err))
   }
 }
+
+// ── Foglalási időszak (időszakos megnyitás) — a tulajnak szól, szalonnak ÉS étteremnek ──────
+
+export interface BookingWindowEmailData {
+  businessName: string
+  slug: string | null | undefined
+  logoUrl: string | null
+  to: string
+  subject: string
+  title: string
+  subtitle: string
+  paragraphs: string[]
+  ctaLabel: string
+  ctaUrl: string
+}
+
+/** „Hamarosan lejár / megújult a foglalási időszak” levél a tulajnak (`src/lib/bookingWindowNotices.ts`). */
+export async function sendBookingWindowEmail(data: BookingWindowEmailData) {
+  const resend = getResend()
+  if (!resend) return
+  const body = data.paragraphs
+    .map((p) => `<p style="margin:0 0 12px;color:${COLORS.text};font-size:14px;line-height:1.6">${escapeHtml(p)}</p>`)
+    .join('')
+  const html = emailLayout({
+    brandName: data.businessName,
+    brandLogoUrl: data.logoUrl,
+    content: `
+      ${heroBlock({ icon: 'bell', title: data.title, subtitle: data.subtitle })}
+      <tr><td style="padding:8px 28px 4px">${body}
+        <a href="${data.ctaUrl}" style="display:inline-block;margin-top:6px;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:600;text-decoration:none;padding:12px 24px;border-radius:999px">${escapeHtml(data.ctaLabel)}</a>
+      </td></tr>
+      ${bottomSpacer()}
+    `,
+  })
+  try {
+    const { data: sendResult } = await resend.emails.send({ from: fromHeader(data.businessName, data.slug), to: data.to, subject: data.subject, html })
+    await logEmail('booking_window', data.to, data.subject, true, undefined, { resendId: sendResult?.id })
+  } catch (err) {
+    console.error('[Email] Booking window notice failed:', err)
+    await logEmail('booking_window', data.to, data.subject, false, String(err))
+  }
+}

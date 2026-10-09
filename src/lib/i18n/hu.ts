@@ -90,6 +90,7 @@ export const hu: Record<string, string> = {
 
   // ── Dátum-csík (DateStrip) — nap-rövidítések, V-tól ──
   'dateStrip.days': 'V,H,K,Sz,Cs,P,Szo',
+  'dateStrip.closed': 'Jelenleg nincs foglalható nap — kérjük, nézz vissza később.',
 
   // ── Jó tudni ──
   'goodToKnow.eyebrow': 'Mielőtt jössz',

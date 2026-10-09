@@ -60,6 +60,11 @@ export function DateStrip({
     if (next) onChange(format(next, 'yyyy-MM-dd'))
   }
 
+  // Időszakos megnyitásnál lejárt (és nem megújuló) időszak → nincs foglalható nap.
+  if (dayCount <= 0) {
+    return <p className={cn('px-1 py-3 text-[13px] leading-relaxed', dark ? 'text-white/60' : 'text-ink-soft')}>{t(locale, 'dateStrip.closed')}</p>
+  }
+
   return (
     <div>
       <div className="mb-3 flex items-center justify-between px-1">

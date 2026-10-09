@@ -123,6 +123,10 @@ export interface Restaurant {
   last_seating_buffer_minutes?: number | null
   lead_time_hours?: number | null
   booking_window_days?: number | null
+  booking_window_periodic?: boolean | null
+  booking_window_end?: string | null
+  booking_window_auto_renew?: boolean | null
+  booking_window_notice_for?: string | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
   /** Üzlet-csomag (starter / pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */
@@ -631,6 +635,7 @@ export interface EmailLogEntry {
     | 'password_reset'
     | 'schedule_change'
     | 'contact_form'
+    | 'booking_window'
     | 'other'
   to?: string | null
   subject?: string | null
@@ -661,7 +666,7 @@ export interface Notification {
   salon?: string | Salon | null
   user?: string | User | null
   audience: 'owner' | 'member' | 'admin'
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'voucher_purchase' | 'contact_message' | 'admin_broadcast' | 'weekly_tip' | 'trial_ending' | 'dispute_created' | 'fraud_warning'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'voucher_purchase' | 'contact_message' | 'admin_broadcast' | 'weekly_tip' | 'trial_ending' | 'dispute_created' | 'fraud_warning' | 'booking_window'
   title: string
   body?: string | null
   campaign_id?: number | null
@@ -747,6 +752,10 @@ export interface Salon {
   booking_buffer_minutes?: number | null
   services_uncategorized_sort_order?: number | null
   booking_window_days?: number | null
+  booking_window_periodic?: boolean | null
+  booking_window_end?: string | null
+  booking_window_auto_renew?: boolean | null
+  booking_window_notice_for?: string | null
   require_phone?: boolean | null
   notify_new_bookings?: boolean | null
   /** Üzlet-csomag (starter / pro = normál / egyedi = testreszabott). Régi (null) → Pro-ként olvasandó. */

@@ -84,6 +84,7 @@ export const it: Record<string, string> = {
 
   // ── Striscia date — abbreviazioni dei giorni, da domenica ──
   'dateStrip.days': 'Do,Lu,Ma,Me,Gi,Ve,Sa',
+  'dateStrip.closed': 'Al momento non ci sono giorni prenotabili — riprova più tardi.',
 
   // ── Buono a sapersi ──
   'goodToKnow.eyebrow': 'Prima di venire',

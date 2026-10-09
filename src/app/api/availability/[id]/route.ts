@@ -3,12 +3,13 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
 import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
+import { bookableDayCount, type BookingWindowSource } from '@/lib/bookingWindow'
 
 /** A naptár-kivétel írása/törlése után a Naptár/Shifts azonnal kövesse — ne várjon az éjszakai cronra. */
 async function resyncSalonSchedule(payload: Awaited<ReturnType<typeof getPayloadClient>>, salonId: unknown) {
   try {
     const salon = await payload.findByID({ collection: 'salons', id: salonId as string | number, depth: 0, overrideAccess: true })
-    if (salon) await autofillSalonSchedule(payload, String(salon.id), salon.booking_window_days ?? 60)
+    if (salon) await autofillSalonSchedule(payload, String(salon.id), bookableDayCount(salon as BookingWindowSource))
   } catch (err) {
     payload.logger.error(`[availability] schedule-autofill szinkron hiba: ${String(err)}`)
   }

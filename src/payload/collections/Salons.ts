@@ -267,6 +267,31 @@ export const Salons: CollectionConfig = {
               },
             },
             {
+              name: 'booking_window_periodic',
+              type: 'checkbox',
+              defaultValue: false,
+              label: 'Időszakos megnyitás',
+              admin: { description: 'Be: egyszerre N nap nyílik meg (időszak), a végén automatikusan megújul. Ki: mindig a következő N nap foglalható (gördülő).' },
+            },
+            {
+              name: 'booking_window_end',
+              type: 'text',
+              label: 'Jelenlegi foglalási időszak vége (ÉÉÉÉ-HH-NN)',
+              admin: { condition: (data) => !!data?.booking_window_periodic },
+            },
+            {
+              name: 'booking_window_auto_renew',
+              type: 'checkbox',
+              defaultValue: true,
+              label: 'Időszak automatikus megújítása',
+              admin: { condition: (data) => !!data?.booking_window_periodic },
+            },
+            {
+              name: 'booking_window_notice_for',
+              type: 'text',
+              admin: { hidden: true },
+            },
+            {
               name: 'require_phone',
               type: 'checkbox',
               defaultValue: true,

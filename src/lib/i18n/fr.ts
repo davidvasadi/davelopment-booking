@@ -84,6 +84,7 @@ export const fr: Record<string, string> = {
 
   // ── Bande de dates — abréviations des jours, à partir de dimanche ──
   'dateStrip.days': 'Di,Lu,Ma,Me,Je,Ve,Sa',
+  'dateStrip.closed': 'Aucune date n’est ouverte à la réservation pour le moment — revenez plus tard.',
 
   // ── Bon à savoir ──
   'goodToKnow.eyebrow': 'Avant de venir',

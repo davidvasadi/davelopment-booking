@@ -84,6 +84,7 @@ export const de: Record<string, string> = {
 
   // ── Datumsleiste — Tageskürzel, ab Sonntag ──
   'dateStrip.days': 'So,Mo,Di,Mi,Do,Fr,Sa',
+  'dateStrip.closed': 'Derzeit sind keine Tage buchbar — bitte schau später wieder vorbei.',
 
   // ── Gut zu wissen ──
   'goodToKnow.eyebrow': 'Bevor Sie kommen',

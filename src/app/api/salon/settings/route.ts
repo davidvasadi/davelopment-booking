@@ -5,6 +5,7 @@ import { getActiveBusiness } from '@/lib/activeBusiness'
 import { can } from '@/lib/permissions'
 import { encryptInvoiceKeysInBody } from '@/lib/encryption'
 import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
+import { bookableDayCount, type BookingWindowSource } from '@/lib/bookingWindow'
 
 // `stripe_connect_*`: KIZÁRÓLAG szerver-oldali Connect onboarding/webhook írhatja — a route
 // `overrideAccess: true`-val ment, ami a mező-szintű admin-only `access.update`-et (lásd
@@ -170,9 +171,11 @@ export async function PATCH(request: NextRequest) {
   // mentés után azonnal a naptárra ugorva még üresen látta volna az új napot, a következő
   // éjszakai cron-futásig (ld. `src/lib/scheduleAutofill.ts`, ugyanezt hívja a cron is). Egy
   // beállítás-mentés nem forgalom-kritikus útvonal, a pár száz ms/pár mp többlet elfogadható.
-  if (typeof safeBody.booking_window_days === 'number') {
+  if (['booking_window_days', 'booking_window_periodic', 'booking_window_end', 'booking_window_auto_renew'].some((k) => k in safeBody)) {
     try {
-      await autofillSalonSchedule(payload, String(active.id), safeBody.booking_window_days)
+      // A ténylegesen foglalható napok (időszakos módban az időszak végéig) — a mentett állapotból.
+      const fresh = await payload.findByID({ collection: 'salons', id: active.id, depth: 0, overrideAccess: true })
+      await autofillSalonSchedule(payload, String(active.id), bookableDayCount(fresh as BookingWindowSource))
     } catch (err) {
       payload.logger.error(`[salon/settings] schedule-autofill hiba: ${String(err)}`)
     }

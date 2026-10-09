@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
+import { bookableDayCount, type BookingWindowSource } from '@/lib/bookingWindow'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +41,7 @@ async function handle(request: NextRequest) {
 
   for (const salon of salons.docs) {
     try {
-      const result = await autofillSalonSchedule(payload, String(salon.id), salon.booking_window_days ?? 60)
+      const result = await autofillSalonSchedule(payload, String(salon.id), bookableDayCount(salon as BookingWindowSource))
       summary.salons++
       summary.staffChecked += result.staffChecked
       summary.created += result.created

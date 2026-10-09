@@ -86,6 +86,7 @@ export const en: Record<string, string> = {
 
   // ── Date strip — day abbreviations, starting Sunday ──
   'dateStrip.days': 'Su,Mo,Tu,We,Th,Fr,Sa',
+  'dateStrip.closed': 'No dates are open for booking right now — please check back later.',
 
   // ── Good to know ──
   'goodToKnow.eyebrow': 'Before you come',
