@@ -205,3 +205,19 @@ a lejáratkor automatikusan újabb 60 nap nyílik (kikapcsolható megújítássa
    és újraküldés (5).
 3. Utalvány az admin új foglalásnál (4), fizetési mód megjelenítés (3).
 4. Döntés után: automatikus foglalási ciklus (6), részleges beváltás (4), ÁFA-kulcs (5).
+
+---
+
+## Elkészült (2026-10-10)
+
+| Commit | Pont |
+|---|---|
+| `1577462` | 6. — étterem: előre foglalási ablak ellenőrzése a szerveren; közös, budapesti idős számítás (`src/lib/bookingWindow.ts`) |
+| `39baefa` | 8. — utalvány webhook versenyhelyzet |
+| `c0504cf` | 8. — módosítás-értesítő csak egyszer és csak valódi változásnál |
+| `c0a14e2` | 8. — hírlevél az üzlet saját feladócíméről, válasz az üzlet címére |
+| `e9c560c` | 6. — időszakos megnyitás: N napos időszak, 7 nappal előtte értesítés (app + push + e-mail), automatikus megújítás; migráció `20261009_100000` |
+
+Hátra: 1–2. (utalvány adatmegadás, céges vásárlás), 3. (utalvány-jelvények egységesítése),
+4. (utalvány az admin új foglalásnál), 5. (számla fizetési módja, újraküldés, ÁFA-választó),
+7. (`GOOGLE_PLACES_API_KEY` ellenőrzése élesben), 8. (éles env: `RESEND_PER_BUSINESS_FROM`).
