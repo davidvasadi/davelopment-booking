@@ -177,7 +177,6 @@ export default async function RestaurantSettingsPage() {
     : undefined
 
   const np = r.notification_prefs ?? {}
-  const br = r.booking_rules ?? {}
   const fm = r.feature_modules ?? {}
 
   return (
@@ -210,7 +209,6 @@ export default async function RestaurantSettingsPage() {
           digest_morning_email: np.digest_morning_email ?? false,
           digest_evening_email: np.digest_evening_email ?? false,
         }}
-        bookingRules={{ auto_confirm: br.auto_confirm ?? true, require_address: br.require_address ?? false, require_address_note: br.require_address_note ?? '' }}
         featureModules={{
           reminders_on: fm.reminders_on ?? true,
           reminder_ch_email: fm.reminder_ch_email ?? true,
@@ -292,10 +290,7 @@ export default async function RestaurantSettingsPage() {
             restaurantId={r.id}
             restaurantName={r.name}
             businessCount={businessCount}
-            slug={r.slug}
             supportedLocales={r.supported_locales}
-            logo={r.logo}
-            coverImage={r.cover_image}
             initial={{
               name: r.name,
               slug: (r as Restaurant & { slug?: string }).slug ?? '',

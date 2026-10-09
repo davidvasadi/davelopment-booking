@@ -196,7 +196,6 @@ export default async function SettingsPage() {
     : undefined
 
   const np = salon.notification_prefs ?? {}
-  const br = salon.booking_rules ?? {}
   const fm = salon.feature_modules ?? {}
 
   return (
@@ -232,7 +231,6 @@ export default async function SettingsPage() {
           digest_morning_email: np.digest_morning_email ?? false,
           digest_evening_email: np.digest_evening_email ?? false,
         }}
-        bookingRules={{ auto_confirm: br.auto_confirm ?? true, require_address: br.require_address ?? false, require_address_note: br.require_address_note ?? '' }}
         featureModules={{
           reminders_on: fm.reminders_on ?? true,
           reminder_ch_email: fm.reminder_ch_email ?? true,

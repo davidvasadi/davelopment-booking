@@ -1,34 +1,23 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { BusinessQrCard } from '@/components/settings/BusinessQrCard'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { BookingWindowPicker } from '@/components/dashboard/BookingWindowPicker'
-import { NumberStepper } from '@/components/ui/NumberStepper'
-import { Camera, Loader2, ImagePlus, X, Trash2, Eye, Move, ChevronDown } from 'lucide-react'
+import { Loader2, Trash2, Eye, ChevronDown } from 'lucide-react'
 import { openEmailPreview } from '@/components/settings/emailPreviewUrl'
 import { EmailTemplatesEditor } from '@/components/settings/EmailTemplatesEditor'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { TermsSectionsEditor, type TermsSection } from '@/components/settings/TermsSectionsEditor'
-import { GoodToKnowEditor, type GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
-import { CustomQuestionsEditor, type CustomQuestion } from '@/components/settings/CustomQuestionsEditor'
-import { EventTypesEditor, type EventTypeItem } from '@/components/settings/EventTypesEditor'
-import { SupportedLocalesPicker } from '@/components/settings/SupportedLocalesPicker'
+import type { GoodToKnowItem } from '@/components/settings/GoodToKnowEditor'
+import type { CustomQuestion } from '@/components/settings/CustomQuestionsEditor'
+import type { EventTypeItem } from '@/components/settings/EventTypesEditor'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { useLocalizedFields } from '@/components/settings/useLocalizedFields'
-import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
-import { CoverFocalPointEditor } from '@/components/settings/CoverFocalPointEditor'
 import type { ComposerBlock } from '@/lib/emailBlocks'
 import { useSettingsFormContext } from '@/components/settings/settingsFormContext'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
-import type { Media } from '@/payload/payload-types'
-import { fixMediaUrl } from '@/lib/utils'
-import { compressImage } from '@/lib/compressImage'
 
 /** Fülenkénti mentés-sáv: csak akkor aktív, ha az adott fülön van változás.
  *  Opcionális `onPreview` esetén a Mentés mellett egy „Előnézet" gomb is megjelenik. */
@@ -155,7 +144,6 @@ type Settings = {
 // Crextio/Apple mező: tiszta fehér + meleg hajszálvékony keret + arany fókusz-gyűrű (NINCS krém fill).
 const inputClass =
   'h-[50px] w-full rounded-[14px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 transition-colors focus-visible:ring-2 focus-visible:ring-gold/30 focus-visible:border-gold/60'
-const labelClass = 'text-[12.5px] font-medium text-ink-soft'
 
 // A Nyitvatartás/Foglalások kártya-mintája: bordered + fejléc-elválasztó + 15px semibold cím.
 /** `collapsible` esetén a szekció alapból csukott (`defaultOpen=false`, ha nincs felülírva) —
@@ -202,35 +190,20 @@ function Section({ title, children, full, id, collapsible, defaultOpen = false }
   )
 }
 
-function mediaUrl(field: string | Media | null | undefined): string | null {
-  if (!field || typeof field !== 'object') return null
-  return fixMediaUrl((field as Media).url)
-}
-function mediaId(field: string | Media | null | undefined): number | null {
-  if (!field || typeof field !== 'object') return null
-  return Number((field as Media).id)
-}
-
 export function RestaurantSettingsForm({
   restaurantId,
   restaurantName,
   businessCount = 1,
-  slug,
   initial,
   supportedLocales,
-  logo,
-  coverImage,
   controlledTab,
   hideTabsNav = false,
 }: {
   restaurantId: number | string
   restaurantName: string
   businessCount?: number
-  slug: string
   initial: Settings
   supportedLocales?: (Locale | string)[] | null
-  logo?: string | Media | null
-  coverImage?: string | Media | null
   /** Ha megadva, a Beállítások-hub bal listája vezérli az aktív fület (nincs belső fül-sor). */
   controlledTab?: string
   hideTabsNav?: boolean
@@ -241,18 +214,12 @@ export function RestaurantSettingsForm({
   const [form, setForm] = useState<Settings>(initial)
   const [saved, setSaved] = useState<Settings>(initial) // utoljára elmentett állapot (dirty-hez)
   const [submitting, setSubmitting] = useState(false)
-  const [savedSlug, setSavedSlug] = useState(initial.slug) // utoljára sikeresen mentett slug
-  const [slugError, setSlugError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleteConfirm, setDeleteConfirm] = useState('')
 
-  // ── Nyelvek: a tulaj által a foglalón kínált nyelvkészlet (HU mindig fix alap) ──
-  const [supportedExtras, setSupportedExtras] = useState<Locale[]>(
-    resolveAvailableLocales(supportedLocales).filter((l) => l !== 'hu'),
-  )
-  const [savedSupported, setSavedSupported] = useState<Locale[]>(supportedExtras)
-  const supportedDirty = JSON.stringify(supportedExtras) !== JSON.stringify(savedSupported)
+  // ── A foglalón kínált nyelvek (a Foglalóoldal-szerkesztő állítja; HU mindig fix alap) ──
+  const savedSupported = resolveAvailableLocales(supportedLocales).filter((l) => l !== 'hu')
 
   // ── Localizált tartalom (email tárgy/intro, „jó tudni", feltételek) per-nyelv ──
   const loc = useLocalizedFields({
@@ -284,43 +251,16 @@ export function RestaurantSettingsForm({
     },
   })
 
-  const saveSupported = async (): Promise<boolean> => {
-    setSubmitting(true)
-    try {
-      const res = await fetch('/api/restaurant/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ supported_locales: ['hu', ...supportedExtras] }),
-      })
-      if (!res.ok) throw new Error()
-      setSavedSupported(supportedExtras)
-      toast.success('Nyelvek mentve')
-      router.refresh()
-      return true
-    } catch {
-      toast.error('Hiba történt')
-      return false
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   // ── Fülek + mentetlen-változás védelem ──────────────────────────
   // Melyik mező melyik fülhöz tartozik (dirty-követés + per-tab mentés).
   // A localizált mezőket (good_to_know, terms_sections, booking_email_*) a `loc` hook kezeli.
   const TAB_FIELDS: Record<string, (keyof Settings)[]> = {
-    general: ['name', 'slug', 'city', 'address', 'phone', 'email', 'website', 'social_links'],
-    booking: [
-      'turn_duration_minutes', 'slot_step_minutes', 'last_seating_buffer_minutes',
-      'lead_time_hours', 'booking_window_days', 'require_phone', 'notify_new_bookings',
-    ],
     email: ['email_show_phone', 'email_contact_phone', 'email_show_email', 'email_show_address', 'email_show_directions', 'email_directions_address', 'email_show_terms'],
     documents: [],
     ownerEmail: [],
   }
-  const LOC_TABS = new Set(['general', 'booking', 'email', 'ownerEmail', 'documents'])
-  const [internalTab, setActiveTab] = useState('general')
+  const LOC_TABS = new Set(['email', 'ownerEmail', 'documents'])
+  const [internalTab, setActiveTab] = useState('email')
   // Vezérelt mód: ha a Beállítások-hub Providere körénk renderel, a context/prop dönt a fülről
   // ÉS elrejtjük a saját vízszintes fül-sort; különben a belső állapot + saját fülsor.
   const hubCtx = useSettingsFormContext()
@@ -329,116 +269,15 @@ export function RestaurantSettingsForm({
   // Fülváltáskor, ha van mentetlen változás, ide tesszük a célfület és rákérdezünk.
   const [pendingTab, setPendingTab] = useState<string | null>(null)
 
-  // Az „Általános" fülön a logó/borító képváltozás is dirty-nek számít.
-  // A borítókép-szerkesztő (pozíció+nagyítás) SAJÁT, azonnali mentése — lásd a szalon-form
-  // azonos megjegyzését: friss paraméterekkel PATCH-el, nem a state-frissítésre vár.
-  const saveCoverFocal = async (x: number, y: number, z: number): Promise<boolean> => {
-    setSubmitting(true)
-    try {
-      const res = await fetch('/api/restaurant/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ cover_image: coverId ?? null, cover_focal_x: x, cover_focal_y: y, cover_zoom: z }),
-      })
-      if (!res.ok) { toast.error('Hiba történt a mentés során'); return false }
-      setCoverFocalX(x); setCoverFocalY(y); setCoverZoom(z); setCoverModified(false)
-      toast.success('Borítókép mentve')
-      router.refresh()
-      return true
-    } catch {
-      toast.error('Hiba történt a mentés során')
-      return false
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
   const tabDirty = (tab: string): boolean => {
     const fields = TAB_FIELDS[tab] ?? []
     const fieldDirty = fields.some((k) => form[k] !== saved[k])
     const locDirty = LOC_TABS.has(tab) && loc.dirty
-    if (tab === 'general') return fieldDirty || logoModified || coverModified || locDirty
-    if (tab === 'languages') return supportedDirty
     return fieldDirty || locDirty
   }
 
-  const [logoId, setLogoId] = useState<number | null>(mediaId(logo))
-  const [logoPreview, setLogoPreview] = useState<string | null>(mediaUrl(logo))
-  const [uploadingLogo, setUploadingLogo] = useState(false)
-  const [logoModified, setLogoModified] = useState(false)
-  const logoRef = useRef<HTMLInputElement>(null)
-
-  const [coverId, setCoverId] = useState<number | null>(mediaId(coverImage))
-  const [coverPreview, setCoverPreview] = useState<string | null>(mediaUrl(coverImage))
-  const [uploadingCover, setUploadingCover] = useState(false)
-  const [coverModified, setCoverModified] = useState(false)
-  const coverRef = useRef<HTMLInputElement>(null)
-  const [coverFocalX, setCoverFocalX] = useState(initial.cover_focal_x ?? 50)
-  const [coverFocalY, setCoverFocalY] = useState(initial.cover_focal_y ?? 50)
-  const [coverZoom, setCoverZoom] = useState(initial.cover_zoom ?? 1)
-  const [focalEditorOpen, setFocalEditorOpen] = useState(false)
-
-  const [origin, setOrigin] = useState('')
-  useEffect(() => setOrigin(window.location.origin), [])
-  const publicUrl = `${origin}/${form.slug || slug}`
-
   const set = <K extends keyof Settings>(key: K, value: Settings[K]) =>
     setForm((f) => ({ ...f, [key]: value }))
-
-  const MAX_UPLOAD_MB = 15
-
-  const uploadImage = async (
-    file: File,
-    setPreview: (url: string | null) => void,
-    setId: (id: number | null) => void,
-    setUploading: (v: boolean) => void,
-    setModified: (v: boolean) => void,
-  ) => {
-    if (file.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      toast.error(`A kép mérete legfeljebb ${MAX_UPLOAD_MB} MB lehet.`)
-      return
-    }
-    setUploading(true)
-    setPreview(URL.createObjectURL(file))
-    try {
-      const compressed = await compressImage(file)
-      const fd = new FormData()
-      fd.append('file', compressed)
-      fd.set('_payload', JSON.stringify({ alt: file.name }))
-      const res = await fetch('/api/media', { method: 'POST', credentials: 'include', body: fd })
-      if (!res.ok) {
-        const err = await res.json().catch(() => null)
-        throw new Error(err?.errors?.[0]?.message ?? `HTTP ${res.status}`)
-      }
-      const json = await res.json()
-      setId(json.doc.id)
-      setPreview(json.doc.url)
-      setModified(true)
-    } catch (e) {
-      toast.error(`Kép feltöltése sikertelen: ${e instanceof Error ? e.message : 'ismeretlen hiba'}`)
-      setPreview(null)
-      setId(null)
-    } finally {
-      setUploading(false)
-    }
-  }
-
-  const removeImage = async (
-    currentId: number | null,
-    setPreview: (url: string | null) => void,
-    setId: (id: number | null) => void,
-    setModified: (v: boolean) => void,
-    ref: React.RefObject<HTMLInputElement | null>,
-  ) => {
-    if (currentId) {
-      await fetch(`/api/media/${currentId}`, { method: 'DELETE', credentials: 'include' })
-    }
-    setPreview(null)
-    setId(null)
-    setModified(true)
-    if (ref.current) ref.current.value = ''
-  }
 
   const deleteAccount = async () => {
     if (deleteConfirm.trim() !== restaurantName.trim()) return
@@ -461,21 +300,12 @@ export function RestaurantSettingsForm({
     }
   }
 
-  // A megadott mezőket (+ opcionálisan a médiát) PATCH-eli, majd frissíti a
-  // `saved` baseline-t és nullázza az érintett dirty-jelzőket.
-  const persist = async (fields: (keyof Settings)[], includeMedia: boolean): Promise<boolean> => {
-    // Kliens-oldali slug validáció mentés előtt
-    if (fields.includes('slug')) {
-      if (!form.slug || form.slug.length < 3) { setSlugError('Minimum 3 karakter szükséges'); return false }
-      if (!/^[a-z0-9-]+$/.test(form.slug)) { setSlugError('Csak kisbetű, szám és kötőjel megengedett'); return false }
-    }
+  // A megadott mezőket PATCH-eli, majd frissíti a `saved` baseline-t.
+  const persist = async (fields: (keyof Settings)[]): Promise<boolean> => {
     setSubmitting(true)
     try {
       const body: Record<string, unknown> = {}
       for (const k of fields) body[k] = form[k]
-      if (fields.includes('social_links')) body.social_links = form.social_links.filter((u) => u.trim()).map((url) => ({ url }))
-      if (includeMedia && logoModified) body.logo = logoId ?? null
-      if (includeMedia && coverModified) { body.cover_image = coverId ?? null; body.cover_focal_x = coverFocalX; body.cover_focal_y = coverFocalY; body.cover_zoom = coverZoom }
       const res = await fetch('/api/restaurant/settings', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -483,13 +313,7 @@ export function RestaurantSettingsForm({
         body: JSON.stringify(body),
       })
       if (!res.ok) {
-        const data = await res.json().catch(() => null)
-        const errMsg: string = data?.errors?.[0]?.message ?? data?.message ?? ''
-        if (fields.includes('slug') && (errMsg.toLowerCase().includes('unique') || errMsg.toLowerCase().includes('slug'))) {
-          setSlugError('Ez az URL már foglalt — próbálj másik azonosítót')
-        } else {
-          toast.error('Hiba történt a mentés során')
-        }
+        toast.error('Hiba történt a mentés során')
         return false
       }
       setSaved((s) => {
@@ -497,8 +321,6 @@ export function RestaurantSettingsForm({
         for (const k of fields) (next[k] as Settings[keyof Settings]) = form[k]
         return next
       })
-      if (fields.includes('slug')) { setSavedSlug(form.slug); setSlugError(null) }
-      if (includeMedia) { setLogoModified(false); setCoverModified(false) }
       toast.success('Beállítások mentve')
       router.refresh()
       return true
@@ -511,14 +333,13 @@ export function RestaurantSettingsForm({
   }
 
   const saveTab = async (tab: string): Promise<boolean> => {
-    if (tab === 'languages') return saveSupported()
-    const okFields = await persist(TAB_FIELDS[tab] ?? [], tab === 'general')
+    const okFields = await persist(TAB_FIELDS[tab] ?? [])
     let okLoc = true
     if (LOC_TABS.has(tab) && loc.dirty) okLoc = await loc.saveLocale()
     return okFields && okLoc
   }
   const saveAll = () =>
-    persist(Object.values(TAB_FIELDS).flat(), true)
+    persist(Object.values(TAB_FIELDS).flat())
 
   // Egy fül változásainak elvetése — vissza az utoljára mentett állapotra. A hub közös mentés-sávja
   // ÉS a fülváltás-ConfirmDialog is ezt hívja (a localizált mezőket a `loc` hook kezeli, nem itt).
@@ -528,12 +349,6 @@ export function RestaurantSettingsForm({
       for (const k of (TAB_FIELDS[tab] ?? [])) (next[k] as Settings[keyof Settings]) = saved[k]
       return next
     })
-    if (tab === 'general') {
-      setLogoModified(false); setLogoPreview(mediaUrl(logo)); setLogoId(mediaId(logo))
-      setCoverModified(false); setCoverPreview(mediaUrl(coverImage)); setCoverId(mediaId(coverImage))
-      setCoverFocalX(initial.cover_focal_x ?? 50); setCoverFocalY(initial.cover_focal_y ?? 50); setCoverZoom(initial.cover_zoom ?? 1)
-    }
-    if (tab === 'languages') setSupportedExtras(savedSupported)
     // A localizált mezőket (jó tudni, feltételek, email-sablonok, egyedi kérdések) a `loc` hook
     // KÜLÖN cache-eli — enélkül a „Mégse" ezeket sose állította volna vissza, csak a sima
     // mezőket, ami úgy nézett ki, mintha a gomb nem csinálna semmit.
@@ -553,9 +368,6 @@ export function RestaurantSettingsForm({
   }
 
   const tabs = [
-    { id: 'general', label: 'Általános', dirty: tabDirty('general') },
-    { id: 'booking', label: 'Foglalás', dirty: tabDirty('booking') },
-    { id: 'languages', label: 'Nyelvek', dirty: tabDirty('languages') },
     { id: 'email', label: 'Email', dirty: tabDirty('email') },
     { id: 'documents', label: 'Dokumentumok', dirty: tabDirty('documents') },
     { id: 'danger', label: 'Veszélyzóna' },
@@ -582,373 +394,6 @@ export function RestaurantSettingsForm({
     <>
     <form onSubmit={onSubmit} className="space-y-5">
       {!embedded && !hideTabsNav && <TabsNav tabs={tabs} active={activeTab} onSelect={requestTab} />}
-
-      {activeTab === 'general' && (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-[5px]">
-
-      {/* Cover image */}
-      <Section id="cover" title="Borítókép" full>
-        <p className="text-xs text-ink-soft -mt-1">A nyilvános oldalon a felső sötét sávon jelenik meg háttérként.</p>
-        <div className="relative">
-          <button
-            type="button"
-            onClick={() => coverRef.current?.click()}
-            className="relative w-full h-36 rounded-2xl overflow-hidden bg-white border border-dashed border-line-strong flex items-center justify-center hover:border-ink/25 transition-colors"
-          >
-            {uploadingCover ? (
-              <Loader2 className="h-6 w-6 text-ink-soft animate-spin" />
-            ) : coverPreview ? (
-              <>
-                <img src={coverPreview} alt="Borítókép" className="absolute inset-0 h-full w-full object-cover opacity-40" style={{ objectPosition: `${coverFocalX}% ${coverFocalY}%`, transform: `scale(${coverZoom})`, transformOrigin: `${coverFocalX}% ${coverFocalY}%` }} />
-                <div className="relative flex flex-col items-center gap-1.5 text-ink-soft">
-                  <ImagePlus className="h-5 w-5" />
-                  <span className="text-xs font-medium">Csere</span>
-                </div>
-              </>
-            ) : (
-              <div className="flex flex-col items-center gap-1.5 text-ink-soft">
-                <ImagePlus className="h-6 w-6" />
-                <span className="text-xs font-medium">Borítókép feltöltése</span>
-              </div>
-            )}
-          </button>
-          {coverPreview && !uploadingCover && (
-            <>
-              <button
-                type="button"
-                onClick={() => setFocalEditorOpen(true)}
-                className="absolute top-2 left-2 flex h-7 items-center gap-1.5 rounded-full bg-black/60 px-2.5 text-[11px] font-medium text-white hover:bg-black/80 transition-colors"
-              >
-                <Move className="h-3.5 w-3.5" /> Szerkesztés
-              </button>
-              <button
-                type="button"
-                aria-label="Borítókép eltávolítása"
-                onClick={() => removeImage(coverId, setCoverPreview, setCoverId, setCoverModified, coverRef)}
-                className="absolute top-2 right-2 h-7 w-7 rounded-full bg-black/60 flex items-center justify-center hover:bg-black/80 transition-colors"
-              >
-                <X className="h-3.5 w-3.5 text-white" />
-              </button>
-            </>
-          )}
-        </div>
-        <p className="text-[11px] text-ink-soft2">JPG, PNG vagy WEBP, legfeljebb {MAX_UPLOAD_MB} MB.</p>
-        {focalEditorOpen && coverPreview && (
-          <CoverFocalPointEditor
-            imageUrl={coverPreview}
-            initialX={coverFocalX}
-            initialY={coverFocalY}
-            initialZoom={coverZoom}
-            onCancel={() => setFocalEditorOpen(false)}
-            onSave={async (x, y, z) => {
-              const ok = await saveCoverFocal(x, y, z)
-              if (ok) setFocalEditorOpen(false)
-              return ok
-            }}
-          />
-        )}
-        <input
-          ref={coverRef}
-          type="file"
-          accept="image/*"
-          className="hidden"
-          onChange={e => {
-            const f = e.target.files?.[0]
-            if (f) uploadImage(f, setCoverPreview, setCoverId, setUploadingCover, setCoverModified)
-          }}
-        />
-      </Section>
-
-      {/* Logo + name */}
-      <Section id="general" title="Alap adatok">
-        <div className="space-y-5">
-          <div className="space-y-2">
-            <Label className={`${labelClass} block`}>Logó</Label>
-            <div className="relative w-fit">
-              <button
-                type="button"
-                onClick={() => logoRef.current?.click()}
-                className={`group relative flex h-20 min-w-20 max-w-[220px] items-center justify-center rounded-2xl overflow-hidden transition-colors ${logoPreview && !uploadingLogo ? 'p-0' : 'bg-white border border-dashed border-line-strong px-3 hover:border-ink/25'}`}
-              >
-                {uploadingLogo ? (
-                  <Loader2 className="h-5 w-5 text-ink-soft animate-spin" />
-                ) : logoPreview ? (
-                  <>
-                    <img src={logoPreview} alt="Logó" className="h-full w-auto max-w-full object-contain" />
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <Camera className="h-4 w-4 text-white" />
-                    </div>
-                  </>
-                ) : (
-                  <Camera className="h-5 w-5 text-ink-soft" />
-                )}
-              </button>
-              {logoPreview && !uploadingLogo && (
-                <button
-                  type="button"
-                  onClick={() => removeImage(logoId, setLogoPreview, setLogoId, setLogoModified, logoRef)}
-                  className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-black/80 flex items-center justify-center hover:bg-bad transition-colors"
-                >
-                  <X className="h-3 w-3 text-white" />
-                </button>
-              )}
-            </div>
-            <p className="text-xs text-ink-soft leading-relaxed">
-              PNG vagy SVG, áttetsző háttérrel a legjobb. Legfeljebb {MAX_UPLOAD_MB} MB.
-            </p>
-            <input
-              ref={logoRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={e => {
-                const f = e.target.files?.[0]
-                if (f) uploadImage(f, setLogoPreview, setLogoId, setUploadingLogo, setLogoModified)
-              }}
-            />
-          </div>
-          <div className="w-full space-y-3">
-            <div className="space-y-1.5">
-              <Label className={labelClass}>Étterem neve *</Label>
-              <Input className={inputClass} value={form.name} onChange={(e) => set('name', e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label className={labelClass}>URL azonosító</Label>
-              <div className="flex items-center gap-1">
-                <span className="text-sm text-ink-soft">/</span>
-                <Input
-                  className={`${inputClass} flex-1 ${slugError ? 'border-destructive/70 focus-visible:ring-destructive/30 focus-visible:border-destructive' : ''}`}
-                  value={form.slug}
-                  onChange={(e) => {
-                    const v = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-')
-                    set('slug', v)
-                    setSlugError(
-                      !v ? 'Az URL azonosító nem lehet üres' :
-                      v.length < 3 ? 'Minimum 3 karakter szükséges' :
-                      null
-                    )
-                  }}
-                />
-              </div>
-              {slugError && <p className="text-xs text-destructive">{slugError}</p>}
-              {form.slug !== savedSlug && !slugError && (
-                <div className="flex items-start gap-2.5 rounded-[14px] border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 mt-2">
-                  <span className="shrink-0 mt-0.5">⚠️</span>
-                  <span>
-                    <span className="font-semibold">A foglalási link megváltozik!</span>{' '}
-                    A régi URL-en (<code className="text-xs bg-amber-100 px-1 rounded">/{savedSlug}</code>) érkező vendégek hibát kapnak.
-                    Mentés után értesítsd a vendégeidet az új linkről.
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </Section>
-
-      <Section id="contact" title="Elérhetőség">
-        <div className="space-y-1.5">
-          <Label className={labelClass}>Város</Label>
-          <Input className={inputClass} value={form.city} onChange={(e) => set('city', e.target.value)} />
-        </div>
-        <div className="space-y-1.5">
-          <Label className={labelClass}>Cím</Label>
-          <Input className={inputClass} value={form.address} onChange={(e) => set('address', e.target.value)} placeholder="Utca, házszám" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className={labelClass}>Telefon</Label>
-          <Input className={inputClass} value={form.phone} onChange={(e) => set('phone', e.target.value)} type="tel" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className={labelClass}>Email</Label>
-          <Input className={inputClass} value={form.email} onChange={(e) => set('email', e.target.value)} type="email" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className={labelClass}>Weboldal</Label>
-          <Input className={inputClass} value={form.website} onChange={(e) => set('website', e.target.value)} type="url" placeholder="https://" />
-        </div>
-        <div className="space-y-1.5">
-          <Label className={labelClass}>Közösségi linkek</Label>
-          <SocialLinksEditor value={form.social_links} onChange={(next) => set('social_links', next)} inputClassName={inputClass} />
-        </div>
-      </Section>
-
-      <Section id="description" title="Bemutatkozás" full>
-        <p className="text-xs text-ink-soft -mt-1">
-          Rövid szöveg magatokról — ez jelenik meg a Google-találatban, ÉS a foglaló oldaladon is, a vendégeknek.
-        </p>
-        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
-        <textarea
-          className={`${inputClass} min-h-[100px] resize-y py-2.5`}
-          value={loc.current.description}
-          onChange={(e) => loc.setField('description', e.target.value)}
-          maxLength={300}
-          placeholder="Pl. 10 éve várjuk vendégeinket a belváros szívében, szezonális konyhával és barátságos kiszolgálással."
-        />
-      </Section>
-
-      {/* Public booking URL */}
-      <Section id="booking-url" title="Nyilvános foglaló oldal" full>
-        <p className="text-xs text-ink-soft">Ezen a linken tudnak a vendégek online asztalt foglalni.</p>
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-          <code className="min-w-0 flex-1 h-11 flex items-center px-4 rounded-[14px] bg-paper border border-line text-sm text-ink truncate">
-            {publicUrl}
-          </code>
-          <a
-            href={`/${form.slug || slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-11 px-5 rounded-dav-pill border border-line-strong text-sm font-semibold text-ink hover:border-ink/40 transition-colors flex items-center justify-center shrink-0"
-          >
-            Megnyitás
-          </a>
-        </div>
-        <BusinessQrCard url={publicUrl} businessName={form.name} subtitle="Foglalj asztalt online" />
-      </Section>
-
-      <Section id="good-to-know" title="Jó tudni (foglaló oldal)" full collapsible>
-        <p className="text-xs text-ink-soft">
-          Saját „Jó tudni" pontok (cím + szöveg) a nyilvános foglaló oldalon, az automatikus kártyák (foglalási idő, legkorábbi foglalás) alatt. Pl. „Módosítás: az adott napon csak telefonon".
-        </p>
-        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
-        <GoodToKnowEditor value={loc.current.good_to_know} onChange={(v) => loc.setField('good_to_know', v)} locale={loc.editLocale} />
-      </Section>
-
-      <Section id="event-types" title="Esemény-típusok (alkalmak)" full collapsible>
-        <p className="text-xs text-ink-soft">
-          Milyen alkalomból foglalhat a vendég — a foglaláskor választhat ezekből (pl. Születésnap, Évforduló, Céges vacsora). A kikapcsoltak nem jelennek meg. Ha egy sincs, az alapkészletet kínáljuk fel.
-        </p>
-        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
-        <EventTypesEditor value={loc.current.event_types} onChange={(v) => loc.setField('event_types', v)} />
-      </Section>
-
-      {!embedded && (
-        <div className="lg:col-span-2">
-          <SaveBar dirty={tabDirty('general')} submitting={submitting} onSave={() => saveTab('general')} />
-        </div>
-      )}
-      </div>
-      )}
-
-      {activeTab === 'booking' && (
-      <div className="space-y-[5px]">
-      <Section id="booking-settings" title="Foglalási beállítások">
-        {/* Desktopon kétoszlopos: BAL = a 4 szám-beállító (egymás alatt) + alattuk a
-            kapcsolók; JOBB = a naptár. Mobilon/tableten egymás alatt, a naptár full. */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
-          {/* Bal oszlop */}
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Foglalás hossza (perc)</Label>
-                <NumberStepper
-                  value={form.turn_duration_minutes}
-                  onChange={(n) => set('turn_duration_minutes', n)}
-                  min={30}
-                  max={480}
-                  step={15}
-                  suffix="perc"
-                  presets={[60, 90, 120, 150, 180]}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Időpont-lépték (perc)</Label>
-                <NumberStepper
-                  value={form.slot_step_minutes}
-                  onChange={(n) => set('slot_step_minutes', n)}
-                  min={5}
-                  max={120}
-                  step={5}
-                  suffix="perc"
-                  presets={[15, 30, 45, 60]}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Utolsó foglalás zárás előtt (perc)</Label>
-                <NumberStepper
-                  value={form.last_seating_buffer_minutes}
-                  onChange={(n) => set('last_seating_buffer_minutes', n)}
-                  min={0}
-                  max={240}
-                  step={15}
-                  suffix="perc"
-                  presets={[0, 30, 60, 90, 120]}
-                />
-                <p className="text-xs text-ink-soft">
-                  0 = zárásig foglalható. Ha a foglalás hosszára állítod, csak az fér be, ami zárásig véget ér.
-                </p>
-              </div>
-              <div className="space-y-1.5">
-                <Label className={labelClass}>Min. előfoglalás (óra)</Label>
-                <NumberStepper
-                  value={form.lead_time_hours}
-                  onChange={(n) => set('lead_time_hours', n)}
-                  min={0}
-                  max={168}
-                  step={1}
-                  suffix="óra"
-                  presets={[0, 1, 2, 4, 12, 24]}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4 border-t border-line pt-4">
-              <ToggleSwitch
-                checked={form.require_phone}
-                onChange={(v) => set('require_phone', v)}
-                label="Telefonszám kötelező a vendégnek"
-              />
-              <ToggleSwitch
-                checked={form.notify_new_bookings}
-                onChange={(v) => set('notify_new_bookings', v)}
-                label="Értesítés új foglalásokról"
-                description="Értesítést kapsz az alkalmazáson belül új foglalásról és lemondásról."
-              />
-            </div>
-          </div>
-
-          {/* Jobb oszlop: naptár (full a saját oszlopában) */}
-          <div className="space-y-1.5">
-            <Label className={labelClass}>Foglalható napok előre</Label>
-            <BookingWindowPicker
-              value={form.booking_window_days}
-              onChange={(days) => set('booking_window_days', days)}
-            />
-            <p className="text-xs text-ink-soft">Jelöld ki a naptárban az utolsó napot, ameddig a vendégek előre foglalhatnak.</p>
-          </div>
-        </div>
-      </Section>
-
-      <Section id="custom-questions" title="Egyedi kérdések a foglaláskor" full collapsible>
-        <p className="text-xs text-ink-soft -mt-1">
-          Saját kérdések, amiket a vendégnek fel kell tenni a foglaló-wizard adatlap lépésében (pl. „Van különleges alkalmuk?").
-        </p>
-        <LocaleEditBar available={loc.available} active={loc.editLocale} onSelect={loc.selectLocale} loading={loc.loading} />
-        <CustomQuestionsEditor value={loc.current.custom_questions} onChange={(v) => loc.setField('custom_questions', v)} />
-      </Section>
-
-      {!embedded && <SaveBar dirty={tabDirty('booking')} submitting={submitting} onSave={() => saveTab('booking')} />}
-      </div>
-      )}
-
-      {activeTab === 'languages' && (
-      <div className="space-y-[5px]">
-      <Section title="Foglalón kínált nyelvek">
-        <p className="text-xs text-ink-soft -mt-1">
-          Mely nyelveken választhatnak a vendégek a foglaló oldalon. A magyar mindig elérhető (alap, és tartalék
-          azokra a szövegekre, amiket egy másik nyelven nem adsz meg). A bekapcsolt nyelvekhez az „Email",
-          „Dokumentumok" és a „Jó tudni" résznél tudsz nyelvenkénti szöveget beírni a nyelvváltóval.
-        </p>
-        <SupportedLocalesPicker value={supportedExtras} onChange={setSupportedExtras} />
-        {supportedExtras.length === 0 && (
-          <p className="text-xs text-ink-soft">
-            Csak magyar — a foglalón nem jelenik meg nyelvválasztó.
-          </p>
-        )}
-      </Section>
-      {!embedded && <SaveBar dirty={tabDirty('languages')} submitting={submitting} onSave={() => saveTab('languages')} />}
-      </div>
-      )}
 
       {/* A tulajnak szóló „Értesítő” sablon — a hubban az Értesítések fülön, nem a vendég-levelek között. */}
       {activeTab === 'ownerEmail' && (

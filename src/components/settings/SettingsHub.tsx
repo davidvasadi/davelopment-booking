@@ -23,11 +23,11 @@ import { EASE, DUR, sheetSpring } from '@/lib/motion'
 import { toast } from 'sonner'
 import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext'
 import {
-  Home, CalendarDays, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
-  Plus, ScrollText, Building2, Mail, Check, Languages, FileText, Star,
+  Home, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
+  Plus, ScrollText, Building2, Mail, Check, FileText, Star,
   Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, PanelsTopLeft, Send, Gift, Receipt, type LucideIcon,
 } from 'lucide-react'
-import { BookingFeatures, type FeatureModules } from '@/components/onboarding/BookingFeatures'
+import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
 import { GoogleSettingsPanel } from './GoogleSettingsPanel'
 import { Toggle } from './SettingsToggle'
@@ -55,12 +55,6 @@ export type NotificationPrefs = {
 }
 // Foglalási szabályok = CSAK a valós, hatással bíró kapcsoló (auto_confirm). A deposit/no-show
 // „Hamarosan", a várólista a Funkciók gazdája — ezért nincsenek itt.
-export type BookingRulesToggles = {
-  auto_confirm: boolean
-  require_address: boolean
-  require_address_note: string
-}
-
 /* ── Fehér kártya — a Nyitvatartás/Foglalások kártya-mintája (bordered, dav árnyék) ── */
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
@@ -85,14 +79,13 @@ function StatusBadge({ status }: { status: BillingData['subscriptionStatus'] }) 
 
 
 type RailId =
-  | 'site' | 'newsletter' | 'vouchers' | 'invoicing' | 'profile' | 'booking' | 'languages' | 'email'
+  | 'site' | 'newsletter' | 'vouchers' | 'invoicing' | 'email'
   | 'notifications' | 'team' | 'audit'
   | 'self' | 'documents' | 'billing' | 'sites'
   | 'integrations' | 'danger' | 'payments' | 'google'
 
 // A bal lista mely elemei a MEGLÉVŐ profil-form egy-egy fülét mutatják (rail vezérli a fület).
 const FORM_TABS: Record<string, string> = {
-  profile: 'general', booking: 'booking', languages: 'languages',
   email: 'email', documents: 'documents', danger: 'danger',
   // 'import' removed — import moved to Integrations panel
 }
@@ -100,11 +93,11 @@ const FORM_TABS: Record<string, string> = {
 // A kiválasztott szekció neve = a tartalom címe (mivel nincs felső fül-sor, ez jelzi „hol vagy").
 const RAIL_LABELS: Record<RailId, string> = {
   site: 'Foglalóoldal', newsletter: 'Hírlevél', vouchers: 'Ajándékutalvány', invoicing: 'Számlázás',
-  profile: 'Üzlet profil', booking: 'Foglalás', languages: 'Nyelvek', email: 'Vendég e-mailek',
+  email: 'Vendég e-mailek',
   notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
   self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés & számlázás', sites: 'Telephelyek',
   integrations: 'API & Integrációk', danger: 'Fiók törlése',
-  payments: 'Fizetés', google: 'Google',
+  payments: 'Fizetés & előleg', google: 'Google',
 }
 
 export interface RulesData {
@@ -195,8 +188,7 @@ export interface SettingsHubProps {
   /** Értesítési preferenciák kezdőértéke (a betöltött üzlet `notification_prefs`-e). */
   notificationPrefs: NotificationPrefs
   /** Foglalási-szabály kapcsolók kezdőértéke (a betöltött üzlet `booking_rules`-a). */
-  bookingRules: BookingRulesToggles
-  /** Foglalási funkciók (`feature_modules`) kezdőérték — a beágyazott BookingFeatures panelnek. */
+  /** Foglalási funkciók (`feature_modules`) kezdőérték — a Google panelnek. */
   featureModules: FeatureModules
   profilePanel: ReactNode          // a MEGLÉVŐ settings-form (Üzlet profil)
   /** Beállítások → Foglalóoldal élő szerkesztő kezdőadatai (csak szalonnál). Ha meg van adva,
@@ -291,7 +283,7 @@ function usePanelRegistration() {
 
 export function SettingsHub({
   variant, subtitle, availabilityHref, profilePanel, selfProfile, rules, senderLabel, billing,
-  team, sites, businessCount, planLabel, apiBase, notificationPrefs, bookingRules,
+  team, sites, businessCount, planLabel, apiBase, notificationPrefs,
   featureModules, auditLog, rolesSection, customRoles = [],
   billingAccount, pricing, activeBusinessId, startedAt,
   icalUrl, bookingUrl, embedUrl, embedSmartSnippet, webhookUrl, ga4Id, facebookPixelId, myCapabilities,
@@ -301,9 +293,8 @@ export function SettingsHub({
   bookingPageEditor,
   notifyNewBookings = true,
 }: SettingsHubProps) {
-  // Új menüszerkezet (szalon): a régi Üzlet profil / Foglalás / Nyelvek fülek tartalma a
-  // Foglalóoldal-szerkesztőbe költözött, a vendég-e-mailek és a pénzügy saját menüpontokat kaptak.
-  const newLayout = !!bookingPageEditor
+  // A régi Üzlet profil / Foglalás / Nyelvek fülek tartalma a Foglalóoldal-szerkesztőbe
+  // költözött — a régi mély-linkjeik (onboarding, súgó, SetupNudge) a Foglalóoldalt nyitják.
   const MOVED_TO_SITE = new Set(['profile', 'booking', 'languages'])
   const router = useRouter()
   // Mély-link: a ?tab=… query kezdő-fület állít (pl. az avatar-popover / áttekintés a „self"-re nyit).
@@ -312,12 +303,10 @@ export function SettingsHub({
   const initialTab = ((): RailId => {
     const t = searchParams.get('tab')
     const limitedOnly = !!myCapabilities && !can(myCapabilities, 'settings.profile')
-    // `settings.own_profile` users alapértelmezett tabja 'self', nem 'profile'.
-    if (!t || !(t in RAIL_LABELS)) return limitedOnly ? 'self' : newLayout ? 'site' : 'profile'
-    // Régi mély-linkek (onboarding, súgó, SetupNudge) → a tartalmuk most a Foglalóoldalon van.
-    if (newLayout && MOVED_TO_SITE.has(t) && !limitedOnly) return 'site'
-    if (t === 'billing' && myCapabilities && !can(myCapabilities, 'billing.manage')) return limitedOnly ? 'self' : 'profile'
-    if (t === 'danger' && myCapabilities && !can(myCapabilities, 'danger')) return limitedOnly ? 'self' : 'profile'
+    // `settings.own_profile` users alapértelmezett tabja 'self', a többieké a Foglalóoldal.
+    if (!t || MOVED_TO_SITE.has(t) || !(t in RAIL_LABELS)) return limitedOnly ? 'self' : 'site'
+    if (t === 'billing' && myCapabilities && !can(myCapabilities, 'billing.manage')) return limitedOnly ? 'self' : 'site'
+    if (t === 'danger' && myCapabilities && !can(myCapabilities, 'danger')) return limitedOnly ? 'self' : 'site'
     // Jogosulatlan tab URL-ből → visszaesik self-re.
     if (limitedOnly && t !== 'self') return 'self'
     // Lejárt/megszűnt/szüneteltetett előfizetésnél egy mély-linkelt (?tab=...) tiltott fül is
@@ -327,8 +316,8 @@ export function SettingsHub({
     return t as RailId
   })()
   const [active, setActive] = useState<RailId>(initialTab)
-  // Új menüben az Értesítések fül alján a tulajnak szóló „Értesítő” e-mail sablonja (profil-form).
-  const ownerEmailTab = active === 'notifications' && newLayout
+  // Az Értesítések fül alján a tulajnak szóló „Értesítő” e-mail sablonja (profil-form).
+  const ownerEmailTab = active === 'notifications'
   const [saving, setSaving] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
@@ -466,11 +455,9 @@ export function SettingsHub({
   //    Fizetés fülön/Dokumentumok & jogin belüli PaymentsSettingsPanel-példányok, és az API &
   //    Integrációk fülön lévő két panel (IntegrationsPanel + PaymentsSettingsPanel) számára —
   //    minden mentés a közös lebegő sávból történik, nincs többé kártyánkénti saját gomb.
-  const featuresPanel = usePanelRegistration()
   const paymentsTabPanel = usePanelRegistration()
   const documentsPanel = usePanelRegistration()
   const integPanel = usePanelRegistration()
-  const integPaymentsPanel = usePanelRegistration()
   const googlePanel = usePanelRegistration()
   const sitePanel = usePanelRegistration()
   const newsletterPanel = usePanelRegistration()
@@ -497,42 +484,6 @@ export function SettingsHub({
       setSaving(false)
     }
   }
-
-  // ── Foglalási szabályok — CSAK a valós, hatással bíró szabály: `auto_confirm`. A `deposit`/
-  //    `cancellation_protection` fizetési integrációt igényel (őszinte „Hamarosan"), a `waitlist`
-  //    gazdája a Funkciók oldal (`feature_modules.waitlist_on`) — ezért itt nem duplázzuk.
-  const [ruleToggles, setRuleToggles] = useState({
-    autoConfirm: bookingRules.auto_confirm,
-    requireAddress: bookingRules.require_address,
-    requireAddressNote: bookingRules.require_address_note,
-  })
-  const rulesBaseline = useMemo(() => ({
-    autoConfirm: bookingRules.auto_confirm,
-    requireAddress: bookingRules.require_address,
-    requireAddressNote: bookingRules.require_address_note,
-  }), [bookingRules])
-  const rulesDirty = JSON.stringify(ruleToggles) !== JSON.stringify(rulesBaseline)
-  const [rulesSaved, setRulesSaved] = useState(false)
-  const saveRules = async () => {
-    const ok = await patchGroup({
-      booking_rules: {
-        auto_confirm: ruleToggles.autoConfirm,
-        require_address: ruleToggles.requireAddress,
-        require_address_note: ruleToggles.requireAddressNote.trim() || null,
-      },
-    })
-    if (ok) setRulesSaved(true)
-  }
-  // Lásd a Google fülnél lentebb lévő megjegyzést — ugyanaz a "ne villanjon vissza
-  // Mentetlenre" minta: a "Mentve" jelzést csak azután rejtjük el, hogy a `router.refresh()`
-  // tényleg landolt és a `dirty` valóban hamisra váltott.
-  useEffect(() => {
-    if (rulesSaved && !rulesDirty) {
-      const t = setTimeout(() => setRulesSaved(false), 1200)
-      return () => clearTimeout(t)
-    }
-  }, [rulesSaved, rulesDirty])
-  const resetRules = () => setRuleToggles(rulesBaseline)
 
   // ── Belső (nem-vendég) email-preferenciák — a bejelentkezett user SAJÁT
   //    `personal_notif_prefs.bookings_email`/`schedule_email`-je (owner VAGY staff nézetben is).
@@ -592,7 +543,7 @@ export function SettingsHub({
   const notifRows: { key: NotifKey; title: string; sub: string }[] = [
     { key: 'confirm', title: 'Foglalás visszaigazolás', sub: 'A vendégnek · foglaláskor azonnal, .ics naptárfájllal' },
     { key: 'cancel', title: 'Lemondás visszaigazolás', sub: 'A vendégnek · foglalás törlése után' },
-    { key: 'modification', title: 'Módosítás értesítő', sub: 'A vendégnek · ha dátum, idő vagy szakember változik' },
+    { key: 'modification', title: 'Módosítás értesítő', sub: variant === 'salon' ? 'A vendégnek · ha dátum, idő vagy szakember változik' : 'A vendégnek · ha dátum, idő vagy létszám változik' },
   ]
 
   // ── Audit-napló szűrő — kliens-oldali szűrés a VALÓS bejegyzéseken (akció-típus + dátum-ablak).
@@ -727,35 +678,15 @@ export function SettingsHub({
       setSaving(false)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  // A „Foglalás" fül a profil-form saját booking-fülét, az auto-megerősítés szabályt ÉS a
-  // Foglalási funkciókat (BookingFeatures) is mutatja — a mentés-sáv mindhármat lefedi.
-  const saveBookingTab = useCallback(async () => {
-    setSaving(true)
-    try {
-      if (rulesDirty) await saveRules()
-      if (featuresPanel.dirty) await featuresPanel.apiRef.current?.save()
-      const ok = await formApiRef.current?.save()
-      if (ok) { router.refresh(); setFormSaved(true) }
-    } finally {
-      setSaving(false)
-    }
-    // FONTOS: a `saveRules` NEM ref-en keresztül olvassa a `ruleToggles`-t (a többi mentés-
-    // függvénnyel ellentétben, amik csak `.current`-et hívnak) — ha `saveRules` hiányzik a
-    // dependency-ből, ez a callback csak akkor frissül újra, amikor `rulesDirty` ténylegesen
-    // vált (jellemzően az ELSŐ karakternél/kapcsoló-váltásnál), utána viszont befagy: a Mentés
-    // gomb egy RÉGI `ruleToggles`-pillanatképet küld el, hiába gépelt tovább a user — pontosan
-    // ez okozta, hogy a beírt szöveg helyett csak az első pár karakter mentődött el.
-  }, [rulesDirty, featuresPanel.dirty, saveRules]) // eslint-disable-line react-hooks/exhaustive-deps
-  // Az összevont sáv (mindhárom lehetséges forrásból: profil-form/szabály/funkciók) csak akkor
-  // rejti el a "Mentve"-t, ha VALAMENNYI érintett `dirty` ténylegesen hamisra váltott — a
+  // A sáv csak akkor rejti el a "Mentve"-t, ha a `dirty` ténylegesen hamisra váltott — a
   // `router.refresh()` aszinkron, enélkül a sáv visszavillanna "Mentetlen változások"-ra, amíg a
   // frissített szerver-props meg nem érkeznek (ez okozta a jelentett hibát).
   useEffect(() => {
-    if (formSaved && !formDirty && !rulesDirty && !featuresPanel.dirty) {
+    if (formSaved && !formDirty) {
       const t = setTimeout(() => setFormSaved(false), 1200)
       return () => clearTimeout(t)
     }
-  }, [formSaved, formDirty, rulesDirty, featuresPanel.dirty])
+  }, [formSaved, formDirty])
 
   // A „Dokumentumok & jogi" fül a profil-form saját dokumentumok-fülét (ÁSZF-szakaszok) ÉS a
   // beleegyező nyilatkozat kártyát (PaymentsSettingsPanel `sections={['consent']}`) mutatja.
@@ -804,19 +735,18 @@ export function SettingsHub({
   const saveIntegrationsTab = useCallback(async () => {
     setSaving(true)
     try {
-      const okA = await integPanel.apiRef.current?.save()
-      const okB = await integPaymentsPanel.apiRef.current?.save()
-      if (okA !== false && okB !== false) { router.refresh(); setIntegSaved(true) }
+      const ok = await integPanel.apiRef.current?.save()
+      if (ok !== false) { router.refresh(); setIntegSaved(true) }
     } finally {
       setSaving(false)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (integSaved && !integPanel.dirty && !integPaymentsPanel.dirty) {
+    if (integSaved && !integPanel.dirty) {
       const t = setTimeout(() => setIntegSaved(false), 1200)
       return () => clearTimeout(t)
     }
-  }, [integSaved, integPanel.dirty, integPaymentsPanel.dirty])
+  }, [integSaved, integPanel.dirty])
 
   // A „Google" fül (értékelés-kérés + Google Cégem/Calendar kártyák) egyetlen panelből ment.
   // A `router.refresh()` KELL a sikeres mentés után — a panel `baseline`-ja a szerverről kapott
@@ -896,17 +826,10 @@ export function SettingsHub({
   const activeBar =
     splitPanel
       ? { dirty: splitPanel.dirty, saved: splitSaved, onSave: saveSplitTab, onCancel: () => splitPanel.apiRef.current?.discard() }
-      : (active === 'email' && newLayout) || ownerEmailTab
+      : active === 'email' || ownerEmailTab
       ? { dirty: formDirty || notifDirty, saved: formSaved || notifSaved, onSave: saveGuestEmailTab, onCancel: () => { formApiRef.current?.discard(); resetNotif() } }
       : active === 'site'
       ? { dirty: sitePanel.dirty, saved: siteSaved, onSave: saveSiteTab, onCancel: () => sitePanel.apiRef.current?.discard() }
-      : active === 'booking'
-      ? {
-          dirty: formDirty || rulesDirty || featuresPanel.dirty,
-          saved: formSaved || rulesSaved,
-          onSave: saveBookingTab,
-          onCancel: () => { formApiRef.current?.discard(); resetRules(); featuresPanel.apiRef.current?.discard() },
-        }
       : active === 'documents'
       ? {
           dirty: formDirty || documentsPanel.dirty,
@@ -918,17 +841,15 @@ export function SettingsHub({
       ? { dirty: paymentsTabPanel.dirty, saved: paymentsTabSaved, onSave: savePaymentsTab, onCancel: () => paymentsTabPanel.apiRef.current?.discard() }
       : active === 'integrations'
       ? {
-          dirty: integPanel.dirty || integPaymentsPanel.dirty,
+          dirty: integPanel.dirty,
           saved: integSaved,
           onSave: saveIntegrationsTab,
-          onCancel: () => { integPanel.apiRef.current?.discard(); integPaymentsPanel.apiRef.current?.discard() },
+          onCancel: () => integPanel.apiRef.current?.discard(),
         }
       : active === 'google'
       ? { dirty: googlePanel.dirty, saved: googleSaved, onSave: saveGoogleTab, onCancel: () => googlePanel.apiRef.current?.discard() }
       : active in FORM_TABS
       ? { dirty: formDirty, saved: formSaved, onSave: saveForm, onCancel: () => formApiRef.current?.discard() }
-      : active === 'notifications'
-      ? { dirty: notifDirty, saved: notifSaved, onSave: saveNotif, onCancel: resetNotif }
       : null
 
   // ── Navigáció adatvezérelten (a desktop rail ÉS a mobil legördülő EGY forrásból) ──
@@ -958,7 +879,7 @@ export function SettingsHub({
   const canSeeTeamTab = canFullSettings
     || !!myCapabilities && (can(myCapabilities, 'team.view') || can(myCapabilities, 'team.manage') || can(myCapabilities, 'roles.view'))
   const canPayments = !myCapabilities || can(myCapabilities, 'payments.manage')
-  const navGroups: { group: string; items: NavItem[] }[] = canFullSettings && newLayout
+  const navGroups: { group: string; items: NavItem[] }[] = canFullSettings
     ? [
         { group: 'Üzlet', items: [
           { kind: 'btn', id: 'site', icon: PanelsTopLeft, label: 'Foglalóoldal', badge: 'ÚJ' },
@@ -988,40 +909,6 @@ export function SettingsHub({
           { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
           { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
           ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Előfizetés & számlázás', badge: trialBadge }] : []),
-          { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
-        ] },
-      ]
-    : canFullSettings
-    ? [
-        { group: 'Üzlet', items: [
-          { kind: 'btn', id: 'profile', icon: Home, label: 'Üzlet profil' },
-          { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
-          { kind: 'btn', id: 'languages', icon: Languages, label: 'Nyelvek' },
-          { kind: 'btn', id: 'email', icon: Mail, label: 'Email-sablonok' },
-        ] },
-        { group: 'Foglalás', items: [
-          { kind: 'btn', id: 'booking', icon: CalendarDays, label: 'Foglalás' },
-        ] },
-        ...(!myCapabilities || can(myCapabilities, 'payments.manage')
-          ? [{ group: 'Fizetés', items: [{ kind: 'btn' as const, id: 'payments' as RailId, icon: Wallet, label: 'Fizetés' }] }]
-          : []),
-        { group: 'API & Integrációk', items: [
-          { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'API & Integrációk' },
-        ] },
-        { group: 'Google', items: [
-          { kind: 'btn', id: 'google', icon: Star, label: 'Google' },
-        ] },
-        { group: 'Dokumentumok & jogi', items: [
-          { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok & jogi' },
-        ] },
-        { group: 'Csapat', items: [
-          { kind: 'btn', id: 'team', icon: Users, label: 'Csapat & jogok' },
-        ] },
-        { group: 'Fiók', items: [
-          { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
-          ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Előfizetés & számlázás', badge: trialBadge }] : []),
-          { kind: 'btn', id: 'sites', icon: Building2, label: 'Telephelyek' },
-          { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
           { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
         ] },
       ]
@@ -1232,74 +1119,12 @@ export function SettingsHub({
             <div className={ownerEmailTab ? 'order-last mt-4' : active in FORM_TABS ? '' : 'hidden'}>{profilePanel}</div>
           </SettingsFormContext.Provider>
 
-          {/* ── „Foglalás" fül folytatása — a profil-form saját booking-fülje UTÁN, ugyanazon
-              a fülön: az egyetlen valódi „szabály" (auto-megerősítés) + a Foglalási funkciók
-              (emlékeztetők, értékelés-kérés). Régen 3 külön hely volt, most egy. ── */}
-          {active === 'booking' && (
-            <div className="mt-5 space-y-4">
-              <div className="rounded-[26px] dav-card-glass px-6 py-2">
-                <RuleRow
-                  title="Automatikus megerősítés"
-                  desc="A foglalások emberi jóváhagyás nélkül visszaigazolódnak"
-                  checked={ruleToggles.autoConfirm}
-                  onChange={() => setRuleToggles((s) => ({ ...s, autoConfirm: !s.autoConfirm }))}
-                />
-                <RuleRow
-                  title="Cím megadása mindig kötelező"
-                  desc="A vendégnek akkor is meg kell adnia a pontos címét, ha nincs bekapcsolva az előleg"
-                  checked={ruleToggles.requireAddress}
-                  onChange={() => setRuleToggles((s) => ({ ...s, requireAddress: !s.requireAddress }))}
-                  last={!ruleToggles.requireAddress}
-                />
-                {ruleToggles.requireAddress && (
-                  <div className="pb-4">
-                    <label className="mb-1.5 block text-[12.5px] font-medium text-ink-soft">Cím-kérés indoklása a vendégnek</label>
-                    <input
-                      type="text"
-                      value={ruleToggles.requireAddressNote}
-                      onChange={(e) => setRuleToggles((s) => ({ ...s, requireAddressNote: e.target.value }))}
-                      placeholder="Pl. A pontos cím megadására a foglalásod rögzítéséhez van szükségünk."
-                      className="w-full rounded-[12px] border border-line-strong bg-white px-3 py-2.5 text-[13.5px] text-ink placeholder:text-ink-soft2 focus:outline-none focus:ring-2 focus:ring-gold/40"
-                    />
-                    <p className="mt-1.5 text-[11.5px] text-ink-soft2">Üresen hagyva egy általános szöveg jelenik meg a vendégnek a cím-mező alatt.</p>
-                  </div>
-                )}
-              </div>
-
-              <BookingFeatures
-                variant={variant}
-                apiBase={apiBase}
-                initial={featureModules}
-                embedded
-                onDirtyChange={featuresPanel.onDirtyChange}
-                registerApi={featuresPanel.registerApi}
-              />
-
-              {/* Depozit / no-show — a Fizetés szekció a gazdája (Stripe Connect bekötve). */}
-              <button
-                type="button"
-                onClick={() => setActive('payments')}
-                className="flex w-full items-center justify-between gap-3 rounded-[26px] dav-card-glass px-6 py-4 text-left transition-colors hover:border-ink/20"
-              >
-                <div className="min-w-0">
-                  <div className="text-[15px] font-medium text-ink">Depozit & no-show védelem</div>
-                  <div className="mt-0.5 text-[13px] text-ink-soft">
-                    Vendég-előleg Stripe-on keresztül — a <b className="font-semibold text-ink-soft">Fizetés</b> szekcióban kapcsolható.
-                  </div>
-                </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 text-[13px] font-semibold text-ink">
-                  Megnyitás <ArrowRight className="h-4 w-4" strokeWidth={2} />
-                </span>
-              </button>
-            </div>
-          )}
-
           {/* ── „Dokumentumok & jogi" fül folytatása — a profil-form saját dokumentumok-fülje
               (ÁSZF-szakaszok) UTÁN a beleegyező nyilatkozat sablon-szerkesztője, ami régen a
               Fizetéseknél volt, pedig jogi dokumentum, nem fizetési beállítás. ── */}
           {/* ── „Vendég e-mailek" (új menü): a sablonok (profil-form email-füle) MELLÉ ide kerültek a
               vendégnek menő levelek be/ki kapcsolói is — korábban az Értesítéseknél voltak. ── */}
-          {active === 'email' && newLayout && (
+          {active === 'email' && (
             <div className="mt-5 rounded-[26px] dav-card-glass px-6 py-2">
               <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                 <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Levelek a vendégnek</span>
@@ -1398,7 +1223,7 @@ export function SettingsHub({
               pricing={pricing}
               businessId={activeBusinessId}
               tier={businessTier}
-              sections={newLayout ? ['stripe', 'deposit'] : ['stripe', 'deposit', 'voucher', 'newsletter']}
+              sections={['stripe', 'deposit']}
               onDirtyChange={paymentsTabPanel.onDirtyChange}
               registerApi={paymentsTabPanel.registerApi}
             />
@@ -1419,11 +1244,11 @@ export function SettingsHub({
                   <span className="text-center text-[12px] font-semibold uppercase text-ink-soft2">App</span>
                 </div>
                 <PersonalNotifPrefsCard compact />
-                {newLayout && (
+                {canFullSettings && (
                   <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                     <div className="min-w-0">
                       <div className="text-[14px] font-semibold text-ink">Új foglalás és lemondás az üzletben</div>
-                      <div className="mt-0.5 text-[12px] text-ink-soft">Az alkalmazáson belül, minden csapattagnak · korábban a Foglalás fülön</div>
+                      <div className="mt-0.5 text-[12px] text-ink-soft">Az alkalmazáson belül, minden csapattagnak</div>
                     </div>
                     <div className="flex justify-center">
                       <Toggle checked={newBookingsNotif} onChange={() => setNewBookingsNotif((v) => !v)} />
@@ -1436,20 +1261,6 @@ export function SettingsHub({
                   <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Esemény</span>
                   <span className="text-center text-[12px] font-semibold uppercase text-ink-soft2">E-mail</span>
                 </div>
-                {(newLayout ? [] : notifRows).map((row) => (
-                  <div key={row.key} className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
-                    <div className="min-w-0">
-                      <div className="text-[14px] font-semibold text-ink">{row.title}</div>
-                      <div className="mt-0.5 text-[12px] text-ink-soft">{row.sub}</div>
-                    </div>
-                    <div className="flex justify-center">
-                      <Toggle
-                        checked={notif[row.key].email}
-                        onChange={() => setNotif((s) => ({ ...s, [row.key]: { ...s[row.key], email: !s[row.key].email } }))}
-                      />
-                    </div>
-                  </div>
-                ))}
                 {/* Napi digest email */}
                 <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                   <div className="min-w-0">
@@ -1506,27 +1317,11 @@ export function SettingsHub({
                   <span className="text-gold">{senderLabel}</span>
                 </p>
               </div>
-              {newLayout ? (
-                <p className="px-1 text-xs text-ink-soft2">
+              <p className="px-1 text-xs text-ink-soft2">
                   Itt a <b className="font-semibold text-ink-soft">neked</b> szóló értesítéseket állítod. A vendégnek menő leveleket a{' '}
                   <button type="button" onClick={() => setActive('email')} className="font-semibold text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink">Vendég e-mailek</button>{' '}
                   alatt kapcsolod és szerkeszted.
                 </p>
-              ) : (
-              <p className="px-1 text-xs text-ink-soft2">
-                A vendégnek küldött emailek (visszaigazolás, lemondás, módosítás) itt kapcsolhatók. A napi összefoglalók a tulajdonosnak mennek. Az{' '}
-                <b className="font-semibold text-ink-soft">emlékeztető</b> és a{' '}
-                <b className="font-semibold text-ink-soft">visszajelzés-kérés</b> a{' '}
-                <button
-                  type="button"
-                  onClick={() => setActive('booking')}
-                  className="font-semibold text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink"
-                >
-                  Foglalás
-                </button>{' '}
-                fülön állítható (be/ki + időzítés). A sablonokat az „Üzlet profil → Email" fülön szerkeszted.
-              </p>
-              )}
             </div>
           )}
 
@@ -1745,24 +1540,6 @@ export function SettingsHub({
                 onDirtyChange={integPanel.onDirtyChange}
                 registerApi={integPanel.registerApi}
               />
-              {!newLayout && (
-              <PaymentsSettingsPanel
-                variant={variant}
-                apiBase={apiBase}
-                deposit={depositSettings}
-                invoice={invoiceSettings}
-                voucher={voucherSettings}
-                consent={consentSettings}
-                stripeConnectAccountId={stripeConnectAccountId}
-                stripeConnectOnboarded={stripeConnectOnboarded}
-                pricing={pricing}
-                businessId={activeBusinessId}
-                tier={businessTier}
-                sections={['invoicing']}
-                onDirtyChange={integPaymentsPanel.onDirtyChange}
-                registerApi={integPaymentsPanel.registerApi}
-              />
-              )}
             </div>
           )}
 
@@ -2544,26 +2321,6 @@ function RailBtn({
         </span>
       )}
     </button>
-  )
-}
-
-function RuleRow({
-  title, desc, checked, onChange, last,
-}: {
-  title: string
-  desc: string
-  checked: boolean
-  onChange: () => void
-  last?: boolean
-}) {
-  return (
-    <div className={`flex items-center justify-between gap-4 py-[18px] ${last ? '' : 'border-b border-line'}`}>
-      <div className="min-w-0">
-        <div className="text-[14.5px] font-semibold text-ink">{title}</div>
-        <div className="mt-0.5 text-[12.5px] text-ink-soft">{desc}</div>
-      </div>
-      <Toggle checked={checked} onChange={onChange} />
-    </div>
   )
 }
 
