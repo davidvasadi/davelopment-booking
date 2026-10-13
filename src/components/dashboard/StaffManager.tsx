@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Plus, CalendarDays, Trash2, Search, Download, ChevronDown, Check, UserRound } from 'lucide-react'
+import { Plus, CalendarDays, Trash2, Search, Download, ChevronDown, Check, UserRound, Pencil } from 'lucide-react'
 
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
@@ -655,7 +655,7 @@ export default function StaffManager({
                 <div className="text-[13.5px] font-medium text-ink-soft">—</div>
                 <div className="relative flex items-center gap-1.5">
                   {(() => { const sp = statusPill('active'); return (
-                    <span className="inline-flex cursor-default items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold" style={{ background: sp.bg, color: sp.color, border: sp.border }}>
+                    <span className="inline-flex w-[118px] cursor-default items-center justify-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold" style={{ background: sp.bg, color: sp.color, border: sp.border }}>
                       <span className="h-[7px] w-[7px] rounded-full" style={{ background: sp.dot }} />
                       {sp.label}
                     </span>
@@ -761,7 +761,7 @@ export default function StaffManager({
                       type="button"
                       disabled={!canToggle || isToggling}
                       onClick={(e) => { e.stopPropagation(); if (canToggle) setStatusMenuId(statusMenuId === String(m.id) ? null : String(m.id)) }}
-                      className={`inline-flex items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold disabled:opacity-60 ${canToggle ? 'cursor-pointer' : 'cursor-default'}`}
+                      className={`inline-flex w-[118px] items-center justify-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold disabled:opacity-60 ${canToggle ? 'cursor-pointer' : 'cursor-default'}`}
                       style={{ background: sp.bg, color: sp.color, border: sp.border }}
                     >
                       <span className="h-[7px] w-[7px] rounded-full" style={{ background: sp.dot }} />
@@ -792,6 +792,7 @@ export default function StaffManager({
                       </>
                     )}
                     <button onClick={(e) => { e.stopPropagation(); const empIdx = employees?.findIndex(emp => String(emp.id) === String(m.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : idx); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
+                    {canManage && <button onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>}
                     {canManage && <button onClick={(e) => { e.stopPropagation(); setDeleteId(String(m.id)) }} title="Törlés" className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-white"><Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>}
                   </div>
                 </div>
@@ -825,6 +826,7 @@ export default function StaffManager({
                     </div>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); const empIdx = employees?.findIndex(emp => String(emp.id) === String(m.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : idx); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
+                  {canManage && <button onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Szerkesztés" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>}
                 </div>
               </div>
             )
