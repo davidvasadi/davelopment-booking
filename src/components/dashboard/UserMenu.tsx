@@ -85,12 +85,15 @@ export function UserMenu({
   function positionPanel() {
     if (!anchorRef.current) return
     const r = anchorRef.current.getBoundingClientRect()
-    const PANEL_W = 288 // w-72
+    // A panel ténylegesen w-[300px] (lásd lent) — a korábbi 288px (w-72-ként kommentelve)
+    // eltérés + a szűk 8px margó miatt a panel majdnem a kijelző szélébe lógott mobilon.
+    const PANEL_W = 300
+    const EDGE_MARGIN = 16
     if (collapsed) {
-      const left = Math.min(Math.max(8, r.right - PANEL_W), window.innerWidth - PANEL_W - 8)
+      const left = Math.min(Math.max(EDGE_MARGIN, r.right - PANEL_W), window.innerWidth - PANEL_W - EDGE_MARGIN)
       setPos({ left, top: r.bottom + 8 })
     } else {
-      const left = Math.min(Math.max(8, r.left), window.innerWidth - PANEL_W - 8)
+      const left = Math.min(Math.max(EDGE_MARGIN, r.left), window.innerWidth - PANEL_W - EDGE_MARGIN)
       setPos({ left, bottom: window.innerHeight - r.top + 8 })
     }
   }
@@ -245,7 +248,7 @@ export function UserMenu({
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="fixed w-[300px] max-w-[calc(100vw-1rem)] rounded-[26px] border border-[#ececec] bg-white shadow-[0_18px_50px_-18px_rgba(0,0,0,.35)] z-[100] overflow-hidden"
+                className="fixed w-[300px] max-w-[calc(100vw-2rem)] rounded-[26px] border border-[#ececec] bg-white shadow-[0_18px_50px_-18px_rgba(0,0,0,.35)] z-[100] overflow-hidden"
                 style={{ left: pos.left, ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }), transformOrigin: collapsed ? 'top right' : 'bottom left' }}
               >
           {/* ── FIÓK mód (avatar) — profil + gyorslinkek + téma + kijelentkezés ── */}
@@ -433,18 +436,21 @@ export function UserMenu({
           {/* ── ÉRTESÍTÉSEK mód (csengő) ── */}
           {mode === 'notifications' && (
           <>
-          <motion.div variants={PANEL_ITEM} className="flex items-center gap-2 px-4 py-3.5">
+          <motion.div variants={PANEL_ITEM} className="flex items-center gap-3 px-4 py-3.5">
             <p className="flex flex-1 items-center gap-2 text-[15px] font-semibold text-[#2a2620]">
               Értesítések
               {items.length > 0 && (
                 <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#ffd85f] px-1.5 text-[11px] font-bold text-[#23230f]">{items.length}</span>
               )}
             </p>
+            {/* "Összes törlése" + a megnyitás-ikon korábban csak gap-2-vel volt elválasztva,
+                és a törlés-gombnak nem volt saját háttere/érintési felülete — szinte eltűnt
+                a nyíl-gomb mellett. Most külön, jól látható pill, nagyobb távolsággal. */}
             {items.length > 0 && (
               <button
                 type="button"
                 onClick={clearAll}
-                className="text-xs font-medium text-[#b0ac9e] transition-colors hover:text-[#3a352a]"
+                className="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-medium text-[#8a8779] transition-colors hover:bg-[#f4f4f5] hover:text-[#3a352a]"
               >
                 Összes törlése
               </button>
@@ -454,7 +460,7 @@ export function UserMenu({
                 href={notificationsHref}
                 onClick={() => setOpen(false)}
                 aria-label="Összes értesítés"
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f4f4f5] text-[#8a8779] transition-colors hover:bg-[#ebebeb] hover:text-[#3a352a]"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#f4f4f5] text-[#8a8779] transition-colors hover:bg-[#ebebeb] hover:text-[#3a352a]"
               >
                 <ArrowRight className="h-[14px] w-[14px]" strokeWidth={2} />
               </Link>
