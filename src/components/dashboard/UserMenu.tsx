@@ -248,7 +248,11 @@ export function UserMenu({
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="fixed w-[300px] max-w-[calc(100vw-2rem)] rounded-[26px] border border-[#ececec] bg-white shadow-[0_18px_50px_-18px_rgba(0,0,0,.35)] z-[100] overflow-hidden"
+                // Korábban nem volt max-magasság: hosszú listánál (fiók mód — sok gyorslink
+                // + üzletváltó) a panel a KÉPERNYŐ TELJES magasságát kitöltötte, nem hagyva
+                // látható/kattintható hátteret a bezáráshoz. Most max-h + saját görgetés.
+                data-lenis-prevent
+                className="fixed max-h-[min(80vh,560px)] w-[300px] max-w-[calc(100vw-2rem)] overflow-y-auto overscroll-contain rounded-[26px] border border-[#ececec] bg-white shadow-[0_18px_50px_-18px_rgba(0,0,0,.35)] z-[100]"
                 style={{ left: pos.left, ...(pos.top !== undefined ? { top: pos.top } : { bottom: pos.bottom }), transformOrigin: collapsed ? 'top right' : 'bottom left' }}
               >
           {/* ── FIÓK mód (avatar) — profil + gyorslinkek + téma + kijelentkezés ── */}
