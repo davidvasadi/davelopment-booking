@@ -9,7 +9,10 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle, UserPlus } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { AnimatePresence, motion } from 'framer-motion'
+import { sheetSpring } from '@/lib/motion'
+import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle, UserPlus, UserRound, X } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { TIER_LABEL, flagEmoji, countryName, type GuestTier, type CountryBucket } from '@/lib/guests'
 import { StatusPills, type StatusSeg } from '@/components/dashboard/StatusPills'
@@ -23,6 +26,9 @@ import GuestMapClient from '@/components/dashboard/GuestMapClient'
  */
 function Avatar({ url, ini, bg, fg, size, text }: { url: string | null; ini: string; bg: string; fg: string; size: number; text: number }) {
   const [ok, setOk] = useState(!!url)
+  // Kép hiányában/hibánál egy generikus profil-ikon — NEM a monogram és NEM a böngésző
+  // törött-kép glyphje (ami pl. localhoston a Gravatar-kérés akadozásakor látszódhatott).
+  void ini
   return (
     <div
       className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold"
@@ -32,7 +38,7 @@ function Avatar({ url, ini, bg, fg, size, text }: { url: string | null; ini: str
         // eslint-disable-next-line @next/next/no-img-element
         <img src={url} alt="" width={size} height={size} className="h-full w-full object-cover" onError={() => setOk(false)} />
       ) : (
-        ini
+        <UserRound style={{ width: size * 0.55, height: size * 0.55 }} strokeWidth={1.7} />
       )}
     </div>
   )
@@ -200,6 +206,16 @@ export function GuestsView({
   }, [])
   const [guestsExpanded, setGuestsExpanded] = useState(false)
   const router = useRouter()
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => setIsMounted(true), [])
+  // Mobilon a fejléc "+" ikonja (DashboardNav) nyitja az Új vendég sheetet, nem a saját,
+  // oldalon belüli gomb — ugyanaz a minta, mint a többi oldal fejléc-ikonjainál.
+  useEffect(() => {
+    if (!canManage) return
+    const onOpen = () => { setNewError(null); setNewOpen(true) }
+    window.addEventListener('davelopment:open-new-guest', onOpen)
+    return () => window.removeEventListener('davelopment:open-new-guest', onOpen)
+  }, [canManage])
 
   // Vendég-rekord upsert (tiltás/feloldás vagy kézi szerkesztés), majd frissítés.
   async function saveCustomer(payload: Record<string, unknown>) {
@@ -381,11 +397,13 @@ export function GuestsView({
           <h1 className="text-[34px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[43px]">Vendégek</h1>
           <p className="mt-1 text-[13.5px] font-medium text-ink-soft">Törzsvendég-kezelés · CRM</p>
         </div>
+        {/* Mobilon (lg alatt) rejtve — a DashboardNav fejléc "+" ikonja nyitja helyette
+            (`davelopment:open-new-guest`), hogy ne duplázódjon a gomb. */}
         {canManage && (
           <button
             type="button"
             onClick={() => { setNewError(null); setNewOpen(true) }}
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="hidden shrink-0 items-center gap-2 rounded-full bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 lg:inline-flex"
           >
             <UserPlus className="h-[15px] w-[15px]" strokeWidth={1.8} />
             Új vendég
@@ -557,8 +575,11 @@ export function GuestsView({
         {/* TEST: lista + profil (azonos magasság) */}
         <div className="rounded-b-[28px] border border-white/40 bg-white/60 p-4 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[22px] sm:p-5">
           <div className="grid items-stretch gap-4 lg:grid-cols-[352px_1fr]">
-            {/* LISTA */}
-            <div className="flex flex-col rounded-[22px] border border-white/55 bg-[var(--dav-glass-strong)] backdrop-blur-[14px] p-2.5 lg:h-[560px]">
+            {/* LISTA — mobilon (egy-oszlopos nézet) NINCS saját kártya-keret/háttér/padding, mert
+                az már duplázná a befoglaló konténerét (lásd fent, "TEST: lista + profil") —
+                ez volt a "dupla konténer" vizuális hiba. A keret csak lg+ -on (2-oszlopos
+                nézet) jelenik meg, ahol a lista és a profil valódi, egymás melletti kártya. */}
+            <div className="flex flex-col lg:rounded-[22px] lg:border lg:border-white/55 lg:bg-[var(--dav-glass-strong)] lg:backdrop-blur-[14px] lg:p-2.5 lg:h-[560px]">
               <div className="mb-1 px-2 pt-1 text-[11.5px] font-medium text-ink-soft">
                 {listFiltered.length} vendég{query.trim() ? ' · keresés' : ''}
               </div>
@@ -616,9 +637,10 @@ export function GuestsView({
           </div>
         </div>
 
-            {/* PROFIL */}
+            {/* PROFIL — ugyanaz az ok, mint a LISTA-nál: mobilon nincs saját kártya-keret,
+                csak lg+ -on (lásd fenti komment). */}
             {sel ? (
-              <div ref={profileRef} className="flex flex-col overflow-y-auto rounded-[22px] border border-white/55 bg-[var(--dav-glass-strong)] backdrop-blur-[14px] p-5 lg:h-[560px] lg:p-6 scroll-mt-6" data-lenis-prevent>
+              <div ref={profileRef} className="flex flex-col overflow-y-auto lg:rounded-[22px] lg:border lg:border-white/55 lg:bg-[var(--dav-glass-strong)] lg:backdrop-blur-[14px] lg:p-6 lg:h-[560px] scroll-mt-6" data-lenis-prevent>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-[18px]">
               <div className="min-w-0 flex-1">
                 <div className="flex items-start gap-4 sm:gap-[18px]">
@@ -746,19 +768,36 @@ export function GuestsView({
 
             {/* Adatsorok (Törzsvendég-pont gyűrű nélkül) */}
             <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
-              {sel.rows.map((r) => (
-                r.label === 'Megjegyzés' || r.label === 'Vendég értékelése' ? (
-                  <div key={r.label} className="rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3 sm:col-span-2">
-                    <div className="mb-0.5 text-[13px] font-medium text-ink-soft">{r.label}</div>
-                    <div className="text-[14px] font-medium leading-[1.5] text-ink">{r.value}</div>
-                  </div>
-                ) : (
+              {sel.rows.map((r) => {
+                // Hosszú, több-tagú értékek (pl. "Balayage + Vágás + Szárítás") a címke MELLÉ
+                // (justify-between, egy sorba) szorítva egybefolytak a címkével — ezek a
+                // címke FÖLÉ kerülnek, saját sorban, mint a Megjegyzés/Vendég értékelése.
+                const stacked = r.label === 'Megjegyzés' || r.label === 'Vendég értékelése' || r.label === 'Kedvenc' || r.label === 'Kedvenc nap'
+                // Az "Értékelés" sor "★★★★★ 4.2 (3)" string-je — a csillagok arany színt kapnak,
+                // a szám/zárójel marad a szöveg-színben.
+                const starMatch = r.label === 'Értékelés' ? /^([★☆]+)(.*)$/.exec(String(r.value)) : null
+                if (stacked) {
+                  return (
+                    <div key={r.label} className="rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3 sm:col-span-2">
+                      <div className="mb-0.5 text-[13px] font-medium text-ink-soft">{r.label}</div>
+                      <div className="text-[14px] font-medium leading-[1.5] text-ink">{r.value}</div>
+                    </div>
+                  )
+                }
+                return (
                   <div key={r.label} className="flex items-center justify-between rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3">
                     <span className="text-[13px] font-medium text-ink-soft">{r.label}</span>
-                    <span className="text-[15px] font-semibold text-ink">{r.value}</span>
+                    <span className="text-[15px] font-semibold text-ink">
+                      {starMatch ? (
+                        <>
+                          <span className="text-gold">{starMatch[1]}</span>
+                          {starMatch[2]}
+                        </>
+                      ) : r.value}
+                    </span>
                   </div>
                 )
-              ))}
+              })}
             </div>
 
             <div className="mb-2 mt-6 text-[13px] font-semibold text-ink">Látogatási előzmények</div>
@@ -851,20 +890,11 @@ export function GuestsView({
         </div>
       </div>
 
-      {/* Új vendég modal */}
-      {newOpen && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setNewOpen(false)}>
-          <div className="w-full max-w-[460px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/20 text-ink">
-                <UserPlus className="h-5 w-5" strokeWidth={1.8} />
-              </div>
-              <div>
-                <div className="text-[16px] font-semibold text-ink">Új vendég</div>
-                <div className="text-[12.5px] text-ink-soft">Telefonszám vagy e-mail cím szükséges</div>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-x-3 gap-y-3 sm:grid-cols-2">
+      {/* Új vendég — a mezők közös tartalma (desktop modal ÉS mobil sheet is ugyanezt rendereli). */}
+      {(() => {
+        const formFields = (
+          <>
+            <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1 sm:col-span-2">
                 <span className="text-[11.5px] font-semibold text-ink-soft">Név</span>
                 <input autoFocus value={newForm.name} onChange={(e) => setNewForm((f) => ({ ...f, name: e.target.value }))} placeholder="Vendég neve" className="rounded-[12px] border border-line bg-[#FCFCFB] px-3 py-2 text-[16px] text-ink placeholder:text-ink-soft2 focus:outline-none lg:text-[13.5px]" />
@@ -883,13 +913,86 @@ export function GuestsView({
               </label>
             </div>
             {newError && <p className="mt-3 text-[12.5px] font-medium text-[#C0453F]">{newError}</p>}
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={() => setNewOpen(false)} className="rounded-[13px] bg-[#F1F1EF] px-4 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
-              <button type="button" onClick={createGuest} disabled={busy} className="rounded-[13px] bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Mentés</button>
-            </div>
-          </div>
-        </div>
-      )}
+          </>
+        )
+        return (
+          <>
+            {/* Desktop — középre nyíló modal, változatlan. */}
+            {newOpen && (
+              <div className="fixed inset-0 z-[1000] hidden items-center justify-center bg-black/40 p-4 backdrop-blur-sm lg:flex" onClick={() => setNewOpen(false)}>
+                <div className="w-full max-w-[460px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/20 text-ink">
+                      <UserPlus className="h-5 w-5" strokeWidth={1.8} />
+                    </div>
+                    <div>
+                      <div className="text-[16px] font-semibold text-ink">Új vendég</div>
+                      <div className="text-[12.5px] text-ink-soft">Telefonszám vagy e-mail cím szükséges</div>
+                    </div>
+                  </div>
+                  <div className="mt-4">{formFields}</div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button type="button" onClick={() => setNewOpen(false)} className="rounded-[13px] bg-[#F1F1EF] px-4 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
+                    <button type="button" onClick={createGuest} disabled={busy} className="rounded-[13px] bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Mentés</button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {/* Mobil — alulról felcsúszó sheet, mint a többi oldal (pl. Beállítások) menüje/
+                sheetjei: backdrop-blur, fogantyú, kattintás a hátterén zár. */}
+            {isMounted && createPortal(
+              <AnimatePresence>
+                {newOpen && (
+                  <div className="fixed inset-0 z-[1000] font-onest lg:hidden">
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.18 }}
+                      className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm"
+                      onClick={() => setNewOpen(false)}
+                    />
+                    <motion.div
+                      initial={{ y: '100%' }}
+                      animate={{ y: 0 }}
+                      exit={{ y: '100%' }}
+                      transition={sheetSpring.transition}
+                      data-lenis-prevent
+                      className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[28px] bg-white pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+                    >
+                      <div className="sticky top-0 z-10 bg-white px-4 pb-3 pt-3">
+                        <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gold/20 text-ink">
+                              <UserPlus className="h-[18px] w-[18px]" strokeWidth={1.8} />
+                            </div>
+                            <div>
+                              <div className="text-[15px] font-semibold text-ink">Új vendég</div>
+                              <div className="text-[12px] text-ink-soft">Telefonszám vagy e-mail cím szükséges</div>
+                            </div>
+                          </div>
+                          <button type="button" onClick={() => setNewOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
+                            <X className="h-4 w-4" strokeWidth={2} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="px-4 pb-4 pt-1">
+                        {formFields}
+                        <div className="mt-5 flex gap-2.5">
+                          <button type="button" onClick={() => setNewOpen(false)} className="h-11 flex-1 rounded-[14px] bg-[#F1F1EF] text-[13.5px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
+                          <button type="button" onClick={createGuest} disabled={busy} className="h-11 flex-1 rounded-[14px] bg-ink-dark text-[13.5px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Mentés</button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </div>
+                )}
+              </AnimatePresence>,
+              document.body,
+            )}
+          </>
+        )
+      })()}
 
       {/* Tiltás-modal (Crextio) — indok bekérése */}
       {blockTarget && (

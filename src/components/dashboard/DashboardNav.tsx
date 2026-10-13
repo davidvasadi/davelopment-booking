@@ -434,6 +434,17 @@ export function DashboardNav({
               <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
             </button>
           )}
+          {/* Vendégek: „Új vendég" ikonként a fejlécben — mint minden más oldal „+" gombja. */}
+          {pathname.endsWith('/guests') && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new Event('davelopment:open-new-guest'))}
+              aria-label="Új vendég"
+              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
+            >
+              <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
+            </button>
+          )}
           {/* Naptár (schedule) ikonok — statisztika, szűrő, + új műszak; csak a schedule oldalon. */}
           {pathname.endsWith('/schedule') && (
             <>
