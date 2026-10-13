@@ -385,9 +385,9 @@ export function GuestsView({
           <button
             type="button"
             onClick={() => { setNewError(null); setNewOpen(true) }}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-[14px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
           >
-            <UserPlus className="h-4 w-4" strokeWidth={1.8} />
+            <UserPlus className="h-[15px] w-[15px]" strokeWidth={1.8} />
             Új vendég
           </button>
         )}
