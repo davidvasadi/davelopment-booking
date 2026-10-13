@@ -25,12 +25,14 @@ import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext
 import {
   Home, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
   Plus, ScrollText, Building2, Mail, Check, FileText, Star,
-  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, PanelsTopLeft, Send, Gift, Receipt, type LucideIcon,
+  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, PanelsTopLeft, Send, Gift, Receipt, PanelLeftClose, PanelLeftOpen, MoreVertical, type LucideIcon,
 } from 'lucide-react'
 import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
 import { GoogleSettingsPanel } from './GoogleSettingsPanel'
 import { Toggle } from './SettingsToggle'
+import { SubnavPicker } from './SubnavPicker'
+import { HoverButton } from '@/components/shared/HoverButton'
 import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData, type VoucherSettingsData, type ConsentSettingsData } from './PaymentsSettingsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
@@ -81,7 +83,7 @@ function StatusBadge({ status }: { status: BillingData['subscriptionStatus'] }) 
 type RailId =
   | 'site' | 'newsletter' | 'vouchers' | 'invoicing' | 'email'
   | 'notifications' | 'team' | 'audit'
-  | 'self' | 'documents' | 'billing' | 'sites'
+  | 'self' | 'documents' | 'billing' | 'invoices' | 'sites'
   | 'integrations' | 'danger' | 'payments' | 'google'
 
 // A bal lista mely elemei a MEGLÉVŐ profil-form egy-egy fülét mutatják (rail vezérli a fület).
@@ -95,7 +97,7 @@ const RAIL_LABELS: Record<RailId, string> = {
   site: 'Foglalóoldal', newsletter: 'Hírlevél', vouchers: 'Ajándékutalvány', invoicing: 'Számlázás',
   email: 'Vendég e-mailek',
   notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
-  self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés & számlázás', sites: 'Telephelyek',
+  self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés & számlázás', invoices: 'Számlák', sites: 'Telephelyek',
   integrations: 'API & Integrációk', danger: 'Fiók törlése',
   payments: 'Fizetés & előleg', google: 'Google',
 }
@@ -305,23 +307,35 @@ export function SettingsHub({
     const limitedOnly = !!myCapabilities && !can(myCapabilities, 'settings.profile')
     // `settings.own_profile` users alapértelmezett tabja 'self', a többieké a Foglalóoldal.
     if (!t || MOVED_TO_SITE.has(t) || !(t in RAIL_LABELS)) return limitedOnly ? 'self' : 'site'
-    if (t === 'billing' && myCapabilities && !can(myCapabilities, 'billing.manage')) return limitedOnly ? 'self' : 'site'
+    if ((t === 'billing' || t === 'invoices') && myCapabilities && !can(myCapabilities, 'billing.manage')) return limitedOnly ? 'self' : 'site'
     if (t === 'danger' && myCapabilities && !can(myCapabilities, 'danger')) return limitedOnly ? 'self' : 'site'
     // Jogosulatlan tab URL-ből → visszaesik self-re.
     if (limitedOnly && t !== 'self') return 'self'
     // Lejárt/megszűnt/szüneteltetett előfizetésnél egy mély-linkelt (?tab=...) tiltott fül is
     // a billingre esik vissza — a nav-lakatok csak a KATTINTÁST védik, ez a közvetlen URL-t.
+    // A Számlák kivétel (a billinghez hasonlóan) — a korábbi számlák lezárt/lejárt előfizetés
+    // mellett is elérhetők kell maradjanak (könyvelési igény, nem a fizetés rendezése).
     const lockedNow = billing.subscriptionStatus === 'past_due' || billing.subscriptionStatus === 'canceled' || billing.subscriptionStatus === 'paused'
-    if (lockedNow && t !== 'billing' && t !== 'danger') return 'billing'
+    if (lockedNow && t !== 'billing' && t !== 'invoices' && t !== 'danger') return 'billing'
     return t as RailId
   })()
   const [active, setActive] = useState<RailId>(initialTab)
   // Az Értesítések fül alján a tulajnak szóló „Értesítő” e-mail sablonja (profil-form).
   const ownerEmailTab = active === 'notifications'
+  // A bal-sáv alapból NYITVA van a Foglalóoldal fülön is — csak akkor csukódik ikon-csíkra
+  // (nagyobb szerkesztő-ablak), ha a user kézzel rákattint az össze-csukó gombra; a kézi
+  // csukás csak addig tart, amíg el nem hagyja a fület (akkor újra nyitva kezd).
+  const [railManuallyCollapsed, setRailManuallyCollapsed] = useState(false)
+  useEffect(() => { if (active !== 'site') setRailManuallyCollapsed(false) }, [active])
+  const railCollapsed = active === 'site' && railManuallyCollapsed
+  // A "link"-típusú rail-elemek (pl. Nyitvatartás) saját, RailBtn-en kívüli címke-animációja —
+  // ugyanaz a zsugorodó max-width+opacity minta, mint a RailBtn-ben.
+  const railLabelCls = `overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${railCollapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'}`
   const [saving, setSaving] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [isMounted, setIsMounted] = useState(false)
-  useEffect(() => { setIsMounted(true) }, [])
+  const [subnavSlot, setSubnavSlot] = useState<HTMLElement | null>(null)
+  useEffect(() => { setIsMounted(true); setSubnavSlot(document.getElementById('settings-subnav-slot')) }, [])
   // A top nav SlidersHorizontal ikonja ezt az eventet dispatch-eli.
   useEffect(() => {
     const handler = () => setMobileNavOpen(true)
@@ -584,6 +598,11 @@ export function SettingsHub({
   const [inviteBusy, setInviteBusy] = useState(false)
   const [rowBusy, setRowBusy] = useState<string | null>(null)
   const [statusMenuId, setStatusMenuId] = useState<string | null>(null)
+  // Szerep-menü (kebab) — mobilon a select+törlés helyett EGY kompakt ikon-gomb nyit egy
+  // legördülőt (szerep-választás + eltávolítás), mert a natív <select> szélessége a kártya
+  // keskeny mobil-szélességén kifolyt a konténerből (a "Stylist / Szakem…" levágva, a törlés-
+  // gomb a kártyán kívülre csúszott — ez volt a konkrétan jelentett hiba).
+  const [roleMenuId, setRoleMenuId] = useState<string | null>(null)
 
   const sendInvite = async () => {
     const email = inviteEmail.trim()
@@ -882,7 +901,7 @@ export function SettingsHub({
   const navGroups: { group: string; items: NavItem[] }[] = canFullSettings
     ? [
         { group: 'Üzlet', items: [
-          { kind: 'btn', id: 'site', icon: PanelsTopLeft, label: 'Foglalóoldal', badge: 'ÚJ' },
+          { kind: 'btn', id: 'site', icon: PanelsTopLeft, label: 'Foglalóoldal' },
           { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
           { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok & jogi' },
         ] },
@@ -909,6 +928,7 @@ export function SettingsHub({
           { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
           { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
           ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Előfizetés & számlázás', badge: trialBadge }] : []),
+          ...(canBilling ? [{ kind: 'btn' as const, id: 'invoices' as RailId, icon: Download, label: 'Számlák' }] : []),
           { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
         ] },
       ]
@@ -928,7 +948,11 @@ export function SettingsHub({
     // font-onest ITT, egyszer — minden alá ágyazott panel (BookingFeatures, GoogleSettingsPanel,
     // RolesManager, stb.) örökli, nem kell mindegyiknek külön emlékeznie rá.
     <div className="space-y-5 font-onest">
-      {/* Fejléc — a mentés innen kikerült a KÖZÖS lebegő sávba (lásd lentebb). */}
+      {/* Fejléc — a mentés innen kikerült a KÖZÖS lebegő sávba (lásd lentebb). A Foglalóoldal
+          fülön a nyelv-választó, a Vendég e-mailek fülön a sablon-választó, a Csapat fülön a
+          Tagok/Szerepek-váltó a globális mobil-fejlécbe (DashboardNav, #settings-subnav-slot)
+          portálozódik — ugyanúgy, mint a többi oldal saját fejléc-ikonjai, nem a szerkesztő
+          saját belső sorában bujkál. */}
       <div>
         <h1 className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[42px]">
           Beállítások
@@ -940,7 +964,7 @@ export function SettingsHub({
       </div>
 
       {/* Bal-sáv + panel */}
-      <div className="lg:grid lg:grid-cols-[262px_1fr] lg:items-start lg:gap-[18px]">
+      <div className={`lg:grid lg:items-start lg:gap-[18px] lg:transition-[grid-template-columns] lg:duration-300 lg:ease-[cubic-bezier(0.22,1,0.36,1)] ${railCollapsed ? 'lg:grid-cols-[72px_1fr]' : 'lg:grid-cols-[262px_1fr]'}`}>
         {/* RAIL — MOBIL: bottom sheet (portálon keresztül, a top nav SlidersHorizontal ikonja nyitja). */}
         {isMounted && createPortal(
           <AnimatePresence>
@@ -1052,19 +1076,30 @@ export function SettingsHub({
           document.body
         )}
 
-        {/* RAIL — DESKTOP: függőleges üveges sáv — sticky, követi a scroll-t */}
+        {/* RAIL — DESKTOP: függőleges üveges sáv — sticky, követi a scroll-t.
+            A Foglalóoldal fülön automatikusan ikon-csíkra csukódik (lásd railCollapsed),
+            hogy a szerkesztőnek több hely jusson — a fejléc-gomb bármikor visszanyitja. */}
         <nav
           data-lenis-prevent
-          className="hidden lg:sticky lg:top-6 lg:self-start lg:flex lg:flex-col lg:gap-[3px] lg:rounded-[24px] lg:bg-[var(--dav-glass)] lg:p-[11px] lg:shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_36px_-30px_rgba(80,70,30,0.18)]"
+          className="hidden lg:sticky lg:top-6 lg:self-start lg:flex lg:flex-col lg:gap-[3px] lg:overflow-hidden lg:rounded-[24px] lg:bg-[var(--dav-glass)] lg:p-[11px] lg:shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_36px_-30px_rgba(80,70,30,0.18)]"
         >
+          {active === 'site' && (
+            <HoverButton
+              onClick={() => setRailManuallyCollapsed((v) => !v)}
+              title={railCollapsed ? 'Menü megnyitása' : 'Menü összecsukása'}
+              className="mb-1 flex w-11 shrink-0 items-center justify-center self-start rounded-[16px] p-3 text-ink-soft2 transition-colors hover:bg-[#F0EDE6] hover:text-ink"
+            >
+              {railCollapsed ? <PanelLeftOpen className="h-[17px] w-[17px]" strokeWidth={1.5} /> : <PanelLeftClose className="h-[17px] w-[17px]" strokeWidth={1.5} />}
+            </HoverButton>
+          )}
           {navGroups.map((grp) => (
             <div key={grp.group} className="contents">
-              <GroupLabel>{grp.group}</GroupLabel>
+              <GroupLabel collapsed={railCollapsed}>{grp.group}</GroupLabel>
               {grp.items.map((it) => {
                 const Icon = it.icon
                 if (it.kind === 'btn') {
                   const itemLocked = subscriptionLocked && it.id !== 'billing'
-                  return <RailBtn key={it.id} id={it.id} active={active} onClick={setActive} icon={it.icon} label={it.label} soon={it.soon} badge={it.badge} locked={itemLocked} />
+                  return <RailBtn key={it.id} id={it.id} active={active} onClick={setActive} icon={it.icon} label={it.label} soon={it.soon} badge={it.badge} locked={itemLocked} collapsed={railCollapsed} />
                 }
                 if (subscriptionLocked) {
                   return (
@@ -1074,9 +1109,9 @@ export function SettingsHub({
                       title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
                       className="flex cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink/35"
                     >
-                      <Icon className="h-[17px] w-[17px]" strokeWidth={1.5} />
-                      {it.label}
-                      <Lock className="ml-auto h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />
+                      <Icon className="h-[17px] w-[17px] shrink-0" strokeWidth={1.5} />
+                      <span className={railLabelCls}>{it.label}</span>
+                      {!railCollapsed && <Lock className="ml-auto h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />}
                     </span>
                   )
                 }
@@ -1084,10 +1119,11 @@ export function SettingsHub({
                   <Link
                     key={it.href}
                     href={it.href}
+                    title={railCollapsed ? it.label : undefined}
                     className="flex items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink-soft transition-colors hover:text-ink"
                   >
-                    <Icon className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.5} />
-                    {it.label}
+                    <Icon className="h-[17px] w-[17px] shrink-0 text-ink-soft2" strokeWidth={1.5} />
+                    <span className={railLabelCls}>{it.label}</span>
                   </Link>
                 )
               })}
@@ -1095,7 +1131,7 @@ export function SettingsHub({
           ))}
           {canDanger && <>
             <div className="my-1.5 h-px bg-line" />
-            <RailBtn id="danger" active={active} onClick={setActive} icon={Trash2} label="Fiók törlése" danger />
+            <RailBtn id="danger" active={active} onClick={setActive} icon={Trash2} label="Fiók törlése" danger collapsed={railCollapsed} />
           </>}
         </nav>
 
@@ -1328,8 +1364,28 @@ export function SettingsHub({
           {/* ── Csapat & jogok ── ref 536–556. VALÓS tulajdonos + membershipök. */}
           {active === 'team' && (
             <div className="space-y-4">
-              {/* Al-navigáció — Tagok (meghívás/kezelés) vs. Szerepek (jogosultság-szerkesztés). */}
-              <div className="inline-flex rounded-[14px] bg-[#FBF9F2] p-1">
+              {/* Al-navigáció — Tagok (meghívás/kezelés) vs. Szerepek (jogosultság-szerkesztés).
+                  Mobilon a globális fejlécbe portálozott ikon-gomb (sheet-tel, lásd SubnavPicker)
+                  + egy külön, ikon-only "+" meghívás-gomb; desktopon a megszokott pill-sor. */}
+              <SubnavPicker
+                items={[{ id: 'members', label: 'Tagok' }, { id: 'roles', label: 'Szerepek & jogosultságok' }]}
+                activeId={teamSubTab}
+                onSelect={(id) => setTeamSubTab(id as 'members' | 'roles')}
+                title="Csapat nézet"
+                icon={Users}
+              />
+              {canTeamManage && teamSubTab === 'members' && subnavSlot && createPortal(
+                <button
+                  type="button"
+                  onClick={() => setInviteOpen((v) => !v)}
+                  aria-label={inviteOpen ? 'Mégse' : 'Tag meghívása'}
+                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95 lg:hidden"
+                >
+                  {inviteOpen ? <X className="h-[19px] w-[19px]" strokeWidth={2.2} /> : <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />}
+                </button>,
+                subnavSlot,
+              )}
+              <div className="hidden lg:inline-flex rounded-[14px] bg-[#FBF9F2] p-1">
                 <button
                   type="button"
                   onClick={() => setTeamSubTab('members')}
@@ -1357,7 +1413,7 @@ export function SettingsHub({
                   <button
                     type="button"
                     onClick={() => setInviteOpen((v) => !v)}
-                    className="inline-flex items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white"
+                    className="hidden items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white lg:inline-flex"
                   >
                     {inviteOpen ? <X className="h-[15px] w-[15px] text-gold" strokeWidth={2} /> : <Plus className="h-[15px] w-[15px] text-gold" strokeWidth={1.8} />}
                     {inviteOpen ? 'Mégse' : 'Tag meghívása'}
@@ -1405,109 +1461,194 @@ export function SettingsHub({
               )}
 
               <div className="rounded-[26px] dav-card-glass px-6 py-2">
-                {team.map((m, i) => (
+                {team.map((m, i) => {
+                  const showStatus = !m.pending && m.id && m.roleTone !== 'owner'
+                  return (
                   <div
                     key={(m.id ?? m.email) + i}
-                    className={`flex flex-wrap items-center gap-3.5 py-[18px] ${i < team.length - 1 ? 'border-b border-line' : ''}`}
+                    className={`relative flex flex-col gap-3 py-[18px] ${i < team.length - 1 ? 'border-b border-line' : ''}`}
                   >
-                    <Avatar name={m.name} email={m.email} pending={m.pending} gold={m.roleTone === 'manager'} avatarUrl={m.avatarUrl} />
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-[14.5px] font-semibold text-ink">
-                        {m.pending ? m.email : m.name}
-                      </div>
-                      <div className={`truncate text-[12.5px] ${m.pending ? 'text-[#C99A3A]' : 'text-ink-soft'}`}>
-                        {m.pending ? 'Meghívó elküldve · függőben' : m.email}
-                      </div>
-                      {m.position && <div className="truncate text-[12px] font-medium text-ink-soft2">{m.position}</div>}
-                    </div>
-                    {/* Státusz-LENYÍLÓ — a Munkatárs-adatlap (HiringView) státusz-menüjével AZONOS:
-                        pill + ChevronDown, kattintásra „Aktív / Felfüggesztett" opciók (pipa a jelenlegin).
-                        A route a staff.is_active-ot is szinkronizálja. Csak valódi tagnál (nem tulaj/meghívó). */}
-                    {!m.pending && m.id && m.roleTone !== 'owner' && !canTeamManage && (
-                      <span
-                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold"
-                        style={m.suspended ? { background: '#F1EEE6', color: '#86826F', border: '1px solid var(--dav-line)' } : { background: '#E7F1E9', color: '#3B6B4B' }}
-                      >
-                        <span className="h-2 w-2 rounded-full" style={{ background: m.suspended ? '#B7B2A4' : '#4F9E6A' }} />
-                        {m.suspended ? 'Felfüggesztett' : 'Aktív'}
-                      </span>
-                    )}
-                    {!m.pending && m.id && m.roleTone !== 'owner' && canTeamManage && (
-                      <div className="relative">
-                        <button
-                          type="button"
+                    {/* Státusz — a sor (kártya) jobb felső sarkában, szöveggel ellátott pill
+                        (nem csak szín), kattintva nyitja a státusz-sheetet. */}
+                    {showStatus && (
+                      canTeamManage ? (
+                        <HoverButton
                           disabled={rowBusy === m.id}
-                          onClick={() => setStatusMenuId((o) => (o === m.id ? null : m.id!))}
-                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[12px] font-semibold disabled:opacity-60"
-                          style={m.suspended ? { background: '#F1EEE6', color: '#86826F', border: '1px solid var(--dav-line)' } : { background: '#E7F1E9', color: '#3B6B4B' }}
+                          onClick={() => setStatusMenuId(m.id!)}
+                          className="absolute right-0 top-[18px] inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] font-semibold disabled:opacity-60"
+                          style={m.suspended ? { background: '#F1EEE6', color: '#86826F', borderColor: 'var(--dav-line-strong)' } : { background: '#E7F1E9', color: '#3B6B4B', borderColor: '#BEE0C4' }}
                         >
                           {rowBusy === m.id ? (
                             <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <span className="h-2 w-2 rounded-full" style={{ background: m.suspended ? '#B7B2A4' : '#4F9E6A' }} />
+                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: m.suspended ? '#B7B2A4' : '#4F9E6A' }} />
                           )}
                           {m.suspended ? 'Felfüggesztett' : 'Aktív'}
-                          <ChevronDown className="h-3 w-3 opacity-60" />
-                        </button>
-                        {statusMenuId === m.id && (
-                          <>
-                            <div className="fixed inset-0 z-10" onClick={() => setStatusMenuId(null)} />
-                            <div className="absolute right-0 top-[34px] z-20 w-48 rounded-[14px] border border-line bg-white p-1.5 shadow-dav-container">
-                              {(['active', 'suspended'] as const).map((s) => {
-                                const isCur = (s === 'suspended') === !!m.suspended
-                                return (
-                                  <button
-                                    key={s}
-                                    type="button"
-                                    onClick={() => setMemberStatus(m.id!, s)}
-                                    className="flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-paper"
-                                  >
-                                    <span className="h-2 w-2 rounded-full" style={{ background: s === 'suspended' ? '#B7B2A4' : '#4F9E6A' }} />
-                                    {s === 'suspended' ? 'Felfüggesztett' : 'Aktív'}
-                                    {isCur && <Check className="ml-auto h-4 w-4 text-ink" strokeWidth={2} />}
-                                  </button>
-                                )
-                              })}
-                            </div>
-                          </>
-                        )}
-                      </div>
+                        </HoverButton>
+                      ) : (
+                        <span
+                          className="absolute right-0 top-[18px] inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] font-semibold"
+                          style={m.suspended ? { background: '#F1EEE6', color: '#86826F', borderColor: 'var(--dav-line)' } : { background: '#E7F1E9', color: '#3B6B4B', borderColor: '#BEE0C4' }}
+                        >
+                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: m.suspended ? '#B7B2A4' : '#4F9E6A' }} />
+                          {m.suspended ? 'Felfüggesztett' : 'Aktív'}
+                        </span>
+                      )
                     )}
-                    {/* A tulajdonos-sor (nincs id) csak badge; team.manage NÉLKÜL a többi tag is
-                        csak olvasható badge (nem szerkeszthet mást) — team.manage-dzsel a
-                        tagoknál szerep-váltó + eltávolítás. */}
-                    {m.roleTone === 'owner' || !m.id || !canTeamManage ? (
-                      <RoleBadge role={m.role} tone={m.roleTone} pending={m.pending} />
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={m.customRoleId ? `c:${m.customRoleId}` : ''}
-                          disabled={rowBusy === m.id || liveRoles.length === 0}
-                          onChange={(e) => changeRole(m.id!, e.target.value)}
-                          className="rounded-full border border-line-strong bg-white px-3 py-1 text-[12px] font-semibold text-ink outline-none transition-colors focus:border-gold/60 disabled:opacity-40"
-                        >
-                          {!m.customRoleId && <option value="" disabled>{m.role} (beépített)</option>}
-                          {liveRoles.map((r) => (
-                            <option key={r.id} value={`c:${r.id}`}>{r.name}</option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          onClick={() => removeMember(m.id!)}
-                          disabled={rowBusy === m.id}
-                          title="Eltávolítás"
-                          className="rounded-[12px] border border-bad/30 p-2 text-bad transition-opacity disabled:opacity-40"
-                        >
-                          {rowBusy === m.id ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Trash2 className="h-[15px] w-[15px]" strokeWidth={1.7} />}
-                        </button>
+                    {/* A jobb oldali hely-fenntartás (a sarok-badge miatt) csak sm+ -on marad —
+                        mobilon a kártya elég keskeny ahhoz, hogy ez feleslegesen vágja az emailt. */}
+                    <div className={`flex items-center gap-3.5 ${showStatus ? 'mt-1.5 sm:pr-[128px]' : ''}`}>
+                      <Avatar name={m.name} email={m.email} pending={m.pending} gold={m.roleTone === 'manager'} avatarUrl={m.avatarUrl} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-[14.5px] font-semibold text-ink">
+                          {m.pending ? m.email : m.name}
+                        </div>
+                        {/* Egy sorban, de nem a jobb-fenti státusz-pill alá csúszva — a konténer
+                            lejjebb tolva (mt-1.5) ad neki annyi vízszintes+függőleges helyet,
+                            hogy a teljes email kiférjen egy sorban. */}
+                        <div className={`truncate text-[12.5px] ${m.pending ? 'text-[#C99A3A]' : 'text-ink-soft'}`}>
+                          {m.pending ? 'Meghívó elküldve · függőben' : m.email}
+                        </div>
+                        {m.position && <div className="truncate text-[12px] font-medium text-ink-soft2">{m.position}</div>}
                       </div>
+                    </div>
+                    {/* Szerep — teljes szélességű gomb (nem a sor végén, összenyomva), kattintva
+                        az alulról felcsúszó szerep-sheetet nyitja (lásd lentebb). A tulajdonos-
+                        badge ugyanakkora (h-11, teljes szélesség) konténerbe kerül, mint a többi
+                        sor gombja — különben a tulajdonos-kártya alacsonyabb/más méretű volt. */}
+                    {m.roleTone === 'owner' || !m.id || !canTeamManage ? (
+                      <div className="flex h-11 w-full items-center">
+                        <RoleBadge role={m.role} tone={m.roleTone} pending={m.pending} />
+                      </div>
+                    ) : (
+                      <HoverButton
+                        disabled={rowBusy === m.id}
+                        onClick={() => setRoleMenuId(m.id!)}
+                        className="flex h-11 w-full items-center justify-between gap-2 rounded-[14px] border border-line-strong bg-white px-4 text-[13.5px] font-semibold text-ink outline-none disabled:opacity-40"
+                      >
+                        <span className="truncate">{m.customRoleId ? m.role : `${m.role} (beépített)`}</span>
+                        {rowBusy === m.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <MoreVertical className="h-4 w-4 shrink-0 opacity-60" strokeWidth={2} />}
+                      </HoverButton>
                     )}
                   </div>
-                ))}
+                  )
+                })}
               </div>
               <p className="px-1 text-xs text-ink-soft2">
                 A tulajdonos hozzáférése mindig megmarad. A meghívott tagok az email-linkkel csatlakoznak.
               </p>
+
+              {/* Státusz- és szerep-váltó — egy-egy alulról felcsúszó sheet (mint a nyelv/
+                  al-navigáció választók), a body-ra portálozva: pozíciójuk FÜGGETLEN attól,
+                  hol van a sor a (görgetett, keskeny) listában — ez volt a korábbi, a sorban
+                  elhelyezett abszolút-pozicionált panel hibája (rossz helyre csúszott). */}
+              {isMounted && createPortal(
+                <AnimatePresence>
+                  {(() => {
+                    const sm = team.find((t) => t.id === statusMenuId)
+                    if (!sm) return null
+                    return (
+                      <div className="fixed inset-0 z-[160] font-onest">
+                        <motion.div
+                          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+                          className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm" onClick={() => setStatusMenuId(null)}
+                        />
+                        <motion.div
+                          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={sheetSpring.transition}
+                          data-lenis-prevent
+                          className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-[28px] bg-white pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+                        >
+                          <div className="sticky top-0 z-10 bg-white px-4 pb-3 pt-3">
+                            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+                            <div className="flex items-center justify-between">
+                              <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{sm.name} — Státusz</span>
+                              <button type="button" onClick={() => setStatusMenuId(null)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
+                                <X className="h-4 w-4" strokeWidth={2} />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="px-3 pb-4">
+                            {(['active', 'suspended'] as const).map((s) => {
+                              const isCur = (s === 'suspended') === !!sm.suspended
+                              return (
+                                <button
+                                  key={s}
+                                  type="button"
+                                  onClick={() => setMemberStatus(sm.id!, s)}
+                                  className="flex h-12 w-full items-center gap-2.5 rounded-[14px] px-3.5 text-left text-[14px] font-medium text-ink transition-colors hover:bg-black/[0.04]"
+                                >
+                                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: s === 'suspended' ? '#B7B2A4' : '#4F9E6A' }} />
+                                  {s === 'suspended' ? 'Felfüggesztett' : 'Aktív'}
+                                  {isCur && <Check className="ml-auto h-4 w-4 text-ink" strokeWidth={2} />}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </motion.div>
+                      </div>
+                    )
+                  })()}
+                </AnimatePresence>,
+                document.body,
+              )}
+              {isMounted && createPortal(
+                <AnimatePresence>
+                  {(() => {
+                    const rm = team.find((t) => t.id === roleMenuId)
+                    if (!rm) return null
+                    return (
+                      <div className="fixed inset-0 z-[160] font-onest">
+                        <motion.div
+                          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
+                          className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm" onClick={() => setRoleMenuId(null)}
+                        />
+                        {/* `flex flex-col` + a lista saját `overflow-y-auto`-ja — sok egyedi
+                            szerepnél (elvileg korlátlan) a lista görgethető, de a fejléc (fogantyú
+                            + cím) és az "Eltávolítás" mindig fixen látható marad, nem úszik el
+                            egy hosszú listával együtt görgetve. */}
+                        <motion.div
+                          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={sheetSpring.transition}
+                          className="absolute inset-x-0 bottom-0 flex max-h-[78vh] flex-col overflow-hidden rounded-t-[28px] bg-white"
+                        >
+                          <div className="shrink-0 bg-white px-4 pb-3 pt-3">
+                            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
+                            <div className="flex items-center justify-between">
+                              <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{rm.name} — Szerep</span>
+                              <button type="button" onClick={() => setRoleMenuId(null)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
+                                <X className="h-4 w-4" strokeWidth={2} />
+                              </button>
+                            </div>
+                          </div>
+                          <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
+                            {liveRoles.map((r) => (
+                              <button
+                                key={r.id}
+                                type="button"
+                                onClick={() => { changeRole(rm.id!, `c:${r.id}`); setRoleMenuId(null) }}
+                                className="flex h-12 w-full items-center gap-2.5 rounded-[14px] px-3.5 text-left text-[14px] font-medium text-ink transition-colors hover:bg-black/[0.04]"
+                              >
+                                {r.name}
+                                {rm.customRoleId === r.id && <Check className="ml-auto h-4 w-4 text-ink" strokeWidth={2} />}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="shrink-0 border-t border-line px-3 py-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
+                            <button
+                              type="button"
+                              onClick={() => { setRoleMenuId(null); removeMember(rm.id!) }}
+                              className="flex h-12 w-full items-center gap-2.5 rounded-[14px] px-3.5 text-left text-[14px] font-semibold text-bad transition-colors hover:bg-bad-bg"
+                            >
+                              <Trash2 className="h-4 w-4" strokeWidth={1.8} />
+                              Eltávolítás
+                            </button>
+                          </div>
+                        </motion.div>
+                      </div>
+                    )
+                  })()}
+                </AnimatePresence>,
+                document.body,
+              )}
               </>
               )}
             </div>
@@ -1855,13 +1996,38 @@ export function SettingsHub({
                 )}
               </Card>
 
-              {/* 5. ── Számlák (Számlázz.hu) */}
+              {/* A korábbi számlák saját fülre költöztek (lásd lent, `active === 'invoices'`) —
+                  itt csak egy rövid link, hogy a hosszú Előfizetés-oldal aljára görgetés helyett
+                  egy kattintással odajusson, aki a Számlák fület a navból nyitotta meg. */}
+              <button
+                type="button"
+                onClick={() => setActive('invoices')}
+                className="flex w-full items-center justify-between gap-3 rounded-[26px] dav-card-glass px-6 py-5 text-left transition-colors hover:bg-black/[0.015]"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
+                    <Download className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
+                  </div>
+                  <div>
+                    <div className="text-[15px] font-medium text-ink">Számlák</div>
+                    <div className="text-[13px] text-ink-soft">{billing.invoices.length > 0 ? `${billing.invoices.length} kiállított számla` : 'Még nincs kiállított számla'}</div>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 shrink-0 text-ink-soft2" strokeWidth={2} />
+              </button>
+            </div>
+          )}
+
+          {/* ── Számlák ── a korábbi előfizetői (Számlázz.hu) számlák — a Fiók csoportban saját
+              navelemet kapott, hogy ne a hosszú Előfizetés-oldal aljára kelljen görgetni érte. */}
+          {active === 'invoices' && (
+            <div className="space-y-4">
               <Card>
                 <div className="text-[17px] font-medium text-ink">Számlák</div>
                 {billing.invoices.length > 0 ? (
                   <div className="mt-4 flex flex-col gap-2">
                     {billing.invoices.map((inv) => (
-                      <div key={inv.id} className="flex items-center justify-between gap-3 rounded-[16px] bg-paper px-4 py-3.5">
+                      <div key={inv.id} className="flex flex-col gap-3 rounded-[16px] bg-paper px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-center gap-3">
                           <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-white shadow-dav-card">
                             <FileText className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
@@ -1880,7 +2046,7 @@ export function SettingsHub({
                         <a
                           href={`/api/billing/invoice-pdf?id=${inv.id}`}
                           download={`${inv.invoice_number}.pdf`}
-                          className="inline-flex items-center gap-1.5 rounded-[12px] border border-line-strong bg-white px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-paper"
+                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-line-strong bg-white px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-paper sm:w-auto"
                         >
                           <Download className="h-3.5 w-3.5" strokeWidth={1.8} />
                           Letöltés
@@ -2030,13 +2196,26 @@ export function SettingsHub({
           {/* ── Telephelyek ── ref 652–667. VALÓS fiók-üzletek + Üzleti-csomag CTA. */}
           {active === 'sites' && (
             <div className="space-y-4">
+              {/* "Új telephely" mobilon a globális fejlécbe portálozva (ugyanaz a fekete kör +
+                  fehér plusz, mint a Csapat fül meghívás-gombja) — desktopon a megszokott,
+                  felirattal ellátott gomb a tartalom tetején. */}
+              {subnavSlot && createPortal(
+                <Link
+                  href={variant === 'restaurant' ? '/register-restaurant' : '/register'}
+                  aria-label="Új telephely"
+                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95 lg:hidden"
+                >
+                  <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
+                </Link>,
+                subnavSlot,
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-sm font-medium text-ink-soft">
                   {businessCount} aktív üzlet · {planLabel}
                 </p>
                 <Link
                   href={variant === 'restaurant' ? '/register-restaurant' : '/register'}
-                  className="inline-flex items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white"
+                  className="hidden items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white lg:inline-flex"
                 >
                   <Plus className="h-[15px] w-[15px] text-gold" strokeWidth={1.8} />
                   Új telephely
@@ -2048,10 +2227,11 @@ export function SettingsHub({
                 {sites.map((s, i) => (
                   <div
                     key={s.name + i}
-                    className={`flex flex-wrap items-center gap-x-3.5 gap-y-2 py-[18px] ${
+                    className={`flex flex-col gap-3 py-[18px] sm:flex-row sm:flex-wrap sm:items-center sm:gap-3.5 ${
                       i < sites.length - 1 ? 'border-b border-line' : ''
                     }`}
                   >
+                    <div className="flex min-w-0 flex-1 items-center gap-3.5">
                     {s.logoUrl ? (
                       // `object-contain` + belső padding, mint az üzletváltó gombnál (StoreSwitcher) —
                       // a logó (gyakran nem négyzetes) így mindig teljesen kifér, nem vágódik le.
@@ -2076,14 +2256,19 @@ export function SettingsHub({
                       </div>
                       <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">{s.meta}</div>
                     </div>
-                    <span className="text-[12.5px] font-medium text-ink-soft">{s.role}</span>
-                    {s.current ? (
-                      <span className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[12px] font-semibold text-ink opacity-40 cursor-default">
-                        Jelenlegi
-                      </span>
-                    ) : (
-                      <SiteManageButton id={s.id} type={s.type} />
-                    )}
+                    </div>
+                    {/* Szerep + kezelés-gomb — mobilon egy saját sorban, a névblokk alatt,
+                        egymás mellett (nem a névvel/logóval zsúfolva egy sorba). */}
+                    <div className="flex items-center justify-between gap-3 sm:ml-auto sm:w-auto sm:justify-end">
+                      <span className="text-[12.5px] font-medium text-ink-soft">{s.role}</span>
+                      {s.current ? (
+                        <span className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[12px] font-semibold text-ink opacity-40 cursor-default">
+                          Jelenlegi
+                        </span>
+                      ) : (
+                        <SiteManageButton id={s.id} type={s.type} />
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2259,16 +2444,22 @@ function relativeTime(iso: string): string {
 
 /* ── Rail gomb ──────────────────────────────────────────────────────────── */
 /** Csoport-címke a bal listában (desktopon; mobil chip-soron elrejtve). */
-function GroupLabel({ children }: { children: ReactNode }) {
+/** `collapsed`-nél magasság+opacity szerint tűnik el (nem instant unmount) — így a rail
+ *  összecsukása a csoport-címkék mentén is folyamatos animáció. */
+function GroupLabel({ children, collapsed }: { children: ReactNode; collapsed?: boolean }) {
   return (
-    <div className="hidden px-3.5 pb-1.5 pt-3 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2 first:pt-1 lg:block">
+    <div
+      className={`hidden overflow-hidden px-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2 transition-[max-height,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] first:pt-1 lg:block ${
+        collapsed ? 'max-h-0 pb-0 pt-0 opacity-0' : 'max-h-10 pb-1.5 pt-3 opacity-100'
+      }`}
+    >
       {children}
     </div>
   )
 }
 
 function RailBtn({
-  id, active, onClick, icon: Icon, label, soon, danger, badge, locked,
+  id, active, onClick, icon: Icon, label, soon, danger, badge, locked, collapsed,
 }: {
   id: RailId
   active: RailId
@@ -2281,8 +2472,15 @@ function RailBtn({
   /** Lejárt/megszűnt/szüneteltetett előfizetésnél true minden fülre, KIVÉVE az Előfizetés &
    *  számlázást és a Fiók törlését — lakat-ikonnal jelzett, nem kattintható. */
   locked?: boolean
+  /** Ikon-csík mód (ld. railCollapsed) — a címke/badge elrejtve, az ikon középre kerül,
+   *  a label title-attribútumként (natív tooltip) marad elérhető. */
+  collapsed?: boolean
 }) {
   const isActive = active === id
+  // A címke/badge NEM eltűnik, hanem max-width+opacity váltással zsugorodik — így a rail
+  // összecsukása/kinyitása (ld. railCollapsed) egy folyamatos animáció, nem villanás. A
+  // padding mindig azonos (nincs justify-center ugrás), hogy az ikon se "ugorjon" középre.
+  const labelCls = `overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${collapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'}`
   if (locked) {
     return (
       <span
@@ -2290,9 +2488,9 @@ function RailBtn({
         title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
         className="flex shrink-0 cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink/35"
       >
-        <Icon className="h-[17px] w-[17px]" strokeWidth={1.5} />
-        {label}
-        <Lock className="ml-auto h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />
+        <Icon className="h-[17px] w-[17px] shrink-0" strokeWidth={1.5} />
+        <span className={labelCls}>{label}</span>
+        {!collapsed && <Lock className="ml-auto h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />}
       </span>
     )
   }
@@ -2300,6 +2498,7 @@ function RailBtn({
     <button
       type="button"
       onClick={() => onClick(id)}
+      title={collapsed ? label : undefined}
       className={`flex shrink-0 items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] transition-colors ${
         isActive
           ? 'bg-ink-dark font-semibold text-white'
@@ -2308,14 +2507,14 @@ function RailBtn({
             : 'font-medium text-ink-soft hover:bg-[#F0EDE6] hover:text-ink'
       }`}
     >
-      <Icon className={`h-[17px] w-[17px] ${isActive ? 'text-gold' : danger ? 'text-bad' : 'text-ink-soft2'}`} strokeWidth={1.5} />
-      {label}
-      {badge && !soon && (
+      <Icon className={`h-[17px] w-[17px] shrink-0 ${isActive ? 'text-gold' : danger ? 'text-bad' : 'text-ink-soft2'}`} strokeWidth={1.5} />
+      <span className={labelCls}>{label}</span>
+      {!collapsed && badge && !soon && (
         <span className="ml-auto shrink-0 rounded-full bg-gold px-2 py-0.5 text-[11px] font-semibold leading-none text-ink-dark">
           {badge}
         </span>
       )}
-      {soon && (
+      {!collapsed && soon && (
         <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>
           Hamarosan
         </span>

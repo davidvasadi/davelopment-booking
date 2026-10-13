@@ -38,7 +38,7 @@ export function SupportedLocalesPicker({
   }
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+    <div className="grid grid-cols-2 gap-2.5">
       {/* Magyar — fix, letiltva */}
       <div className="flex items-center gap-2.5 rounded-xl border border-zinc-200 bg-zinc-50 px-3.5 py-3 dark:border-white/[0.1] dark:bg-white/[0.04] opacity-90">
         <span className="flex h-5 w-5 items-center justify-center rounded-md bg-zinc-900 dark:bg-white">

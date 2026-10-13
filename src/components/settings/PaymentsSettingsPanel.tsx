@@ -21,6 +21,13 @@ import { consentTemplate } from './contentTemplates'
  * az Előfizetés & számlázás fülön) — nincs saját mentés/akció-gomb.
  */
 
+/** Fókuszba görgeti a mezőt — mobil billentyűzet felugrásakor a natív "scroll az inputra"
+ *  gyakran nem elég (a mező a toolbar/billentyűzet alá csúszik); ez explicit, középre görgetve
+ *  biztosítja, hogy a mező látható maradjon a felugró billentyűzet felett is. */
+function scrollFieldIntoView(e: { currentTarget: HTMLElement }) {
+  setTimeout(() => e.currentTarget.scrollIntoView({ block: 'center', behavior: 'smooth' }), 150)
+}
+
 type DepositType = 'fixed' | 'percent' | 'per_pax'
 
 export interface DepositSettingsData {
@@ -288,7 +295,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
         </div>
         <div className="mt-4">
           {stripeConnectOnboarded ? (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
               <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2F7A3C]">
                 <ShieldCheck className="h-4 w-4" /> Csatlakoztatva
               </span>
@@ -296,7 +303,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
                 type="button"
                 onClick={openStripeDashboard}
                 disabled={loginLinkLoading}
-                className="inline-flex items-center gap-1.5 rounded-[12px] border border-line-strong px-3.5 py-2 text-[13px] font-semibold text-ink transition-colors hover:border-ink/30 disabled:opacity-60"
+                className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-line-strong px-3.5 py-2 text-[13px] font-semibold text-ink transition-colors hover:border-ink/30 disabled:opacity-60 sm:w-auto"
               >
                 {loginLinkLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
                 Fiók kezelése a Stripe-on
@@ -327,8 +334,8 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
       {/* Hírlevél — csak olvasható infó, a keret a csomaggal jár, nincs önálló kapcsoló/választó. */}
       {show('newsletter') && (
       <div className="rounded-[26px] dav-card-glass px-6 py-5">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
+        <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2.5">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
               <Mail className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
             </div>
@@ -339,7 +346,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               </div>
             </div>
           </div>
-          <div className="shrink-0 rounded-full border border-line-strong bg-white px-3.5 py-1.5 text-[13px] font-semibold text-ink">
+          <div className="inline-flex shrink-0 self-start rounded-full border border-line-strong bg-white px-3.5 py-1.5 text-[13px] font-semibold text-ink sm:self-auto">
             {resolveTier(tier) === 'egyedi' ? 'Korlátlan email' : `${monthlyEmailCapForTier(pricing, resolveTier(tier)).toLocaleString('hu-HU')} email / hó`}
           </div>
         </div>
@@ -391,9 +398,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               <div>
                 <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Összeg (Ft)</label>
                 <input
-                  type="number" min={0}
+                  type="number" inputMode="numeric" min={0}
                   value={d.fixedAmountHuf ?? ''}
                   onChange={(e) => setD((s) => ({ ...s, fixedAmountHuf: e.target.value ? Number(e.target.value) : null }))}
+                  onFocus={scrollFieldIntoView}
                   className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
                 />
               </div>
@@ -402,9 +410,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               <div>
                 <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Százalék (%)</label>
                 <input
-                  type="number" min={1} max={100}
+                  type="number" inputMode="numeric" min={1} max={100}
                   value={d.percentValue ?? ''}
                   onChange={(e) => setD((s) => ({ ...s, percentValue: e.target.value ? Number(e.target.value) : null }))}
+                  onFocus={scrollFieldIntoView}
                   className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
                 />
               </div>
@@ -413,9 +422,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               <div>
                 <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Összeg (Ft)</label>
                 <input
-                  type="number" min={0}
+                  type="number" inputMode="numeric" min={0}
                   value={d.fixedAmountHuf ?? ''}
                   onChange={(e) => setD((s) => ({ ...s, type: 'fixed', fixedAmountHuf: e.target.value ? Number(e.target.value) : null }))}
+                  onFocus={scrollFieldIntoView}
                   className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
                 />
               </div>
@@ -424,9 +434,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             <div>
               <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Ingyenes lemondás határideje (óra a foglalás előtt)</label>
               <input
-                type="number" min={0}
+                type="number" inputMode="numeric" min={0}
                 value={d.refundHoursBefore}
                 onChange={(e) => setD((s) => ({ ...s, refundHoursBefore: Number(e.target.value) || 0 }))}
+                onFocus={scrollFieldIntoView}
                 className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
               />
               <p className="mt-1 text-[12px] text-ink-soft2">Ennyi órával a foglalás előtt még teljes visszatérítés jár — utána az előleg az üzletnél marad.</p>
@@ -453,18 +464,20 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               <div>
                 <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Min. összeg (Ft)</label>
                 <input
-                  type="number" min={0}
+                  type="number" inputMode="numeric" min={0}
                   value={v.minAmountHuf}
                   onChange={(e) => setV((s) => ({ ...s, minAmountHuf: Number(e.target.value) || 0 }))}
+                  onFocus={scrollFieldIntoView}
                   className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
                 />
               </div>
               <div>
                 <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Max. összeg (Ft)</label>
                 <input
-                  type="number" min={0}
+                  type="number" inputMode="numeric" min={0}
                   value={v.maxAmountHuf}
                   onChange={(e) => setV((s) => ({ ...s, maxAmountHuf: Number(e.target.value) || 0 }))}
+                  onFocus={scrollFieldIntoView}
                   className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
                 />
               </div>
@@ -472,9 +485,10 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             <div>
               <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Érvényesség (hónap)</label>
               <input
-                type="number" min={1}
+                type="number" inputMode="numeric" min={1}
                 value={v.validityMonths}
                 onChange={(e) => setV((s) => ({ ...s, validityMonths: Number(e.target.value) || 1 }))}
+                onFocus={scrollFieldIntoView}
                 className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
               />
               <p className="mt-1 text-[12px] text-ink-soft2">A vásárlástól számítva ennyi hónapig váltható be az utalvány.</p>
