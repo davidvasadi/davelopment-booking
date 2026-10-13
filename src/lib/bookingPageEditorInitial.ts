@@ -13,6 +13,14 @@ const ordered = (saved: string[] | null | undefined, all: string[]) => {
   return [...ok, ...all.filter((x) => !ok.includes(x))]
 }
 
+/** Legalább egy kitöltött (cím VAGY szöveg) foglalási-feltétel szakasz van-e — ugyanaz a
+ *  szabály, mint amit a szerver (`/api/salon|restaurant/settings`) is megkövetel az előleg
+ *  bekapcsolásához, hogy a szerkesztőben a kapcsoló előre jelezhesse, miért nem kapcsolható be. */
+function hasFilledTerms(sections: Salon['terms_sections'] | Restaurant['terms_sections']): boolean {
+  if (!Array.isArray(sections)) return false
+  return sections.some((s) => (typeof s.title === 'string' && s.title.trim() !== '') || (typeof s.body === 'string' && s.body.trim() !== ''))
+}
+
 /**
  * A Foglalóoldal-szerkesztő kezdőadatai egy szalon VAGY étterem rekordból — közös, hogy a két
  * Beállítások-oldal ugyanabból a forrásból dolgozzon (egységes szerkesztő).
@@ -86,6 +94,8 @@ export function buildBookingPageEditorInitial(
     consentEnabled: !!doc.consent_settings?.enabled,
     consentTitle: doc.consent_settings?.title ?? '',
     consentText: doc.consent_settings?.template_text ?? '',
+    depositEnabled: !!doc.deposit_settings?.enabled,
+    voucherEnabled: !!doc.voucher_settings?.enabled,
     customQuestions: (doc.custom_questions ?? []).map((q) => ({
       id: q.id ?? randomUUID(),
       label: q.label ?? '',
@@ -102,7 +112,18 @@ export function buildBookingPageEditorInitial(
         : `${(doc.deposit_settings?.fixed_amount_huf ?? 0).toLocaleString('hu-HU')} Ft`,
       voucher: !!doc.voucher_settings?.enabled && !!doc.stripe_connect_onboarded,
       newsletter: hasActivePackage(doc.newsletter_settings?.package),
+      // A tényleges kapcsoló-állapot (a fenti `deposit`/`voucher` a Stripe-onboardinggal
+      // KOMBINÁLT, megjelenítésre szánt érték) — a szerkesztő élő kapcsolója ebből indul.
+      depositEnabledRaw: !!doc.deposit_settings?.enabled,
+      voucherEnabledRaw: !!doc.voucher_settings?.enabled,
+      stripeOnboarded: !!doc.stripe_connect_onboarded,
+      termsFilled: hasFilledTerms(doc.terms_sections),
     },
+    // A teljes `deposit_settings`/`voucher_settings` csoport mentés-alapként — a Payload PATCH
+    // az egész csoportot cseréli, ezért a szerkesztő `enabled`-kapcsolója csak ebbe fésülve
+    // mehet vissza, különben az összeg/visszatérítés/stb. mezők elvesznének.
+    depositSettingsBase: (doc.deposit_settings ?? {}) as Record<string, unknown>,
+    voucherSettingsBase: (doc.voucher_settings ?? {}) as Record<string, unknown>,
     staff: extra.staff ?? [],
     turnMinutes: isSalon ? 0 : restaurant.turn_duration_minutes ?? 120,
     slotStepMinutes: isSalon ? 0 : restaurant.slot_step_minutes ?? 30,
