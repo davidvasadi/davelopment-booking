@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Eye } from 'lucide-react'
+import { Eye, Mail } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { LocaleEditBar } from './LocaleEditBar'
 import { EmailVariablesHelp } from './EmailVariablesHelp'
+import { SubnavPicker } from './SubnavPicker'
 import type { useLocalizedFields } from './useLocalizedFields'
 import { LOCALE_LABELS, type Locale } from '@/lib/i18n'
 import { NewsletterBlockEditor } from '@/components/dashboard/NewsletterBlockEditor'
@@ -267,27 +268,42 @@ export function EmailTemplatesEditor({
   const subjectPh = sel.subjectPh[isSingleLanguage ? 'hu' : loc.editLocale]
   const introPh = sel.introPh[isSingleLanguage ? 'hu' : loc.editLocale]
 
+  const selectType = (key: string) => {
+    const et = types.find((t) => t.key === key)
+    if (!et) return
+    setSel(et)
+    if (SINGLE_LANGUAGE_KEYS.has(et.key) && loc.editLocale !== 'hu') loc.selectLocale('hu')
+  }
+
   return (
     <div className="space-y-4">
-      {/* Email-típus választó (pill-sor) — egyetlen típusnál nincs mit váltani */}
+      {/* Email-típus választó — egyetlen típusnál nincs mit váltani. Mobilon a globális
+          fejlécbe portálozott ikon-gomb (sheet-tel), desktopon a megszokott pill-sor (lg:flex,
+          lásd SubnavPicker). */}
       {types.length > 1 && (
-      <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 no-scrollbar" data-lenis-prevent>
-        {types.map((et) => (
-          <button
-            key={et.key}
-            type="button"
-            onClick={() => {
-              setSel(et)
-              if (SINGLE_LANGUAGE_KEYS.has(et.key) && loc.editLocale !== 'hu') loc.selectLocale('hu')
-            }}
-            className={`shrink-0 rounded-dav-pill px-4 py-2 text-[13px] font-semibold transition-colors ${
-              sel.key === et.key ? 'bg-ink-dark text-white' : 'border border-line text-ink-soft2 hover:text-ink'
-            }`}
-          >
-            {et.label}
-          </button>
-        ))}
-      </div>
+      <>
+        <SubnavPicker
+          items={types.map((et) => ({ id: et.key, label: et.label }))}
+          activeId={sel.key}
+          onSelect={selectType}
+          title="Email-sablon"
+          icon={Mail}
+        />
+        <div className="-mx-1 hidden gap-1.5 overflow-x-auto px-1 no-scrollbar lg:flex" data-lenis-prevent>
+          {types.map((et) => (
+            <button
+              key={et.key}
+              type="button"
+              onClick={() => selectType(et.key)}
+              className={`shrink-0 rounded-dav-pill px-4 py-2 text-[13px] font-semibold transition-colors ${
+                sel.key === et.key ? 'bg-ink-dark text-white' : 'border border-line text-ink-soft2 hover:text-ink'
+              }`}
+            >
+              {et.label}
+            </button>
+          ))}
+        </div>
+      </>
       )}
       <p className="text-xs text-ink-soft">{sel.hint}</p>
 

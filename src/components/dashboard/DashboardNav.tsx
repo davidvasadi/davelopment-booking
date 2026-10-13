@@ -395,6 +395,12 @@ export function DashboardNav({
 
         <div className="flex items-center gap-2.5 shrink-0">
           <OfflineIndicator compact />
+          {/* Al-navigáció portál-célpontja — a Beállítások egyes füleinek saját fejléc-kontrollja
+              (Foglalóoldal → nyelv-választó, Vendég e-mailek → sablon-választó, Csapat →
+              Tagok/Szerepek váltó + meghívás) ide portálozódik be, egységesen a többi oldal
+              felső fejléc-ikonjaival (üres marad minden más fülön, mert csak az adott fül
+              komponense rendereli bele, amikor mountolva van). */}
+          {pathname.startsWith(settingsHref) && <div id="settings-subnav-slot" className="relative flex shrink-0 items-center gap-2" />}
           {/* Beállítások nav ikon — csak a settings oldalakon jelenik meg. */}
           {pathname.startsWith(settingsHref) && (
             <button
