@@ -700,7 +700,7 @@ export function AnalyticsOverview({
             initial="rest"
             whileHover="hover"
             whileTap="hover"
-            className="flex items-center gap-1.5 h-11 lg:h-9 px-3.5 rounded-[12px] border border-line bg-[var(--dav-glass-strong)] text-sm font-semibold text-ink-soft2 hover:text-ink transition-colors"
+            className="flex items-center gap-1.5 h-11 lg:h-9 px-3.5 rounded-dav-pill border border-line bg-[var(--dav-glass-strong)] text-sm font-semibold text-ink-soft2 hover:text-ink transition-colors"
           >
             <Download className="h-4 w-4" /> CSV
           </motion.a>
