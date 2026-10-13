@@ -214,7 +214,10 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
     }
   }
 
-  const GRID = 'grid-cols-[24px_1.3fr_1.5fr_1fr_1fr_140px_40px]'
+  // 8 oszlop: jelölő, kód/típus, vásárló, FIZETÉS (ez hiányzott a fejlécből — emiatt csúszott
+  // szét minden utána következő oszlop, a törlés-gomb pedig a 7-oszlopos rácsban "kifolyt" egy
+  // új sorba, a kód alá), összeg, lejárat, státusz, törlés.
+  const GRID = 'grid-cols-[24px_1.2fr_1.3fr_1fr_1fr_1fr_140px_40px]'
 
   // Mobilon a fejléc csengő melletti ikonjai (DashboardNav) váltják ki ezt a sort — ott csak a
   // fekete beolvasás-ikon + a lenti PopupModal nyílik, hogy ne foglaljon annyi helyet.
@@ -329,6 +332,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
             <div />
             <div>Kód / típus</div>
             <div>Vásárló</div>
+            <div>Fizetés</div>
             <div>Összeg</div>
             <div>Lejárat</div>
             <div>Státusz</div>
