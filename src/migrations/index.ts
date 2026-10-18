@@ -47,6 +47,7 @@ import * as migration_20261006_140000_form_field_order from './20261006_140000_f
 import * as migration_20261007_100000_restaurant_cover_mobile_focus from './20261007_100000_restaurant_cover_mobile_focus';
 import * as migration_20261009_100000_booking_window_periodic from './20261009_100000_booking_window_periodic';
 import * as migration_20261014_100000_google_api_log from './20261014_100000_google_api_log';
+import * as migration_20261018_100000_google_api_log_locked_rels from './20261018_100000_google_api_log_locked_rels';
 
 export const migrations = [
   {
@@ -293,5 +294,10 @@ export const migrations = [
     up: migration_20261014_100000_google_api_log.up,
     down: migration_20261014_100000_google_api_log.down,
     name: '20261014_100000_google_api_log',
+  },
+  {
+    up: migration_20261018_100000_google_api_log_locked_rels.up,
+    down: migration_20261018_100000_google_api_log_locked_rels.down,
+    name: '20261018_100000_google_api_log_locked_rels',
   },
 ];
