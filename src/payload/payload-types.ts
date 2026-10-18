@@ -176,6 +176,7 @@ export interface Restaurant {
     reviews_on?: boolean | null
     google_review_url?: string | null
     review_delay_hours?: number | null
+    google_booking_confirmed?: boolean | null
   } | null
   deposit_settings?: {
     enabled?: boolean | null
@@ -815,6 +816,7 @@ export interface Salon {
     reviews_on?: boolean | null
     google_review_url?: string | null
     review_delay_hours?: number | null
+    google_booking_confirmed?: boolean | null
   } | null
   deposit_settings?: {
     enabled?: boolean | null

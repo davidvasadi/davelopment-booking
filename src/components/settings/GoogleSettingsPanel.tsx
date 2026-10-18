@@ -94,12 +94,16 @@ export function GoogleSettingsPanel({
   const baseline = useMemo<Reviews>(() => reviewsFrom(initialFeatureModules), [initialFeatureModules])
   const [reviews, setReviews] = useState<Reviews>(baseline)
   const [googleUrlDraft, setGoogleUrlDraft] = useState(reviews.googleUrl)
+  // „Foglalj most” gomb — ez a tulaj saját Google Cégem fiókjában áll be, a mi API-nkon KÍVÜL,
+  // ezért nincs mód valós állapot-ellenőrzésre. Ez a kapcsoló ÖNBEVALLÁS: a tulaj maga jelzi,
+  // hogy elvégezte a lépéseket — ebből számol a kártya státusz-jelvénye (nem automatikus).
+  const [googleBookingConfirmed, setGoogleBookingConfirmed] = useState(!!initialFeatureModules.google_booking_confirmed)
   const [googleHelpOpen, setGoogleHelpOpen] = useState(false)
   const [urlError, setUrlError] = useState(false)
   const [urlErrorKind, setUrlErrorKind] = useState<'required' | 'invalid'>('required')
   const looksLikeGoogleReview = /(g\.page\/r\/|\/local\/writereview|maps\.app\.goo\.gl|goo\.gl\/maps|google\.[a-z.]+\/(search|maps)|g\.co\/)/i.test(googleUrlDraft.trim())
 
-  const dirty = JSON.stringify(reviews) !== JSON.stringify(baseline)
+  const dirty = JSON.stringify(reviews) !== JSON.stringify(baseline) || googleBookingConfirmed !== !!initialFeatureModules.google_booking_confirmed
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const update = (mutator: (r: Reviews) => Reviews) => setReviews(mutator)
@@ -108,6 +112,8 @@ export function GoogleSettingsPanel({
   reviewsRef.current = reviews
   const googleUrlDraftRef = useRef(googleUrlDraft)
   googleUrlDraftRef.current = googleUrlDraft
+  const googleBookingConfirmedRef = useRef(googleBookingConfirmed)
+  googleBookingConfirmedRef.current = googleBookingConfirmed
   useEffect(() => {
     registerApi?.({
       save: async () => {
@@ -134,6 +140,7 @@ export function GoogleSettingsPanel({
                 reviews_on: r.on,
                 google_review_url: r.googleUrl.trim() || null,
                 review_delay_hours: r.delay === 'h1' ? 1 : r.delay === 'next' ? 24 : 2,
+                google_booking_confirmed: googleBookingConfirmedRef.current,
               },
             }),
           })
@@ -147,6 +154,7 @@ export function GoogleSettingsPanel({
       discard: () => {
         setReviews(baseline)
         setGoogleUrlDraft(baseline.googleUrl)
+        setGoogleBookingConfirmed(!!initialFeatureModules.google_booking_confirmed)
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -349,7 +357,7 @@ export function GoogleSettingsPanel({
         icon={MapPin}
         title={'Google Cégem — „Foglalj most”'}
         description={'„Foglalj most" gomb a Google keresési találatokban és Google Maps-en'}
-        status="setup"
+        status={initialFeatureModules.google_booking_confirmed ? 'active' : 'setup'}
       >
         <div className="space-y-4">
           <div>
@@ -371,6 +379,19 @@ export function GoogleSettingsPanel({
           >
             <ExternalLink className="h-3.5 w-3.5" /> Google súgó: Foglalás gomb beállítása
           </a>
+          {/* Ezt a lépést a tulaj a SAJÁT Google-fiókjában végzi el — nálunk nincs API/webhook,
+              ami ellenőrizné, hogy megtörtént-e. A fenti "Aktív"/"Beállítható" jelvény ezért
+              ÖNBEVALLÁS: csak azt mutatja, amit a tulaj maga jelzett, nem egy valós állapot-
+              lekérdezést. Ezt itt is kimondjuk, hogy ne tűnjön automatikus ellenőrzésnek. */}
+          <div className="flex items-center justify-between gap-3 rounded-[12px] bg-paper px-3.5 py-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-ink">Megerősítem, hogy beállítottam</p>
+              <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-soft2">
+                Ezt nem tudjuk automatikusan ellenőrizni (a Google saját fiókodban történik) — ez a jelzés csak a te megerősítésed.
+              </p>
+            </div>
+            <Toggle checked={googleBookingConfirmed} onChange={() => setGoogleBookingConfirmed((v) => !v)} label="Foglalj most gomb beállítva" />
+          </div>
         </div>
       </IntegCard>
     </div>

@@ -159,6 +159,12 @@ export const settingsExtensionFields: Field[] = [
         defaultValue: 1,
         admin: { description: '1 = 1 órával kezelés után, 2 = 2 órával, 24 = másnap.' },
       },
+      // A „Foglalj most” gomb beállítása a tulaj saját Google Cégem fiókjában történik, teljesen
+      // a mi API-nkon KÍVÜL — ezt sosem tudjuk ténylegesen ellenőrizni/lekérdezni (nincs
+      // webhook/API, amin keresztül a Google visszajelezné). Ez a mező ÖNBEVALLÁS: a tulaj maga
+      // pipálja ki, miután elvégezte a lépéseket — a UI ezt a tényt is kiírja, hogy ne tűnjön
+      // automatikus állapot-ellenőrzésnek.
+      { name: 'google_booking_confirmed', type: 'checkbox', defaultValue: false, label: '„Foglalj most” gomb beállítva (önbevallás)' },
     ],
   },
 ]
