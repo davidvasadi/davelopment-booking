@@ -1,18 +1,26 @@
 import type { GoogleReview } from '@/lib/googleReviews'
+import { ExternalLink } from 'lucide-react'
 
 export type GoogleReviewsData = { rating: number | null; count: number | null; mapsUrl: string | null; reviews: GoogleReview[] }
 
 /**
  * Google-értékelések blokk a publikus foglalón (szalon + étterem). A Places API feltétele a
  * szerző és a forrás (Google) feltüntetése — ezért a név a szerző Google-profiljára mutat, és
- * alul „Google" megjelölés áll. Az adat a tárolt, kérésre frissülő másolat (lib/googleReviews.ts).
+ * alul „Google" megjelölés áll. Az adat a tárolt, kérésre frissülő másolat (lib/googleReviews.ts)
+ * — NEM élő Google-hívás minden megjelenítéskor, max naponta egyszer frissül.
+ *
+ * Minden egyes vélemény szövege alá egy "Megnézem a Google-on" link kerül (`r.authorUrl`-ra,
+ * ugyanarra, amire a szerző neve is mutat) — explicit, látható CTA vissza a forráshoz, nem csak
+ * a kevésbé nyilvánvaló, névre kattintós link.
  */
-export function GoogleReviewsBlock({ google, locale, title, countLabel, allLabel, className = '' }: {
+export function GoogleReviewsBlock({ google, locale, title, countLabel, allLabel, openLabel, className = '' }: {
   google: GoogleReviewsData
   locale: string
   title: string
   countLabel: string
   allLabel: string
+  /** Egy-egy vélemény alatti "Megnézem a Google-on" gomb felirata. */
+  openLabel: string
   className?: string
 }) {
   if (google.rating == null) return null
@@ -41,6 +49,16 @@ export function GoogleReviewsBlock({ google, locale, title, countLabel, allLabel
               </div>
             </div>
             <p className="mt-2 line-clamp-4 text-[12.5px] leading-relaxed text-white/75">{r.text}</p>
+            {r.authorUrl && (
+              <a
+                href={r.authorUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-white/55 hover:text-white"
+              >
+                {openLabel} <ExternalLink className="h-3 w-3" strokeWidth={2} />
+              </a>
+            )}
           </div>
         ))}
       </div>

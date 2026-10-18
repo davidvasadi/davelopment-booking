@@ -126,6 +126,7 @@ export const it: Record<string, string> = {
   'public.googleReviews': 'Recensioni Google',
   'public.googleReviewsCount': 'recensioni',
   'public.googleReviewsAll': 'Tutte le recensioni su Google',
+  'public.googleReviewOpen': 'Vedi su Google',
   'public.staffEyebrow': 'Il nostro team',
   'public.bookCta': 'Prenota appuntamento',
   'public.aboutEyebrow': 'Al nostro tavolo',

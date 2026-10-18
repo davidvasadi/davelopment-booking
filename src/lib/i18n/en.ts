@@ -128,6 +128,7 @@ export const en: Record<string, string> = {
   'public.googleReviews': 'Google reviews',
   'public.googleReviewsCount': 'reviews',
   'public.googleReviewsAll': 'All reviews on Google',
+  'public.googleReviewOpen': 'View on Google',
   'public.staffEyebrow': 'Our team',
   'public.bookCta': 'Book now',
   'public.aboutEyebrow': 'At our table',

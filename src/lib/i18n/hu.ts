@@ -132,6 +132,7 @@ export const hu: Record<string, string> = {
   'public.googleReviews': 'Google-értékelések',
   'public.googleReviewsCount': 'értékelés',
   'public.googleReviewsAll': 'Összes értékelés a Google-on',
+  'public.googleReviewOpen': 'Megnézem a Google-on',
   'public.staffEyebrow': 'Csapatunk',
   'public.bookCta': 'Időpontfoglalás',
   'public.aboutEyebrow': 'Az asztalunknál',
