@@ -68,9 +68,14 @@ interface Props {
   voucherCompanyEnabled?: boolean
   addressRequired?: boolean
   addressRequiredNote?: string | null
+  /** Teljesen elrejtett foglalási mezők (nem csak opcionális) — `booking_rules.hidden_booking_fields`.
+   *  A `phone`/`notes` elrejtése feltétlen; az `address` elrejtését az előleg felülírja (ld. `addressGateOn`). */
+  hiddenFields?: ('phone' | 'address' | 'notes')[]
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
   newsletterEnabled?: boolean
+  /** A marketing-elfogadó checkbox megjelenjen-e az Adatok lépésen — `booking_rules.show_marketing_consent_field`. */
+  showMarketingConsent?: boolean
   consentEnabled?: boolean
   consentTitle?: string | null
   consentText?: string | null
@@ -121,8 +126,8 @@ export function ProfileCard({
   phone, email, website, socialLinks, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
   termsSections, company, goodToKnow, depositEnabled = false, invoicingEnabled = false, voucherCompanyEnabled = true, google = null,
-  addressRequired = false, addressRequiredNote = null,
-  voucherEnabled = false, voucherTypes = [], newsletterEnabled = false,
+  addressRequired = false, addressRequiredNote = null, hiddenFields = [],
+  voucherEnabled = false, voucherTypes = [], newsletterEnabled = false, showMarketingConsent = true,
   consentEnabled = false, consentTitle = null, consentText = null,
   customQuestions = null, embed = false, servicesExpandedOnMain = false,
   confirmEmailEnabled = true, reminderHours = [], editorView = null, editorAutoConfirm = true,
@@ -466,8 +471,13 @@ export function ProfileCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, selectedServiceId, bookingStaffId, bookingDate, salonId])
 
-  // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is).
+  // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is) —
+  // ez a kapcsoló FELÜLÍRJA a tulaj kikapcsolás-szándékát (számlázáshoz kell az előlegnél).
   const addressGateOn = depositEnabled || addressRequired
+  const addressVisible = addressGateOn || !hiddenFields.includes('address')
+  const phoneVisible = !hiddenFields.includes('phone')
+  const notesVisible = !hiddenFields.includes('notes')
+  const marketingVisible = newsletterEnabled && showMarketingConsent
   // Az egyedi indoklás mindig elsőbbséget élvez (akkor is, ha az előleg is be van kapcsolva),
   // különben a felülírás észrevétlen maradna a cégnek — ld. user-visszajelzés.
   const addressNote = addressRequiredNote?.trim()
@@ -476,7 +486,7 @@ export function ProfileCard({
   const validateField = (key: FieldKey): string | null => {
     if (key === 'name') return !customerName || customerName.trim().length < 2 ? tt('booking.err.name') : null
     if (key === 'email') return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) ? tt('booking.err.email') : null
-    if (key === 'phone') return requirePhone && customerPhone.replace(/\s/g, '').length < 7 ? tt('booking.err.phone') : null
+    if (key === 'phone') return phoneVisible && requirePhone && customerPhone.replace(/\s/g, '').length < 7 ? tt('booking.err.phone') : null
     if (key === 'city') return addressGateOn && !customerCity.trim() ? 'A város megadása kötelező' : null
     if (key === 'address') return addressGateOn && !customerAddress.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
     if (key === 'taxNumber') return customerIsCompany && !customerTaxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
@@ -500,7 +510,7 @@ export function ProfileCard({
 
   const submit = async () => {
     if (!selectedServiceId || !bookingSlot) return
-    const order: FieldKey[] = ['name', 'email', 'phone', ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany ? (['taxNumber'] as FieldKey[]) : [])]
+    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany ? (['taxNumber'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -536,7 +546,7 @@ export function ProfileCard({
           notes: customerNotes, locale,
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
           ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
-          ...(newsletterEnabled && marketingConsent ? { marketing_consent: true } : {}),
+          ...(marketingVisible && marketingConsent ? { marketing_consent: true } : {}),
           ...(consentEnabled ? { consent_accepted: consentGiven } : {}),
           ...(customQuestionsList.length > 0
             ? { custom_answers: customQuestionsList.filter(q => q.id).map(q => ({ id: q.id as string, answer: customAnswers[q.id as string] ?? '' })) }
@@ -1125,7 +1135,7 @@ export function ProfileCard({
                   )}
 
                   {sectionShown('reviews') && google && (
-                    <div {...sectionProps('reviews')}><GoogleReviewsBlock google={google} locale={locale} className="mt-6" title={tt('public.googleReviews')} countLabel={tt('public.googleReviewsCount')} allLabel={tt('public.googleReviewsAll')} /></div>
+                    <div {...sectionProps('reviews')}><GoogleReviewsBlock google={google} locale={locale} className="mt-6" title={tt('public.googleReviews')} countLabel={tt('public.googleReviewsCount')} allLabel={tt('public.googleReviewsAll')} openLabel={tt('public.googleReviewOpen')} /></div>
                   )}
                 </div>
               )}
@@ -1543,7 +1553,17 @@ export function ProfileCard({
                       </div>
                         ),
                       }
-                      return formFieldOrder.map((k) => <Fragment key={k}>{fieldBlocks[k]}</Fragment>)
+                      // Teljesen elrejtett mező (phone/address/notes) a valódi foglalón nem
+                      // renderelődik; a szerkesztő élő előnézetében (editorView) halványan
+                      // mégis látszik, ugyanúgy, mint a rejtett szakaszoknál (sectionProps).
+                      const fieldHidden = (k: FormFieldId) => (k === 'phone' && !phoneVisible) || (k === 'notes' && !notesVisible) || (k === 'address' && !addressVisible)
+                      return formFieldOrder
+                        .filter((k) => !!editorView || !fieldHidden(k))
+                        .map((k) => (
+                          <Fragment key={k}>
+                            {editorView && fieldHidden(k) ? <div className="opacity-35 pointer-events-none">{fieldBlocks[k]}</div> : fieldBlocks[k]}
+                          </Fragment>
+                        ))
                     })()}
                     {voucherEnabled && (
                       <div data-edit-id="redeem" className="space-y-2">
@@ -1574,8 +1594,8 @@ export function ProfileCard({
                         )}
                       </div>
                     )}
-                    {newsletterEnabled && (
-                      <div data-edit-id="newsletter" className="space-y-1.5">
+                    {(marketingVisible || (editorView && newsletterEnabled)) && (
+                      <div data-edit-id="newsletter" className={cn('space-y-1.5', editorView && !marketingVisible && 'opacity-35 pointer-events-none')}>
                         <div className="flex items-center justify-between gap-3 py-1">
                           <span className="text-[13px] text-white/70">Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
                           <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />
@@ -1876,7 +1896,7 @@ export function ProfileCard({
                     if (view === 'summary') {
                       submit()
                     } else if (view === 'details') {
-                      const order: FieldKey[] = ['name', 'email', 'phone', ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany ? (['taxNumber'] as FieldKey[]) : [])]
+                      const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), ...(addressGateOn ? (['city', 'address'] as FieldKey[]) : []), ...(depositEnabled && customerIsCompany ? (['taxNumber'] as FieldKey[]) : [])]
                       const nextErrors: Partial<Record<FieldKey, string>> = {}
                       for (const key of order) {
                         const msg = validateField(key)

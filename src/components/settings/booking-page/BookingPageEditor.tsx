@@ -94,6 +94,12 @@ export type BookingPageEditorInitial = {
   autoConfirm: boolean
   requireAddress: boolean
   requireAddressNote: string
+  /** Teljesen elrejtett Adatok-mezők (nem csak opcionális — EGYÁLTALÁN nem jelenik meg). A
+   *  `address` ettől függetlenül mindig látszik, ha előleg aktív (ld. `flags.deposit`). */
+  hiddenFields: ('phone' | 'address' | 'notes')[]
+  /** A marketing-elfogadó checkbox megjelenjen-e a foglaló űrlapon — a hírlevél-küldés
+   *  képessége (ami minden csomagba beépítve jár) ettől FÜGGETLEN, csak az űrlap-mezőt dönti el. */
+  showMarketingConsent: boolean
   confirmEmail: boolean
   reminders: { on: boolean; h48: boolean; h24: boolean; h3: boolean; h1: boolean; custom: number | null; chEmail: boolean; chPush: boolean }
   consentEnabled: boolean
@@ -336,6 +342,8 @@ export function BookingPageEditor({
         requirePhone: draft.requirePhone,
         addressRequired: draft.requireAddress,
         addressRequiredNote: draft.requireAddressNote || null,
+        hiddenFields: draft.hiddenFields,
+        showMarketingConsent: draft.showMarketingConsent,
         consentEnabled: draft.consentEnabled && !!(loc?.consentText || draft.consentText).trim(),
         consentTitle: loc?.consentTitle || draft.consentTitle || null,
         consentText: loc?.consentText || draft.consentText || null,
@@ -409,7 +417,7 @@ export function BookingPageEditor({
       if (changed('logoId')) body.logo = d.logoId
       if (changed('goodToKnow')) body.good_to_know = d.goodToKnow
       if (changed('supportedLocales')) body.supported_locales = d.supportedLocales
-      if (['showServiceCount', 'showStaffCount', 'servicesExpandedOnMain', 'autoConfirm', 'requireAddress', 'requireAddressNote', 'sectionOrder', 'hiddenSections', 'minLeadHours', 'fieldOrder'].some((k) => changed(k as keyof Draft))) {
+      if (['showServiceCount', 'showStaffCount', 'servicesExpandedOnMain', 'autoConfirm', 'requireAddress', 'requireAddressNote', 'sectionOrder', 'hiddenSections', 'minLeadHours', 'fieldOrder', 'hiddenFields', 'showMarketingConsent'].some((k) => changed(k as keyof Draft))) {
         body.booking_rules = {
           ...initial.bookingRules,
           show_service_count_on_public: d.showServiceCount,
@@ -422,6 +430,8 @@ export function BookingPageEditor({
           auto_confirm: d.autoConfirm,
           require_address: d.requireAddress,
           require_address_note: d.requireAddressNote.trim() || null,
+          hidden_booking_fields: d.hiddenFields,
+          show_marketing_consent_field: d.showMarketingConsent,
         }
       }
       if (changed('bookingWindowDays')) body.booking_window_days = d.bookingWindowDays
@@ -921,13 +931,18 @@ export function BookingPageEditor({
                   <Reorder.Group axis="y" values={draft.fieldOrder} onReorder={(v) => set('fieldOrder', v)} className="space-y-2">
                     {draft.fieldOrder.map((id) => {
                       const selId = id === 'questions' ? 'questions' : `field:${id}`
-                      const badge = id === 'name' || id === 'email' ? 'Kötelező'
+                      // A cím mező kikapcsolás-szándékát az előleg felülírja — akkor is látszik
+                      // és kötelező, ha a tulaj egyébként elrejtette (számlázáshoz kell).
+                      const addressForcedOn = id === 'address' && initial.flags.deposit
+                      const hiddenByChoice = (id === 'phone' || id === 'address' || id === 'notes') && draft.hiddenFields.includes(id) && !addressForcedOn
+                      const badge = hiddenByChoice ? 'Kikapcsolva'
+                        : id === 'name' || id === 'email' ? 'Kötelező'
                         : id === 'phone' ? (draft.requirePhone ? 'Kötelező' : 'Opcionális')
-                        : id === 'address' ? (draft.requireAddress || initial.flags.deposit ? 'Kötelező' : 'Opcionális')
+                        : id === 'address' ? (draft.requireAddress || addressForcedOn ? 'Kötelező' : 'Opcionális')
                         : id === 'questions' ? `${draft.customQuestions.length} db` : 'Opcionális'
                       return (
                         <GripReorderItem key={id} id={id}>
-                          <button type="button" onClick={() => setSel(selId)} className="min-w-0 flex-1 truncate text-left text-[13.5px] font-medium text-ink">
+                          <button type="button" onClick={() => setSel(selId)} className={cn('min-w-0 flex-1 truncate text-left text-[13.5px] font-medium', hiddenByChoice ? 'text-ink-soft2' : 'text-ink')}>
                             {ELEMENT_TITLES[selId]}
                           </button>
                           <span className={cn('shrink-0 rounded-[10px] px-2.5 py-1 text-[11.5px] font-semibold', badge === 'Kötelező' ? 'bg-ink-dark text-gold' : 'bg-black/[0.05] text-ink-soft')}>{badge}</span>
@@ -1235,19 +1250,49 @@ export function BookingPageEditor({
             <p className="text-[12.5px] leading-relaxed text-ink-soft">{sel === 'field:name' ? 'A név mindig kötelező.' : 'Az e-mail mindig kötelező — ide megy a visszaigazolás és az emlékeztető.'}</p>
           )}
           {sel === 'field:phone' && (
-            <ToggleRow label="Kötelező kitölteni" checked={draft.requirePhone} onChange={() => set('requirePhone', !draft.requirePhone)} />
-          )}
-          {sel === 'field:address' && (
             <>
-              <ToggleRow label="Cím megadása mindig kötelező" hint={initial.flags.deposit ? 'Előleg mellett mindenképp kötelező.' : undefined} checked={draft.requireAddress} onChange={() => set('requireAddress', !draft.requireAddress)} />
-              {draft.requireAddress && (
-                <Field label="Miért kéred? (a vendég látja a mező alatt)">
-                  <input className={fieldCls} value={draft.requireAddressNote} placeholder="Pl. a házhoz menő szolgáltatáshoz kell" onChange={(e) => set('requireAddressNote', e.target.value)} />
-                </Field>
+              <ToggleRow
+                label="Mező megjelenítése"
+                hint={draft.hiddenFields.includes('phone') ? undefined : 'Kikapcsolva a telefonszám egyáltalán nem jelenik meg a foglaló űrlapon.'}
+                checked={!draft.hiddenFields.includes('phone')}
+                onChange={() => set('hiddenFields', draft.hiddenFields.includes('phone') ? draft.hiddenFields.filter((f) => f !== 'phone') : [...draft.hiddenFields, 'phone'])}
+              />
+              {!draft.hiddenFields.includes('phone') && (
+                <ToggleRow label="Kötelező kitölteni" checked={draft.requirePhone} onChange={() => set('requirePhone', !draft.requirePhone)} />
               )}
             </>
           )}
-          {sel === 'field:notes' && <p className="text-[12.5px] leading-relaxed text-ink-soft">Szabad szöveges megjegyzés — mindig opcionális.</p>}
+          {sel === 'field:address' && (
+            <>
+              <ToggleRow
+                label="Mező megjelenítése"
+                hint={initial.flags.deposit
+                  ? 'Előleg aktív — a számlázáshoz a cím mindig kötelező, nem kapcsolható ki.'
+                  : draft.hiddenFields.includes('address') ? undefined : 'Kikapcsolva a cím egyáltalán nem jelenik meg — ha később előleget vagy ajándékutalványt kapcsolsz be, automatikusan visszatér.'}
+                checked={initial.flags.deposit || !draft.hiddenFields.includes('address')}
+                disabled={initial.flags.deposit}
+                onChange={() => set('hiddenFields', draft.hiddenFields.includes('address') ? draft.hiddenFields.filter((f) => f !== 'address') : [...draft.hiddenFields, 'address'])}
+              />
+              {(initial.flags.deposit || !draft.hiddenFields.includes('address')) && (
+                <>
+                  <ToggleRow label="Cím megadása mindig kötelező" hint={initial.flags.deposit ? 'Előleg mellett mindenképp kötelező.' : undefined} checked={draft.requireAddress || initial.flags.deposit} disabled={initial.flags.deposit} onChange={() => set('requireAddress', !draft.requireAddress)} />
+                  {(draft.requireAddress || initial.flags.deposit) && (
+                    <Field label="Miért kéred? (a vendég látja a mező alatt)">
+                      <input className={fieldCls} value={draft.requireAddressNote} placeholder="Pl. a házhoz menő szolgáltatáshoz kell" onChange={(e) => set('requireAddressNote', e.target.value)} />
+                    </Field>
+                  )}
+                </>
+              )}
+            </>
+          )}
+          {sel === 'field:notes' && (
+            <ToggleRow
+              label="Mező megjelenítése"
+              hint={draft.hiddenFields.includes('notes') ? undefined : 'Szabad szöveges megjegyzés a vendégtől — mindig opcionális, ha megjelenik.'}
+              checked={!draft.hiddenFields.includes('notes')}
+              onChange={() => set('hiddenFields', draft.hiddenFields.includes('notes') ? draft.hiddenFields.filter((f) => f !== 'notes') : [...draft.hiddenFields, 'notes'])}
+            />
+          )}
 
           {sel === 'questions' && (
             <>
@@ -1294,6 +1339,12 @@ export function BookingPageEditor({
           {sel === 'newsletter' && (
             <>
               <p className="text-[12.5px] leading-relaxed text-ink-soft">A hírlevél-feliratkozás minden csomagban be van kapcsolva — a vendég az Adatok lépésen iratkozhat fel.</p>
+              <ToggleRow
+                label="Feliratkozó checkbox megjelenítése"
+                hint={draft.showMarketingConsent ? 'A vendég az Adatok lépésen látja és pipálhatja.' : 'Kikapcsolva a checkbox nem jelenik meg — senki nem iratkozhat fel a foglalás közben.'}
+                checked={draft.showMarketingConsent}
+                onChange={() => set('showMarketingConsent', !draft.showMarketingConsent)}
+              />
               <NavButton onClick={() => onNavigate?.('payments')}>Hírlevél</NavButton>
             </>
           )}
@@ -1416,14 +1467,14 @@ function Row({ label, onClick }: { label: string; onClick: () => void }) {
   )
 }
 
-function ToggleRow({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: () => void }) {
+function ToggleRow({ label, hint, checked, onChange, disabled }: { label: string; hint?: string; checked: boolean; onChange: () => void; disabled?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="text-[13.5px] font-medium text-ink">{label}</div>
         {hint && <div className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">{hint}</div>}
       </div>
-      <Toggle checked={checked} onChange={onChange} label={label} />
+      <Toggle checked={checked} onChange={onChange} label={label} disabled={disabled} />
     </div>
   )
 }

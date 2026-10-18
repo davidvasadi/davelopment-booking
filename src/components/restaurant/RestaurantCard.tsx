@@ -62,9 +62,11 @@ export type RestaurantCardProps = {
   google?: GoogleReviewsData | null
   addressRequired?: boolean
   addressRequiredNote?: string | null
+  hiddenFields?: ('phone' | 'address' | 'notes')[]
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
   newsletterEnabled?: boolean
+  showMarketingConsent?: boolean
   consentEnabled?: boolean
   consentTitle?: string | null
   consentText?: string | null
@@ -123,9 +125,11 @@ export function RestaurantCard({
   google = null,
   addressRequired,
   addressRequiredNote,
+  hiddenFields = [],
   voucherEnabled,
   voucherTypes = [],
   newsletterEnabled,
+  showMarketingConsent = true,
   consentEnabled,
   consentTitle,
   consentText,
@@ -360,7 +364,7 @@ export function RestaurantCard({
       )}
 
       {sectionShown('reviews') && google && (
-        <div {...sectionProps('reviews')}><GoogleReviewsBlock google={google} locale={locale} title={t(locale, 'public.googleReviews')} countLabel={t(locale, 'public.googleReviewsCount')} allLabel={t(locale, 'public.googleReviewsAll')} /></div>
+        <div {...sectionProps('reviews')}><GoogleReviewsBlock google={google} locale={locale} title={t(locale, 'public.googleReviews')} countLabel={t(locale, 'public.googleReviewsCount')} allLabel={t(locale, 'public.googleReviewsAll')} openLabel={t(locale, 'public.googleReviewOpen')} /></div>
       )}
 
       <div data-edit-id="contact" className="flex flex-wrap gap-2" style={{ order: 1 }}>
@@ -479,8 +483,10 @@ export function RestaurantCard({
         invoicingEnabled={invoicingEnabled}
         addressRequired={addressRequired}
         addressRequiredNote={addressRequiredNote}
+        hiddenFields={hiddenFields}
         voucherEnabled={voucherEnabled}
         newsletterEnabled={newsletterEnabled}
+        showMarketingConsent={showMarketingConsent}
         consentEnabled={consentEnabled}
         consentTitle={consentTitle}
         consentText={consentText}

@@ -45,8 +45,10 @@ export function RestaurantBookingWizard({
   invoicingEnabled = false,
   addressRequired = false,
   addressRequiredNote = null,
+  hiddenFields = [],
   voucherEnabled = false,
   newsletterEnabled = false,
+  showMarketingConsent = true,
   consentEnabled = false,
   consentTitle = null,
   consentText = null,
@@ -76,8 +78,11 @@ export function RestaurantBookingWizard({
   invoicingEnabled?: boolean
   addressRequired?: boolean
   addressRequiredNote?: string | null
+  /** Teljesen elrejtett foglalási mezők (nem csak opcionális) — ld. ProfileCard ugyanilyen propja. */
+  hiddenFields?: ('phone' | 'address' | 'notes')[]
   voucherEnabled?: boolean
   newsletterEnabled?: boolean
+  showMarketingConsent?: boolean
   consentEnabled?: boolean
   consentTitle?: string | null
   consentText?: string | null
@@ -208,15 +213,20 @@ export function RestaurantBookingWizard({
     address: useRef<HTMLInputElement>(null),
     taxNumber: useRef<HTMLInputElement>(null),
   }
-  // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is).
+  // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is) —
+  // ez FELÜLÍRJA a tulaj kikapcsolás-szándékát (számlázáshoz kell az előlegnél).
   const addressGateOn = depositEnabled || addressRequired
+  const addressVisible = addressGateOn || !hiddenFields.includes('address')
+  const phoneVisible = !hiddenFields.includes('phone')
+  const notesVisible = !hiddenFields.includes('notes')
+  const marketingVisible = newsletterEnabled && showMarketingConsent
   const addressNote = addressRequiredNote?.trim()
     || (depositEnabled ? 'Az előleg-számlázáshoz kötelező.' : 'A pontos cím megadására a foglalásod rögzítéséhez van szükségünk.')
 
   const validateField = (key: FieldKey): string | null => {
     if (key === 'name') return name.trim().length < 2 ? tt('rbooking.err.name') : null
     if (key === 'email') return !/^\S+@\S+\.\S+$/.test(email) ? tt('rbooking.err.email') : null
-    if (key === 'phone') return requirePhone && phone.replace(/\s/g, '').length < 7 ? tt('rbooking.err.phone') : null
+    if (key === 'phone') return phoneVisible && requirePhone && phone.replace(/\s/g, '').length < 7 ? tt('rbooking.err.phone') : null
     if (key === 'city') return addressGateOn && !city.trim() ? 'A város megadása kötelező' : null
     if (key === 'address') return addressGateOn && !address.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
     if (key === 'taxNumber') return isCompany && !taxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
@@ -259,7 +269,7 @@ export function RestaurantBookingWizard({
   }, [restaurantId, date, pax, slotsReloadKey])
 
   const validateDetails = (): boolean => {
-    const order: FieldKey[] = ['name', 'email', 'phone', 'city', 'address', ...(depositEnabled && isCompany ? (['taxNumber'] as FieldKey[]) : [])]
+    const order: FieldKey[] = ['name', 'email', ...(phoneVisible ? (['phone'] as FieldKey[]) : []), 'city', 'address', ...(depositEnabled && isCompany ? (['taxNumber'] as FieldKey[]) : [])]
     const nextErrors: Partial<Record<FieldKey, string>> = {}
     for (const key of order) {
       const msg = validateField(key)
@@ -305,7 +315,7 @@ export function RestaurantBookingWizard({
           locale,
           ...(paymentIntentId ? { payment_intent_id: paymentIntentId } : {}),
           ...(redeemValid && redeemCode.trim() ? { voucher_code: redeemCode.trim().toUpperCase() } : {}),
-          ...(newsletterEnabled && marketingConsent ? { marketing_consent: true } : {}),
+          ...(marketingVisible && marketingConsent ? { marketing_consent: true } : {}),
           ...(consentEnabled ? { consent_accepted: consentGiven } : {}),
           ...(customQuestionsList.length > 0
             ? { custom_answers: customQuestionsList.filter(q => q.id).map(q => ({ id: q.id as string, answer: customAnswers[q.id as string] ?? '' })) }
@@ -675,7 +685,17 @@ export function RestaurantBookingWizard({
                   <textarea data-edit-id="field:notes" className={`${inputClass} h-auto py-2.5 min-h-[72px] resize-none`} placeholder={tt("rbooking.field.note")} aria-label={tt("rbooking.field.note")} value={notes} onChange={(e) => setNotes(e.target.value)} />
                     ),
                   }
-                  return formFieldOrder.map((k) => <Fragment key={k}>{fieldBlocks[k]}</Fragment>)
+                  // Teljesen elrejtett mező (phone/address/notes) a valódi foglalón nem
+                  // renderelődik; a szerkesztő élő előnézetében (editorStep) halványan mégis
+                  // látszik, ugyanúgy, mint a ProfileCard-nál (salon oldal).
+                  const fieldHidden = (k: FormFieldId) => (k === 'phone' && !phoneVisible) || (k === 'notes' && !notesVisible) || (k === 'address' && !addressVisible)
+                  return formFieldOrder
+                    .filter((k) => !!editorStep || !fieldHidden(k))
+                    .map((k) => (
+                      <Fragment key={k}>
+                        {editorStep && fieldHidden(k) ? <div className="opacity-35 pointer-events-none">{fieldBlocks[k]}</div> : fieldBlocks[k]}
+                      </Fragment>
+                    ))
                 })()}
                 {voucherEnabled && (
                   <div className="space-y-2">
@@ -703,8 +723,8 @@ export function RestaurantBookingWizard({
                     )}
                   </div>
                 )}
-                {newsletterEnabled && (
-                  <div className="space-y-1.5">
+                {(marketingVisible || (editorStep && newsletterEnabled)) && (
+                  <div className={cn('space-y-1.5', editorStep && !marketingVisible && 'opacity-35 pointer-events-none')}>
                     <div className="flex items-center justify-between gap-3 py-1">
                       <span className={`text-[13px] ${dk ? 'text-white/70' : 'text-ink'}`}>Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
                       <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />

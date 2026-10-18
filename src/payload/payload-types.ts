@@ -158,6 +158,8 @@ export interface Restaurant {
     public_section_order?: string[] | null
     public_sections_hidden?: string[] | null
     form_field_order?: string[] | null
+    hidden_booking_fields?: string[] | null
+    show_marketing_consent_field?: boolean | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null
@@ -795,6 +797,8 @@ export interface Salon {
     public_section_order?: string[] | null
     public_sections_hidden?: string[] | null
     form_field_order?: string[] | null
+    hidden_booking_fields?: string[] | null
+    show_marketing_consent_field?: boolean | null
   } | null
   feature_modules?: {
     reminders_on?: boolean | null

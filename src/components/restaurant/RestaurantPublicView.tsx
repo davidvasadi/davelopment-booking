@@ -112,9 +112,13 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       google: restaurant.google_rating != null ? { rating: restaurant.google_rating, count: restaurant.google_rating_count ?? null, mapsUrl: restaurant.google_maps_url ?? null, reviews: storedGoogleReviews(restaurant.google_reviews) } : null,
       addressRequired: !!restaurant.booking_rules?.require_address,
       addressRequiredNote: restaurant.booking_rules?.require_address_note,
+      hiddenFields: Array.isArray(restaurant.booking_rules?.hidden_booking_fields)
+        ? restaurant.booking_rules.hidden_booking_fields.filter((f): f is 'phone' | 'address' | 'notes' => f === 'phone' || f === 'address' || f === 'notes')
+        : [],
       voucherEnabled: !!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0,
       voucherTypes,
       newsletterEnabled: hasActivePackage(restaurant.newsletter_settings?.package),
+      showMarketingConsent: restaurant.booking_rules?.show_marketing_consent_field !== false,
       consentEnabled: !!restaurant.consent_settings?.enabled && !!restaurant.consent_settings?.template_text?.trim(),
       consentTitle: restaurant.consent_settings?.title,
       consentText: restaurant.consent_settings?.template_text,

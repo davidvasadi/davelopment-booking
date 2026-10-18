@@ -181,9 +181,13 @@ export default async function SalonPublicPage({
       google: salon.google_rating != null ? { rating: salon.google_rating, count: salon.google_rating_count ?? null, mapsUrl: salon.google_maps_url ?? null, reviews: storedGoogleReviews(salon.google_reviews) } : null,
       addressRequired: !!salon.booking_rules?.require_address,
       addressRequiredNote: salon.booking_rules?.require_address_note,
+      hiddenFields: Array.isArray(salon.booking_rules?.hidden_booking_fields)
+        ? salon.booking_rules.hidden_booking_fields.filter((f): f is 'phone' | 'address' | 'notes' => f === 'phone' || f === 'address' || f === 'notes')
+        : [],
       voucherEnabled: !!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded && voucherTypes.length > 0,
       voucherTypes,
       newsletterEnabled: hasActivePackage(salon.newsletter_settings?.package),
+      showMarketingConsent: salon.booking_rules?.show_marketing_consent_field !== false,
       consentEnabled: !!salon.consent_settings?.enabled && !!salon.consent_settings?.template_text?.trim(),
       consentTitle: salon.consent_settings?.title,
       consentText: salon.consent_settings?.template_text,

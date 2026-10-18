@@ -117,6 +117,15 @@ export const settingsExtensionFields: Field[] = [
       { name: 'public_sections_hidden', type: 'json', label: 'Foglalóoldal rejtett szakaszai' },
       // Az Adatok lépés mező-blokkjainak sorrendje (name | email | phone | address | questions | notes).
       { name: 'form_field_order', type: 'json', label: 'Foglalási űrlap mezőinek sorrendje' },
+      // Melyik Adatok-lépés mezőket rejtette el a tulaj TELJESEN (nem csak opcionálissá tette) —
+      // csak 'phone'|'address'|'notes' lehet benne, a név/email sosem rejthető. A `address` ettől
+      // függetlenül MINDIG megjelenik, ha előleg aktív (ld. ProfileCard/RestaurantBookingWizard
+      // `addressGateOn` — a kikapcsolás-szándékot felülírja a tényleges üzleti szükséglet).
+      { name: 'hidden_booking_fields', type: 'json', label: 'Teljesen elrejtett foglalási mezők' },
+      // A "Szeretnék marketing-ajánlatokat..." checkbox a foglaló űrlapon — függetlenül attól,
+      // hogy a hírlevél-küldés maga (ami minden csomagba beépítve jár) be van-e kapcsolva: ez
+      // csak azt dönti el, hogy MAGÁN AZ ŰRLAPON megjelenjen-e a feliratkozó-kérdés.
+      { name: 'show_marketing_consent_field', type: 'checkbox', defaultValue: true, label: 'Marketing-elfogadó checkbox a foglaláson' },
     ],
   },
   {
