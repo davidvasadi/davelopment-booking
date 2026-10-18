@@ -185,7 +185,7 @@ export const hu: Record<string, string> = {
   'public.success.subtitle': 'A részleteket emailben is elküldtük.',
   'public.success.back': 'Vissza a főoldalra',
   'public.success.titlePending': 'Foglalásod beérkezett',
-  'public.success.welcome': 'Várunk szeretettel!',
+  'public.success.welcome': 'Köszönjük a foglalást!',
   'public.success.pendingBody': 'Hamarosan visszaigazoljuk.',
   'public.success.emailLater': 'A visszaigazolást e-mailben küldjük.',
   'public.success.reminder': 'Emlékeztetőt küldünk e-mailben {{when}} előtte.',

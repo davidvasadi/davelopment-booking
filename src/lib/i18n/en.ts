@@ -181,7 +181,7 @@ export const en: Record<string, string> = {
   'public.success.subtitle': 'We also sent the details by email.',
   'public.success.back': 'Back to the homepage',
   'public.success.titlePending': 'We received your booking',
-  'public.success.welcome': 'We look forward to seeing you!',
+  'public.success.welcome': 'Thank you for your booking!',
   'public.success.pendingBody': 'We will confirm it shortly.',
   'public.success.emailLater': 'You will get the confirmation by email.',
   'public.success.reminder': 'We will email you a reminder {{when}} before.',
