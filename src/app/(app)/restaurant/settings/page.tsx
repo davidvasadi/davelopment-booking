@@ -186,6 +186,8 @@ export default async function RestaurantSettingsPage() {
         notifyNewBookings={r.notify_new_bookings ?? true}
         variant="restaurant"
         subtitle={subtitle}
+        businessName={restaurant.name}
+        businessCity={restaurant.city}
         availabilityHref="/restaurant/availability"
         selfProfile={
           <ProfileEditor

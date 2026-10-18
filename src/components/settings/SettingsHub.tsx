@@ -24,12 +24,13 @@ import { toast } from 'sonner'
 import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext'
 import {
   Home, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
-  Plus, ScrollText, Building2, Mail, Check, FileText, Star,
+  Plus, ScrollText, Building2, Mail, Check, FileText,
   Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, PanelsTopLeft, Send, Gift, Receipt, PanelLeftClose, PanelLeftOpen, MoreVertical, type LucideIcon,
 } from 'lucide-react'
 import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
 import { GoogleSettingsPanel } from './GoogleSettingsPanel'
+import { GoogleIcon } from '@/components/auth/GoogleSignInButton'
 import { Toggle } from './SettingsToggle'
 import { SubnavPicker } from './SubnavPicker'
 import { HoverButton } from '@/components/shared/HoverButton'
@@ -185,6 +186,10 @@ export interface SettingsHubProps {
   variant: 'salon' | 'restaurant'
   subtitle: string                 // fejléc alcím, pl. „Belvárosi Bisztró · Étterem Pro"
   availabilityHref: string
+  /** Az üzlet neve + városa — a Google-keresés előre-kitöltéséhez (GooglePlacePicker), hogy a
+   *  tulajnak ne kelljen begépelnie azt, amit a rendszer már amúgy is tud róla. */
+  businessName: string
+  businessCity?: string | null
   /** VALÓS mentés végpont: `/api/salons/${id}` vagy `/api/restaurants/${id}`. */
   apiBase: string
   /** Értesítési preferenciák kezdőértéke (a betöltött üzlet `notification_prefs`-e). */
@@ -284,7 +289,7 @@ function usePanelRegistration() {
 }
 
 export function SettingsHub({
-  variant, subtitle, availabilityHref, profilePanel, selfProfile, rules, senderLabel, billing,
+  variant, subtitle, availabilityHref, businessName, businessCity, profilePanel, selfProfile, rules, senderLabel, billing,
   team, sites, businessCount, planLabel, apiBase, notificationPrefs,
   featureModules, auditLog, rolesSection, customRoles = [],
   billingAccount, pricing, activeBusinessId, startedAt,
@@ -917,7 +922,7 @@ export function SettingsHub({
             ] }]
           : []),
         { group: 'Kapcsolatok', items: [
-          { kind: 'btn', id: 'google', icon: Star, label: 'Google' },
+          { kind: 'btn', id: 'google', icon: GoogleIcon, label: 'Google' },
           { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'API & integrációk' },
         ] },
         { group: 'Csapat', items: [
@@ -1689,6 +1694,8 @@ export function SettingsHub({
               variant={variant}
               apiBase={apiBase}
               bookingUrl={bookingUrl}
+              businessName={businessName}
+              businessCity={businessCity}
               initialFeatureModules={featureModules}
               onDirtyChange={googlePanel.onDirtyChange}
               registerApi={googlePanel.registerApi}

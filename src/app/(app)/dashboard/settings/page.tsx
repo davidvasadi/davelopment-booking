@@ -203,6 +203,8 @@ export default async function SettingsPage() {
       <SettingsHub
         variant="salon"
         subtitle={subtitle}
+        businessName={salon.name}
+        businessCity={salon.city}
         availabilityHref="/dashboard/availability"
         selfProfile={
           <div className="space-y-6">

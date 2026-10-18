@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { AnimatePresence, motion } from 'framer-motion'
-import { MapPin, Star, ChevronDown, Check, ExternalLink } from 'lucide-react'
+import { MapPin, ChevronDown, Check, ExternalLink } from 'lucide-react'
 import { IntegCard, UrlRow, Steps } from './IntegCardKit'
 import { GooglePlacePicker } from './GooglePlacePicker'
+import { GoogleIcon } from '@/components/auth/GoogleSignInButton'
 import { Toggle } from './SettingsToggle'
 import { EASE, DUR } from '@/lib/motion'
 import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
@@ -70,6 +71,8 @@ export function GoogleSettingsPanel({
   variant,
   apiBase,
   bookingUrl,
+  businessName,
+  businessCity,
   initialFeatureModules,
   onDirtyChange,
   registerApi,
@@ -79,6 +82,9 @@ export function GoogleSettingsPanel({
   apiBase: string
   /** A publikus foglalási URL — a „Google Cégem" kártya „Foglalj most" linkjéhez. */
   bookingUrl: string
+  /** Az üzlet neve + városa — a Google-kereső előre-kitöltéséhez (GooglePlacePicker). */
+  businessName: string
+  businessCity?: string | null
   /** A TELJES `feature_modules` kezdőérték — csak a `reviews_*` mezőket szerkesztjük, a többit
    *  változatlanul visszaküldjük mentéskor (lásd fenti megjegyzés). */
   initialFeatureModules: FeatureModules
@@ -150,6 +156,16 @@ export function GoogleSettingsPanel({
   const visitWord = isSalon ? 'kezelés' : 'látogatás'
   const hasUrl = reviews.googleUrl.trim() !== ''
 
+  // Státusz-jelvény a TÉNYLEGESEN MENTETT (`baseline`) állapotból, nem a még-el-nem-mentett
+  // draftból — ugyanaz az elv, mint a Számlázás kártyán. Ugyanaz a 3 szín/stílus, mint az
+  // alatta lévő `IntegCard`-é (Google Cégem), hogy a két kártya egy nyelvet beszéljen.
+  const reviewStatus: { label: string; cls: string } =
+    baseline.googleUrl.trim() === ''
+      ? { label: 'Beállítható', cls: 'bg-warn-bg text-warn' }
+      : baseline.on
+        ? { label: 'Aktív', cls: 'bg-ok-bg text-ok' }
+        : { label: 'Kikapcsolva', cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' }
+
   return (
     <div className="space-y-3">
       <p className="text-[13px] text-ink-soft">
@@ -157,18 +173,23 @@ export function GoogleSettingsPanel({
       </p>
 
       {/* ── Google-értékelések megjelenítése a foglaló oldalon (Places API, napi frissítés) ── */}
-      <GooglePlacePicker />
+      <GooglePlacePicker businessName={businessName} businessCity={businessCity} />
 
-      {/* ── Értékelések — custom kártya (URL mindig látható, toggle csak URL után aktív) ── */}
-      <div className="rounded-dav-lg dav-card-glass p-5 lg:p-6">
+      {/* ── Értékelések — custom kártya (URL mindig látható, toggle csak URL után aktív).
+          A fejléc-ikon/cím/jelvény ugyanazt a nyelvet beszéli, mint a lenti IntegCard
+          (Google Cégem), hogy a két kártya egy stílust kövessen ugyanazon az oldalon. ── */}
+      <div className="rounded-dav-lg dav-card-glass px-5 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-dav-sm bg-gold/15 text-ink-dark">
-              <Star className="h-5 w-5" strokeWidth={1.6} />
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-dav-sm bg-[#FBF9F2] text-ink-soft2">
+              <GoogleIcon className="h-5 w-5" />
             </span>
             <div>
-              <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">Google értékelés</h2>
-              <p className="mt-0.5 text-[12.5px] leading-relaxed text-ink-soft">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-[15px] font-semibold text-ink">Google értékelés</h2>
+                <span className={`rounded-dav-sm px-2 py-0.5 text-[11px] font-semibold ${reviewStatus.cls}`}>{reviewStatus.label}</span>
+              </div>
+              <p className="mt-0.5 text-[13px] text-ink-soft">
                 Automatikus értékeléskérés {visitWord} után
               </p>
             </div>

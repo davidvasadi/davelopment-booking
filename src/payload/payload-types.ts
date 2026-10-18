@@ -41,6 +41,7 @@ export interface Config {
     'trial-ledger': TrialLedgerEntry
     'contact-messages': ContactMessage
     'broadcast-log': BroadcastLogEntry
+    'google-api-log': GoogleApiLogEntry
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
@@ -612,6 +613,14 @@ export interface Invoice {
   invoice_pdf_base64?: string | null
   issued_at?: string | null
   test?: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** Google Places API hívás-napló — havi biztonsági keret-számláláshoz (ld. googleReviews.ts). */
+export interface GoogleApiLogEntry {
+  id: string
+  kind: 'autocomplete' | 'place_details'
   createdAt: string
   updatedAt: string
 }

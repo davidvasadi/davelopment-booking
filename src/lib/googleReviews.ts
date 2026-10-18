@@ -1,4 +1,5 @@
 import type { Payload } from 'payload'
+import { getPayloadClient } from '@/lib/payload'
 
 /**
  * Google-értékelések a Places API (New)-val, a PLATFORM egyetlen kulcsával
@@ -24,7 +25,7 @@ export type GoogleReview = {
   publishedAt: string | null
 }
 
-export type PlaceSearchResult = { id: string; name: string; address: string }
+export type PlaceAutocompleteSuggestion = { placeId: string; mainText: string; secondaryText: string }
 
 export function googlePlacesEnabled(): boolean {
   return !!process.env.GOOGLE_PLACES_API_KEY
@@ -43,15 +44,110 @@ async function call<T>(path: string, init: RequestInit & { fieldMask: string }):
   return res.json() as Promise<T>
 }
 
-/** Üzlet keresése név (+ város) alapján — a tulaj ebből választja ki a saját profilját. */
-export async function searchPlaces(query: string, languageCode = 'hu'): Promise<PlaceSearchResult[]> {
-  type Resp = { places?: { id: string; displayName?: { text?: string }; formattedAddress?: string }[] }
-  const data = await call<Resp>('/places:searchText', {
-    method: 'POST',
-    fieldMask: 'places.id,places.displayName,places.formattedAddress',
-    body: JSON.stringify({ textQuery: query, languageCode, pageSize: 6 }),
+/**
+ * Biztonsági havi keret — a Google-fiók TÉNYLEGESEN fizetőssé váló ingyenes kerete alatt, hogy
+ * SOSE lépjük túl (lásd a 2026-10-14-i user-beszélgetést):
+ *   - `autocomplete`: a gépelés-közbeni élő találatok (Autocomplete New, "Autocomplete Requests"
+ *     SKU) — havi 5000 ingyenes hívás. Ha a keresési "munkamenet" egy Place Details-hívással zárul
+ *     (nálunk MINDIG így van, amikor ténylegesen csatlakoztatnak egy profilt — Enterprise+
+ *     Atmoszféra szintű, mert ratinget és véleményt is kérünk), a köztes gépelés-tippek a Google
+ *     saját session-alapú díjszabása szerint TELJESEN INGYENESEK, a havi kerettől függetlenül;
+ *     csak egy FÉLBEHAGYOTT (kiválasztás nélküli) keresgélés számít bele ebbe az 5000-be. Ez a
+ *     keret tehát a ténylegesen legrosszabb esetre (mindenki félbehagyja) szóló biztonsági háló.
+ *   - `place_details`: a kiválasztás utáni csillag/vélemény-lekérés (Enterprise+Atmoszféra szint).
+ *     1000/hó ingyenes.
+ * A küszöböt mindenhol a tényleges keret alá tesszük (biztonsági sáv), hogy a számlálás
+ * pontatlansága (egyidejű kérések, számolási késés) se vihessen át a fizetős sávba. Határ
+ * elérésekor a funkció "karbantartás alatt áll" hibát dob — ÚJ Google-hívás nem történik, csak a
+ * számlálás (ami maga NEM Google-hívás, a saját DB-nket nézi).
+ */
+type GoogleApiCallKind = 'autocomplete' | 'place_details'
+const MONTHLY_SAFETY_CAPS: Record<GoogleApiCallKind, number> = { autocomplete: 4900, place_details: 950 }
+
+export class GoogleApiCapReachedError extends Error {
+  constructor(kind: GoogleApiCallKind, used: number) {
+    super(`A Google-értékelések funkció ezen a hónapon elérte a biztonsági keretét (${kind}: ${used}/${MONTHLY_SAFETY_CAPS[kind]}) — ideiglenesen karbantartás alatt áll, a hónap fordulásával automatikusan visszaáll.`)
+    this.name = 'GoogleApiCapReachedError'
+  }
+}
+
+function startOfMonthIso(): string {
+  const d = new Date()
+  return new Date(d.getFullYear(), d.getMonth(), 1).toISOString()
+}
+
+async function monthlyCallCount(kind: GoogleApiCallKind): Promise<number> {
+  const payload = await getPayloadClient()
+  const res = await payload.find({
+    collection: 'google-api-log',
+    where: { and: [{ kind: { equals: kind } }, { createdAt: { greater_than_equal: startOfMonthIso() } }] },
+    limit: 0,
+    depth: 0,
+    overrideAccess: true,
   })
-  return (data.places ?? []).map((p) => ({ id: p.id, name: p.displayName?.text ?? '', address: p.formattedAddress ?? '' }))
+  return res.totalDocs
+}
+
+/** Ellenőrzi a keretet, majd (ha átment) naplózza a hívást — EGY helyen, hogy a kereten felüli
+ *  hívás fizikailag ne történhessen meg (a dobott hiba a `call()` ELŐTT áll meg). */
+async function guardAndLog(kind: GoogleApiCallKind): Promise<void> {
+  const used = await monthlyCallCount(kind)
+  if (used >= MONTHLY_SAFETY_CAPS[kind]) throw new GoogleApiCapReachedError(kind, used)
+  try {
+    const payload = await getPayloadClient()
+    await payload.create({ collection: 'google-api-log', overrideAccess: true, data: { kind } })
+  } catch {
+    /* a naplózás nem blokkoló — ha ez hibázik, a tényleges hívás még mehet */
+  }
+}
+
+/** A UI ezzel kérdezi le ELŐRE (Google-hívás nélkül, csak a saját naplónkat nézve), hogy a
+ *  keresés/csatlakoztatás jelenleg "karbantartás alatt" állapotban van-e — hogy ne kelljen
+ *  megvárni egy ténylegesen elutasított próbálkozást a felhasználói üzenethez. */
+export async function googleApiMaintenanceStatus(): Promise<{ search: boolean; details: boolean }> {
+  const [autocompleteUsed, placeDetailsUsed] = await Promise.all([monthlyCallCount('autocomplete'), monthlyCallCount('place_details')])
+  return {
+    search: autocompleteUsed >= MONTHLY_SAFETY_CAPS.autocomplete,
+    details: placeDetailsUsed >= MONTHLY_SAFETY_CAPS.place_details,
+  }
+}
+
+/**
+ * Élő, gépelés-közbeni találatok (Place Autocomplete New) — a `sessionToken`-t a KLIENS
+ * generálja (egy véletlen azonosító), és ugyanazt a tokent küldi minden gépelés-közbeni hívásnál
+ * ÉS a végén a kiválasztás utáni `fetchPlaceDetails`-nél is. A Google ezeket egy közös
+ * "munkamenetként" kezeli — ha a session egy Place Details-hívással zárul, a köztes
+ * Autocomplete-hívások a Google saját díjszabása szerint ingyenesek (session-alapú SKU).
+ */
+export async function autocompletePlaces(input: string, sessionToken: string, languageCode = 'hu'): Promise<PlaceAutocompleteSuggestion[]> {
+  await guardAndLog('autocomplete')
+  const key = process.env.GOOGLE_PLACES_API_KEY
+  if (!key) throw new Error('GOOGLE_PLACES_API_KEY nincs beállítva')
+  const res = await fetch(`${API}/places:autocomplete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key },
+    body: JSON.stringify({ input, sessionToken, languageCode }),
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`Places API ${res.status}: ${(await res.text()).slice(0, 300)}`)
+  type Resp = {
+    suggestions?: {
+      placePrediction?: {
+        placeId?: string
+        text?: { text?: string }
+        structuredFormat?: { mainText?: { text?: string }; secondaryText?: { text?: string } }
+      }
+    }[]
+  }
+  const data = (await res.json()) as Resp
+  return (data.suggestions ?? [])
+    .map((s) => s.placePrediction)
+    .filter((p): p is NonNullable<typeof p> => !!p?.placeId)
+    .map((p) => ({
+      placeId: p.placeId as string,
+      mainText: p.structuredFormat?.mainText?.text ?? p.text?.text ?? '',
+      secondaryText: p.structuredFormat?.secondaryText?.text ?? '',
+    }))
 }
 
 type PlaceDetails = {
@@ -69,8 +165,14 @@ type PlaceDetails = {
   }[]
 }
 
-export async function fetchPlaceDetails(placeId: string, languageCode = 'hu') {
-  const d = await call<PlaceDetails>(`/places/${encodeURIComponent(placeId)}?languageCode=${languageCode}`, {
+/** `sessionToken` — ha a hívás egy előzőleg Autocomplete-tel futott keresési próbálkozást zár le,
+ *  ugyanazt a tokent add át, ami a `autocompletePlaces()`-nek ment — ez bundle-olja ingyenesre a
+ *  köztes gépelés-tippeket a Google session-alapú díjszabásában. A háttér-frissítésnél (nincs
+ *  előzmény Autocomplete-munkamenet) hagyd üresen. */
+export async function fetchPlaceDetails(placeId: string, languageCode = 'hu', sessionToken?: string) {
+  await guardAndLog('place_details')
+  const qs = new URLSearchParams({ languageCode, ...(sessionToken ? { sessionToken } : {}) })
+  const d = await call<PlaceDetails>(`/places/${encodeURIComponent(placeId)}?${qs.toString()}`, {
     method: 'GET',
     fieldMask: 'displayName,googleMapsUri,rating,userRatingCount,reviews',
   })
@@ -95,13 +197,13 @@ export async function fetchPlaceDetails(placeId: string, languageCode = 'hu') {
 }
 
 /** Egy üzlet gyorsítótárának frissítése (a kiválasztáskor azonnal, utána kérésre, legfeljebb naponta). */
-export async function refreshBusinessGoogleReviews(payload: Payload, kind: 'salon' | 'restaurant', id: string | number): Promise<boolean> {
+export async function refreshBusinessGoogleReviews(payload: Payload, kind: 'salon' | 'restaurant', id: string | number, sessionToken?: string): Promise<boolean> {
   if (!googlePlacesEnabled()) return false
   const collection = kind === 'salon' ? 'salons' : 'restaurants'
   const biz = await payload.findByID({ collection, id, depth: 0, overrideAccess: true })
   const placeId = (biz as { google_place_id?: string | null }).google_place_id
   if (!placeId) return false
-  const d = await fetchPlaceDetails(placeId)
+  const d = await fetchPlaceDetails(placeId, 'hu', sessionToken)
   await payload.update({
     collection,
     id,

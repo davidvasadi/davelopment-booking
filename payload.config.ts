@@ -39,6 +39,7 @@ import { Invoices } from './src/payload/collections/Invoices'
 import { TrialLedger } from './src/payload/collections/TrialLedger'
 import { ContactMessages } from './src/payload/collections/ContactMessages'
 import { BroadcastLog } from './src/payload/collections/BroadcastLog'
+import { GoogleApiLog } from './src/payload/collections/GoogleApiLog'
 
 // Globals
 import { PricingSettings } from './src/payload/globals/PricingSettings'
@@ -103,6 +104,7 @@ export default buildConfig({
     TrialLedger,
     ContactMessages,
     BroadcastLog,
+    GoogleApiLog,
   ],
   globals: [PricingSettings],
   // Többnyelvű publikus foglaló: a tulaj-content (szolgáltatás/kategória nevek, leírások, „jó tudni",
