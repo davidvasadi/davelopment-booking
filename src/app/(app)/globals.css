@@ -53,6 +53,23 @@
        #DAD5C6-ként volt lehorgonyozva, egyenként. */
     --dav-track-off: #DAD5C6;
 
+    /* Betűméret-skála — AUDIT alapján (2026-10-13): a kódban eddig text-[11px]..text-[13.5px]
+       közt kb. 6 szinte-azonos arbitrary érték futott vegyesen (ugyanaz a hiba, mint a
+       lekerekítésnél) — ez a 11 lépéses, VALÓS használatból tömörített skála az egységes
+       alap. ÚJ komponens ezeket használja (`text-dav-*`), a meglévő oldalakat NEM migráljuk
+       vele egy menetben (külön, opcionális kör), csak amit úgyis érintünk. */
+    --dav-fs-2xs: 10px;      /* számláló-badge, legapróbb felirat */
+    --dav-fs-xs: 11px;       /* nagybetűs label, meta-infó, badge-szöveg */
+    --dav-fs-sm: 12px;       /* másodlagos szöveg, hint, sor-alcím */
+    --dav-fs-base: 13px;     /* alap UI-szöveg — gomb-felirat, mező-címke, lista-sor */
+    --dav-fs-md: 14px;       /* kiemeltebb törzsszöveg, input-érték */
+    --dav-fs-lg: 15px;       /* kártya-cím, lista-sor elsődleges szöveg */
+    --dav-fs-xl: 17px;       /* kártyán belüli szakasz-cím */
+    --dav-fs-2xl: 20px;      /* al-oldal cím */
+    --dav-fs-display-sm: 26px; /* kompakt oldal-cím (mobil, szűk helyen) */
+    --dav-fs-display: 34px;    /* oldal H1 — MOBIL méret (a desktop párja: display-lg) */
+    --dav-fs-display-lg: 42px; /* oldal H1 — DESKTOP méret (lg: a display-hez párosítva) */
+
     /* Lekerekítés */
     --dav-r-container: 34px;
     --dav-r-lg: 26px;

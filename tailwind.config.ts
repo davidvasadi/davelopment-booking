@@ -73,6 +73,20 @@ const config: Config = {
           foreground: 'hsl(var(--card-foreground))',
         },
       },
+      fontSize: {
+        // davelopment-design betűméret-skála — lásd globals.css komment (audit-alapú, 11 lépés).
+        'dav-2xs': ['var(--dav-fs-2xs)', { lineHeight: '1.4' }],
+        'dav-xs': ['var(--dav-fs-xs)', { lineHeight: '1.4' }],
+        'dav-sm': ['var(--dav-fs-sm)', { lineHeight: '1.45' }],
+        'dav-base': ['var(--dav-fs-base)', { lineHeight: '1.5' }],
+        'dav-md': ['var(--dav-fs-md)', { lineHeight: '1.5' }],
+        'dav-lg': ['var(--dav-fs-lg)', { lineHeight: '1.4' }],
+        'dav-xl': ['var(--dav-fs-xl)', { lineHeight: '1.3' }],
+        'dav-2xl': ['var(--dav-fs-2xl)', { lineHeight: '1.25' }],
+        'dav-display-sm': ['var(--dav-fs-display-sm)', { lineHeight: '1.1', letterSpacing: '-0.02em' }],
+        'dav-display': ['var(--dav-fs-display)', { lineHeight: '1.05', letterSpacing: '-0.02em' }],
+        'dav-display-lg': ['var(--dav-fs-display-lg)', { lineHeight: '1', letterSpacing: '-0.02em' }],
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
