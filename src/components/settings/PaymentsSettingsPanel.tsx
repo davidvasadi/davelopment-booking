@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, FileSignature } from 'lucide-react'
+import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, FileSignature, Receipt, AlertTriangle, Lock, Check } from 'lucide-react'
 import { monthlyEmailCapForTier, resolveTier } from '@/lib/tier'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { Pricing } from '@/lib/pricing'
@@ -598,16 +598,50 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
       </div>
       )}
 
-      {/* Számlázás */}
-      {show('invoicing') && (
-      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-3.5">
-        <div>
-          <div className="text-[15px] font-medium text-ink">Számlázás az előlegről</div>
-          <div className="text-[13px] text-ink-soft">Sikeres előleg-fizetés után automatikus bizonylat a saját Számlázz.hu/Billingo fiókodból.</div>
+      {/* Számlázás — az előzőnél (pill-választó + egy jelszó-mező, semmi visszajelzés, hogy
+          ténylegesen AKTÍV-e valami) sokkal informatívabb: fejléc ikon (mint a többi kártyán),
+          explicit státusz-sor a TÉNYLEGESEN MENTETT (nem a még-el-nem-mentett draft) provider+
+          kulcs állapotáról, és egy infó-sor arról, hogy a kulcs titkosítva tárolódik. */}
+      {show('invoicing') && (() => {
+        const savedHasKey = invoice.provider === 'szamlazz' ? invoice.hasSzamlazzKey : invoice.provider === 'billingo' ? invoice.hasBillingoKey : false
+        const savedProviderLabel = invoice.provider === 'szamlazz' ? 'Számlázz.hu' : invoice.provider === 'billingo' ? 'Billingo' : null
+        return (
+      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
+        <div className="flex items-center gap-2.5">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
+            <Receipt className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
+          </div>
+          <div>
+            <div className="text-[15px] font-medium text-ink">Számlázás az előlegről</div>
+            <div className="text-[13px] text-ink-soft">Sikeres előleg-fizetés után automatikus bizonylat a saját Számlázz.hu/Billingo fiókodból.</div>
+          </div>
         </div>
+
+        {/* Státusz — a MENTETT állapotot mutatja, nem a lenti pill-választó még-el-nem-
+            mentett kiválasztását (az kettő eltérhet, amíg nincs elmentve). */}
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[16px] bg-paper px-4 py-3.5">
+          {invoice.provider === 'none' ? (
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-soft">
+              <span className="h-2 w-2 rounded-full bg-track-off" /> Kikapcsolva — nincs automatikus számla
+            </span>
+          ) : savedHasKey ? (
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2F7A3C]">
+              <ShieldCheck className="h-4 w-4" /> Aktív — {savedProviderLabel} csatlakoztatva
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#B45309]">
+              <AlertTriangle className="h-4 w-4" /> {savedProviderLabel} kiválasztva, de nincs elmentve kulcs — így NEM készül számla
+            </span>
+          )}
+        </div>
+
         <div className="flex gap-2">
-          <button type="button" onClick={() => setInvoiceProvider('szamlazz')} className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${invoiceProvider === 'szamlazz' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}>Számlázz.hu</button>
-          <button type="button" onClick={() => setInvoiceProvider('billingo')} className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${invoiceProvider === 'billingo' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}>Billingo</button>
+          <button type="button" onClick={() => setInvoiceProvider('szamlazz')} className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${invoiceProvider === 'szamlazz' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}>
+            Számlázz.hu{invoice.hasSzamlazzKey && <Check className="ml-1 inline h-3 w-3 align-[-1px] text-[#2F7A3C]" strokeWidth={2.5} />}
+          </button>
+          <button type="button" onClick={() => setInvoiceProvider('billingo')} className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${invoiceProvider === 'billingo' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}>
+            Billingo{invoice.hasBillingoKey && <Check className="ml-1 inline h-3 w-3 align-[-1px] text-[#2F7A3C]" strokeWidth={2.5} />}
+          </button>
           <button type="button" onClick={() => setInvoiceProvider('none')} className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${invoiceProvider === 'none' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}>Nincs</button>
         </div>
 
@@ -621,6 +655,9 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               placeholder={invoice.hasSzamlazzKey ? '•••••••• beállítva — cserére írj be új kulcsot' : 'Agent kulcs beillesztése'}
               className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
             />
+            <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-soft2">
+              <Lock className="h-3 w-3" strokeWidth={2} /> Titkosítva tároljuk — a Számlázz.hu fiókod Beállítások → Számla Agent menüjében találod.
+            </p>
           </div>
         )}
         {invoiceProvider === 'billingo' && (
@@ -633,10 +670,14 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
               placeholder={invoice.hasBillingoKey ? '•••••••• beállítva — cserére írj be új kulcsot' : 'API kulcs beillesztése'}
               className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
             />
+            <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-soft2">
+              <Lock className="h-3 w-3" strokeWidth={2} /> Titkosítva tároljuk — a Billingo fiókod Beállítások → API kulcsok menüjében találod.
+            </p>
           </div>
         )}
       </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
