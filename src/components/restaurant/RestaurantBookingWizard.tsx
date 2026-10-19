@@ -46,6 +46,7 @@ export function RestaurantBookingWizard({
   addressRequired = false,
   addressRequiredNote = null,
   hiddenFields = [],
+  addressDetailLevel = 'full',
   voucherEnabled = false,
   newsletterEnabled = false,
   showMarketingConsent = true,
@@ -79,7 +80,9 @@ export function RestaurantBookingWizard({
   addressRequired?: boolean
   addressRequiredNote?: string | null
   /** Teljesen elrejtett foglalási mezők (nem csak opcionális) — ld. ProfileCard ugyanilyen propja. */
-  hiddenFields?: ('phone' | 'address' | 'notes')[]
+  hiddenFields?: ('phone' | 'notes')[]
+  /** Cím-mező részletessége — ld. ProfileCard ugyanilyen propja. */
+  addressDetailLevel?: 'off' | 'city' | 'full'
   voucherEnabled?: boolean
   newsletterEnabled?: boolean
   showMarketingConsent?: boolean
@@ -216,7 +219,9 @@ export function RestaurantBookingWizard({
   // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is) —
   // ez FELÜLÍRJA a tulaj kikapcsolás-szándékát (számlázáshoz kell az előlegnél).
   const addressGateOn = depositEnabled || addressRequired
-  const addressVisible = addressGateOn || !hiddenFields.includes('address')
+  const effectiveAddressLevel = addressGateOn ? 'full' : addressDetailLevel
+  const addressVisible = effectiveAddressLevel !== 'off'
+  const addressCityOnly = effectiveAddressLevel === 'city'
   const phoneVisible = !hiddenFields.includes('phone')
   const notesVisible = !hiddenFields.includes('notes')
   const marketingVisible = newsletterEnabled && showMarketingConsent
@@ -228,7 +233,7 @@ export function RestaurantBookingWizard({
     if (key === 'email') return !/^\S+@\S+\.\S+$/.test(email) ? tt('rbooking.err.email') : null
     if (key === 'phone') return phoneVisible && requirePhone && phone.replace(/\s/g, '').length < 7 ? tt('rbooking.err.phone') : null
     if (key === 'city') return addressGateOn && !city.trim() ? 'A város megadása kötelező' : null
-    if (key === 'address') return addressGateOn && !address.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
+    if (key === 'address') return addressGateOn && !addressCityOnly && !address.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
     if (key === 'taxNumber') return isCompany && !taxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
     return null
   }
@@ -592,6 +597,7 @@ export function RestaurantBookingWizard({
                     {errors.city && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.city}</p>}
                     {addressGateOn && !errors.city && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
                   </div>
+                  {!addressCityOnly && (
                   <div key={`address-${detailsShakeKey}`} className={cn(errors.address && 'animate-shake')}>
                     <input
                       ref={fieldRefs.address}
@@ -607,6 +613,7 @@ export function RestaurantBookingWizard({
                     {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
                     {addressGateOn && !errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
                   </div>
+                  )}
                   {depositEnabled && invoicingEnabled && (
                     <>
                       <div className={cn('flex items-center justify-between gap-3 rounded-[12px] px-3.5 py-3', dk ? 'bg-white/[0.06]' : 'bg-paper')}>

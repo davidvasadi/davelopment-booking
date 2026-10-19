@@ -95,8 +95,11 @@ export type BookingPageEditorInitial = {
   requireAddress: boolean
   requireAddressNote: string
   /** Teljesen elrejtett Adatok-mezők (nem csak opcionális — EGYÁLTALÁN nem jelenik meg). A
-   *  `address` ettől függetlenül mindig látszik, ha előleg aktív (ld. `flags.deposit`). */
-  hiddenFields: ('phone' | 'address' | 'notes')[]
+   *  cím-mezőt a saját, finomabb `addressDetailLevel` vezérli, nem ez a lista. */
+  hiddenFields: ('phone' | 'notes')[]
+  /** Cím-mező részletessége — `off` (nem jelenik meg), `city` (csak város), `full` (város +
+   *  pontos cím). Előleg aktív esetén ettől függetlenül mindig `full` érvényesül (ld. `flags.deposit`). */
+  addressDetailLevel: 'off' | 'city' | 'full'
   /** A marketing-elfogadó checkbox megjelenjen-e a foglaló űrlapon — a hírlevél-küldés
    *  képessége (ami minden csomagba beépítve jár) ettől FÜGGETLEN, csak az űrlap-mezőt dönti el. */
   showMarketingConsent: boolean
@@ -343,6 +346,7 @@ export function BookingPageEditor({
         addressRequired: draft.requireAddress,
         addressRequiredNote: draft.requireAddressNote || null,
         hiddenFields: draft.hiddenFields,
+        addressDetailLevel: draft.addressDetailLevel,
         showMarketingConsent: draft.showMarketingConsent,
         consentEnabled: draft.consentEnabled && !!(loc?.consentText || draft.consentText).trim(),
         consentTitle: loc?.consentTitle || draft.consentTitle || null,
@@ -417,7 +421,7 @@ export function BookingPageEditor({
       if (changed('logoId')) body.logo = d.logoId
       if (changed('goodToKnow')) body.good_to_know = d.goodToKnow
       if (changed('supportedLocales')) body.supported_locales = d.supportedLocales
-      if (['showServiceCount', 'showStaffCount', 'servicesExpandedOnMain', 'autoConfirm', 'requireAddress', 'requireAddressNote', 'sectionOrder', 'hiddenSections', 'minLeadHours', 'fieldOrder', 'hiddenFields', 'showMarketingConsent'].some((k) => changed(k as keyof Draft))) {
+      if (['showServiceCount', 'showStaffCount', 'servicesExpandedOnMain', 'autoConfirm', 'requireAddress', 'requireAddressNote', 'sectionOrder', 'hiddenSections', 'minLeadHours', 'fieldOrder', 'hiddenFields', 'addressDetailLevel', 'showMarketingConsent'].some((k) => changed(k as keyof Draft))) {
         body.booking_rules = {
           ...initial.bookingRules,
           show_service_count_on_public: d.showServiceCount,
@@ -431,6 +435,7 @@ export function BookingPageEditor({
           require_address: d.requireAddress,
           require_address_note: d.requireAddressNote.trim() || null,
           hidden_booking_fields: d.hiddenFields,
+          address_detail_level: d.addressDetailLevel,
           show_marketing_consent_field: d.showMarketingConsent,
         }
       }
@@ -931,14 +936,16 @@ export function BookingPageEditor({
                   <Reorder.Group axis="y" values={draft.fieldOrder} onReorder={(v) => set('fieldOrder', v)} className="space-y-2">
                     {draft.fieldOrder.map((id) => {
                       const selId = id === 'questions' ? 'questions' : `field:${id}`
-                      // A cím mező kikapcsolás-szándékát az előleg felülírja — akkor is látszik
-                      // és kötelező, ha a tulaj egyébként elrejtette (számlázáshoz kell).
-                      const addressForcedOn = id === 'address' && initial.flags.deposit
-                      const hiddenByChoice = (id === 'phone' || id === 'address' || id === 'notes') && draft.hiddenFields.includes(id) && !addressForcedOn
+                      // A cím mező saját, 3-fokozatú szabálya (off/city/full) — előleg aktív
+                      // esetén FÜGGETLENÜL mindig 'full'-ra kényszerítjük (számlázáshoz kell).
+                      const addressForcedFull = id === 'address' && initial.flags.deposit
+                      const effectiveAddressLevel = addressForcedFull ? 'full' : draft.addressDetailLevel
+                      const hiddenByChoice = (id === 'phone' || id === 'notes') && draft.hiddenFields.includes(id)
+                        || (id === 'address' && effectiveAddressLevel === 'off')
                       const badge = hiddenByChoice ? 'Kikapcsolva'
                         : id === 'name' || id === 'email' ? 'Kötelező'
                         : id === 'phone' ? (draft.requirePhone ? 'Kötelező' : 'Opcionális')
-                        : id === 'address' ? (draft.requireAddress || addressForcedOn ? 'Kötelező' : 'Opcionális')
+                        : id === 'address' ? (effectiveAddressLevel === 'city' ? 'Csak város' : draft.requireAddress || addressForcedFull ? 'Kötelező' : 'Opcionális')
                         : id === 'questions' ? `${draft.customQuestions.length} db` : 'Opcionális'
                       return (
                         <GripReorderItem key={id} id={id}>
@@ -1262,29 +1269,36 @@ export function BookingPageEditor({
               )}
             </>
           )}
-          {sel === 'field:address' && (
-            <>
-              <ToggleRow
-                label="Mező megjelenítése"
-                hint={initial.flags.deposit
-                  ? 'Előleg aktív — a számlázáshoz a cím mindig kötelező, nem kapcsolható ki.'
-                  : draft.hiddenFields.includes('address') ? undefined : 'Kikapcsolva a cím egyáltalán nem jelenik meg — ha később előleget vagy ajándékutalványt kapcsolsz be, automatikusan visszatér.'}
-                checked={initial.flags.deposit || !draft.hiddenFields.includes('address')}
-                disabled={initial.flags.deposit}
-                onChange={() => set('hiddenFields', draft.hiddenFields.includes('address') ? draft.hiddenFields.filter((f) => f !== 'address') : [...draft.hiddenFields, 'address'])}
-              />
-              {(initial.flags.deposit || !draft.hiddenFields.includes('address')) && (
-                <>
-                  <ToggleRow label="Cím megadása mindig kötelező" hint={initial.flags.deposit ? 'Előleg mellett mindenképp kötelező.' : undefined} checked={draft.requireAddress || initial.flags.deposit} disabled={initial.flags.deposit} onChange={() => set('requireAddress', !draft.requireAddress)} />
-                  {(draft.requireAddress || initial.flags.deposit) && (
-                    <Field label="Miért kéred? (a vendég látja a mező alatt)">
-                      <input className={fieldCls} value={draft.requireAddressNote} placeholder="Pl. a házhoz menő szolgáltatáshoz kell" onChange={(e) => set('requireAddressNote', e.target.value)} />
-                    </Field>
+          {sel === 'field:address' && (() => {
+            const addressForcedFull = initial.flags.deposit
+            const effectiveAddressLevel = addressForcedFull ? 'full' : draft.addressDetailLevel
+            return (
+              <>
+                <div className="space-y-1.5">
+                  <div className="text-[13.5px] font-medium text-ink">Mennyit kérjünk be?</div>
+                  {addressForcedFull ? (
+                    <p className="text-[12px] leading-relaxed text-ink-soft">Előleg aktív — a számlázáshoz a teljes cím (város + utca, házszám) mindig kötelező, nem állítható vissza.</p>
+                  ) : (
+                    <Chips options={[
+                      { label: 'Kikapcsolva', on: draft.addressDetailLevel === 'off', onClick: () => set('addressDetailLevel', 'off') },
+                      { label: 'Csak város', on: draft.addressDetailLevel === 'city', onClick: () => set('addressDetailLevel', 'city') },
+                      { label: 'Város + pontos cím', on: draft.addressDetailLevel === 'full', onClick: () => set('addressDetailLevel', 'full') },
+                    ]} />
                   )}
-                </>
-              )}
-            </>
-          )}
+                </div>
+                {effectiveAddressLevel === 'full' && (
+                  <>
+                    <ToggleRow label="Cím megadása mindig kötelező" hint={addressForcedFull ? 'Előleg mellett mindenképp kötelező.' : undefined} checked={draft.requireAddress || addressForcedFull} disabled={addressForcedFull} onChange={() => set('requireAddress', !draft.requireAddress)} />
+                    {(draft.requireAddress || addressForcedFull) && (
+                      <Field label="Miért kéred? (a vendég látja a mező alatt)">
+                        <input className={fieldCls} value={draft.requireAddressNote} placeholder="Pl. a házhoz menő szolgáltatáshoz kell" onChange={(e) => set('requireAddressNote', e.target.value)} />
+                      </Field>
+                    )}
+                  </>
+                )}
+              </>
+            )
+          })()}
           {sel === 'field:notes' && (
             <ToggleRow
               label="Mező megjelenítése"

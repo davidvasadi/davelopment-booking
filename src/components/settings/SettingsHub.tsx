@@ -1683,6 +1683,7 @@ export function SettingsHub({
                 webhookUrl={webhookUrl}
                 ga4Id={ga4Id}
                 facebookPixelId={facebookPixelId}
+                initialFeatureModules={featureModules}
                 onDirtyChange={integPanel.onDirtyChange}
                 registerApi={integPanel.registerApi}
               />

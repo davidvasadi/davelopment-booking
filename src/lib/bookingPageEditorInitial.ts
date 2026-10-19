@@ -80,7 +80,8 @@ export function buildBookingPageEditorInitial(
     autoConfirm: br.auto_confirm ?? true,
     requireAddress: !!br.require_address,
     requireAddressNote: br.require_address_note ?? '',
-    hiddenFields: Array.isArray(br.hidden_booking_fields) ? br.hidden_booking_fields.filter((f): f is 'phone' | 'address' | 'notes' => f === 'phone' || f === 'address' || f === 'notes') : [],
+    hiddenFields: Array.isArray(br.hidden_booking_fields) ? br.hidden_booking_fields.filter((f): f is 'phone' | 'notes' => f === 'phone' || f === 'notes') : [],
+    addressDetailLevel: br.address_detail_level === 'off' || br.address_detail_level === 'city' ? br.address_detail_level : 'full',
     showMarketingConsent: br.show_marketing_consent_field !== false,
     confirmEmail: doc.notification_prefs?.confirm_email !== false,
     reminders: {

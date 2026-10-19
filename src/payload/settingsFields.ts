@@ -118,10 +118,24 @@ export const settingsExtensionFields: Field[] = [
       // Az Adatok lépés mező-blokkjainak sorrendje (name | email | phone | address | questions | notes).
       { name: 'form_field_order', type: 'json', label: 'Foglalási űrlap mezőinek sorrendje' },
       // Melyik Adatok-lépés mezőket rejtette el a tulaj TELJESEN (nem csak opcionálissá tette) —
-      // csak 'phone'|'address'|'notes' lehet benne, a név/email sosem rejthető. A `address` ettől
-      // függetlenül MINDIG megjelenik, ha előleg aktív (ld. ProfileCard/RestaurantBookingWizard
-      // `addressGateOn` — a kikapcsolás-szándékot felülírja a tényleges üzleti szükséglet).
+      // csak 'phone'|'notes' lehet benne (a cím-mezőt a saját, finomabb `address_detail_level`
+      // vezérli, a név/email sosem rejthető).
       { name: 'hidden_booking_fields', type: 'json', label: 'Teljesen elrejtett foglalási mezők' },
+      // A cím-mező RÉSZLETESSÉGE — nem csak be/ki, hanem "csak várost kérek" fokozat is van
+      // (pl. egy tanácsadónak elég a város, a pontos utca/házszám felesleges). Előleg aktív
+      // esetén ettől FÜGGETLENÜL mindig 'full' érvényesül (számlázáshoz teljes cím kell) — ld.
+      // ProfileCard/RestaurantBookingWizard `addressGateOn`/`effectiveAddressLevel`.
+      {
+        name: 'address_detail_level',
+        type: 'select',
+        defaultValue: 'full',
+        label: 'Cím-mező részletessége',
+        options: [
+          { label: 'Kikapcsolva', value: 'off' },
+          { label: 'Csak város', value: 'city' },
+          { label: 'Város + pontos cím', value: 'full' },
+        ],
+      },
       // A "Szeretnék marketing-ajánlatokat..." checkbox a foglaló űrlapon — függetlenül attól,
       // hogy a hírlevél-küldés maga (ami minden csomagba beépítve jár) be van-e kapcsolva: ez
       // csak azt dönti el, hogy MAGÁN AZ ŰRLAPON megjelenjen-e a feliratkozó-kérdés.
@@ -165,6 +179,9 @@ export const settingsExtensionFields: Field[] = [
       // pipálja ki, miután elvégezte a lépéseket — a UI ezt a tényt is kiírja, hogy ne tűnjön
       // automatikus állapot-ellenőrzésnek.
       { name: 'google_booking_confirmed', type: 'checkbox', defaultValue: false, label: '„Foglalj most” gomb beállítva (önbevallás)' },
+      // Ugyanaz a buktató, mint a Google-nél: a Facebook/Instagram "Foglalj" gomb beállítása a
+      // tulaj saját Meta Business fiókjában történik, API-n kívül — önbevallás.
+      { name: 'facebook_booking_confirmed', type: 'checkbox', defaultValue: false, label: 'Facebook/Instagram „Foglalj” gomb beállítva (önbevallás)' },
     ],
   },
 ]

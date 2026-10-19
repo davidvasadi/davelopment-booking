@@ -69,8 +69,11 @@ interface Props {
   addressRequired?: boolean
   addressRequiredNote?: string | null
   /** Teljesen elrejtett foglalási mezők (nem csak opcionális) — `booking_rules.hidden_booking_fields`.
-   *  A `phone`/`notes` elrejtése feltétlen; az `address` elrejtését az előleg felülírja (ld. `addressGateOn`). */
-  hiddenFields?: ('phone' | 'address' | 'notes')[]
+   *  A cím-mezőt a saját, finomabb `addressDetailLevel` vezérli, nem ez a lista. */
+  hiddenFields?: ('phone' | 'notes')[]
+  /** Cím-mező részletessége — `off` (nem jelenik meg), `city` (csak város), `full` (város +
+   *  pontos cím). Előleg aktív esetén ettől függetlenül mindig `full` érvényesül (ld. `addressGateOn`). */
+  addressDetailLevel?: 'off' | 'city' | 'full'
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
   newsletterEnabled?: boolean
@@ -126,7 +129,7 @@ export function ProfileCard({
   phone, email, website, socialLinks, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
   termsSections, company, goodToKnow, depositEnabled = false, invoicingEnabled = false, voucherCompanyEnabled = true, google = null,
-  addressRequired = false, addressRequiredNote = null, hiddenFields = [],
+  addressRequired = false, addressRequiredNote = null, hiddenFields = [], addressDetailLevel = 'full',
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false, showMarketingConsent = true,
   consentEnabled = false, consentTitle = null, consentText = null,
   customQuestions = null, embed = false, servicesExpandedOnMain = false,
@@ -474,7 +477,11 @@ export function ProfileCard({
   // Cím/város kötelezővé válik előlegnél VAGY ha a cég külön bekapcsolta (deposit nélkül is) —
   // ez a kapcsoló FELÜLÍRJA a tulaj kikapcsolás-szándékát (számlázáshoz kell az előlegnél).
   const addressGateOn = depositEnabled || addressRequired
-  const addressVisible = addressGateOn || !hiddenFields.includes('address')
+  // Előleg aktív esetén FÜGGETLENÜL mindig a teljes cím érvényesül (számlázáshoz kell) —
+  // ez felülírja a tulaj "csak város"/"kikapcsolva" beállítását.
+  const effectiveAddressLevel = addressGateOn ? 'full' : addressDetailLevel
+  const addressVisible = effectiveAddressLevel !== 'off'
+  const addressCityOnly = effectiveAddressLevel === 'city'
   const phoneVisible = !hiddenFields.includes('phone')
   const notesVisible = !hiddenFields.includes('notes')
   const marketingVisible = newsletterEnabled && showMarketingConsent
@@ -488,7 +495,7 @@ export function ProfileCard({
     if (key === 'email') return !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerEmail) ? tt('booking.err.email') : null
     if (key === 'phone') return phoneVisible && requirePhone && customerPhone.replace(/\s/g, '').length < 7 ? tt('booking.err.phone') : null
     if (key === 'city') return addressGateOn && !customerCity.trim() ? 'A város megadása kötelező' : null
-    if (key === 'address') return addressGateOn && !customerAddress.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
+    if (key === 'address') return addressGateOn && !addressCityOnly && !customerAddress.trim() ? 'A cím (utca, házszám) megadása kötelező' : null
     if (key === 'taxNumber') return customerIsCompany && !customerTaxNumber.trim() ? 'Céges vásárlásnál az adószám megadása kötelező.' : null
     return null
   }
@@ -1454,6 +1461,7 @@ export function ProfileCard({
                         {errors.city && <p role="alert" className="text-[12px] text-red-400">{errors.city}</p>}
                         {addressGateOn && !errors.city && <p className="text-[11px] text-white/40">{addressNote}</p>}
                       </div>
+                      {!addressCityOnly && (
                       <div data-edit-id="field:address" key={`address-${detailsShakeKey}`} className={cn('space-y-1', errors.address && 'animate-shake')}>
                         <Label htmlFor="bk-address" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
                           {addressGateOn ? `${tt('booking.field.address').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.address')}
@@ -1469,6 +1477,7 @@ export function ProfileCard({
                         {errors.address && <p role="alert" className="text-[12px] text-red-400">{errors.address}</p>}
                         {addressGateOn && !errors.address && <p className="text-[11px] text-white/40">{addressNote}</p>}
                       </div>
+                      )}
                       {depositEnabled && invoicingEnabled && (
                         <>
                           <div className="flex items-center justify-between gap-3 rounded-[12px] bg-white/[0.06] px-3.5 py-3">

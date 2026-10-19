@@ -8,6 +8,8 @@ import {
 } from 'lucide-react'
 import { ImportPanel } from './ImportPanel'
 import { IntegCard, UrlRow, SnippetBox, Steps } from './IntegCardKit'
+import { Toggle } from './SettingsToggle'
+import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -22,6 +24,10 @@ interface Props {
   webhookUrl?: string | null
   ga4Id?: string | null
   facebookPixelId?: string | null
+  /** A TELJES `feature_modules` kezdőérték — csak a `facebook_booking_confirmed` mezőt
+   *  szerkesztjük, de mentéskor a teljeset visszaküldjük (a Payload group-PATCH nem deep-mergel,
+   *  ugyanaz a buktató, mint a GoogleSettingsPanel-nél/BookingFeatures-nél). */
+  initialFeatureModules?: FeatureModules
   /** A Webhook + Marketing-követés kártyák összevont mentetlen-állapota — a hub közös lebegő
    *  sávjának. (A többi kártya nem tartalmaz szerkeszthető, mentendő mezőt.) */
   onDirtyChange?: (dirty: boolean) => void
@@ -144,14 +150,18 @@ function MarketingTrackingConfig({
 
 // ── Main component ─────────────────────────────────────────────────────────
 
-export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embedSmartSnippet, apiBase, webhookUrl, ga4Id, facebookPixelId, onDirtyChange, registerApi }: Props) {
+export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embedSmartSnippet, apiBase, webhookUrl, ga4Id, facebookPixelId, initialFeatureModules, onDirtyChange, registerApi }: Props) {
   const embedSnippet = `<iframe src="${embedUrl}" width="100%" height="700" style="border:0"></iframe>`
 
   const [webhook, setWebhook] = useState(webhookUrl ?? '')
   const [ga4, setGa4] = useState(ga4Id ?? '')
   const [pixel, setPixel] = useState(facebookPixelId ?? '')
+  // Facebook/Instagram „Foglalj” gomb — a Google-éval azonos buktató: a beállítás a tulaj saját
+  // Meta Business fiókjában történik, API-n kívül, nincs mód valós ellenőrzésre. Önbevallás.
+  const [facebookBookingConfirmed, setFacebookBookingConfirmed] = useState(!!initialFeatureModules?.facebook_booking_confirmed)
 
   const dirty = webhook !== (webhookUrl ?? '') || ga4 !== (ga4Id ?? '') || pixel !== (facebookPixelId ?? '')
+    || facebookBookingConfirmed !== !!initialFeatureModules?.facebook_booking_confirmed
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -168,6 +178,7 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embe
                 ga4_measurement_id: ga4.trim() || null,
                 facebook_pixel_id: pixel.trim() || null,
               },
+              ...(initialFeatureModules ? { feature_modules: { ...initialFeatureModules, facebook_booking_confirmed: facebookBookingConfirmed } } : {}),
             }),
           })
           if (!res.ok) throw new Error()
@@ -181,10 +192,11 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embe
         setWebhook(webhookUrl ?? '')
         setGa4(ga4Id ?? '')
         setPixel(facebookPixelId ?? '')
+        setFacebookBookingConfirmed(!!initialFeatureModules?.facebook_booking_confirmed)
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [webhook, ga4, pixel, webhookUrl, ga4Id, facebookPixelId])
+  }, [webhook, ga4, pixel, webhookUrl, ga4Id, facebookPixelId, facebookBookingConfirmed, initialFeatureModules])
 
   return (
     <div className="space-y-3">
@@ -274,7 +286,7 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embe
         icon={Share2}
         title={'Facebook / Instagram — „Foglalj" gomb'}
         description="Időpont-foglalás gomb közvetlenül az Instagram és Facebook business oldalon"
-        status="setup"
+        status={initialFeatureModules?.facebook_booking_confirmed ? 'active' : 'setup'}
       >
         <div className="space-y-4">
           <div>
@@ -316,6 +328,18 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embe
               </div>
             </details>
           </div>
+
+          {/* Ezt a lépést a tulaj a SAJÁT Meta Business fiókjában végzi el — nálunk nincs API/
+              webhook, ami ellenőrizné, hogy megtörtént-e. A fenti jelvény ezért ÖNBEVALLÁS. */}
+          <div className="flex items-center justify-between gap-3 rounded-[12px] bg-paper px-3.5 py-3">
+            <div className="min-w-0">
+              <p className="text-[13px] font-medium text-ink">Megerősítem, hogy beállítottam</p>
+              <p className="mt-0.5 text-[11.5px] leading-relaxed text-ink-soft2">
+                Ezt nem tudjuk automatikusan ellenőrizni (a Facebook/Instagram saját fiókodban történik) — ez a jelzés csak a te megerősítésed.
+              </p>
+            </div>
+            <Toggle checked={facebookBookingConfirmed} onChange={() => setFacebookBookingConfirmed((v) => !v)} label="Foglalj gomb beállítva" />
+          </div>
         </div>
       </IntegCard>
 
@@ -324,7 +348,7 @@ export function IntegrationsPanel({ variant, bookingUrl, icalUrl, embedUrl, embe
         icon={Webhook}
         title="Zapier / Make webhook"
         description="Automatizáció: új foglalásnál értesítés, Google Sheets frissítés, Slack üzenet és más"
-        status="setup"
+        status={webhookUrl?.trim() ? 'active' : 'setup'}
       >
         <div className="space-y-4">
           <WebhookConfig url={webhook} onChange={setWebhook} />

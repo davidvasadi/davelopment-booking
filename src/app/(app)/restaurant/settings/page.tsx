@@ -227,6 +227,7 @@ export default async function RestaurantSettingsPage() {
           google_review_url: fm.google_review_url ?? null,
           review_delay_hours: fm.review_delay_hours ?? 1,
           google_booking_confirmed: fm.google_booking_confirmed ?? false,
+          facebook_booking_confirmed: fm.facebook_booking_confirmed ?? false,
         }}
         depositSettings={{
           enabled: r.deposit_settings?.enabled ?? false,

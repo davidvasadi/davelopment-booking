@@ -182,8 +182,10 @@ export default async function SalonPublicPage({
       addressRequired: !!salon.booking_rules?.require_address,
       addressRequiredNote: salon.booking_rules?.require_address_note,
       hiddenFields: Array.isArray(salon.booking_rules?.hidden_booking_fields)
-        ? salon.booking_rules.hidden_booking_fields.filter((f): f is 'phone' | 'address' | 'notes' => f === 'phone' || f === 'address' || f === 'notes')
+        ? salon.booking_rules.hidden_booking_fields.filter((f): f is 'phone' | 'notes' => f === 'phone' || f === 'notes')
         : [],
+      addressDetailLevel: salon.booking_rules?.address_detail_level === 'off' || salon.booking_rules?.address_detail_level === 'city'
+        ? salon.booking_rules.address_detail_level : 'full',
       voucherEnabled: !!salon.voucher_settings?.enabled && !!salon.stripe_connect_onboarded && voucherTypes.length > 0,
       voucherTypes,
       newsletterEnabled: hasActivePackage(salon.newsletter_settings?.package),

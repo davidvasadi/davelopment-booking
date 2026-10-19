@@ -113,8 +113,10 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       addressRequired: !!restaurant.booking_rules?.require_address,
       addressRequiredNote: restaurant.booking_rules?.require_address_note,
       hiddenFields: Array.isArray(restaurant.booking_rules?.hidden_booking_fields)
-        ? restaurant.booking_rules.hidden_booking_fields.filter((f): f is 'phone' | 'address' | 'notes' => f === 'phone' || f === 'address' || f === 'notes')
+        ? restaurant.booking_rules.hidden_booking_fields.filter((f): f is 'phone' | 'notes' => f === 'phone' || f === 'notes')
         : [],
+      addressDetailLevel: restaurant.booking_rules?.address_detail_level === 'off' || restaurant.booking_rules?.address_detail_level === 'city'
+        ? restaurant.booking_rules.address_detail_level : 'full',
       voucherEnabled: !!restaurant.voucher_settings?.enabled && !!restaurant.stripe_connect_onboarded && voucherTypes.length > 0,
       voucherTypes,
       newsletterEnabled: hasActivePackage(restaurant.newsletter_settings?.package),

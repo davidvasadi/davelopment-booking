@@ -159,6 +159,7 @@ export interface Restaurant {
     public_sections_hidden?: string[] | null
     form_field_order?: string[] | null
     hidden_booking_fields?: string[] | null
+    address_detail_level?: 'off' | 'city' | 'full' | null
     show_marketing_consent_field?: boolean | null
   } | null
   feature_modules?: {
@@ -177,6 +178,7 @@ export interface Restaurant {
     google_review_url?: string | null
     review_delay_hours?: number | null
     google_booking_confirmed?: boolean | null
+    facebook_booking_confirmed?: boolean | null
   } | null
   deposit_settings?: {
     enabled?: boolean | null
@@ -435,7 +437,16 @@ export interface Customer {
   customer_phone?: string | null
   customer_city?: string | null
   customer_country?: string | null
+  birthday?: string | null
+  gender?: 'female' | 'male' | 'other' | null
+  group_tag?: string | null
   notes?: string | null
+  billing_name?: string | null
+  billing_tax_number?: string | null
+  billing_email?: string | null
+  billing_postal_code?: string | null
+  billing_city?: string | null
+  billing_street?: string | null
   match_index?: string | null
   blocked?: boolean | null
   block_reason?: string | null
@@ -799,6 +810,7 @@ export interface Salon {
     public_sections_hidden?: string[] | null
     form_field_order?: string[] | null
     hidden_booking_fields?: string[] | null
+    address_detail_level?: 'off' | 'city' | 'full' | null
     show_marketing_consent_field?: boolean | null
   } | null
   feature_modules?: {
@@ -817,6 +829,7 @@ export interface Salon {
     google_review_url?: string | null
     review_delay_hours?: number | null
     google_booking_confirmed?: boolean | null
+    facebook_booking_confirmed?: boolean | null
   } | null
   deposit_settings?: {
     enabled?: boolean | null

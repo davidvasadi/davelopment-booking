@@ -62,7 +62,8 @@ export type RestaurantCardProps = {
   google?: GoogleReviewsData | null
   addressRequired?: boolean
   addressRequiredNote?: string | null
-  hiddenFields?: ('phone' | 'address' | 'notes')[]
+  hiddenFields?: ('phone' | 'notes')[]
+  addressDetailLevel?: 'off' | 'city' | 'full'
   voucherEnabled?: boolean
   voucherTypes?: GiftVoucherType[]
   newsletterEnabled?: boolean
@@ -126,6 +127,7 @@ export function RestaurantCard({
   addressRequired,
   addressRequiredNote,
   hiddenFields = [],
+  addressDetailLevel = 'full',
   voucherEnabled,
   voucherTypes = [],
   newsletterEnabled,
@@ -484,6 +486,7 @@ export function RestaurantCard({
         addressRequired={addressRequired}
         addressRequiredNote={addressRequiredNote}
         hiddenFields={hiddenFields}
+        addressDetailLevel={addressDetailLevel}
         voucherEnabled={voucherEnabled}
         newsletterEnabled={newsletterEnabled}
         showMarketingConsent={showMarketingConsent}

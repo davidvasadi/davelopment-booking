@@ -33,6 +33,7 @@ export type FeatureModules = {
   google_review_url?: string | null
   review_delay_hours?: number | null
   google_booking_confirmed?: boolean | null
+  facebook_booking_confirmed?: boolean | null
 }
 
 /* ── Kis kapcsolható „chip" (pl. időzítés / csatorna) ── */
@@ -135,7 +136,7 @@ function featsFrom(fm: FeatureModules): Feats {
  */
 function featsToModules(
   f: Feats,
-  preserve: Pick<FeatureModules, 'waitlist_on' | 'waitlist_auto_promote' | 'recurring_on' | 'reviews_on' | 'google_review_url' | 'review_delay_hours' | 'google_booking_confirmed'>,
+  preserve: Pick<FeatureModules, 'waitlist_on' | 'waitlist_auto_promote' | 'recurring_on' | 'reviews_on' | 'google_review_url' | 'review_delay_hours' | 'google_booking_confirmed' | 'facebook_booking_confirmed'>,
 ): FeatureModules {
   return {
     reminders_on: f.reminders.on,
@@ -153,6 +154,7 @@ function featsToModules(
     google_review_url: preserve.google_review_url,
     review_delay_hours: preserve.review_delay_hours,
     google_booking_confirmed: preserve.google_booking_confirmed,
+    facebook_booking_confirmed: preserve.facebook_booking_confirmed,
   }
 }
 
@@ -212,6 +214,7 @@ export function BookingFeatures({
                 google_review_url: initial?.google_review_url ?? null,
                 review_delay_hours: initial?.review_delay_hours ?? 1,
                 google_booking_confirmed: initial?.google_booking_confirmed ?? false,
+                facebook_booking_confirmed: initial?.facebook_booking_confirmed ?? false,
               }),
             }),
           })
