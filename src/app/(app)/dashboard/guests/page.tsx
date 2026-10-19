@@ -6,7 +6,7 @@ import { GuestsView, type MetricVM } from '@/components/dashboard/guests-view'
 import { aggregateGuests, withManualGuests, bucketByCountry, type GuestSource } from '@/lib/guests'
 import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit, reviewRowValue } from '@/lib/guestsView'
 import { getGuestReviewMap } from '@/lib/reviews'
-import type { Booking, Service, Customer } from '@/payload/payload-types'
+import type { Booking, Service, StaffMember, Customer } from '@/payload/payload-types'
 
 export default async function SalonGuestsPage() {
   const { salon, capabilities } = await getOwnedSalon()
@@ -26,6 +26,8 @@ export default async function SalonGuestsPage() {
 
   const serviceName = (svc: Booking['service']): string =>
     svc && typeof svc === 'object' ? (svc as Service).name : ''
+  const staffName = (st: Booking['staff']): string =>
+    st && typeof st === 'object' ? (st as StaffMember).name : ''
   // A `price_snapshot`-ot (foglaláskori ár) részesítjük előnyben a szolgáltatás mindenkori
   // aktuális árával szemben — lásd dashboardStats.ts azonos logikáját.
   const servicePrice = (b: Booking): number | null => {
@@ -42,6 +44,7 @@ export default async function SalonGuestsPage() {
   type Src = GuestSource & {
     time?: string
     svcName?: string
+    staffName?: string
     price?: number | null
     note?: string | null
     customAnswers?: Record<string, { question: string; answer: string }> | null
@@ -55,6 +58,7 @@ export default async function SalonGuestsPage() {
     status: b.status,
     time: b.start_time,
     svcName: serviceName(b.service),
+    staffName: staffName(b.staff),
     price: servicePrice(b),
     note: (b as { notes?: string | null }).notes ?? null,
     customAnswers: b.custom_answers ?? null,
@@ -119,6 +123,35 @@ export default async function SalonGuestsPage() {
     for (const [n, c] of counts) if (c > bestN) ((bestN = c), (best = n))
     return best || '—'
   }
+  // A kedvenc (favService) a LEGGYAKORIBB szolgáltatás — ez a kettő viszont időrendi:
+  // melyik volt az ELSŐ és a LEGUTÓBBI tényleges (nem lemondott) látogatás szolgáltatása.
+  // Ugyanaz az elv, mint a külső rendszerek "Első szolgáltatás"/"Utolsó szolgáltatás" oszlopa,
+  // csak nálunk ez a foglalás-történetből MINDIG frissen számolódik, nem egy import-pillanatkép.
+  const realVisits = (own: GuestSource[]) => own.filter((s) => s.status !== 'cancelled' && s.status !== 'no_show')
+  const firstService = (own: GuestSource[]): string => {
+    const sorted = [...realVisits(own)].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))
+    return (sorted[0] as Src | undefined)?.svcName || '—'
+  }
+  const lastService = (own: GuestSource[]): string => {
+    const sorted = [...realVisits(own)].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))
+    return (sorted[0] as Src | undefined)?.svcName || '—'
+  }
+  // Lemondások száma — a `sources` (NEM az `aggregateGuests` által már kiszűrt `guests`) még
+  // tartalmazza a lemondott/nem-jött-el foglalásokat is, ebből számolunk.
+  const cancelCount = (own: GuestSource[]): number => own.filter((s) => s.status === 'cancelled').length
+  const noShowCount = (own: GuestSource[]): number => own.filter((s) => s.status === 'no_show').length
+  // Preferált munkatárs — akinél a legtöbbször járt (tényleges, nem lemondott látogatásoknál).
+  const preferredStaff = (own: GuestSource[]): string => {
+    const counts = new Map<string, number>()
+    for (const s of realVisits(own)) {
+      const n = (s as Src).staffName
+      if (n) counts.set(n, (counts.get(n) ?? 0) + 1)
+    }
+    let best = ''
+    let bestN = 0
+    for (const [n, c] of counts) if (c > bestN) ((bestN = c), (best = n))
+    return best || '—'
+  }
 
   // Egyedi kérdések TÖRTÉNETE a vendég profilján — kérdés-SZÖVEGENKÉNT (nem id-nkánt, mert a
   // sablon időközben módosulhat/törölhető) a legutóbbi (legfrissebb dátumú) nem-üres választ
@@ -145,11 +178,17 @@ export default async function SalonGuestsPage() {
       const pastSpend = past.reduce((a, s) => a + priceOf(s), 0)
       const note = latestNote([...past, ...upcoming])
       const review = reviewMap.get(g.key)
+      const allOwn = [...past, ...upcoming]
       return [
         { label: 'Látogatás', value: String(past.length) },
         { label: 'Összes költés eddig', value: pastSpend > 0 ? fmtHuf(pastSpend) : '—' },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} foglalás` : '—' },
-        { label: 'Kedvenc', value: favService([...past, ...upcoming]) },
+        { label: 'Kedvenc', value: favService(allOwn) },
+        { label: 'Első szolgáltatás', value: firstService(allOwn) },
+        { label: 'Utolsó szolgáltatás', value: lastService(allOwn) },
+        { label: 'Kedvenc munkatárs', value: preferredStaff(allOwn) },
+        ...(cancelCount(allOwn) > 0 ? [{ label: 'Lemondások száma', value: String(cancelCount(allOwn)) }] : []),
+        ...(noShowCount(allOwn) > 0 ? [{ label: 'Nem jött el', value: String(noShowCount(allOwn)) }] : []),
         ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
         ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),
@@ -162,6 +201,7 @@ export default async function SalonGuestsPage() {
       const rows: Array<{ label: string; value: string }> = []
       if (src.time) rows.push({ label: 'Időpont', value: src.time.slice(0, 5) })
       if (src.svcName) rows.push({ label: 'Szolgáltatás', value: src.svcName })
+      if (src.staffName) rows.push({ label: 'Munkatárs', value: src.staffName })
       if (typeof src.price === 'number') rows.push({ label: 'Ár', value: fmtHuf(src.price) })
       return { rows, note: src.note?.trim() || null }
     },

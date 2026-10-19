@@ -28,6 +28,17 @@ const TYPE_LABELS: Record<CustomQuestionType, string> = {
   select: 'Választható lista',
 }
 
+// Gyors javaslatok — kész kérdés-sablonok, hogy ne kelljen mindent nulláról begépelni. Ide
+// kerültek a leggyakrabban kért, de a sima foglalási űrlapon (telefon/cím/megjegyzés) nem
+// szereplő vendég-adatok is (születésnap, nem, "honnan hallott rólunk"), amiket korábban csak
+// import/admin oldalon lehetett rögzíteni — ez adja az élő foglaláson keresztüli bekérés útját.
+const PRESET_QUESTIONS: { label: string; type: CustomQuestionType; options?: string[] }[] = [
+  { label: 'Születésnapod?', type: 'text' },
+  { label: 'Neme', type: 'select', options: ['Nő', 'Férfi', 'Egyéb'] },
+  { label: 'Honnan hallottál rólunk?', type: 'select', options: ['Google', 'Facebook/Instagram', 'Ismerős ajánlotta', 'Egyéb'] },
+  { label: 'Allergiás vagy valamire?', type: 'text' },
+]
+
 const fieldBase =
   'w-full rounded-[12px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 focus:outline-none focus:border-gold/60 focus:ring-2 focus:ring-gold/25 transition-colors'
 
@@ -46,25 +57,60 @@ export function CustomQuestionsEditor({
     onChange(value.map((q, idx) => (idx === i ? { ...q, ...patch } : q)))
   const add = () => onChange([...value, { id: newQuestionId(), label: '', type: 'text', options: [], required: false }])
   const remove = (i: number) => onChange(value.filter((_, idx) => idx !== i))
+  // Egy sablon nem adható hozzá kétszer (ugyanazzal a felirattal) — ha már szerepel, a chip
+  // egyszerűen nem csinál semmit, nem hoz létre duplikátumot.
+  const addPreset = (p: (typeof PRESET_QUESTIONS)[number]) => {
+    if (value.some((q) => q.label.trim().toLowerCase() === p.label.trim().toLowerCase())) return
+    onChange([...value, { id: newQuestionId(), label: p.label, type: p.type, options: (p.options ?? []).map((v) => ({ value: v })), required: false }])
+  }
+
+  const presetRow = (
+    <div className="space-y-2">
+      <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-soft2">Gyors javaslatok</p>
+      <div className="flex flex-wrap gap-1.5">
+        {PRESET_QUESTIONS.map((p) => {
+          const already = value.some((q) => q.label.trim().toLowerCase() === p.label.trim().toLowerCase())
+          return (
+            <button
+              key={p.label}
+              type="button"
+              disabled={already}
+              onClick={() => addPreset(p)}
+              className={cn(
+                'inline-flex items-center gap-1 rounded-[10px] border px-3 py-1.5 text-[12.5px] font-medium transition-colors',
+                already ? 'cursor-default border-line bg-paper text-ink-soft2' : 'border-line-strong bg-white text-ink-soft hover:text-ink',
+              )}
+            >
+              {already ? null : <Plus className="h-3 w-3" />}
+              {p.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
 
   if (value.length === 0) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-[18px] border border-dashed border-line-strong bg-white px-6 py-10 text-center">
-        <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-ink-dark text-gold">
-          <HelpCircle className="h-5 w-5" strokeWidth={1.7} />
-        </span>
-        <div>
-          <p className="text-sm font-semibold text-ink">Még nincs egyedi kérdés</p>
-          <p className="mt-0.5 text-xs text-ink-soft">Pl. „Allergiás vagy valamire?" vagy „Milyen alkalomra jössz?"</p>
+      <div className="space-y-3">
+        <div className="flex flex-col items-center gap-3 rounded-[18px] border border-dashed border-line-strong bg-white px-6 py-10 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-ink-dark text-gold">
+            <HelpCircle className="h-5 w-5" strokeWidth={1.7} />
+          </span>
+          <div>
+            <p className="text-sm font-semibold text-ink">Még nincs egyedi kérdés</p>
+            <p className="mt-0.5 text-xs text-ink-soft">Pl. „Allergiás vagy valamire?" vagy „Milyen alkalomra jössz?"</p>
+          </div>
+          <button
+            type="button"
+            onClick={add}
+            className="mt-1 inline-flex items-center gap-1.5 rounded-[14px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+          >
+            <Plus className="h-4 w-4 text-gold" />
+            Új kérdés
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={add}
-          className="mt-1 inline-flex items-center gap-1.5 rounded-[14px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          <Plus className="h-4 w-4 text-gold" />
-          Új kérdés
-        </button>
+        {presetRow}
       </div>
     )
   }
@@ -90,6 +136,8 @@ export function CustomQuestionsEditor({
         <Plus className="h-4 w-4" />
         Új kérdés
       </button>
+
+      {presetRow}
     </div>
   )
 }

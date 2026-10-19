@@ -29,6 +29,29 @@ function normalizeDate(v: string): string | null {
   return null
 }
 
+/** Szabad szöveges "nem" import-érték a saját select-opcióinkra (female/male/other) — csak
+ *  egyértelmű, teljes szavakat fogad el (sem a magyar, sem az angol rövidítés — "F"/"N" —
+ *  nem egyértelmű a két nyelv/konvenció között, azt inkább érintetlenül hagyjuk, mint hogy
+ *  rosszul találjuk ki). */
+function normalizeGender(v: string): 'female' | 'male' | 'other' | null {
+  const s = v?.trim().toLowerCase()
+  if (!s) return null
+  if (['nő', 'no', 'female', 'woman'].includes(s)) return 'female'
+  if (['férfi', 'ferfi', 'male', 'man'].includes(s)) return 'male'
+  if (['egyéb', 'egyeb', 'other', 'non-binary', 'nonbinary'].includes(s)) return 'other'
+  return null
+}
+
+/** Szöveges "igen/nem"-jellegű import-érték boolean-ra — más rendszerek exportjai sokfélét
+ *  írhatnak (igen/nem, yes/no, true/false, 1/0, x/✓) ugyanarra a checkbox-mezőre. */
+function parseBoolish(v: string): boolean | null {
+  const s = v?.trim().toLowerCase()
+  if (!s) return null
+  if (['igen', 'yes', 'true', '1', 'x', '✓', 'y', 'van'].includes(s)) return true
+  if (['nem', 'no', 'false', '0', 'nincs'].includes(s)) return false
+  return null
+}
+
 function normalizeTime(v: string): string | null {
   const s = v?.trim()
   if (!s) return null
@@ -462,7 +485,21 @@ export async function POST(req: NextRequest) {
         const customerName = getField(row, 'customer_name')
         const customerEmail = getField(row, 'customer_email')
         const customerPhone = getField(row, 'customer_phone')
+        const customerCity = getField(row, 'customer_city') || undefined
+        const birthdayRaw = getField(row, 'birthday')
+        const birthday = birthdayRaw ? normalizeDate(birthdayRaw) ?? undefined : undefined
+        const groupTag = getField(row, 'group_tag') || undefined
         const notes = getField(row, 'notes') || undefined
+        const billingName = getField(row, 'billing_name') || undefined
+        const billingTaxNumber = getField(row, 'billing_tax_number') || undefined
+        const billingEmail = getField(row, 'billing_email') || undefined
+        const billingPostalCode = getField(row, 'billing_postal_code') || undefined
+        const billingCity = getField(row, 'billing_city') || undefined
+        const billingStreet = getField(row, 'billing_street') || undefined
+        const marketingConsent = parseBoolish(getField(row, 'marketing_consent')) ?? undefined
+        const blockedRaw = parseBoolish(getField(row, 'blocked'))
+        const blockReason = getField(row, 'block_reason') || undefined
+        const gender = normalizeGender(getField(row, 'gender')) ?? undefined
 
         if (!customerName && !customerEmail) { result.skipped++; continue }
 
@@ -485,7 +522,19 @@ export async function POST(req: NextRequest) {
                 customer_name: customerName || undefined,
                 customer_email: customerEmail || undefined,
                 customer_phone: customerPhone || undefined,
+                customer_city: customerCity,
+                birthday,
+                gender,
+                group_tag: groupTag,
                 notes,
+                billing_name: billingName,
+                billing_tax_number: billingTaxNumber,
+                billing_email: billingEmail,
+                billing_postal_code: billingPostalCode,
+                billing_city: billingCity,
+                billing_street: billingStreet,
+                ...(marketingConsent !== undefined ? { marketing_consent: marketingConsent, marketing_consent_at: marketingConsent ? new Date().toISOString() : undefined } : {}),
+                ...(blockedRaw !== null ? { blocked: blockedRaw, block_reason: blockedRaw ? blockReason : undefined, blocked_at: blockedRaw ? new Date().toISOString() : undefined } : {}),
                 ...(isRestaurant ? { restaurant: businessId } : { salon: businessId }),
               },
               overrideAccess: true,

@@ -50,6 +50,10 @@ import * as migration_20261014_100000_google_api_log from './20261014_100000_goo
 import * as migration_20261018_100000_google_api_log_locked_rels from './20261018_100000_google_api_log_locked_rels';
 import * as migration_20261018_110000_booking_field_visibility from './20261018_110000_booking_field_visibility';
 import * as migration_20261018_120000_google_booking_confirmed from './20261018_120000_google_booking_confirmed';
+import * as migration_20261018_130000_facebook_booking_confirmed from './20261018_130000_facebook_booking_confirmed';
+import * as migration_20261018_140000_address_detail_level from './20261018_140000_address_detail_level';
+import * as migration_20261018_150000_customer_crm_fields from './20261018_150000_customer_crm_fields';
+import * as migration_20261019_100000_customer_gender from './20261019_100000_customer_gender';
 
 export const migrations = [
   {
@@ -311,5 +315,25 @@ export const migrations = [
     up: migration_20261018_120000_google_booking_confirmed.up,
     down: migration_20261018_120000_google_booking_confirmed.down,
     name: '20261018_120000_google_booking_confirmed',
+  },
+  {
+    up: migration_20261018_130000_facebook_booking_confirmed.up,
+    down: migration_20261018_130000_facebook_booking_confirmed.down,
+    name: '20261018_130000_facebook_booking_confirmed',
+  },
+  {
+    up: migration_20261018_140000_address_detail_level.up,
+    down: migration_20261018_140000_address_detail_level.down,
+    name: '20261018_140000_address_detail_level',
+  },
+  {
+    up: migration_20261018_150000_customer_crm_fields.up,
+    down: migration_20261018_150000_customer_crm_fields.down,
+    name: '20261018_150000_customer_crm_fields',
+  },
+  {
+    up: migration_20261019_100000_customer_gender.up,
+    down: migration_20261019_100000_customer_gender.down,
+    name: '20261019_100000_customer_gender',
   },
 ];

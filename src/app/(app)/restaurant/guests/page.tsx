@@ -152,14 +152,19 @@ export default async function RestaurantGuestsPage() {
     favFor: (_g, own) => favDay(own),
     rowsFor: (g, { past, upcoming }) => {
       const upPax = upcoming.reduce((a, s) => a + (s.pax ?? 0), 0)
-      const tables = Array.from(new Set([...past, ...upcoming].flatMap((s) => (s as Src).tables ?? [])))
-      const note = latestNote([...past, ...upcoming], (s) => s.note)
+      const allOwn = [...past, ...upcoming]
+      const tables = Array.from(new Set(allOwn.flatMap((s) => (s as Src).tables ?? [])))
+      const note = latestNote(allOwn, (s) => s.note)
       const review = reviewMap.get(g.key)
+      const cancelCount = allOwn.filter((s) => s.status === 'cancelled').length
+      const noShowCount = allOwn.filter((s) => s.status === 'no_show').length
       return [
         { label: 'Látogatás', value: String(past.length) },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} · ${upPax} fő` : '—' },
         { label: 'Asztalok', value: tables.length > 0 ? tables.join(', ') : '—' },
-        { label: 'Kedvenc nap', value: favDay([...past, ...upcoming]) },
+        { label: 'Kedvenc nap', value: favDay(allOwn) },
+        ...(cancelCount > 0 ? [{ label: 'Lemondások száma', value: String(cancelCount) }] : []),
+        ...(noShowCount > 0 ? [{ label: 'Nem jött el', value: String(noShowCount) }] : []),
         ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
         ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),

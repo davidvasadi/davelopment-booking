@@ -144,7 +144,23 @@ const ALIASES_BY_TYPE: Record<ImportType, Record<string, string>> = {
     'guest': 'customer_name', 'guest name': 'customer_name',
     'email': 'customer_email', 'e-mail': 'customer_email', 'e-mail cím': 'customer_email',
     'telefon': 'customer_phone', 'phone': 'customer_phone', 'mobile': 'customer_phone', 'mobil': 'customer_phone',
-    'megjegyzés': 'notes', 'notes': 'notes', 'note': 'notes', 'comment': 'notes',
+    'mobiltelefonszám': 'customer_phone',
+    'megjegyzés': 'notes', 'notes': 'notes', 'note': 'notes', 'comment': 'notes', 'jegyzet': 'notes',
+    'lakhely': 'customer_city', 'város': 'customer_city', 'city': 'customer_city', 'település': 'customer_city',
+    'születésnap': 'birthday', 'birthday': 'birthday', 'date of birth': 'birthday', 'dob': 'birthday',
+    'csoport': 'group_tag', 'group': 'group_tag', 'címke': 'group_tag', 'tag': 'group_tag', 'segment': 'group_tag',
+    'számlázási név': 'billing_name', 'billing name': 'billing_name', 'invoice name': 'billing_name',
+    'számlázási irányitószám': 'billing_postal_code', 'számlázási irányítószám': 'billing_postal_code',
+    'billing zip': 'billing_postal_code', 'billing postal code': 'billing_postal_code',
+    'számlázási település': 'billing_city', 'billing city': 'billing_city',
+    'közterület neve': 'billing_street', 'utca': 'billing_street', 'street': 'billing_street', 'street address': 'billing_street',
+    'számlázási adószám (cég esetén)': 'billing_tax_number', 'adószám': 'billing_tax_number',
+    'tax number': 'billing_tax_number', 'vat number': 'billing_tax_number',
+    'számlaküldési e-mail cím': 'billing_email', 'billing email': 'billing_email',
+    'hírlevél': 'marketing_consent', 'newsletter': 'marketing_consent', 'feliratkozott': 'marketing_consent',
+    'feketelistás': 'blocked', 'blacklist': 'blocked', 'blacklisted': 'blocked', 'tiltólistás': 'blocked',
+    'feketelistára kerülés oka': 'block_reason', 'blacklist reason': 'block_reason', 'tiltás oka': 'block_reason',
+    'nem': 'gender', 'gender': 'gender', 'sex': 'gender',
   },
   staff: {
     'név': 'name', 'name': 'name', 'munkatárs': 'name', 'munkatárs neve': 'name',
@@ -219,10 +235,23 @@ const FIELD_OPTIONS_BY_TYPE: Record<ImportType, { value: string; label: string }
   ],
   customers: [
     { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'customer_name', label: 'Vendég neve' },
+    { value: 'customer_name', label: 'Név' },
     { value: 'customer_email', label: 'Email' },
     { value: 'customer_phone', label: 'Telefon' },
+    { value: 'customer_city', label: 'Város' },
+    { value: 'birthday', label: 'Születésnap' },
+    { value: 'group_tag', label: 'Csoport / címke' },
     { value: 'notes', label: 'Megjegyzés' },
+    { value: 'billing_name', label: 'Számlázási név' },
+    { value: 'billing_tax_number', label: 'Adószám' },
+    { value: 'billing_email', label: 'Számlaküldési email' },
+    { value: 'billing_postal_code', label: 'Számlázási irányítószám' },
+    { value: 'billing_city', label: 'Számlázási település' },
+    { value: 'billing_street', label: 'Számlázási utca, házszám' },
+    { value: 'marketing_consent', label: 'Hírlevél-feliratkozás (igen/nem)' },
+    { value: 'blocked', label: 'Tiltólistás (igen/nem)' },
+    { value: 'block_reason', label: 'Tiltás indoka' },
+    { value: 'gender', label: 'Nem' },
   ],
   staff: [
     { value: '', label: '— figyelmen kívül hagy —' },
@@ -308,13 +337,26 @@ function guessTypeFromSheet(name: string): ImportType | null {
 
 function detectTypeFromHeaders(headers: string[]): ImportType | null {
   const norm = headers.map((h) => h.toLowerCase().trim())
+  const types = Object.keys(ALIASES_BY_TYPE) as ImportType[]
   let best: ImportType | null = null
   let bestScore = 0
-  for (const [type, aliases] of Object.entries(ALIASES_BY_TYPE) as [ImportType, Record<string, string>][]) {
-    const score = norm.filter((h) => h in aliases).length
+  for (const type of types) {
+    const aliases = ALIASES_BY_TYPE[type]
+    let score = 0
+    for (const h of norm) {
+      if (!(h in aliases)) continue
+      // Egy oszlopnév, ami TÖBB típus szótárában is szerepel (pl. "név"/"email"/"telefon",
+      // ami csapatnál ÉS vendégnél is ott van), kevésbé megkülönböztető — csak az egyedi
+      // (csak ennél a típusnál szereplő) nevek adjanak teljes pontot. Enélkül egy bővebb
+      // szótár (több célmező = több alias) szisztematikusan "elnyerte" a felismerést egy
+      // olyan fájltól is, ami valójában egy másik típushoz tartozott (pl. egy vendéglista
+      // "munkatársak"-ként detektálódott, mert a staff-szótárban volt "születésnap" alias).
+      const sharedWithOthers = types.filter((t) => t !== type && h in ALIASES_BY_TYPE[t]).length
+      score += 1 / (1 + sharedWithOthers)
+    }
     if (score > bestScore) { bestScore = score; best = type }
   }
-  return bestScore >= 2 ? best : null
+  return bestScore >= 1.5 ? best : null
 }
 
 export function ImportPanel() {

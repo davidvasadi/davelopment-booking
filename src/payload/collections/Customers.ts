@@ -59,7 +59,37 @@ export const Customers: CollectionConfig = {
     // (ország csak zászlóként, a `country` a Reservations 2-betűs ISO-kódját tükrözi).
     { name: 'customer_city', type: 'text', label: 'Város' },
     { name: 'customer_country', type: 'text', label: 'Ország (ISO-2)' },
+    { name: 'birthday', type: 'date', label: 'Születésnap', admin: { date: { pickerAppearance: 'dayOnly' } } },
+    {
+      name: 'gender',
+      type: 'select',
+      label: 'Nem',
+      options: [
+        { label: 'Nő', value: 'female' },
+        { label: 'Férfi', value: 'male' },
+        { label: 'Egyéb', value: 'other' },
+      ],
+    },
+    // Szabad szöveges szegmens-címke (pl. "VIP", "céges ügyfél") — nem egy zárt lista, a tulaj
+    // saját szóhasználata szerint tölti/importálja.
+    { name: 'group_tag', type: 'text', label: 'Csoport / címke' },
     { name: 'notes', type: 'textarea', label: 'Belső jegyzet' },
+    // Állandó számlázási profil — hogy ne kelljen minden alkalommal újra begépelni. Ugyanaz a
+    // mező-elnevezés, mint a Salon/Restaurant saját számlázási adatain (billing_*), csak itt a
+    // VENDÉG céges adatai (cégként vásárló törzsvendégeknek).
+    {
+      type: 'collapsible',
+      label: 'Számlázási profil',
+      admin: { initCollapsed: true },
+      fields: [
+        { name: 'billing_name', type: 'text', label: 'Számlázási név' },
+        { name: 'billing_tax_number', type: 'text', label: 'Adószám' },
+        { name: 'billing_email', type: 'email', label: 'Számlaküldési email' },
+        { name: 'billing_postal_code', type: 'text', label: 'Irányítószám' },
+        { name: 'billing_city', type: 'text', label: 'Település' },
+        { name: 'billing_street', type: 'text', label: 'Utca, házszám' },
+      ],
+    },
     // A vendéghez tartozó ÖSSZES azonosító (régi+új e-mail/telefon), `\n`-nel elválasztva.
     // Így a telefon-csere után is átlinkelhető a régi foglalás → a levezetett adat frissül.
     { name: 'match_index', type: 'text', label: 'Match-index (belső)', admin: { hidden: true } },
