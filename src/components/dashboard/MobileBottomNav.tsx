@@ -191,7 +191,11 @@ const [moreOpen, setMoreOpen] = useState(false)
           />
           <motion.div
             key="mob-panel"
-            className="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex max-h-[90vh] flex-col rounded-t-[26px] border-t border-x border-white/50 bg-white/75 backdrop-blur-2xl"
+            // `90vh` mobil Safari-n a nagy (címsor nélküli) viewportot vette alapul, ezért a
+            // sheet a ténylegesen látható terület alá, a böngésző-sáv mögé is belógott — `dvh`
+            // a TÉNYLEGES, aktuális viewportot nézi, és a kisebb érték eleve nem akarja majdnem
+            // az egész képernyőt elfoglalni (a tartalom úgyis görgethető, ld. lent).
+            className="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex max-h-[70dvh] flex-col rounded-t-[26px] border-t border-x border-white/50 bg-white/75 backdrop-blur-2xl"
             initial={{ opacity: 0, y: 40, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 520, damping: 26, mass: 0.9 } }}
             exit={{ opacity: 0, y: 40, scale: 0.97, transition: { duration: 0.14, ease: 'easeIn' } }}

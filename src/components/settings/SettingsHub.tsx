@@ -17,7 +17,7 @@
 import Link from 'next/link'
 import { createPortal } from 'react-dom'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { EASE, DUR, sheetSpring } from '@/lib/motion'
 import { toast } from 'sonner'
@@ -953,7 +953,16 @@ export function SettingsHub({
   return (
     // font-onest ITT, egyszer — minden alá ágyazott panel (BookingFeatures, GoogleSettingsPanel,
     // RolesManager, stb.) örökli, nem kell mindegyiknek külön emlékeznie rá.
-    <div className="space-y-5 font-onest">
+    <div
+      className="space-y-5 font-onest"
+      // A `bg-paper` token (--dav-paper) alapból az OLDAL-háttér színe (konténeren kívülre
+      // szánva) — a Beállításokban viszont sok helyen belső sor/doboz-háttérként (pl. "Üzletek
+      // & díjak" lista) van újrahasznosítva, ahol túl sötét szürkének hat a fehér kártyákon
+      // belül. Itt, a teljes Beállítások-fa gyökerén felülírjuk világosabbra — ez a CSS-változó
+      // öröklődik LE minden beágyazott panelbe (ImportPanel, VoucherTypeManager stb.), tehát
+      // egyetlen helyen cserélhető, nem kell minden egyes `bg-paper` előfordulást külön bejárni.
+      style={{ '--dav-paper': '#F4F4F4' } as CSSProperties}
+    >
       {/* Fejléc — a mentés innen kikerült a KÖZÖS lebegő sávba (lásd lentebb). A Foglalóoldal
           fülön a nyelv-választó, a Vendég e-mailek fülön a sablon-választó, a Csapat fülön a
           Tagok/Szerepek-váltó a globális mobil-fejlécbe (DashboardNav, #settings-subnav-slot)
@@ -990,7 +999,11 @@ export function SettingsHub({
                   exit={{ y: '100%' }}
                   transition={sheetSpring.transition}
                   data-lenis-prevent
-                  className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
+                  // `78vh` mobil Safari-n a böngésző-sáv nélküli nagy viewportot vette alapul (a
+                  // ténylegesen látható terület alá is belógott) — `dvh` + alacsonyabb érték,
+                  // UGYANAZ a magasság, mint a `MobileBottomNav` "Több" sheetje (egységes mobil
+                  // menü-magasság az egész appban).
+                  className="absolute inset-x-0 bottom-0 max-h-[70dvh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
                 >
                   {/* Handle + fejléc */}
                   <div className="sticky top-0 z-10 bg-white px-4 pb-3 pt-3">

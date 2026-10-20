@@ -230,6 +230,10 @@ export function PricingCards({
   const proBadgeLabel = onPro ? (isTrial ? 'Próba' : 'Aktív') : 'Népszerű'
   const onEgyedi = currentTier === 'egyedi'
   const egyediBadgeLabel = onEgyedi ? 'Aktív' : 'Vállalati'
+  // "Aktív" pötty mindig ugyanaz a zöld, mint a funkció-lista pipáinak háttere (Feat, lásd
+  // NotchedPricingCard.tsx) — a többi badge (Próba/Belépő/Népszerű/Vállalati) a kártya saját,
+  // alap dot-színét kapja.
+  const ACTIVE_DOT = '#74AA19'
 
   const cycleToggle = (
     <div className="inline-flex gap-1 rounded-dav-pill bg-white/10 p-1">
@@ -263,7 +267,7 @@ export function PricingCards({
         <NotchedPricingCard
           featured={false}
           badgeLabel={starterBadgeLabel}
-          dotColor="#A8A496"
+          dotColor={starterBadgeLabel === 'Aktív' ? ACTIVE_DOT : '#A8A496'}
           title="Starter"
           priceMain={effStarter.toLocaleString('hu-HU')}
           priceUnit="Ft / hó"
@@ -283,7 +287,7 @@ export function PricingCards({
         <NotchedPricingCard
           featured
           badgeLabel={proBadgeLabel}
-          dotColor="#F1CE45"
+          dotColor={proBadgeLabel === 'Aktív' ? ACTIVE_DOT : '#F1CE45'}
           title="Pro"
           priceStrike={isAnnual ? monthlyRaw.toLocaleString('hu-HU') : undefined}
           priceMain={effMonthly.toLocaleString('hu-HU')}
@@ -305,7 +309,7 @@ export function PricingCards({
         <NotchedPricingCard
           featured={false}
           badgeLabel={egyediBadgeLabel}
-          dotColor="#1D1C19"
+          dotColor={egyediBadgeLabel === 'Aktív' ? ACTIVE_DOT : '#1D1C19'}
           title="Egyedi"
           priceMain="Árajánlat"
           priceUnit=""
