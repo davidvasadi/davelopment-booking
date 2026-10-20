@@ -3,6 +3,12 @@ import { getPricing } from '@/lib/pricing'
 import { siteJsonLd } from '@/lib/publicSeo'
 import HomeClient from './HomeClient'
 
+// A homepage addig statikusan prerendelt volt build-időben — a cron-cache-elt
+// Google-értékelés (lásd src/lib/google-rating.ts) így csak egy új deployig
+// változott volna, nem a napi cron-frissítéskor. Óránkénti ISR-revalidáció
+// elég a naponta egyszer frissülő adathoz, full force-dynamic nélkül.
+export const revalidate = 3600
+
 export const metadata: Metadata = {
   title: '[davelopment]® Booking — Online Időpontfoglaló Rendszer',
   description:
