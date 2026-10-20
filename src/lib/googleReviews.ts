@@ -61,8 +61,15 @@ async function call<T>(path: string, init: RequestInit & { fieldMask: string }):
  * elérésekor a funkció "karbantartás alatt áll" hibát dob — ÚJ Google-hívás nem történik, csak a
  * számlálás (ami maga NEM Google-hívás, a saját DB-nket nézi).
  */
-type GoogleApiCallKind = 'autocomplete' | 'place_details'
-const MONTHLY_SAFETY_CAPS: Record<GoogleApiCallKind, number> = { autocomplete: 4900, place_details: 950 }
+type GoogleApiCallKind = 'autocomplete' | 'place_details' | 'address_details'
+const MONTHLY_SAFETY_CAPS: Record<GoogleApiCallKind, number> = {
+  autocomplete: 4900,
+  place_details: 950,
+  // A számlázási cím-autocomplete kiválasztás-utáni lekérése csak `addressComponents`-et kér
+  // (NEM rating/review-t) — ez a Places API olcsóbb "Essentials" szintje, 10000/hó ingyenes
+  // (nem az Enterprise+Atmosphere 1000/hó-s kerete, amit a Google-profil csatlakoztatás használ).
+  address_details: 9500,
+}
 
 export class GoogleApiCapReachedError extends Error {
   constructor(kind: GoogleApiCallKind, used: number) {
@@ -112,6 +119,17 @@ export async function googleApiMaintenanceStatus(): Promise<{ search: boolean; d
   }
 }
 
+/** Ugyanez a számlázási cím-autocomplete-nek — a `search` itt UGYANAZT az 'autocomplete' keretet
+ *  nézi, mint a Google-profil kereső (ugyanaz a valós Google-SKU, egy közös havi kvóta), csak a
+ *  kiválasztás-utáni részlet-lekérés (`details`) számol külön, olcsóbb kerettel. */
+export async function googleAddressMaintenanceStatus(): Promise<{ search: boolean; details: boolean }> {
+  const [autocompleteUsed, addressDetailsUsed] = await Promise.all([monthlyCallCount('autocomplete'), monthlyCallCount('address_details')])
+  return {
+    search: autocompleteUsed >= MONTHLY_SAFETY_CAPS.autocomplete,
+    details: addressDetailsUsed >= MONTHLY_SAFETY_CAPS.address_details,
+  }
+}
+
 /**
  * Élő, gépelés-közbeni találatok (Place Autocomplete New) — a `sessionToken`-t a KLIENS
  * generálja (egy véletlen azonosító), és ugyanazt a tokent küldi minden gépelés-közbeni hívásnál
@@ -148,6 +166,66 @@ export async function autocompletePlaces(input: string, sessionToken: string, la
       mainText: p.structuredFormat?.mainText?.text ?? p.text?.text ?? '',
       secondaryText: p.structuredFormat?.secondaryText?.text ?? '',
     }))
+}
+
+/**
+ * Postai cím-autocomplete (Számlázási adatok) — UGYANAZ az Autocomplete (New) SKU, mint a
+ * Google-profil kereső fent, csak Magyarországra szűkítve (`includedRegionCodes`) és üzlet-típus
+ * helyett cím-típusokra súlyozva. Ugyanazt az 'autocomplete' havi keretet fogyasztja, mert ez a
+ * valóságban is UGYANAZ a Google-kvóta — két külön számláló kettőzné a tényleges kockázatot.
+ */
+export async function autocompleteAddress(input: string, sessionToken: string, languageCode = 'hu'): Promise<PlaceAutocompleteSuggestion[]> {
+  await guardAndLog('autocomplete')
+  const key = process.env.GOOGLE_PLACES_API_KEY
+  if (!key) throw new Error('GOOGLE_PLACES_API_KEY nincs beállítva')
+  const res = await fetch(`${API}/places:autocomplete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key },
+    body: JSON.stringify({ input, sessionToken, languageCode, includedRegionCodes: ['hu'], includedPrimaryTypes: ['street_address', 'premise', 'subpremise', 'postal_code'] }),
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`Places API ${res.status}: ${(await res.text()).slice(0, 300)}`)
+  type Resp = {
+    suggestions?: {
+      placePrediction?: {
+        placeId?: string
+        text?: { text?: string }
+        structuredFormat?: { mainText?: { text?: string }; secondaryText?: { text?: string } }
+      }
+    }[]
+  }
+  const data = (await res.json()) as Resp
+  return (data.suggestions ?? [])
+    .map((s) => s.placePrediction)
+    .filter((p): p is NonNullable<typeof p> => !!p?.placeId)
+    .map((p) => ({
+      placeId: p.placeId as string,
+      mainText: p.structuredFormat?.mainText?.text ?? p.text?.text ?? '',
+      secondaryText: p.structuredFormat?.secondaryText?.text ?? '',
+    }))
+}
+
+export type AddressDetails = { postalCode: string; city: string; street: string }
+
+/** Kiválasztás utáni cím-részletek — csak `addressComponents`-et kér (NEM rating/review-t), ezért
+ *  az olcsóbb "Essentials" szintbe esik, külön (`address_details`) kerettel számol. */
+export async function getAddressDetails(placeId: string, sessionToken: string): Promise<AddressDetails> {
+  await guardAndLog('address_details')
+  type Resp = { addressComponents?: { longText?: string; shortText?: string; types?: string[] }[] }
+  const qs = new URLSearchParams({ sessionToken })
+  const data = await call<Resp>(`/places/${encodeURIComponent(placeId)}?${qs.toString()}`, {
+    method: 'GET',
+    fieldMask: 'addressComponents',
+  })
+  const comps = data.addressComponents ?? []
+  const find = (type: string) => comps.find((c) => c.types?.includes(type))?.longText ?? ''
+  const route = find('route')
+  const streetNumber = find('street_number')
+  return {
+    postalCode: find('postal_code'),
+    city: find('locality') || find('postal_town') || find('administrative_area_level_2'),
+    street: [route, streetNumber].filter(Boolean).join(' ').trim(),
+  }
 }
 
 type PlaceDetails = {

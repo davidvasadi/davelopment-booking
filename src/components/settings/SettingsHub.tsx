@@ -46,6 +46,7 @@ import type { AccountBilling } from '@/lib/accountBilling'
 import type { Pricing } from '@/lib/pricing'
 import { can, type Capability } from '@/lib/permissions'
 import { BookingPageEditor, type BookingPageEditorInitial } from '@/components/settings/booking-page/BookingPageEditor'
+import { AddressAutocompleteInput } from '@/components/settings/AddressAutocompleteInput'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
 // Értesítések = tranzakciós emailek. Az emlékeztető/visszajelzés a Funkciók gazdája.
@@ -1739,9 +1740,10 @@ export function SettingsHub({
                     </button>
                   )}
                 </div>
-                <div id="bill-details-form" className="mt-5 space-y-4">
-                  {/* Sor 1: Cégnév + Adószám */}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div id="bill-details-form" className="mt-5 space-y-6">
+                  {/* ── Cégadatok */}
+                  <div className="space-y-3.5">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Cégadatok</p>
                     <div>
                       <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">
                         Cégnév / Teljes név <span className="text-bad" aria-hidden>*</span>
@@ -1760,33 +1762,37 @@ export function SettingsHub({
                         <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('legalName')}</p>
                       )}
                     </div>
-                    <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Adószám</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={billDetails.taxNumber}
-                        onChange={(e) => setBillField('taxNumber', maskTaxNumber(e.target.value))}
-                        placeholder="12345678-1-23"
-                        maxLength={13}
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Adószám</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={billDetails.taxNumber}
+                          onChange={(e) => setBillField('taxNumber', maskTaxNumber(e.target.value))}
+                          placeholder="12345678-1-23"
+                          maxLength={13}
+                          className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Cégjegyzékszám</label>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={billDetails.companyRegNumber}
+                          onChange={(e) => setBillField('companyRegNumber', maskCompanyReg(e.target.value))}
+                          placeholder="01-09-123456"
+                          maxLength={12}
+                          className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
+                        />
+                      </div>
                     </div>
                   </div>
-                  {/* Sor 2: Cégjegyzékszám + Számlázási email */}
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Cégjegyzékszám</label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={billDetails.companyRegNumber}
-                        onChange={(e) => setBillField('companyRegNumber', maskCompanyReg(e.target.value))}
-                        placeholder="01-09-123456"
-                        maxLength={12}
-                        className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                      />
-                    </div>
+
+                  {/* ── Elérhetőség */}
+                  <div className="space-y-3.5 border-t border-line pt-6">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Elérhetőség</p>
                     <div>
                       <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">
                         Számlázási email <span className="text-bad" aria-hidden>*</span>
@@ -1799,18 +1805,26 @@ export function SettingsHub({
                         placeholder="szamlazas@ceg.hu"
                         aria-required
                         aria-invalid={!!billError('billingEmail')}
-                        className={`h-[44px] w-full rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingEmail') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                        className={`h-[44px] w-full max-w-sm rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingEmail') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
                       />
                       {billError('billingEmail') && (
                         <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingEmail')}</p>
                       )}
                     </div>
                   </div>
-                  {/* Sor 3: Számlázási cím */}
-                  <div>
-                    <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">
-                      Számlázási cím <span className="text-bad" aria-hidden>*</span>
-                    </label>
+
+                  {/* ── Számlázási cím */}
+                  <div className="space-y-3 border-t border-line pt-6">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">
+                      Számlázási cím <span className="text-bad normal-case tracking-normal" aria-hidden>*</span>
+                    </p>
+                    <AddressAutocompleteInput
+                      onSelect={(a) => {
+                        if (a.postalCode) { setBillField('billingPostalCode', a.postalCode); touchBillField('billingPostalCode') }
+                        if (a.city) { setBillField('billingCity', a.city); touchBillField('billingCity') }
+                        if (a.street) { setBillField('billingStreet', a.street); touchBillField('billingStreet') }
+                      }}
+                    />
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-[120px_1fr_2fr]">
                       <div>
                         <input
@@ -1863,9 +1877,10 @@ export function SettingsHub({
                         )}
                       </div>
                     </div>
-                    <p className="mt-1.5 text-[11px] text-ink-soft2">Irányítószám · Város · Utca, házszám</p>
+                    <p className="text-[11px] text-ink-soft2">Irányítószám · Város · Utca, házszám</p>
                   </div>
-                  <p className="text-[11px] text-ink-soft2">
+
+                  <p className="border-t border-line pt-4 text-[11px] text-ink-soft2">
                     <span className="text-bad">*</span> Kötelező mezők — a számla kiállításához szükségesek
                   </p>
                 </div>

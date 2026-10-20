@@ -34,6 +34,7 @@ export const GoogleApiLog: CollectionConfig = {
       options: [
         { label: 'Élő találatok (Autocomplete New)', value: 'autocomplete' },
         { label: 'Hely-részletek (Place Details Enterprise+Atmosphere)', value: 'place_details' },
+        { label: 'Cím-részletek (Place Details Essentials)', value: 'address_details' },
       ],
     },
   ],
