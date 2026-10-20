@@ -13,7 +13,11 @@ const CSP = [
   "font-src 'self' data:",
   // 'self': a Beállítások → Foglalóoldal szerkesztő a saját foglalóoldalt iframe-ben mutatja.
   "frame-src 'self' https://js.stripe.com https://hooks.stripe.com",
-  "connect-src 'self' https://api.stripe.com https://*.stripe.com https://nominatim.openstreetmap.org https://www.google-analytics.com https://*.google-analytics.com https://www.googletagmanager.com https://www.facebook.com",
+  // A gtag.js a GA4 adatokat ma már a regionális `region1.analytics.google.com`-féle
+  // aldomaineken küldi (nem csak a klasszikus www.google-analytics.com-on), a Google Ads
+  // konverziólinkelés pedig a `stats.g.doubleclick.net`-en keresztül megy — mindkettő
+  // hiányzott, ezért a böngésző CSP-hiba miatt eldobta ezeket a hívásokat.
+  "connect-src 'self' https://api.stripe.com https://*.stripe.com https://nominatim.openstreetmap.org https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://*.g.doubleclick.net https://www.facebook.com",
   "frame-ancestors 'none'",
 ].join('; ')
 
