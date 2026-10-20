@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, ArrowRight } from 'lucide-react'
+import { ArrowUpRight, ArrowRight, Star } from 'lucide-react'
 import { BrandLogo } from '@/components/BrandLogo'
 import { RollButton } from '@/components/landing/sections/TestimonialButtons'
 import { JoinWord } from '@/components/landing/JoinWord'
@@ -75,7 +75,14 @@ const LEGAL_LINKS = [
 ]
 
 /** Sötét lábléc: márka-blokk, gyors linkek, jogi linkek, regisztráció-CTA és a nagy „Csatlakozz" felirat. */
-export function Footer({ trial_days }: { trial_days: number }) {
+export function Footer({
+  trial_days,
+  googleRating,
+}: {
+  trial_days: number
+  /** Cache-elt Google Cégem-pontszám (lásd src/lib/google-rating.ts) — null, ha még nincs cron-adat. */
+  googleRating?: { rating: number; userRatingCount: number } | null
+}) {
   return (
     <footer
       className="relative text-white overflow-hidden m-2 rounded-xl mt-2"
@@ -129,8 +136,26 @@ export function Footer({ trial_days }: { trial_days: number }) {
                 <rect x="3" y="11" width="18" height="11" rx="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
-              <span>Fizetés a <span className="font-semibold text-white/70">Stripe</span> biztonságos rendszerén keresztül</span>
+              <span>
+                Fizetés a{' '}
+                <a
+                  href="https://stripe.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-white/70 hover:text-white transition-colors underline underline-offset-2"
+                >
+                  Stripe
+                </a>{' '}
+                biztonságos rendszerén keresztül
+              </span>
             </span>
+            {googleRating && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-white/40">
+                <Star className="h-3.5 w-3.5 shrink-0" fill="currentColor" stroke="none" />
+                <span className="font-semibold text-white/70">{googleRating.rating}</span>
+                <span>· {googleRating.userRatingCount} Google-értékelés alapján</span>
+              </span>
+            )}
             <a
               href="https://davelopment.hu"
               target="_blank"

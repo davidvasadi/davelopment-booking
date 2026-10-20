@@ -2,7 +2,7 @@
 
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
-import { Activity, SquareKanban, CreditCard, ArrowDown, ArrowUp, ArrowRight } from 'lucide-react'
+import { Activity, SquareKanban, CreditCard, ArrowDown, ArrowUp, ArrowRight, Star } from 'lucide-react'
 import { float } from '@/components/landing/Motion'
 import { SectionLabel } from '@/components/landing/SectionLabel'
 import { EASE, buttonHover } from '@/lib/motion'
@@ -16,6 +16,16 @@ import { MorphButton } from '@/components/landing/sections/TestimonialButtons'
 // Ideiglenesen elrejtve: még csak 2 Google-értékelés van, korai lenne kiemelten kérni többet.
 // Visszahozáshoz: állítsd true-ra.
 const SHOW_REVIEW_CTA = false
+
+export type TestimonialsGoogleRating = {
+  rating: number
+  userRatingCount: number
+} | null
+
+export type TestimonialsGoogleReview = {
+  authorName: string
+  photoUrl: string | null
+}
 
 const CURVE =
   'M0,118 C50,95 75,42 118,48 C152,54 162,88 208,80 C248,72 288,22 379,16'
@@ -48,11 +58,21 @@ const AVATARS = [
 export function Testimonials({
   trial_days,
   joinLine,
+  googleRating,
+  googleReviews,
 }: {
   trial_days: number
   /** Iparági landingeknél felülírja a homepage-alapértelmezett "Csatlakozz..." sort. */
   joinLine?: string
+  /** Cache-elt Google Cégem-pontszám (lásd src/lib/google-rating.ts) — null, ha még nincs cron-adat. */
+  googleRating?: TestimonialsGoogleRating
+  /** Valódi értékelők fotói az avatar-sorhoz — üres/hiányzó esetén a statikus placeholder marad. */
+  googleReviews?: TestimonialsGoogleReview[]
 }) {
+  const liveAvatars = (googleReviews ?? [])
+    .map((r) => r.photoUrl)
+    .filter((url): url is string => !!url)
+  const avatarSrcs = liveAvatars.length > 0 ? liveAvatars : AVATARS
   // A görbe "kirajzolás" animációja korábban egy SVG `<clipPath>`-en (`<defs>`) belüli `<rect>`-et
   // animált — annak nincs valós layout-geometriája, ezért a rajta lévő `whileInView`/`useInView`
   // sosem észlelte a láthatóvá válást, a görbe örökre width:0-n, azaz teljesen levágva maradt.
@@ -211,9 +231,9 @@ export function Testimonials({
               {joinLine ?? 'Csatlakozz a vállalkozásokhoz, akik már minket használnak.'}
             </motion.p>
 
-            {/* Avatar stack — staggerelt belépő */}
+            {/* Avatar stack — staggerelt belépő (valódi Google-értékelők, ha már van cache-elt adat) */}
             <div className="flex items-center">
-              {AVATARS.map((src, i) => (
+              {avatarSrcs.map((src, i) => (
                 <motion.img
                   key={i}
                   src={src}
@@ -226,6 +246,20 @@ export function Testimonials({
                 />
               ))}
             </div>
+
+            {googleRating && (
+              <motion.div
+                className="flex items-center gap-1.5 text-sm text-brand-ink/70"
+                initial={{ opacity: 0, y: 8 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, amount: 0.3 }}
+                transition={{ duration: 0.4, ease: EASE, delay: 0.5 }}
+              >
+                <Star className="h-4 w-4" fill="#191314" stroke="#191314" />
+                <span className="font-semibold text-brand-ink">{googleRating.rating}</span>
+                <span>· {googleRating.userRatingCount} Google-értékelés alapján</span>
+              </motion.div>
+            )}
 
             {SHOW_REVIEW_CTA && (
               <motion.div

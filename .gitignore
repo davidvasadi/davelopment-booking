@@ -11,6 +11,11 @@ docs/
 .env.*.local
 .env.production.local
 
+# Google-értékelés cache (a scripts/google-reviews/fetch_rating.py cron írja ki, nem forráskód)
+public/data/google-rating.json
+public/data/google-reviews.json
+public/data/google-review-photos/
+
 # Logs
 logs
 *.log

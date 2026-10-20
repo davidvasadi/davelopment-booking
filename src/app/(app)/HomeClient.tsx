@@ -17,6 +17,7 @@ import { DavelopmentBanner } from '@/components/landing/sections/DavelopmentBann
 import { Footer } from '@/components/landing/sections/Footer'
 import { CookieBanner } from '@/components/landing/CookieBanner'
 import { LandingClickTracker } from '@/components/landing/LandingClickTracker'
+import { getCachedGoogleRating, getCachedGoogleReviews } from '@/lib/google-rating'
 
 export type { LandingPricing }
 
@@ -32,13 +33,17 @@ export type { LandingPricing }
  * elejére. A Marquee csak a főoldalon jelenik meg — az kifejezetten a homepage bemutató-jellegű
  * nyitányához tartozik, egy célzott landingen nincs rá szükség.
  */
-export default function HomeClient({
+export default async function HomeClient({
   pricing,
   industry,
 }: {
   pricing: LandingPricing
   industry?: IndustryLanding
 }) {
+  const [googleRating, googleReviews] = await Promise.all([
+    getCachedGoogleRating(),
+    getCachedGoogleReviews(),
+  ])
   return (
     <main className="min-h-screen bg-[#F7F7F7] text-brand-ink font-geist" style={{ '--page-bg': '#F7F7F7' } as React.CSSProperties}>
       <div className="relative z-10">
@@ -49,7 +54,12 @@ export default function HomeClient({
       <HowItWorks title={industry?.howItWorksTitle} subtitle={industry?.howItWorksSubtitle} steps={industry?.howItWorksSteps} />
       <CalendarSection title={industry?.calendarTitle} subtitle={industry?.calendarSubtitle} />
       <TeamSection title={industry?.teamTitle} subtitle={industry?.teamSubtitle} />
-      <Testimonials trial_days={pricing.trial_days} joinLine={industry?.testimonialsJoinLine} />
+      <Testimonials
+        trial_days={pricing.trial_days}
+        joinLine={industry?.testimonialsJoinLine}
+        googleRating={googleRating}
+        googleReviews={googleReviews.map((r) => ({ authorName: r.authorName, photoUrl: r.photoUrl }))}
+      />
       <Faq pricing={pricing} extraItems={industry?.faqItems} />
       <CtaBanner trial_days={pricing.trial_days} title={industry?.ctaTitle} />
       <Pricing pricing={pricing} segment={industry?.segment} />
@@ -57,7 +67,7 @@ export default function HomeClient({
       <TipsTeaser />
       <ContactSection />
       <DavelopmentBanner />
-      <Footer trial_days={pricing.trial_days} />
+      <Footer trial_days={pricing.trial_days} googleRating={googleRating} />
       <CookieBanner />
       <LandingClickTracker />
     </main>
