@@ -154,7 +154,7 @@ export function Footer({
               <GoogleRatingBadge
                 rating={googleRating.rating}
                 userRatingCount={googleRating.userRatingCount}
-                className="text-xs text-brand-accent"
+                className="text-xs text-white/40"
               />
             )}
             <a

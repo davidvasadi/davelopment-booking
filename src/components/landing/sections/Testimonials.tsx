@@ -265,7 +265,8 @@ export function Testimonials({
                 <GoogleRatingBadge
                   rating={googleRating.rating}
                   userRatingCount={googleRating.userRatingCount}
-                  className="text-brand-ink"
+                  className="text-brand-ink/70"
+                  starClassName="text-brand-ink"
                 />
               </motion.div>
             )}

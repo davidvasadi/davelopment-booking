@@ -70,21 +70,21 @@ export function ContactSection({
               <motion.span variants={item} className="inline-flex self-start items-center rounded-full bg-white/10 px-4 py-2 font-onest text-[13px] tracking-[-0.02em] text-white/70 backdrop-blur-[10px] mb-5">
                 Kapcsolat
               </motion.span>
-              <motion.h2 variants={item} className="font-semibold text-white text-[clamp(2rem,3.5vw,2.75rem)] leading-[1.05] tracking-[-0.04em] mb-5">
+              <motion.h2 variants={item} className="font-semibold text-white text-[clamp(2rem,3.5vw,2.75rem)] leading-[1.05] tracking-[-0.04em] mb-7">
                 Kérdésed van?
               </motion.h2>
-              {googleRating && (
-                <motion.div variants={item} className="mb-7">
-                  <GoogleRatingBadge
-                    rating={googleRating.rating}
-                    userRatingCount={googleRating.userRatingCount}
-                    className="text-brand-accent"
-                  />
-                </motion.div>
-              )}
               <motion.div variants={item}>
                 <ContactForm />
               </motion.div>
+              {googleRating && (
+                <motion.div variants={item} className="mt-6">
+                  <GoogleRatingBadge
+                    rating={googleRating.rating}
+                    userRatingCount={googleRating.userRatingCount}
+                    className="text-white/70"
+                  />
+                </motion.div>
+              )}
             </div>
 
             {/* Jobb — nagy cím + 4 nagyobb infókártya 2x2 */}
