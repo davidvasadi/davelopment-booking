@@ -2,10 +2,11 @@
 
 import Link from 'next/link'
 import { motion } from 'framer-motion'
-import { ArrowUpRight, ArrowRight, Star } from 'lucide-react'
+import { ArrowUpRight, ArrowRight } from 'lucide-react'
 import { BrandLogo } from '@/components/BrandLogo'
 import { RollButton } from '@/components/landing/sections/TestimonialButtons'
 import { JoinWord } from '@/components/landing/JoinWord'
+import { GoogleRatingBadge } from '@/components/landing/GoogleRatingBadge'
 import { EASE, buttonHover } from '@/lib/motion'
 import { Grain } from '@/components/landing/Grain'
 import { SERVICES } from '@/components/landing/sections/Nav'
@@ -150,11 +151,11 @@ export function Footer({
               </span>
             </span>
             {googleRating && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-white/40">
-                <Star className="h-3.5 w-3.5 shrink-0" fill="currentColor" stroke="none" />
-                <span className="font-semibold text-white/70">{googleRating.rating}</span>
-                <span>· {googleRating.userRatingCount} Google-értékelés alapján</span>
-              </span>
+              <GoogleRatingBadge
+                rating={googleRating.rating}
+                userRatingCount={googleRating.userRatingCount}
+                className="text-xs text-brand-accent"
+              />
             )}
             <a
               href="https://davelopment.hu"

@@ -130,6 +130,25 @@ def download_photo(photo_uri: str, review_id: str) -> str | None:
         return None
 
 
+def build_reviewer_photos(raw_reviews: list) -> list:
+    """Minden visszaadott értékelő profilképe (NEM szűrve a szöveg hosszára) — az
+    avatar-sorhoz kell, ahol a cél a valódi, fotóval rendelkező arcok megjelenítése,
+    nem a tartalmas szöveg. A Google max. 5 review-t ad vissza helyszínenként, ebből
+    szűrjük ki azokat, akiknek egyáltalán van profilképük."""
+    out = []
+    for r in raw_reviews:
+        author = r.get("authorAttribution", {})
+        photo_uri = author.get("photoUri")
+        if not photo_uri:
+            continue
+        original = (r.get("originalText") or {}).get("text") or (r.get("text") or {}).get("text") or ""
+        review_id = r.get("name", original[:40] or photo_uri)
+        photo_filename = download_photo(photo_uri, review_id)
+        if photo_filename:
+            out.append(f"/google-review-photo/{photo_filename}")
+    return out
+
+
 def build_reviews_payload(raw_reviews: list) -> list:
     out = []
     for r in raw_reviews:
@@ -161,10 +180,14 @@ def main() -> None:
         sys.exit(1)
 
     place_id = os.environ["GOOGLE_PLACE_ID"]
+    reviewer_photos = build_reviewer_photos(data.get("reviews", []))
     rating_result = {
         "rating": data.get("rating"),
         "userRatingCount": data.get("userRatingCount"),
         "name": (data.get("displayName") or {}).get("text"),
+        # Minden visszaadott értékelő profilképe (szöveg-hossztól függetlenül) — az
+        # avatar-soroknak kell, lásd build_reviewer_photos().
+        "reviewerPhotos": reviewer_photos,
         # Nem igényel API-hívást — a Place ID-ból kódból felépíthető,
         # dokumentált Google Maps keresési URL-formátum.
         "googleMapsUrl": f"https://www.google.com/maps/search/?api=1&query=Google&query_place_id={place_id}",
@@ -179,7 +202,8 @@ def main() -> None:
 
     print(
         f"OK — {rating_result['rating']} csillag, {rating_result['userRatingCount']} értékelés "
-        f"({len(reviews_result)} tartalmas vélemény kiírva) -> {RATING_OUTPUT_PATH}, {REVIEWS_OUTPUT_PATH}"
+        f"({len(reviews_result)} tartalmas vélemény, {len(reviewer_photos)} profilkép kiírva) "
+        f"-> {RATING_OUTPUT_PATH}, {REVIEWS_OUTPUT_PATH}"
     )
 
 

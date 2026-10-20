@@ -2,11 +2,12 @@
 
 import { useRef } from 'react'
 import { motion, useInView } from 'framer-motion'
-import { Activity, SquareKanban, CreditCard, ArrowDown, ArrowUp, ArrowRight, Star } from 'lucide-react'
+import { Activity, SquareKanban, CreditCard, ArrowDown, ArrowUp, ArrowRight } from 'lucide-react'
 import { float } from '@/components/landing/Motion'
 import { SectionLabel } from '@/components/landing/SectionLabel'
 import { EASE, buttonHover } from '@/lib/motion'
 import { MorphButton } from '@/components/landing/sections/TestimonialButtons'
+import { GoogleRatingBadge } from '@/components/landing/GoogleRatingBadge'
 
 /**
  * „Most N napig ingyen" — Értékelések/CTA szekció.
@@ -20,6 +21,8 @@ const SHOW_REVIEW_CTA = false
 export type TestimonialsGoogleRating = {
   rating: number
   userRatingCount: number
+  /** Minden visszaadott értékelő profilképe (szöveg-hossztól függetlenül) — avatar-sorhoz. */
+  reviewerPhotos?: string[]
 } | null
 
 export type TestimonialsGoogleReview = {
@@ -69,9 +72,14 @@ export function Testimonials({
   /** Valódi értékelők fotói az avatar-sorhoz — üres/hiányzó esetén a statikus placeholder marad. */
   googleReviews?: TestimonialsGoogleReview[]
 }) {
-  const liveAvatars = (googleReviews ?? [])
+  // A reviewerPhotos (minden fotóval rendelkező értékelő, szöveg-hossztól függetlenül)
+  // a tágabb, elsődleges forrás — csak ha az üres, esik vissza a tartalmas-szöveges
+  // googleReviews-ból vett fotókra, és csak ha egyik sincs, a statikus placeholderre.
+  const reviewerPhotos = googleRating?.reviewerPhotos ?? []
+  const quotePhotos = (googleReviews ?? [])
     .map((r) => r.photoUrl)
     .filter((url): url is string => !!url)
+  const liveAvatars = reviewerPhotos.length > 0 ? reviewerPhotos : quotePhotos
   const avatarSrcs = liveAvatars.length > 0 ? liveAvatars : AVATARS
   // A görbe "kirajzolás" animációja korábban egy SVG `<clipPath>`-en (`<defs>`) belüli `<rect>`-et
   // animált — annak nincs valós layout-geometriája, ezért a rajta lévő `whileInView`/`useInView`
@@ -249,15 +257,16 @@ export function Testimonials({
 
             {googleRating && (
               <motion.div
-                className="flex items-center gap-1.5 text-sm text-brand-ink/70"
                 initial={{ opacity: 0, y: 8 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true, amount: 0.3 }}
                 transition={{ duration: 0.4, ease: EASE, delay: 0.5 }}
               >
-                <Star className="h-4 w-4" fill="#191314" stroke="#191314" />
-                <span className="font-semibold text-brand-ink">{googleRating.rating}</span>
-                <span>· {googleRating.userRatingCount} Google-értékelés alapján</span>
+                <GoogleRatingBadge
+                  rating={googleRating.rating}
+                  userRatingCount={googleRating.userRatingCount}
+                  className="text-brand-ink"
+                />
               </motion.div>
             )}
 

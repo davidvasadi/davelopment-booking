@@ -65,7 +65,7 @@ export default async function HomeClient({
       <Pricing pricing={pricing} segment={industry?.segment} />
       {industry && industry.relatedSlugs.length > 0 && <RelatedIndustries slugs={industry.relatedSlugs} />}
       <TipsTeaser />
-      <ContactSection />
+      <ContactSection googleRating={googleRating} />
       <DavelopmentBanner />
       <Footer trial_days={pricing.trial_days} googleRating={googleRating} />
       <CookieBanner />

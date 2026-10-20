@@ -5,6 +5,7 @@ import { Clock, Mail, Zap, HelpCircle } from 'lucide-react'
 import { FadeUp } from '@/components/landing/Motion'
 import { ContactForm } from '@/components/landing/ContactForm'
 import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
+import { GoogleRatingBadge } from '@/components/landing/GoogleRatingBadge'
 import { EASE } from '@/lib/motion'
 import { CONTACT_EMAIL } from '@/lib/brand'
 
@@ -46,7 +47,12 @@ const INFO_CARDS = [
   },
 ]
 
-export function ContactSection() {
+export function ContactSection({
+  googleRating,
+}: {
+  /** Cache-elt Google Cégem-pontszám (lásd src/lib/google-rating.ts) — null, ha még nincs cron-adat. */
+  googleRating?: { rating: number; userRatingCount: number } | null
+}) {
   return (
     <section id="kapcsolat" className="mx-auto max-w-7xl px-4 lg:px-5 py-20 lg:py-28">
       <FadeUp>
@@ -64,9 +70,18 @@ export function ContactSection() {
               <motion.span variants={item} className="inline-flex self-start items-center rounded-full bg-white/10 px-4 py-2 font-onest text-[13px] tracking-[-0.02em] text-white/70 backdrop-blur-[10px] mb-5">
                 Kapcsolat
               </motion.span>
-              <motion.h2 variants={item} className="font-semibold text-white text-[clamp(2rem,3.5vw,2.75rem)] leading-[1.05] tracking-[-0.04em] mb-7">
+              <motion.h2 variants={item} className="font-semibold text-white text-[clamp(2rem,3.5vw,2.75rem)] leading-[1.05] tracking-[-0.04em] mb-5">
                 Kérdésed van?
               </motion.h2>
+              {googleRating && (
+                <motion.div variants={item} className="mb-7">
+                  <GoogleRatingBadge
+                    rating={googleRating.rating}
+                    userRatingCount={googleRating.userRatingCount}
+                    className="text-brand-accent"
+                  />
+                </motion.div>
+              )}
               <motion.div variants={item}>
                 <ContactForm />
               </motion.div>

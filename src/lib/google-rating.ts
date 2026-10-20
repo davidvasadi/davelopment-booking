@@ -13,6 +13,8 @@ export type GoogleRating = {
   rating: number
   userRatingCount: number
   name?: string
+  /** Minden visszaadott értékelő profilképe (szöveg-hossztól függetlenül) — avatar-sorokhoz. */
+  reviewerPhotos?: string[]
   googleMapsUrl?: string
   fetchedAt: string
 }
