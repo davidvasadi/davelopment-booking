@@ -54,6 +54,13 @@ export interface DashboardStats {
   cancelledCount: number
   cancelledCountDiff: number
   cancelledTrend: { label: string; value: number }[]
+  /** Nem jött meg (no-show) — a lemondástól külön kezelt státusz. A "Lemondások" KPI-kártya
+   *  a kettő ÖSSZEGÉT mutatja fejlécben (ld. étterem-oldal azonos mintája), a részlet-nézet
+   *  bontja külön lemondás/no-show alnézetre. */
+  noShowCount: number
+  noShowTrend: { label: string; value: number }[]
+  /** A "Lemondások" kártya fejléc-delta-ja — a KOMBINÁLT (lemondás+no-show) összeg változása. */
+  cancelledTotalDiff: number
   trend: DayData[]
   byService: ServiceStat[]
   byStaff: StaffStat[]
@@ -269,6 +276,13 @@ export async function getDashboardStats(
     const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
     return { label: dayLabel(d, rangeDays), value: allPeriodDocs.filter(b => b.date === d && b.status === 'cancelled').length }
   })
+  const noShowCount = allPeriodDocs.filter(b => b.status === 'no_show').length
+  const prevNoShowCount = allPrevDocs.filter(b => b.status === 'no_show').length
+  const cancelledTotalDiff = pctDiff(cancelledCount + noShowCount, prevCancelledCount + prevNoShowCount)
+  const noShowTrend = Array.from({ length: rangeDays }, (_, i) => {
+    const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
+    return { label: dayLabel(d, rangeDays), value: allPeriodDocs.filter(b => b.date === d && b.status === 'no_show').length }
+  })
 
   // ── Visszatérő vs új vendég — customer_email alapján, a TELJES előzményből (nem csak a
   //    lekérdezett tartományból), ezért külön, célzott lekérdezés kell a korábbi foglalásokra. ──
@@ -380,6 +394,9 @@ export async function getDashboardStats(
     cancelledCount,
     cancelledCountDiff,
     cancelledTrend,
+    noShowCount,
+    noShowTrend,
+    cancelledTotalDiff,
     trend,
     byService,
     byStaff,

@@ -146,6 +146,7 @@ export const Bookings: CollectionConfig = {
         { label: 'Megerősített', value: 'confirmed' },
         { label: 'Lemondott', value: 'cancelled' },
         { label: 'Befejezett', value: 'completed' },
+        { label: 'Nem jött meg', value: 'no_show' },
       ],
       defaultValue: 'pending',
       required: true,

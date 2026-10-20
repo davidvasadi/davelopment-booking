@@ -1012,7 +1012,7 @@ export interface Booking {
   date: string
   start_time: string
   end_time: string
-  status: 'pending' | 'confirmed' | 'cancelled' | 'completed'
+  status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
   notes?: string | null
   reminder_sent?: boolean | null
   reminder_last_offset?: number | null

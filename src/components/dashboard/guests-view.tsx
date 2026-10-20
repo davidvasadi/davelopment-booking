@@ -429,7 +429,10 @@ export function GuestsView({
             {mapLabel}
           </div>
           <div className="absolute inset-0 z-0">
-            {buckets.length > 0 ? <GuestMapClient buckets={buckets} focusIso={focusIso} /> : mapEmpty}
+            {/* A térkép maga üres `buckets`-szel is biztonságosan renderelődik (csak nincs pin
+                rajta, alapnézeten marad) — ne a "hamarosan" szöveges placeholder legyen az
+                alapállapot, induljon mindig a valódi térkép, foglalás nélkül is. */}
+            <GuestMapClient buckets={buckets} focusIso={focusIso} />
           </div>
         </div>
 

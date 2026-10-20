@@ -3,6 +3,8 @@ import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { findMyStaffId } from '@/lib/myStaffLink'
 import { getDashboardStats } from '@/lib/dashboardStats'
+import { getCustomerDemographics } from '@/lib/customerDemographics'
+import { CustomerDemographicsCard } from '@/components/dashboard/CustomerDemographicsCard'
 import { getReviewSummary } from '@/lib/reviews'
 import { daypartBuckets } from '@/lib/daypartBuckets'
 import { formatPrice } from '@/lib/utils'
@@ -58,6 +60,7 @@ export default async function AnalyticsPage({
   const staffId = isOwnScope ? (await findMyStaffId(salon.id, userId, userEmail)) ?? 0 : undefined
 
   const stats = await getDashboardStats(salon.id, days, range, staffId)
+  const demographics = await getCustomerDemographics('salon', salon.id)
   // A review-mérőszám csak a TELJES cégnézetben jelenik meg — nincs megbízható mód arra, hogy
   // egy adott szakemberhez kössünk egy értékelést, ezért a saját (own-scope) nézetben kihagyjuk.
   const reviewSummary = isOwnScope ? null : await getReviewSummary('salon', salon.id)
@@ -74,7 +77,7 @@ export default async function AnalyticsPage({
   // ── Crextio „stat bars" — teljesítés/lemondás/hátralévő arány az időszakra ──
   const totalForBar = stats.periodBookings || 1
   const completedPct = Math.min(100, stats.completionRate)
-  const cancelledPct = Math.min(100 - completedPct, Math.round((stats.cancelledCount / totalForBar) * 100))
+  const cancelledPct = Math.min(100 - completedPct, Math.round(((stats.cancelledCount + stats.noShowCount) / totalForBar) * 100))
   const openPct = Math.max(0, 100 - completedPct - cancelledPct)
 
   // ── Nap×óra hőtérkép (10..22h) — a szalonnál nincs per-nap-óra kereszt, ezért a
@@ -148,9 +151,11 @@ export default async function AnalyticsPage({
       ],
     },
     {
-      id: 'cancelled', label: 'Lemondások', value: String(stats.cancelledCount), unit: 'foglalás',
-      color: '#C0564A', icon: 'cancelled', series: stats.cancelledTrend, deltaPct: stats.cancelledCountDiff,
+      id: 'cancelled', label: 'Lemondások', value: `${stats.cancelledCount + stats.noShowCount}`, unit: 'foglalás',
+      color: '#C0564A', icon: 'cancelled', series: stats.cancelledTrend, deltaPct: stats.cancelledTotalDiff,
       views: [
+        { id: 'cancel', label: `Lemondva · ${stats.cancelledCount} foglalás`, icon: 'cancelled', series: stats.cancelledTrend, value: String(stats.cancelledCount) },
+        { id: 'noshow', label: `Nem jött meg · ${stats.noShowCount} foglalás`, icon: 'noshow', series: stats.noShowTrend, value: String(stats.noShowCount) },
         { id: 'trend', label: 'Foglalások alakulása', icon: 'trend', target: 'trendBookings' },
       ],
     },
@@ -280,6 +285,7 @@ export default async function AnalyticsPage({
         chartCards={chartCards}
       />
 
+      <CustomerDemographicsCard gender={demographics.gender} groups={demographics.groups} />
     </div>
   )
 }

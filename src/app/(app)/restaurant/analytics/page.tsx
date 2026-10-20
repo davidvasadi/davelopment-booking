@@ -3,6 +3,8 @@ import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { getRestaurantStats } from '@/lib/restaurantStats'
+import { getCustomerDemographics } from '@/lib/customerDemographics'
+import { CustomerDemographicsCard } from '@/components/dashboard/CustomerDemographicsCard'
 import { getMyShiftStats } from '@/lib/myShiftStats'
 import { getReviewSummary } from '@/lib/reviews'
 import { daypartBuckets } from '@/lib/daypartBuckets'
@@ -75,6 +77,7 @@ export default async function RestaurantAnalyticsPage({
   }
 
   const stats = await getRestaurantStats(restaurant.id, days, range)
+  const demographics = await getCustomerDemographics('restaurant', restaurant.id)
   const reviewSummary = await getReviewSummary('restaurant', restaurant.id)
   const label = periodLabel(days)
 
@@ -282,6 +285,7 @@ export default async function RestaurantAnalyticsPage({
         chartCards={chartCards}
       />
 
+      <CustomerDemographicsCard gender={demographics.gender} groups={demographics.groups} />
     </div>
   )
 }

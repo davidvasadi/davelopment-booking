@@ -55,6 +55,7 @@ const statusOptions: { value: Booking['status']; label: string }[] = [
   { value: 'confirmed', label: 'Megerősítve' },
   { value: 'completed', label: 'Befejezett' },
   { value: 'cancelled', label: 'Lemondva' },
+  { value: 'no_show', label: 'Nem jött meg' },
 ]
 const statusLabelOf = (s: string) => statusOptions.find((o) => o.value === s)?.label ?? s
 // A sidebar fejléc-badge színei — a foglalási nézet (SalonDailyView) palettájával egyezően.
@@ -63,6 +64,7 @@ const statusBadge: Record<string, string> = {
   confirmed: 'bg-ink-dark text-white',
   completed: 'bg-emerald-500 text-white',
   cancelled: 'bg-zinc-200 text-zinc-500 line-through',
+  no_show: 'bg-red-500 text-white',
 }
 
 /**
@@ -575,7 +577,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                         className={`h-2 w-2 shrink-0 rounded-full ${
                           status === 'pending'
                             ? 'bg-amber-400 animate-soft-pulse'
-                            : status === 'cancelled'
+                            : status === 'cancelled' || status === 'no_show'
                               ? 'bg-zinc-300'
                               : 'bg-emerald-500'
                         }`}
