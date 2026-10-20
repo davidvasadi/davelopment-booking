@@ -25,9 +25,9 @@ const LINKS = [
 export const SERVICES = [
   { label: 'Weboldal készítés',             href: 'https://davelopment.hu/hu/weboldal-keszites' },
   { label: 'Időpontfoglaló rendszer',     href: 'https://booking.davelopment.hu/register' },
-  { label: 'Vállalatirányítási rendszer', href: 'https://davelopment.hu/hu' },
-  { label: 'Design & Arculat',               href: 'https://davelopment.hu/hu' },
-  { label: 'Marketing',           href: 'https://davelopment.hu/hu' },
+  { label: 'Vállalatirányítási rendszer', href: 'https://davelopment.hu/hu/szolgaltatasok' },
+  { label: 'Design & Arculat',               href: 'https://davelopment.hu/hu/szolgaltatasok' },
+  { label: 'Marketing',           href: 'https://davelopment.hu/hu/szolgaltatasok' },
 ]
 
 const NAV_OFFSET = 110
