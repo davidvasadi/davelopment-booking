@@ -48,12 +48,14 @@ export async function upsertMarketingConsent(params: {
 
   if (existing.docs[0]) {
     const doc = existing.docs[0] as { marketing_consent?: boolean | null; customer_name?: string | null; customer_city?: string | null; customer_country?: string | null }
-    // Ha a meglévő rekordnak korábban (pl. egy előző, hiányos foglalásból) nincs neve/városa,
-    // de a mostani foglalás adott egyet, pótoljuk — különben a lista örökre üresen mutatná.
+    // A NÉV csak akkor pótlódik, ha korábban hiányzott (nem írjuk felül egy esetleges kézi
+    // javítást a Vendégek oldalon). A VÁROS/ORSZÁG viszont mindig a LEGUTÓBBI foglaláson
+    // megadott értékre frissül — ha a vendég elköltözik és új várost ír be, a profilja is
+    // azt mutassa, ne az első alkalommal megadott (azóta elavult) adatot.
     const backfill: Record<string, string> = {}
     if (!doc.customer_name && name?.trim()) backfill.customer_name = name.trim()
-    if (!doc.customer_city && city?.trim()) backfill.customer_city = city.trim()
-    if (!doc.customer_country && country?.trim()) backfill.customer_country = country.trim()
+    if (city?.trim() && city.trim() !== doc.customer_city) backfill.customer_city = city.trim()
+    if (country?.trim() && country.trim() !== doc.customer_country) backfill.customer_country = country.trim()
     if (doc.marketing_consent) {
       if (Object.keys(backfill).length > 0) {
         await payload.update({ collection: 'customers', id: existing.docs[0].id, data: backfill, overrideAccess: true })

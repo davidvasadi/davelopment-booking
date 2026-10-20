@@ -136,14 +136,17 @@ export default async function RestaurantGuestsPage() {
   // Egyedi kérdések TÖRTÉNETE a vendég profilján — kérdés-SZÖVEGENKÉNT (nem id-nkánt, mert a
   // sablon időközben módosulhat/törölhető) a legutóbbi (legfrissebb dátumú) nem-üres választ
   // tartjuk meg. NEM külön tárolt mezőből jön, hanem a foglalás-történetből levezetve.
+  // A kérdés BELSŐ AZONOSÍTÓJA (a `custom_answers` objektum kulcsa) alapján csoportosítunk, NEM
+  // a kérdés akkori szövege szerint — így ha a tulaj utólag átfogalmazza a kérdést, a régi és
+  // új válasz EGY sorban marad (a legfrissebb foglalás szövegével címkézve), nem szakad ketté.
   const latestCustomAnswers = (own: GuestSource[]): { label: string; value: string }[] => {
-    const byQuestion = new Map<string, string>()
+    const byQuestionId = new Map<string, { label: string; value: string }>()
     for (const s of [...own].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))) {
       const answers = (s as Src).customAnswers
       if (!answers) continue
-      for (const qa of Object.values(answers)) byQuestion.set(qa.question, qa.answer)
+      for (const [qid, qa] of Object.entries(answers)) byQuestionId.set(qid, { label: qa.question, value: qa.answer })
     }
-    return Array.from(byQuestion.entries()).map(([label, value]) => ({ label, value }))
+    return Array.from(byQuestionId.values())
   }
 
   const guestVMs = buildGuestVMs(guests, sources, {
