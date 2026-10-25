@@ -57,6 +57,13 @@ export interface RestaurantStats {
   phoneCount: number
   // grafikonok
   trend: DayData[]
+  /** Az ELŐZŐ, azonos hosszúságú időszak napi sora (index szerint a `trend`-del párosítva; a
+   *  `revenue` itt is vendégszám/fő) — a sidebar valódi „Előző” görbéje ebből jön. */
+  prevTrend: DayData[]
+  prevPeriodPax: number
+  prevPeriodReservations: number
+  /** Az aktuális és az összehasonlított előző időszak pontos határai (yyyy-MM-dd). */
+  periodRange: { from: string; to: string; prevFrom: string; prevTo: string }
   dailyBreakdown: RestaurantDayBreakdown[]
   /** Mindig legalább 30 napnyi bontás, hogy a napi-részletek sheet szabadon lapozható legyen
    *  rövid (pl. 1 napos) időszaknál is. A chart-oszlopok a dailyBreakdown-t használják. */
@@ -272,6 +279,13 @@ export async function getRestaurantStats(
     })
     dailyBreakdown.push(bd)
   }
+
+  // Előző, azonos hosszúságú időszak — ugyanazok a napok `rangeDays`-szel korábban
+  const prevTrend: DayData[] = trend.map((t) => {
+    const d = format(subDays(new Date(t.date + 'T00:00:00'), rangeDays), 'yyyy-MM-dd')
+    const bd = breakdownFor(d)
+    return { date: d, label: bd.label, revenue: bd.pax, bookings: bd.active }
+  })
 
   // Mindig legalább 30 napnyi bontás a sheet lapozásához (rövid időszaknál is).
   const breakdownDays = Math.max(days, 30)
@@ -502,6 +516,10 @@ export async function getRestaurantStats(
 
   return {
     period: rangeDays,
+    prevTrend,
+    prevPeriodPax,
+    prevPeriodReservations: prevPeriodDocs.length,
+    periodRange: { from: periodStartStr, to: periodEndStr, prevFrom: prevPeriodStartStr, prevTo: prevPeriodEndStr },
     tableCount: tablesRes.totalDocs,
     totalSeats: seats,
     reservationsToday: todayDocs.length,

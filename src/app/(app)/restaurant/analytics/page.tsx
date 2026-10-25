@@ -3,12 +3,11 @@ import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
 import { getRestaurantStats } from '@/lib/restaurantStats'
-import { getCustomerDemographics } from '@/lib/customerDemographics'
-import { CustomerDemographicsCard } from '@/components/dashboard/CustomerDemographicsCard'
 import { getMyShiftStats } from '@/lib/myShiftStats'
 import { getReviewSummary } from '@/lib/reviews'
 import { daypartBuckets } from '@/lib/daypartBuckets'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
+import { buildPeriodInfo } from '@/lib/periodInfo'
 import { ReservationTrendChart, DowChart, HourChart, DaypartChart } from '@/components/dashboard/DashboardCharts'
 import { DailyBreakdownChart } from '@/components/restaurant/DailyBreakdownChart'
 import { DwellCard } from '@/components/restaurant/DwellCard'
@@ -77,7 +76,6 @@ export default async function RestaurantAnalyticsPage({
   }
 
   const stats = await getRestaurantStats(restaurant.id, days, range)
-  const demographics = await getCustomerDemographics('restaurant', restaurant.id)
   const reviewSummary = await getReviewSummary('restaurant', restaurant.id)
   const label = periodLabel(days)
 
@@ -90,6 +88,10 @@ export default async function RestaurantAnalyticsPage({
   // Idősorok a metrika-diagramokhoz (étterem: a trend.revenue mező pax-ot hordoz).
   const reservationsSeries = stats.trend.map((d) => ({ label: d.label, value: d.bookings }))
   const paxSeries = stats.trend.map((d) => ({ label: d.label, value: d.revenue }))
+  // Az előző, azonos hosszúságú időszak VALÓDI napi sora — a sidebar „Előző” görbéjéhez
+  const prevReservationsSeries = stats.prevTrend.map((d) => ({ label: d.label, value: d.bookings }))
+  const prevPaxSeries = stats.prevTrend.map((d) => ({ label: d.label, value: d.revenue }))
+  const periodInfo = buildPeriodInfo(label, stats.periodRange)
   // A napi bontásból az időszakra szabva (a dailyBreakdownFull min. 30 napot tart).
   const tailFull = stats.dailyBreakdownFull.slice(-days)
   const completedSeries = tailFull.map((d) => ({ label: d.label, value: d.completed }))
@@ -140,6 +142,7 @@ export default async function RestaurantAnalyticsPage({
     {
       id: 'reservations', label: 'Foglalások', value: String(stats.periodReservations), unit: 'foglalás',
       deltaPct: stats.periodReservationsDiff, color: '#1D1C19', icon: 'reservations', series: reservationsSeries, // davelopment ink
+      prevSeries: prevReservationsSeries, prevValue: `${stats.prevPeriodReservations} foglalás`,
       views: [
         { id: 'hour', label: 'Óránkénti forgalom', icon: 'hour', target: 'hour' },
         { id: 'dow', label: 'Heti eloszlás', icon: 'dow', target: 'dow' },
@@ -148,6 +151,7 @@ export default async function RestaurantAnalyticsPage({
     {
       id: 'pax', label: 'Vendégszám', value: `${stats.periodPax} fő`, unit: 'fő',
       deltaPct: stats.periodPaxDiff, color: '#1D9D63', icon: 'pax', series: paxSeries,
+      prevSeries: prevPaxSeries, prevValue: `${stats.prevPeriodPax} fő`,
       views: [
         { id: 'trend', label: 'Foglalások alakulása', icon: 'pax', target: 'trend' },
         { id: 'nat', label: 'Vendégek nemzetisége', icon: 'nat', target: 'nat' },
@@ -273,6 +277,7 @@ export default async function RestaurantAnalyticsPage({
       {/* Analitika bento — Reveal nélkül, pontosan úgy mint az Áttekintés grafikonjai. */}
       <AnalyticsOverview
         metrics={metrics}
+        periodInfo={periodInfo}
         filter={<DateRangeFilter basePath="/restaurant/analytics" />}
         csvHref={
           range
@@ -284,8 +289,6 @@ export default async function RestaurantAnalyticsPage({
         sources={sources}
         chartCards={chartCards}
       />
-
-      <CustomerDemographicsCard gender={demographics.gender} groups={demographics.groups} />
     </div>
   )
 }

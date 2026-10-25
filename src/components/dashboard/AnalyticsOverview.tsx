@@ -54,6 +54,8 @@ export type OverviewView = {
   value?: string
   /** Saját változás % (opcionális). */
   deltaPct?: number
+  /** Egysoros magyarázat, mit mutat ez a bontás (hiányában az id alapján). */
+  caption?: string
 }
 export type OverviewMetric = {
   id: string
@@ -64,7 +66,50 @@ export type OverviewMetric = {
   color: string
   icon: string
   series: OverviewSeriesPoint[]
+  /** Az előző, azonos hosszúságú időszak VALÓDI sora (index szerint párosítva). Hiányában nincs
+   *  „Előző” görbe — kitalált (leskálázott) görbét nem rajzolunk. */
+  prevSeries?: OverviewSeriesPoint[]
+  /** Az előző időszak értéke kiírva (pl. „30 foglalás”) — a sidebar „mihez képest” sorához. */
+  prevValue?: string
+  /** Egysoros magyarázat, mit mér a mutató (hiányában az id alapján). */
+  description?: string
   views: OverviewView[]
+}
+
+/** Mit mér az egyes mutató — a részletek-sidebar fejlécében (szalon + étterem). */
+const METRIC_DESCRIPTION: Record<string, string> = {
+  revenue: 'A nem lemondott foglalások összértéke a kiválasztott időszakban (a foglaláskori árral).',
+  bookings: 'A kiválasztott időszakra eső, nem lemondott foglalások száma.',
+  reservations: 'A kiválasztott időszakra eső, nem lemondott asztalfoglalások száma.',
+  pax: 'A nem lemondott foglalásokban érkező vendégek összlétszáma (fő).',
+  completion: 'A lezárt foglalások közül hány százalék teljesült (a még nyitott foglalások nélkül).',
+  avg: 'Egy foglalás átlagos értéke: a bevétel osztva a foglalások számával.',
+  cancelled: 'Lemondott és meg nem jelent (no-show) foglalások együtt.',
+  returning: 'Az időszak vendégei közül hány százalék foglalt már korábban is (email alapján).',
+  leadtime: 'Átlagosan hány nappal a kezelés / érkezés előtt foglalnak.',
+  reviews: 'A beérkezett vendég-értékelések átlaga (1–5 csillag).',
+  source: 'Honnan érkeznek a foglalások: online, telefonon vagy walk-in.',
+}
+
+/** Mit mutat egy al-bontás — a sidebar kártyáinak alcíme. */
+const VIEW_CAPTION: Record<string, string> = {
+  trend: 'Napról napra az időszakban.',
+  hour: 'A nap mely óráiban van a legtöbb foglalás.',
+  dow: 'A hét mely napjain a legforgalmasabb.',
+  service: 'Szolgáltatásonkénti megoszlás.',
+  popular: 'A legtöbbször foglalt szolgáltatások.',
+  staff: 'Munkatársankénti megoszlás.',
+  cancel: 'A vendég által lemondott foglalások napi alakulása.',
+  noshow: 'Meg nem jelent vendégek napi alakulása.',
+  new: 'Először foglaló vendégek napi alakulása.',
+  returning: 'Korábban már foglalt vendégek napi alakulása.',
+  buckets: 'Hány nappal előre foglalnak (sávonként).',
+  distribution: 'Az értékelések megoszlása csillagszám szerint.',
+  online: 'Online foglalások napi alakulása.',
+  walkin: 'Bejelentkezés nélkül érkezők napi alakulása.',
+  phone: 'Telefonos foglalások napi alakulása.',
+  nat: 'Vendégek megoszlása nemzetiség szerint.',
+  dwell: 'Átlagos asztalnál töltött idő.',
 }
 
 /** Nap×óra hőtérkép-adat a „Foglaltsági jelentés" kártyához. */
@@ -206,21 +251,23 @@ function LineTip({ active, payload, label, unit }: TipProps & { unit?: string })
  * Nincs area-fill; halvány vízszintes rács; sötét pill-tooltip; függőleges szaggatott cursor.
  */
 function HiringChart({
-  unit, series, deltaPct,
-}: { unit: string; series: OverviewSeriesPoint[]; deltaPct?: number }) {
+  unit, series, prevSeries,
+}: { unit: string; series: OverviewSeriesPoint[]; prevSeries?: OverviewSeriesPoint[]; deltaPct?: number }) {
   if (series.length < 2) {
     return <div className="h-full flex items-center justify-center text-sm text-ink-soft">Nincs elég adat a diagramhoz ezen az időszakon.</div>
   }
-  const hasPrev = deltaPct !== undefined && Number.isFinite(deltaPct)
-  const prevScale = hasPrev ? 1 / (1 + (deltaPct as number) / 100) : 1
+  // Az „Előző” görbe CSAK valódi adatból (az előző, azonos hosszúságú időszak napi sora). Korábban
+  // az aktuális görbe leskálázott másolata volt — ugyanolyan alakú, félrevezető.
+  const hasPrev = !!prevSeries && prevSeries.length >= 2
+  const prev = hasPrev ? bucketSeries(prevSeries!, 12) : []
   // Kevesebb, de értelmesebben elkülönülő pont — sűrű (napi) adatnál a sok pont "tördelt"
   // görbét ad; 12-re ritkítva simább, olvashatóbb ívet kapunk (a munkavállalói nézet heti
   // bontású trendjéhez hasonló stílus), a `bucketSeries` átlagolása miatt torzítás nélkül.
   const cur = bucketSeries(series, 12)
-  const data = cur.map((p) => ({
+  const data = cur.map((p, i) => ({
     label: p.label,
     cur: p.value,
-    ...(hasPrev ? { prev: Math.round(p.value * prevScale * 10) / 10 } : {}),
+    ...(hasPrev && prev[i] ? { prev: prev[i].value } : {}),
   }))
   const n = data.length
   const xInterval = Math.max(0, Math.round(n / 8) - 1)
@@ -595,8 +642,11 @@ export function AnalyticsOverview({
   heatmap,
   sources,
   chartCards,
+  periodInfo,
 }: {
   metrics: OverviewMetric[]
+  /** A kiválasztott időszak és az összehasonlított előző időszak, olvasható formában. */
+  periodInfo?: { label: string; range: string; prevRange: string }
   /** A szerver-oldalról kapott időszak-választó (PeriodFilter, CSV nélkül). */
   filter: React.ReactNode
   /** CSV export URL — desktopon külön gomb. */
@@ -636,6 +686,8 @@ export function AnalyticsOverview({
   // A deep-dive sidebar egy FŐ metrikára nyílik; benne az al-nézetek + grafikonjaik.
   const [sheetMetricId, setSheetMetricId] = useState<string | null>(null)
   const sheetMetric = metrics.find((m) => m.id === sheetMetricId) ?? metrics[0]
+  const sheetDescription = sheetMetric.description ?? METRIC_DESCRIPTION[sheetMetric.id]
+  const sheetHasPrev = !!sheetMetric.prevSeries && sheetMetric.prevSeries.length >= 2
   // Ha egy KONKRÉT al-nézetre kattintottak (Bontások → sor → al-nézet), a sidebar megnyílva
   // rögtön oda görgessen, ne a tetejéről kelljen megkeresni. `viewId` nélkül (fejléc-nyilak,
   // kártya-kattintás) a sidebar a tetején nyílik, mint eddig.
@@ -668,7 +720,7 @@ export function AnalyticsOverview({
 
   if (!primary || !selected) return null
 
-  const showPrevLegend = selected.deltaPct !== undefined && Number.isFinite(selected.deltaPct)
+  const showPrevLegend = !!selected.prevSeries && selected.prevSeries.length >= 2
 
   // Forrás-szegmensek 2 kártyára osztva.
   const srcA = sources?.slice(0, 2) ?? []
@@ -895,7 +947,7 @@ export function AnalyticsOverview({
               eshet a recharts ResponsiveContainer méret-mérése előtt, ami örökre láthatatlanná
               teszi a grafikont (ugyanez a fix, ami a munkavállalói nézetnél is bevált). */}
           <div key={selected.id} className="relative mt-3 w-full" style={{ height: 208 }}>
-            <HiringChart unit={selected.unit} series={selected.series} deltaPct={selected.deltaPct} />
+            <HiringChart unit={selected.unit} series={selected.series} prevSeries={selected.prevSeries} />
           </div>
         </div>
 
@@ -912,26 +964,41 @@ export function AnalyticsOverview({
       {/* Részletek-sidebar (deep-dive) — a kör-nyílra kattintva, a FŐ metrikára */}
       <Sheet open={!!sheetMetricId} onOpenChange={(v) => { if (!v) { setSheetMetricId(null); setScrollToViewId(null) } }}>
         <SheetContent className="font-onest w-full sm:max-w-lg overflow-y-auto bg-white">
-          <SheetHeader className="mb-5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft mb-0.5">Részletek</p>
+          <SheetHeader className="mb-5 space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft">
+              Részletek{periodInfo ? ` · ${periodInfo.label}` : ''}
+            </p>
             <SheetTitle className="text-lg font-medium tracking-tight text-ink">{sheetMetric.label}</SheetTitle>
+            {sheetDescription && <p className="text-[13px] leading-relaxed text-ink-soft">{sheetDescription}</p>}
           </SheetHeader>
 
+          {/* Érték + MIHEZ képest: az előző, azonos hosszúságú időszak */}
           <div className="mb-5 rounded-[18px] p-5 border border-line bg-[var(--dav-glass)]">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft mb-2">Aktuális érték</p>
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft">Az időszakban</p>
+              {periodInfo && <p className="text-[11px] text-ink-soft2">{periodInfo.range}</p>}
+            </div>
             <div className="flex items-baseline gap-2">
               <p className="text-3xl font-light tracking-[-0.02em] text-ink">{sheetMetric.value}</p>
               {sheetMetric.deltaPct !== undefined && <DeltaText pct={sheetMetric.deltaPct} />}
             </div>
+            {(sheetMetric.prevValue || sheetMetric.deltaPct !== undefined) && periodInfo && (
+              <p className="mt-2 text-xs text-ink-soft">
+                {sheetMetric.prevValue ? <>Előző időszak: <span className="font-medium text-ink">{sheetMetric.prevValue}</span></> : 'Az előző időszakhoz képest'}
+                <span className="text-ink-soft2"> · {periodInfo.prevRange}</span>
+              </p>
+            )}
           </div>
 
           {/* Fő trend a metrikára — MÉRETEZETT konténer, hogy látszódjon */}
-          <div className="mb-6 h-56 w-full">
-            <HiringChart
-              unit={sheetMetric.unit}
-              series={sheetMetric.series}
-              deltaPct={sheetMetric.deltaPct}
-            />
+          <div className="mb-6">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft">Napi alakulás</p>
+              <ChartLegend showPrev={sheetHasPrev} />
+            </div>
+            <div className="h-56 w-full">
+              <HiringChart unit={sheetMetric.unit} series={sheetMetric.series} prevSeries={sheetMetric.prevSeries} />
+            </div>
           </div>
 
           {/* Al-bontások + azok grafikonjai (méretezett konténerben). A saját idősorral
@@ -954,6 +1021,9 @@ export function AnalyticsOverview({
                     </span>
                     <span className="text-sm font-light text-ink">{headValue}</span>
                   </div>
+                  {(v.caption ?? VIEW_CAPTION[v.id]) && (
+                    <p className="-mt-1.5 mb-3 pl-10 text-xs text-ink-soft">{v.caption ?? VIEW_CAPTION[v.id]}</p>
+                  )}
                   {/* MÉRETEZETT konténer — a ResponsiveContainer alapú grafikonok itt látszódnak */}
                   <div className="h-64 w-full">
                     {chart ? chart : vi % 2 === 1 ? (
@@ -962,7 +1032,7 @@ export function AnalyticsOverview({
                       <HiringChart
                         unit=""
                         series={ownSeries ?? sheetMetric.series}
-                        deltaPct={v.deltaPct ?? sheetMetric.deltaPct}
+                        prevSeries={ownSeries ? undefined : sheetMetric.prevSeries}
                       />
                     )}
                   </div>

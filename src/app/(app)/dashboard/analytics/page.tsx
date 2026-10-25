@@ -3,13 +3,12 @@ import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { findMyStaffId } from '@/lib/myStaffLink'
 import { getDashboardStats } from '@/lib/dashboardStats'
-import { getCustomerDemographics } from '@/lib/customerDemographics'
-import { CustomerDemographicsCard } from '@/components/dashboard/CustomerDemographicsCard'
 import { getReviewSummary } from '@/lib/reviews'
 import { daypartBuckets } from '@/lib/daypartBuckets'
 import { formatPrice } from '@/lib/utils'
 import { TrendChart, DowChart, ServiceChart, StaffChart, HourChart, DaypartChart, PopularServicesChart } from '@/components/dashboard/DashboardCharts'
 import { AnalyticsOverview, type OverviewMetric } from '@/components/dashboard/AnalyticsOverview'
+import { buildPeriodInfo } from '@/lib/periodInfo'
 import { AnalyticsScopeToggle } from '@/components/dashboard/AnalyticsScopeToggle'
 import { WeekMiniBars, WeekDayLabels, type WeekBar } from '@/components/shared/OverviewCharts'
 import { DateRangeFilter } from '@/components/dashboard/DateRangeFilter'
@@ -60,7 +59,6 @@ export default async function AnalyticsPage({
   const staffId = isOwnScope ? (await findMyStaffId(salon.id, userId, userEmail)) ?? 0 : undefined
 
   const stats = await getDashboardStats(salon.id, days, range, staffId)
-  const demographics = await getCustomerDemographics('salon', salon.id)
   // A review-mérőszám csak a TELJES cégnézetben jelenik meg — nincs megbízható mód arra, hogy
   // egy adott szakemberhez kössünk egy értékelést, ezért a saját (own-scope) nézetben kihagyjuk.
   const reviewSummary = isOwnScope ? null : await getReviewSummary('salon', salon.id)
@@ -73,6 +71,10 @@ export default async function AnalyticsPage({
   // Idősorok a metrika-diagramokhoz.
   const revenueSeries = stats.trend.map((d) => ({ label: d.label, value: d.revenue }))
   const bookingsSeries = stats.trend.map((d) => ({ label: d.label, value: d.bookings }))
+  // Az előző, azonos hosszúságú időszak VALÓDI napi sora — a sidebar „Előző” görbéjéhez
+  const prevRevenueSeries = stats.prevTrend.map((d) => ({ label: d.label, value: d.revenue }))
+  const prevBookingsSeries = stats.prevTrend.map((d) => ({ label: d.label, value: d.bookings }))
+  const periodInfo = buildPeriodInfo(periodLabel(days), stats.periodRange)
 
   // ── Crextio „stat bars" — teljesítés/lemondás/hátralévő arány az időszakra ──
   const totalForBar = stats.periodBookings || 1
@@ -118,6 +120,7 @@ export default async function AnalyticsPage({
     {
       id: 'revenue', label: 'Bevétel', value: formatPrice(stats.periodRevenue, 'HUF'), unit: 'Ft',
       deltaPct: stats.periodRevenueDiff, color: '#1D1C19', icon: 'revenue', series: revenueSeries,
+      prevSeries: prevRevenueSeries, prevValue: formatPrice(stats.prevPeriodRevenue, 'HUF'),
       views: [
         { id: 'trend', label: 'Bevétel alakulása', icon: 'trend', target: 'trend' },
         { id: 'hour', label: 'Óránkénti forgalom', icon: 'hour', target: 'hour' },
@@ -127,6 +130,7 @@ export default async function AnalyticsPage({
     {
       id: 'bookings', label: 'Foglalások', value: String(stats.periodBookings), unit: 'foglalás',
       deltaPct: stats.periodBookingsDiff, color: '#1D1C19', icon: 'bookings', series: bookingsSeries,
+      prevSeries: prevBookingsSeries, prevValue: `${stats.prevPeriodBookings} foglalás`,
       views: [
         { id: 'trend', label: 'Foglalások alakulása', icon: 'trend', target: 'trendBookings' },
         { id: 'hour', label: 'Óránkénti forgalom', icon: 'hour', target: 'hour' },
@@ -260,6 +264,7 @@ export default async function AnalyticsPage({
           Reveal nélkül, pontosan úgy mint az Áttekintés grafikonjai (azonnal renderel). */}
       <AnalyticsOverview
         metrics={metrics}
+        periodInfo={periodInfo}
         filter={
           <>
             {hasFullView && (
@@ -284,8 +289,6 @@ export default async function AnalyticsPage({
         sources={sources}
         chartCards={chartCards}
       />
-
-      <CustomerDemographicsCard gender={demographics.gender} groups={demographics.groups} />
     </div>
   )
 }

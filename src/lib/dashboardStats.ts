@@ -62,6 +62,13 @@ export interface DashboardStats {
   /** A "Lemondások" kártya fejléc-delta-ja — a KOMBINÁLT (lemondás+no-show) összeg változása. */
   cancelledTotalDiff: number
   trend: DayData[]
+  /** Az ELŐZŐ, azonos hosszúságú időszak napi sora (index szerint párosítva a `trend`-del) —
+   *  a részletek-sidebar „Előző” görbéje ebből jön, nem az aktuális görbe leskálázásából. */
+  prevTrend: DayData[]
+  prevPeriodRevenue: number
+  prevPeriodBookings: number
+  /** Az aktuális és az összehasonlított előző időszak pontos határai (yyyy-MM-dd). */
+  periodRange: { from: string; to: string; prevFrom: string; prevTo: string }
   byService: ServiceStat[]
   byStaff: StaffStat[]
   byDayOfWeek: DowStat[]
@@ -195,6 +202,18 @@ export async function getDashboardStats(
   const trend: DayData[] = Array.from({ length: rangeDays }, (_, i) => {
     const d = format(addDays(new Date(periodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
     const dayDocs = docs.filter(b => b.date === d)
+    return {
+      date: d,
+      label: dayLabel(d, days),
+      revenue: dayDocs.reduce((s, b) => s + getPrice(b), 0),
+      bookings: dayDocs.length,
+    }
+  })
+
+  // Előző, azonos hosszúságú időszak napi sora — a sidebar valódi „Előző” görbéjéhez
+  const prevTrend: DayData[] = Array.from({ length: rangeDays }, (_, i) => {
+    const d = format(addDays(new Date(prevPeriodStartStr + 'T00:00:00'), i), 'yyyy-MM-dd')
+    const dayDocs = prevPeriodDocs.filter(b => b.date === d)
     return {
       date: d,
       label: dayLabel(d, days),
@@ -375,6 +394,10 @@ export async function getDashboardStats(
 
   return {
     period: rangeDays,
+    prevTrend,
+    prevPeriodRevenue,
+    prevPeriodBookings,
+    periodRange: { from: periodStartStr, to: periodEndStr, prevFrom: prevPeriodStartStr, prevTo: prevPeriodEndStr },
     revenueToday,
     revenueTodayDiff: pctDiff(revenueToday, revenueYesterday),
     revenueMonth,
