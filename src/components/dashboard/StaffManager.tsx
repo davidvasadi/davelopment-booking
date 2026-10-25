@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Plus, CalendarDays, Trash2, Search, Download, ChevronDown, Check, UserRound, Pencil } from 'lucide-react'
+import { Plus, CalendarDays, Trash2, Search, Download, ChevronDown, Check, UserRound, Pencil, TriangleAlert } from 'lucide-react'
 
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
@@ -164,7 +164,7 @@ export default function StaffManager({
   useEffect(() => { setEmpList(employees ?? []) }, [employees])
 
   const [query, setQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'review'>('all')
   const [posFilter, setPosFilter] = useState('all')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   // Sorra kattintva nyílik a Munkavállalók-adatlap overlay (a kattintott sor indexével előre-kiválasztva).
@@ -466,12 +466,16 @@ export default function StaffManager({
   }
 
   // ── Stat-csík értékek (VALÓS) ──
-  const activeCount = staff.filter((m) => m.is_active !== false).length
-  const totalCount = staff.length
+  // Az import által létrehozott, még át nem nézett munkatársak nem részei a csapatnak,
+  // amíg a tulaj rá nem néz — ne torzítsák a fejléc számait („Szabadságon”, „Munkatárs”).
+  const teamStaff = staff.filter((m) => !m.import_review)
+  const reviewCount = staff.length - teamStaff.length
+  const activeCount = teamStaff.filter((m) => m.is_active !== false).length
+  const totalCount = teamStaff.length
   const utilization = totalCount ? Math.round((activeCount / totalCount) * 100) : 0
   const onLeaveCount = totalCount - activeCount
   const now = new Date()
-  const newJoiners = staff.filter((m) => {
+  const newJoiners = teamStaff.filter((m) => {
     if (!m.join_date) return false
     const d = new Date(m.join_date)
     return (now.getTime() - d.getTime()) / 86400000 <= 90
@@ -485,6 +489,7 @@ export default function StaffManager({
   const filtered = staff.filter((m) => {
     if (statusFilter === 'active' && m.is_active === false) return false
     if (statusFilter === 'inactive' && m.is_active !== false) return false
+    if (statusFilter === 'review' && !m.import_review) return false
     if (posFilter !== 'all' && (m.role_title ?? '') !== posFilter) return false
     if (!query.trim()) return true
     const q = query.toLowerCase()
@@ -505,7 +510,7 @@ export default function StaffManager({
       return next
     })
 
-  const GRID = 'grid-cols-[34px_1.7fr_1.2fr_1.1fr_0.85fr_140px]'
+  const GRID = 'grid-cols-[34px_1.7fr_1.2fr_1.1fr_0.85fr_232px]'
 
   return (
     <>
@@ -537,17 +542,18 @@ export default function StaffManager({
       {/* ── MAPPA-FÜL kártya (davelopment App 67–75): NORMÁL folyású fül + homorú notch-ív (nem takarja a stat-csíkot) ── */}
       <div className="relative">
         {/* Fül: szűrők + kereső — a kártya bal-felső sarkára ül, jobbra homorú ív köti a kártyához */}
-        <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-28px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:w-full sm:max-w-[600px] sm:px-6">
+        <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-56px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:w-full sm:max-w-[600px] sm:px-6">
           {/* Szűrő: állapot */}
           <div className="relative shrink-0">
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive' | 'review')}
               className="cursor-pointer appearance-none rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
             >
               <option value="all">Minden állapot</option>
               <option value="active">Aktív</option>
               <option value="inactive">Inaktív</option>
+              {reviewCount > 0 && <option value="review">Átnézendő ({reviewCount})</option>}
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
@@ -653,7 +659,7 @@ export default function StaffManager({
                 </div>
                 <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(ownerUser.join_date ?? ownerUser.createdAt)}</div>
                 <div className="text-[13.5px] font-medium text-ink-soft">—</div>
-                <div className="relative flex items-center gap-1.5">
+                <div className="relative flex items-center gap-1.5 [&>*]:shrink-0">
                   {(() => { const sp = statusPill('active'); return (
                     <span className="inline-flex w-[118px] cursor-default items-center justify-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold" style={{ background: sp.bg, color: sp.color, border: sp.border }}>
                       <span className="h-[7px] w-[7px] rounded-full" style={{ background: sp.dot }} />
@@ -697,7 +703,8 @@ export default function StaffManager({
             const isInvited = invitedEmails?.has((m.email ?? '').toLowerCase()) ?? false
             const staffStatus: StaffStatus = isInvited ? 'invited' : m.is_active !== false ? 'active' : 'inactive'
             const sp = statusPill(staffStatus)
-            const inactive = staffStatus === 'inactive'
+            const needsReview = !!m.import_review
+            const inactive = staffStatus === 'inactive' && !needsReview
             const grad = gradientFor(m.name)
             const isToggling = togglingId === String(m.id)
             const isSel = selected.has(String(m.id))
@@ -741,7 +748,9 @@ export default function StaffManager({
                     </span>
                     <div className="min-w-0">
                       <p className={`truncate text-[14.5px] font-semibold ${inactive ? 'text-ink-soft line-through' : 'text-ink'}`}>{m.name}</p>
-                      {m.email && <p className="truncate text-[12px] font-medium text-ink-soft">{m.email}</p>}
+                      {needsReview ? (
+                        <p className="mt-0.5 flex items-center gap-1 text-[12.5px] font-bold text-amber-600"><TriangleAlert className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />Importált — nézd át</p>
+                      ) : m.email && <p className="truncate text-[12px] font-medium text-ink-soft">{m.email}</p>}
                     </div>
                   </div>
                   <div className="flex min-w-0 items-center gap-2">
@@ -750,13 +759,13 @@ export default function StaffManager({
                   </div>
                   <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(m.join_date)}</div>
                   <div>
-                    {freeDaysById[String(m.id)] != null ? (
+                    {freeDaysById[String(m.id)] != null && !needsReview && m.is_active !== false ? (
                       <span className="inline-flex items-center gap-1 rounded-[10px] bg-[#F4F2EC] px-2.5 py-1 text-[12.5px] font-semibold text-ink">
                         {freeDaysById[String(m.id)]} nap
                       </span>
                     ) : <span className="text-[13px] text-ink-soft2">—</span>}
                   </div>
-                  <div className="relative flex items-center gap-1.5">
+                  <div className="relative flex items-center gap-1.5 [&>*]:shrink-0">
                     <button
                       type="button"
                       disabled={!canToggle || isToggling}
@@ -874,7 +883,7 @@ export default function StaffManager({
             </div>
             )}
             {editLocale === 'hu' && (
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-sm font-medium">Szünet foglalások között <span className="font-normal text-ink-soft2">(perc)</span></Label>
                 <Input type="number" inputMode="numeric" min={0} max={240} className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('booking_buffer_minutes')} placeholder="Szalon alapja" />
@@ -883,7 +892,7 @@ export default function StaffManager({
                 <Label className="text-sm font-medium">Minimum foglalás előre <span className="font-normal text-ink-soft2">(óra)</span></Label>
                 <Input type="number" inputMode="decimal" min={0} max={720} step={0.5} className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('min_lead_hours')} placeholder="Nincs korlát" />
               </div>
-              <p className="text-[11.5px] text-ink-soft2 sm:col-span-2">Üresen hagyva a szalon alapbeállítása érvényes. A minimum idő csak az online foglalást korlátozza, a te kézi foglalásodat nem.</p>
+              <p className="text-[11.5px] text-ink-soft2">Üresen hagyva a szalon alapbeállítása érvényes. A minimum idő csak az online foglalást korlátozza, a te kézi foglalásodat nem.</p>
             </div>
             )}
             {editLocale === 'hu' && editing && (
@@ -925,7 +934,7 @@ export default function StaffManager({
             </div>
             )}
             {editLocale === 'hu' && (
-            <label htmlFor="staff_active" className="flex items-center justify-between rounded-xl border border-line bg-paper px-4 py-3.5 cursor-pointer">
+            <label htmlFor="staff_active" className="flex items-center justify-between rounded-xl border border-line bg-[#f4f4f4] px-4 py-3.5 cursor-pointer">
               <span>
                 <span className="block text-sm font-medium text-ink">Aktív</span>
                 <span className="mt-0.5 block text-xs text-ink-soft">Foglalható a foglaló oldalon</span>
@@ -976,7 +985,7 @@ export default function StaffManager({
               <button
                 type="button"
                 onClick={() => { setOpen(false); const empIdx = employees?.findIndex(emp => String(emp.id) === String(editing!.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : staff.findIndex(s => s.id === editing!.id)); setOpenCalendar(true) }}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-paper px-4 py-3.5 text-sm font-medium text-ink transition-colors hover:bg-white"
+                className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-[#f4f4f4] px-4 py-3.5 text-sm font-medium text-ink transition-colors hover:bg-white"
               >
                 <CalendarDays className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
                 Elérhetőség naptár szerkesztése

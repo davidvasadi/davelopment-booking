@@ -163,9 +163,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         console.error('[api/staff PATCH] membership-pozíció szinkron sikertelen', e)
       }
     }
-    // Ha az alap napi szünet változott, azonnal ráírjuk a Naptárra (nem várunk az éjszakai
-    // cronig) — ugyanaz a mintázat, mint a szalon-beállítás/elérhetőség-kivétel mentésénél.
-    if ('default_breaks' in body) {
+    // Ha az alap napi szünet változott, vagy a munkatárs most lett aktív (pl. importált, átnézett
+    // munkatárs), azonnal ráírjuk a Naptárra (nem várunk az éjszakai cronig) — ugyanaz a mintázat,
+    // mint a szalon-beállítás/elérhetőség-kivétel mentésénél.
+    if ('default_breaks' in body || (body.is_active === true && loaded.staff?.is_active === false)) {
       try {
         const salon = await loaded.payload.findByID({ collection: 'salons', id: loaded.salonId, depth: 0, overrideAccess: true })
         if (salon) await autofillSalonSchedule(loaded.payload, String(loaded.salonId), bookableDayCount(salon as BookingWindowSource))

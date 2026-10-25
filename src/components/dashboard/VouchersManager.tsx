@@ -282,7 +282,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
       {/* ── MAPPA-FÜL kártya ── */}
       <div className="relative">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-28px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:min-w-[380px] sm:max-w-[600px] sm:px-6">
+          <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-56px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:min-w-[380px] sm:max-w-[600px] sm:px-6">
             <div className="relative shrink-0">
               <select
                 value={statusFilter}

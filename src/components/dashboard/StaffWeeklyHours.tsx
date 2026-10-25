@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
+import { Switch } from '@/components/ui/toggle-switch'
 
 /**
  * Munkatárs heti, napra lebontott munkaideje (pl. hétfőn 9–17, kedden 12–20, szerdán szabad).
@@ -124,29 +125,33 @@ export function StaffWeeklyHours({ salonId, staffId }: { salonId: string; staffI
 
   return (
     <div className="space-y-3">
-      <label className="flex items-center gap-2.5 text-sm text-ink">
-        <input type="checkbox" checked={custom} onChange={(e) => setCustom(e.target.checked)} className="h-4 w-4 accent-[#1D1C19]" />
-        Egyéni munkaidő (különben a szalon nyitvatartása érvényes)
-      </label>
+      {/* Ugyanaz a kapcsoló, mint a sidebar „Aktív” sora */}
+      <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-[#f4f4f4] px-4 py-3.5">
+        <span>
+          <span className="block text-sm font-medium text-ink">Egyéni munkaidő</span>
+          <span className="mt-0.5 block text-xs text-ink-soft">Kikapcsolva a szalon nyitvatartása érvényes</span>
+        </span>
+        <Switch checked={custom} onChange={setCustom} ariaLabel="Egyéni munkaidő" />
+      </div>
       {custom && (
         <div className="divide-y divide-line rounded-[14px] border border-line bg-white">
           {DAYS.map((d) => {
             const v = days[d.key]
             return (
-              <div key={d.key} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
-                <label className="flex w-28 items-center gap-2 text-sm text-ink">
-                  <input type="checkbox" checked={v.on} onChange={(e) => setDay(d.key, { on: e.target.checked })} className="h-4 w-4 accent-[#1D1C19]" />
-                  {d.label}
-                </label>
-                {v.on ? (
-                  <div className="flex items-center gap-1.5">
-                    <input type="time" value={v.start} onChange={(e) => setDay(d.key, { start: e.target.value })} className={timeCls} />
-                    <span className="text-ink-soft">–</span>
-                    <input type="time" value={v.end} onChange={(e) => setDay(d.key, { end: e.target.value })} className={timeCls} />
-                  </div>
-                ) : (
-                  <span className="text-[13px] text-ink-soft2">Szabadnap</span>
-                )}
+              <div key={d.key} className="flex items-center gap-3 px-3 py-2.5">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+                  <span className="w-24 text-sm text-ink">{d.label}</span>
+                  {v.on ? (
+                    <div className="flex items-center gap-1.5">
+                      <input type="time" value={v.start} onChange={(e) => setDay(d.key, { start: e.target.value })} className={timeCls} />
+                      <span className="text-ink-soft">–</span>
+                      <input type="time" value={v.end} onChange={(e) => setDay(d.key, { end: e.target.value })} className={timeCls} />
+                    </div>
+                  ) : (
+                    <span className="text-[13px] text-ink-soft2">Szabadnap</span>
+                  )}
+                </div>
+                <Switch checked={v.on} onChange={(on) => setDay(d.key, { on })} ariaLabel={`${d.label} munkanap`} />
               </div>
             )
           })}
@@ -163,3 +168,4 @@ export function StaffWeeklyHours({ salonId, staffId }: { salonId: string; staffI
     </div>
   )
 }
+

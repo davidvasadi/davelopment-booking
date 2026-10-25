@@ -5,6 +5,8 @@ import { getPayloadClient } from '@/lib/payload'
 import { assertCapability } from '@/lib/apiCapability'
 import { sendTeamInviteEmail } from '@/lib/email'
 import { emitBookingChange } from '@/lib/sseEmitter'
+import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
+import { bookableDayCount, type BookingWindowSource } from '@/lib/bookingWindow'
 import type { Salon } from '@/payload/payload-types'
 
 /**
@@ -136,6 +138,16 @@ export async function POST(request: NextRequest) {
       }
     } catch (e) {
       console.error('[api/staff POST] membership létrehozás sikertelen', e)
+    }
+  }
+
+  // Új aktív munkatárs → a Naptár azonnal kapja meg a műszakjait (nem az éjszakai cronnal)
+  if ((doc as { is_active?: boolean | null }).is_active !== false) {
+    try {
+      const salon = await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })
+      if (salon) await autofillSalonSchedule(payload, String(salonId), bookableDayCount(salon as BookingWindowSource))
+    } catch (e) {
+      console.error('[api/staff POST] schedule-autofill szinkron hiba', e)
     }
   }
 

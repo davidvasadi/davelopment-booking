@@ -139,7 +139,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
       next.has(id) ? next.delete(id) : next.add(id)
       return next
     })
-  const GRID = 'grid-cols-[34px_1.8fr_1.4fr_1fr_150px]'
+  const GRID = 'grid-cols-[34px_1.8fr_1.4fr_1fr_160px]'
 
   const invite = async () => {
     const em = email.trim().toLowerCase()
@@ -281,7 +281,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
 
       {/* ── MAPPA-FÜL kártya (davelopment App): NORMÁL folyású fül + szűrők + kereső + homorú notch-ív ── */}
       <div className="relative">
-        <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-28px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:w-full sm:max-w-[600px] sm:px-6 print:hidden">
+        <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-56px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:w-full sm:max-w-[600px] sm:px-6 print:hidden">
           {/* Szűrő: állapot */}
           <div className="relative shrink-0">
             <select
@@ -433,12 +433,12 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
                     )}
                   </div>
                   <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(m.joinDate)}</div>
-                  <div className="relative flex items-center gap-1.5">
+                  <div className="relative flex items-center gap-1.5 [&>*]:shrink-0">
                     <button
                       type="button"
                       disabled={!canToggleStatus || busy}
                       onClick={(e) => { e.stopPropagation(); if (canToggleStatus) setStatusMenuFor(statusMenuFor === m.id ? null : m.id) }}
-                      className={`inline-flex items-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold ${canToggleStatus ? 'cursor-pointer' : 'cursor-default'}`}
+                      className={`inline-flex w-[118px] items-center justify-center gap-1.5 rounded-[14px] px-3 py-[5px] text-[12px] font-semibold ${canToggleStatus ? 'cursor-pointer' : 'cursor-default'}`}
                       style={{ background: sp.bg, color: sp.color, border: sp.border }}
                     >
                       <span className="h-[7px] w-[7px] rounded-full" style={{ background: sp.dot }} />
