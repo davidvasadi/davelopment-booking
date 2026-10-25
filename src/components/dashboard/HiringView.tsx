@@ -3,18 +3,25 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, animate, type Variants } from 'framer-motion'
-import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Mail, Check, Pencil, Lock, CalendarDays, Loader2, UserRound, Plus, Trash2 } from 'lucide-react'
+import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Check, Pencil, Lock, CalendarDays, Loader2, UserRound, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { BreakWindow } from '@/payload/payload-types'
 import { popItem } from '@/lib/motion'
 import { Switch } from '@/components/ui/toggle-switch'
 import { TimeSelect } from '@/components/ui/time-select'
+import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
 
 /** Felfüggesztett sávozott (hatch) minta — a lista sorával konzisztens. */
 const SUSPEND_HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.6), rgba(255,255,255,.6) 7px, rgba(190,180,140,.16) 7px, rgba(190,180,140,.16) 14px)'
 
+const HU_MONTHS_SHORT = ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.']
+/** „1995. okt. 9.” — a dátum-választó gomb felirata. */
+const fmtHuDate = (ymd: string) => {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return y && m && d ? `${y}. ${HU_MONTHS_SHORT[m - 1]} ${d}.` : ymd
+}
 const fmtDate = (iso?: string | null) => {
   if (!iso) return ''
   const d = new Date(iso)
@@ -49,7 +56,8 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
   const [f, setF] = useState<EditForm>(initial)
   const [history, setHistory] = useState<HistEntry[]>(initialHistory)
   const set = (k: keyof EditForm) => (e: { target: { value: string } }) => setF((p) => ({ ...p, [k]: e.target.value }))
-  const ic = 'h-11 w-full rounded-[12px] border border-line bg-[#EFEFEC] px-3 text-[14px] text-ink focus:outline-none focus:border-line-strong'
+  const ic = 'h-11 w-full rounded-[12px] border border-line bg-white px-3 text-[14px] text-ink focus:outline-none focus:border-line-strong'
+  const dateTriggerCls = 'flex h-11 w-full items-center gap-2 rounded-[12px] border border-line bg-white px-3 text-left text-[14px] text-ink transition-colors hover:border-line-strong focus:outline-none'
   const lc = 'mb-1 block text-[12px] font-semibold text-ink-soft'
   // Van kategória-készlet (étterem, owner-created) → válasszunk a MEGLÉVŐ pozíciókból; a jelenlegit is
   // felvesszük az opciók közé (hogy ne vesszen el, ha nincs a kategóriák közt). Készlet nélkül (szalon) marad a szabad szöveg.
@@ -76,8 +84,33 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
           </div>
         )}
         <div><label className={lc}>Telefon</label><input value={f.phone} onChange={set('phone')} className={ic} /></div>
-        <div><label className={lc}>Születésnap</label><input type="date" value={f.birthday} onChange={set('birthday')} min="1900-01-01" max="2099-12-31" className={ic} /></div>
-        <div><label className={lc}>Belépés</label><input type="date" value={f.join_date} onChange={set('join_date')} min="1900-01-01" max="2099-12-31" className={ic} /></div>
+        {/* Saját naptár-választó (mint a foglalásoknál) a böngésző natív, arculattól idegen popupja helyett */}
+        <div>
+          <label className={lc}>Születésnap</label>
+          <DatePickerPopover
+            value={f.birthday}
+            onChange={(d) => setF((p) => ({ ...p, birthday: d }))}
+            onClear={() => setF((p) => ({ ...p, birthday: '' }))}
+            yearRange={[1930, new Date().getFullYear()]}
+            triggerClassName={dateTriggerCls}
+          >
+            {f.birthday ? fmtHuDate(f.birthday) : <span className="text-ink-soft2">Válassz dátumot</span>}
+            <CalendarDays className="ml-auto h-4 w-4 text-ink-soft" strokeWidth={1.7} />
+          </DatePickerPopover>
+        </div>
+        <div>
+          <label className={lc}>Belépés</label>
+          <DatePickerPopover
+            value={f.join_date}
+            onChange={(d) => setF((p) => ({ ...p, join_date: d }))}
+            onClear={() => setF((p) => ({ ...p, join_date: '' }))}
+            yearRange={[1990, new Date().getFullYear() + 1]}
+            triggerClassName={dateTriggerCls}
+          >
+            {f.join_date ? fmtHuDate(f.join_date) : <span className="text-ink-soft2">Válassz dátumot</span>}
+            <CalendarDays className="ml-auto h-4 w-4 text-ink-soft" strokeWidth={1.7} />
+          </DatePickerPopover>
+        </div>
         <div><label className={lc}>Cím</label><input value={f.address} onChange={set('address')} className={ic} /></div>
         <div>
           <label className={lc}>TAJ / adóazonosító</label>
@@ -102,14 +135,13 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
           <div className="sm:col-span-2">
             <label className={lc}>Bér <Lock className="inline h-3 w-3 align-[-1px]" strokeWidth={1.8} /> (a fizetés a naptárból számolódik)</label>
             <div className="flex flex-wrap gap-2">
-              <div className="flex rounded-[12px] bg-[#E4E4E1] p-0.5">
+              <div className="flex rounded-[12px] border border-line bg-white p-0.5">
                 {(['daily', 'hourly'] as const).map((pt) => (
                   <button
                     key={pt}
                     type="button"
                     onClick={() => setF((p) => ({ ...p, pay_type: pt }))}
-                    className="rounded-[10px] px-3.5 py-2 text-[12.5px] font-semibold transition-colors"
-                    style={f.pay_type === pt ? { background: '#1D1C19', color: '#fff' } : { color: '#5C5848' }}
+                    className={`rounded-[10px] px-3.5 py-2 text-[12.5px] transition-colors ${f.pay_type === pt ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-ink-soft2 hover:bg-paper hover:text-ink'}`}
                   >
                     {pt === 'daily' ? 'Napidíj' : 'Órabér'}
                   </button>
@@ -131,14 +163,14 @@ function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEdi
           </div>
         )}
       </div>
-      <div><label className={lc}>Megjegyzés / bemutatkozás</label><textarea value={f.bio} onChange={set('bio')} rows={3} className="w-full rounded-[12px] border border-line bg-[#EFEFEC] px-3 py-2 text-[14px] text-ink focus:outline-none focus:border-line-strong" /></div>
+      <div><label className={lc}>Megjegyzés / bemutatkozás</label><textarea value={f.bio} onChange={set('bio')} rows={3} className="w-full rounded-[12px] border border-line bg-white px-3 py-2 text-[14px] text-ink focus:outline-none focus:border-line-strong" /></div>
       {variant === 'salon' && !isOwner && (
         <div>
           <label className={lc}>Közösségi linkek</label>
           <SocialLinksEditor
             value={f.socialLinks}
             onChange={(next) => setF((p) => ({ ...p, socialLinks: next }))}
-            inputClassName="h-11 border-line bg-[#EFEFEC]"
+            inputClassName="h-11 border-line bg-white"
           />
         </div>
       )}
@@ -382,7 +414,7 @@ function RadialGauge({ value, label }: { value: number; label: string }) {
   const r = 52
   const c = 2 * Math.PI * r
   return (
-    <div className="relative h-[85px] w-[85px] shrink-0 sm:h-[150px] sm:w-[150px]">
+    <div className="relative h-[76px] w-[76px] shrink-0 sm:h-[104px] sm:w-[104px]">
       <svg viewBox="0 0 130 130" className="h-full w-full -rotate-90">
         <circle cx="65" cy="65" r={r} fill="none" stroke="rgba(120,110,70,.14)" strokeWidth="14" />
         <motion.circle
@@ -393,8 +425,8 @@ function RadialGauge({ value, label }: { value: number; label: string }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-[18px] font-light leading-none tracking-[-0.02em] text-ink sm:text-[34px]"><CountUp to={value} /><span className="text-[10px] sm:text-[18px]">%</span></span>
-        <span className="mt-1 text-[8px] font-medium text-ink-soft sm:text-[11px]">{label}</span>
+        <span className="text-[16px] font-light leading-none tracking-[-0.02em] text-ink sm:text-[24px]"><CountUp to={value} /><span className="text-[9px] sm:text-[13px]">%</span></span>
+        <span className="mt-1 text-[8px] font-medium text-ink-soft sm:text-[9.5px]">{label}</span>
       </div>
     </div>
   )
@@ -494,15 +526,20 @@ function WorkChart({ recent, previous, labels = WEEK }: { recent: number[]; prev
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const showPeak = hi && hoverIdx === null
   return (
-    <div className="flex">
-      {/* y-tengely (óra) */}
-      <div className="hv-chart-h flex h-[200px] flex-col justify-between pr-2 text-[11px] text-ink-soft2">
-        {ticks.map((v, i) => <span key={i}>{v}ó</span>)}
+    // A rajzterület a szülő magasságát tölti ki (deszktopon a bal oszlop aljáig nyúlik, hogy a két
+    // oszlop egy vonalban végződjön), de legalább 200px; az svg preserveAspectRatio=none, így nyúlik.
+    <div className="hv-chart-wrap flex h-full min-h-[226px]">
+      {/* y-tengely (óra) — alul az x-felirat sorával azonos térköz, hogy a tickek a rácsra essenek */}
+      <div className="flex flex-col pr-2 text-[11px] text-ink-soft2">
+        <div className="hv-chart-h flex min-h-[200px] flex-1 flex-col justify-between">
+          {ticks.map((v, i) => <span key={i}>{v}ó</span>)}
+        </div>
+        <div className="mt-1.5 h-[16px]" />
       </div>
       {/* chart-terület */}
-      <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
         <div
-          className="hv-chart-h relative h-[200px]"
+          className="hv-chart-h relative min-h-[200px] flex-1"
           onMouseMove={(e) => {
           const rect = e.currentTarget.getBoundingClientRect()
           const svgX = ((e.clientX - rect.left) / rect.width) * w
@@ -511,7 +548,7 @@ function WorkChart({ recent, previous, labels = WEEK }: { recent: number[]; prev
         }}
         onMouseLeave={() => setHoverIdx(null)}
       >
-          <svg viewBox={`0 0 ${w} ${h}`} className="hv-chart-h h-[200px] w-full" preserveAspectRatio="none">
+          <svg viewBox={`0 0 ${w} ${h}`} className="absolute inset-0 h-full w-full" preserveAspectRatio="none">
             <defs>
               <clipPath id={clipId}>
                 <motion.rect x={0} y={0} width={0} height={h} initial={{ width: 0 }} animate={{ width: w }} transition={{ duration: 1.8, delay: 0.15, ease: EASE }} />
@@ -587,7 +624,7 @@ function WorkChart({ recent, previous, labels = WEEK }: { recent: number[]; prev
             )
           })()}
         </div>
-        <div className="mt-1.5 flex justify-between text-[11px] text-ink-soft2">
+        <div className="mt-1.5 flex h-[16px] justify-between text-[11px] leading-[16px] text-ink-soft2">
           {labels.map((d) => <span key={d}>{d}</span>)}
         </div>
       </div>
@@ -688,7 +725,7 @@ function MiniCalendar({ calendar, exceptions, selectedDay, onDaySelect }: { cale
 }
 
 // A bal-lista lapozója: hány munkatárs egy oldalon. Lapozó CSAK akkor jelenik meg, ha ennél többen vannak.
-const LIST_PER_PAGE = 8
+const LIST_PER_PAGE = 6
 // Valós oldalszám-ablak (ellipszissel), a lista méretéhez igazítva.
 function pageWindow(current: number, total: number): (number | '…')[] {
   if (total <= 5) return Array.from({ length: total }, (_, i) => i + 1)
@@ -1127,6 +1164,12 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
     }
   }
 
+  // Mobilon a találatra bökve a keresés törlődik → a lista visszakerül a profil alá, és a
+  // kiválasztott ember profilja látszik felül. Asztalin a lista oldalt van, ott megmarad a szűrés.
+  const clearSearchOnMobile = () => {
+    if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 1280px)').matches) setQuery('')
+  }
+
   const filtered = data.filter((c) => {
     const q = query.trim().toLowerCase()
     const matchQ = !q || c.name.toLowerCase().includes(q) || c.position.toLowerCase().includes(q)
@@ -1175,7 +1218,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
         <div className="flex items-center gap-2">
           <div className="flex h-11 flex-1 items-center gap-2.5 rounded-dav-pill border border-line bg-white px-4 lg:min-w-[200px] lg:flex-none">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
-            <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Keresés" className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none" />
+            <input value={query} onChange={(e) => { setQuery(e.target.value); setPage(1) }} placeholder="Keresés" className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none" />
           </div>
           {/* Szűrő gomb → meglévő pozíciók */}
           <div className="relative">
@@ -1220,11 +1263,14 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[300px_1fr]">
-        {/* ── BAL: csapat-lista ── */}
-        <motion.div variants={popItem} className="order-last flex flex-col print:hidden lg:order-first">
-          <motion.div variants={listContainer} className="space-y-3">
-            {filtered.length === 0 && <p className="py-8 text-center text-sm text-ink-soft">Nincs találat.</p>}
+      {/* A lista + profil egymás mellett csak xl-től (1280px) — alatta a profil két belső oszlopa
+          (fotó/naptár + adatlap) mellett a lista már nem fér el, a jobb szél levágódott. */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[300px_1fr]">
+        {/* ── BAL: csapat-lista ── mobilon a profil ALATT van; keresés közben a profil FÖLÉ ugrik,
+            hogy a találat azonnal látsszon (ne legalul, észrevétlenül). */}
+        <motion.div variants={popItem} className={`${query.trim() ? 'order-first' : 'order-last'} flex flex-col print:hidden xl:order-first`}>
+          <motion.div variants={listContainer} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {filtered.length === 0 && <p className="col-span-full py-8 text-center text-sm text-ink-soft">Nincs találat.</p>}
             {paged.map((c) => {
               const active = c.id === selId
               return (
@@ -1235,8 +1281,8 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                   variants={listItem}
                   whileHover={{ y: -2 }}
                   whileTap={{ scale: 0.99 }}
-                  onClick={() => { setSelId(c.id); setEditing(false); scrollPanelToTop() }}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelId(c.id); setEditing(false); scrollPanelToTop() } }}
+                  onClick={() => { setSelId(c.id); setEditing(false); clearSearchOnMobile(); scrollPanelToTop() }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setSelId(c.id); setEditing(false); clearSearchOnMobile(); scrollPanelToTop() } }}
                   className={`w-full cursor-pointer rounded-[22px] p-4 text-left transition-colors ${active ? 'bg-white shadow-dav-card ring-1 ring-line' : 'bg-[var(--dav-glass)] hover:bg-white'}`}
                 >
                   <div className="flex items-center gap-3">
@@ -1317,7 +1363,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
         {/* ── JOBB: adatlap (kiválasztáskor újra-animálódik) ── */}
         {/* Mobilon nincs kártya-keret (dav-card-glass/rounded/padding) körülötte — csak lg+-tól,
             hogy a fejléc alatti hely ne vesszen kártya-paddingre. */}
-        <motion.div variants={popItem} data-print-root className="order-first lg:rounded-[26px] lg:dav-card-glass lg:p-8 lg:order-last">
+        <motion.div variants={popItem} data-print-root className="order-first lg:rounded-[26px] lg:dav-card-glass lg:p-8 xl:order-last">
           <motion.div
             key={sel.id}
             initial="hidden"
@@ -1334,7 +1380,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
               data-wide={calSelDay && calEditState && variant === 'salon' && salonId ? 'true' : 'false'}
               transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
             >
-              <motion.div variants={detailItem} className="relative hidden h-[240px] overflow-hidden rounded-[22px] lg:block" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+              <motion.div variants={detailItem} className="relative hidden h-[240px] overflow-hidden rounded-[22px] lg:block print:block" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                 {headAvatar ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={headAvatar} alt={headName ?? ''} className="h-full w-full object-cover object-top" />
@@ -1475,7 +1521,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             </motion.div>
 
             {/* Jobb belső: fejléc + szerep + állomások + megjegyzés + jelenlét, alul stat-ok + chart */}
-            <motion.div layout variants={detailCol} className="hv-right-col order-1 lg:order-2" transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}>
+            <motion.div layout variants={detailCol} className="hv-right-col order-1 flex flex-col lg:order-2" transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}>
               {editing ? (
                 <ProfileEditForm
                   initial={{
@@ -1513,7 +1559,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       A hv-profile-head a gauge-nek fenntartott padding-right-ot kapja — CSAK ez a
                       sor, az alatta lévő tag/kontakt/statisztika sorok már nem, lásd globals.css. */}
                   <div className="hv-profile-head">
-                    <div className="mb-4 h-[110px] w-[110px] overflow-hidden rounded-[22px] lg:hidden" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                    <div className="mb-4 h-[110px] w-[110px] overflow-hidden rounded-[22px] lg:hidden print:hidden" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                       {headAvatar ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img src={headAvatar} alt={headName ?? ''} className="h-full w-full object-cover object-top" />
@@ -1599,7 +1645,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       return <span key={s} className="rounded-full px-4 py-2 text-[13px] font-semibold" style={{ background: t.bg, color: t.fg }}>{s}</span>
                     })}
                   </div>
-                  {eff.note && <p className="mt-5 max-w-[520px] text-[15.5px] leading-relaxed text-ink-soft">{eff.note}</p>}
+                  {eff.note && eff.note.trim().toLowerCase() !== (eff.position ?? '').trim().toLowerCase() && <p className="mt-5 max-w-[520px] text-[15.5px] leading-relaxed text-ink-soft">{eff.note}</p>}
                   {eff.socialLinks && eff.socialLinks.filter(Boolean).length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2 print:hidden">
                       {eff.socialLinks.filter(Boolean).map((url) => {
@@ -1619,17 +1665,28 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       })}
                     </div>
                   )}
-                  <div className="mt-5 flex flex-wrap gap-x-8 gap-y-2.5 text-[14px] text-ink-soft">
-                    {headEmail && <a href={`mailto:${headEmail}`} className="flex items-center gap-2.5 transition-colors hover:text-ink"><Mail className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.7} />{headEmail}</a>}
-                    {eff.phone && <a href={`tel:${eff.phone.replace(/\s+/g, '')}`} className="flex items-center gap-2.5 transition-colors hover:text-ink"><Phone className="h-[17px] w-[17px] text-ink-soft2" strokeWidth={1.7} />{eff.phone}</a>}
-                  </div>
-                  {/* Belépés / heti óra / bér / felfüggesztés dátuma */}
-                  <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2 text-[13.5px] text-ink-soft">
-                    {eff.hr?.join_date && <span>Belépés: <b className="font-semibold text-ink">{fmtDate(eff.hr.join_date)}</b></span>}
-                    {eff.weeklyHours != null && <span>Heti óra (naptárból): <b className="font-semibold text-ink">{eff.weeklyHours} ó</b></span>}
-                    {eff.hr?.address && <span>Cím: <b className="font-semibold text-ink">{eff.hr.address}</b></span>}
-                    {effStatus === 'suspended' && eff.hr?.suspended_at && <span className="text-[#C0453F]">Felfüggesztve: <b className="font-semibold">{fmtDate(eff.hr.suspended_at)}</b></span>}
-                  </div>
+                  {/* Adatok — egy fehér kártya, egységes 2×2 rács: kis szürke címke, alatta az érték.
+                      Az email/telefon kattintható (levél / hívás). */}
+                  {(() => {
+                    const cells: { label: string; value: React.ReactNode; wide?: boolean }[] = [
+                      { label: 'Belépés', value: eff.hr?.join_date ? fmtDate(eff.hr.join_date) : null },
+                      { label: 'Heti óra (naptárból)', value: eff.weeklyHours != null ? `${eff.weeklyHours} ó` : null },
+                      { label: 'Email', value: headEmail ? <a href={`mailto:${headEmail}`} title={headEmail} className="hover:underline">{headEmail}</a> : null },
+                      { label: 'Telefon', value: eff.phone ? <a href={`tel:${eff.phone.replace(/\s+/g, '')}`} className="hover:underline">{eff.phone}</a> : null },
+                      ...(eff.hr?.address ? [{ label: 'Cím', value: eff.hr.address, wide: true }] : []),
+                      ...(effStatus === 'suspended' && eff.hr?.suspended_at ? [{ label: 'Felfüggesztve', value: <span className="text-[#C0453F]">{fmtDate(eff.hr.suspended_at)}</span> }] : []),
+                    ]
+                    return (
+                      <div data-print-card className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2.5 rounded-[14px] border border-line bg-white px-3.5 py-3">
+                        {cells.map((c) => (
+                          <div key={c.label} className={`min-w-0 ${c.wide ? 'col-span-2' : ''}`}>
+                            <p className="text-[10.5px] font-medium text-ink-soft2">{c.label}</p>
+                            <p className="truncate text-[12.5px] font-medium text-ink" title={typeof c.value === 'string' ? c.value : undefined}>{c.value ?? <span className="text-ink-soft2">—</span>}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )
+                  })()}
                   {eff.hr?.position_history && eff.hr.position_history.length > 0 && (
                     <div className="mt-4">
                       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">Pozíció-előzmény</p>
@@ -1692,7 +1749,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
               {/* Havi napok — ARÁNYOS pillek. A profilon SAJÁT, NAGYOBB belépő (a listaoldalak közös
                   StatusPills-jénél hangsúlyosabb): a kártya beúszása UTÁN, staggerelten, 0-ról nőnek ki
                   (scale-pop + fade + felszámoló szám). `key`-ben a sel.id → személyváltáskor újra lejátszódik. */}
-              <div className="mt-8 flex min-w-0 items-end gap-2.5">
+              <div className="mt-8 flex min-w-0 items-end gap-1">
                 {[
                   { label: 'Ledolgozott nap', pct: dampenPct(sel.daysWorked), value: sel.daysWorked, background: '#1D1C19', color: '#fff', align: 'start' as const, border: undefined as string | undefined },
                   { label: 'Szabadság', pct: dampenPct(sel.vacationDays), value: sel.vacationDays, background: '#F1CE45', color: '#1D1C19', align: 'start' as const, border: undefined as string | undefined },
@@ -1701,13 +1758,13 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                   <motion.div
                     key={`${sel.id}-${s.label}`}
                     initial={{ flexGrow: 0.0001, minWidth: 0, opacity: 0, scale: 0.8, y: 12 }}
-                    animate={{ flexGrow: Math.max(s.pct, 1), minWidth: 64, opacity: 1, scale: 1, y: 0 }}
+                    animate={{ flexGrow: Math.max(s.pct, 1), minWidth: 96, opacity: 1, scale: 1, y: 0 }}
                     transition={{ duration: 0.85, ease: EASE, delay: 0.35 + i * 0.16 }}
                     style={{ flexBasis: 0 }}
                   >
                     <p className="mb-2 truncate text-xs font-medium text-ink-soft">{s.label}</p>
                     <div
-                      className={`flex h-11 items-center overflow-hidden whitespace-nowrap rounded-[21px] px-5 text-sm font-semibold ${s.align === 'end' ? 'justify-end' : 'justify-start'}`}
+                      className={`flex h-11 items-center overflow-hidden whitespace-nowrap rounded-[21px] text-sm font-semibold ${i === 0 ? 'justify-start px-5' : 'justify-center px-3'}`}
                       style={{ background: s.background, color: s.color, border: s.border }}
                     >
                       <CountUp to={s.value} />&nbsp;nap
@@ -1717,18 +1774,20 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
               </div>
 
               {/* Munkaidő — aktuális hét vs. előző hét */}
-              <motion.div variants={detailItem} className="mt-8">
-                <div className="mb-4 flex items-end justify-between">
+              <motion.div variants={detailItem} className="mt-8 flex flex-1 flex-col">
+                <div className="mb-4 flex flex-col gap-2.5">
                   <div>
                     <h3 className="text-[17px] font-medium text-ink">Havi munkaidő</h3>
                     <p className="mt-0.5 text-[12px] text-ink-soft2">Ledolgozott órák a hónap napjai szerint</p>
                   </div>
-                  <div className="flex items-center gap-4 text-[12.5px] text-ink-soft">
-                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-gold" />E hónap</span>
-                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#C7C3B6]" />Előző hónap</span>
+                  <div className="flex items-center gap-4 whitespace-nowrap text-[12.5px] text-ink-soft">
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full bg-gold" />E hónap</span>
+                    <span className="flex items-center gap-1.5"><span className="h-2 w-2 shrink-0 rounded-full bg-[#C7C3B6]" />Előző hónap</span>
                   </div>
                 </div>
+                <div className="flex-1">
                 <WorkChart key={sel.id} recent={eff.monthWeeks ?? eff.recent} previous={eff.prevMonthWeeks ?? eff.previous} labels={['1–7', '8–14', '15–21', '22–28', '29+']} />
+                </div>
               </motion.div>
               </>
               )}

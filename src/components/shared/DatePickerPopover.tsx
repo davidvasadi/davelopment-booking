@@ -38,6 +38,8 @@ export function DatePickerPopover({
   children,
   triggerClassName,
   loadEndpoint,
+  yearRange,
+  onClear,
 }: {
   value: string
   onChange: (date: string) => void
@@ -49,6 +51,11 @@ export function DatePickerPopover({
    *  kér (nem gyorsítótárazott a nyitások között), csak az adott nyitáson belüli hónap-
    *  lapozás nem kérdez rá kétszer ugyanarra a hónapra. */
   loadEndpoint?: string
+  /** Ha adott ([tól, ig]), az évszám a fejlécben választható — távoli dátumhoz (pl. születésnap)
+   *  ne kelljen hónapról hónapra lapozni. */
+  yearRange?: [number, number]
+  /** Ha adott, a panel alján „Törlés” — a nem kötelező dátum ürítéséhez. */
+  onClear?: () => void
 }) {
   const [open, setOpen] = useState(false)
   const [viewDate, setViewDate] = useState(() => {
@@ -163,7 +170,23 @@ export function DatePickerPopover({
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-              <span className="text-sm font-semibold text-ink">{HU_MONTHS_FULL[m]} {y}</span>
+              {yearRange ? (
+                <span className="flex items-center gap-1 text-sm font-semibold text-ink">
+                  {HU_MONTHS_FULL[m]}
+                  <select
+                    value={y}
+                    onChange={(e) => setViewDate(new Date(Number(e.target.value), m, 1))}
+                    aria-label="Év"
+                    className="cursor-pointer appearance-none rounded-[8px] bg-transparent px-1 py-0.5 font-semibold text-ink transition-colors hover:bg-paper focus:outline-none"
+                  >
+                    {Array.from({ length: yearRange[1] - yearRange[0] + 1 }, (_, i) => yearRange[1] - i).map((yy) => (
+                      <option key={yy} value={yy}>{yy}</option>
+                    ))}
+                  </select>
+                </span>
+              ) : (
+                <span className="text-sm font-semibold text-ink">{HU_MONTHS_FULL[m]} {y}</span>
+              )}
               <button
                 type="button"
                 onClick={() => setViewDate(new Date(y, m + 1, 1))}
@@ -184,6 +207,17 @@ export function DatePickerPopover({
                 onSelectDay={(d) => { onChange(d); setOpen(false) }}
               />
             </div>
+            {onClear && value && (
+              <div className="mt-3 flex justify-center border-t border-line pt-2.5">
+                <button
+                  type="button"
+                  onClick={() => { onClear(); setOpen(false) }}
+                  className="rounded-full px-3 py-1 text-[12px] font-semibold text-ink-soft transition-colors hover:bg-paper hover:text-ink"
+                >
+                  Törlés
+                </button>
+              </div>
+            )}
             {loadEndpoint && (
               <div className="mt-3 flex items-center justify-center gap-3 border-t border-line pt-2.5 text-[10px] font-medium text-ink-soft">
                 <span className="flex items-center gap-1">

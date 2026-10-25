@@ -285,27 +285,43 @@ html {
   body.printing-profile .hv-detail-grid {
     display: flex !important;
     flex-direction: row !important;
-    gap: 1.1rem !important;
-    align-items: start !important;
+    gap: 1.4rem !important;
+    /* pontosan az asztali profilablak: a két oszlop egy vonalban végződik, a chart kitölti */
+    align-items: stretch !important;
   }
+  /* Nyomtatásban az ASZTALI elrendezés (a print nem lg-szélességű, magától a mobilt kapná):
+     BAL = nagy fotó + naptár + órák kártya, JOBB = adatlap + Havi munkaidő. */
   body.printing-profile .hv-left-col {
+    order: 1 !important;
     width: 240px !important;
     flex-shrink: 0 !important;
   }
   body.printing-profile .hv-right-col {
+    order: 2 !important;
     flex: 1 !important;
     min-width: 0 !important;
   }
-  body.printing-profile .hv-profile-head { padding-right: 170px !important; }
-  body.printing-profile .hv-profile-gauge { display: block !important; position: absolute; right: 0; top: 0; }
+  /* A jelenlét-kör papíron nem kell (animált, képernyős kiemelés) — a fejléc kapja meg a helyét. */
+  body.printing-profile .hv-profile-head { padding-right: 0 !important; }
+  body.printing-profile .hv-profile-gauge { display: none !important; }
 
   /* ── Egy A4-re sűrítés (a GRAFIKONOK maradnak, csak kompaktabbak) ──
      A profil képernyőn magasabb, mint egy A4; nyomtatásban visszafogjuk a méreteket, hogy
      minden (naptár + adatok + mindkét diagram) egy oldalra férjen, csúszás nélkül. */
-  body.printing-profile [data-print-root] { padding: 1rem !important; }
+  /* A profil-kártya függőlegesen (és vízszintesen) középre a lapon: a panel kitölti a lap
+     magasságát (print-nél a vh = a nyomtatható lap), és flexszel középre teszi a tartalmát.
+     99vh, hogy kerekítés miatt ne csússzon át egy üres második oldalra. */
+  body.printing-profile .hv-panel {
+    min-height: 99vh !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+  body.printing-profile [data-print-root] { padding: 1rem !important; margin-left: auto !important; margin-right: auto !important; }
   /* A nagy „Havi munkaidő" chart magassága (y-tengely + rajzterület + svg) — a %-os csúcs-overlay
      arányosan követi, így nem csúszik el. */
-  body.printing-profile .hv-chart-h { height: 132px !important; }
+  body.printing-profile .hv-chart-h { min-height: 120px !important; }
+  body.printing-profile .hv-chart-wrap { min-height: 146px !important; }
   /* A jobb oszlop szekció-térközei szűkebbek — a fejléc/adat-blokk (címkék, megjegyzés, kontakt,
      belépés-sor, pozíció-előzmény, bér-kártya) a legterjedelmesebb rész, ezt is sűrítjük, hogy egy
      adat-gazdag profil is EGY A4-re férjen. */
