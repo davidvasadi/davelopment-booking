@@ -159,15 +159,21 @@ export default async function RestaurantGuestsPage() {
       const tables = Array.from(new Set(allOwn.flatMap((s) => (s as Src).tables ?? [])))
       const note = latestNote(allOwn, (s) => s.note)
       const review = reviewMap.get(g.key)
-      const cancelCount = allOwn.filter((s) => s.status === 'cancelled').length
-      const noShowCount = allOwn.filter((s) => s.status === 'no_show').length
+      // Ha a vendég egy guest-szintű élettartam-összesítőt adó exportból jött, a Customer-
+      // rekordon tárolt import-összesítő élvez elsőbbséget a foglalás-történetből számolt
+      // értékkel szemben (lásd a szalon-oldali guests/page.tsx azonos logikáját).
+      const cust = custFor(g)
+      const cancelCount = cust?.cancellation_count ?? allOwn.filter((s) => s.status === 'cancelled').length
+      const noShowCount = cust?.no_show_count ?? allOwn.filter((s) => s.status === 'no_show').length
+      const visitCount = cust?.visit_count ?? past.length
       return [
-        { label: 'Látogatás', value: String(past.length) },
+        { label: 'Látogatás', value: String(visitCount) },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} · ${upPax} fő` : '—' },
         { label: 'Asztalok', value: tables.length > 0 ? tables.join(', ') : '—' },
         { label: 'Kedvenc nap', value: favDay(allOwn) },
         ...(cancelCount > 0 ? [{ label: 'Lemondások száma', value: String(cancelCount) }] : []),
         ...(noShowCount > 0 ? [{ label: 'Nem jött el', value: String(noShowCount) }] : []),
+        ...(cust?.last_cancellation_reason ? [{ label: 'Utolsó lemondás oka', value: cust.last_cancellation_reason }] : []),
         ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
         ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),

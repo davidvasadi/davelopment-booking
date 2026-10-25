@@ -1,4 +1,5 @@
 import type { CollectionAfterChangeHook, CollectionAfterDeleteHook } from 'payload'
+import { isSilentImport } from '../../lib/silentImport'
 import { emitBookingChange } from '../../lib/sseEmitter'
 
 function relId(val: unknown): string {
@@ -8,7 +9,9 @@ function relId(val: unknown): string {
 }
 
 export function sseAfterChange(kind: 'salon' | 'restaurant'): CollectionAfterChangeHook {
-  return ({ doc, operation }) => {
+  return ({ req, doc, operation }) => {
+    // Tömeges importnál soronkénti élő frissítés nincs (a lista a végén úgyis újratöltődik)
+    if (isSilentImport(req)) return doc
     const businessId = relId(doc[kind])
     if (businessId) {
       emitBookingChange({ kind, businessId, op: operation === 'create' ? 'create' : 'update' })

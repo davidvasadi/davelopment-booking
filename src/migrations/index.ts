@@ -54,6 +54,9 @@ import * as migration_20261018_130000_facebook_booking_confirmed from './2026101
 import * as migration_20261018_140000_address_detail_level from './20261018_140000_address_detail_level';
 import * as migration_20261018_150000_customer_crm_fields from './20261018_150000_customer_crm_fields';
 import * as migration_20261019_100000_customer_gender from './20261019_100000_customer_gender';
+import * as migration_20261020_100000_customer_import_summary from './20261020_100000_customer_import_summary';
+import * as migration_20261020_110000_customer_external_id from './20261020_110000_customer_external_id';
+import * as migration_20261025_100000_staff_import_review from './20261025_100000_staff_import_review';
 
 export const migrations = [
   {
@@ -335,5 +338,20 @@ export const migrations = [
     up: migration_20261019_100000_customer_gender.up,
     down: migration_20261019_100000_customer_gender.down,
     name: '20261019_100000_customer_gender',
+  },
+  {
+    up: migration_20261020_100000_customer_import_summary.up,
+    down: migration_20261020_100000_customer_import_summary.down,
+    name: '20261020_100000_customer_import_summary',
+  },
+  {
+    up: migration_20261020_110000_customer_external_id.up,
+    down: migration_20261020_110000_customer_external_id.down,
+    name: '20261020_110000_customer_external_id',
+  },
+  {
+    up: migration_20261025_100000_staff_import_review.up,
+    down: migration_20261025_100000_staff_import_review.down,
+    name: '20261025_100000_staff_import_review',
   },
 ];

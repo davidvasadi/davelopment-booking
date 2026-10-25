@@ -1,4 +1,5 @@
 import type { CollectionAfterChangeHook, CollectionAfterDeleteHook, PayloadRequest } from 'payload'
+import { isSilentImport } from '../../lib/silentImport'
 
 /**
  * AUDIT-NAPLÓ hook-gyár. Közös afterChange + afterDelete, amit a lényeges collectionökre
@@ -148,6 +149,8 @@ async function writeAudit(opts: {
 /** afterChange napló (create/update). */
 export function auditAfterChange(entity: string, scope: Scope): CollectionAfterChangeHook {
   return async ({ req, doc, previousDoc, operation }) => {
+    // Tömeges import: soronkénti audit-bejegyzés helyett nincs zaj (több ezer sor)
+    if (isSilentImport(req)) return doc
     if (operation === 'create' || operation === 'update') {
       await writeAudit({
         req,

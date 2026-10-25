@@ -182,16 +182,26 @@ export default async function SalonGuestsPage() {
       const note = latestNote([...past, ...upcoming])
       const review = reviewMap.get(g.key)
       const allOwn = [...past, ...upcoming]
+      // Ha a vendég egy guest-szintű élettartam-összesítőt adó exportból (pl. Salonic) jött, a
+      // Customer-rekordon TÁROLT import-összesítő (ld. Customers.ts "Import-összesítő") pontosabb,
+      // mint amit a nálunk (csak az első+utolsó, rekonstruált) foglalás-sorokból lehetne számolni
+      // — ahol kitöltve van, ez élvez elsőbbséget a számolt értékkel szemben.
+      const cust = custFor(g)
+      const visitCount = cust?.visit_count ?? past.length
+      const cancelN = cust?.cancellation_count ?? cancelCount(allOwn)
+      const noShowN = cust?.no_show_count ?? noShowCount(allOwn)
+      const totalSpend = cust?.total_revenue_huf || (pastSpend > 0 ? pastSpend : null)
       return [
-        { label: 'Látogatás', value: String(past.length) },
-        { label: 'Összes költés eddig', value: pastSpend > 0 ? fmtHuf(pastSpend) : '—' },
+        { label: 'Látogatás', value: String(visitCount) },
+        { label: 'Összes költés eddig', value: totalSpend ? fmtHuf(totalSpend) : '—' },
         { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} foglalás` : '—' },
         { label: 'Kedvenc', value: favService(allOwn) },
         { label: 'Első szolgáltatás', value: firstService(allOwn) },
         { label: 'Utolsó szolgáltatás', value: lastService(allOwn) },
         { label: 'Kedvenc munkatárs', value: preferredStaff(allOwn) },
-        ...(cancelCount(allOwn) > 0 ? [{ label: 'Lemondások száma', value: String(cancelCount(allOwn)) }] : []),
-        ...(noShowCount(allOwn) > 0 ? [{ label: 'Nem jött el', value: String(noShowCount(allOwn)) }] : []),
+        ...(cancelN > 0 ? [{ label: 'Lemondások száma', value: String(cancelN) }] : []),
+        ...(noShowN > 0 ? [{ label: 'Nem jött el', value: String(noShowN) }] : []),
+        ...(cust?.last_cancellation_reason ? [{ label: 'Utolsó lemondás oka', value: cust.last_cancellation_reason }] : []),
         ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
         ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
         ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),

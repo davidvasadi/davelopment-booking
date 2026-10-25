@@ -221,7 +221,10 @@ async function handle(request: NextRequest) {
     // ── SALON: visszajelzés-kérés ────────────────────────────────────────────
     const salonFeedbackCandidates = await payload.find({
       collection: 'bookings',
-      where: { feedback_sent: { not_equals: true }, status: { not_equals: 'cancelled' } },
+      // Csak az elmúlt napok foglalásai (a ciklus úgyis kihagyja a 2 napnál régebbit). Dátumszűrő nélkül
+      // a régi / importált, feedback_sent=false foglalások kitöltenék az 500-as limitet, és a friss
+      // foglalások sosem kapnának értékeléskérést.
+      where: { feedback_sent: { not_equals: true }, status: { not_equals: 'cancelled' }, date: { greater_than_equal: ymdOffset(-3), less_than_equal: ymdOffset(0) } },
       depth: 0, limit: 500, overrideAccess: true,
     })
 
@@ -293,7 +296,10 @@ async function handle(request: NextRequest) {
     // ── RESTAURANT: visszajelzés-kérés ─────────────────────────────────────
     const resFeedbackCandidates = await payload.find({
       collection: 'reservations',
-      where: { feedback_sent: { not_equals: true }, status: { not_in: ['cancelled', 'no_show'] } },
+      // Csak az elmúlt napok foglalásai (a ciklus úgyis kihagyja a 2 napnál régebbit). Dátumszűrő nélkül
+      // a régi / importált, feedback_sent=false foglalások kitöltenék az 500-as limitet, és a friss
+      // foglalások sosem kapnának értékeléskérést.
+      where: { feedback_sent: { not_equals: true }, status: { not_in: ['cancelled', 'no_show'] }, date: { greater_than_equal: ymdOffset(-3), less_than_equal: ymdOffset(0) } },
       depth: 0, limit: 500, overrideAccess: true,
     })
 

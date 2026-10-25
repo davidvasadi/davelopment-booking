@@ -1,10 +1,13 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Upload, FileText, X, Check, AlertCircle, Loader2, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { read, utils } from 'xlsx'
+import { ALIASES_BY_TYPE, FIELD_OPTIONS_BY_TYPE, type ImportType } from '@/lib/importSchema'
+import type { EntityKind, EntityMap } from '@/lib/importMatching'
+import { ImportMatchStep, initialDecisions, type MatchReport } from './ImportMatchStep'
 
 // ── CSV parser ────────────────────────────────────────────────────────────
 
@@ -54,10 +57,6 @@ function parseXLSX(buffer: ArrayBuffer, sheetName?: string): { headers: string[]
 
 // ── Import types ──────────────────────────────────────────────────────────
 
-type ImportType =
-  | 'bookings' | 'customers' | 'staff' | 'tables' | 'services'
-  | 'opening_hours' | 'rooms' | 'service_categories' | 'billing_info'
-
 const IMPORT_TYPES: { value: ImportType; label: string; hint: string; group?: string }[] = [
   { value: 'bookings',          label: 'Foglalások',         hint: 'Foglalások + vendégek más rendszerből', group: 'Tranzakciók' },
   { value: 'customers',         label: 'Vendégek',           hint: 'Vendég-/ügyféllista foglalások nélkül', group: 'Tranzakciók' },
@@ -70,219 +69,19 @@ const IMPORT_TYPES: { value: ImportType; label: string; hint: string; group?: st
   { value: 'billing_info',      label: 'Számlázási adatok',  hint: 'Cégadatok frissítése — adószám, székhely stb.', group: 'Vállalkozás' },
 ]
 
-const ALIASES_BY_TYPE: Record<ImportType, Record<string, string>> = {
-  opening_hours: {
-    'nap': 'day_of_week', 'day': 'day_of_week', 'day of week': 'day_of_week',
-    'weekday': 'day_of_week', 'napja': 'day_of_week', 'hét napja': 'day_of_week',
-    'nyitva': 'is_open', 'is_open': 'is_open', 'nyitva?': 'is_open', 'open': 'is_open', 'open?': 'is_open',
-    'nyitás': 'open_time', 'nyitas': 'open_time', 'open time': 'open_time',
-    'opens': 'open_time', 'nyitási idő': 'open_time', 'from': 'open_time', 'tól': 'open_time',
-    'zárás': 'close_time', 'zaras': 'close_time', 'close time': 'close_time',
-    'closes': 'close_time', 'záró idő': 'close_time', 'zárási idő': 'close_time',
-  },
-  rooms: {
-    'terem': 'name', 'terem neve': 'name', 'room': 'name', 'room name': 'name',
-    'name': 'name', 'név': 'name', 'szoba': 'name', 'helyiség': 'name',
-    'zóna': 'name', 'zona': 'name', 'section': 'name', 'szekció': 'name', 'area': 'name',
-    'szabadtéri': 'is_outdoor', 'szabadteri': 'is_outdoor', 'outdoor': 'is_outdoor',
-    'aktív': 'is_active', 'aktiv': 'is_active', 'active': 'is_active',
-  },
-  service_categories: {
-    'kategória': 'name', 'kategoria': 'name', 'category': 'name', 'name': 'name', 'név': 'name',
-    'csoport': 'name', 'group': 'name', 'type': 'name', 'típus': 'name',
-    'sorrend': 'sort_order', 'sort': 'sort_order', 'order': 'sort_order',
-    'pozíció': 'sort_order', 'sort order': 'sort_order',
-  },
-  billing_info: {
-    'cégnév': 'legal_name', 'cegnev': 'legal_name', 'legal name': 'legal_name',
-    'company name': 'legal_name', 'vállalkozás neve': 'legal_name', 'company': 'legal_name',
-    'adószám': 'tax_number', 'adoszam': 'tax_number', 'tax number': 'tax_number',
-    'vat number': 'tax_number', 'vat': 'tax_number', 'tax id': 'tax_number',
-    'cégjegyzékszám': 'company_reg_number', 'company registration': 'company_reg_number',
-    'reg number': 'company_reg_number', 'cégj szám': 'company_reg_number',
-    'székhely': 'registered_seat', 'registered address': 'registered_seat', 'registered seat': 'registered_seat',
-    'számlázási email': 'billing_email', 'billing email': 'billing_email', 'email': 'billing_email',
-    'irányítószám': 'billing_postal_code', 'irsz': 'billing_postal_code',
-    'postal code': 'billing_postal_code', 'zip': 'billing_postal_code',
-    'város': 'billing_city', 'varos': 'billing_city', 'city': 'billing_city',
-    'utca': 'billing_street', 'cím': 'billing_street', 'street': 'billing_street',
-    'számlázási cím': 'billing_street', 'billing address': 'billing_street',
-  },
-  bookings: {
-    'ügyfél': 'customer_name', 'ügyfél neve': 'customer_name',
-    'vendég': 'customer_name', 'vendég neve': 'customer_name',
-    'név': 'customer_name', 'name': 'customer_name',
-    'client': 'customer_name', 'client name': 'customer_name',
-    'customer': 'customer_name', 'customer name': 'customer_name',
-    'guest': 'customer_name', 'guest name': 'customer_name',
-    'email': 'customer_email', 'e-mail': 'customer_email',
-    'e-mail cím': 'customer_email', 'email cím': 'customer_email',
-    'telefon': 'customer_phone', 'telefonszám': 'customer_phone',
-    'phone': 'customer_phone', 'mobile': 'customer_phone', 'mobil': 'customer_phone',
-    'phone number': 'customer_phone',
-    'dátum': 'date', 'date': 'date', 'foglalás dátuma': 'date', 'appointment date': 'date',
-    'időpont': 'start_time', 'kezdés': 'start_time', 'kezdési idő': 'start_time',
-    'kezdési idő (hh:mm)': 'start_time', 'time': 'start_time',
-    'start time': 'start_time', 'appointment time': 'start_time',
-    'vége': 'end_time', 'befejezési idő': 'end_time', 'befejezési idő (hh:mm)': 'end_time',
-    'end time': 'end_time', 'end': 'end_time',
-    'fő': 'pax', 'pax': 'pax', 'guests': 'pax', 'vendégek száma': 'pax', 'covers': 'pax', 'party size': 'pax',
-    'szolgáltatás': 'service', 'service': 'service', 'treatment': 'service', 'kezelés': 'service', 'service name': 'service',
-    'munkatárs': 'staff', 'szakember': 'staff', 'staff': 'staff',
-    'stylist': 'staff', 'employee': 'staff', 'therapist': 'staff', 'provider': 'staff',
-    'időtartam (perc)': 'duration', 'időtartam': 'duration', 'duration': 'duration',
-    'duration (min)': 'duration', 'duration (minutes)': 'duration',
-    'ár (ft)': 'price', 'ár': 'price', 'price': 'price', 'díj': 'price', 'cost': 'price',
-    'státusz': 'status', 'status': 'status', 'booking status': 'status',
-    'megjegyzés': 'notes', 'megjegyzések': 'notes', 'notes': 'notes', 'note': 'notes', 'comment': 'notes',
-  },
-  customers: {
-    'ügyfél': 'customer_name', 'ügyfél neve': 'customer_name',
-    'vendég': 'customer_name', 'vendég neve': 'customer_name',
-    'név': 'customer_name', 'name': 'customer_name',
-    'customer': 'customer_name', 'customer name': 'customer_name',
-    'guest': 'customer_name', 'guest name': 'customer_name',
-    'email': 'customer_email', 'e-mail': 'customer_email', 'e-mail cím': 'customer_email',
-    'telefon': 'customer_phone', 'phone': 'customer_phone', 'mobile': 'customer_phone', 'mobil': 'customer_phone',
-    'mobiltelefonszám': 'customer_phone',
-    'megjegyzés': 'notes', 'notes': 'notes', 'note': 'notes', 'comment': 'notes', 'jegyzet': 'notes',
-    'lakhely': 'customer_city', 'város': 'customer_city', 'city': 'customer_city', 'település': 'customer_city',
-    'születésnap': 'birthday', 'birthday': 'birthday', 'date of birth': 'birthday', 'dob': 'birthday',
-    'csoport': 'group_tag', 'group': 'group_tag', 'címke': 'group_tag', 'tag': 'group_tag', 'segment': 'group_tag',
-    'számlázási név': 'billing_name', 'billing name': 'billing_name', 'invoice name': 'billing_name',
-    'számlázási irányitószám': 'billing_postal_code', 'számlázási irányítószám': 'billing_postal_code',
-    'billing zip': 'billing_postal_code', 'billing postal code': 'billing_postal_code',
-    'számlázási település': 'billing_city', 'billing city': 'billing_city',
-    'közterület neve': 'billing_street', 'utca': 'billing_street', 'street': 'billing_street', 'street address': 'billing_street',
-    'számlázási adószám (cég esetén)': 'billing_tax_number', 'adószám': 'billing_tax_number',
-    'tax number': 'billing_tax_number', 'vat number': 'billing_tax_number',
-    'számlaküldési e-mail cím': 'billing_email', 'billing email': 'billing_email',
-    'hírlevél': 'marketing_consent', 'newsletter': 'marketing_consent', 'feliratkozott': 'marketing_consent',
-    'feketelistás': 'blocked', 'blacklist': 'blocked', 'blacklisted': 'blocked', 'tiltólistás': 'blocked',
-    'feketelistára kerülés oka': 'block_reason', 'blacklist reason': 'block_reason', 'tiltás oka': 'block_reason',
-    'nem': 'gender', 'gender': 'gender', 'sex': 'gender',
-  },
-  staff: {
-    'név': 'name', 'name': 'name', 'munkatárs': 'name', 'munkatárs neve': 'name',
-    'employee': 'name', 'employee name': 'name', 'staff name': 'name', 'full name': 'name',
-    'email': 'email', 'e-mail': 'email', 'e-mail cím': 'email',
-    'telefon': 'phone', 'phone': 'phone', 'mobile': 'phone', 'mobil': 'phone',
-    'pozíció': 'role_title', 'beosztás': 'role_title', 'role': 'role_title',
-    'title': 'role_title', 'job title': 'role_title', 'foglalkozás': 'role_title',
-    'részleg': 'department', 'department': 'department', 'team': 'department', 'csapat': 'department',
-    'születésnap': 'birthday', 'birthday': 'birthday', 'date of birth': 'birthday', 'dob': 'birthday',
-  },
-  tables: {
-    'asztal': 'name', 'asztal neve': 'name', 'table': 'name', 'table name': 'name',
-    'name': 'name', 'név': 'name', 'azonosító': 'name',
-    'férőhely': 'capacity', 'kapacitás': 'capacity', 'capacity': 'capacity',
-    'seats': 'capacity', 'max guests': 'capacity', 'max fő': 'capacity',
-  },
-  services: {
-    'szolgáltatás': 'name', 'service': 'name', 'service name': 'name',
-    'name': 'name', 'kezelés': 'name', 'treatment': 'name', 'név': 'name',
-    'időtartam': 'duration', 'duration': 'duration', 'időtartam (perc)': 'duration', 'duration (min)': 'duration',
-    'ár': 'price', 'price': 'price', 'díj': 'price', 'cost': 'price', 'ár (ft)': 'price',
-    'kategória': 'category', 'category': 'category', 'group': 'category', 'csoport': 'category',
-  },
-}
 
-const FIELD_OPTIONS_BY_TYPE: Record<ImportType, { value: string; label: string }[]> = {
-  opening_hours: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'day_of_week', label: 'Nap (pl. Hétfő / Monday)' },
-    { value: 'is_open', label: 'Nyitva? (igen/nem)' },
-    { value: 'open_time', label: 'Nyitási idő (ÓÓ:PP)' },
-    { value: 'close_time', label: 'Zárási idő (ÓÓ:PP)' },
-  ],
-  rooms: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'name', label: 'Terem / zóna neve' },
-    { value: 'is_outdoor', label: 'Szabadtéri? (igen/nem)' },
-    { value: 'is_active', label: 'Aktív? (igen/nem)' },
-  ],
-  service_categories: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'name', label: 'Kategória neve' },
-    { value: 'sort_order', label: 'Sorrend (szám)' },
-  ],
-  billing_info: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'legal_name', label: 'Cégnév (jogi név)' },
-    { value: 'tax_number', label: 'Adószám' },
-    { value: 'company_reg_number', label: 'Cégjegyzékszám' },
-    { value: 'registered_seat', label: 'Székhely (teljes cím)' },
-    { value: 'billing_email', label: 'Számlázási email' },
-    { value: 'billing_postal_code', label: 'Irányítószám' },
-    { value: 'billing_city', label: 'Város' },
-    { value: 'billing_street', label: 'Utca / számlázási cím' },
-  ],
-  bookings: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'customer_name', label: 'Ügyfél / vendég neve' },
-    { value: 'customer_email', label: 'Email' },
-    { value: 'customer_phone', label: 'Telefon' },
-    { value: 'date', label: 'Dátum (ÉÉÉÉ-HH-NN)' },
-    { value: 'start_time', label: 'Kezdési idő' },
-    { value: 'end_time', label: 'Befejezési idő' },
-    { value: 'pax', label: 'Fő (étterem)' },
-    { value: 'service', label: 'Szolgáltatás neve' },
-    { value: 'staff', label: 'Munkatárs neve' },
-    { value: 'duration', label: 'Időtartam (perc)' },
-    { value: 'price', label: 'Ár' },
-    { value: 'status', label: 'Státusz' },
-    { value: 'notes', label: 'Megjegyzés' },
-  ],
-  customers: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'customer_name', label: 'Név' },
-    { value: 'customer_email', label: 'Email' },
-    { value: 'customer_phone', label: 'Telefon' },
-    { value: 'customer_city', label: 'Város' },
-    { value: 'birthday', label: 'Születésnap' },
-    { value: 'group_tag', label: 'Csoport / címke' },
-    { value: 'notes', label: 'Megjegyzés' },
-    { value: 'billing_name', label: 'Számlázási név' },
-    { value: 'billing_tax_number', label: 'Adószám' },
-    { value: 'billing_email', label: 'Számlaküldési email' },
-    { value: 'billing_postal_code', label: 'Számlázási irányítószám' },
-    { value: 'billing_city', label: 'Számlázási település' },
-    { value: 'billing_street', label: 'Számlázási utca, házszám' },
-    { value: 'marketing_consent', label: 'Hírlevél-feliratkozás (igen/nem)' },
-    { value: 'blocked', label: 'Tiltólistás (igen/nem)' },
-    { value: 'block_reason', label: 'Tiltás indoka' },
-    { value: 'gender', label: 'Nem' },
-  ],
-  staff: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'name', label: 'Neve' },
-    { value: 'email', label: 'Email' },
-    { value: 'phone', label: 'Telefon' },
-    { value: 'role_title', label: 'Pozíció / beosztás' },
-    { value: 'department', label: 'Részleg / csapat' },
-    { value: 'birthday', label: 'Születésnap' },
-  ],
-  tables: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'name', label: 'Asztal neve' },
-    { value: 'capacity', label: 'Férőhely (fő)' },
-  ],
-  services: [
-    { value: '', label: '— figyelmen kívül hagy —' },
-    { value: 'name', label: 'Szolgáltatás neve' },
-    { value: 'duration', label: 'Időtartam (perc)' },
-    { value: 'price', label: 'Ár' },
-    { value: 'category', label: 'Kategória neve' },
-  ],
-}
 
-function autoDetect(headers: string[], type: ImportType): Record<string, string> {
+// Oszlop-indexszel kulcsolva, NEM a fejléc-szöveggel — egy valós exportban (pl. Salonic)
+// előfordulhat két AZONOS nevű oszlop (pl. kétszer "Életkor"); fejléc-szöveg kulcs esetén a
+// második felülírná az elsőt a mapping-objektumban (és a React is duplikált key-hibát adna),
+// holott a ténylegesen beküldött sor-adat oszlop-POZÍCIÓ szerint különbözik.
+function autoDetect(headers: string[], type: ImportType): Record<number, string> {
   const aliases = ALIASES_BY_TYPE[type]
-  const map: Record<string, string> = {}
-  for (const h of headers) {
+  const map: Record<number, string> = {}
+  headers.forEach((h, i) => {
     const match = aliases[h.toLowerCase().trim()]
-    if (match) map[h] = match
-  }
+    if (match) map[i] = match
+  })
   return map
 }
 
@@ -300,7 +99,13 @@ interface ImportResult {
     service_categories: number
     billing_info: number
   }
+  // meglévő vendég, akit az import kiegészített (nem új, de nem is „kihagyott”)
+  updated?: number
   skipped: number
+  // már létező foglalás / elem — újraimportnál nem jön létre újra
+  duplicates?: number
+  // az import során újonnan létrehozott elemek (vendég-/foglalás-importnál inaktívak)
+  created?: Partial<Record<EntityKind, string[]>>
   errors: string[]
 }
 
@@ -369,12 +174,22 @@ export function ImportPanel() {
   const [activeSheet, setActiveSheet] = useState<string | null>(null)
   const [headers, setHeaders] = useState<string[]>([])
   const [rows, setRows] = useState<string[][]>([])
-  const [mapping, setMapping] = useState<Record<string, string>>({})
+  const [mapping, setMapping] = useState<Record<number, string>>({})
   const [csvSections, setCsvSections] = useState<Record<string, { headers: string[]; rows: string[][] }> | null>(null)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [allSheetsResult, setAllSheetsResult] = useState<{ sheet: string; count: number; label: string }[] | null>(null)
   const [showTypeOverride, setShowTypeOverride] = useState(false)
+  // Párosító lépés (munkatárs/szolgáltatás/kategória/asztal/terem) — az import előtt
+  const [matchReport, setMatchReport] = useState<MatchReport | null>(null)
+  const [decisions, setDecisions] = useState<EntityMap>({})
+  const [matchLoading, setMatchLoading] = useState(false)
+
+  // Ha a fájl, a típus vagy az oszlop-megfeleltetés változik, a párosítás újra kell
+  useEffect(() => {
+    setMatchReport(null)
+    setDecisions({})
+  }, [headers, rows, mapping, importType])
 
   const applySheet = useCallback((buffer: ArrayBuffer, sheet: string, type: ImportType) => {
     const parsed = parseXLSX(buffer, sheet)
@@ -546,7 +361,7 @@ export function ImportPanel() {
     toast.success(`Importálás kész — ${total} rekord összesen`)
   }
 
-  const runImport = async () => {
+  const runImport = async (entityMap: EntityMap = decisions) => {
     if (!headers.length || !rows.length) return
     setLoading(true)
     try {
@@ -554,7 +369,7 @@ export function ImportPanel() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ headers, rows, userMapping: mapping, importType }),
+        body: JSON.stringify({ headers, rows, userMapping: mapping, importType, entityMap }),
       })
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? 'Import sikertelen')
@@ -568,6 +383,35 @@ export function ImportPanel() {
       setLoading(false)
     }
   }
+
+  // 1. lépés: a fájlbeli nevek párosítása a meglévő elemekkel. Ha nincs mit párosítani, az import
+  // egyből indul.
+  const checkMatches = async () => {
+    if (!headers.length || !rows.length) return
+    setMatchLoading(true)
+    try {
+      const res = await fetch('/api/import-csv', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ headers, rows, userMapping: mapping, importType, mode: 'match' }),
+      })
+      const data = (await res.json().catch(() => null)) as MatchReport | { error?: string } | null
+      if (!res.ok || !data || !('kinds' in data)) throw new Error((data as { error?: string } | null)?.error ?? 'A párosítás nem sikerült')
+      if (!Object.values(data.kinds).some((k) => k?.rows.length)) {
+        await runImport({})
+        return
+      }
+      setMatchReport(data)
+      setDecisions(initialDecisions(data))
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Ismeretlen hiba')
+    } finally {
+      setMatchLoading(false)
+    }
+  }
+
+  const catalogImport = ['staff', 'services', 'service_categories', 'tables', 'rooms'].includes(importType)
 
   const fieldOptions = FIELD_OPTIONS_BY_TYPE[importType]
   const currentTypeInfo = IMPORT_TYPES.find((t) => t.value === importType)!
@@ -739,14 +583,14 @@ export function ImportPanel() {
                 <p className="text-sm font-semibold text-ink">Oszlopleképezés</p>
                 <p className="text-xs text-ink-soft">A felismert oszlopokat manuálisan is átírhatod.</p>
                 <div className="space-y-2">
-                  {headers.map((h) => (
-                    <div key={h} className="flex items-center gap-3">
+                  {headers.map((h, i) => (
+                    <div key={i} className="flex items-center gap-3">
                       <span className="text-xs text-ink-soft2 w-40 truncate shrink-0 font-mono bg-paper rounded-lg px-2 py-1">{h}</span>
                       <ChevronDown className="h-3.5 w-3.5 text-ink-soft2 shrink-0" />
                       <div className="relative flex-1">
                         <select
-                          value={mapping[h] ?? ''}
-                          onChange={(e) => setMapping((prev) => ({ ...prev, [h]: e.target.value }))}
+                          value={mapping[i] ?? ''}
+                          onChange={(e) => setMapping((prev) => ({ ...prev, [i]: e.target.value }))}
                           className="w-full text-xs rounded-xl border border-line-strong bg-white px-3 py-2 pr-7 text-ink appearance-none focus:outline-none focus:ring-2 focus:ring-gold/50"
                         >
                           {fieldOptions.map((o) => (
@@ -767,11 +611,11 @@ export function ImportPanel() {
                     <table className="w-full text-xs text-left border-collapse">
                       <thead>
                         <tr>
-                          {headers.map((h) => (
-                            <th key={h} className="pb-2 pr-4 text-ink-soft font-medium whitespace-nowrap">
+                          {headers.map((h, i) => (
+                            <th key={i} className="pb-2 pr-4 text-ink-soft font-medium whitespace-nowrap">
                               {h}
-                              {mapping[h] && (
-                                <span className="ml-1 text-gold font-normal">→ {fieldOptions.find(o => o.value === mapping[h])?.label.split(' ')[0]}</span>
+                              {mapping[i] && (
+                                <span className="ml-1 text-gold font-normal">→ {fieldOptions.find(o => o.value === mapping[i])?.label.split(' ')[0]}</span>
                               )}
                             </th>
                           ))}
@@ -793,11 +637,15 @@ export function ImportPanel() {
                 </div>
               )}
 
+              {!result && matchReport && (
+                <ImportMatchStep report={matchReport} decisions={decisions} onChange={setDecisions} catalogImport={catalogImport} />
+              )}
+
               {!result && (
                 <button
                   type="button"
-                  onClick={runImport}
-                  disabled={loading || !rows.length}
+                  onClick={() => (matchReport ? runImport() : checkMatches())}
+                  disabled={loading || matchLoading || !rows.length}
                   className={cn(
                     'w-full rounded-2xl py-3.5 text-sm font-semibold transition-all flex items-center justify-center gap-2',
                     'bg-ink-dark text-white hover:bg-ink disabled:opacity-40 disabled:cursor-not-allowed',
@@ -805,7 +653,11 @@ export function ImportPanel() {
                 >
                   {loading
                     ? <><Loader2 className="h-4 w-4 animate-spin" /> Importálás folyamatban…</>
-                    : <><Upload className="h-4 w-4" /> {rows.length} sor importálása ({currentTypeInfo.label})</>
+                    : matchLoading
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Párosítás ellenőrzése…</>
+                      : matchReport
+                        ? <><Upload className="h-4 w-4" /> {rows.length} sor importálása a párosítással ({currentTypeInfo.label})</>
+                        : <><Check className="h-4 w-4" /> Tovább: párosítás ellenőrzése</>
                   }
                 </button>
               )}
@@ -823,11 +675,44 @@ export function ImportPanel() {
                         <p className="text-xs text-ink-soft mt-0.5">{r.label}</p>
                       </div>
                     ))}
+                    {!!result.updated && (
+                      <div className="rounded-2xl bg-paper px-4 py-3 text-center">
+                        <p className="text-2xl font-light text-ink">{result.updated}</p>
+                        <p className="text-xs text-ink-soft mt-0.5">Frissítve</p>
+                      </div>
+                    )}
+                    {!!result.duplicates && (
+                      <div className="rounded-2xl bg-paper px-4 py-3 text-center">
+                        <p className="text-2xl font-light text-ink">{result.duplicates}</p>
+                        <p className="text-xs text-ink-soft mt-0.5">Már létező foglalás</p>
+                      </div>
+                    )}
                     <div className="rounded-2xl bg-paper px-4 py-3 text-center">
                       <p className="text-2xl font-light text-ink">{result.skipped}</p>
                       <p className="text-xs text-ink-soft mt-0.5">Kihagyva</p>
                     </div>
                   </div>
+                  {result.created && Object.values(result.created).some((l) => l?.length) && (
+                    <div className="rounded-xl bg-paper px-4 py-3 space-y-1.5">
+                      <p className="text-xs font-semibold text-ink">Újonnan létrehozott elemek — nézd át</p>
+                      {(['services', 'staff', 'categories', 'tables', 'rooms'] as EntityKind[]).map((k) =>
+                        result.created?.[k]?.length ? (
+                          <p key={k} className="text-xs text-ink-soft">
+                            <span className="text-ink">{({ services: 'Szolgáltatások', staff: 'Munkatársak', categories: 'Kategóriák', tables: 'Asztalok', rooms: 'Termek' } as const)[k]}:</span>{' '}
+                            {result.created[k]!.join(', ')}
+                          </p>
+                        ) : null,
+                      )}
+                      {!catalogImport && (
+                        <p className="text-[11px] text-ink-soft2">
+                          Ezek inaktívak (a szolgáltatások az „Importált” kategóriában), így nem jelennek meg a foglalóoldalon. Aktiváld vagy nevezd át őket a Szolgáltatások / Munkatársak oldalon.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-ink-soft">
+                    Az importált adatokról nem megy ki értesítés, push-üzenet vagy email a vendégeknek.
+                  </p>
                   {result.errors.length > 0 && (
                     <div className="rounded-xl bg-bad/[0.06] border border-bad/20 p-3 space-y-1">
                       <div className="flex items-center gap-1.5 text-bad">

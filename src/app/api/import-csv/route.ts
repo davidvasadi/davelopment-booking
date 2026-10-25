@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { ImportResolver, buildMatchReport, collectEntityValues } from '@/lib/importResolver'
+import type { EntityMap } from '@/lib/importMatching'
+import type { Where } from 'payload'
+import { SILENT_IMPORT } from '@/lib/silentImport'
+import { ALIASES_BY_TYPE, type ImportType } from '@/lib/importSchema'
 import crypto from 'crypto'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { REG_SETUP_COOKIE, verifyRegistrationSetupToken } from '@/lib/registrationSetupToken'
-import type { Service, StaffMember } from '@/payload/payload-types'
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
@@ -102,116 +106,8 @@ function normalizeBool(v: string): boolean {
   return ['igen', 'yes', 'true', '1', 'nyitva', 'open', 'x', 'i', 'y'].includes(s)
 }
 
-// ── Shared column aliases per import type ────────────────────────────────
+// ── Oszlop-aliasok: a közös src/lib/importSchema.ts-ből (a felülettel azonos lista) ──
 
-const ALIASES_BY_TYPE: Record<string, Record<string, string>> = {
-  bookings: {
-    'ügyfél': 'customer_name', 'ügyfél neve': 'customer_name',
-    'vendég': 'customer_name', 'vendég neve': 'customer_name',
-    'név': 'customer_name', 'name': 'customer_name',
-    'client': 'customer_name', 'client name': 'customer_name',
-    'customer': 'customer_name', 'customer name': 'customer_name',
-    'guest': 'customer_name', 'guest name': 'customer_name',
-    'email': 'customer_email', 'e-mail': 'customer_email',
-    'e-mail cím': 'customer_email', 'email cím': 'customer_email',
-    'telefon': 'customer_phone', 'telefonszám': 'customer_phone',
-    'phone': 'customer_phone', 'mobile': 'customer_phone', 'mobil': 'customer_phone',
-    'phone number': 'customer_phone',
-    'dátum': 'date', 'date': 'date', 'foglalás dátuma': 'date', 'appointment date': 'date',
-    'időpont': 'start_time', 'kezdés': 'start_time', 'kezdési idő': 'start_time',
-    'kezdési idő (hh:mm)': 'start_time', 'time': 'start_time',
-    'start time': 'start_time', 'appointment time': 'start_time',
-    'vége': 'end_time', 'befejezési idő': 'end_time', 'befejezési idő (hh:mm)': 'end_time',
-    'end time': 'end_time', 'end': 'end_time',
-    'fő': 'pax', 'pax': 'pax', 'guests': 'pax', 'vendégek száma': 'pax', 'covers': 'pax', 'party size': 'pax',
-    'szolgáltatás': 'service', 'service': 'service', 'treatment': 'service', 'kezelés': 'service', 'service name': 'service',
-    'munkatárs': 'staff', 'szakember': 'staff', 'staff': 'staff',
-    'stylist': 'staff', 'employee': 'staff', 'therapist': 'staff', 'provider': 'staff',
-    'időtartam (perc)': 'duration', 'időtartam': 'duration', 'duration': 'duration',
-    'duration (min)': 'duration', 'duration (minutes)': 'duration',
-    'ár (ft)': 'price', 'ár': 'price', 'price': 'price', 'díj': 'price', 'cost': 'price',
-    'státusz': 'status', 'status': 'status', 'booking status': 'status',
-    'megjegyzés': 'notes', 'megjegyzések': 'notes', 'notes': 'notes',
-    'note': 'notes', 'comment': 'notes', 'comments': 'notes',
-  },
-  customers: {
-    'ügyfél': 'customer_name', 'ügyfél neve': 'customer_name',
-    'vendég': 'customer_name', 'vendég neve': 'customer_name',
-    'név': 'customer_name', 'name': 'customer_name',
-    'customer': 'customer_name', 'customer name': 'customer_name',
-    'guest': 'customer_name', 'guest name': 'customer_name',
-    'email': 'customer_email', 'e-mail': 'customer_email', 'e-mail cím': 'customer_email',
-    'telefon': 'customer_phone', 'phone': 'customer_phone', 'mobile': 'customer_phone', 'mobil': 'customer_phone',
-    'megjegyzés': 'notes', 'notes': 'notes', 'note': 'notes', 'comment': 'notes',
-  },
-  staff: {
-    'név': 'name', 'name': 'name', 'munkatárs': 'name', 'munkatárs neve': 'name',
-    'employee': 'name', 'employee name': 'name', 'staff name': 'name', 'full name': 'name',
-    'email': 'email', 'e-mail': 'email', 'e-mail cím': 'email',
-    'telefon': 'phone', 'phone': 'phone', 'mobile': 'phone', 'mobil': 'phone',
-    'pozíció': 'role_title', 'beosztás': 'role_title', 'role': 'role_title',
-    'title': 'role_title', 'job title': 'role_title', 'foglalkozás': 'role_title',
-    'részleg': 'department', 'department': 'department', 'team': 'department', 'csapat': 'department',
-    'születésnap': 'birthday', 'birthday': 'birthday', 'date of birth': 'birthday', 'dob': 'birthday',
-  },
-  tables: {
-    'asztal': 'name', 'asztal neve': 'name', 'table': 'name', 'table name': 'name',
-    'name': 'name', 'név': 'name', 'azonosító': 'name',
-    'férőhely': 'capacity', 'kapacitás': 'capacity', 'capacity': 'capacity',
-    'seats': 'capacity', 'max guests': 'capacity', 'max fő': 'capacity',
-  },
-  services: {
-    'szolgáltatás': 'name', 'service': 'name', 'service name': 'name',
-    'name': 'name', 'kezelés': 'name', 'treatment': 'name', 'név': 'name',
-    'időtartam': 'duration', 'duration': 'duration', 'időtartam (perc)': 'duration', 'duration (min)': 'duration',
-    'ár': 'price', 'price': 'price', 'díj': 'price', 'cost': 'price', 'ár (ft)': 'price',
-    'kategória': 'category', 'category': 'category', 'group': 'category', 'csoport': 'category',
-  },
-  opening_hours: {
-    'nap': 'day_of_week', 'day': 'day_of_week', 'day of week': 'day_of_week',
-    'weekday': 'day_of_week', 'napja': 'day_of_week', 'hét napja': 'day_of_week',
-    'nyitva': 'is_open', 'is_open': 'is_open', 'nyitva?': 'is_open',
-    'open': 'is_open', 'open?': 'is_open', 'nyitva-e': 'is_open',
-    'nyitás': 'open_time', 'nyitas': 'open_time', 'open time': 'open_time',
-    'opens': 'open_time', 'nyitási idő': 'open_time', 'from': 'open_time', 'tól': 'open_time',
-    'zárás': 'close_time', 'zaras': 'close_time', 'close time': 'close_time',
-    'closes': 'close_time', 'záró idő': 'close_time', 'to': 'close_time', 'ig': 'close_time',
-    'zárási idő': 'close_time',
-  },
-  rooms: {
-    'terem': 'name', 'terem neve': 'name', 'room': 'name', 'room name': 'name',
-    'name': 'name', 'név': 'name', 'szoba': 'name', 'helyiség': 'name',
-    'zóna': 'name', 'zona': 'name', 'section': 'name', 'szekció': 'name', 'area': 'name',
-    'szabadtéri': 'is_outdoor', 'szabadteri': 'is_outdoor', 'outdoor': 'is_outdoor',
-    'terasz': 'is_outdoor', 'kert': 'is_outdoor',
-    'aktív': 'is_active', 'aktiv': 'is_active', 'active': 'is_active', 'enabled': 'is_active',
-  },
-  service_categories: {
-    'kategória': 'name', 'kategoria': 'name', 'category': 'name', 'name': 'name', 'név': 'name',
-    'csoport': 'name', 'group': 'name', 'type': 'name', 'típus': 'name',
-    'sorrend': 'sort_order', 'sort': 'sort_order', 'order': 'sort_order',
-    'pozíció': 'sort_order', 'sort order': 'sort_order',
-  },
-  billing_info: {
-    'cégnév': 'legal_name', 'cegnev': 'legal_name', 'legal name': 'legal_name',
-    'company name': 'legal_name', 'vállalkozás neve': 'legal_name', 'company': 'legal_name',
-    'adószám': 'tax_number', 'adoszam': 'tax_number', 'tax number': 'tax_number',
-    'vat number': 'tax_number', 'vat': 'tax_number', 'tax id': 'tax_number',
-    'adó azonosító': 'tax_number', 'adó': 'tax_number',
-    'cégjegyzékszám': 'company_reg_number', 'cegj.szam': 'company_reg_number',
-    'company registration': 'company_reg_number', 'reg number': 'company_reg_number',
-    'cégj szám': 'company_reg_number',
-    'székhely': 'registered_seat', 'szekhelycim': 'registered_seat',
-    'registered address': 'registered_seat', 'registered seat': 'registered_seat',
-    'számlázási email': 'billing_email', 'billing email': 'billing_email',
-    'email': 'billing_email', 'számlázási e-mail': 'billing_email',
-    'irányítószám': 'billing_postal_code', 'irsz': 'billing_postal_code',
-    'postal code': 'billing_postal_code', 'zip': 'billing_postal_code', 'zip code': 'billing_postal_code',
-    'város': 'billing_city', 'varos': 'billing_city', 'city': 'billing_city', 'town': 'billing_city',
-    'utca': 'billing_street', 'cím': 'billing_street', 'street': 'billing_street',
-    'address': 'billing_street', 'számlázási cím': 'billing_street', 'billing address': 'billing_street',
-  },
-}
 
 // ── Route ────────────────────────────────────────────────────────────────
 
@@ -241,16 +137,24 @@ export async function POST(req: NextRequest) {
       userMapping?: Record<string, string>
       importType?: string
       module?: 'salon' | 'restaurant'
+      // 'match': csak a párosító lépés javaslatait adja vissza, nem ír semmit
+      mode?: 'match'
+      // a felhasználó párosító döntései (munkatárs, szolgáltatás, kategória, asztal, terem)
+      entityMap?: EntityMap
     }
 
     const { headers = [], rows = [], userMapping = {} } = body
     const importType = body.importType ?? 'bookings'
 
-    const aliases = ALIASES_BY_TYPE[importType] ?? ALIASES_BY_TYPE.bookings
+    const aliases = ALIASES_BY_TYPE[importType as ImportType] ?? ALIASES_BY_TYPE.bookings
     const colMap: Record<number, string> = {}
     for (let i = 0; i < headers.length; i++) {
       const h = headers[i]
-      const override = userMapping[h]
+      // Oszlop-INDEX szerint, nem fejléc-szöveg szerint — egy exportban két azonos nevű oszlop
+      // is előfordulhat (pl. kétszer "Életkor"), és fejléc-szöveg kulcs esetén a kliens oldali
+      // mapping-objektum is csak egyet tudna megkülönböztetni belőlük (lásd ImportPanel.tsx
+      // autoDetect/mapping — ugyanez a döntés tükrözve).
+      const override = userMapping[String(i)]
       const auto = aliases[h.toLowerCase().trim()]
       const field = override === undefined ? auto : override
       if (field) colMap[i] = field
@@ -273,12 +177,48 @@ export async function POST(req: NextRequest) {
       return ''
     }
 
+    // Újraimport-védelem: ugyanannak a vendégnek ugyanarra a napra+időpontra az üzletben már van
+    // foglalás → nem hozzuk létre újra (pl. ugyanaz a fájl kétszer feltöltve). Vendég-azonosítás:
+    // valódi email, ha van; különben név.
+    const visitAlreadyImported = async (
+      collection: 'bookings' | 'reservations',
+      date: string, startTime: string, name: string, email: string,
+    ): Promise<boolean> => {
+      const realEmail = email && email !== 'import@placeholder.local' ? email : ''
+      if (!realEmail && !name) return false
+      const found = await payload.find({
+        collection,
+        where: {
+          and: [
+            { [collection === 'reservations' ? 'restaurant' : 'salon']: { equals: businessId } },
+            { date: { equals: date } },
+            { start_time: { equals: startTime } },
+            realEmail ? { customer_email: { equals: realEmail } } : { customer_name: { equals: name } },
+          ],
+        },
+        limit: 1, depth: 0, overrideAccess: true,
+      })
+      return found.docs.length > 0
+    }
+
+    // Katalógus-import (szándékos feltöltés) → az új elem aktív; vendég-/foglalás-import
+    // mellékhatásaként létrejövő elem → inaktív, „Importált” kategóriában (lásd importResolver.ts)
+    const catalogImport = ['staff', 'services', 'service_categories', 'tables', 'rooms'].includes(importType)
+    const resolver = new ImportResolver(payload, businessId, isRestaurant, body.entityMap, catalogImport)
+
+    if (body.mode === 'match') {
+      const values = collectEntityValues(importType, isRestaurant, rows, getField)
+      return NextResponse.json(await buildMatchReport(resolver, values))
+    }
+
     const result = {
       imported: {
         customers: 0, bookings: 0, staff: 0, tables: 0, services: 0,
         opening_hours: 0, rooms: 0, service_categories: 0, billing_info: 0,
       },
+      updated: 0,
       skipped: 0,
+      duplicates: 0,
       errors: [] as string[],
     }
 
@@ -300,27 +240,31 @@ export async function POST(req: NextRequest) {
         const birthday = birthdayRaw ? normalizeDate(birthdayRaw) ?? undefined : undefined
 
         try {
-          const existing = email
-            ? (await payload.find({
-                collection: 'staff',
-                where: { and: [{ email: { equals: email } }, { salon: { equals: businessId } }] },
-                limit: 1, depth: 0, overrideAccess: true,
-              })).docs[0]
-            : null
+          // Párosítás: a felhasználó döntése (vagy biztos névegyezés) → meglévő munkatárs frissül;
+          // döntés nélkül az email-egyezés is meglévőnek számít (korábbi viselkedés)
+          const decision = await resolver.decide('staff', name)
+          if (decision.action === 'skip') { result.skipped++; continue }
+          let existingId: number | null = decision.action === 'match' ? decision.id : null
+          if (!existingId && email && !resolver.hasExplicitDecision('staff', name)) {
+            const byEmail = (await payload.find({
+              collection: 'staff',
+              where: { and: [{ email: { equals: email } }, { salon: { equals: businessId } }] },
+              limit: 1, depth: 0, overrideAccess: true,
+            })).docs[0]
+            if (byEmail) existingId = Number(byEmail.id)
+          }
 
-          if (existing) {
+          if (existingId) {
             await payload.update({
               collection: 'staff',
-              id: existing.id,
+              id: existingId,
               data: { name, email, phone, role_title, department, birthday },
-              overrideAccess: true,
-            })
+              overrideAccess: true, context: SILENT_IMPORT })
           } else {
             await payload.create({
               collection: 'staff',
               data: { name, salon: businessId, email, phone, role_title, department, birthday, is_active: true },
-              overrideAccess: true,
-            })
+              overrideAccess: true, context: SILENT_IMPORT })
           }
 
           // SZINKRON: minden e-maillel rendelkező munkatárs egyben membership is legyen —
@@ -346,8 +290,7 @@ export async function POST(req: NextRequest) {
                   invite_token: crypto.randomBytes(24).toString('hex'),
                   position: role_title,
                   salon: businessId,
-                },
-              })
+                }, context: SILENT_IMPORT })
             }
           }
           result.imported.staff++
@@ -371,19 +314,14 @@ export async function POST(req: NextRequest) {
         const capacity = parseInt(capacityRaw) || 2
 
         try {
-          const existing = (await payload.find({
-            collection: 'tables',
-            where: { and: [{ name: { equals: name } }, { restaurant: { equals: businessId } }] },
-            limit: 1, depth: 0, overrideAccess: true,
-          })).docs[0]
-
-          if (existing) { result.skipped++; continue }
+          const decision = await resolver.decide('tables', name)
+          if (decision.action === 'skip') { result.skipped++; continue }
+          if (decision.action === 'match') { result.duplicates++; continue }
 
           await payload.create({
             collection: 'tables',
             data: { name, capacity, restaurant: businessId, is_active: true },
-            overrideAccess: true,
-          })
+            overrideAccess: true, context: SILENT_IMPORT })
           result.imported.tables++
         } catch (e) {
           result.errors.push(`Sor ${rowNum}: ${e instanceof Error ? e.message : 'hiba'}`)
@@ -393,44 +331,8 @@ export async function POST(req: NextRequest) {
 
     // ── SERVICES ─────────────────────────────────────────────────────────
     } else if (importType === 'services') {
-      const catCache: Record<string, number> = {}
-      const existingCats = await payload.find({
-        collection: 'service-categories',
-        where: { salon: { equals: businessId } },
-        limit: 200, depth: 0, overrideAccess: true,
-      })
-      for (const c of existingCats.docs) {
-        catCache[(c as unknown as { name: string }).name.toLowerCase()] = Number(c.id)
-      }
-
-      let defaultCatId: number | null = existingCats.docs.length > 0 ? Number(existingCats.docs[0].id) : null
-
-      const getOrCreateCat = async (catName: string): Promise<number | null> => {
-        const key = catName.toLowerCase()
-        if (catCache[key]) return catCache[key]
-        try {
-          const created = await payload.create({
-            collection: 'service-categories',
-            data: { name: catName, salon: businessId },
-            overrideAccess: true,
-          })
-          catCache[key] = Number(created.id)
-          if (!defaultCatId) defaultCatId = Number(created.id)
-          return Number(created.id)
-        } catch { return defaultCatId }
-      }
-
-      if (!defaultCatId) {
-        try {
-          const created = await payload.create({
-            collection: 'service-categories',
-            data: { name: 'Importált', salon: businessId },
-            overrideAccess: true,
-          })
-          defaultCatId = Number(created.id)
-          catCache['importált'] = defaultCatId
-        } catch { /* no category available */ }
-      }
+      // Kategória nélküli sor → „Importált” kategória (NEM a tulaj első, tetszőleges kategóriája)
+      const defaultCatId: number | null = await resolver.getImportCategoryId().catch(() => null)
 
       for (let ri = 0; ri < rows.length; ri++) {
         const row = rows[ri]
@@ -446,7 +348,7 @@ export async function POST(req: NextRequest) {
 
         const duration_minutes = parseInt(durationRaw) || 60
         const price = parseFloat(priceRaw) || 0
-        const categoryId = categoryName ? await getOrCreateCat(categoryName) : defaultCatId
+        const categoryId = categoryName ? ((await resolver.resolve('categories', categoryName)) ?? defaultCatId) : defaultCatId
 
         if (!categoryId) {
           result.errors.push(`Sor ${rowNum}: nincs kategória — kihagyva`)
@@ -455,19 +357,14 @@ export async function POST(req: NextRequest) {
         }
 
         try {
-          const existing = (await payload.find({
-            collection: 'services',
-            where: { and: [{ name: { equals: name } }, { salon: { equals: businessId } }] },
-            limit: 1, depth: 0, overrideAccess: true,
-          })).docs[0]
-
-          if (existing) { result.skipped++; continue }
+          const decision = await resolver.decide('services', name)
+          if (decision.action === 'skip') { result.skipped++; continue }
+          if (decision.action === 'match') { result.duplicates++; continue }
 
           await payload.create({
             collection: 'services',
             data: { name, salon: businessId, category: categoryId, duration_minutes, price, is_active: true },
-            overrideAccess: true,
-          })
+            overrideAccess: true, context: SILENT_IMPORT })
           result.imported.services++
         } catch (e) {
           result.errors.push(`Sor ${rowNum}: ${e instanceof Error ? e.message : 'hiba'}`)
@@ -477,6 +374,66 @@ export async function POST(req: NextRequest) {
 
     // ── CUSTOMERS (standalone) ────────────────────────────────────────────
     } else if (importType === 'customers') {
+      // Ha az export tartalmaz "Első/Utolsó szolgáltatás" dátumot, ehhez — szalonnál — tényleges
+      // `bookings` sort is hozunk létre (max 2/vendég: az első és az utolsó látogatás), ugyanazzal
+      // a szolgáltatás/munkatárs-feloldó logikával, mint a BOOKINGS ág. A köztes (csak az
+      // "Időpontok összesen"-ben megjelenő) látogatásokat nem lehet rekonstruálni — ezek csak az
+      // Import-összesítő mezőkön élnek (lásd lejjebb + Customers.ts).
+      // Relationship-mezőkhöz (category/service/staff) a Payload+Postgres kombó SZÁM id-t vár,
+      // nem numerikus stringet — lásd a BOOKINGS ág azonos komment ja fentebb.
+      // Szolgáltatás/munkatárs feloldása: a párosító döntés szerint (ImportResolver) — új elem
+      // csak inaktívan, „Importált” kategóriában jön létre, a meglévőket nem duplikálja.
+
+      // "YYYY-MM-DD HH:MM:SS" alakú összevont dátum+idő mező szétbontása (ilyet ad pl. a Salonic
+      // "Első/Utolsó szolgáltatás időpont" oszlopa) — a normalizeDate/normalizeTime ÖNMAGÁBAN nem
+      // várja ezt az összevont formát, a dátum- és idő-részt itt vágjuk külön.
+      const splitDateTime = (v: string): { date: string | null; time: string | null } => {
+        const s = v?.trim()
+        if (!s) return { date: null, time: null }
+        const [datePart, timePart] = s.split(/\s+/)
+        return { date: normalizeDate(datePart), time: timePart ? normalizeTime(timePart) : null }
+      }
+
+      /** Legfeljebb 1 db szintetikus `bookings` sor egy ismert (szolgáltatás+dátum+idő) pontra —
+       *  visszaadja, sikerült-e, hogy a hívó tudja, mennyit oszt szét az árbevételből. */
+      const createSyntheticBooking = async (opts: {
+        serviceName: string; date: string; time: string
+        customerName: string; customerEmail: string; customerPhone: string
+        staffHint: string; priceHuf: number
+      }): Promise<boolean> => {
+        // „Kihagyás” döntés → nincs szolgáltatás → ez a látogatás nem jön létre foglalásként
+        const serviceId = await resolver.resolve('services', opts.serviceName)
+        if (!serviceId) return false
+
+        // Több név egy cellában ("Oravecz András, Csonka Bence") → az első feloldható; ha nincs, az
+        // üzlet első aktív munkatársa (a foglaláshoz kötelező)
+        const staffId = (opts.staffHint ? await resolver.resolveStaff(opts.staffHint) : null) ?? (await resolver.defaultStaffId())
+        if (!staffId) return false
+
+        try {
+          if (await visitAlreadyImported('bookings', opts.date, opts.time, opts.customerName, opts.customerEmail)) {
+            result.duplicates++
+            return false
+          }
+          await payload.create({
+            collection: 'bookings',
+            data: {
+              // importált foglalás: eleve „kiküldve” — se emlékeztető, se értékeléskérés ne menjen ki
+              reminder_sent: true, feedback_sent: true,
+              salon: businessId, service: serviceId, staff: staffId,
+              price_snapshot: opts.priceHuf, price_snapshot_currency: 'HUF',
+              date: opts.date, start_time: opts.time, end_time: addMinutes(opts.time, 60),
+              customer_name: opts.customerName || 'Importált ügyfél',
+              customer_email: opts.customerEmail || 'import@placeholder.local',
+              customer_phone: opts.customerPhone || undefined,
+              status: 'completed',
+              notes: 'Import — korábbi rendszerből (összesítő exportból rekonstruált látogatás)',
+            },
+            overrideAccess: true, context: SILENT_IMPORT })
+          return true
+        } catch (e) { console.error('[import-csv] synthetic booking create failed', e); return false }
+      }
+
       for (let ri = 0; ri < rows.length; ri++) {
         const row = rows[ri]
         if (!row.some((c) => c.trim())) continue
@@ -495,53 +452,125 @@ export async function POST(req: NextRequest) {
         const billingEmail = getField(row, 'billing_email') || undefined
         const billingPostalCode = getField(row, 'billing_postal_code') || undefined
         const billingCity = getField(row, 'billing_city') || undefined
-        const billingStreet = getField(row, 'billing_street') || undefined
+        const billingStreetName = getField(row, 'billing_street_name')
+        const billingStreetType = getField(row, 'billing_street_type')
+        const billingStreetNumber = getField(row, 'billing_street_number')
+        const billingStreetCombined = [billingStreetName, billingStreetType, billingStreetNumber].filter(Boolean).join(' ').trim()
+        const billingStreet = billingStreetCombined || getField(row, 'billing_street') || undefined
         const marketingConsent = parseBoolish(getField(row, 'marketing_consent')) ?? undefined
         const blockedRaw = parseBoolish(getField(row, 'blocked'))
         const blockReason = getField(row, 'block_reason') || undefined
         const gender = normalizeGender(getField(row, 'gender')) ?? undefined
 
+        // Import-összesítő — guest-szintű élettartam-aggregátumok (ld. fenti komment).
+        const visitCountRaw = parseInt(getField(row, 'visit_count'))
+        const visitCount = !isNaN(visitCountRaw) ? visitCountRaw : undefined
+        const cancellationCountRaw = parseInt(getField(row, 'cancellation_count'))
+        const cancellationCount = !isNaN(cancellationCountRaw) ? cancellationCountRaw : undefined
+        const noShowCountRaw = parseInt(getField(row, 'no_show_count'))
+        const noShowCount = !isNaN(noShowCountRaw) ? noShowCountRaw : undefined
+        const lastCancellationReason = getField(row, 'last_cancellation_reason') || undefined
+        const revenueRaw = parseFloat(getField(row, 'total_revenue_huf').replace(/[^\d.,]/g, '').replace(',', '.'))
+        const totalRevenueHuf = !isNaN(revenueRaw) && revenueRaw > 0 ? revenueRaw : undefined
+
+        const externalId = getField(row, 'external_id') || undefined
+
         if (!customerName && !customerEmail) { result.skipped++; continue }
 
         try {
-          const existing = customerEmail
+          // A KÜLSŐ ID megbízhatóbb dedup-kulcs, mint az email — egy exportban előfordulhat
+          // email nélküli vagy (ritkán) ismétlődő email, miközben a forrásrendszer saját ID-ja
+          // garantáltan egyedi; csak ha nincs ID, esünk vissza az email-egyezésre.
+          const scope: Where = isRestaurant ? { restaurant: { equals: businessId } } : { salon: { equals: businessId } }
+          const byExternalId = externalId
             ? (await payload.find({
                 collection: 'customers',
-                where: {
-                  customer_email: { equals: customerEmail },
-                  ...(isRestaurant ? { restaurant: { equals: businessId } } : { salon: { equals: businessId } }),
-                },
+                where: { external_id: { equals: externalId }, ...scope },
                 limit: 1, depth: 0, overrideAccess: true,
               })).docs[0]
-            : null
+            : undefined
+          // Ha az ID-re nincs találat, emailre is keresünk: egy korábbi, még ID nélküli import
+          // vendégét így frissítjük (és megkapja az ID-t), nem hozunk létre mellé egy másodikat.
+          const existing = byExternalId ?? (customerEmail
+            ? (await payload.find({
+                collection: 'customers',
+                where: { customer_email: { equals: customerEmail }, ...scope },
+                limit: 1, depth: 0, overrideAccess: true,
+              })).docs[0]
+            : null)
+
+          const customerData = {
+            external_id: externalId,
+            customer_name: customerName || undefined,
+            customer_email: customerEmail || undefined,
+            customer_phone: customerPhone || undefined,
+            customer_city: customerCity,
+            birthday,
+            gender,
+            group_tag: groupTag,
+            notes,
+            billing_name: billingName,
+            billing_tax_number: billingTaxNumber,
+            billing_email: billingEmail,
+            billing_postal_code: billingPostalCode,
+            billing_city: billingCity,
+            billing_street: billingStreet,
+            visit_count: visitCount,
+            cancellation_count: cancellationCount,
+            no_show_count: noShowCount,
+            last_cancellation_reason: lastCancellationReason,
+            total_revenue_huf: totalRevenueHuf,
+            ...(marketingConsent !== undefined ? { marketing_consent: marketingConsent, marketing_consent_at: marketingConsent ? new Date().toISOString() : undefined } : {}),
+            ...(blockedRaw !== null ? { blocked: blockedRaw, block_reason: blockedRaw ? blockReason : undefined, blocked_at: blockedRaw ? new Date().toISOString() : undefined } : {}),
+          }
 
           if (!existing) {
             await payload.create({
               collection: 'customers',
-              data: {
-                customer_name: customerName || undefined,
-                customer_email: customerEmail || undefined,
-                customer_phone: customerPhone || undefined,
-                customer_city: customerCity,
-                birthday,
-                gender,
-                group_tag: groupTag,
-                notes,
-                billing_name: billingName,
-                billing_tax_number: billingTaxNumber,
-                billing_email: billingEmail,
-                billing_postal_code: billingPostalCode,
-                billing_city: billingCity,
-                billing_street: billingStreet,
-                ...(marketingConsent !== undefined ? { marketing_consent: marketingConsent, marketing_consent_at: marketingConsent ? new Date().toISOString() : undefined } : {}),
-                ...(blockedRaw !== null ? { blocked: blockedRaw, block_reason: blockedRaw ? blockReason : undefined, blocked_at: blockedRaw ? new Date().toISOString() : undefined } : {}),
-                ...(isRestaurant ? { restaurant: businessId } : { salon: businessId }),
-              },
-              overrideAccess: true,
-            })
+              data: { ...customerData, ...(isRestaurant ? { restaurant: businessId } : { salon: businessId }) },
+              overrideAccess: true, context: SILENT_IMPORT })
             result.imported.customers++
           } else {
-            result.skipped++
+            // Meglévő vendég — NEM kihagyjuk, hanem a most beküldött (nem üres) mezőkkel
+            // frissítjük, hogy egy korábbi, csak alap-adatos import (pl. hibás oszlop-mappolással
+            // lefutott Salonic-import) utólag kiegészíthető legyen ugyanazon fájl újra-
+            // feltöltésével, duplikáció nélkül (email alapján azonosítva).
+            const patch = Object.fromEntries(Object.entries(customerData).filter(([, v]) => v !== undefined && v !== ''))
+            if (Object.keys(patch).length > 0) {
+              await payload.update({ collection: 'customers', id: existing.id, data: patch, overrideAccess: true, context: SILENT_IMPORT })
+              result.updated++
+            } else {
+              result.skipped++
+            }
+          }
+
+          // Első + utolsó látogatás — ha van hozzá dátum+szolgáltatás, valódi `bookings` sor (csak
+          // szalonnál; az étteremi "Reservations" más oszlop-sémát igényelne, ezt a konkrét
+          // guest-summary export-formátumot nem támogatja).
+          if (!isRestaurant) {
+            // a feloldó szétbontja a több nevet és levágja a zárójeles beosztást ("Csonka Bence(alapító)")
+            const staffHint = getField(row, 'staff_name_hint')
+            const firstName = getField(row, 'first_service_name')
+            const first = splitDateTime(getField(row, 'first_service_at'))
+            const lastName = getField(row, 'last_service_name')
+            const last = splitDateTime(getField(row, 'last_service_at'))
+            const isSameVisit = first.date === last.date && first.time === last.time
+            const revenueSplit = totalRevenueHuf ? Math.round(totalRevenueHuf / (isSameVisit || !lastName ? 1 : 2)) : 0
+
+            if (firstName && first.date && first.time) {
+              const ok = await createSyntheticBooking({
+                serviceName: firstName, date: first.date, time: first.time,
+                customerName, customerEmail, customerPhone, staffHint, priceHuf: revenueSplit,
+              })
+              if (ok) result.imported.bookings++
+            }
+            if (lastName && last.date && last.time && !isSameVisit) {
+              const ok = await createSyntheticBooking({
+                serviceName: lastName, date: last.date, time: last.time,
+                customerName, customerEmail, customerPhone, staffHint, priceHuf: revenueSplit,
+              })
+              if (ok) result.imported.bookings++
+            }
           }
         } catch (e) {
           result.errors.push(`Sor ${rowNum}: ${e instanceof Error ? e.message : 'hiba'}`)
@@ -585,14 +614,12 @@ export async function POST(req: NextRequest) {
               collection: 'opening-hours',
               id: existing.id,
               data: { is_open, open_time, close_time },
-              overrideAccess: true,
-            })
+              overrideAccess: true, context: SILENT_IMPORT })
           } else {
             await payload.create({
               collection: 'opening-hours',
               data: { restaurant: businessId, day_of_week: day, is_open, open_time, close_time },
-              overrideAccess: true,
-            })
+              overrideAccess: true, context: SILENT_IMPORT })
           }
           result.imported.opening_hours++
         } catch (e) {
@@ -621,19 +648,14 @@ export async function POST(req: NextRequest) {
         const is_active = isActiveRaw ? normalizeBool(isActiveRaw) : true
 
         try {
-          const existing = (await payload.find({
-            collection: 'rooms',
-            where: { and: [{ name: { equals: name } }, { restaurant: { equals: businessId } }] },
-            limit: 1, depth: 0, overrideAccess: true,
-          })).docs[0]
-
-          if (existing) { result.skipped++; continue }
+          const decision = await resolver.decide('rooms', name)
+          if (decision.action === 'skip') { result.skipped++; continue }
+          if (decision.action === 'match') { result.duplicates++; continue }
 
           await payload.create({
             collection: 'rooms',
             data: { name, restaurant: businessId, is_outdoor, is_active },
-            overrideAccess: true,
-          })
+            overrideAccess: true, context: SILENT_IMPORT })
           result.imported.rooms++
         } catch (e) {
           result.errors.push(`Sor ${rowNum}: ${e instanceof Error ? e.message : 'hiba'}`)
@@ -659,19 +681,14 @@ export async function POST(req: NextRequest) {
         const sort_order = sortRaw ? (parseInt(sortRaw) || undefined) : undefined
 
         try {
-          const existing = (await payload.find({
-            collection: 'service-categories',
-            where: { and: [{ name: { equals: name } }, { salon: { equals: businessId } }] },
-            limit: 1, depth: 0, overrideAccess: true,
-          })).docs[0]
-
-          if (existing) { result.skipped++; continue }
+          const decision = await resolver.decide('categories', name)
+          if (decision.action === 'skip') { result.skipped++; continue }
+          if (decision.action === 'match') { result.duplicates++; continue }
 
           await payload.create({
             collection: 'service-categories',
             data: { name, salon: businessId, sort_order },
-            overrideAccess: true,
-          })
+            overrideAccess: true, context: SILENT_IMPORT })
           result.imported.service_categories++
         } catch (e) {
           result.errors.push(`Sor ${rowNum}: ${e instanceof Error ? e.message : 'hiba'}`)
@@ -703,8 +720,7 @@ export async function POST(req: NextRequest) {
             collection,
             id: businessId,
             data: cleanData,
-            overrideAccess: true,
-          })
+            overrideAccess: true, context: SILENT_IMPORT })
           result.imported.billing_info++
         } catch (e) {
           result.errors.push(`Számlázási adatok: ${e instanceof Error ? e.message : 'hiba'}`)
@@ -714,47 +730,16 @@ export async function POST(req: NextRequest) {
 
     // ── BOOKINGS (default) ────────────────────────────────────────────────
     } else {
-      const serviceCache: Record<string, string> = {}
-      // Ár pillanatfelvételhez — a foglalás-import is a `price_snapshot`-ot tölti, nem a
-      // szolgáltatás mindenkori árát olvassa majd élőben. ID → {price, currency}.
-      const servicePriceById: Record<string, { price: number; currency: string }> = {}
-      const staffCache: Record<string, string> = {}
-      let defaultStaffId: string | null = null
-      let defaultServiceId: string | null = null
-      let importCategoryId: string | null = null
-
+      // Relationship-mezőkhöz (category/service/staff) a Payload+Postgres kombó SZÁM id-t vár,
+      // nem numerikus stringet — stringgel a `payload.create` csendben ValidationError-t dob
+      // ("The following field is invalid"), amit a hívó oldali try/catch szó nélkül elnyel.
+      // Ezért itt MINDENÜTT number (nem String(...)) a cache/alapértelmezett-érték típusa.
+      // Szolgáltatás/munkatárs: a párosító döntés szerint (ImportResolver). Ha a fájlban nincs
+      // szolgáltatás-oszlop, az üzlet első aktív szolgáltatása (korábbi viselkedés).
+      let defaultServiceId: number | null = null
       if (!isRestaurant) {
-        const [svcs, staffList, cats] = await Promise.all([
-          payload.find({ collection: 'services', where: { salon: { equals: businessId } }, limit: 500, depth: 0, overrideAccess: true }),
-          payload.find({ collection: 'staff', where: { salon: { equals: businessId } }, limit: 200, depth: 0, overrideAccess: true }),
-          payload.find({ collection: 'service-categories', where: { salon: { equals: businessId } }, limit: 200, depth: 0, overrideAccess: true }),
-        ])
-
-        for (const s of svcs.docs as Service[]) {
-          serviceCache[s.name.toLowerCase()] = String(s.id)
-          servicePriceById[String(s.id)] = { price: s.price, currency: s.currency ?? 'HUF' }
-          if (!defaultServiceId) defaultServiceId = String(s.id)
-        }
-        for (const s of staffList.docs as StaffMember[]) {
-          staffCache[s.name.toLowerCase()] = String(s.id)
-          if (!defaultStaffId) defaultStaffId = String(s.id)
-        }
-
-        const importCat = cats.docs.find((c) => ((c as unknown as { name: string }).name === 'Importált'))
-        if (importCat) {
-          importCategoryId = String(importCat.id)
-        } else if (cats.docs.length > 0) {
-          importCategoryId = String(cats.docs[0].id)
-        } else {
-          try {
-            const created = await payload.create({
-              collection: 'service-categories',
-              data: { name: 'Importált', salon: businessId },
-              overrideAccess: true,
-            })
-            importCategoryId = String(created.id)
-          } catch { /* no category */ }
-        }
+        const svcs = await resolver.loadCandidates('services')
+        defaultServiceId = (svcs.find((x) => x.is_active !== false) ?? svcs[0])?.id ?? null
       }
 
       for (let ri = 0; ri < rows.length; ri++) {
@@ -789,8 +774,7 @@ export async function POST(req: NextRequest) {
                 customer_phone: customerPhone || undefined,
                 ...(isRestaurant ? { restaurant: businessId } : { salon: businessId }),
               },
-              overrideAccess: true,
-            })
+              overrideAccess: true, context: SILENT_IMPORT })
             result.imported.customers++
           }
         } catch (e) {
@@ -814,11 +798,17 @@ export async function POST(req: NextRequest) {
         const notes = getField(row, 'notes') || undefined
 
         try {
+          if (await visitAlreadyImported(isRestaurant ? 'reservations' : 'bookings', date, startTime, customerName, customerEmail)) {
+            result.duplicates++
+            continue
+          }
           if (isRestaurant) {
             const pax = parseInt(getField(row, 'pax')) || 2
             await payload.create({
               collection: 'reservations',
               data: {
+                // importált foglalás: eleve „kiküldve” — se emlékeztető, se értékeléskérés ne menjen ki
+                reminder_sent: true, feedback_sent: true,
                 restaurant: businessId,
                 date, start_time: startTime, end_time: endTime, pax,
                 customer_name: customerName || 'Importált vendég',
@@ -826,31 +816,17 @@ export async function POST(req: NextRequest) {
                 customer_phone: customerPhone || undefined,
                 status, source: 'online', notes,
               },
-              overrideAccess: true,
-            })
+              overrideAccess: true, context: SILENT_IMPORT })
             result.imported.bookings++
           } else {
             const serviceName = getField(row, 'service')
-            let serviceId = serviceName ? (serviceCache[serviceName.toLowerCase()] ?? null) : null
-
-            if (!serviceId && serviceName && importCategoryId) {
-              try {
-                const priceRaw = getField(row, 'price').replace(/[^\d.,]/g, '').replace(',', '.')
-                const mins = parseInt(durationRaw) || 60
-                const price = parseFloat(priceRaw) || 0
-                const created = await payload.create({
-                  collection: 'services',
-                  data: { name: serviceName, salon: businessId, category: importCategoryId, duration_minutes: mins, price, is_active: true },
-                  overrideAccess: true,
+            const priceRaw = getField(row, 'price').replace(/[^\d.,]/g, '').replace(',', '.')
+            const serviceId = serviceName
+              ? await resolver.resolve('services', serviceName, {
+                  duration_minutes: parseInt(durationRaw) || 60,
+                  price: parseFloat(priceRaw) || 0,
                 })
-                serviceId = String(created.id)
-                serviceCache[serviceName.toLowerCase()] = serviceId
-                servicePriceById[serviceId] = { price, currency: 'HUF' }
-              } catch { serviceId = defaultServiceId }
-            } else if (!serviceId) {
-              serviceId = defaultServiceId
-            }
-
+              : defaultServiceId
             if (!serviceId) {
               result.errors.push(`Sor ${rowNum}: nincs szolgáltatás — foglalás kihagyva`)
               result.skipped++
@@ -858,21 +834,7 @@ export async function POST(req: NextRequest) {
             }
 
             const staffName = getField(row, 'staff')
-            let staffId = staffName ? (staffCache[staffName.toLowerCase()] ?? null) : null
-
-            if (!staffId && staffName) {
-              try {
-                const created = await payload.create({
-                  collection: 'staff',
-                  data: { name: staffName, salon: businessId, is_active: true },
-                  overrideAccess: true,
-                })
-                staffId = String(created.id)
-                staffCache[staffName.toLowerCase()] = staffId
-                if (!defaultStaffId) defaultStaffId = staffId
-              } catch { staffId = defaultStaffId }
-            }
-            if (!staffId) staffId = defaultStaffId
+            const staffId = (staffName ? await resolver.resolveStaff(staffName) : null) ?? (await resolver.defaultStaffId())
 
             if (!staffId) {
               result.errors.push(`Sor ${rowNum}: nincs munkatárs — foglalás kihagyva`)
@@ -880,10 +842,14 @@ export async function POST(req: NextRequest) {
               continue
             }
 
-            const svcPrice = servicePriceById[serviceId]
+            // a fájlban szereplő tényleges ár, ha van; különben a szolgáltatás ára
+            const rowPrice = parseFloat(priceRaw) || 0
+            const svcPrice = rowPrice > 0 ? { price: rowPrice, currency: 'HUF' } : resolver.priceOf(serviceId)
             await payload.create({
               collection: 'bookings',
               data: {
+                // importált foglalás: eleve „kiküldve” — se emlékeztető, se értékeléskérés ne menjen ki
+                reminder_sent: true, feedback_sent: true,
                 salon: businessId, service: serviceId, staff: staffId,
                 price_snapshot: svcPrice?.price ?? 0,
                 price_snapshot_currency: svcPrice?.currency ?? 'HUF',
@@ -893,8 +859,7 @@ export async function POST(req: NextRequest) {
                 customer_phone: customerPhone || undefined,
                 status, notes,
               },
-              overrideAccess: true,
-            })
+              overrideAccess: true, context: SILENT_IMPORT })
             result.imported.bookings++
           }
         } catch (e) {
@@ -904,8 +869,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    console.log(`[import-csv] done: type=${importType}`, result.imported, `skipped=${result.skipped}`)
-    return NextResponse.json({ ...result, errors: result.errors.slice(0, 30) })
+    console.log(`[import-csv] done: type=${importType}`, result.imported, `updated=${result.updated} skipped=${result.skipped} duplicates=${result.duplicates}`)
+    // az import során újonnan létrehozott elemek (szolgáltatás/munkatárs inaktívan) — a felület
+    // „nézd át” listájához
+    return NextResponse.json({ ...result, created: resolver.created, errors: result.errors.slice(0, 30) })
   } catch (err) {
     console.error('[import-csv]', err)
     return NextResponse.json({ error: 'Szerver hiba az importálás során' }, { status: 500 })

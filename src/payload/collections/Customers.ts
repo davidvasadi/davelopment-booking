@@ -90,6 +90,27 @@ export const Customers: CollectionConfig = {
         { name: 'billing_street', type: 'text', label: 'Utca, házszám' },
       ],
     },
+    // Import-összesítő — olyan külső rendszerből (pl. Salonic) jövő vendég-exportokhoz, amik
+    // GUEST-SZINTŰ ÉLETTARTAM-összesítőt adnak (nem egyenkénti látogatás-naplót), ezért a
+    // ténylegesen rögzíthető foglalás-sorokon (jellemzően csak az első+utolsó látogatás,
+    // amihez van dátum) FELÜL ez tárolja a köztes, csak összesítve ismert számokat. A Vendégek
+    // oldal ELSŐBBSÉGGEL ezt mutatja, ha ki van töltve (nem a foglalás-történetből számolt
+    // értéket) — lásd dashboard/guests/page.tsx és restaurant/guests/page.tsx.
+    {
+      type: 'collapsible',
+      label: 'Import-összesítő (külső rendszerből)',
+      admin: { initCollapsed: true },
+      fields: [
+        { name: 'visit_count', type: 'number', label: 'Látogatások száma (import)' },
+        { name: 'cancellation_count', type: 'number', label: 'Lemondások száma (import)' },
+        { name: 'no_show_count', type: 'number', label: 'Nem jött el alkalmak száma (import)' },
+        { name: 'last_cancellation_reason', type: 'text', label: 'Utolsó lemondás oka (import)' },
+        { name: 'total_revenue_huf', type: 'number', label: 'Összes árbevétel Ft (import)' },
+      ],
+    },
+    // Külső rendszer saját azonosítója (pl. Salonic "ID" oszlopa) — ismételt importnál
+    // megbízhatóbb dedup-kulcs, mint az email (ami hiányozhat/ismétlődhet egy exportban).
+    { name: 'external_id', type: 'text', label: 'Külső azonosító (import)', admin: { position: 'sidebar' } },
     // A vendéghez tartozó ÖSSZES azonosító (régi+új e-mail/telefon), `\n`-nel elválasztva.
     // Így a telefon-csere után is átlinkelhető a régi foglalás → a levezetett adat frissül.
     { name: 'match_index', type: 'text', label: 'Match-index (belső)', admin: { hidden: true } },

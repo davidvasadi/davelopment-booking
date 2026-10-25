@@ -3,6 +3,7 @@ import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/reval
 import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
+import { isSilentImport } from '../../lib/silentImport'
 import { syncAccountSubscription } from '../../lib/accountSubscription'
 
 /** A staff.salon relációból feloldja a szalon owner-jét (a szalon-díj az AKTÍV munkatárs-számtól
@@ -19,6 +20,14 @@ async function syncOwnerFeeForStaff(req: import('payload').PayloadRequest, salon
 export const Staff: CollectionConfig = {
   slug: 'staff',
   hooks: {
+    beforeChange: [
+      // Az import által létrehozott munkatárs „átnézendő” — a tulaj első szerkesztése (akár csak
+      // az aktív-kapcsoló) lezárja. Az import saját frissítései nem törlik a jelölést.
+      ({ req, operation, data }) => {
+        if (operation === 'update' && !isSilentImport(req)) data.import_review = false
+        return data
+      },
+    ],
     afterChange: [
       revalidateChildOnChange('salon', 'salon'),
       cleanupMediaOnChange(['avatar']),
@@ -94,6 +103,13 @@ export const Staff: CollectionConfig = {
       type: 'checkbox',
       defaultValue: true,
       label: 'Aktív',
+    },
+    {
+      name: 'import_review',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Importált — átnézendő',
+      admin: { readOnly: true, description: 'Az import hozta létre; az első szerkesztés törli.' },
     },
     // ── HR-mezők (Beosztás modul) ──
     {

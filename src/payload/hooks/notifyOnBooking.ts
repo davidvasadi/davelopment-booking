@@ -1,4 +1,5 @@
 import type { CollectionAfterChangeHook } from 'payload'
+import { isSilentImport } from '../../lib/silentImport'
 import { sendPushToUsers } from '../../lib/webPush'
 import { findMyStaffId } from '../../lib/myStaffLink'
 
@@ -12,6 +13,8 @@ function relId(val: unknown): string {
 // app-on belüli értesítést hoz létre — csak ha a tulajnál `notify_new_bookings` be van kapcsolva.
 export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterChangeHook {
   return async ({ req, doc, previousDoc, operation }) => {
+    // Importált (korábbi rendszerből behozott) foglalásról nincs értesítés / push / email
+    if (isSilentImport(req)) return doc
     const isNew = operation === 'create'
     const becameCancelled =
       operation === 'update' &&

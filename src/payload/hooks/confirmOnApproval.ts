@@ -1,4 +1,5 @@
 import type { CollectionAfterChangeHook } from 'payload'
+import { isSilentImport } from '../../lib/silentImport'
 import type { Booking, Reservation, Restaurant, Salon, Service, StaffMember } from '../payload-types'
 
 function relId(val: unknown): string {
@@ -12,6 +13,7 @@ function relId(val: unknown): string {
 // jóváhagyja (pending → confirmed) — bármelyik felületről (naptár, státusz-gomb, szerkesztő).
 export function confirmOnApproval(kind: 'restaurant' | 'salon'): CollectionAfterChangeHook {
   return async ({ req, doc, previousDoc, operation }) => {
+    if (isSilentImport(req)) return doc
     if (operation !== 'update' || previousDoc?.status !== 'pending' || doc.status !== 'confirmed') return doc
     if (!doc.customer_email) return doc
 

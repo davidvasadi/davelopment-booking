@@ -447,6 +447,12 @@ export interface Customer {
   billing_postal_code?: string | null
   billing_city?: string | null
   billing_street?: string | null
+  visit_count?: number | null
+  cancellation_count?: number | null
+  no_show_count?: number | null
+  last_cancellation_reason?: string | null
+  total_revenue_huf?: number | null
+  external_id?: string | null
   match_index?: string | null
   blocked?: boolean | null
   block_reason?: string | null
@@ -926,6 +932,8 @@ export interface StaffMember {
   user?: string | User | null
   avatar?: string | Media | null
   is_active?: boolean | null
+  /** Import hozta létre, a tulaj még nem nézte át (az első szerkesztés törli). */
+  import_review?: boolean | null
   role_title?: string | null
   department?: string | null
   salary?: number | null
