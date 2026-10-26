@@ -969,18 +969,34 @@ export function BookingPageEditor({
                 : step === 'deposit' ? (['deposit'] as const)
                 : (['sec:voucher'] as const)
               ).map((id) => <Row key={id} label={ELEMENT_TITLES[id]} onClick={() => setSel(id)} />)}
-              <ToggleRow label="Hozzájáruló nyilatkozat lépés" hint="Elfogadása kötelező a foglaláshoz." checked={draft.consentEnabled} onChange={() => set('consentEnabled', !draft.consentEnabled)} />
+              {/* Bekapcsoláskor az előnézet RÖGTÖN a nyilatkozat-lépésre ugrik (különben az Adatokon
+                  maradva úgy tűnt, mintha meg sem jelenne); szöveg nélkül a lépés nem él → a szövegszerkesztő nyílik. */}
+              <ToggleRow
+                label="Hozzájáruló nyilatkozat lépés"
+                hint={draft.consentEnabled && !draft.consentText.trim() ? 'Nincs még szövege — add meg, különben a lépés nem jelenik meg.' : 'Elfogadása kötelező a foglaláshoz.'}
+                warn={draft.consentEnabled && !draft.consentText.trim()}
+                checked={draft.consentEnabled}
+                onChange={() => {
+                  const next = !draft.consentEnabled
+                  set('consentEnabled', next)
+                  if (next) { if (draft.consentText.trim()) goStep('consent'); else setSel('consent') }
+                }}
+                onView={consentOn ? () => goStep('consent') : draft.consentEnabled ? () => setSel('consent') : undefined}
+                viewLabel={consentOn ? 'Megnézem' : 'Szöveg megadása'}
+              />
               <ToggleRow
                 label="Előleg lépés"
                 hint={!initial.flags.stripeOnboarded ? 'A bekapcsoláshoz kösd össze a Stripe-fiókot (Fizetés fül).' : !initial.flags.termsFilled ? 'A bekapcsoláshoz töltsd ki a foglalási feltételeket (Dokumentumok & jogi fül).' : 'Az összeget és a visszatérítést a Fizetés fülön állítod.'}
                 checked={draft.depositEnabled}
                 onChange={toggleDeposit}
+                onView={depositOn ? () => goStep('deposit') : undefined}
               />
               <ToggleRow
                 label="Ajándékutalvány lépés"
                 hint={!initial.flags.stripeOnboarded ? 'A bekapcsoláshoz kösd össze a Stripe-fiókot (Fizetés fül).' : 'A típusokat és összegeket az Ajándékutalvány fülön állítod.'}
                 checked={draft.voucherEnabled}
                 onChange={toggleVoucher}
+                onView={voucherOn ? () => goStep('voucher') : undefined}
               />
             </div>
           )}
@@ -1481,12 +1497,18 @@ function Row({ label, onClick }: { label: string; onClick: () => void }) {
   )
 }
 
-function ToggleRow({ label, hint, checked, onChange, disabled }: { label: string; hint?: string; checked: boolean; onChange: () => void; disabled?: boolean }) {
+function ToggleRow({ label, hint, checked, onChange, disabled, onView, viewLabel = 'Megnézem', warn = false }: { label: string; hint?: string; checked: boolean; onChange: () => void; disabled?: boolean; onView?: () => void; viewLabel?: string; warn?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="min-w-0">
         <div className="text-[13.5px] font-medium text-ink">{label}</div>
-        {hint && <div className="mt-0.5 text-[12px] leading-relaxed text-ink-soft">{hint}</div>}
+        {hint && <div className={cn('mt-0.5 text-[12px] leading-relaxed', warn ? 'font-semibold text-amber-600' : 'text-ink-soft')}>{hint}</div>}
+        {/* bekapcsolt lépésnél: ugrás az előnézetben arra a lépésre */}
+        {checked && onView && (
+          <button type="button" onClick={onView} className="mt-1 inline-flex items-center gap-0.5 text-[12px] font-semibold text-ink underline-offset-2 hover:underline">
+            {viewLabel} <ChevronRight className="h-3.5 w-3.5" strokeWidth={2.2} />
+          </button>
+        )}
       </div>
       <Toggle checked={checked} onChange={onChange} label={label} disabled={disabled} />
     </div>
