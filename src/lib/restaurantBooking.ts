@@ -445,6 +445,10 @@ export interface MoveOption {
   room: string | null
   capacity: number
   fitsPax: boolean
+  /** A kért kezdéskor FOGLALT asztal: ennyi perc múlva szabadul fel (a rajta ülő foglalás vége). */
+  busyForMin?: number
+  /** A kért kezdéskor SZABAD, de az ülésidőn belül jön rá a következő foglalás: ennyi percig szabad. */
+  freeForMin?: number
 }
 
 export interface ComboOption {
@@ -511,7 +515,7 @@ export async function getMoveOptions(params: {
   start_time: string
   pax: number
   excludeReservationId?: string | number
-}): Promise<{ end_time: string; tables: MoveOption[]; suggestedCombo: ComboOption | null; maxPax: number }> {
+}): Promise<{ end_time: string; tables: MoveOption[]; busy: MoveOption[]; suggestedCombo: ComboOption | null; maxPax: number }> {
   const { restaurantId, date, start_time, pax, excludeReservationId } = params
   const payload = await getPayloadClient()
 
@@ -554,6 +558,19 @@ export async function getMoveOptions(params: {
   // A számláló felső korlátja: mennyi fér még el (egyedi vagy összevont) erre az időpontra.
   const maxPax = maxAllocatableInWindow(free, allTables)
 
+  // Asztalonkénti időzítés a választóhoz: mennyi van még hátra a rajta ülő foglalásból, ill.
+  // meddig szabad, ha az ülésidőn belül jön rá a következő.
+  const otherRes = (resRes.docs as Reservation[]).filter((r) => excludeReservationId == null || String(r.id) !== String(excludeReservationId))
+  const timingOf = (t: Table): Pick<MoveOption, 'busyForMin' | 'freeForMin'> => {
+    const ivs = otherRes
+      .filter((r) => reservedTableIds(r).includes(String(t.id)))
+      .map((r) => [hhmmToMinutes(r.start_time), hhmmToMinutes(r.end_time)] as const)
+    const cur = ivs.find(([rs, re]) => rs <= slotStart && re > slotStart)
+    if (cur) return { busyForMin: cur[1] - slotStart }
+    const next = ivs.filter(([rs]) => rs > slotStart && rs < slotEnd).sort((a, b) => a[0] - b[0])[0]
+    return next ? { freeForMin: next[0] - slotStart } : {}
+  }
+
   const tables: MoveOption[] = free
     .sort((a, b) => a.capacity - b.capacity)
     .map((t) => ({
@@ -562,6 +579,7 @@ export async function getMoveOptions(params: {
       room: typeof t.room === 'object' && t.room ? t.room.name : null,
       capacity: t.capacity,
       fitsPax: t.capacity >= pax,
+      ...timingOf(t),
     }))
 
   // Ha egyetlen szabad asztal sem elég nagy, javaslunk egy összevonható csoportot.
@@ -578,7 +596,22 @@ export async function getMoveOptions(params: {
     }
   }
 
-  return { end_time, tables, suggestedCombo, maxPax }
+  // Az ebben az idősávban FOGLALT asztalok — az asztal-választó áthúzva, nem kattinthatóan mutatja
+  // őket (így látszik a teljes terem, nem csak a szabad töredéke).
+  const freeIds = new Set(free.map((t) => String(t.id)))
+  const busy: MoveOption[] = allTables
+    .filter((t) => !freeIds.has(String(t.id)))
+    .sort((a, b) => a.capacity - b.capacity)
+    .map((t) => ({
+      id: t.id,
+      name: t.name,
+      room: typeof t.room === 'object' && t.room ? t.room.name : null,
+      capacity: t.capacity,
+      fitsPax: t.capacity >= pax,
+      ...timingOf(t),
+    }))
+
+  return { end_time, tables, busy, suggestedCombo, maxPax }
 }
 
 /**
@@ -666,11 +699,14 @@ export async function validateManualReservation(params: {
   /** Drag & drop: ha a ledobott asztal önmagában kicsi, a rendszer megpróbálja a szabad,
    *  összetolható szomszédokkal kiegészíteni a pax-ig ahelyett, hogy elutasítaná. */
   autoCombine?: boolean
+  /** A személyzet tudatosan kisebb asztalra ülteti a társaságot (megerősítés után) — ilyenkor a
+   *  férőhely-ellenőrzés kimarad, a szabadság-ellenőrzés marad. */
+  allowOverCapacity?: boolean
 }): Promise<
   | { ok: true; tableIds: (number | string)[]; end_time: string }
   | { ok: false; error: string }
 > {
-  const { restaurantId, date, start_time, pax, preferredTableIds, excludeReservationId, durationMinutes, autoCombine } = params
+  const { restaurantId, date, start_time, pax, preferredTableIds, excludeReservationId, durationMinutes, autoCombine, allowOverCapacity } = params
   const payload = await getPayloadClient()
 
   const restaurant = (await payload.findByID({
@@ -743,7 +779,7 @@ export async function validateManualReservation(params: {
       return { ok: false, error: `Erre az asztalra max ${totalCap} fő fér — a szabad szomszédokkal sem jön ki ${pax} fő` }
     }
 
-    if (totalCap < pax) return { ok: false, error: `A választott asztal(ok) csak ${totalCap} főre elég(ek)` }
+    if (totalCap < pax && !allowOverCapacity) return { ok: false, error: `A választott asztal(ok) csak ${totalCap} főre elég(ek)` }
     const free = freeTablesInWindow(slotStart, slotEnd, chosen, reservations, excludeReservationId)
     if (free.length < chosen.length) return { ok: false, error: 'A választott asztal(ok) erre az időpontra már foglaltak' }
     return { ok: true, tableIds: chosen.map((t) => t.id), end_time }

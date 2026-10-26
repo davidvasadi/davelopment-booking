@@ -9,9 +9,8 @@ import { Input } from '@/components/ui/input'
 import { TimeSelect } from '@/components/ui/time-select'
 import { TimeSlotGrid } from '@/components/ui/TimeSlotGrid'
 import { DurationSlider } from '@/components/ui/DurationSlider'
-import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, AlertTriangle, X, CalendarClock, CalendarDays, UserRound, Sparkles, ChevronDown } from 'lucide-react'
+import { Loader2, Trash2, AlertTriangle, X, ChevronDown, ChevronRight, CalendarClock, UserRound, Sparkles } from 'lucide-react'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
 import { addDraft, updateDraft, removeDraft } from '@/lib/offlineDrafts'
@@ -23,8 +22,17 @@ import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { EmailStatusBadge } from '@/components/shared/EmailStatusBadge'
 import type { Reservation } from '@/payload/payload-types'
 import { useGuestLookup, GuestSuggestList, type GuestSuggestion } from '@/components/shared/GuestLookup'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { SectionBar, FieldRow, ROW_INPUT, STEP_BTN, pillSmCls } from '@/components/shared/FormSheet'
 
 const HU_MONTHS_SHORT = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
+/** „2026. október 26., hétfő” — a panel fejlécébe (a nyers ÉÉÉÉ-HH-NN helyett). */
+function formatLongHu(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return dateStr
+  return new Date(y, m - 1, d).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+}
+
 function formatHuDate(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return `${y}. ${HU_MONTHS_SHORT[m - 1]} ${d}.`
@@ -104,6 +112,10 @@ export interface MoveOption {
   room: string | null
   capacity: number
   fitsPax: boolean
+  /** foglalt asztal: ennyi perc múlva szabadul (a kért kezdéshez képest) */
+  busyForMin?: number
+  /** szabad asztal, de ennyi perc múlva jön rá a következő foglalás */
+  freeForMin?: number
 }
 
 export interface ComboOption {
@@ -112,6 +124,10 @@ export interface ComboOption {
   totalCapacity: number
 }
 
+// Státusz-pöttyök — ugyanazok a színek, mint a Foglalások táblázatos listájában.
+const STATUS_DOT: Record<string, string> = {
+  confirmed: 'bg-[#1D9D63]', seated: 'bg-[#2F6FD0]', pending: 'bg-[#E0B21C]', completed: 'bg-[#B9B4A6]', cancelled: 'bg-[#C0564A]', no_show: 'bg-[#E07B39]',
+}
 const statusOptions: { value: Reservation['status']; label: string }[] = [
   { value: 'pending', label: 'Megerősítésre vár' },
   { value: 'confirmed', label: 'Megerősítve' },
@@ -128,7 +144,7 @@ const statusBadge: Record<string, string> = {
   seated: 'bg-indigo-500 text-white',
   completed: 'bg-emerald-500 text-white',
   no_show: 'bg-red-500 text-white',
-  cancelled: 'bg-zinc-200 text-zinc-500 line-through',
+  cancelled: 'bg-zinc-200 text-ink-soft line-through',
 }
 const statusLabelOf = (s: string) => statusOptions.find((o) => o.value === s)?.label ?? s
 const sourceLabelOf: Record<string, string> = { walk_in: 'Beeső', phone: 'Telefon', online: 'Online' }
@@ -214,6 +230,22 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   // nem csereéli le/tölti újra, csak azt jelzi (ld. lejjebb), melyik időpont fér el rá.
   const [fetchedSlots, setFetchedSlots] = useState<{ start: string; end: string }[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
+  // a szabad-időpont lekérés lezárult-e (az alap-időpont csak UTÁNA állhat be, különben egy még
+  // betöltés előtti, nem-szabad időpontot jelölne ki)
+  const [slotsReady, setSlotsReady] = useState(false)
+
+  // Kézi időpontnál (nincs szabad sáv / szerkesztés nélküli üres idő) ne 00:00 legyen az alap:
+  // ma az aktuális idő 15 percre felfelé kerekítve, más napon a nyitás — a nyitvatartásba szorítva
+  // (a görgős választó úgyis csak azon belül enged választani).
+  useEffect(() => {
+    if (!open || isEdit || !slotsReady || slotsLoading || startTime || fetchedSlots.length > 0) return
+    const now = new Date()
+    let m = selectedDate === ymdLocal(now) ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15 : (openMin ?? 9 * 60)
+    if (openMin != null) m = Math.max(m, openMin)
+    if (closeMin != null) m = Math.min(m, closeMin - 15)
+    m = Math.min(Math.max(m, 0), 23 * 60 + 45)
+    setStartTime(minutesToHHMM(m))
+  }, [open, isEdit, slotsReady, slotsLoading, startTime, fetchedSlots.length, selectedDate, openMin, closeMin])
   // A ténylegesen beállított létszámra elférő időpontok halmaza — külön, lassabban
   // (debounce-olva) frissül, hogy a +/- pötyögtetése ne dobja újra az egész rácsot.
   const [paxAvailableStarts, setPaxAvailableStarts] = useState<Set<string> | null>(null)
@@ -221,6 +253,11 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   // nem a kliens tippeli a záróra alapján, mert az csak az "elmúlt mára" esetet fedi le.
   const [dayClosed, setDayClosed] = useState(false)
   const [options, setOptions] = useState<MoveOption[]>([])
+  const [busyTables, setBusyTables] = useState<MoveOption[]>([])
+  const [tablePickerOpen, setTablePickerOpen] = useState(false)
+  const tablePickerRef = useRef<HTMLDivElement>(null)
+  const tableRowRef = useRef<HTMLDivElement>(null)
+  const [confirmSmallTable, setConfirmSmallTable] = useState(false)
   const [suggestedCombo, setSuggestedCombo] = useState<ComboOption | null>(null)
   const [optionsLoading, setOptionsLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -331,12 +368,14 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
     if (isEdit || !open || !restaurantId) {
       setFetchedSlots([])
       setSlotsLoading(false)
+      setSlotsReady(true)
       setDayClosed(false)
       setPaxAvailableStarts(null)
       return
     }
     const ctrl = new AbortController()
     setSlotsLoading(true)
+    setSlotsReady(false)
     setFetchedSlots([])
     setDayClosed(false)
     setPaxAvailableStarts(null)
@@ -350,11 +389,13 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
         setFetchedSlots(json.slots ?? [])
         setDayClosed(!!json.closed)
         setSlotsLoading(false)
+        setSlotsReady(true)
       })
       .catch((err: Error) => {
         if (err.name === 'AbortError') return
         console.error('[ReservationEditSheet] slots fetch failed', err)
         setSlotsLoading(false)
+        setSlotsReady(true)
       })
     return () => ctrl.abort()
   }, [isEdit, open, restaurantId, selectedDate])
@@ -398,6 +439,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       const json = await res.json()
       setOptions(json.tables ?? [])
       setSuggestedCombo(json.suggestedCombo ?? null)
+      setBusyTables(json.busy ?? [])
       setMaxPax(typeof json.maxPax === 'number' ? json.maxPax : 0)
     } catch {
       setOptions([])
@@ -431,6 +473,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       customer_name: name,
       customer_city: city,
       customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
+      // a telefonszámból felismert ország → a nemzetiség-statisztika szerkesztéskor is frissüljön
+      ...(phone.trim() ? { country } : {}),
       customer_email: email,
       notes,
       status,
@@ -457,8 +501,10 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
     onClose()
   }
 
-  const save = async () => {
+  const save = async (opts?: { allowOverCapacity?: boolean }) => {
     if (!startTime) return toast.error('Adj meg időpontot')
+    // Kisebb asztalra ültetés csak tudatos megerősítés után (a szerver alapból elutasítaná).
+    if (pickedTooSmall && !opts?.allowOverCapacity) { setConfirmSmallTable(true); return }
     // Érvénytelen e-mail: a mező alatt inline piros hiba jelzi (nem toast) → nem küldünk.
     if (email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim())) return
     // Beeső/telefonos foglalásnál a név opcionális (alapnév kerül be: „Beeső" / „Telefon").
@@ -495,6 +541,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
           occasion,
           occasion_icon: occasionIcon,
           duration_minutes: duration,
+          allowOverCapacity: !!opts?.allowOverCapacity,
         }),
       })
       const json = await res.json()
@@ -589,6 +636,13 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
     .map((t) => (typeof t === 'object' && t ? t : null))
     .filter((t): t is NonNullable<typeof t> => !!t)
   const tableChoices = [...options]
+  // A KÉZZEL választott asztal még jó-e: a létszám vagy az időpont utólagos módosítása után
+  // kicsi lehet, vagy közben foglalt lett — ezt a sorban azonnal jelezzük.
+  const pickedIds = tableId ? tableId.split(',') : []
+  const pickedBusy = pickedIds.filter((id) => busyTables.some((b) => String(b.id) === id) && !options.some((o) => String(o.id) === id))
+  const pickedCapacity = pickedIds.reduce((sum, id) => sum + (options.find((o) => String(o.id) === id)?.capacity ?? busyTables.find((b) => String(b.id) === id)?.capacity ?? 0), 0)
+  const pickedTooSmall = pickedIds.length > 0 && pickedCapacity > 0 && pickedCapacity < pax
+  const pickedNames = pickedIds.map((id) => options.find((o) => String(o.id) === id)?.name ?? busyTables.find((b) => String(b.id) === id)?.name ?? id).join(' + ')
   for (const ct of currentTables) {
     if (!tableChoices.some((o) => String(o.id) === String(ct.id))) {
       tableChoices.unshift({ id: ct.id, name: ct.name, room: null, capacity: ct.capacity, fitsPax: true })
@@ -617,16 +671,16 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
               animate="show"
               exit="exit"
               style={{ transformOrigin: 'center' }}
-              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-h-[92vh] sm:max-w-[840px] sm:rounded-[26px]"
+              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-h-[92vh] sm:max-w-[840px] sm:rounded-[26px] lg:max-w-[1120px]"
             >
               {/* Fejléc (fix) */}
-              <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 px-5 py-4 sm:px-6">
+              <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold text-zinc-900">
+                  <h2 className="text-[20px] font-light tracking-[-0.02em] text-ink">
                     {isDraft ? 'Vázlat szerkesztése' : isEdit ? 'Foglalás szerkesztése' : 'Új foglalás'}
                   </h2>
-                  <p className="mt-0.5 text-xs text-zinc-500">
-                    {selectedDate}{isDraft && ' · még nem véglegesített offline vázlat'}
+                  <p className="mt-0.5 text-[13px] text-ink-soft">
+                    {formatLongHu(selectedDate)}{isDraft && ' · még nem véglegesített offline vázlat'}
                   </p>
                   {((isEdit && !isDraft) || occasion) && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -643,11 +697,11 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                                   : 'bg-emerald-500'
                             }`}
                           />
-                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-zinc-600'}`}>
+                          <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-ink-soft'}`}>
                             {statusLabelOf(status)}
                           </span>
                           {source && source !== 'online' && (
-                            <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600">
+                            <span className="rounded-full bg-[#F4F4F4] px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink-soft">
                               {sourceLabelOf[source]}
                             </span>
                           )}
@@ -670,7 +724,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                             </span>
                           )}
                           {reservation?.payment_status === 'refunded' && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink-soft">
                               Előleg visszatérítve
                             </span>
                           )}
@@ -692,51 +746,68 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                   type="button"
                   onClick={requestClose}
                   aria-label="Bezárás"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F4F4F4] text-ink-soft transition-colors hover:bg-zinc-200"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </motion.div>
 
               {/* Törzs (görgethető) */}
-              <motion.div variants={PANEL_ITEM} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-          {/* ── Csoport: FOGLALÁS ── */}
-          <div className="space-y-4">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-              <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} /> Foglalás
-            </div>
+              {/* „Adatlap” elrendezés (mint egy letisztult táblázat): szürke fejléc-sáv szekciónként,
+                  egyforma sorok vékony elválasztóval, bal oldalt címke, jobb oldalt keret nélküli
+                  érték. Lekerekítés: minden választható elem kerek pill. Asztalon két oszlop. */}
+              <motion.div variants={PANEL_ITEM} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6 lg:grid lg:grid-cols-2 lg:gap-8 lg:space-y-0">
+          {/* ── FOGLALÁS ── */}
+          <div>
+            <SectionBar icon={CalendarClock} label="Foglalás" />
 
-            <div className="space-y-1.5">
-              <Label className="flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Nap</Label>
+            <FieldRow label="Nap">
               <DatePickerPopover
                 value={selectedDate}
                 onChange={setSelectedDate}
                 loadEndpoint="/api/restaurant/day-load"
-                triggerClassName="flex h-10 w-full items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 text-left text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+                triggerClassName="flex h-9 w-full items-center justify-between gap-2 text-left text-[14px] font-medium text-ink"
               >
                 {formatHuDate(selectedDate)}
+                <ChevronRight className="h-4 w-4 text-ink-soft2" />
               </DatePickerPopover>
-            </div>
+            </FieldRow>
 
-            <div className="space-y-1.5">
-              <Label>Időpont</Label>
-              {/* Új foglalásnál: szabad időpontok picker — ugyanaz a komponens/UX mint a szalonnál. */}
+            <FieldRow label="Létszám" hint={atPaxCap ? `Erre az időpontra max ${paxCap} fő fér el.` : undefined}>
+              {/* Érintőbarát stepper — kerek +/− gombok; a felső korlát az adott időpontra még
+                  leültethető létszám (paxCap), nem a kemény 50. */}
+              <div className="flex items-center justify-end gap-3">
+                <button type="button" aria-label="Kevesebb fő" onClick={() => setPax((p) => Math.max(1, p - 1))} disabled={pax <= 1} className={STEP_BTN}>−</button>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={paxCap}
+                  value={pax}
+                  onChange={(e) => setPax(Math.min(paxCap, Math.max(1, Number(e.target.value) || 1)))}
+                  className="w-10 border-0 bg-transparent text-center text-[15px] font-semibold tabular-nums text-ink outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                />
+                <button type="button" aria-label="Több fő" onClick={() => setPax((p) => Math.min(paxCap, p + 1))} disabled={pax >= paxCap} className={STEP_BTN}>+</button>
+              </div>
+            </FieldRow>
+
+            <FieldRow label="Időpont" stacked>
+              {/* Új foglalásnál: szabad időpontok — ugyanaz a komponens/UX mint a szalonnál. */}
               {!isEdit ? (
                 slotsLoading ? (
-                  <div className="flex h-10 items-center gap-2 text-sm text-zinc-400">
+                  <div className="flex h-9 items-center gap-2 text-sm text-ink-soft2">
                     <Loader2 className="h-4 w-4 animate-spin shrink-0" /> Időpontok betöltése…
                   </div>
                 ) : fetchedSlots.length === 0 ? (
                   <div className="space-y-2">
-                    {/* Ugyanaz a figyelmeztetés-stílus, mint a Munkatársaknál („Importált — nézd át”): doboz nélkül */}
-                    <p className="flex items-start gap-1.5 text-[12.5px] font-bold leading-snug text-amber-600">
+                    <p className="flex items-start gap-1 text-[10px] font-semibold leading-snug text-amber-600 sm:text-[11px]">
                       <AlertTriangle className="mt-[1px] h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
                       <span>
                         {dayClosed
-                          ? 'Ezen a napon zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot (pl. telefonos/kivételes foglalásnál).'
+                          ? 'Ezen a napon zárva vagyunk — válassz másik napot, vagy add meg kézzel.'
                           : selectedDate === ymdLocal(new Date()) && closeMin != null && new Date().getHours() * 60 + new Date().getMinutes() >= closeMin
-                            ? 'Mára már zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot.'
-                            : 'Ezen a napon nincs szabad időpont — de kézzel megadhatsz egyet (pl. telefonos/kivételes foglalásnál).'}
+                            ? 'Mára már zárva vagyunk — válassz másik napot, vagy add meg kézzel.'
+                            : 'Nincs szabad időpont ezen a napon — add meg kézzel.'}
                       </span>
                     </p>
                     <TimeSelect
@@ -751,7 +822,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                     <TimeSlotGrid slots={fetchedSlots} value={startTime} onChange={setStartTime} highlightStarts={paxAvailableStarts} />
                     {paxAvailableStarts && paxAvailableStarts.size === 0 && (
                       <p className="text-[11px] font-medium text-amber-600">
-                        Erre a létszámra jelenleg egyik időpont sem elég — a szürke időpontok is választhatók, csak kézi asztal-egyeztetést igényelnek.
+                        Erre a létszámra jelenleg egyik időpont sem elég — a halvány időpontok is választhatók, csak kézi asztal-egyeztetést igényelnek.
                       </p>
                     )}
                   </>
@@ -764,287 +835,237 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                   maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
                 />
               )}
-            </div>
+            </FieldRow>
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label className="flex min-h-5 items-center gap-2">Létszám</Label>
-                {/* Érintőbarát stepper a natív number-input (egymásba csúszó fel/le nyilak)
-                    helyett — nagy +/− gombok, tableten kényelmes. A felső korlát az adott
-                    időpontra még leültethető létszám (paxCap), nem a kemény 50. */}
-                <div className="flex h-10 w-full items-center rounded-lg border border-zinc-200 bg-zinc-50">
+            <div ref={tableRowRef} className="scroll-mt-2" />
+            <FieldRow
+              label={<span className="inline-flex items-center gap-1.5">Asztal {optionsLoading && <Loader2 className="h-3 w-3 animate-spin" />}</span>}
+            >
+              {/* Figyelmeztetés / tájékoztatás a SORON BELÜL, a címke és az asztalnév között (nem alatta) */}
+              {(() => {
+                // az asztalok szabadsága az idősávtól függ → időpont nélkül nincs mit felkínálni
+                const tableHint: string | undefined = !startTime
+                  ? 'Előbb válassz időpontot — utána látod a szabad asztalokat.'
+                  : pickedBusy.length > 0 && !optionsLoading
+                    ? `${pickedNames} ekkor már foglalt — válassz másikat.`
+                  : pickedTooSmall && !optionsLoading
+                    ? `${pickedNames} (${pickedCapacity} fő) kicsi ${pax} főre — válassz nagyobbat.`
+                  : tableId.includes(',')
+                  ? `Összevont asztalok: ${tableId.split(',').map((id) => tableChoices.find((c) => String(c.id) === id)?.name ?? id).join(' + ')}`
+                  : suggestedCombo && tableId === ''
+                    ? `Egy asztal sem elég, automatikusan összevonva: ${suggestedCombo.names.join(' + ')} (${suggestedCombo.totalCapacity} fő)`
+                    : !optionsLoading && startTime && options.length === 0 && !suggestedCombo
+                      ? 'Nincs szabad asztal erre az időpontra/létszámra.'
+                      : undefined
+                const tone: string = !startTime ? 'muted' : (pickedBusy.length > 0 || pickedTooSmall) && !optionsLoading ? 'warn' : !optionsLoading && options.length === 0 && !suggestedCombo && !tableId.includes(',') ? 'warn' : 'ok'
+                const cls = tone === 'warn' ? 'text-amber-600' : tone === 'ok' ? 'text-[#1D7A4C]' : 'text-ink-soft2'
+                return (
+                  <div className="flex min-w-0 items-center justify-end gap-3">
+                    {tableHint && (
+                      <span title={tableHint} className={`flex min-w-0 flex-1 items-center justify-end gap-1 text-right text-[11px] font-medium leading-tight ${cls}`}>
+                        {tone === 'warn' && <AlertTriangle className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />}
+                        <span className="truncate">{tableHint}</span>
+                      </span>
+                    )}
+                  {/* A sor csak összegzés + nyitó; maga a választó alatta nyílik le (nem natív legördülő) */}
                   <button
                     type="button"
-                    aria-label="Kevesebb fő"
-                    onClick={() => setPax((p) => Math.max(1, p - 1))}
-                    disabled={pax <= 1}
-                    className="flex h-full w-10 shrink-0 items-center justify-center text-lg font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 transition-colors"
+                    disabled={!startTime}
+                    onClick={() => {
+                      const next = !tablePickerOpen
+                      setTablePickerOpen(next)
+                      // RÖGTÖN görgessen (nem a lenyílás végén): az Asztal sor a nézet tetejére
+                      // kerül, a választó így a látható részbe nyílik le
+                      if (next) requestAnimationFrame(() => tableRowRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }))
+                    }}
+                    aria-expanded={tablePickerOpen}
+                    className="flex h-9 shrink-0 items-center justify-end gap-1.5 text-right text-[14px] font-medium text-ink disabled:text-ink-soft2"
                   >
-                    −
+                    <span className="truncate">
+                      {tableId
+                        ? tableId.split(',').map((id) => tableChoices.find((c) => String(c.id) === id)?.name ?? id).join(' + ')
+                        : !startTime ? 'Automatikus' : `Automatikus · ${tableChoices.filter((t) => t.fitsPax).length} szabad`}
+                    </span>
+                    <ChevronDown className={`h-4 w-4 shrink-0 text-ink-soft2 transition-transform ${tablePickerOpen ? 'rotate-180' : ''}`} />
                   </button>
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    min={1}
-                    max={paxCap}
-                    value={pax}
-                    onChange={(e) => setPax(Math.min(paxCap, Math.max(1, Number(e.target.value) || 1)))}
-                    className="h-full min-w-0 flex-1 border-0 bg-transparent text-center text-sm font-bold tabular-nums text-zinc-900 outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                  />
-                  <button
-                    type="button"
-                    aria-label="Több fő"
-                    onClick={() => setPax((p) => Math.min(paxCap, p + 1))}
-                    disabled={pax >= paxCap}
-                    className="flex h-full w-10 shrink-0 items-center justify-center text-lg font-bold text-zinc-500 hover:text-zinc-900 disabled:opacity-30 transition-colors"
-                  >
-                    +
-                  </button>
-                </div>
-                {atPaxCap && (
-                  <p className="text-[11px] font-medium text-amber-600">
-                    Erre az időpontra max {paxCap} fő fér el.
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="flex min-h-5 items-center gap-2">
-                  Asztal {optionsLoading && <Loader2 className="h-3 w-3 animate-spin" />}
-                </Label>
-                <div className="relative h-10 w-full">
-                  <select
-                    value={tableId.includes(',') ? '' : tableId}
-                    onChange={(e) => setTableId(e.target.value)}
-                    className="h-10 w-full appearance-none rounded-lg border border-zinc-200 bg-zinc-50 pl-3 pr-8 text-sm"
-                  >
-                    <option value="">
-                      {suggestedCombo ? 'Automatikus (összevonással)' : 'Automatikus (legkisebb szabad)'}
-                    </option>
-                    {tableChoices.map((t) => (
-                      <option key={t.id} value={String(t.id)} disabled={!t.fitsPax}>
-                        {t.name}
-                        {t.room ? ` (${t.room})` : ''} · {t.capacity} fő{!t.fitsPax ? ' — kicsi' : ''}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-                </div>
-                {tableId.includes(',') && (
-                  <p className="text-xs text-emerald-600">
-                    Összevont asztalok: {tableId.split(',').map((id) => tableChoices.find((c) => String(c.id) === id)?.name ?? id).join(' + ')}
-                  </p>
-                )}
-                {suggestedCombo && tableId === '' && (
-                  <p className="text-xs text-emerald-600">
-                    Ekkora társasághoz egyetlen asztal sem elég, ezért a rendszer automatikusan összevonja ezeket:{' '}
-                    <strong>{suggestedCombo.names.join(' + ')}</strong> ({suggestedCombo.totalCapacity} fő).
-                  </p>
-                )}
-                {!optionsLoading && startTime && options.length === 0 && !suggestedCombo && (
-                  <p className="text-xs text-amber-600">Nincs szabad asztal erre az időpontra/létszámra.</p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Forrás</Label>
-                <div className="flex h-10 w-full items-center rounded-md bg-zinc-100 p-1">
-                  {sourceOptions.map((o) => (
-                    <button
-                      key={o.value}
-                      type="button"
-                      onClick={() => setSource(o.value)}
-                      className={`flex h-full flex-1 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
-                        source === o.value
-                          ? 'bg-white text-zinc-900 shadow-sm'
-                          : 'text-zinc-500'
-                      }`}
-                    >
-                      {o.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Státusz</Label>
-                <select
-                  value={status}
-                  onChange={(e) => { setStatus(e.target.value as Reservation['status']); setStatusTouched(true) }}
-                  className="w-full h-10 rounded-md border border-zinc-200 bg-transparent px-3 text-sm"
+                  </div>
+                )
+              })()}
+            </FieldRow>
+            <AnimatePresence initial={false}>
+              {tablePickerOpen && startTime && (
+                <motion.div
+                  key="table-picker"
+                  ref={tablePickerRef}
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1, transition: { type: 'spring', stiffness: 420, damping: 36 } }}
+                  exit={{ height: 0, opacity: 0, transition: { duration: 0.15 } }}
+                  className="overflow-hidden border-b border-line"
                 >
-                  {statusOptions
-                    // "Megerősítésre vár" csak akkor jelenik meg választható opcióként, ha a
-                    // foglalás MÁR most is az (pl. online forrásból) — kézi/telefonos/beeső
-                    // rögzítésnél felesleges és zavaró egy plusz státusz a "Megerősítve" mellett.
-                    .filter((s) => s.value !== 'pending' || status === 'pending')
-                    .map((s) => (
-                      <option key={s.value} value={s.value}>{s.label}</option>
-                    ))}
-                </select>
-                {!isEdit && !statusTouched && (
-                  <p className="text-[11px] text-zinc-400">
-                    Automatikus alapérték — módosíthatod.
-                  </p>
-                )}
-              </div>
-            </div>
+                  <TablePicker
+                    free={tableChoices}
+                    busy={busyTables}
+                    value={tableId}
+                    combo={suggestedCombo}
+                    onPick={(id) => { setTableId(id); setTablePickerOpen(false) }}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-            <div className="space-y-1.5">
-              <Label>Ülésidő</Label>
+            <FieldRow label="Ülésidő" stacked last>
               <DurationSlider value={duration} onChange={setDuration} min={30} max={120} step={15} />
               {clip && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2">
-                  <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">!</span>
-                  <p className="text-xs text-red-700">
-                    Ennyi időre nem fér bele — záráskor ({clip.actualEnd}) zártok.
-                    A foglalás <strong>{clip.actualEnd}</strong>-ig tart (nem {clip.wantedEnd}-ig).
-                  </p>
-                </div>
+                <p className="mt-2 flex items-start gap-1 text-[11px] font-semibold leading-snug text-[#C0453F]">
+                  <AlertTriangle className="mt-[1px] h-3 w-3 shrink-0" strokeWidth={2.2} />
+                  <span>Záráskor ({clip.actualEnd}) zártok — a foglalás {clip.actualEnd}-ig tart, nem {clip.wantedEnd}-ig.</span>
+                </p>
               )}
-            </div>
+            </FieldRow>
           </div>
 
-          {/* ── Csoport: VENDÉG ── */}
-          <div className="space-y-4 border-t border-zinc-100 pt-5">
-            <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-              <UserRound className="h-3.5 w-3.5" strokeWidth={2} /> Vendég
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>Vendég neve {source !== 'online' && <span className="text-zinc-400 font-normal">(opcionális)</span>}</Label>
-                </div>
+          {/* ── VENDÉG + RÉSZLETEK ── */}
+          <div className="space-y-6">
+            <div>
+              <SectionBar icon={UserRound} label="Vendég" />
+              <FieldRow label="Név">
                 <Input
+                  className={ROW_INPUT}
                   value={name}
                   onChange={(e) => { setName(e.target.value); lookup.type('name', e.target.value) }}
                   autoComplete="off"
-                  placeholder={source === 'walk_in' ? 'Üresen: „Beeső"' : source === 'phone' ? 'Üresen: „Telefon"' : 'Pl. Kovács Anna'}
+                  placeholder={source === 'walk_in' ? 'Üresen: „Beeső”' : source === 'phone' ? 'Üresen: „Telefon”' : 'Pl. Kovács Anna'}
                 />
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>Város <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
-                </div>
-                <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Pl. Budapest" />
-              </div>
-            </div>
-
-            <GuestSuggestList show={!isEdit && lookup.field === 'name'} results={lookup.results} onPick={applySuggestion} />
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>Telefon</Label>
-                </div>
+              </FieldRow>
+              <GuestSuggestList show={!isEdit && lookup.field === 'name'} results={lookup.results} onPick={applySuggestion} />
+              <FieldRow label="Telefon">
                 <PhoneCountryInput
                   country={country}
                   phone={phone}
                   onCountryChange={setCountry}
                   onPhoneChange={(v) => { setPhone(v); lookup.type('phone', v) }}
-                  inputClass="h-10 rounded-lg border border-zinc-200 px-3 text-sm text-zinc-900 outline-none"
+                  inputClass="h-9 text-[14px] text-ink"
                 />
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <Label>Email</Label>
-                  {isEdit && reservation?.id && (
-                    <EmailStatusBadge
-                      endpoint={`/api/restaurant/reservation-email-status?reservationId=${reservation.id}`}
-                      resendEndpoint="/api/restaurant/resend-reservation-email"
-                      resendBody={{ reservationId: reservation.id }}
-                    />
-                  )}
-                </div>
+              </FieldRow>
+              <FieldRow
+                label="Email"
+                hint={emailErr ?? undefined}
+                hintTone="bad"
+                aside={isEdit && reservation?.id ? (
+                  <EmailStatusBadge
+                    endpoint={`/api/restaurant/reservation-email-status?reservationId=${reservation.id}`}
+                    resendEndpoint="/api/restaurant/resend-reservation-email"
+                    resendBody={{ reservationId: reservation.id }}
+                  />
+                ) : undefined}
+              >
                 <Input
+                  className={ROW_INPUT}
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); lookup.type('email', e.target.value) }}
                   placeholder="opcionális"
                   aria-invalid={!!emailErr}
-                  className={emailErr ? 'border-red-400 focus-visible:ring-red-400' : undefined}
                 />
-                {emailErr && <p className="text-[11px] font-medium text-red-600">{emailErr}</p>}
-              </div>
-            </div>
+              </FieldRow>
+              <GuestSuggestList show={!isEdit && (lookup.field === 'phone' || lookup.field === 'email')} results={lookup.results} onPick={applySuggestion} />
+              <FieldRow label="Város">
+                <Input className={ROW_INPUT} value={city} onChange={(e) => setCity(e.target.value)} placeholder="opcionális" />
+              </FieldRow>
+              <FieldRow label="Megjegyzés" last>
+                <Input className={ROW_INPUT} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
+              </FieldRow>
 
-            <GuestSuggestList show={!isEdit && (lookup.field === 'phone' || lookup.field === 'email')} results={lookup.results} onPick={applySuggestion} />
-
-            <div className="space-y-1.5">
-              <Label>Megjegyzés</Label>
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. ablak melletti asztal" />
-            </div>
-
-            {target?.reservation?.custom_answers && Object.keys(target.reservation.custom_answers).length > 0 && (
-              <div className="space-y-1.5">
-                <Label>Egyedi kérdések válaszai</Label>
-                <div className="rounded-[12px] border border-zinc-200 divide-y divide-zinc-100">
+              {target?.reservation?.custom_answers && Object.keys(target.reservation.custom_answers).length > 0 && (
+                <div className="mt-3 divide-y divide-line rounded-[12px] border border-line">
                   {Object.values(target.reservation.custom_answers).map((qa, i) => (
                     <div key={i} className="px-3.5 py-2.5">
-                      <div className="text-[12px] text-zinc-500">{qa.question}</div>
-                      <div className="text-sm text-zinc-900">{qa.answer}</div>
+                      <div className="text-[12px] text-ink-soft">{qa.question}</div>
+                      <div className="text-sm text-ink">{qa.answer}</div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* ── Csoport: ALKALOM (occasion) — a tulaj esemény-típusaiból; a foglalási nézetben látszik. ── */}
-          {(() => {
-            // Ha a jelenlegi alkalom nincs a listában (egyedi/régi), külön kiválasztott pillként mutatjuk.
-            const extra = occasion && !eventTypes.some((e) => e.label === occasion)
-              ? [{ icon: occasionIcon ?? 'party', label: occasion }]
-              : []
-            const options = [...eventTypes, ...extra]
-            if (options.length === 0) return null
-            return (
-              <div className="space-y-3 border-t border-zinc-100 pt-5">
-                <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                  <Sparkles className="h-3.5 w-3.5" strokeWidth={2} /> Alkalom
+            <div>
+              <SectionBar icon={Sparkles} label="Részletek" />
+              <FieldRow label="Forrás" stacked>
+                <div className="flex flex-wrap gap-1">
+                  {sourceOptions.map((o) => (
+                    <button key={o.value} type="button" onClick={() => setSource(o.value)} className={pillSmCls(source === o.value)}>
+                      {o.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setOccasion(null); setOccasionIcon(null) }}
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
-                      occasion == null
-                        ? 'border-zinc-900 bg-zinc-900 text-white'
-                        : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300'
-                    }`}
-                  >
-                    Nincs
-                  </button>
-                  {options.map((et, i) => {
-                    const Icon = eventIconByKey(et.icon)
-                    const active = occasion === et.label
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => active ? (setOccasion(null), setOccasionIcon(null)) : (setOccasion(et.label), setOccasionIcon(et.icon))}
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium transition-colors ${
-                          active
-                            ? 'border-zinc-900 bg-zinc-900 text-white'
-                            : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-300'
-                        }`}
-                      >
-                        <Icon className={`h-4 w-4 ${active ? 'text-gold' : 'text-zinc-400'}`} strokeWidth={1.8} />
-                        {et.label}
+              </FieldRow>
+              <FieldRow label="Státusz" stacked>
+                <div className="flex flex-wrap gap-1">
+                  {statusOptions
+                    // "Megerősítésre vár" csak akkor választható, ha a foglalás MÁR most is az
+                    .filter((st) => st.value !== 'pending' || status === 'pending')
+                    .map((st) => (
+                      <button key={st.value} type="button" onClick={() => { setStatus(st.value); setStatusTouched(true) }} className={pillSmCls(status === st.value)}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[st.value] ?? 'bg-zinc-300'}`} />
+                        {st.label}
                       </button>
-                    )
-                  })}
+                    ))}
                 </div>
-              </div>
-            )
-          })()}
+              </FieldRow>
+              {(() => {
+                // Ha a jelenlegi alkalom nincs a listában (egyedi/régi), külön kiválasztott pillként mutatjuk.
+                const extra = occasion && !eventTypes.some((e) => e.label === occasion)
+                  ? [{ icon: occasionIcon ?? 'party', label: occasion }]
+                  : []
+                const opts = [...eventTypes, ...extra]
+                if (opts.length === 0) return null
+                return (
+                  <FieldRow label="Alkalom" stacked last>
+                    <div className="flex flex-wrap gap-1">
+                      <button type="button" onClick={() => { setOccasion(null); setOccasionIcon(null) }} className={pillSmCls(occasion == null)}>Nincs</button>
+                      {opts.map((et, i) => {
+                        const Icon = eventIconByKey(et.icon)
+                        const active = occasion === et.label
+                        return (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => active ? (setOccasion(null), setOccasionIcon(null)) : (setOccasion(et.label), setOccasionIcon(et.icon))}
+                            className={pillSmCls(active)}
+                          >
+                            <Icon className={`h-3 w-3 ${active ? 'text-gold' : 'text-ink-soft2'}`} strokeWidth={1.8} />
+                            {et.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </FieldRow>
+                )
+              })()}
+            </div>
+          </div>
               </motion.div>{/* /Törzs */}
 
               {/* Lábléc (fix) */}
-              <motion.div variants={PANEL_ITEM} className="flex shrink-0 flex-col gap-2 border-t border-zinc-100 p-4 sm:px-6">
+              <motion.div variants={PANEL_ITEM} className="flex shrink-0 flex-col gap-2 border-t border-line p-4 sm:px-6 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
+                {/* Összegzés — mint a szalonnál: kör (a létszámmal) + mellette KÉT sor
+                    (1: név / létszám, 2: nap · idő · asztal · forrás). Asztalon a gomb mellett. */}
+                <div className="flex min-w-0 items-center gap-2.5 lg:flex-1">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-ink-dark text-[13px] font-semibold tabular-nums text-white">{pax}</span>
+                  <span className="min-w-0 leading-tight">
+                    <span className="block truncate text-[13.5px] font-semibold text-ink">{name.trim() || `${pax} fős asztalfoglalás`}</span>
+                    <span className="block truncate text-[12px] text-ink-soft">
+                      {[
+                        name.trim() ? `${pax} fő` : null,
+                        formatHuDate(selectedDate),
+                        startTime || null,
+                        tableId ? pickedNames : null,
+                        sourceOptions.find((o) => o.value === source)?.label,
+                      ].filter(Boolean).join(' · ')}
+                    </span>
+                  </span>
+                </div>
                 {/* A vázlat lokális → online/offline is menthető. Valódi foglalás szerkesztéséhez szerver kell. */}
-                <Button onClick={save} disabled={saving || (!online && isEdit && !isDraft)} className="w-full rounded-full bg-ink-dark text-white hover:bg-ink-dark/90">
+                <Button onClick={() => save()} disabled={saving || (!online && isEdit && !isDraft)} className="h-12 w-full rounded-full bg-ink-dark text-[15px] font-semibold text-white hover:bg-ink-dark/90 lg:w-auto lg:px-10">
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   {isDraft
                     ? (online ? 'Vázlat véglegesítése' : 'Vázlat mentése (offline)')
@@ -1057,7 +1078,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                     onClick={discardDraft}
                     disabled={saving}
                     variant="ghost"
-                    className="w-full text-red-600 hover:text-red-700"
+                    className="w-full text-red-600 hover:text-red-700 lg:order-first lg:w-auto"
                   >
                     <Trash2 className="h-4 w-4 mr-2" /> Vázlat törlése
                   </Button>
@@ -1067,7 +1088,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                       onClick={() => setConfirmCancel(true)}
                       disabled={saving}
                       variant="ghost"
-                      className="w-full text-red-600 hover:text-red-700"
+                      className="w-full text-red-600 hover:text-red-700 lg:order-first lg:w-auto"
                     >
                       <Trash2 className="h-4 w-4 mr-2" /> Törlés
                     </Button>
@@ -1079,16 +1100,30 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
         )}
       </AnimatePresence>
 
+      {/* Kisebb asztalra ültetés — tudatos megerősítés után mehet (a szerver is csak így engedi) */}
+      <ConfirmDialog
+        open={confirmSmallTable}
+        title={`Biztosan a kisebb asztalra ülteted a ${pax} főt?`}
+        description={`${pickedNames} csak ${pickedCapacity} fős. Ha mégis így rögzíted, a foglalás erre az asztalra kerül.`}
+        confirmLabel="Igen, így rögzítem"
+        cancelLabel="Mégse, választok mást"
+        destructive={false}
+        busy={saving}
+        zIndexClass="z-[1300]"
+        onCancel={() => setConfirmSmallTable(false)}
+        onConfirm={() => { setConfirmSmallTable(false); void save({ allowOverCapacity: true }) }}
+      />
+
       {confirmCancel && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
-          <div className="w-full max-w-md rounded-2xl bg-white border border-zinc-200 p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl bg-white border border-line p-6 shadow-2xl">
             <div className="flex items-start gap-3 mb-4">
               <div className="h-10 w-10 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-zinc-900 mb-1">Biztosan törlöd a foglalást?</h3>
-                <p className="text-sm text-zinc-500">
+                <h3 className="font-bold text-ink mb-1">Biztosan törlöd a foglalást?</h3>
+                <p className="text-sm text-ink-soft">
                   Ez a művelet nem vonható vissza — a foglalás véglegesen törlődik a rendszerből.
                 </p>
               </div>
@@ -1098,7 +1133,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                 type="button"
                 onClick={() => setConfirmCancel(false)}
                 disabled={saving}
-                className="flex-1 h-11 rounded-full bg-zinc-100 text-zinc-700 text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-50"
+                className="flex-1 h-11 rounded-full bg-[#F4F4F4] text-ink text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-50"
               >
                 Mégse
               </button>
@@ -1119,14 +1154,14 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       {/* Dirty-guard — mentetlen változásnál zárás előtt rákérdezünk. */}
       {confirmDiscard && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
-          <div className="w-full max-w-sm rounded-2xl bg-white border border-zinc-200 p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-white border border-line p-6 shadow-2xl">
             <div className="flex items-start gap-3 mb-4">
               <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
                 <AlertTriangle className="h-5 w-5 text-amber-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-zinc-900 mb-1">Elveted a módosításokat?</h3>
-                <p className="text-sm text-zinc-500">
+                <h3 className="font-bold text-ink mb-1">Elveted a módosításokat?</h3>
+                <p className="text-sm text-ink-soft">
                   Van mentetlen változás. Ha bezárod, elvész.
                 </p>
               </div>
@@ -1135,7 +1170,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
               <button
                 type="button"
                 onClick={() => setConfirmDiscard(false)}
-                className="flex-1 h-11 rounded-full bg-zinc-100 text-zinc-700 text-sm font-semibold hover:opacity-80 transition-opacity"
+                className="flex-1 h-11 rounded-full bg-[#F4F4F4] text-ink text-sm font-semibold hover:opacity-80 transition-opacity"
               >
                 Mégse
               </button>
@@ -1152,5 +1187,106 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       )}
     </>,
     document.body,
+  )
+}
+
+
+/** Csoportosított asztal-választó: „Automatikus” (ajánlással) felül, alatta teremenként pill-gombok.
+ *  Szabad = kattintható; kicsi = halvány; foglalt (ebben az idősávban) = áthúzott, nem kattintható. */
+function TablePicker({
+  free, busy, value, combo, onPick,
+}: {
+  free: MoveOption[]
+  busy: MoveOption[]
+  value: string
+  combo: ComboOption | null
+  onPick: (id: string) => void
+}) {
+  type Item = MoveOption & { state: 'free' | 'small' | 'busy' }
+  const items: Item[] = [
+    ...free.map((t) => ({ ...t, state: (t.fitsPax ? 'free' : 'small') as Item['state'] })),
+    ...busy.filter((b) => !free.some((f) => String(f.id) === String(b.id))).map((t) => ({ ...t, state: 'busy' as const })),
+  ]
+  const rooms = new Map<string, Item[]>()
+  for (const it of items) {
+    const key = it.room ?? 'Terem nélkül'
+    if (!rooms.has(key)) rooms.set(key, [])
+    rooms.get(key)!.push(it)
+  }
+  for (const list of rooms.values()) list.sort((a, b) => a.capacity - b.capacity || a.name.localeCompare(b.name, 'hu'))
+  const best = free.find((t) => t.fitsPax)
+  const autoHint = combo ? `${combo.names.join(' + ')} · ${combo.totalCapacity} fő (összevonva)` : best ? `${best.name} · ${best.capacity} fő` : 'nincs megfelelő szabad asztal'
+  const selected = new Set(value ? value.split(',') : [])
+
+  return (
+    <div className="space-y-3 px-3 pb-3 pt-1">
+      <button
+        type="button"
+        onClick={() => onPick('')}
+        className={`flex w-full items-center justify-between gap-3 rounded-[14px] border px-3.5 py-2.5 text-left transition-colors ${
+          !value ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink hover:border-line-strong'
+        }`}
+      >
+        <span>
+          <span className="block text-[13px] font-semibold">Automatikus</span>
+          <span className={`block text-[11.5px] ${!value ? 'text-white/65' : 'text-ink-soft2'}`}>A rendszer ezt adná: {autoHint}</span>
+        </span>
+        {!value && <span className="text-[12px] font-semibold text-gold">✓</span>}
+      </button>
+
+      {[...rooms.entries()].map(([room, list]) => (
+        <div key={room}>
+          <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-widest text-ink-soft2">{room}</p>
+          <div className="flex flex-wrap gap-1.5">
+            {list.map((t) => {
+              const on = selected.has(String(t.id))
+              const busyT = t.state === 'busy'
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  disabled={busyT && !on}
+                  onClick={() => onPick(String(t.id))}
+                  title={busyT ? 'Ebben az idősávban foglalt' : t.state === 'small' ? 'Kicsi ehhez a létszámhoz' : undefined}
+                  className={`relative inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13px] font-semibold transition-colors ${
+                    on
+                      ? 'border-ink-dark bg-ink-dark text-white'
+                      : busyT
+                        ? 'cursor-not-allowed border-dashed border-line bg-transparent text-ink-soft2/60 line-through'
+                        : t.state === 'small'
+                          ? 'border-line bg-white text-ink-soft2 hover:border-line-strong'
+                          : 'border-line bg-white text-ink hover:border-line-strong'
+                  }`}
+                >
+                  {/* ugyanaz a jel, mint a jelmagyarázatban */}
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${
+                    busyT ? 'border border-dashed border-ink-soft2 bg-transparent' : t.state === 'small' ? 'bg-[#D9D4C5]' : 'bg-[#1D9D63]'
+                  }`} />
+                  {t.name}
+                  <span className={`text-[11.5px] font-medium ${on ? 'text-white/65' : 'text-ink-soft2'}`}>{t.capacity} fő</span>
+                  {on && t.state !== 'free' && <span className="text-[11px] font-semibold text-gold">{busyT ? 'foglalt!' : 'kicsi!'}</span>}
+                  {/* percjelző a jobb felső sarokban: foglaltnál ennyi múlva szabadul, szabadnál ennyi ideig szabad */}
+                  {(t.busyForMin != null || t.freeForMin != null) && (
+                    <span
+                      title={t.busyForMin != null ? `${t.busyForMin} perc múlva szabadul fel` : `Csak ${t.freeForMin} percig szabad — utána foglalás jön rá`}
+                      className="absolute -right-1 -top-1.5 rounded-full bg-amber-500 px-1.5 py-px text-[9.5px] font-bold leading-tight text-white no-underline shadow-sm"
+                    >
+                      {t.busyForMin ?? t.freeForMin}'
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line pt-2.5 text-[11px] text-ink-soft2">
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#1D9D63]" />szabad</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#D9D4C5]" />kicsi a társaságnak</span>
+        <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full border border-dashed border-ink-soft2" />foglalt ebben az időben</span>
+        <span className="inline-flex items-center gap-1.5"><span className="rounded-full bg-amber-500 px-1 text-[9px] font-bold leading-tight text-white">15'</span>foglaltnál: ennyi múlva szabadul · szabadnál: ennyi ideig szabad</span>
+      </div>
+    </div>
   )
 }

@@ -46,6 +46,8 @@ interface Body {
   duration_minutes?: number | null
   /** Drag & drop: ha a kért asztal önmagában kicsi, összevonás a szabad szomszédokkal. */
   autoCombine?: boolean
+  /** Megerősített „kisebb asztalra ültetés” — a férőhely-ellenőrzés kimarad. */
+  allowOverCapacity?: boolean
 }
 
 /** Üres név esetén a forrás szerinti alapnév, hogy telt ház alatt ne kelljen nevet gépelni. */
@@ -97,6 +99,7 @@ export async function POST(req: NextRequest) {
     excludeReservationId: reservationId,
     durationMinutes: body.duration_minutes ?? null,
     autoCombine: body.autoCombine ?? false,
+    allowOverCapacity: body.allowOverCapacity === true,
   })
   if (!validation.ok) {
     return NextResponse.json({ error: validation.error }, { status: 409 })

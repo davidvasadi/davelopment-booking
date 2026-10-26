@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { CalendarMonthGrid, LOAD_TIERS } from './CalendarMonthGrid'
@@ -69,10 +70,11 @@ export function DatePickerPopover({
   // (a felhasználó által észlelt "egyszer bejön, aztán nem" villogás pont ez volt).
   const fetchedMonthsRef = useRef<Set<string>>(new Set())
   const ref = useRef<HTMLDivElement>(null)
-  // A panel bal-eltolása a triggerhez képest (px), úgy kiszámolva, hogy a panel sose lógjon ki
-  // a viewportból — a trigger pozíciójától függően (pl. a jobb szélhez közeli dátum-gomboknál)
-  // sima CSS-középre-igazítás nem lett volna elég, a panel egy része kilógott a képernyőről.
-  const [panelOffset, setPanelOffset] = useState(0)
+  // A panel a body-ra portálozva, FIX pozícióval — különben egy görgethető/overflow-hidden szülő
+  // (pl. az Új foglalás panel törzse) levágta. `pos` = a trigger alja + a viewportba szorított bal
+  // szél (a jobb szélhez közeli triggereknél sem lóg ki a képernyőről).
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
@@ -97,17 +99,20 @@ export function DatePickerPopover({
       // rácsípjük a viewport széleire, ha a trigger a szélhez közel van.
       const idealViewportLeft = rect.left + rect.width / 2 - panelWidth / 2
       const clampedViewportLeft = Math.max(margin, Math.min(idealViewportLeft, vw - panelWidth - margin))
-      setPanelOffset(clampedViewportLeft - rect.left)
+      setPos({ top: rect.bottom + 8, left: clampedViewportLeft, width: panelWidth })
     }
     compute()
     window.addEventListener('resize', compute)
-    return () => window.removeEventListener('resize', compute)
+    // görgetéskor (bármelyik szülő) a fix panel kövesse a triggert
+    window.addEventListener('scroll', compute, true)
+    return () => { window.removeEventListener('resize', compute); window.removeEventListener('scroll', compute, true) }
   }, [open])
 
   useEffect(() => {
     if (!open) return
     const onDocClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      const t = e.target as Node
+      if (ref.current && !ref.current.contains(t) && !(panelRef.current && panelRef.current.contains(t))) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
@@ -148,11 +153,13 @@ export function DatePickerPopover({
       <button type="button" onClick={() => setOpen((o) => !o)} className={triggerClassName}>
         {children}
       </button>
+      {typeof document !== 'undefined' && createPortal(
       <AnimatePresence>
-        {open && (
+        {open && pos && (
           <div
-            className="absolute top-full z-50 mt-2 w-[min(292px,calc(100vw-2rem))]"
-            style={{ left: panelOffset }}
+            ref={panelRef}
+            className="fixed z-[1200] font-onest"
+            style={{ top: pos.top, left: pos.left, width: pos.width }}
           >
           <motion.div
             variants={POP}
@@ -234,7 +241,9 @@ export function DatePickerPopover({
           </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+      document.body,
+      )}
     </div>
   )
 }

@@ -8,9 +8,8 @@ import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { TimeSelect } from '@/components/ui/time-select'
 import { TimeSlotGrid } from '@/components/ui/TimeSlotGrid'
-import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, AlertTriangle, X, CalendarClock, CalendarDays, UserRound, Scissors, Lock } from 'lucide-react'
+import { Loader2, Trash2, AlertTriangle, X, CalendarClock, UserRound, Lock, ChevronRight, ChevronDown, Sparkles } from 'lucide-react'
 import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
 import { addDraft, updateDraft, removeDraft } from '@/lib/salonBookingDrafts'
 import { useOnline } from '@/lib/useOnline'
@@ -20,8 +19,16 @@ import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { EmailStatusBadge } from '@/components/shared/EmailStatusBadge'
 import type { Booking, Service, StaffMember, Media } from '@/payload/payload-types'
 import { useGuestLookup, GuestSuggestList, type GuestSuggestion } from '@/components/shared/GuestLookup'
+import { SectionBar, FieldRow, ROW_INPUT, pillSmCls } from '@/components/shared/FormSheet'
 
 const HU_MONTHS_SHORT = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
+/** „2026. október 26., hétfő” — a panel fejlécébe (a nyers ÉÉÉÉ-HH-NN helyett). */
+function formatLongHu(dateStr: string): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  if (!y || !m || !d) return dateStr
+  return new Date(y, m - 1, d).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+}
+
 function formatHuDate(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return `${y}. ${HU_MONTHS_SHORT[m - 1]} ${d}.`
@@ -58,13 +65,17 @@ const statusOptions: { value: Booking['status']; label: string }[] = [
   { value: 'cancelled', label: 'Lemondva' },
   { value: 'no_show', label: 'Nem jött meg' },
 ]
+// Státusz-pöttyök — ugyanazok a színek, mint a Foglalások táblázatos listájában.
+const STATUS_DOT: Record<string, string> = {
+  confirmed: 'bg-[#1D9D63]', pending: 'bg-[#E0B21C]', completed: 'bg-[#B9B4A6]', cancelled: 'bg-[#C0564A]', no_show: 'bg-[#E07B39]',
+}
 const statusLabelOf = (s: string) => statusOptions.find((o) => o.value === s)?.label ?? s
 // A sidebar fejléc-badge színei — a foglalási nézet (SalonDailyView) palettájával egyezően.
 const statusBadge: Record<string, string> = {
   pending: 'bg-amber-400 text-amber-950',
   confirmed: 'bg-ink-dark text-white',
   completed: 'bg-emerald-500 text-white',
-  cancelled: 'bg-zinc-200 text-zinc-500 line-through',
+  cancelled: 'bg-zinc-200 text-ink-soft line-through',
   no_show: 'bg-red-500 text-white',
 }
 
@@ -115,8 +126,8 @@ function StaffAvatar({ staff: s, selected }: { staff: StaffMember; selected: boo
   const url = avatarUrlOf(s)
   if (url) return <img src={url} alt="" className="h-8 w-8 rounded-full object-cover object-top" />
   return (
-    <span className={`flex h-8 w-8 items-center justify-center rounded-full ${selected ? 'bg-white/15' : 'bg-zinc-100'}`}>
-      <UserRound className={`h-[55%] w-[55%] ${selected ? 'text-white/70' : 'text-zinc-400'}`} strokeWidth={1.4} />
+    <span className={`flex h-8 w-8 items-center justify-center rounded-full ${selected ? 'bg-white/15' : 'bg-[#F4F4F4]'}`}>
+      <UserRound className={`h-[55%] w-[55%] ${selected ? 'text-white/70' : 'text-ink-soft2'}`} strokeWidth={1.4} />
     </span>
   )
 }
@@ -198,6 +209,22 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
   // az adott időben elérhető szakembert (staffSlotMap: start → az ott elérhető staffId-k).
   const [fetchedSlots, setFetchedSlots] = useState<{ start: string; end: string }[]>([])
   const [slotsLoading, setSlotsLoading] = useState(false)
+  // a szabad-időpont lekérés lezárult-e (az alap-időpont csak UTÁNA állhat be, különben egy még
+  // betöltés előtti, nem-szabad időpontot jelölne ki)
+  const [slotsReady, setSlotsReady] = useState(false)
+
+  // Kézi időpontnál (nincs szabad sáv / szerkesztés nélküli üres idő) ne 00:00 legyen az alap:
+  // ma az aktuális idő 15 percre felfelé kerekítve, más napon a nyitás — a nyitvatartásba szorítva
+  // (a görgős választó úgyis csak azon belül enged választani).
+  useEffect(() => {
+    if (!open || isEdit || !slotsReady || slotsLoading || startTime || fetchedSlots.length > 0) return
+    const now = new Date()
+    let m = selectedDate === ymdLocal(now) ? Math.ceil((now.getHours() * 60 + now.getMinutes()) / 15) * 15 : (openMin ?? 9 * 60)
+    if (openMin != null) m = Math.max(m, openMin)
+    if (closeMin != null) m = Math.min(m, closeMin - 15)
+    m = Math.min(Math.max(m, 0), 23 * 60 + 45)
+    setStartTime(minutesToHHMM(m))
+  }, [open, isEdit, slotsReady, slotsLoading, startTime, fetchedSlots.length, selectedDate, openMin, closeMin])
   const [staffSlotMap, setStaffSlotMap] = useState<Record<string, string[]>>({})
 
   const activeServices = useMemo(() => services.filter((s) => s.is_active !== false), [services])
@@ -308,10 +335,12 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
       setFetchedSlots([])
       setStaffSlotMap({})
       setSlotsLoading(false)
+      setSlotsReady(true)
       return
     }
     const ctrl = new AbortController()
     setSlotsLoading(true)
+    setSlotsReady(false)
     setFetchedSlots([])
     setStaffSlotMap({})
     const ids = staffIdsKey.split(',')
@@ -337,9 +366,10 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
         setFetchedSlots(merged)
         setStaffSlotMap(map)
         setSlotsLoading(false)
+        setSlotsReady(true)
         if (merged.length === 0) setStartTime('')
       })
-      .catch((err: Error) => { if (err.name !== 'AbortError') setSlotsLoading(false) })
+      .catch((err: Error) => { if (err.name !== 'AbortError') { setSlotsLoading(false); setSlotsReady(true) } })
     return () => ctrl.abort()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, open, staffIdsKey, serviceId, salonId, selectedDate])
@@ -543,16 +573,16 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
               animate="show"
               exit="exit"
               style={{ transformOrigin: 'center' }}
-              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-h-[92vh] sm:max-w-[760px] sm:rounded-[26px]"
+              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-h-[92vh] sm:max-w-[760px] sm:rounded-[26px] lg:max-w-[1000px]"
             >
               {/* Fejléc (fix) */}
-              <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-zinc-100 px-5 py-4 sm:px-6">
+              <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold text-zinc-900">
+                  <h2 className="text-[20px] font-light tracking-[-0.02em] text-ink">
                     {isDraft ? 'Vázlat szerkesztése' : isEdit ? 'Foglalás szerkesztése' : 'Új foglalás'}
                   </h2>
-                  <p className="mt-0.5 text-xs text-zinc-500">
-                    {selectedDate}{isDraft && ' · még nem véglegesített offline vázlat'}
+                  <p className="mt-0.5 text-[13px] text-ink-soft">
+                    {formatLongHu(selectedDate)}{isDraft && ' · még nem véglegesített offline vázlat'}
                   </p>
                   {isEdit && !isDraft && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -566,7 +596,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                               : 'bg-emerald-500'
                         }`}
                       />
-                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-zinc-600'}`}>
+                      <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide ${statusBadge[status] ?? 'bg-zinc-200 text-ink-soft'}`}>
                         {statusLabelOf(status)}
                       </span>
                       {target?.booking?.payment_status === 'paid' && (
@@ -583,7 +613,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                         </span>
                       )}
                       {target?.booking?.payment_status === 'refunded' && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-zinc-600">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-zinc-200 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink-soft">
                           Előleg visszatérítve
                         </span>
                       )}
@@ -603,67 +633,66 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                   type="button"
                   onClick={requestClose}
                   aria-label="Bezárás"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition-colors hover:bg-zinc-200"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F4F4F4] text-ink-soft transition-colors hover:bg-zinc-200"
                 >
                   <X className="h-4 w-4" />
                 </button>
               </motion.div>
 
               {/* Törzs (görgethető) */}
-              <motion.div variants={PANEL_ITEM} className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-                {/* ── Csoport: FOGLALÁS ── */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                    <CalendarClock className="h-3.5 w-3.5" strokeWidth={2} /> Foglalás
-                  </div>
+              {/* „Adatlap” elrendezés — ugyanaz, mint az étterem foglaló panelén (közös elemek:
+                  components/shared/FormSheet). Asztalon két oszlop, mobilon egy. */}
+              <motion.div variants={PANEL_ITEM} className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5 sm:px-6 lg:grid lg:grid-cols-2 lg:gap-8 lg:space-y-0">
+                {/* ── FOGLALÁS ── */}
+                <div>
+                  <SectionBar icon={CalendarClock} label="Foglalás" />
 
-                  <div className="space-y-1.5">
-                    <Label className="flex items-center gap-2"><CalendarDays className="h-3.5 w-3.5" /> Nap</Label>
+                  <FieldRow label="Nap">
                     <DatePickerPopover
                       value={selectedDate}
                       onChange={setSelectedDate}
                       loadEndpoint="/api/salon/day-load"
-                      triggerClassName="flex h-10 w-full items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 text-left text-sm font-medium text-zinc-900 hover:bg-zinc-50"
+                      triggerClassName="flex h-9 w-full items-center justify-between gap-2 text-left text-[14px] font-medium text-ink"
                     >
                       {formatHuDate(selectedDate)}
+                      <ChevronRight className="h-4 w-4 text-ink-soft2" />
                     </DatePickerPopover>
-                  </div>
+                  </FieldRow>
 
-                  <div className="space-y-1.5">
-                    <Label className="flex items-center gap-2"><Scissors className="h-3.5 w-3.5" /> Szolgáltatás</Label>
-                    <select
-                      value={serviceId}
-                      onChange={(e) => setServiceId(e.target.value)}
-                      className="w-full h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900"
-                    >
-                      {activeServices.length === 0 && <option value="">Nincs aktív szolgáltatás</option>}
-                      {activeServices.map((s) => (
-                        <option key={s.id} value={String(s.id)}>
-                          {s.name} · {s.duration_minutes} perc
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <FieldRow label="Szolgáltatás">
+                    <div className="relative">
+                      <select
+                        value={serviceId}
+                        onChange={(e) => setServiceId(e.target.value)}
+                        className="h-9 w-full appearance-none truncate border-0 bg-transparent pr-6 text-right text-[14px] font-medium text-ink outline-none"
+                      >
+                        {activeServices.length === 0 && <option value="">Nincs aktív szolgáltatás</option>}
+                        {activeServices.map((sv) => (
+                          <option key={sv.id} value={String(sv.id)}>
+                            {sv.name} · {sv.duration_minutes} perc
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft2" />
+                    </div>
+                  </FieldRow>
 
-                  <div className="space-y-1.5">
-                    <Label>Időpont</Label>
-                    {/* Új foglalásnál: szabad időpontok picker — a szolgáltatásra engedélyezett
-                        ÖSSZES szakemberre összesítve, a konkrét szakembert a választás után
-                        automatikusan beajánljuk (ld. handleTimeSelect). */}
+                  <FieldRow label="Időpont" stacked hint={endTime ? `Vége: ${endTime} (${duration} perc)` : undefined}>
+                    {/* Új foglalásnál: szabad időpontok — a szolgáltatásra engedélyezett ÖSSZES
+                        szakemberre összesítve; a konkrét szakembert a választás után ajánljuk be. */}
                     {!isEdit && serviceId ? (
                       slotsLoading ? (
-                        <div className="flex h-10 items-center gap-2 text-sm text-zinc-400">
+                        <div className="flex h-9 items-center gap-2 text-sm text-ink-soft2">
                           <Loader2 className="h-4 w-4 animate-spin shrink-0" /> Időpontok betöltése…
                         </div>
                       ) : fetchedSlots.length === 0 ? (
                         <div className="space-y-2">
-                          {/* Ugyanaz a figyelmeztetés-stílus, mint a Munkatársaknál („Importált — nézd át”): doboz nélkül */}
-                          <p className="flex items-start gap-1.5 text-[12.5px] font-bold leading-snug text-amber-600">
-                            <AlertTriangle className="mt-[1px] h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+                          <p className="flex items-start gap-1 text-[10px] font-semibold leading-snug text-amber-600 sm:text-[11px]">
+                            <AlertTriangle className="mt-[1px] h-3 w-3 shrink-0" strokeWidth={2.2} />
                             <span>
                               {selectedDate === ymdLocal(new Date()) && closeMin != null && new Date().getHours() * 60 + new Date().getMinutes() >= closeMin
-                                ? 'Mára már zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot (pl. telefonos/kivételes foglalásnál).'
-                                : 'Ezen a napon nincs szabad időpont — de kézzel megadhatsz egyet (pl. telefonos/kivételes foglalásnál).'}
+                                ? 'Mára már zárva vagyunk — válassz másik napot, vagy add meg kézzel.'
+                                : 'Nincs szabad időpont ezen a napon — add meg kézzel.'}
                             </span>
                           </p>
                           <TimeSelect
@@ -684,175 +713,170 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                         maxTime={closeMin != null ? minutesToHHMM(closeMin) : undefined}
                       />
                     )}
-                    {endTime && (
-                      <p className="text-[11px] text-zinc-400 tabular-nums">
-                        Vége: {endTime} ({duration} perc)
-                      </p>
-                    )}
-                  </div>
+                  </FieldRow>
 
-                  <div className="space-y-1.5">
-                    <Label>Szakember</Label>
+                  <FieldRow
+                    label="Szakember"
+                    stacked
+                    last
+                    hint={!isEdit && !staffTouched && startTime && (staffSlotMap[startTime]?.length ?? 0) > 0 ? 'Automatikusan az elérhető szakembert ajánljuk fel — választhatsz mást.' : undefined}
+                  >
                     {staffChoices.length === 0 ? (
-                      <p className="text-sm text-zinc-400">Nincs szakember</p>
+                      <p className="text-[13px] text-ink-soft2">Nincs szakember</p>
                     ) : (
                       <motion.div
                         key={staffIdsKey}
                         initial="hidden"
                         animate="show"
                         variants={{ hidden: {}, show: { transition: { staggerChildren: 0.04 } } }}
-                        className="flex gap-2 overflow-x-auto pb-1"
+                        className="flex flex-wrap gap-2"
                       >
-                        {staffChoices.map((s) => {
-                          const sid = String(s.id)
+                        {staffChoices.map((st) => {
+                          const sid = String(st.id)
                           const selected = sid === staffId
                           const slotList = staffSlotMap[startTime]
                           const known = !isEdit && !!startTime && !!slotList
                           const busy = known && !slotList.includes(sid)
-                          const pending = !!invitedEmails?.has((s.email ?? '').toLowerCase())
+                          const pending = !!invitedEmails?.has((st.email ?? '').toLowerCase())
                           return (
                             <motion.button
-                              key={s.id}
+                              key={st.id}
                               type="button"
                               disabled={pending}
-                              title={pending ? 'Még nem fogadta el a meghívást — addig nem osztható be' : undefined}
+                              title={pending ? 'Még nem fogadta el a meghívást — addig nem osztható be' : busy ? 'Ebben az időpontban foglalt' : undefined}
                               variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 500, damping: 30 } } }}
                               onClick={() => { if (pending) return; setStaffId(sid); setStaffTouched(true) }}
-                              className={`relative flex h-[62px] w-[168px] shrink-0 items-center gap-2.5 rounded-[18px] border px-3 text-left shadow-dav-card transition-colors ${
+                              className={`inline-flex h-11 max-w-full shrink-0 items-center gap-2 rounded-full border py-1 pl-1 pr-4 text-left text-[13.5px] font-semibold transition-colors ${
                                 pending
-                                  ? 'cursor-not-allowed border-zinc-200 bg-zinc-50 text-zinc-400 opacity-70'
-                                  : selected ? 'border-zinc-900 bg-zinc-900 text-white' : 'border-zinc-200 bg-white text-zinc-900 hover:border-zinc-300'
+                                  ? 'cursor-not-allowed border-line bg-white text-ink-soft2 opacity-60'
+                                  : selected ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink hover:border-line-strong'
                               }`}
                             >
-                              <StaffAvatar staff={s} selected={selected} />
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate text-[13px] font-semibold leading-tight">{s.name}</span>
-                                {pending ? (
-                                  <span className="block truncate text-[11px] font-medium leading-tight text-amber-600">Meghívó függőben</span>
-                                ) : known && (
-                                  <span
-                                    className={`block truncate text-[11px] font-medium leading-tight ${
-                                      busy ? (selected ? 'text-red-300' : 'text-red-500') : selected ? 'text-white/60' : 'text-emerald-600'
-                                    }`}
-                                  >
-                                    {busy ? 'Foglalt' : 'Szabad'}
-                                  </span>
-                                )}
+                              <span className="flex h-9 w-9 shrink-0 overflow-hidden rounded-full [&>*]:h-9 [&>*]:w-9">
+                                <StaffAvatar staff={st} selected={selected} />
                               </span>
-                              {pending && <Lock className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-zinc-400" strokeWidth={2} />}
+                              {/* név + alatta kiírt állapot (pötty helyett — magyarázat nélkül is érthető) */}
+                              <span className="min-w-0 leading-tight">
+                                <span className="block truncate">{st.name}</span>
+                                {pending ? (
+                                  <span className="block truncate text-[10.5px] font-semibold text-amber-600">Meghívó függőben</span>
+                                ) : known ? (
+                                  <span className={`block truncate text-[10.5px] font-semibold ${
+                                    busy ? (selected ? 'text-[#F2A79E]' : 'text-[#C0564A]') : selected ? 'text-[#8FD3B0]' : 'text-[#1D7A4C]'
+                                  }`}>
+                                    {busy ? 'Foglalt ekkor' : 'Szabad'}
+                                  </span>
+                                ) : null}
+                              </span>
+                              {pending && <Lock className="h-3 w-3 shrink-0 text-ink-soft2" strokeWidth={2} />}
                             </motion.button>
                           )
                         })}
                       </motion.div>
                     )}
-                    {!isEdit && !staffTouched && startTime && (staffSlotMap[startTime]?.length ?? 0) > 0 && (
-                      <p className="text-[11px] text-zinc-400">Automatikusan az elérhető szakembert ajánljuk fel — választhatsz mást.</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label>Státusz</Label>
-                    <select
-                      value={status}
-                      onChange={(e) => { setStatus(e.target.value as Booking['status']); setStatusTouched(true) }}
-                      className="w-full h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm text-zinc-900"
-                    >
-                      {statusOptions
-                        .filter((s) => s.value !== 'pending' || status === 'pending')
-                        .map((s) => (
-                          <option key={s.value} value={s.value}>{s.label}</option>
-                        ))}
-                    </select>
-                    {!isEdit && !statusTouched && (
-                      <p className="text-[11px] text-zinc-400">Automatikus alapérték — módosíthatod.</p>
-                    )}
-                  </div>
+                  </FieldRow>
                 </div>
 
-                {/* ── Csoport: VENDÉG ── */}
-                <div className="space-y-4 border-t border-zinc-100 pt-5">
-                  <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                    <UserRound className="h-3.5 w-3.5" strokeWidth={2} /> Vendég
-                  </div>
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label>Vendég neve <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
-                      </div>
-                      <Input value={name} onChange={(e) => { setName(e.target.value); lookup.type('name', e.target.value) }} placeholder="Pl. Kovács Anna" autoComplete="off" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label>Város <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
-                      </div>
-                      <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Pl. Budapest" />
-                    </div>
-                  </div>
-
-                  <GuestSuggestList show={!isEdit && lookup.field === 'name'} results={lookup.results} onPick={applySuggestion} />
-
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label>Telefon</Label>
-                      </div>
+                {/* ── VENDÉG + RÉSZLETEK ── */}
+                <div className="space-y-6">
+                  <div>
+                    <SectionBar icon={UserRound} label="Vendég" />
+                    <FieldRow label="Név">
+                      <Input className={ROW_INPUT} value={name} onChange={(e) => { setName(e.target.value); lookup.type('name', e.target.value) }} placeholder="opcionális" autoComplete="off" />
+                    </FieldRow>
+                    <GuestSuggestList show={!isEdit && lookup.field === 'name'} results={lookup.results} onPick={applySuggestion} />
+                    <FieldRow label="Telefon">
                       <PhoneCountryInput
                         country={country}
                         phone={phone}
                         onCountryChange={setCountry}
                         onPhoneChange={(v) => { setPhone(v); lookup.type('phone', v) }}
-                        inputClass="h-10 rounded-lg border border-zinc-200 px-3 text-sm text-zinc-900 outline-none"
+                        inputClass="h-9 text-[14px] text-ink"
                       />
-                    </div>
-                    <div className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <Label>Email <span className="font-normal text-zinc-400">(opcionális)</span></Label>
-                        {isEdit && booking?.id && booking.customer_email && (
-                          <EmailStatusBadge
-                            endpoint={`/api/salon/booking-email-status?bookingId=${booking.id}`}
-                            resendEndpoint="/api/salon/resend-booking-email"
-                            resendBody={{ bookingId: booking.id }}
-                          />
-                        )}
-                      </div>
+                    </FieldRow>
+                    <FieldRow
+                      label="Email"
+                      hint={emailErr ?? undefined}
+                      hintTone="bad"
+                      aside={isEdit && booking?.id && booking.customer_email ? (
+                        <EmailStatusBadge
+                          endpoint={`/api/salon/booking-email-status?bookingId=${booking.id}`}
+                          resendEndpoint="/api/salon/resend-booking-email"
+                          resendBody={{ bookingId: booking.id }}
+                        />
+                      ) : undefined}
+                    >
                       <Input
+                        className={ROW_INPUT}
                         value={email}
                         onChange={(e) => { setEmail(e.target.value); lookup.type('email', e.target.value) }}
-                        placeholder="vendeg@example.com"
+                        placeholder="opcionális"
                         aria-invalid={!!emailErr}
-                        className={emailErr ? 'border-red-400 focus-visible:ring-red-400' : undefined}
                       />
-                      {emailErr && <p className="text-[11px] font-medium text-red-600">{emailErr}</p>}
-                    </div>
-                  </div>
+                    </FieldRow>
+                    <GuestSuggestList show={!isEdit && (lookup.field === 'phone' || lookup.field === 'email')} results={lookup.results} onPick={applySuggestion} />
+                    <FieldRow label="Város">
+                      <Input className={ROW_INPUT} value={city} onChange={(e) => setCity(e.target.value)} placeholder="opcionális" />
+                    </FieldRow>
+                    <FieldRow label="Megjegyzés" last>
+                      <Input className={ROW_INPUT} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. hosszú haj, festés előtt" />
+                    </FieldRow>
 
-                  <GuestSuggestList show={!isEdit && (lookup.field === 'phone' || lookup.field === 'email')} results={lookup.results} onPick={applySuggestion} />
-
-                  <div className="space-y-1.5">
-                    <Label>Megjegyzés</Label>
-                    <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Pl. hosszú haj, festés előtt" />
-                  </div>
-
-                  {target?.booking?.custom_answers && Object.keys(target.booking.custom_answers).length > 0 && (
-                    <div className="space-y-1.5">
-                      <Label>Egyedi kérdések válaszai</Label>
-                      <div className="rounded-[12px] border border-zinc-200 divide-y divide-zinc-100">
+                    {target?.booking?.custom_answers && Object.keys(target.booking.custom_answers).length > 0 && (
+                      <div className="mt-3 divide-y divide-line rounded-[12px] border border-line">
                         {Object.values(target.booking.custom_answers).map((qa, i) => (
                           <div key={i} className="px-3.5 py-2.5">
-                            <div className="text-[12px] text-zinc-500">{qa.question}</div>
-                            <div className="text-sm text-zinc-900">{qa.answer}</div>
+                            <div className="text-[12px] text-ink-soft">{qa.question}</div>
+                            <div className="text-sm text-ink">{qa.answer}</div>
                           </div>
                         ))}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
+
+                  <div>
+                    <SectionBar icon={Sparkles} label="Részletek" />
+                    <FieldRow label="Státusz" stacked last>
+                      <div className="flex flex-wrap gap-1">
+                        {statusOptions
+                          .filter((so) => so.value !== 'pending' || status === 'pending')
+                          .map((so) => (
+                            <button key={so.value} type="button" onClick={() => { setStatus(so.value); setStatusTouched(true) }} className={pillSmCls(status === so.value)}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT[so.value] ?? 'bg-zinc-300'}`} />
+                              {so.label}
+                            </button>
+                          ))}
+                      </div>
+                    </FieldRow>
+                  </div>
                 </div>
               </motion.div>{/* /Törzs */}
 
               {/* Lábléc (fix) */}
-              <motion.div variants={PANEL_ITEM} className="flex shrink-0 flex-col gap-2 border-t border-zinc-100 p-4 sm:px-6">
-                <Button onClick={save} disabled={saving || (!online && isEdit && !isDraft)} className="w-full rounded-full bg-ink-dark text-white hover:bg-ink-dark/90">
+              <motion.div variants={PANEL_ITEM} className="flex shrink-0 flex-col gap-2 border-t border-line p-4 sm:px-6 lg:flex-row lg:flex-wrap lg:items-center lg:gap-3">
+                {/* Összegzés — avatar + mellette KÉT sor (1: szolgáltatás, 2: szakember · nap · idő · ár),
+                    mobilon is teljes; szakember nélkül semleges ikon a helyén. Asztalon a gomb mellett. */}
+                {selectedService && (() => {
+                  const st = staffChoices.find((x) => String(x.id) === staffId)
+                  const details = [
+                    st?.name,
+                    formatHuDate(selectedDate),
+                    startTime ? `${startTime}${endTime ? `–${endTime}` : ''}` : null,
+                    selectedService.price ? `${new Intl.NumberFormat('hu-HU').format(selectedService.price)} Ft` : null,
+                  ].filter(Boolean).join(' · ')
+                  return (
+                    <div className="flex min-w-0 items-center gap-2.5 lg:flex-1">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[#F4F4F4] [&>*]:h-9 [&>*]:w-9">
+                        {st ? <StaffAvatar staff={st} selected={false} /> : <UserRound className="!h-4 !w-4 text-ink-soft2" strokeWidth={1.8} />}
+                      </span>
+                      <span className="min-w-0 leading-tight">
+                        <span className="block truncate text-[13.5px] font-semibold text-ink">{selectedService.name}</span>
+                        <span className="block truncate text-[12px] text-ink-soft">{details}</span>
+                      </span>
+                    </div>
+                  )
+                })()}
+                <Button onClick={save} disabled={saving || (!online && isEdit && !isDraft)} className="h-12 w-full rounded-full bg-ink-dark text-[15px] font-semibold text-white hover:bg-ink-dark/90 lg:w-auto lg:px-10">
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   {isDraft
                     ? (online ? 'Vázlat véglegesítése' : 'Vázlat mentése (offline)')
@@ -861,12 +885,12 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                       : (isEdit ? 'Mentés' : 'Foglalás rögzítése')}
                 </Button>
                 {isDraft ? (
-                  <Button onClick={discardDraft} disabled={saving} variant="ghost" className="w-full text-red-600 hover:text-red-700">
+                  <Button onClick={discardDraft} disabled={saving} variant="ghost" className="w-full text-red-600 hover:text-red-700 lg:order-first lg:w-auto">
                     <Trash2 className="h-4 w-4 mr-2" /> Vázlat törlése
                   </Button>
                 ) : (
                   isEdit && (
-                    <Button onClick={() => setConfirmCancel(true)} disabled={saving} variant="ghost" className="w-full text-red-600 hover:text-red-700">
+                    <Button onClick={() => setConfirmCancel(true)} disabled={saving} variant="ghost" className="w-full text-red-600 hover:text-red-700 lg:order-first lg:w-auto">
                       <Trash2 className="h-4 w-4 mr-2" /> Törlés
                     </Button>
                   )
@@ -879,19 +903,19 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
 
       {confirmCancel && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
-          <div className="w-full max-w-md rounded-2xl bg-white border border-zinc-200 p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl bg-white border border-line p-6 shadow-2xl">
             <div className="flex items-start gap-3 mb-4">
               <div className="h-10 w-10 rounded-xl bg-red-500/15 flex items-center justify-center shrink-0">
                 <AlertTriangle className="h-5 w-5 text-red-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-zinc-900 mb-1">Biztosan törlöd a foglalást?</h3>
-                <p className="text-sm text-zinc-500">Ez a művelet nem vonható vissza — a foglalás véglegesen törlődik a rendszerből.</p>
+                <h3 className="font-bold text-ink mb-1">Biztosan törlöd a foglalást?</h3>
+                <p className="text-sm text-ink-soft">Ez a művelet nem vonható vissza — a foglalás véglegesen törlődik a rendszerből.</p>
               </div>
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={() => setConfirmCancel(false)} disabled={saving}
-                className="flex-1 h-11 rounded-full bg-zinc-100 text-zinc-700 text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-50">
+                className="flex-1 h-11 rounded-full bg-[#F4F4F4] text-ink text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-50">
                 Mégse
               </button>
               <button type="button" onClick={deleteBooking} disabled={saving}
@@ -906,19 +930,19 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
 
       {confirmDiscard && (
         <div className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/40 backdrop-blur-2xl">
-          <div className="w-full max-w-sm rounded-2xl bg-white border border-zinc-200 p-6 shadow-2xl">
+          <div className="w-full max-w-sm rounded-2xl bg-white border border-line p-6 shadow-2xl">
             <div className="flex items-start gap-3 mb-4">
               <div className="h-10 w-10 rounded-xl bg-amber-500/15 flex items-center justify-center shrink-0">
                 <AlertTriangle className="h-5 w-5 text-amber-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-zinc-900 mb-1">Elveted a módosításokat?</h3>
-                <p className="text-sm text-zinc-500">Van mentetlen változás. Ha bezárod, elvész.</p>
+                <h3 className="font-bold text-ink mb-1">Elveted a módosításokat?</h3>
+                <p className="text-sm text-ink-soft">Van mentetlen változás. Ha bezárod, elvész.</p>
               </div>
             </div>
             <div className="flex gap-2">
               <button type="button" onClick={() => setConfirmDiscard(false)}
-                className="flex-1 h-11 rounded-full bg-zinc-100 text-zinc-700 text-sm font-semibold hover:opacity-80 transition-opacity">
+                className="flex-1 h-11 rounded-full bg-[#F4F4F4] text-ink text-sm font-semibold hover:opacity-80 transition-opacity">
                 Mégse
               </button>
               <button type="button" onClick={() => { setConfirmDiscard(false); onClose() }}

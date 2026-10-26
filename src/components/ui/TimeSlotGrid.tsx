@@ -58,18 +58,18 @@ export function TimeSlotGrid({
               type="button"
               onClick={() => onChange(sl.start)}
               className={cn(
-                'relative isolate rounded-[10px] border px-2 py-2.5 text-[13px] font-medium tabular-nums transition-colors sm:py-2',
+                'relative isolate rounded-full border px-2 py-2.5 text-[13px] font-semibold tabular-nums transition-colors sm:py-2',
                 selected
-                  ? 'border-amber-400 text-amber-900'
+                  ? 'border-ink-dark text-white'
                   : dimmed
-                    ? 'border-zinc-100 text-zinc-300 hover:border-zinc-200'
-                    : 'border-zinc-200 text-zinc-600 hover:border-zinc-300 hover:bg-zinc-50'
+                    ? 'border-line text-ink-soft2/60 hover:border-line-strong'
+                    : 'border-line bg-white text-ink hover:border-line-strong'
               )}
             >
               {selected && (
                 <motion.span
                   layoutId={highlightId}
-                  className="absolute inset-0 -z-10 rounded-[10px] bg-amber-50"
+                  className="absolute inset-0 -z-10 rounded-full bg-ink-dark"
                   transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                 />
               )}
