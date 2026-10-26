@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Clock } from 'lucide-react'
 import { Switch } from '@/components/ui/toggle-switch'
+import { SectionBar, FieldRow } from '@/components/shared/FormSheet'
 
 /**
  * Munkatárs heti, napra lebontott munkaideje (pl. hétfőn 9–17, kedden 12–20, szerdán szabad).
@@ -27,11 +28,15 @@ type Day = { on: boolean; start: string; end: string; id?: string }
 
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/
 
-export function StaffWeeklyHours({ salonId, staffId }: { salonId: string; staffId: string }) {
+export function StaffWeeklyHours({ salonId, staffId, onSaved }: { salonId: string; staffId: string; onSaved?: () => void }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [custom, setCustom] = useState(false)
   const [days, setDays] = useState<Record<string, Day>>({})
+  // betöltött/mentett állapot — a Mentés csak eltérés esetén aktív (mint a többi kártyán)
+  const [pristine, setPristine] = useState('')
+  const snap = (c: boolean, d: Record<string, Day>) => JSON.stringify({ c, d: DAYS.map((x) => [d[x.key]?.on, d[x.key]?.start, d[x.key]?.end]) })
+  const dirty = snap(custom, days) !== pristine
 
   useEffect(() => {
     let cancelled = false
@@ -58,6 +63,7 @@ export function StaffWeeklyHours({ salonId, staffId }: { salonId: string; staffI
         }
         setDays(next)
         setCustom(ownDocs.length > 0)
+        setPristine(snap(ownDocs.length > 0, next))
       })
       .catch(() => { if (!cancelled) toast.error('A munkaidő betöltése sikertelen') })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -109,7 +115,9 @@ export function StaffWeeklyHours({ salonId, staffId }: { salonId: string; staffI
         }
         setDays(next)
       }
+      setPristine(snap(custom, days))
       toast.success('Munkaidő mentve')
+      onSaved?.()
     } catch {
       toast.error('A munkaidő mentése sikertelen')
     } finally {
@@ -118,54 +126,56 @@ export function StaffWeeklyHours({ salonId, staffId }: { salonId: string; staffI
   }
 
   if (loading) {
-    return <div className="flex items-center gap-2 text-sm text-ink-soft"><Loader2 className="h-4 w-4 animate-spin" /> Munkaidő betöltése…</div>
+    return (
+      <div className="rounded-[20px] border border-line bg-white py-4">
+        <SectionBar icon={Clock} label="Heti munkaidő" />
+        <div className="flex items-center gap-2 px-3 py-4 text-[13px] text-ink-soft"><Loader2 className="h-4 w-4 animate-spin" /> Betöltés…</div>
+      </div>
+    )
   }
 
-  const timeCls = 'h-9 w-[92px] rounded-[10px] border border-line-strong bg-white px-2 text-[16px] text-ink disabled:opacity-40 lg:text-[13px]'
+  // keret nélküli idő-mező (adatlap-sor) — mobilon 16px, hogy iOS ne nagyítson
+  const timeCls = 'h-8 w-[84px] rounded-[8px] border border-line bg-white px-1.5 text-center text-[16px] text-ink focus:outline-none focus:border-line-strong lg:text-[13px]'
 
   return (
-    <div className="space-y-3">
-      {/* Ugyanaz a kapcsoló, mint a sidebar „Aktív” sora */}
-      <div className="flex items-center justify-between gap-3 rounded-xl border border-line bg-[#f4f4f4] px-4 py-3.5">
-        <span>
-          <span className="block text-sm font-medium text-ink">Egyéni munkaidő</span>
-          <span className="mt-0.5 block text-xs text-ink-soft">Kikapcsolva a szalon nyitvatartása érvényes</span>
-        </span>
-        <Switch checked={custom} onChange={setCustom} ariaLabel="Egyéni munkaidő" />
-      </div>
-      {custom && (
-        <div className="divide-y divide-line rounded-[14px] border border-line bg-white">
-          {DAYS.map((d) => {
-            const v = days[d.key]
-            return (
-              <div key={d.key} className="flex items-center gap-3 px-3 py-2.5">
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
-                  <span className="w-24 text-sm text-ink">{d.label}</span>
-                  {v.on ? (
-                    <div className="flex items-center gap-1.5">
-                      <input type="time" value={v.start} onChange={(e) => setDay(d.key, { start: e.target.value })} className={timeCls} />
-                      <span className="text-ink-soft">–</span>
-                      <input type="time" value={v.end} onChange={(e) => setDay(d.key, { end: e.target.value })} className={timeCls} />
-                    </div>
-                  ) : (
-                    <span className="text-[13px] text-ink-soft2">Szabadnap</span>
-                  )}
-                </div>
-                <Switch checked={v.on} onChange={(on) => setDay(d.key, { on })} ariaLabel={`${d.label} munkanap`} />
-              </div>
-            )
-          })}
+    // Adatlap-kártya (FormSheet), mint a profil-szerkesztő és a foglalási beállítások
+    <div className="rounded-[20px] border border-line bg-white py-4">
+      <SectionBar icon={Clock} label="Heti munkaidő" />
+      <FieldRow label="Egyéni" last={!custom} hint={custom ? undefined : 'Kikapcsolva a szalon nyitvatartása érvényes.'}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[13px] text-ink">{custom ? 'Saját heti beosztás' : 'Szalon nyitvatartása'}</span>
+          <Switch size="sm" checked={custom} onChange={setCustom} ariaLabel="Egyéni munkaidő" />
         </div>
-      )}
-      <button
-        type="button"
-        onClick={save}
-        disabled={saving}
-        className="inline-flex h-10 items-center gap-1.5 rounded-dav-pill bg-ink-dark px-4 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-      >
-        {saving && <Loader2 className="h-4 w-4 animate-spin" />} Munkaidő mentése
-      </button>
+      </FieldRow>
+      {custom && DAYS.map((d, idx) => {
+        const v = days[d.key]
+        return (
+          <FieldRow key={d.key} label={d.label} last={idx === DAYS.length - 1}>
+            <div className="flex items-center justify-between gap-2">
+              {v.on ? (
+                <div className="flex items-center gap-1.5">
+                  <input type="time" value={v.start} onChange={(e) => setDay(d.key, { start: e.target.value })} className={timeCls} />
+                  <span className="text-ink-soft2">–</span>
+                  <input type="time" value={v.end} onChange={(e) => setDay(d.key, { end: e.target.value })} className={timeCls} />
+                </div>
+              ) : (
+                <span className="text-[13px] text-ink-soft2">Szabadnap</span>
+              )}
+              <Switch size="sm" checked={v.on} onChange={(on) => setDay(d.key, { on })} ariaLabel={`${d.label} munkanap`} />
+            </div>
+          </FieldRow>
+        )
+      })}
+      <div className="flex justify-end px-3 pt-3">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving || !dirty}
+          className="inline-flex h-10 min-w-[140px] items-center justify-center gap-1.5 rounded-dav-pill bg-ink-dark px-5 text-[13px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-40"
+        >
+          {saving && <Loader2 className="h-4 w-4 animate-spin" />} Mentés
+        </button>
+      </div>
     </div>
   )
 }
-

@@ -141,6 +141,7 @@ export default async function StaffPage() {
         salonRoles={salonRoles}
         canManage={can(capabilities, 'staff.manage')}
         canViewOthersSalary={can(capabilities, 'staff.salary')}
+        canEditAvailability={can(capabilities, 'availability.manage')}
         viewerEmail={userEmail}
         extraStaffFeeHuf={pricing.salon_extra_staff_huf}
         includedStaffCount={SALON_INCLUDED_STAFF}

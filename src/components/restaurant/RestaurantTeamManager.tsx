@@ -10,10 +10,9 @@
 
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
-import { Plus, Trash2, Loader2, X, Search, Download, ChevronDown, Check, UserRound } from 'lucide-react'
+import { Plus, Trash2, Loader2, X, Search, Download, ChevronDown, Check, UserRound, ShieldCheck } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { SectionBar, FieldRow, ROW_INPUT } from '@/components/shared/FormSheet'
 import { PageHeader } from '@/components/ui/page-header'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
@@ -564,65 +563,87 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
         </div>
       </div>
 
+      {/* Új munkatárs (meghívó) — ugyanaz az adatlap-stílus, mint a szalon „Új munkatárs” lapján */}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="w-full max-w-[440px] overflow-y-auto p-0">
-          <SheetHeader className="border-b border-line px-6 py-5">
-            <SheetTitle className="text-xl font-light tracking-[-0.02em] text-ink">Új munkatárs</SheetTitle>
+        <SheetContent side="right" className="flex w-full max-w-[440px] flex-col gap-0 p-0">
+          <SheetHeader className="border-b border-line px-5 py-4">
+            <SheetTitle className="text-[17px] font-bold text-ink">Új munkatárs</SheetTitle>
           </SheetHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault()
               invite()
             }}
-            className="space-y-5 px-6 py-5"
+            className="flex min-h-0 flex-1 flex-col"
           >
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Név</Label>
-              <Input
-                type="text"
-                value={inviteName}
-                onChange={(e) => setInviteName(e.target.value)}
-                placeholder="Kovács Anna"
-                className="h-11 rounded-xl"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Email *</Label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="munkatars@example.com"
-                className="h-11 rounded-xl"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Szerep *</Label>
-              <select
-                value={roleId}
-                onChange={(e) => setRoleId(e.target.value)}
-                disabled={customRoles.length === 0}
-                className="h-11 w-full rounded-xl border border-line bg-white px-3 text-[14px] text-ink focus:outline-none disabled:opacity-60"
-              >
-                <option value="">{customRoles.length === 0 ? 'Előbb hozz létre szerepet ↓' : '— Válassz szerepet —'}</option>
-                {customRoles.map((r) => (
-                  <option key={r.id} value={r.id}>{r.name}</option>
-                ))}
-              </select>
-              <p className="text-xs text-ink-soft">
-                A szerep <b>neve</b> a pozíció (Felszolgáló, Konyhavezető…), a <b>jogai</b> a jogosultság.
-                {customRoles.length === 0
-                  ? ' Új szerepet a Beállítások → Csapat oldalon adsz meg.'
-                  : ' A szerepeket a Beállítások → Csapat oldalon szerkeszted. A Tulajdonos te vagy.'}
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-5">
+              <section>
+                <SectionBar icon={UserRound} label="Alapadatok" />
+                <FieldRow label="Név">
+                  <input
+                    type="text"
+                    value={inviteName}
+                    onChange={(e) => setInviteName(e.target.value)}
+                    placeholder="Kovács Anna"
+                    autoFocus
+                    className={`${ROW_INPUT} w-full outline-none`}
+                  />
+                </FieldRow>
+                <FieldRow label="Email *" hint="Ide megy a meghívó; ezzel lép be." last>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="munkatars@example.com"
+                    className={`${ROW_INPUT} w-full outline-none`}
+                  />
+                </FieldRow>
+              </section>
+
+              <section>
+                <SectionBar icon={ShieldCheck} label="Szerep" />
+                <FieldRow
+                  label="Szerep *"
+                  last
+                  hint={customRoles.length === 0
+                    ? 'Még nincs szerep — a Beállítások → Csapat oldalon hozhatsz létre.'
+                    : 'A szerep neve a pozíció (Felszolgáló, Konyhavezető…), a jogai a jogosultság.'}
+                  hintTone={customRoles.length === 0 ? 'warn' : 'muted'}
+                >
+                  <div className="relative">
+                    <select
+                      value={roleId}
+                      onChange={(e) => setRoleId(e.target.value)}
+                      disabled={customRoles.length === 0}
+                      className={`${ROW_INPUT} w-full cursor-pointer appearance-none pr-6 outline-none disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      <option value="">{customRoles.length === 0 ? 'Nincs szerep' : 'Válassz szerepet…'}</option>
+                      {customRoles.map((r) => (
+                        <option key={r.id} value={r.id}>{r.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+                  </div>
+                </FieldRow>
+              </section>
+
+              <p className="px-3 text-[11.5px] leading-snug text-ink-soft2">
+                Telefon, pozíció-előzmény, bér és a többi adat a meghívás után a munkatárs profiljában állítható.
               </p>
             </div>
-            <button
-              type="submit"
-              disabled={submitting || !roleId}
-              className="h-12 w-full rounded-dav-pill bg-ink-dark text-sm font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
-            >
-              {submitting ? 'Küldés...' : 'Meghívó küldése'}
-            </button>
+
+            <div className="flex gap-2 border-t border-line bg-white px-5 py-3.5">
+              <button type="button" onClick={() => setOpen(false)} className="h-11 rounded-dav-pill border border-line px-5 text-[14px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink">
+                Mégse
+              </button>
+              <button
+                type="submit"
+                disabled={submitting || !roleId}
+                className="h-11 flex-1 rounded-dav-pill bg-ink-dark text-[14px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
+              >
+                {submitting ? 'Küldés…' : 'Meghívó küldése'}
+              </button>
+            </div>
           </form>
         </SheetContent>
       </Sheet>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, animate, type Variants } from 'framer-motion'
-import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Check, Pencil, Lock, CalendarDays, Loader2, UserRound, Plus, Trash2 } from 'lucide-react'
+import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Check, Pencil, Lock, CalendarDays, Loader2, UserRound, Plus, Trash2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import type { BreakWindow } from '@/payload/payload-types'
 import { popItem } from '@/lib/motion'
@@ -11,7 +11,11 @@ import { Switch } from '@/components/ui/toggle-switch'
 import { TimeSelect } from '@/components/ui/time-select'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
+import { StaffWeeklyHours } from '@/components/dashboard/StaffWeeklyHours'
+import { SectionBar, FieldRow, ROW_INPUT, STEP_BTN, pillSmCls } from '@/components/shared/FormSheet'
+import { PhoneInput } from '@/components/booking/PhoneCountryInput'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
+import type { Locale } from '@/lib/i18n'
 
 /** Felfüggesztett sávozott (hatch) minta — a lista sorával konzisztens. */
 const SUSPEND_HATCH = 'repeating-linear-gradient(115deg, rgba(255,255,255,.6), rgba(255,255,255,.6) 7px, rgba(190,180,140,.16) 7px, rgba(190,180,140,.16) 14px)'
@@ -48,150 +52,374 @@ type EditForm = {
 }
 type HistEntry = { position: string; changed_at: string }
 
+/** Szalon-munkatárs FOGLALÁSI beállításai (a régi szerkesztő-oldalsáv egyedi mezői) — a profil-
+ *  szerkesztő „Foglalás” blokkja. Üres szünet/előfoglalás = a szalon alapbeállítása. */
+export type SalonBookingSettings = { email: string; isActive: boolean; buffer: string; minLead: string; serviceIds: string[] }
+export interface SalonBookingProps {
+  services: { id: string; name: string }[]
+  locales: Locale[]
+  byId: Record<string, SalonBookingSettings>
+  /** Mentés után: a szolgáltatás-hozzárendelés + a lista szinkronja (StaffManager). */
+  onSaved: (staffId: string, s: SalonBookingSettings) => Promise<void>
+}
+type SaveExtra = { translations: Partial<Record<Locale, string>> }
+
 /** Adatlap SZERKESZTŐ-ŰRLAP (étterem-tag; tulaj/vezető). A bér csak akkor jelenik meg, ha `canEditSalary`. */
-function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEditSalary, isOwner = false, saving, variant, onSave, onCancel }: {
+function ProfileEditForm({ initial, initialHistory, positionOptions = [], canEditSalary, isOwner = false, saving, variant, booking, onSave, onCancel }: {
   initial: EditForm; initialHistory: HistEntry[]; positionOptions?: string[]; canEditSalary: boolean; isOwner?: boolean; saving: boolean; variant: Variant
-  onSave: (form: EditForm, history: HistEntry[]) => void; onCancel: () => void
+  booking?: { staffId: string; locales: Locale[] }
+  onSave: (form: EditForm, history: HistEntry[], extra: SaveExtra) => void; onCancel: () => void
 }) {
   const [f, setF] = useState<EditForm>(initial)
   const [history, setHistory] = useState<HistEntry[]>(initialHistory)
+  // Bemutatkozás nyelvenként: HU = f.bio; a többi nyelv kattintásra töltődik (`?locale=`), és csak a
+  // ténylegesen betöltött/átírt fordítás megy vissza mentéskor.
+  const [bioLoc, setBioLoc] = useState<Locale>('hu')
+  const [translations, setTranslations] = useState<Partial<Record<Locale, string>>>({})
+  const [locLoading, setLocLoading] = useState(false)
+  const pickBioLoc = async (loc: Locale) => {
+    if (loc === bioLoc) return
+    if (loc === 'hu' || translations[loc] !== undefined || !booking) { setBioLoc(loc); return }
+    setLocLoading(true)
+    try {
+      const res = await fetch(`/api/staff/${booking.staffId}?locale=${loc}&fallback-locale=null&depth=0`, { credentials: 'include' })
+      if (!res.ok) throw new Error()
+      const doc = await res.json()
+      setTranslations((p) => ({ ...p, [loc]: doc.bio ?? '' }))
+      setBioLoc(loc)
+    } catch {
+      toast.error('A nyelvi tartalom betöltése sikertelen')
+    } finally {
+      setLocLoading(false)
+    }
+  }
   const set = (k: keyof EditForm) => (e: { target: { value: string } }) => setF((p) => ({ ...p, [k]: e.target.value }))
-  const ic = 'h-11 w-full rounded-[12px] border border-line bg-white px-3 text-[14px] text-ink focus:outline-none focus:border-line-strong'
-  const dateTriggerCls = 'flex h-11 w-full items-center gap-2 rounded-[12px] border border-line bg-white px-3 text-left text-[14px] text-ink transition-colors hover:border-line-strong focus:outline-none'
-  const lc = 'mb-1 block text-[12px] font-semibold text-ink-soft'
+  // Adatlap-táblázat (ugyanaz a nyelv, mint a foglalás-ablakban — FormSheet): bal oldalt címke,
+  // jobb oldalt keret nélküli érték, soronként vékony vonal.
+  const val = `${ROW_INPUT} w-full outline-none`
+  const dateTriggerCls = 'flex h-9 w-full items-center gap-2 text-left text-[14px] text-ink focus:outline-none'
+  const CARD = 'space-y-5 rounded-[20px] border border-line bg-white py-4'
   // Van kategória-készlet (étterem, owner-created) → válasszunk a MEGLÉVŐ pozíciókból; a jelenlegit is
   // felvesszük az opciók közé (hogy ne vesszen el, ha nincs a kategóriák közt). Készlet nélkül (szalon) marad a szabad szöveg.
   const hasCatalog = positionOptions.length > 0
   const posChoices = Array.from(new Set([...positionOptions, f.position].filter(Boolean)))
+  const showPosition = !isOwner || variant === 'salon'
+  const showPay = canEditSalary && !isOwner
+  const showTip = showPay && variant === 'restaurant'
+  const showSocial = variant === 'salon' && !isOwner
+  const showHistory = !isOwner && history.length > 0
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div><label className={lc}>Név</label><input value={f.name} onChange={set('name')} className={ic} /></div>
-        {(!isOwner || variant === 'salon') && (
-          <div>
-            <label className={lc}>Pozíció (munkakör)</label>
-            {hasCatalog ? (
-              <div className="relative">
-                <select value={f.position} onChange={set('position')} className={`${ic} cursor-pointer appearance-none pr-9`}>
-                  {f.position === '' && <option value="">Válassz pozíciót…</option>}
-                  {posChoices.map((p) => <option key={p} value={p}>{p}</option>)}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft2" strokeWidth={1.7} />
-              </div>
-            ) : (
-              <input value={f.position} onChange={set('position')} placeholder="Felszolgáló…" className={ic} />
+    // h-full + mt-auto lábléc: a két kártya alja a bal oszlop (fotó/naptár) aljával egy vonalban
+    <div className="flex flex-1 flex-col gap-4">
+      {/* Fejléc + X (vissza a profilhoz) — ugyanaz, mint a „Naptár & foglalás” panelen */}
+      <div className="-mb-2 flex items-center justify-between px-1">
+        <p className="text-[11px] font-semibold uppercase tracking-widest text-ink">Profil szerkesztése</p>
+        <button type="button" onClick={onCancel} aria-label="Vissza a profilhoz" className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><X className="h-3.5 w-3.5" /></button>
+      </div>
+      <div className="flex flex-1 flex-col gap-2">
+        {/* ── BAL kártya: személyes + HR adatok ── */}
+        <div className={CARD}>
+          <section>
+            <SectionBar icon={UserRound} label="Alapadatok" />
+            <FieldRow label="Név">
+              <input value={f.name} onChange={set('name')} className={val} />
+            </FieldRow>
+            {showPosition && (
+              <FieldRow label="Pozíció">
+                {hasCatalog ? (
+                  <div className="relative">
+                    <select value={f.position} onChange={set('position')} className={`${val} cursor-pointer appearance-none pr-6`}>
+                      {f.position === '' && <option value="">Válassz pozíciót…</option>}
+                      {posChoices.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft2" strokeWidth={1.7} />
+                  </div>
+                ) : (
+                  <input value={f.position} onChange={set('position')} placeholder="Felszolgáló…" className={val} />
+                )}
+              </FieldRow>
             )}
-          </div>
-        )}
-        <div><label className={lc}>Telefon</label><input value={f.phone} onChange={set('phone')} className={ic} /></div>
-        {/* Saját naptár-választó (mint a foglalásoknál) a böngésző natív, arculattól idegen popupja helyett */}
-        <div>
-          <label className={lc}>Születésnap</label>
-          <DatePickerPopover
-            value={f.birthday}
-            onChange={(d) => setF((p) => ({ ...p, birthday: d }))}
-            onClear={() => setF((p) => ({ ...p, birthday: '' }))}
-            yearRange={[1930, new Date().getFullYear()]}
-            triggerClassName={dateTriggerCls}
-          >
-            {f.birthday ? fmtHuDate(f.birthday) : <span className="text-ink-soft2">Válassz dátumot</span>}
-            <CalendarDays className="ml-auto h-4 w-4 text-ink-soft" strokeWidth={1.7} />
-          </DatePickerPopover>
+            <FieldRow label="Telefon">
+              <PhoneInput value={f.phone} onChange={(v) => setF((p) => ({ ...p, phone: v }))} inputClass="h-9 text-[14px] text-ink" />
+            </FieldRow>
+            {/* Saját naptár-választó (mint a foglalásoknál) a böngésző natív, arculattól idegen popupja helyett */}
+            <FieldRow label="Születésnap">
+              <DatePickerPopover
+                value={f.birthday}
+                onChange={(d) => setF((p) => ({ ...p, birthday: d }))}
+                onClear={() => setF((p) => ({ ...p, birthday: '' }))}
+                yearRange={[1930, new Date().getFullYear()]}
+                triggerClassName={dateTriggerCls}
+              >
+                {f.birthday ? fmtHuDate(f.birthday) : <span className="text-ink-soft2">Válassz dátumot</span>}
+                <CalendarDays className="ml-auto h-4 w-4 text-ink-soft2" strokeWidth={1.7} />
+              </DatePickerPopover>
+            </FieldRow>
+            <FieldRow label="Belépés">
+              <DatePickerPopover
+                value={f.join_date}
+                onChange={(d) => setF((p) => ({ ...p, join_date: d }))}
+                onClear={() => setF((p) => ({ ...p, join_date: '' }))}
+                yearRange={[1990, new Date().getFullYear() + 1]}
+                triggerClassName={dateTriggerCls}
+              >
+                {f.join_date ? fmtHuDate(f.join_date) : <span className="text-ink-soft2">Válassz dátumot</span>}
+                <CalendarDays className="ml-auto h-4 w-4 text-ink-soft2" strokeWidth={1.7} />
+              </DatePickerPopover>
+            </FieldRow>
+            {/* Cím két sorban: fent irányítószám + város, alatta utca/házszám. Egy mezőben tároljuk
+                („4322 Ebes, Horváth tanya 11”) — az első vessző választja el a két sort. */}
+            <FieldRow label="Cím" last>
+              {(() => {
+                const ci = f.address.indexOf(',')
+                const city = ci >= 0 ? f.address.slice(0, ci).trim() : ''
+                const street = ci >= 0 ? f.address.slice(ci + 1).trim() : f.address
+                const join = (c: string, st: string) => (c.trim() ? `${c.trim()}, ${st}` : st)
+                return (
+                  <div className="flex flex-col">
+                    <input value={city} onChange={(e) => setF((p) => ({ ...p, address: join(e.target.value.replace(/,/g, ''), street) }))} placeholder="Irányítószám, város" className={val} />
+                    <input value={street} onChange={(e) => setF((p) => ({ ...p, address: join(city, e.target.value) }))} placeholder="Utca, házszám" className={`${val} -mt-1`} />
+                  </div>
+                )
+              })()}
+            </FieldRow>
+          </section>
+
+          <section>
+            <SectionBar icon={Lock} label="HR" />
+            <FieldRow label="TAJ / adóaz.">
+              <input
+                value={f.tax_id}
+                onChange={(e) => {
+                  const digits = e.target.value.replace(/\D/g, '').slice(0, 9)
+                  const fmt = digits.length > 6
+                    ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
+                    : digits.length > 3
+                    ? `${digits.slice(0, 3)}-${digits.slice(3)}`
+                    : digits
+                  setF((p) => ({ ...p, tax_id: fmt }))
+                }}
+                maxLength={11}
+                placeholder="000-000-000"
+                className={val}
+              />
+            </FieldRow>
+            <FieldRow label="Adószám" last={!showPay}>
+              <input value={f.tax_number} onChange={set('tax_number')} placeholder="12345678-1-42" className={val} />
+            </FieldRow>
+            {showPay && (
+              <FieldRow label="Bér" last={!showTip} hint="A fizetés a naptárból számolódik.">
+                <div className="flex items-center gap-2">
+                  <input type="text" inputMode="numeric" value={f.pay_rate} onChange={(e) => setF((p) => ({ ...p, pay_rate: e.target.value.replace(/\D/g, '') }))} placeholder="0" className={`${val} min-w-0 flex-1`} />
+                  <span className="shrink-0 text-[12px] text-ink-soft2">Ft /</span>
+                  <div className="flex shrink-0 rounded-full border border-line bg-white p-0.5">
+                    {(['daily', 'hourly'] as const).map((pt) => (
+                      <button
+                        key={pt}
+                        type="button"
+                        onClick={() => setF((p) => ({ ...p, pay_type: pt }))}
+                        className={`h-6 rounded-full px-2.5 text-[11px] font-semibold transition-colors ${f.pay_type === pt ? 'bg-ink-dark text-white' : 'text-ink-soft2 hover:text-ink'}`}
+                      >
+                        {pt === 'daily' ? 'nap' : 'óra'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </FieldRow>
+            )}
+            {showTip && (
+              <FieldRow label="Borravaló" last hint="A napi összeget a Naptárban adod meg; az aznap dolgozó jogosultak közt oszlik el.">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] text-ink">{f.tip_eligible ? 'Jogosult' : 'Nem jogosult'}</span>
+                  <Switch size="sm" checked={f.tip_eligible} onChange={(v) => setF((p) => ({ ...p, tip_eligible: v }))} ariaLabel="Borravalóra jogosult" />
+                </div>
+              </FieldRow>
+            )}
+          </section>
         </div>
-        <div>
-          <label className={lc}>Belépés</label>
-          <DatePickerPopover
-            value={f.join_date}
-            onChange={(d) => setF((p) => ({ ...p, join_date: d }))}
-            onClear={() => setF((p) => ({ ...p, join_date: '' }))}
-            yearRange={[1990, new Date().getFullYear() + 1]}
-            triggerClassName={dateTriggerCls}
-          >
-            {f.join_date ? fmtHuDate(f.join_date) : <span className="text-ink-soft2">Válassz dátumot</span>}
-            <CalendarDays className="ml-auto h-4 w-4 text-ink-soft" strokeWidth={1.7} />
-          </DatePickerPopover>
+
+        {/* ── JOBB kártya: foglalás + bemutatkozás ── */}
+        <div className={CARD}>
+          <section>
+            <SectionBar icon={Sparkles} label="Bemutatkozás" />
+            <FieldRow
+              label="Szöveg"
+              stacked
+              last={!showSocial && !showHistory}
+              aside={booking && booking.locales.length > 1 ? (
+                // Nyelvváltó — csak ha a szalon több nyelven foglalható (a bemutatkozás a foglalón is látszik)
+                <div className="flex items-center gap-1">
+                  {locLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-soft2" />}
+                  {booking.locales.map((loc) => (
+                    <button key={loc} type="button" onClick={() => pickBioLoc(loc)} className={`${pillSmCls(bioLoc === loc)} uppercase`}>
+                      {loc}
+                    </button>
+                  ))}
+                </div>
+              ) : undefined}
+            >
+              <textarea
+                value={bioLoc === 'hu' ? f.bio : (translations[bioLoc] ?? '')}
+                onChange={(e) => bioLoc === 'hu' ? setF((p) => ({ ...p, bio: e.target.value })) : setTranslations((p) => ({ ...p, [bioLoc]: e.target.value }))}
+                placeholder={bioLoc !== 'hu' ? (f.bio || 'Üresen a magyar szöveg jelenik meg') : 'Rövid bemutatkozás, megjegyzés…'}
+                rows={3}
+                className="w-full resize-none bg-transparent text-[14px] leading-relaxed text-ink placeholder:text-ink-soft2 focus:outline-none"
+              />
+            </FieldRow>
+            {showSocial && (
+              <FieldRow label="Közösségi linkek" stacked last={!showHistory}>
+                <SocialLinksEditor
+                  value={f.socialLinks}
+                  onChange={(next) => setF((p) => ({ ...p, socialLinks: next }))}
+                  inputClassName="h-9 rounded-[10px] border-line bg-white px-2.5 text-[13px]"
+                />
+              </FieldRow>
+            )}
+            {showHistory && (
+              <FieldRow label="Pozíció-előzmény" stacked last hint="Elírás? Töröld a rossz bejegyzést. Pozíció-váltáskor automatikusan új bejegyzés készül.">
+                <div className="flex flex-wrap gap-1.5">
+                  {history.map((h, i) => (
+                    <span key={i} className="inline-flex h-7 items-center gap-1.5 rounded-full bg-paper px-2.5 text-[11px] font-semibold text-ink-soft">
+                      {h.position} · {fmtDate(h.changed_at)}
+                      <button type="button" onClick={() => setHistory((prev) => prev.filter((_, j) => j !== i))} className="text-ink-soft2 hover:text-[#C0453F]"><X className="h-3 w-3" /></button>
+                    </span>
+                  ))}
+                </div>
+              </FieldRow>
+            )}
+          </section>
         </div>
-        <div><label className={lc}>Cím</label><input value={f.address} onChange={set('address')} className={ic} /></div>
-        <div>
-          <label className={lc}>TAJ / adóazonosító</label>
-          <input
-            value={f.tax_id}
-            onChange={(e) => {
-              const digits = e.target.value.replace(/\D/g, '').slice(0, 9)
-              const fmt = digits.length > 6
-                ? `${digits.slice(0, 3)}-${digits.slice(3, 6)}-${digits.slice(6)}`
-                : digits.length > 3
-                ? `${digits.slice(0, 3)}-${digits.slice(3)}`
-                : digits
-              setF((p) => ({ ...p, tax_id: fmt }))
-            }}
-            maxLength={11}
-            placeholder="000-000-000"
-            className={ic}
-          />
-        </div>
-        <div><label className={lc}>Adószám</label><input value={f.tax_number} onChange={set('tax_number')} placeholder="12345678-1-42" className={ic} /></div>
-        {canEditSalary && !isOwner && (
-          <div className="sm:col-span-2">
-            <label className={lc}>Bér <Lock className="inline h-3 w-3 align-[-1px]" strokeWidth={1.8} /> (a fizetés a naptárból számolódik)</label>
-            <div className="flex flex-wrap gap-2">
-              <div className="flex rounded-[12px] border border-line bg-white p-0.5">
-                {(['daily', 'hourly'] as const).map((pt) => (
-                  <button
-                    key={pt}
-                    type="button"
-                    onClick={() => setF((p) => ({ ...p, pay_type: pt }))}
-                    className={`rounded-[10px] px-3.5 py-2 text-[12.5px] transition-colors ${f.pay_type === pt ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-ink-soft2 hover:bg-paper hover:text-ink'}`}
-                  >
-                    {pt === 'daily' ? 'Napidíj' : 'Órabér'}
-                  </button>
-                ))}
-              </div>
-              <input type="number" value={f.pay_rate} onChange={set('pay_rate')} placeholder={f.pay_type === 'daily' ? 'Ft / nap' : 'Ft / óra'} className={`${ic} min-w-[120px] flex-1`} />
-            </div>
-          </div>
-        )}
-        {canEditSalary && !isOwner && variant === 'restaurant' && (
-          <div className="sm:col-span-2">
-            <button type="button" onClick={() => setF((p) => ({ ...p, tip_eligible: !p.tip_eligible }))} className="flex items-center gap-2.5">
-              <span className={`flex h-[22px] w-[38px] items-center rounded-full px-0.5 transition-colors ${f.tip_eligible ? 'justify-end bg-ink-dark' : 'justify-start bg-line-strong'}`}>
-                <span className="h-[18px] w-[18px] rounded-full bg-white" />
-              </span>
-              <span className="inline-flex items-center gap-1 text-[13px] font-medium text-ink">Borravalóra jogosult <Lock className="h-3 w-3 text-ink-soft2" strokeWidth={1.8} /></span>
-            </button>
-            <p className="mt-1 text-[11px] text-ink-soft2">A napi borravaló-összeget a Naptárban adod meg; elosztódik az aznap dolgozó jogosultak közt.</p>
-          </div>
-        )}
       </div>
-      <div><label className={lc}>Megjegyzés / bemutatkozás</label><textarea value={f.bio} onChange={set('bio')} rows={3} className="w-full rounded-[12px] border border-line bg-white px-3 py-2 text-[14px] text-ink focus:outline-none focus:border-line-strong" /></div>
-      {variant === 'salon' && !isOwner && (
-        <div>
-          <label className={lc}>Közösségi linkek</label>
-          <SocialLinksEditor
-            value={f.socialLinks}
-            onChange={(next) => setF((p) => ({ ...p, socialLinks: next }))}
-            inputClassName="h-11 border-line bg-white"
-          />
-        </div>
-      )}
-      {!isOwner && history.length > 0 && (
-        <div>
-          <label className={lc}>Pozíció-előzmény</label>
-          <div className="flex flex-wrap gap-2">
-            {history.map((h, i) => (
-              <span key={i} className="inline-flex items-center gap-1.5 rounded-full bg-paper px-3 py-1 text-[12.5px] text-ink-soft">
-                {h.position} · {fmtDate(h.changed_at)}
-                <button type="button" onClick={() => setHistory((prev) => prev.filter((_, j) => j !== i))} className="text-ink-soft2 hover:text-[#C0453F]"><X className="h-3 w-3" /></button>
-              </span>
-            ))}
-          </div>
-          <p className="mt-1 text-[11px] text-ink-soft2">Elírás? Töröld a rossz bejegyzést. Pozíció-váltáskor automatikusan új bejegyzés készül.</p>
-        </div>
-      )}
-      <div className="flex gap-2 pt-1">
-        <button type="button" disabled={saving} onClick={() => onSave(f, history)} className="h-11 flex-1 rounded-dav-pill bg-ink-dark text-[14px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50">{saving ? 'Mentés…' : 'Mentés'}</button>
-        <button type="button" onClick={onCancel} className="h-11 rounded-dav-pill border border-line px-5 text-[14px] font-medium text-ink-soft">Mégse</button>
+
+      <div className="flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="h-11 rounded-dav-pill border border-line bg-white px-5 text-[14px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink">Mégse</button>
+        <button type="button" disabled={saving} onClick={() => onSave(f, history, { translations })} className="h-11 min-w-[180px] rounded-dav-pill bg-ink-dark px-6 text-[14px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50">{saving ? 'Mentés…' : 'Mentés'}</button>
       </div>
+    </div>
+  )
+}
+
+/** Foglalási beállítások kártya (szalon-munkatárs) — a naptár-panelben, saját Mentéssel.
+ *  Ugyanazokat a Staff-mezőket írja, mint korábban a szerkesztő-oldalsáv (+ szolgáltatás-hozzárendelés). */
+function BookingSettingsCard({ staffId, services, initial, onSaved }: {
+  staffId: string
+  services: { id: string; name: string }[]
+  initial: SalonBookingSettings
+  onSaved: (staffId: string, s: SalonBookingSettings) => Promise<void>
+}) {
+  const [bk, setBk] = useState<SalonBookingSettings>(initial)
+  const [saving, setSaving] = useState(false)
+  const val = `${ROW_INPUT} w-full outline-none`
+  const dirty = JSON.stringify(bk) !== JSON.stringify(initial)
+  const save = async () => {
+    const toNum = (v: string, max: number): number | null => {
+      const n = Number(v.replace(',', '.'))
+      return v.trim() === '' || !Number.isFinite(n) || n < 0 ? null : Math.min(n, max)
+    }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/staff/${staffId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          email: bk.email.trim() || null,
+          is_active: bk.isActive,
+          booking_buffer_minutes: toNum(bk.buffer, 240),
+          min_lead_hours: toNum(bk.minLead, 720),
+        }),
+      })
+      if (!res.ok) throw new Error()
+      await onSaved(staffId, bk)
+      toast.success('Foglalási beállítások mentve')
+    } catch {
+      toast.error('A mentés sikertelen')
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <div className="flex flex-col rounded-[20px] border border-line bg-white py-4">
+            <section className="flex-1">
+              <SectionBar icon={CalendarDays} label="Foglalás" />
+              <FieldRow label="Online">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] text-ink">{bk.isActive ? 'Foglalható' : 'Nem foglalható'}</span>
+                  <Switch size="sm" checked={bk.isActive} onChange={(v) => setBk((p) => ({ ...p, isActive: v }))} ariaLabel="Foglalható online" />
+                </div>
+              </FieldRow>
+              <FieldRow label="Értesítő email">
+                <input type="email" value={bk.email} onChange={(e) => setBk((p) => ({ ...p, email: e.target.value }))} placeholder="szakember@example.com" className={val} />
+              </FieldRow>
+              {/* A magyarázat a címke alatt, figyelmeztető színnel — módosítás után eltűnik */}
+              <FieldRow label="Szünet" wideLabel hintUnderLabel hintTone="warn" hint={bk.buffer === initial.buffer ? 'Két foglalás közti pihenőidő ennél a munkatársnál. Üresen a szalon alapbeállítása érvényes.' : undefined}>
+                <NumStepper value={bk.buffer} onChange={(v) => setBk((p) => ({ ...p, buffer: v }))} step={5} max={240} placeholder="Alap" unit="perc" />
+              </FieldRow>
+              <FieldRow label="Előre" wideLabel hintUnderLabel hintTone="warn" hint={bk.minLead === initial.minLead ? 'Legalább ennyi órával előre lehet online foglalni hozzá. A kézi foglalást nem korlátozza; üresen nincs korlát.' : undefined}>
+                <NumStepper value={bk.minLead} onChange={(v) => setBk((p) => ({ ...p, minLead: v }))} step={1} max={720} placeholder="Nincs" unit="óra" />
+              </FieldRow>
+              {services.length > 0 && (
+                <FieldRow
+                  label="Szolgáltatások"
+                  stacked
+                  last
+                  hint="Ha egy sincs kijelölve, online egyik szolgáltatásra sem foglalható."
+                  aside={
+                    <button
+                      type="button"
+                      onClick={() => setBk((p) => ({ ...p, serviceIds: p.serviceIds.length === services.length ? [] : services.map((s) => s.id) }))}
+                      className="text-[11.5px] font-semibold text-ink-soft hover:text-ink"
+                    >
+                      {bk.serviceIds.length === services.length ? 'Egyik sem' : 'Mind'}
+                    </button>
+                  }
+                >
+                  <div className="flex flex-wrap gap-1.5">
+                    {services.map((s) => {
+                      const on = bk.serviceIds.includes(s.id)
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => setBk((p) => ({ ...p, serviceIds: on ? p.serviceIds.filter((x) => x !== s.id) : [...p.serviceIds, s.id] }))}
+                          className={pillSmCls(on)}
+                        >
+                          {on && <Check className="h-3 w-3" strokeWidth={2.4} />}
+                          {s.name}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </FieldRow>
+              )}
+            </section>
+      <div className="flex justify-end px-3 pt-3">
+        <button type="button" onClick={save} disabled={saving || !dirty} className="h-10 min-w-[140px] rounded-dav-pill bg-ink-dark px-5 text-[13px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-40">
+          {saving ? 'Mentés…' : 'Mentés'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Szám-léptető (− érték +) az adatlap-sorokba; üres érték = „alap” (placeholder). */
+function NumStepper({ value, onChange, step, max, placeholder, unit }: { value: string; onChange: (v: string) => void; step: number; max: number; placeholder: string; unit: string }) {
+  const n = Number(value.replace(',', '.'))
+  const has = value.trim() !== '' && Number.isFinite(n)
+  const dec = () => { if (!has) return; const next = n - step; onChange(next <= 0 ? '' : String(next)) }
+  const inc = () => onChange(String(Math.min(max, (has ? n : 0) + step)))
+  return (
+    <div className="flex items-center gap-2">
+      <button type="button" onClick={dec} disabled={!has} aria-label="Csökkentés" className={STEP_BTN}>−</button>
+      <input
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/[^\d.,]/g, ''))}
+        placeholder={placeholder}
+        className={`${ROW_INPUT} w-14 text-center outline-none`}
+      />
+      <button type="button" onClick={inc} disabled={has && n >= max} aria-label="Növelés" className={STEP_BTN}>+</button>
+      <span className="text-[12px] text-ink-soft2">{unit}</span>
     </div>
   )
 }
@@ -741,7 +969,7 @@ function scrollPanelToTop() {
   document.querySelector('.hv-scroll')?.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-export function HiringView({ variant, employees, positionOptions = [], currentUser = null, canManage = false, canEditSalary = false, viewerEmail = null, statusById, onStatusChange, onProfileChange, onOpenEdit, onCalendarRequest, onClose, initialIndex = 0, salonId, openCalendar }: { variant: Variant; employees?: Employee[]; positionOptions?: { label: string; level: 'lead' | 'staff' }[]; currentUser?: CurrentUser | null; canManage?: boolean; canEditSalary?: boolean; viewerEmail?: string | null; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onOpenEdit?: (id: string) => void; onCalendarRequest?: (id: string) => void; onClose?: () => void; initialIndex?: number; salonId?: string; openCalendar?: boolean }) {
+export function HiringView({ variant, employees, positionOptions = [], currentUser = null, canManage = false, canEditSalary = false, viewerEmail = null, statusById, onStatusChange, onProfileChange, onOpenEdit, onCalendarRequest, onClose, initialIndex = 0, salonId, openCalendar, salonBooking, initialEditing = false, canEditAvailability = true }: { variant: Variant; employees?: Employee[]; positionOptions?: { label: string; level: 'lead' | 'staff' }[]; currentUser?: CurrentUser | null; canManage?: boolean; canEditSalary?: boolean; viewerEmail?: string | null; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onOpenEdit?: (id: string) => void; onCalendarRequest?: (id: string) => void; onClose?: () => void; initialIndex?: number; salonId?: string; openCalendar?: boolean; salonBooking?: SalonBookingProps; initialEditing?: boolean; canEditAvailability?: boolean }) {
   const router = useRouter()
   // Valós adat, ha kaptunk (akár üres listát is tiszteletben tartunk); különben mock-fallback.
   const data = employees ?? mockData(variant)
@@ -755,7 +983,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   const [statusOverride, setStatusOverride] = useState<Record<string, 'active' | 'suspended'>>({})
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const [statusBusy, setStatusBusy] = useState(false)
-  const [editing, setEditing] = useState(false)
+  const [editing, setEditing] = useState(initialEditing)
   const [savingProfile, setSavingProfile] = useState(false)
   const [savedOverride, setSavedOverride] = useState<Record<string, Partial<Employee>>>({})
 
@@ -769,6 +997,20 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   // "Legyen ez minden napra" — CSAK a szünet(ek)re vonatkozik: a most beírt szünet(ek) a
   // munkatárs állandó alap-szünetévé válnak (Staff.default_breaks), ld. `saveDefaultBreaks`.
   const [calApplyAllDays, setCalApplyAllDays] = useState(false)
+  // "Ez legyen a munkaidő minden napra" — a nap kezdés/végzés ideje a munkatárs HETI alap-
+  // munkaidejévé válik (Availability recurring + staff rekordok — ugyanaz az adat, amit a
+  // foglalható idők számítása (`resolveStaffWorkHours`) és a Naptár/Beosztás is használ).
+  const [calApplyHoursAll, setCalApplyHoursAll] = useState(false)
+  // A munkatárs SAJÁT heti alap-munkaideje napra bontva (ha van) — a nap-szerkesztő alapja
+  // ez, és csak ennek hiányában a szalon nyitvatartása.
+  const [calStaffWeekly, setCalStaffWeekly] = useState<Record<string, AvailRec>>({})
+  // NAPTÁR-PANEL (jobb oszlop): a lista/profil naptár-gombja vagy egy napra kattintás nyitja —
+  // nap-beállítás + heti munkaidő + foglalási beállítások egy helyen. A ceruza a szerkesztőre vált.
+  const [calPanel, setCalPanel] = useState(false)
+  // a heti adatok újratöltése (mentés után) — a kiválasztott nap NEM nullázódik
+  const [calReloadKey, setCalReloadKey] = useState(0)
+  const [weeklyVersion, setWeeklyVersion] = useState(0)
+  const lastCalSel = useRef<string | null>(null)
   // Napi szünet(ek) — a Shifts.breaks mezőt írja/olvassa (UGYANAZ az adat, mint a Naptár
   // DayEditorjában), hogy a két felület mindig szinkronban maradjon. Egy nap TÖBB szünetet is
   // tarthat (pl. ebéd + délutáni pihenő).
@@ -788,6 +1030,43 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   const addBreakDraft = () => setBreakDraft((b) => [...b, { start_time: '12:00', end_time: '13:00' }])
   const updateBreakDraft = (i: number, patch: Partial<BreakWindow>) => setBreakDraft((b) => b.map((w, idx) => (idx === i ? { ...w, ...patch } : w)))
   const removeBreakDraft = (i: number) => setBreakDraft((b) => b.filter((_, idx) => idx !== i))
+
+  // Lista-oldalméret: xl-en (lista a profil mellett) annyi kártya fér egy oldalra, amennyi a
+  // profil-panel magasságába belefér — ha a profil megnyúlik (pl. megnyitott nap-szerkesztő), a
+  // lapozó is több elemet mutat. A PROFIL magasságát mérjük, nem a lista-oszlopét (az a lista
+  // miatt sosem zsugorodna vissza). xl alatt fix 6.
+  const listGridRef = useRef<HTMLDivElement>(null)
+  const detailRef = useRef<HTMLDivElement>(null)
+  const [perPage, setPerPage] = useState(LIST_PER_PAGE)
+  const hasData = data.length > 0
+  useEffect(() => {
+    // A panel maga a rács-sor magasságára nyúlik (a lista miatt is) → a BELSŐ tartalmat mérjük
+    // (+ a panel paddingje), különben a lista sosem zsugorodna vissza és üres sáv maradna.
+    const panel = detailRef.current
+    const el = panel?.firstElementChild as HTMLElement | null
+    if (!panel || !el) return
+    const mq = window.matchMedia('(min-width: 1280px)')
+    const calc = () => {
+      if (!mq.matches) { setPerPage(LIST_PER_PAGE); return }
+      const item = listGridRef.current?.querySelector<HTMLElement>('[data-list-card]')
+      const itemH = item?.offsetHeight || 150
+      const GAP = 12   // gap-3
+      const PAGER = 52 // h-9 + pt-4
+      const cs = getComputedStyle(panel)
+      const h = el.offsetHeight + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
+      setPerPage(Math.max(LIST_PER_PAGE, Math.floor((h - PAGER + GAP) / (itemH + GAP))))
+    }
+    calc()
+    const ro = new ResizeObserver(calc)
+    ro.observe(el)
+    mq.addEventListener('change', calc)
+    return () => { ro.disconnect(); mq.removeEventListener('change', calc) }
+  }, [hasData, selId]) // a belső elem kiválasztáskor újra-mountol (key=sel.id) → újra kell figyelni
+  // Oldalméret-váltáskor a kiválasztott ember oldalára ugrunk (ne tűnjön el a listából).
+  useEffect(() => {
+    const i = data.findIndex((d) => d.id === selId)
+    if (i >= 0) setPage(Math.floor(i / perPage) + 1)
+  }, [perPage]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (data.length === 0) {
     return (
@@ -857,10 +1136,13 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   const payTotal = payType === 'daily' ? (eff.daysWorked + eff.vacationDays) * payRate : (eff.hoursThisMonth + payVacHours) * payRate
   // A TULAJ saját adatlapját csak a tulaj (canEditSalary) szerkesztheti; a többi tagét tulaj/vezető.
   // Szalonnál: canManage (tulaj/vezető) szerkeszthet bármely nem-tulaj staff adatlapot.
+  // Jobb oszlop tartalma: szerkesztő (ceruza) | nap-beállítás (naptár) | profil
+  const calOpen = calPanel && variant === 'salon' && !!salonId && sel.id !== 'owner' && (canEditAvailability || !!salonBooking?.byId[sel.id])
+  const dayEditorOpen = !!(calSelDay && calEditState && canEditAvailability)
   const canEditProfile = variant === 'restaurant'
     ? (isOwnerRow ? canEditSalary : canEditStatus)
     : isOwnerRow ? true : canManage
-  const saveProfile = async (form: EditForm, history: HistEntry[]) => {
+  const saveProfile = async (form: EditForm, history: HistEntry[], extra: SaveExtra) => {
     setSavingProfile(true)
     try {
       // ── Szalon/étterem TULAJ szerkesztése: fiók-szintű mentés (Users collection, nincs membership) ──
@@ -926,6 +1208,15 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
           }),
         })
         if (!res.ok) throw new Error()
+        // Fordítások (csak a megnyitott nyelvek) — a localizált bio külön PATCH nyelvenként.
+        await Promise.all(Object.entries(extra.translations).map(([loc, bio]) =>
+          fetch(`/api/staff/${sel.id}?locale=${loc}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ bio: bio || null }),
+          }),
+        ))
         const patch: Partial<Employee> = {
           name: form.name.trim(),
           position: form.position.trim() || eff.position,
@@ -1011,18 +1302,25 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (variant !== 'salon' || !salonId || !sel?.id || sel.id === 'owner') return
-    setCalSelDay(null)
-    setCalEditState(null)
-    setCalExceptions({})
-    setCalSalonDefaults({})
+    if (lastCalSel.current !== sel.id) {
+      lastCalSel.current = sel.id
+      setCalSelDay(null)
+      setCalEditState(null)
+      setCalExceptions({})
+      setCalSalonDefaults({})
+      setCalStaffWeekly({})
+    }
     Promise.all([
       fetch(`/api/availability?where[staff][equals]=${sel.id}&limit=300`, { credentials: 'include' }).then(r => r.json()),
       fetch(`/api/availability?where[salon][equals]=${salonId}&where[recurring][equals]=true&limit=300`, { credentials: 'include' }).then(r => r.json()),
     ]).then(([staffJson, salonJson]) => {
       const excMap: Record<string, AvailRec> = {}
+      const weekMap: Record<string, AvailRec> = {}
       for (const r of (staffJson.docs ?? [])) {
         if (!r.recurring && r.exception_date) excMap[r.exception_date] = { id: String(r.id), is_available: r.is_available ?? true, start_time: r.start_time ?? '09:00', end_time: r.end_time ?? '18:00' }
+        else if (r.recurring && !r.exception_date && r.day_of_week) weekMap[r.day_of_week] = { id: String(r.id), is_available: r.is_available ?? false, start_time: r.start_time ?? '09:00', end_time: r.end_time ?? '18:00' }
       }
+      setCalStaffWeekly(weekMap)
       const defMap: Record<string, AvailRec> = {}
       for (const r of (salonJson.docs ?? [])) {
         if (r.staff || !r.recurring || !r.day_of_week) continue
@@ -1031,7 +1329,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
       setCalExceptions(excMap)
       setCalSalonDefaults(defMap)
     }).catch(() => {})
-  }, [variant, salonId, sel?.id])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [variant, salonId, sel?.id, calReloadKey])  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Napi szünet betöltése a kijelölt napra (ugyanaz a Shifts-rekord, mint a Naptáron) ──
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1067,6 +1365,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
     if (!openCalendar || variant !== 'salon' || !salonId) return
     const today = new Date().toISOString().split('T')[0]
     setCalSelDay(today)
+    setCalPanel(true)
     setTimeout(() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 500)
   }, [openCalendar, salonId, sel?.id])  // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1078,21 +1377,27 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
     if (exc) setCalEditState(prev => prev?.id === exc.id ? prev : { ...exc })
     else if (!calEditState?.id) {
       const dow = CAL_DOW[new Date(calSelDay + 'T00:00:00').getDay()]
-      const base = calSalonDefaults[dow]
+      const base = calBaseFor(dow)
       setCalEditState(prev => prev ?? { is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' })
     }
-  }, [calExceptions, calSalonDefaults])  // eslint-disable-line react-hooks/exhaustive-deps
+  }, [calExceptions, calSalonDefaults, calStaffWeekly])  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Egy hét-nap alap-beállítása: a munkatárs saját heti munkaideje, ha van; különben a szalon nyitvatartása.
+  const calBaseFor = (dow: string): AvailRec | undefined => calStaffWeekly[dow] ?? calSalonDefaults[dow]
 
   const handleCalDayClick = (dateStr: string) => {
     if (!salonId || variant !== 'salon') return
+    setEditing(false) // a jobb oszlop a nap-beállításra cserélődik
     setCalSelDay(dateStr)
     setCalApplyAllDays(false)
+    setCalApplyHoursAll(false)
+    setCalPanel(true)
     const exc = calExceptions[dateStr]
     const next = exc
       ? { is_available: exc.is_available, start_time: exc.start_time, end_time: exc.end_time }
       : (() => {
           const dow = CAL_DOW[new Date(dateStr + 'T00:00:00').getDay()]
-          const base = calSalonDefaults[dow]
+          const base = calBaseFor(dow)
           return { is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' }
         })()
     setCalEditState(exc ? { ...exc } : next)
@@ -1145,6 +1450,47 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
     }
   }
 
+  /** A nap kezdés/végzés ideje minden munkanapra: a munkatárs heti rekordjai (7 nap) frissülnek.
+   *  A szabadnapok szabadnapok maradnak (saját heti beállítás, ennek hiányában a szalon
+   *  nyitvatartása szerint); a kiválasztott nap hét-napja munkanap lesz. Ugyanaz a tárolás, mint a
+   *  heti munkaidő-szerkesztőé (StaffWeeklyHours) — a szerver minden íráskor újraszinkronizálja a
+   *  Naptárt/Beosztást. A konkrét dátumra tett egyedi kivételek felülírják (azok maradnak). */
+  const saveWeeklyHours = async (): Promise<boolean> => {
+    if (!calEditState || !calSelDay || !salonId || !sel?.id) return false
+    const selDow = CAL_DOW[new Date(calSelDay + 'T00:00:00').getDay()]
+    const DOWS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+    const hasOwn = Object.keys(calStaffWeekly).length > 0
+    const next: Record<string, AvailRec> = {}
+    try {
+      for (const dow of DOWS) {
+        const own = calStaffWeekly[dow]
+        const wasOn = hasOwn ? !!own?.is_available : !!calSalonDefaults[dow]?.is_available
+        const body = {
+          salon: Number(salonId),
+          staff: Number(sel.id),
+          day_of_week: dow,
+          recurring: true,
+          is_available: dow === selDow ? true : wasOn,
+          start_time: calEditState.start_time,
+          end_time: calEditState.end_time,
+        }
+        const res = own?.id
+          ? await fetch(`/api/availability/${own.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) })
+          : await fetch('/api/availability', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(body) })
+        if (!res.ok) throw new Error(res.status === 403 ? 'forbidden' : 'failed')
+        const json = await res.json().catch(() => null)
+        next[dow] = { id: String(json?.doc?.id ?? own?.id), is_available: body.is_available, start_time: body.start_time, end_time: body.end_time }
+      }
+      setCalStaffWeekly(next)
+      return true
+    } catch (e) {
+      // részleges írás után is a szerver az igazság → újratöltés
+      toast.error(e instanceof Error && e.message === 'forbidden' ? 'Nincs jogod a munkaidő módosításához' : 'A munkaidő mentése minden napra nem sikerült')
+      router.refresh()
+      return false
+    }
+  }
+
   const resetCalDay = async () => {
     if (!calEditState?.id || !calSelDay) return
     setCalSaving(true)
@@ -1153,7 +1499,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
       if (!res.ok) throw new Error()
       setCalExceptions(prev => { const next = { ...prev }; delete next[calSelDay]; return next })
       const dow = CAL_DOW[new Date(calSelDay + 'T00:00:00').getDay()]
-      const base = calSalonDefaults[dow]
+      const base = calBaseFor(dow)
       setCalEditState({ is_available: base?.is_available ?? true, start_time: base?.start_time ?? '09:00', end_time: base?.end_time ?? '18:00' })
       toast.success('Visszaállítva szalon alapra')
       router.refresh()
@@ -1177,9 +1523,9 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
     return matchQ && matchPos
   })
   // VALÓS lapozás: a szűrt listát vágjuk oldalakra; a lapozó csak akkor jelenik meg, ha 1-nél több oldal van.
-  const pageCount = Math.max(1, Math.ceil(filtered.length / LIST_PER_PAGE))
+  const pageCount = Math.max(1, Math.ceil(filtered.length / perPage))
   const curPage = Math.min(page, pageCount)
-  const paged = filtered.slice((curPage - 1) * LIST_PER_PAGE, curPage * LIST_PER_PAGE)
+  const paged = filtered.slice((curPage - 1) * perPage, curPage * perPage)
 
   // A fejléc a bejelentkezett felhasználó adatával felülírható (Google OAuth élesítéskor); fallback a mock tag.
   const headName = currentUser?.name ?? eff.name
@@ -1269,13 +1615,14 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
         {/* ── BAL: csapat-lista ── mobilon a profil ALATT van; keresés közben a profil FÖLÉ ugrik,
             hogy a találat azonnal látsszon (ne legalul, észrevétlenül). */}
         <motion.div variants={popItem} className={`${query.trim() ? 'order-first' : 'order-last'} flex flex-col print:hidden xl:order-first`}>
-          <motion.div variants={listContainer} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <motion.div ref={listGridRef} variants={listContainer} className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
             {filtered.length === 0 && <p className="col-span-full py-8 text-center text-sm text-ink-soft">Nincs találat.</p>}
             {paged.map((c) => {
               const active = c.id === selId
               return (
                 <motion.div
                   key={c.id}
+                  data-list-card
                   role="button"
                   tabIndex={0}
                   variants={listItem}
@@ -1345,8 +1692,9 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
             })}
           </motion.div>
           {/* Lapozó — VALÓS oldalszámok; csak akkor jelenik meg, ha 1-nél több oldal van. */}
+          {/* mt-auto: a lapozó mindig az oszlop ALJÁN (a profil-panel aljával egy vonalban), nem követi a tartalmat */}
           {pageCount > 1 && (
-            <div className="mt-4 flex items-center justify-center gap-1.5">
+            <div className="mt-auto flex items-center justify-center gap-1.5 pt-4">
               <button onClick={() => setPage(Math.max(1, curPage - 1))} disabled={curPage === 1} className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink-soft transition-colors hover:border-line-strong disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
               {pageWindow(curPage, pageCount).map((n, idx) =>
                 n === '…' ? (
@@ -1363,13 +1711,13 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
         {/* ── JOBB: adatlap (kiválasztáskor újra-animálódik) ── */}
         {/* Mobilon nincs kártya-keret (dav-card-glass/rounded/padding) körülötte — csak lg+-tól,
             hogy a fejléc alatti hely ne vesszen kártya-paddingre. */}
-        <motion.div variants={popItem} data-print-root className="order-first lg:rounded-[26px] lg:dav-card-glass lg:p-8 xl:order-last">
+        <motion.div ref={detailRef} variants={popItem} data-print-root className="order-first lg:rounded-[26px] lg:dav-card-glass lg:p-8 xl:order-last">
           <motion.div
             key={sel.id}
             initial="hidden"
             animate="show"
             variants={{ hidden: {}, show: { transition: { staggerChildren: 0.09, delayChildren: 0.02 } } }}
-            className="hv-detail-grid flex flex-col gap-6 lg:flex-row lg:gap-8"
+            className={`hv-detail-grid flex flex-col gap-6 lg:flex-row ${editing ? 'lg:gap-3' : 'lg:gap-8'}`}
           >
             {/* Bal belső: fotó + naptár + szerkesztő — mobilon a JOBB (adatlap) oszlop UTÁN jön
                 (order-2), hogy a név/kontakt/gauge legyen elöl; deszktopon (lg+) marad balra elöl. */}
@@ -1377,7 +1725,6 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
               layout
               variants={detailCol}
               className="hv-left-col order-2 space-y-5 lg:order-1"
-              data-wide={calSelDay && calEditState && variant === 'salon' && salonId ? 'true' : 'false'}
               transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}
             >
               <motion.div variants={detailItem} className="relative hidden h-[240px] overflow-hidden rounded-[22px] lg:block print:block" style={{ background: headAvatar ? GRADS[0] : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
@@ -1397,14 +1744,69 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                   calendar={eff.calendar ?? {}}
                   exceptions={variant === 'salon' && salonId ? calExceptions : undefined}
                   selectedDay={variant === 'salon' && salonId ? calSelDay : undefined}
-                  onDaySelect={variant === 'salon' && salonId ? handleCalDayClick : undefined}
+                  onDaySelect={variant === 'salon' && salonId && canEditAvailability ? handleCalDayClick : undefined}
                 />
               </motion.div>
 
-              {/* Havi órák / availability editor (AnimatePresence slide) */}
-              <motion.div variants={detailItem} data-print-card ref={calendarRef}>
-                <AnimatePresence mode="wait" initial={false}>
-                  {calSelDay && calEditState && variant === 'salon' && salonId ? (
+              {/* Havi órák — a nap-szerkesztő a JOBB oszlopba került (a profil helyére cserélődik) */}
+              <motion.div variants={detailItem} data-print-card>
+                    <motion.div key="hours-card" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ type: 'spring', stiffness: 420, damping: 34 }}>
+                      <div className="rounded-[22px] p-6" style={{ background: 'var(--dav-accent)' }}>
+                        <p className="text-[14px] font-semibold text-ink-dark">Ledolgozott órák — e hó</p>
+                        <div className="mt-1.5"><Spark data={eff.monthWeeks ?? eff.recent} /></div>
+                        <div className="mt-2 flex items-baseline gap-2">
+                          <span className="text-[36px] font-light leading-none tracking-[-0.02em] text-ink-dark"><CountUp to={sel.hoursThisMonth} /><span className="text-[17px]"> ó</span></span>
+                          <span className="text-[12.5px] font-semibold" style={{ color: hoursDelta >= 0 ? '#3B6B4B' : '#B0453F' }}>{hoursDelta >= 0 ? '+' : '−'}{Math.abs(hoursDelta)} ó</span>
+                        </div>
+                        <p className="mt-1.5 text-[11.5px] font-medium text-ink-dark/65">Előző hónap: {sel.hoursLastMonth} ó</p>
+                      </div>
+                    </motion.div>
+              </motion.div>
+            </motion.div>
+
+            {/* Jobb belső: fejléc + szerep + állomások + megjegyzés + jelenlét, alul stat-ok + chart */}
+            <motion.div layout variants={detailCol} className="hv-right-col order-1 flex flex-col lg:order-2" transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}>
+              {editing && canEditProfile ? (
+                <ProfileEditForm
+                  initial={{
+                    name: eff.name,
+                    position: isOwnerRow ? (eff.extraPosition ?? '') : eff.position,
+                    phone: eff.phone,
+                    birthday: (eff.hr?.birthday ?? '').slice(0, 10),
+                    address: eff.hr?.address ?? '',
+                    tax_id: eff.hr?.tax_id ?? '',
+                    tax_number: eff.hr?.tax_number ?? '',
+                    join_date: (eff.hr?.join_date ?? '').slice(0, 10),
+                    weekly_hours: eff.hr?.weekly_hours != null ? String(eff.hr.weekly_hours) : '',
+                    pay_type: (eff.hr?.pay_type ?? 'daily') as 'daily' | 'hourly',
+                    pay_rate: eff.hr?.pay_rate != null ? String(eff.hr.pay_rate) : '',
+                    tip_eligible: eff.hr?.tip_eligible ?? false,
+                    bio: eff.note,
+                    socialLinks: eff.socialLinks ?? [],
+                  }}
+                  initialHistory={eff.hr?.position_history ?? []}
+                  positionOptions={positionCatalog}
+                  canEditSalary={canEditSalary}
+                  isOwner={isOwnerRow}
+                  saving={savingProfile}
+                  variant={variant}
+                  booking={salonBooking?.byId[sel.id] ? { staffId: sel.id, locales: salonBooking.locales } : undefined}
+                  onSave={saveProfile}
+                  onCancel={() => setEditing(false)}
+                />
+              ) : calOpen ? (
+                // Nap-beállítás a profil HELYÉN (naptárban egy napra kattintva) — a bal oszlop változatlan
+                <div ref={calendarRef} className="flex flex-1 flex-col gap-2">
+                  <div className="flex items-center justify-between px-1 pb-1">
+                    <p className="text-[11px] font-semibold uppercase tracking-widest text-ink">Naptár & foglalás</p>
+                    <button type="button" onClick={() => { setCalPanel(false); setCalSelDay(null); setCalEditState(null); setCalApplyAllDays(false); setCalApplyHoursAll(false) }} aria-label="Vissza a profilhoz" className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-white text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><X className="h-3.5 w-3.5" /></button>
+                  </div>
+                  {canEditAvailability && !dayEditorOpen && (
+                    <div className="rounded-[20px] border border-dashed border-line-strong bg-white/60 px-4 py-3 text-[12.5px] text-ink-soft">
+                      Kattints egy napra a naptárban az adott nap munkaidejéhez és szüneteihez.
+                    </div>
+                  )}
+                  {dayEditorOpen && calSelDay && calEditState && (
                     <motion.div key="cal-editor" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ type: 'spring', stiffness: 420, damping: 34 }}>
                       <div className="rounded-[22px] border border-line bg-white p-5">
                         {/* Fejléc: dátum + X gomb */}
@@ -1414,10 +1816,9 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                               {new Date(calSelDay + 'T00:00:00').toLocaleDateString('hu-HU', { month: 'long', day: 'numeric', weekday: 'long' })}
                             </p>
                             <span className={`mt-0.5 inline-block rounded-full px-2 py-0.5 text-[10.5px] font-semibold ${calExceptions[calSelDay] ? 'bg-emerald-100 text-emerald-700' : 'bg-paper text-ink-soft'}`}>
-                              {calExceptions[calSelDay] ? 'Egyéni beállítás' : 'Szalon alap'}
+                              {calExceptions[calSelDay] ? 'Egyéni beállítás' : Object.keys(calStaffWeekly).length ? 'Heti alap' : 'Szalon alap'}
                             </span>
                           </div>
-                          <button type="button" onClick={() => { setCalSelDay(null); setCalEditState(null); setCalApplyAllDays(false) }} className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-line text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><X className="h-3.5 w-3.5" /></button>
                         </div>
                         {/* Munkaidő + szünet(ek) — egymás alatt, minden képernyőméreten. */}
                         <div className="mb-4 grid grid-cols-1 gap-5">
@@ -1438,6 +1839,16 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                                   <p className="mb-1 text-[11px] font-semibold text-ink-soft">Végzés</p>
                                   <TimeSelect value={calEditState.end_time} onChange={(v) => setCalEditState(prev => prev ? { ...prev, end_time: v } : null)} />
                                 </div>
+                              </div>
+                            )}
+                            {/* A kezdés/végzés legyen a munkatárs heti alap-munkaideje (minden munkanapján) */}
+                            {calEditState.is_available && (
+                              <div className="mt-3 flex items-center justify-between gap-3">
+                                <span>
+                                  <span className="block text-[13px] font-medium text-ink">Ez legyen a munkaidő minden napra</span>
+                                  <span className="block text-[11px] text-ink-soft2">A szabadnapok és az egyedi napok változatlanok maradnak</span>
+                                </span>
+                                <Switch checked={calApplyHoursAll} onChange={setCalApplyHoursAll} ariaLabel="Ez legyen a munkaidő minden napra" />
                               </div>
                             )}
                           </div>
@@ -1483,9 +1894,9 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                         {/* Mentés / visszaállítás — a Mentés csak akkor aktív, ha valóban van
                             mentendő változás (a "Legyen ez minden napra" bekapcsolása önmagában is
                             szándékolt művelet, az mindig engedi a mentést). */}
-                        <div className="flex gap-2">
+                        <div className="flex justify-end gap-2">
                           {calExceptions[calSelDay] && (
-                            <button type="button" onClick={resetCalDay} disabled={calSaving} className="rounded-[12px] border border-line px-3 py-2 text-[12.5px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:opacity-50">Visszaállítás</button>
+                            <button type="button" onClick={resetCalDay} disabled={calSaving} className="h-10 rounded-dav-pill border border-line bg-white px-4 text-[13px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink disabled:opacity-40">Visszaállítás</button>
                           )}
                           <button
                             type="button"
@@ -1493,62 +1904,43 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                               await saveCalDay()
                               await saveBreak()
                               if (calApplyAllDays) await saveDefaultBreaks()
+                              if (calApplyHoursAll && calEditState?.is_available) {
+                                setCalSaving(true)
+                                if (await saveWeeklyHours()) { toast.success('Munkaidő beállítva minden munkanapra'); setWeeklyVersion((v) => v + 1) }
+                                setCalSaving(false)
+                                router.refresh()
+                              }
                               setCalApplyAllDays(false)
+                              setCalApplyHoursAll(false)
                             }}
-                            disabled={calSaving || (!calIsDirty && !calApplyAllDays)}
-                            className="flex flex-1 items-center justify-center gap-2 rounded-[12px] bg-ink-dark px-3 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
+                            // mint a többi kártya Mentése: módosítás nélkül halvány/inaktív
+                            disabled={calSaving || (!calIsDirty && !calApplyAllDays && !calApplyHoursAll)}
+                            className="inline-flex h-10 min-w-[140px] items-center justify-center gap-1.5 rounded-dav-pill bg-ink-dark px-5 text-[13px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-40"
                           >
                             {calSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Mentés'}
                           </button>
                         </div>
                       </div>
                     </motion.div>
-                  ) : (
-                    <motion.div key="hours-card" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }} transition={{ type: 'spring', stiffness: 420, damping: 34 }}>
-                      <div className="rounded-[22px] p-6" style={{ background: 'var(--dav-accent)' }}>
-                        <p className="text-[14px] font-semibold text-ink-dark">Ledolgozott órák — e hó</p>
-                        <div className="mt-1.5"><Spark data={eff.monthWeeks ?? eff.recent} /></div>
-                        <div className="mt-2 flex items-baseline gap-2">
-                          <span className="text-[36px] font-light leading-none tracking-[-0.02em] text-ink-dark"><CountUp to={sel.hoursThisMonth} /><span className="text-[17px]"> ó</span></span>
-                          <span className="text-[12.5px] font-semibold" style={{ color: hoursDelta >= 0 ? '#3B6B4B' : '#B0453F' }}>{hoursDelta >= 0 ? '+' : '−'}{Math.abs(hoursDelta)} ó</span>
-                        </div>
-                        <p className="mt-1.5 text-[11.5px] font-medium text-ink-dark/65">Előző hónap: {sel.hoursLastMonth} ó</p>
-                      </div>
-                    </motion.div>
                   )}
-                </AnimatePresence>
-              </motion.div>
-            </motion.div>
-
-            {/* Jobb belső: fejléc + szerep + állomások + megjegyzés + jelenlét, alul stat-ok + chart */}
-            <motion.div layout variants={detailCol} className="hv-right-col order-1 flex flex-col lg:order-2" transition={{ layout: { type: 'spring', stiffness: 350, damping: 32 } }}>
-              {editing ? (
-                <ProfileEditForm
-                  initial={{
-                    name: eff.name,
-                    position: isOwnerRow ? (eff.extraPosition ?? '') : eff.position,
-                    phone: eff.phone,
-                    birthday: (eff.hr?.birthday ?? '').slice(0, 10),
-                    address: eff.hr?.address ?? '',
-                    tax_id: eff.hr?.tax_id ?? '',
-                    tax_number: eff.hr?.tax_number ?? '',
-                    join_date: (eff.hr?.join_date ?? '').slice(0, 10),
-                    weekly_hours: eff.hr?.weekly_hours != null ? String(eff.hr.weekly_hours) : '',
-                    pay_type: (eff.hr?.pay_type ?? 'daily') as 'daily' | 'hourly',
-                    pay_rate: eff.hr?.pay_rate != null ? String(eff.hr.pay_rate) : '',
-                    tip_eligible: eff.hr?.tip_eligible ?? false,
-                    bio: eff.note,
-                    socialLinks: eff.socialLinks ?? [],
-                  }}
-                  initialHistory={eff.hr?.position_history ?? []}
-                  positionOptions={positionCatalog}
-                  canEditSalary={canEditSalary}
-                  isOwner={isOwnerRow}
-                  saving={savingProfile}
-                  variant={variant}
-                  onSave={saveProfile}
-                  onCancel={() => setEditing(false)}
-                />
+                  {canEditAvailability && salonId && (
+                    <StaffWeeklyHours
+                      key={`${sel.id}-${weeklyVersion}`}
+                      salonId={String(salonId)}
+                      staffId={String(sel.id)}
+                      onSaved={() => { setCalReloadKey((k) => k + 1); router.refresh() }}
+                    />
+                  )}
+                  {salonBooking?.byId[sel.id] && (
+                    <BookingSettingsCard
+                      key={sel.id}
+                      staffId={String(sel.id)}
+                      services={salonBooking.services}
+                      initial={salonBooking.byId[sel.id]}
+                      onSaved={salonBooking.onSaved}
+                    />
+                  )}
+                </div>
               ) : (
               <>
               <motion.div variants={detailItem} className="hv-profile-block">
@@ -1620,7 +2012,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                     </div>
                     <div className="flex shrink-0 gap-2 print:hidden">
                       {canEditProfile && !editing && (
-                        <button type="button" onClick={() => setEditing(true)} title="Szerkesztés" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><Pencil className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
+                        <button type="button" onClick={() => { setCalSelDay(null); setCalEditState(null); setCalPanel(false); setEditing(true) }} title="Szerkesztés" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><Pencil className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
                       )}
                       {variant === 'salon' && salonId && (
                         <button type="button" onClick={() => { const today = new Date().toISOString().split('T')[0]; handleCalDayClick(today); setTimeout(() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }} title="Ugrás a mai naphoz" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><CalendarDays className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>

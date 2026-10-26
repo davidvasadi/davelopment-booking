@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { popPanelCenter } from '@/lib/motion'
-import { HiringView, type Employee } from './HiringView'
+import { HiringView, type Employee, type SalonBookingProps } from './HiringView'
 
 type Variant = 'salon' | 'restaurant'
 
@@ -15,7 +15,7 @@ type Variant = 'salon' | 'restaurant'
  * nyelv, mint az avatar/értesítés popover (UserMenu). `createPortal` a body-ra, hogy a fixed pozíció +
  * a teljes-képernyős blur helyesen üljön (nem tör meg a transform-context).
  */
-export function HiringOverlay({ open, onClose, variant, employees, positions = [], canManage = false, canEditSalary = false, viewerEmail = null, statusById, onStatusChange, onProfileChange, onOpenEdit, onCalendarRequest, initialIndex = 0, salonId, openCalendar }: { open: boolean; onClose: () => void; variant: Variant; employees?: Employee[]; positions?: { label: string; level: 'lead' | 'staff' }[]; canManage?: boolean; canEditSalary?: boolean; viewerEmail?: string | null; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onOpenEdit?: (id: string) => void; onCalendarRequest?: (id: string) => void; initialIndex?: number; salonId?: string; openCalendar?: boolean }) {
+export function HiringOverlay({ open, onClose, variant, employees, positions = [], canManage = false, canEditSalary = false, viewerEmail = null, statusById, onStatusChange, onProfileChange, onOpenEdit, onCalendarRequest, initialIndex = 0, salonId, openCalendar, salonBooking, initialEditing, canEditAvailability }: { open: boolean; onClose: () => void; variant: Variant; employees?: Employee[]; positions?: { label: string; level: 'lead' | 'staff' }[]; canManage?: boolean; canEditSalary?: boolean; viewerEmail?: string | null; statusById?: Record<string, 'active' | 'invited' | 'suspended'>; onStatusChange?: (id: string, status: 'active' | 'suspended') => void; onProfileChange?: (id: string, patch: Partial<Employee>) => void; onOpenEdit?: (id: string) => void; onCalendarRequest?: (id: string) => void; initialIndex?: number; salonId?: string; openCalendar?: boolean; salonBooking?: SalonBookingProps; initialEditing?: boolean; canEditAvailability?: boolean }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
@@ -52,7 +52,7 @@ export function HiringOverlay({ open, onClose, variant, employees, positions = [
               className="hv-panel relative my-auto w-full max-w-[1120px] rounded-[30px] border border-line bg-dav-container p-5 shadow-dav-container sm:p-7 xl:max-w-[1360px]"
               data-lenis-prevent
             >
-              <HiringView variant={variant} employees={employees} positionOptions={positions} canManage={canManage} canEditSalary={canEditSalary} viewerEmail={viewerEmail} statusById={statusById} onStatusChange={onStatusChange} onProfileChange={onProfileChange} onOpenEdit={onOpenEdit} onCalendarRequest={onCalendarRequest} onClose={onClose} initialIndex={initialIndex} salonId={salonId} openCalendar={openCalendar} />
+              <HiringView variant={variant} employees={employees} positionOptions={positions} canManage={canManage} canEditSalary={canEditSalary} viewerEmail={viewerEmail} statusById={statusById} onStatusChange={onStatusChange} onProfileChange={onProfileChange} onOpenEdit={onOpenEdit} onCalendarRequest={onCalendarRequest} onClose={onClose} initialIndex={initialIndex} salonId={salonId} openCalendar={openCalendar} salonBooking={salonBooking} initialEditing={initialEditing} canEditAvailability={canEditAvailability} />
             </motion.div>
           </div>
         </>

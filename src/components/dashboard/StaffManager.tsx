@@ -1,6 +1,5 @@
 'use client'
 
-import { StaffWeeklyHours } from '@/components/dashboard/StaffWeeklyHours'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -9,20 +8,17 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import type { StaffMember, Media, Service } from '@/payload/payload-types'
 import { fixMediaUrl } from '@/lib/utils'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
-import { Plus, CalendarDays, Trash2, Search, Download, ChevronDown, Check, UserRound, Pencil, TriangleAlert } from 'lucide-react'
+import { Plus, CalendarDays, Trash2, Search, Download, ChevronDown, Check, UserRound, Pencil, TriangleAlert, Sparkles } from 'lucide-react'
 
-import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
-import { SocialLinksEditor } from '@/components/settings/SocialLinksEditor'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
+import { Switch } from '@/components/ui/toggle-switch'
+import { SectionBar, FieldRow, ROW_INPUT } from '@/components/shared/FormSheet'
 import { PageHeader } from '@/components/ui/page-header'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { HiringOverlay } from '@/components/dashboard/HiringOverlay'
-import type { Employee } from '@/components/dashboard/HiringView'
+import type { Employee, SalonBookingProps, SalonBookingSettings } from '@/components/dashboard/HiringView'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { compressImage } from '@/lib/compressImage'
 
@@ -108,6 +104,8 @@ interface Props {
   /** MÁSOK fizetésének megtekintése/kezelése az adatlapon (`staff.salary`) — a sajátját ettől
    *  függetlenül mindenki látja (lásd `viewerEmail`), jogosultság nélkül. */
   canViewOthersSalary?: boolean
+  /** `availability.manage` — a naptár nap-szerkesztője és a heti munkaidő írása ehhez kötött (a szerver is ellenőrzi). */
+  canEditAvailability?: boolean
   /** A bejelentkezett néző e-mailje — az adatlap ez alapján ismeri fel, hogy a megnyitott
    *  profil a sajátja-e (akkor a fizetés jog nélkül is látszik). */
   viewerEmail?: string | null
@@ -148,6 +146,7 @@ export default function StaffManager({
   avatarUrlByEmail,
   canManage = false,
   canViewOthersSalary = false,
+  canEditAvailability = false,
   viewerEmail = null,
   extraStaffFeeHuf = 0,
   includedStaffCount = 1,
@@ -186,21 +185,20 @@ export default function StaffManager({
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [statusMenuId, setStatusMenuId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
-  const [editing, setEditing] = useState<StaffMember | null>(null)
+  // A ceruza a profilablakot SZERKESZTŐ módban nyitja (a régi szerkesztő-oldalsáv helyett —
+  // minden munkatárs-adat egy helyen, a profilban; az oldalsáv már csak új felvételre van).
+  const [editOnOpen, setEditOnOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   // Nyelvkészlet a szalon supported_locales-éből (HU mindig benne). A bio localizált mező —
   // szerkesztéskor nyelvenként vihető be a `?locale=` paraméterrel.
   const availableLocales = resolveAvailableLocales(supportedLocales)
-  const [editLocale, setEditLocale] = useState<Locale>('hu')
-  const [localeLoading, setLocaleLoading] = useState(false)
 
   const [avatarId, setAvatarId] = useState<number | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [avatarModified, setAvatarModified] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [socialLinks, setSocialLinks] = useState<string[]>([])
 
   const [openCalendar, setOpenCalendar] = useState(false)
 
@@ -214,12 +212,9 @@ export default function StaffManager({
 
   const openAdd = () => {
     reset({ name: '', bio: '', email: '', role_title: '', booking_buffer_minutes: '', min_lead_hours: '', is_active: true })
-    setEditing(null)
-    setEditLocale('hu')
     setAvatarId(null)
     setAvatarPreview(null)
     setAvatarModified(false)
-    setSocialLinks([])
     setSelectedServiceIds([])
     // "— Szerepkör nélkül —" a valódi alapértelmezett — korábban itt hibásan az ELSŐ elérhető
     // szerepre állt, így ha valaki nem figyelt oda, minden új munkatárs AUTOMATIKUSAN megkapta
@@ -241,49 +236,50 @@ export default function StaffManager({
     }
   }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const openEdit = (m: StaffMember) => {
-    reset({ name: m.name, bio: m.bio ?? '', email: m.email ?? '', role_title: m.role_title ?? '', booking_buffer_minutes: m.booking_buffer_minutes != null ? String(m.booking_buffer_minutes) : '', min_lead_hours: m.min_lead_hours != null ? String(m.min_lead_hours) : '', is_active: m.is_active ?? true })
-    setEditing(m)
-    setEditLocale('hu')
-    const url = avatarUrl(m, avatarUrlByEmail)
-    setAvatarPreview(url)
-    const media = m.avatar && typeof m.avatar === 'object' ? (m.avatar as Media) : null
-    setAvatarId(media ? Number(media.id) : null)
-    setAvatarModified(false)
-    setSocialLinks((m.social_links ?? []).map((s) => s.url))
-    // Előre-töltjük: mely szolgáltatásokban szerepel ez a munkatárs
-    setSelectedServiceIds(
-      salonServices
-        .filter(s => (s.staff ?? []).some(sm => String(sm) === String(m.id)))
-        .map(s => String(s.id))
-    )
-    setOpen(true)
+  const openProfileEdit = (m: StaffMember, fallbackIdx: number) => {
+    const empIdx = empList.findIndex(emp => String(emp.id) === String(m.id))
+    setHiringIndex(empIdx >= 0 ? empIdx : fallbackIdx)
+    setEditOnOpen(true)
   }
 
-  // Szerkesztési nyelv váltása. HU-ra váltva az alap (editing) bio tér vissza; más nyelvre
-  // lekérdezzük az adott nyelvi tartalmat (üres → a mező üres, HU fallback érvényes a foglalón).
-  const selectEditLocale = async (loc: Locale) => {
-    if (loc === editLocale) return
-    if (loc === 'hu') {
-      setEditLocale('hu')
-      setValue('bio', editing?.bio ?? '')
-      return
-    }
-    if (!editing) return
-    setLocaleLoading(true)
-    try {
-      const res = await fetch(`/api/staff/${editing.id}?locale=${loc}&fallback-locale=null&depth=0`, {
-        credentials: 'include',
+  // Szolgáltatás-hozzárendelés: minden érintett service staff tömbjét PATCH-eljük.
+  const syncServices = async (staffId: string, ids: string[]) => {
+    await Promise.allSettled(
+      salonServices.map(async (s) => {
+        const currentIds = (s.staff ?? []).map(sm => String(sm))
+        const shouldBeIn = ids.includes(String(s.id))
+        const isIn = currentIds.includes(staffId)
+        if (shouldBeIn === isIn) return
+        const nextStaff = shouldBeIn
+          ? [...currentIds, staffId].map(Number)
+          : currentIds.filter(id => id !== staffId).map(Number)
+        await fetch(`/api/services/${s.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ staff: nextStaff }),
+        })
       })
-      if (!res.ok) throw new Error()
-      const doc = await res.json()
-      setEditLocale(loc)
-      setValue('bio', doc.bio ?? '')
-    } catch {
-      toast.error('A nyelvi tartalom betöltése sikertelen')
-    } finally {
-      setLocaleLoading(false)
-    }
+    )
+  }
+
+  // A profil-szerkesztő „Foglalás” blokkjának adatai + mentés utáni szinkron.
+  const salonBooking: SalonBookingProps = {
+    services: salonServices.map(s => ({ id: String(s.id), name: s.name })),
+    locales: availableLocales,
+    byId: Object.fromEntries(staff.map((m): [string, SalonBookingSettings] => [String(m.id), {
+      email: m.email ?? '',
+      isActive: m.is_active ?? true,
+      buffer: m.booking_buffer_minutes != null ? String(m.booking_buffer_minutes) : '',
+      minLead: m.min_lead_hours != null ? String(m.min_lead_hours) : '',
+      serviceIds: salonServices.filter(s => (s.staff ?? []).some(sm => String(sm) === String(m.id))).map(s => String(s.id)),
+    }])),
+    onSaved: async (staffId, b) => {
+      const toNum = (v: string) => (v.trim() === '' ? null : Number(v.replace(',', '.')))
+      setStaff(prev => prev.map(m => String(m.id) === staffId ? { ...m, email: b.email.trim() || null, is_active: b.isActive, booking_buffer_minutes: toNum(b.buffer), min_lead_hours: toNum(b.minLead) } : m))
+      await syncServices(staffId, b.serviceIds)
+      router.refresh()
+    },
   }
 
   const handleAvatarPick = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -324,20 +320,6 @@ export default function StaffManager({
   const onSubmit = async (data: FormData) => {
     setSubmitting(true)
     try {
-      // Idegen nyelv szerkesztése: csak a localizált bio-t PATCH-eljük az adott nyelvre.
-      if (editLocale !== 'hu' && editing) {
-        const res = await fetch(`/api/staff/${editing.id}?locale=${editLocale}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ bio: data.bio || null }),
-        })
-        if (!res.ok) throw new Error()
-        setOpen(false)
-        toast.success('Fordítás mentve')
-        return
-      }
-
       const body: Record<string, unknown> = { ...data, salon: salonId }
       const toNum = (v: string | undefined, max: number): number | null => {
         const n = Number(String(v ?? '').replace(',', '.'))
@@ -345,14 +327,11 @@ export default function StaffManager({
       }
       body.booking_buffer_minutes = toNum(data.booking_buffer_minutes, 240)
       body.min_lead_hours = toNum(data.min_lead_hours, 720)
-      body.social_links = socialLinks.filter((u) => u.trim()).map((url) => ({ url }))
-      if (avatarModified) body.avatar = avatarId ?? null
-      else if (avatarId) body.avatar = avatarId
-      // Szerepkör: csak új munkatársnál, ha van kiválasztva (a membership-hez, nem a staff rekordhoz)
-      if (!editing && selectedRoleId) body.custom_role = selectedRoleId
-      const url = editing ? `/api/staff/${editing.id}` : '/api/staff'
-      const res = await fetch(url, {
-        method: editing ? 'PATCH' : 'POST',
+      if (avatarId) body.avatar = avatarId
+      // Szerepkör: ha van kiválasztva (a membership-hez, nem a staff rekordhoz)
+      if (selectedRoleId) body.custom_role = selectedRoleId
+      const res = await fetch('/api/staff', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify(body),
@@ -364,32 +343,11 @@ export default function StaffManager({
       // toDelete `.find` undefined-en hasal el).
       const saved: StaffMember = (json?.doc ?? json) as StaffMember
       if (!saved?.id) throw new Error('Érvénytelen szerver-válasz')
-      setStaff(prev => editing ? prev.map(m => m.id === saved.id ? saved : m) : [...prev, saved])
-
-      // Szolgáltatás-hozzárendelés frissítése: minden érintett service staff tömbjét PATCH-eljük.
-      if (salonServices.length > 0) {
-        const staffId = String(saved.id)
-        await Promise.allSettled(
-          salonServices.map(async (s) => {
-            const currentIds = (s.staff ?? []).map(sm => String(sm))
-            const shouldBeIn = selectedServiceIds.includes(String(s.id))
-            const isIn = currentIds.includes(staffId)
-            if (shouldBeIn === isIn) return
-            const nextStaff = shouldBeIn
-              ? [...currentIds, staffId].map(Number)
-              : currentIds.filter(id => id !== staffId).map(Number)
-            await fetch(`/api/services/${s.id}`, {
-              method: 'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include',
-              body: JSON.stringify({ staff: nextStaff }),
-            })
-          })
-        )
-      }
+      setStaff(prev => [...prev, saved])
+      if (salonServices.length > 0) await syncServices(String(saved.id), selectedServiceIds)
 
       setOpen(false)
-      toast.success(editing ? 'Frissítve' : 'Munkatárs hozzáadva')
+      toast.success('Munkatárs hozzáadva')
       router.refresh()
     } catch {
       toast.error('Hiba történt')
@@ -813,7 +771,7 @@ export default function StaffManager({
                       </>
                     )}
                     <button onClick={(e) => { e.stopPropagation(); const empIdx = employees?.findIndex(emp => String(emp.id) === String(m.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : idx); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>
-                    {canManage && <button onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>}
+                    {canManage && <button onClick={(e) => { e.stopPropagation(); openProfileEdit(m, idx) }} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>}
                     {canManage && <button onClick={(e) => { e.stopPropagation(); setDeleteId(String(m.id)) }} title="Törlés" className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-white"><Trash2 className="h-[14px] w-[14px]" strokeWidth={1.6} /></button>}
                   </div>
                 </div>
@@ -847,7 +805,7 @@ export default function StaffManager({
                     </div>
                   </div>
                   <button onClick={(e) => { e.stopPropagation(); const empIdx = employees?.findIndex(emp => String(emp.id) === String(m.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : idx); setOpenCalendar(true) }} title="Elérhetőség" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><CalendarDays className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>
-                  {canManage && <button onClick={(e) => { e.stopPropagation(); openEdit(m) }} title="Szerkesztés" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>}
+                  {canManage && <button onClick={(e) => { e.stopPropagation(); openProfileEdit(m, idx) }} title="Szerkesztés" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white"><Pencil className="h-[15px] w-[15px]" strokeWidth={1.6} /></button>}
                 </div>
               </div>
             )
@@ -855,161 +813,111 @@ export default function StaffManager({
         </div>
       </div>
 
-      {/* Edit / Add — oldalsáv */}
+      {/* Új munkatárs — rövid oldalsáv (a többi adat a profilban szerkeszthető, ld. HiringView) */}
       <Sheet open={open} onOpenChange={(v) => !v && setOpen(false)}>
-        <SheetContent side="right" className="w-full max-w-[440px] overflow-y-auto p-0">
-          <SheetHeader className="border-b border-line px-6 py-5">
-            <SheetTitle className="text-[17px] font-bold text-ink">
-              {editing ? 'Munkatárs szerkesztése' : 'Új munkatárs'}
-            </SheetTitle>
+        <SheetContent side="right" className="flex w-full max-w-[440px] flex-col gap-0 p-0">
+          <SheetHeader className="border-b border-line px-5 py-4">
+            <SheetTitle className="text-[17px] font-bold text-ink">Új munkatárs</SheetTitle>
           </SheetHeader>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 px-6 py-5">
-
-            {editing && availableLocales.length > 1 && (
-              <LocaleEditBar
-                available={availableLocales}
-                active={editLocale}
-                onSelect={selectEditLocale}
-                loading={localeLoading}
-              />
-            )}
-
-            {editLocale === 'hu' && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Név *</Label>
-              <Input className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('name')} />
-              {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
-            </div>
-            )}
-            {editLocale === 'hu' && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Email <span className="font-normal text-ink-soft2">(a foglalás-értesítőkhöz)</span></Label>
-              <Input type="email" className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('email')} placeholder="szakember@example.com" />
-              {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
-            </div>
-            )}
-            {editLocale === 'hu' && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Pozíció</Label>
-              <Input className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('role_title')} placeholder="Műszakvezető · Stylist" />
-            </div>
-            )}
-            {editLocale === 'hu' && (
-            <div className="grid grid-cols-1 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Szünet foglalások között <span className="font-normal text-ink-soft2">(perc)</span></Label>
-                <Input type="number" inputMode="numeric" min={0} max={240} className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('booking_buffer_minutes')} placeholder="Szalon alapja" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm font-medium">Minimum foglalás előre <span className="font-normal text-ink-soft2">(óra)</span></Label>
-                <Input type="number" inputMode="decimal" min={0} max={720} step={0.5} className="h-11 rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('min_lead_hours')} placeholder="Nincs korlát" />
-              </div>
-              <p className="text-[11.5px] text-ink-soft2">Üresen hagyva a szalon alapbeállítása érvényes. A minimum idő csak az online foglalást korlátozza, a te kézi foglalásodat nem.</p>
-            </div>
-            )}
-            {editLocale === 'hu' && editing && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Heti munkaidő</Label>
-              <StaffWeeklyHours salonId={String(salonId)} staffId={String(editing.id)} />
-            </div>
-            )}
-            {editLocale === 'hu' && !editing && salonRoles.length > 0 && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Szerepkör <span className="font-normal text-ink-soft2">(Csapat & jogokban is megjelenik)</span></Label>
-              <div className="relative">
-                <select
-                  value={selectedRoleId}
-                  onChange={(e) => setSelectedRoleId(e.target.value)}
-                  className="h-11 w-full appearance-none rounded-xl border border-line-strong bg-white px-4 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-gold/40"
-                >
-                  <option value="">— Szerepkör nélkül —</option>
-                  {salonRoles.map((r) => (
-                    <option key={r.id} value={r.id}>{r.name}</option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
-              </div>
-            </div>
-            )}
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Bemutatkozás</Label>
-              <Textarea className="rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2" {...register('bio')} rows={3} placeholder={editLocale !== 'hu' ? (editing?.bio ?? '') : undefined} />
-            </div>
-            {editLocale === 'hu' && (
-            <div className="space-y-1.5">
-              <Label className="text-sm font-medium">Közösségi linkek</Label>
-              <SocialLinksEditor
-                value={socialLinks}
-                onChange={setSocialLinks}
-                inputClassName="rounded-xl bg-white border-line-strong text-ink placeholder:text-ink-soft2"
-              />
-            </div>
-            )}
-            {editLocale === 'hu' && (
-            <label htmlFor="staff_active" className="flex items-center justify-between rounded-xl border border-line bg-[#f4f4f4] px-4 py-3.5 cursor-pointer">
-              <span>
-                <span className="block text-sm font-medium text-ink">Aktív</span>
-                <span className="mt-0.5 block text-xs text-ink-soft">Foglalható a foglaló oldalon</span>
-              </span>
-              <span className="relative inline-flex">
-                <input type="checkbox" id="staff_active" className="peer sr-only" {...register('is_active')} />
-                <span className={`h-[26px] w-[46px] rounded-full transition-colors ${activeWatch ? 'bg-ink-dark' : 'bg-line-strong'}`} />
-                <span className={`absolute top-[3px] h-5 w-5 rounded-full bg-white transition-all ${activeWatch ? 'left-[23px]' : 'left-[3px]'}`} />
-              </span>
-            </label>
-            )}
-            {editLocale === 'hu' && !editing && activeWatch && activeCount >= includedStaffCount && extraStaffFeeHuf > 0 && (
-              <p className="rounded-xl border border-gold/40 bg-warn-bg px-4 py-3 text-[12.5px] text-warn">
-                Ez a munkatárs aktívként +{extraStaffFeeHuf.toLocaleString('hu-HU')} Ft-tal növeli a havidíjadat (az első munkatárs benne van az alapdíjban, minden további fő külön díjköteles).
-              </p>
-            )}
-            {editLocale === 'hu' && salonServices.length > 0 && (
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">
-                  Szolgáltatások <span className="font-normal text-ink-soft2">(melyeket elvégez)</span>
-                </Label>
-                <div className="flex flex-wrap gap-1.5">
-                  {salonServices.map(s => {
-                    const sel = selectedServiceIds.includes(String(s.id))
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => setSelectedServiceIds(prev =>
-                          sel ? prev.filter(id => id !== String(s.id)) : [...prev, String(s.id)]
-                        )}
-                        className="inline-flex h-8 items-center rounded-full px-3 text-[12px] font-medium transition-all"
-                        style={{
-                          background: sel ? '#1D1C19' : 'transparent',
-                          color: sel ? '#fff' : '#57564f',
-                          border: `1px solid ${sel ? '#1D1C19' : '#d9d4c5'}`,
-                        }}
+          <form onSubmit={handleSubmit(onSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-3 py-5">
+              <section>
+                <SectionBar icon={UserRound} label="Alapadatok" />
+                <FieldRow label="Név *" hint={errors.name?.message} hintTone="bad">
+                  <input className={`${ROW_INPUT} w-full outline-none`} placeholder="Kovács Anna" autoFocus {...register('name')} />
+                </FieldRow>
+                <FieldRow label="Email" hint={errors.email?.message} hintTone="bad">
+                  <input type="email" className={`${ROW_INPUT} w-full outline-none`} placeholder="ide mennek a foglalás-értesítők" {...register('email')} />
+                </FieldRow>
+                <FieldRow label="Pozíció" last={salonRoles.length === 0}>
+                  <input className={`${ROW_INPUT} w-full outline-none`} placeholder="Stylist, Masszőr…" {...register('role_title')} />
+                </FieldRow>
+                {salonRoles.length > 0 && (
+                  <FieldRow label="Szerepkör" last hint="A Csapat & jogok oldalon is megjelenik.">
+                    <div className="relative">
+                      <select
+                        value={selectedRoleId}
+                        onChange={(e) => setSelectedRoleId(e.target.value)}
+                        className={`${ROW_INPUT} w-full cursor-pointer appearance-none pr-6 outline-none`}
                       >
-                        {s.name}
+                        <option value="">Szerepkör nélkül</option>
+                        {salonRoles.map((r) => (
+                          <option key={r.id} value={r.id}>{r.name}</option>
+                        ))}
+                      </select>
+                      <ChevronDown className="pointer-events-none absolute right-0 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft" />
+                    </div>
+                  </FieldRow>
+                )}
+              </section>
+
+              <section>
+                <SectionBar icon={Sparkles} label="Foglalás" />
+                <FieldRow
+                  label="Foglalható"
+                  last={salonServices.length === 0}
+                  hint={activeWatch && activeCount >= includedStaffCount && extraStaffFeeHuf > 0 ? `Aktívként +${extraStaffFeeHuf.toLocaleString('hu-HU')} Ft-tal nő a havidíj.` : undefined}
+                  hintTone="warn"
+                >
+                  <div className="flex items-center justify-end">
+                    <Switch checked={!!activeWatch} onChange={(v) => setValue('is_active', v)} ariaLabel="Foglalható online" />
+                  </div>
+                </FieldRow>
+                {salonServices.length > 0 && (
+                  <FieldRow
+                    label="Szolgáltatások"
+                    stacked
+                    last
+                    hint="Ha egy sincs kijelölve, online egyik szolgáltatásra sem foglalható."
+                    aside={
+                      <button
+                        type="button"
+                        onClick={() => setSelectedServiceIds(selectedServiceIds.length === salonServices.length ? [] : salonServices.map(s => String(s.id)))}
+                        className="text-[11.5px] font-semibold text-ink-soft hover:text-ink"
+                      >
+                        {selectedServiceIds.length === salonServices.length ? 'Egyik sem' : 'Mind'}
                       </button>
-                    )
-                  })}
-                </div>
-                <p className="text-[11px] text-ink-soft2">Ha nincs kiválasztva, az összes aktív szolgáltatásnál megjelenik</p>
-              </div>
-            )}
-            {editing && editLocale === 'hu' && (
-              <button
-                type="button"
-                onClick={() => { setOpen(false); const empIdx = employees?.findIndex(emp => String(emp.id) === String(editing!.id)) ?? -1; setHiringIndex(empIdx >= 0 ? empIdx : staff.findIndex(s => s.id === editing!.id)); setOpenCalendar(true) }}
-                className="flex w-full items-center gap-2.5 rounded-xl border border-line bg-[#f4f4f4] px-4 py-3.5 text-sm font-medium text-ink transition-colors hover:bg-white"
-              >
-                <CalendarDays className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
-                Elérhetőség naptár szerkesztése
+                    }
+                  >
+                    <div className="flex flex-wrap gap-1.5">
+                      {salonServices.map(s => {
+                        const sel = selectedServiceIds.includes(String(s.id))
+                        return (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => setSelectedServiceIds(prev =>
+                              sel ? prev.filter(id => id !== String(s.id)) : [...prev, String(s.id)]
+                            )}
+                            className={`inline-flex h-8 items-center gap-1 rounded-full border px-3 text-[12px] font-medium transition-colors ${sel ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink-soft hover:border-line-strong hover:text-ink'}`}
+                          >
+                            {sel && <Check className="h-3 w-3" strokeWidth={2.4} />}
+                            {s.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </FieldRow>
+                )}
+              </section>
+
+              <p className="px-3 text-[11.5px] leading-snug text-ink-soft2">
+                Telefon, munkaidő, bemutatkozás és a többi adat mentés után a munkatárs profiljában állítható.
+              </p>
+            </div>
+
+            <div className="flex gap-2 border-t border-line bg-white px-5 py-3.5">
+              <button type="button" onClick={() => setOpen(false)} className="h-11 rounded-dav-pill border border-line px-5 text-[14px] font-medium text-ink-soft transition-colors hover:border-line-strong hover:text-ink">
+                Mégse
               </button>
-            )}
-            <button
-              type="submit"
-              disabled={submitting || uploadingAvatar}
-              className="w-full h-12 rounded-dav-pill bg-ink-dark hover:bg-ink text-white font-semibold text-sm transition-colors disabled:opacity-50"
-            >
-              {submitting ? 'Mentés...' : editLocale !== 'hu' ? 'Fordítás mentése' : 'Mentés'}
-            </button>
+              <button
+                type="submit"
+                disabled={submitting || uploadingAvatar}
+                className="h-11 flex-1 rounded-dav-pill bg-ink-dark text-[14px] font-semibold text-white transition-colors hover:bg-ink disabled:opacity-50"
+              >
+                {submitting ? 'Mentés…' : 'Munkatárs hozzáadása'}
+              </button>
+            </div>
           </form>
         </SheetContent>
       </Sheet>
@@ -1042,13 +950,16 @@ export default function StaffManager({
       {/* Munkavállalók-adatlap overlay — a listasorra kattintva nyílik */}
       <HiringOverlay
         open={hiringIndex !== null}
-        onClose={() => { setHiringIndex(null); setOpenCalendar(false) }}
+        onClose={() => { setHiringIndex(null); setOpenCalendar(false); setEditOnOpen(false) }}
         variant="salon"
         employees={empList}
         positions={salonRoles.map(r => ({ label: r.name, level: 'staff' as const }))}
         initialIndex={hiringIndex ?? 0}
         salonId={salonId}
         openCalendar={openCalendar}
+        initialEditing={editOnOpen}
+        canEditAvailability={canEditAvailability}
+        salonBooking={canManage ? salonBooking : undefined}
         canManage={canManage}
         canEditSalary={canViewOthersSalary}
         viewerEmail={viewerEmail}
