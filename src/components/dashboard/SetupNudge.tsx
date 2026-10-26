@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Clock, ListChecks, ArrowRight, X, type LucideIcon } from 'lucide-react'
+import { Clock, ListChecks, ChevronRight, X, type LucideIcon } from 'lucide-react'
 import type { SetupFlags } from '@/lib/setupFlags'
 
 /**
@@ -41,8 +41,6 @@ export function SetupNudge({
 
   return (
     <div className="relative overflow-hidden rounded-[22px] dav-card-glass px-5 py-4 sm:px-6">
-      {/* finom arany kiemelés bal szélen */}
-      <span className="absolute inset-y-0 left-0 w-1 bg-gold" aria-hidden />
       <button
         type="button"
         onClick={() => setDismissed(true)}
@@ -66,7 +64,7 @@ export function SetupNudge({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 sm:pr-8">
           {pending.map((s) => {
             const Icon = s.icon
             return (
@@ -77,7 +75,7 @@ export function SetupNudge({
               >
                 <Icon className="h-4 w-4 text-ink-soft2" strokeWidth={1.8} />
                 {s.label}
-                <ArrowRight className="h-3.5 w-3.5 text-ink-soft2" strokeWidth={2} />
+                <ChevronRight className="h-3.5 w-3.5 text-ink-soft2" strokeWidth={2.2} />
               </Link>
             )
           })}
@@ -86,7 +84,7 @@ export function SetupNudge({
             className="inline-flex items-center gap-1.5 rounded-dav-pill bg-ink-dark px-3.5 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
           >
             Összes lépés
-            <ArrowRight className="h-3.5 w-3.5 text-gold" strokeWidth={2} />
+            <ChevronRight className="h-3.5 w-3.5 text-gold" strokeWidth={2.2} />
           </Link>
         </div>
       </div>
