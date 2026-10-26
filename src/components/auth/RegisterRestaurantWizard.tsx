@@ -28,6 +28,7 @@ import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
 import { AuthPillButton } from '@/components/auth/AuthPillButton'
 import { useAvailabilityCheck } from '@/components/auth/useAvailabilityCheck'
 import { FieldStatusIcon } from '@/components/auth/FieldStatusIcon'
+import { PhoneInput } from '@/components/booking/PhoneCountryInput'
 
 /** Formátum-előszűrés, mielőtt a hook hálózati elérhetőség-ellenőrzést indítana. */
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -360,15 +361,12 @@ export function RegisterRestaurantWizard() {
                   </div>
                   <div className="space-y-1.5">
                     <Label className={authLabelDark}>Telefon</Label>
-                    <input
-                      type="tel"
-                      autoComplete="tel"
-                      inputMode="tel"
-                      placeholder="+36 30..."
-                      aria-invalid={!!mobileForm.formState.errors.phone}
-                      aria-describedby={mobileForm.formState.errors.phone ? 'rreg-m-phone-err' : undefined}
-                      className={cn(authInputDark, mobileForm.formState.errors.phone && 'ring-2 ring-red-400 border-red-400')}
-                      {...mobileForm.register('phone')}
+                    <PhoneInput
+                      value={mobileForm.watch('phone') ?? ''}
+                      onChange={(v) => mobileForm.setValue('phone', v, { shouldValidate: mobileForm.formState.isSubmitted })}
+                      required
+                      inputClass={cn(authInputDark, mobileForm.formState.errors.phone && 'ring-2 ring-red-400 border-red-400')}
+                      dark
                     />
                     {mobileForm.formState.errors.phone && <p id="rreg-m-phone-err" role="alert" className={authErrorTextDark}>{mobileForm.formState.errors.phone.message}</p>}
                   </div>
@@ -561,15 +559,11 @@ export function RegisterRestaurantWizard() {
                     </div>
                     <div className="space-y-1.5">
                       <Label className={authLabelBase}>Telefon</Label>
-                      <input
-                        type="tel"
-                        autoComplete="tel"
-                        inputMode="tel"
-                        placeholder="+36 30..."
-                        aria-invalid={!!desktopForm.formState.errors.phone}
-                        aria-describedby={desktopForm.formState.errors.phone ? 'rreg-d-phone-err' : undefined}
-                        className={cn(authInputBase, desktopForm.formState.errors.phone && 'ring-2 ring-bad/40 border-bad/60')}
-                        {...desktopForm.register('phone')}
+                      <PhoneInput
+                        value={desktopForm.watch('phone') ?? ''}
+                        onChange={(v) => desktopForm.setValue('phone', v, { shouldValidate: desktopForm.formState.isSubmitted })}
+                        required
+                        inputClass={cn(authInputBase, desktopForm.formState.errors.phone && 'ring-2 ring-bad/40 border-bad/60')}
                       />
                       {desktopForm.formState.errors.phone && <p id="rreg-d-phone-err" role="alert" className={authErrorText}>{desktopForm.formState.errors.phone.message}</p>}
                     </div>

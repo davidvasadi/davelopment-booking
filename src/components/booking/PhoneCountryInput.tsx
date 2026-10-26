@@ -1,27 +1,17 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { ChevronDown } from 'lucide-react'
-import { AsYouType, validatePhoneNumberLength, type CountryCode } from 'libphonenumber-js'
+// Telefon-mező a bevált `react-phone-number-input` könyvtárral (a `libphonenumber-js` szerzőjétől):
+// NINCS országválasztó — egyetlen mező, ami bármilyen formát elfogad („06 30…”, „+36 30…”,
+// „0036 30…”, „+44 7911…”), gépelés közben tagol, és felismeri az országot. A zászló (SVG, így
+// Windows alatt is látszik) a mező végén, CSAK felismert országnál úszik be.
+// Kifelé ugyanaz az API, mint eddig: `country` (ISO) + `phone` (helyi szám, előhívó nélkül), így
+// a hívó oldalak a `${dial} ${phone}` alakot mentik tovább, változatlanul.
 
-/**
- * Az ország szerint formázza a helyi számot GÉPELÉS közben (pl. HU: „30 123 4567"), ÉS
- * levágja a maximális hossz fölötti számjegyeket — így az adott országnak megengedett
- * legtöbb számjegynél tovább nem lehet gépelni (beillesztésnél a max-ra rövidít).
- */
-function formatLocalPhone(raw: string, countryCode: string): string {
-  const cc = countryCode as CountryCode
-  try {
-    let digits = raw.replace(/\D/g, '')
-    // A max hosszig rövidítjük: amíg TOO_LONG, dobjuk az utolsó számjegyet.
-    while (digits.length > 0 && validatePhoneNumberLength(digits, { defaultCountry: cc }) === 'TOO_LONG') {
-      digits = digits.slice(0, -1)
-    }
-    return new AsYouType(cc).input(digits)
-  } catch {
-    return raw
-  }
-}
+import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import PhoneNumberInput from 'react-phone-number-input/input'
+import flags from 'react-phone-number-input/flags'
+import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js'
 
 /** Ország + nemzetközi előhívó. A `code` az ISO-2 (statisztikához), a `dial` a hívókód. */
 export type Country = { code: string; name: string; dial: string }
@@ -129,10 +119,26 @@ export const COUNTRIES: Country[] = [
 
 export const DEFAULT_COUNTRY = COUNTRIES[0] // HU
 
-/**
- * Telefon-mező zászlós ország-előhívó választóval. A `country` (ISO) és a `phone`
- * (helyi szám) külön kontrollált. A teljes nemzetközi szám: `${dial} ${phone}`.
- */
+const dialOf = (code: string) => ALL.find((c) => c.code === code)?.dial ?? DEFAULT_COUNTRY.dial
+
+/** ország + helyi szám → E.164 („+36301234567”), vagy undefined */
+function toE164(country: string, phone: string): string | undefined {
+  if (!phone.trim()) return undefined
+  const p = parsePhoneNumberFromString(phone.trim().startsWith('+') ? phone : `${dialOf(country)} ${phone}`)
+  return p?.number
+}
+
+/** E.164 → ország + tagolt helyi szám előhívó nélkül („30 123 4567”) */
+function fromE164(value: string): { country: string | null; local: string } {
+  const p = parsePhoneNumberFromString(value)
+  if (!p) return { country: null, local: value.replace(/^\+\d{1,3}\s?/, '') }
+  const intl = p.formatInternational() // „+36 30 123 4567”
+  const local = intl.replace(`+${p.countryCallingCode}`, '').trim()
+  // a listánkban nem szereplő terület (pl. Guernsey) → a hívókód szerinti ország
+  const cc = p.country && ALL.some((c) => c.code === p.country) ? p.country : ALL.find((c) => c.dial === `+${p.countryCallingCode}`)?.code ?? null
+  return { country: cc, local }
+}
+
 export function PhoneCountryInput({
   country,
   phone,
@@ -156,83 +162,103 @@ export function PhoneCountryInput({
   onBlur?: () => void
   dark?: boolean
 }) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
-  const selected = COUNTRIES.find((c) => c.code === country) ?? DEFAULT_COUNTRY
-
+  const [value, setValue] = useState<string | undefined>(() => toE164(country, phone))
+  // Amit MI küldtünk ki utoljára (gépelésből) — erre a visszhangra nem szinkronizálunk, különben
+  // egy érvénytelen (pl. túl hosszú) számnál a könyvtár és a szinkron egymást hívta végtelenül.
+  const lastEmitted = useRef<{ country: string; phone: string } | null>(null)
+  // kívülről jövő változás (pl. visszatérő vendég kitöltése, űrlap ürítése) → a mező kövesse
   useEffect(() => {
-    if (!open) return
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
-  }, [open])
+    const own = lastEmitted.current
+    if (own && own.phone === phone && (own.country === country || !phone)) return
+    lastEmitted.current = null
+    const next = toE164(country, phone)
+    if (next !== value) setValue(next)
+  }, [country, phone]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Nyitáskor üres keresés; szűrés névre és hívókódra (ékezet-érzéketlenül).
-  const norm = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
-  const q = norm(query.trim())
-  const filtered = q ? COUNTRIES.filter((c) => norm(c.name).includes(q) || c.dial.includes(q)) : COUNTRIES
+  const handleChange = (v?: string) => {
+    setValue(v)
+    if (!v) { lastEmitted.current = { country, phone: '' }; onPhoneChange(''); return }
+    const { country: cc, local } = fromE164(v)
+    const nextCountry = cc ?? country
+    lastEmitted.current = { country: nextCountry, phone: local }
+    if (nextCountry !== country) onCountryChange(nextCountry)
+    onPhoneChange(local)
+  }
+
+  // zászló csak FELISMERT, a listánkban szereplő országnál
+  const parsed = value ? parsePhoneNumberFromString(value) : undefined
+  const flagCode = parsed?.country ?? (parsed ? fromE164(value!).country : null)
+  const Flag = flagCode ? flags[flagCode as CountryCode] : undefined
 
   return (
-    <div ref={ref} className="relative flex gap-2">
-      <button
-        type="button"
-        onClick={() => { setOpen((o) => !o); setQuery('') }}
-        aria-label={`Országhívó: ${selected.dial}`}
-        aria-expanded={open}
-        className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm ${dark ? 'border border-white/10 bg-white/[0.06]' : 'border border-zinc-200 bg-zinc-50'} ${inputClass}`}
-      >
-        <span className={`tabular-nums font-semibold ${dark ? 'text-white' : 'text-zinc-900'}`}>{selected.dial}</span>
-        <ChevronDown className={`h-3.5 w-3.5 opacity-50 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      <input
-        ref={inputRef}
-        type="tel"
-        inputMode="tel"
-        autoComplete="tel"
-        required={required}
-        aria-label="Telefonszám"
-        placeholder={`Telefonszám${required ? '' : ' (opcionális)'}`}
-        value={phone}
-        onChange={(e) => onPhoneChange(formatLocalPhone(e.target.value, country))}
+    <div className={`flex items-center gap-2.5 ${inputClass}`}>
+      <PhoneNumberInput
+        ref={inputRef as React.Ref<HTMLInputElement>}
+        defaultCountry="HU"
+        // az adott ország leghosszabb számánál több számjegyet nem enged beírni
+        limitMaxLength
+        value={value}
+        onChange={handleChange}
         onBlur={onBlur}
-        className={`flex-1 min-w-0 ${inputClass}`}
+        required={required}
+        autoComplete="tel"
+        aria-label="Telefonszám"
+        title="Megadható 06…, +36… vagy 0036… formában is — az országot a rendszer felismeri."
+        placeholder={required ? '06 30 123 4567' : '06 30 123 4567 (opcionális)'}
+        className={`h-full min-w-0 flex-1 border-0 bg-transparent p-0 tabular-nums outline-none placeholder:opacity-60 ${dark ? 'text-white' : ''}`}
       />
-      {open && (
-        <div
-          data-lenis-prevent
-          className="absolute left-0 top-full z-50 mt-1 w-72 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl"
-        >
-          <div className="p-2 border-b border-zinc-100">
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ország keresése…"
-              className="w-full h-9 rounded-lg bg-zinc-50 border border-zinc-200 px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none"
-            />
-          </div>
-          <div className="max-h-60 overflow-y-auto overscroll-contain">
-            {filtered.length === 0 ? (
-              <p className="px-3 py-4 text-center text-sm text-zinc-400">Nincs találat</p>
-            ) : filtered.map((c) => (
-              <button
-                key={c.code}
-                type="button"
-                onClick={() => { onCountryChange(c.code); setOpen(false); setQuery('') }}
-                className={`flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm hover:bg-zinc-50 ${
-                  c.code === selected.code ? 'bg-zinc-50 font-semibold' : ''
-                }`}
-              >
-                <span className="flex-1 min-w-0 truncate text-zinc-700">{c.name}</span>
-                <span className="shrink-0 tabular-nums text-xs text-zinc-400">{c.dial}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <AnimatePresence>
+        {Flag && (
+          <motion.span
+            key={flagCode}
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 500, damping: 28 } }}
+            exit={{ opacity: 0, scale: 0.6, transition: { duration: 0.12 } }}
+            className="flex h-[13px] w-5 shrink-0 overflow-hidden rounded-[2px] shadow-[0_0_0_1px_rgba(0,0,0,.08)]"
+            title={ALL.find((c) => c.code === flagCode)?.name}
+          >
+            <Flag title="" />
+          </motion.span>
+        )}
+      </AnimatePresence>
     </div>
+  )
+}
+
+/**
+ * Ugyanaz a telefon-mező EGY szöveges értékkel (`+36 30 123 4567`) — azokhoz az űrlapokhoz,
+ * amelyek a számot egyben tárolják (regisztráció, új üzlet, új vendég, kapcsolat).
+ */
+export function PhoneInput({
+  value,
+  onChange,
+  required,
+  inputClass = '',
+  dark = false,
+}: {
+  value: string
+  onChange: (full: string) => void
+  required?: boolean
+  inputClass?: string
+  dark?: boolean
+  defaultCountry?: string
+}) {
+  const init = value ? fromE164(parsePhoneNumberFromString(value, 'HU')?.number ?? value) : { country: 'HU', local: '' }
+  const [country, setCountry] = useState(init.country ?? 'HU')
+  const [local, setLocal] = useState(init.local)
+  // ugyanabban az eseményben változhat az ország ÉS a szám → a legfrissebb országgal rakjuk össze
+  const countryRef = useRef(country)
+  useEffect(() => { if (!value && local) setLocal('') }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
+  const compose = (code: string, loc: string) => (loc.trim() ? `${dialOf(code)} ${loc.trim()}` : '')
+  return (
+    <PhoneCountryInput
+      country={country}
+      phone={local}
+      required={required}
+      inputClass={inputClass}
+      dark={dark}
+      onCountryChange={(c) => { countryRef.current = c; setCountry(c) }}
+      onPhoneChange={(p) => { setLocal(p); onChange(compose(countryRef.current, p)) }}
+    />
   )
 }

@@ -10,6 +10,7 @@ import { listStagger } from '@/lib/motion'
 import { Label } from '@/components/ui/label'
 import { BrandLogo } from '@/components/BrandLogo'
 import { WizardImportStep } from '@/components/auth/WizardImportStep'
+import { PhoneInput } from '@/components/booking/PhoneCountryInput'
 import {
   authInputBase, authInputDark,
   authLabelBase, authLabelDark,
@@ -191,14 +192,11 @@ export function NewBusinessForm({ alreadyPaying }: { alreadyPaying: boolean }) {
                     </div>
                     <div className="space-y-1.5">
                       <Label className={authLabelDark}>Telefon</Label>
-                      <input
+                      <PhoneInput
                         value={phone}
-                        onChange={e => setPhone(e.target.value.replace(/[^\d+\s\-()+]/g, ''))}
-                        placeholder="+36 30..."
-                        type="tel"
-                        autoComplete="tel"
-                        inputMode="tel"
-                        className={authInputDark}
+                        onChange={setPhone}
+                        inputClass={authInputDark}
+                        dark
                       />
                     </div>
                   </motion.div>
@@ -309,14 +307,10 @@ export function NewBusinessForm({ alreadyPaying }: { alreadyPaying: boolean }) {
                     </div>
                     <div className="space-y-1.5">
                       <Label className={authLabelBase}>Telefon</Label>
-                      <input
+                      <PhoneInput
                         value={phone}
-                        onChange={e => setPhone(e.target.value.replace(/[^\d+\s\-()+]/g, ''))}
-                        placeholder="+36 30..."
-                        type="tel"
-                        autoComplete="tel"
-                        inputMode="tel"
-                        className={authInputBase}
+                        onChange={setPhone}
+                        inputClass={authInputBase}
                       />
                     </div>
                   </motion.div>

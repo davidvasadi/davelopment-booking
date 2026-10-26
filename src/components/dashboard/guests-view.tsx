@@ -19,6 +19,7 @@ import { StatusPills, type StatusSeg } from '@/components/dashboard/StatusPills'
 import { CountUpKpi, type KpiIcon } from '@/components/dashboard/CountUpKpi'
 import GuestMapClient from '@/components/dashboard/GuestMapClient'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
+import { PhoneInput } from '@/components/booking/PhoneCountryInput'
 
 /**
  * Avatar: ha van Gravatar-kép, azt mutatja; 404/betöltési hibánál a monogramos
@@ -952,7 +953,7 @@ export function GuestsView({
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-[11.5px] font-semibold text-ink-soft">Telefon</span>
-                <input type="tel" value={newForm.phone} onChange={(e) => setNewForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+36 20 123 4567" className="rounded-[12px] border border-line bg-[#FCFCFB] px-3 py-2 text-[16px] text-ink placeholder:text-ink-soft2 focus:outline-none lg:text-[13.5px]" />
+                <PhoneInput value={newForm.phone} onChange={(v) => setNewForm((f) => ({ ...f, phone: v }))} inputClass="h-[42px] rounded-[12px] border border-line bg-[#FCFCFB] px-3 text-[16px] text-ink placeholder:text-ink-soft2 lg:text-[13.5px]" />
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-[11.5px] font-semibold text-ink-soft">E-mail</span>

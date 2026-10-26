@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { authInputDark, authLabelDark, authErrorTextDark } from '@/components/auth/authStyles'
 import { EASE, buttonHover } from '@/lib/motion'
 import { cn } from '@/lib/utils'
+import { PhoneInput } from '@/components/booking/PhoneCountryInput'
 
 export function ContactForm() {
   const [name, setName] = useState('')
@@ -93,13 +94,7 @@ export function ContactForm() {
       </div>
       <div className="space-y-1.5">
         <Label className={authLabelDark}>Telefonszám (opcionális)</Label>
-        <input
-          type="tel"
-          placeholder="+36 30 123 4567"
-          value={phone}
-          onChange={e => setPhone(e.target.value)}
-          className={authInputDark}
-        />
+        <PhoneInput value={phone} onChange={setPhone} inputClass={authInputDark} dark />
       </div>
       <div key={`message-${shakeKey}`} className={cn('space-y-1.5', fieldErrors.message && 'animate-shake')}>
         <Label className={authLabelDark}>Miben segíthetünk?</Label>
