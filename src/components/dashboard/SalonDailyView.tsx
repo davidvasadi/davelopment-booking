@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal, fixMediaUrl } from '@/lib/utils'
+import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal, fixMediaUrl, formatPrice } from '@/lib/utils'
 import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, CalendarRange, CalendarClock, UserRound, Banknote, Coffee } from 'lucide-react'
 import type { BookingsRange } from './DateFilter'
 import { StatusPills } from '@/components/dashboard/StatusPills'
@@ -297,8 +297,6 @@ export function SalonDailyView(props: SalonDailyViewProps) {
   // a MÉG AKTÍV, megerősített (nem befejezett, nem lemondott) foglalásokat — így a három sáv
   // ténylegesen a nap valós lefolyását tükrözi, nem csak egy statikus "megerősítve" halmazt.
   const activeConfirmedCount = bookings.filter((b) => b.status === 'confirmed').length
-  // A Kezelendő KPI-szám (lejárt idősávú, még nem lezárt foglalás) külön, a pilltől függetlenül.
-  const pendingCount = bookings.filter((b) => needsHandling(b, nowMin)).length
   const cancelledCount = bookings.filter((b) => b.status === 'cancelled').length
   const activeCount = bookings.filter((b) => b.status !== 'cancelled').length
   const completedCount = bookings.filter((b) => b.status === 'completed').length
@@ -335,11 +333,13 @@ export function SalonDailyView(props: SalonDailyViewProps) {
                 key={mode}
                 onClick={() => pick(mode)}
                 title={label}
-                className={`flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-[15px] text-[13px] font-semibold transition-colors ${
+                ariaLabel={label}
+                className={`flex h-8 w-9 items-center justify-center rounded-[15px] transition-colors ${
                   view === mode ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink'
                 }`}
               >
-                <Icon className="h-3.5 w-3.5 shrink-0" /> <span className="hidden sm:inline">{label}</span>
+                {/* csak ikon — a nevét rámutatva (title) írja ki */}
+                <Icon className="h-4 w-4 shrink-0" />
               </HoverButton>
             ))}
           </div>
@@ -371,13 +371,12 @@ export function SalonDailyView(props: SalonDailyViewProps) {
           <div className="flex flex-wrap items-start gap-8 lg:gap-10">
             <CountUpKpi icon="calendar" value={activeCount} label="Foglalás" />
             <CountUpKpi icon="done" value={completedCount} label="Befejezett" />
-            <CountUpKpi icon="check" value={pendingCount} label="Függő" />
             <CountUpKpi icon="clock" value={avgDuration} label="Átl. idő (perc)" />
           </div>
         </div>
       )}
 
-      {view === 'list' && <ListView date={date} bookings={bookings} onEdit={openEdit} consentEnabled={consentEnabled} />}
+      {view === 'list' && <ListTableView date={date} bookings={bookings} onEdit={openEdit} consentEnabled={consentEnabled} />}
       {view === 'timeline' && (
         <TimelineView
           date={date}
@@ -425,43 +424,114 @@ export function SalonDailyView(props: SalonDailyViewProps) {
   )
 }
 
-/* ---------- Lista nézet (egynapos) ---------- */
-function ListView({ date, bookings, onEdit, consentEnabled }: { date: string; bookings: Booking[]; onEdit: (b: Booking) => void; consentEnabled?: boolean }) {
-  const card = 'rounded-[26px] dav-card-glass'
+/* ---------- Lista nézet (egynapos) — táblázatos ---------- */
+// Státusz a táblázatban: CSAK pötty + színes felirat (nincs sor-háttér) — a sorok így nem
+// folynak egybe, a szem a státusz-oszlopon fut végig.
+const TABLE_STATUS: Record<string, { dot: string; text: string }> = {
+  confirmed: { dot: 'bg-[#1D9D63]', text: 'text-[#1D7A4C]' },
+  pending: { dot: 'bg-[#E0B21C]', text: 'text-[#9A7B12]' },
+  completed: { dot: 'bg-[#B9B4A6]', text: 'text-ink-soft2' },
+  cancelled: { dot: 'bg-[#C0564A]', text: 'text-[#C0564A]' },
+}
+
+function ListTableView({ date, bookings, onEdit, consentEnabled }: { date: string; bookings: Booking[]; onEdit: (b: Booking) => void; consentEnabled?: boolean }) {
   const nowMin = useNowMinutes(date)
   const nowRef = useRef<HTMLDivElement>(null)
   const sorted = [...bookings].sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
   const nowIndex = nowMin == null ? -1 : sorted.findIndex((b) => hhmmToMinutes(b.start_time) >= nowMin)
-
+  const scrollRef = useRef<HTMLDivElement>(null)
+  // A „most” sorra ugrás CSAK a lista saját görgethető dobozán belül történik — korábban a
+  // scrollIntoView az egész oldalt rángatta, és percenként vissza kellett görgetni a fejlécre.
   useEffect(() => {
-    nowRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    const box = scrollRef.current
+    const row = nowRef.current
+    if (!box || !row) return
+    box.scrollTo({ top: Math.max(0, row.offsetTop - box.clientHeight / 2), behavior: 'smooth' })
   }, [nowIndex, date])
 
   if (sorted.length === 0) {
     return (
-      <div className={`${card} flex flex-col items-center justify-center gap-3 px-6 py-16 text-center`}>
+      <div className="flex flex-col items-center justify-center gap-3 rounded-[26px] dav-card-glass px-6 py-16 text-center">
         <CalendarDays className="h-8 w-8 text-ink-soft" strokeWidth={1.6} />
         <p className="text-sm text-ink-soft">Erre a napra nincs foglalás.</p>
       </div>
     )
   }
+
+  const GRID = 'grid grid-cols-[64px_1fr_auto] items-center gap-3 sm:grid-cols-[88px_1.3fr_1.2fr_1fr_96px_150px_40px] sm:gap-4'
   return (
-    <div className={`${card} divide-y divide-line overflow-hidden`}>
-      {sorted.map((b, i) => {
-        const showNow = i === nowIndex
-        return (
-          <div key={String(b.id)}>
-            {showNow && (
-              <div ref={nowRef} className="relative flex items-center gap-2 px-4 sm:px-5 py-1.5">
-                <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 animate-soft-pulse" />
-                <span className="text-[10px] font-bold uppercase tracking-wide text-red-500">Most · {minutesToHHMM(nowMin!)}</span>
-                <span className="h-px flex-1 bg-red-500/40" />
+    <div className="rounded-[26px] dav-card-glass p-3 sm:p-4">
+      {/* Fejléc-sáv */}
+      <div className={`${GRID} rounded-[14px] bg-[#F4F4F4] px-3 py-2.5 text-[12px] font-semibold text-ink-soft sm:px-4`}>
+        <span>Időpont</span>
+        <span>Vendég</span>
+        <span className="hidden sm:block">Szolgáltatás</span>
+        <span className="hidden sm:block">Szakember</span>
+        <span className="hidden text-right sm:block">Ár</span>
+        <span className="text-right sm:text-left">Státusz</span>
+        <span className="hidden sm:block" />
+      </div>
+
+      {/* a sorok saját dobozban görgetnek; a fejléc-sáv fölötte fix marad */}
+      <div ref={scrollRef} data-lenis-prevent className="relative mt-1 max-h-[calc(100dvh-220px)] min-h-[320px] overflow-y-auto overscroll-contain">
+        {sorted.map((b, i) => {
+          const svc = serviceOf(b)
+          const st = staffOf(b)
+          const draft = isDraft(b)
+          const overdue = !draft && needsHandling(b, nowMin)
+          const ts = TABLE_STATUS[b.status] ?? TABLE_STATUS.completed
+          const price = b.price_snapshot ?? svc?.price ?? null
+          return (
+            <div key={String(b.id)}>
+              {i === nowIndex && (
+                <div ref={nowRef} className="flex items-center gap-2 px-3 py-1.5 sm:px-4">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-red-500 animate-soft-pulse" />
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-red-500">Most · {minutesToHHMM(nowMin!)}</span>
+                  <span className="h-px flex-1 bg-red-500/40" />
+                </div>
+              )}
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => onEdit(b)}
+                onKeyDown={(e) => { if (e.key === 'Enter') onEdit(b) }}
+                className={`${GRID} cursor-pointer rounded-[14px] px-3 py-3 transition-colors hover:bg-black/[0.025] sm:px-4 ${i > 0 && i !== nowIndex ? 'border-t border-line/70' : ''} ${b.status === 'cancelled' ? 'opacity-70' : ''}`}
+              >
+                <span className="tabular-nums">
+                  <span className="block text-[14px] font-semibold text-ink">{b.start_time}</span>
+                  <span className="block text-[11.5px] text-ink-soft2">{b.end_time}</span>
+                </span>
+                <span className="min-w-0">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <span className={`truncate text-[14px] font-semibold text-ink ${b.status === 'cancelled' ? 'line-through decoration-ink-soft2/60' : ''}`}>{b.customer_name || 'Vendég'}</span>
+                    {draft && <span className="shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-bold uppercase text-ink-dark">Vázlat</span>}
+                    {b.series_id && <Repeat className="h-3.5 w-3.5 shrink-0 text-[#9A7B12]" aria-label="Sorozat" />}
+                    {b.payment_status === 'paid' && <Banknote className="h-3.5 w-3.5 shrink-0 text-[#1D7A3C]" aria-label="Előleg befizetve" />}
+                  </span>
+                  {/* mobilon a szolgáltatás a név alatt */}
+                  <span className="block truncate text-[12.5px] text-ink-soft sm:hidden">{svc?.name ?? '—'}{st?.name ? ` · ${st.name}` : ''}</span>
+                  <span className="hidden truncate text-[12px] text-ink-soft2 sm:block">{b.customer_phone || b.customer_email || ''}</span>
+                </span>
+                <span className="hidden truncate text-[13.5px] text-ink sm:block">{svc?.name ?? '—'}</span>
+                <span className="hidden min-w-0 items-center gap-2 sm:flex">
+                  <Ava url={avatarUrlOf(st)} className="h-7 w-7 shrink-0 overflow-hidden rounded-full" />
+                  <span className="truncate text-[13.5px] text-ink">{st?.name ?? '—'}</span>
+                </span>
+                <span className="hidden text-right text-[13.5px] font-medium tabular-nums text-ink sm:block">{price != null && price > 0 ? formatPrice(price, (b.price_snapshot_currency as string) || 'HUF') : '—'}</span>
+                <span className={`flex items-center justify-end gap-1.5 text-[12.5px] font-semibold sm:justify-start ${overdue ? 'text-[#9A7B12]' : ts.text}`}>
+                  <span className={`h-2 w-2 shrink-0 rounded-full ${overdue ? 'bg-gold' : ts.dot}`} />
+                  <span className="hidden truncate sm:inline">{overdue ? 'Kezelendő' : (statusLabel[b.status] ?? b.status)}</span>
+                </span>
+                <span className="hidden justify-end sm:flex" onClick={(e) => e.stopPropagation()}>
+                  {!draft && (
+                    <BookingActions bookingId={String(b.id)} status={b.status} consentEnabled={consentEnabled} consentAccepted={!!b.consent_accepted} />
+                  )}
+                </span>
               </div>
-            )}
-            <BookingRow b={b} onEdit={onEdit} nowMin={nowMin} consentEnabled={consentEnabled} />
-          </div>
-        )
-      })}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }

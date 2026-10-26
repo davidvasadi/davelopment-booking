@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react'
 import { HoverButton } from '@/components/shared/HoverButton'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
+import { RangeMenu } from '@/components/shared/RangeMenu'
 
 const HU_MONTHS = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
 const HU_MONTHS_FULL = [
@@ -81,21 +82,6 @@ export function ReservationDateFilter({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {/* Nap/Hét/Hónap — mobilon mindig rejtve, a fejléc-ikon nyitja meg a nézet-választó
-          sheet-be ágyazva (ld. DailyView / RestaurantScheduleView). */}
-      <div className={`${hideRangeOnMobile ? 'hidden lg:inline-flex' : 'inline-flex'} h-[42px] items-center gap-0.5 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1`}>
-        {RANGE_OPTIONS.map(({ value, label: rangeLabel }) => (
-          <HoverButton
-            key={value}
-            onClick={() => router.push(`/restaurant/bookings?date=${currentDate}&range=${value}`)}
-            className={`rounded-[15px] px-2.5 sm:px-3 py-1.5 text-[13px] font-semibold transition-colors ${
-              range === value ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink'
-            }`}
-          >
-            {rangeLabel}
-          </HoverButton>
-        ))}
-      </div>
 
       <div className="flex h-[42px] items-center gap-1 rounded-dav-pill border border-line bg-[var(--dav-glass)] p-1">
         <HoverButton
@@ -129,6 +115,13 @@ export function ReservationDateFilter({
             Ma
           </HoverButton>
         )}
+        {/* Nap / Hét / Hónap — a dátum-pill része („Nap ▾”); mobilon a nézet-választó sheet kezeli */}
+        <span className={`${hideRangeOnMobile ? 'hidden lg:block' : ''} mx-0.5 h-5 w-px bg-line`} />
+        <RangeMenu
+          className={hideRangeOnMobile ? 'hidden lg:block' : ''}
+          value={range}
+          onChange={(v) => router.push(`/restaurant/bookings?date=${currentDate}&range=${v}`)}
+        />
       </div>
     </div>
   )
