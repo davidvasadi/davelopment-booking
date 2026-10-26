@@ -22,6 +22,13 @@ async function placeFilter(user: User): Promise<Where | null> {
     const place: Where = active.type === 'salon' ? { salon: { equals: id } } : { restaurant: { equals: id } }
     or.push({ and: [place, { audience: { equals: 'owner' } }] })
   }
+  // Kikapcsolt „Napi összefoglaló” → a digest-értesítések NEM látszanak (sem a listában, sem a
+  // harangon, sem felugróként). A cron a rekordot ettől még létrehozza (az a „ma már ment”
+  // idempotencia-jelzője), ezért itt, a megjelenítésnél kell kiszűrni.
+  const prefs = (user.personal_notif_prefs as Record<string, boolean | null> | null) ?? {}
+  if (prefs.digest === false) {
+    return { and: [{ or }, { type: { not_in: ['digest_morning', 'digest_evening'] } }] }
+  }
   return { or }
 }
 

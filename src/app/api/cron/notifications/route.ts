@@ -697,6 +697,8 @@ async function handle(request: NextRequest) {
             const userRes = await payload.find({ collection: 'users', where: { email: { equals: staffDoc.email } }, limit: 1, depth: 0, overrideAccess: true })
             const staffUser = userRes.docs[0]
             if (!staffUser) continue
+            // a munkatárs saját „Napi összefoglaló” beállítása (Értesítések → Beállítások)
+            if ((staffUser.personal_notif_prefs as Record<string, boolean | null> | null)?.digest === false) continue
             await payload.create({
               collection: 'notifications',
               overrideAccess: true,

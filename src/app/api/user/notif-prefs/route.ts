@@ -46,7 +46,8 @@ export async function GET() {
   // mindenkinek elérhető, csak a lenti `prefs`-ben SAJÁT maga kapcsolja.
   const isOwner = user.role === 'salon_owner' || user.role === 'restaurant_owner' || user.role === 'admin'
 
-  // digest / email_not_opened: csak tulajdonosnak releváns (az üzlet forgalmáról/vendégeiről szól)
+  // email_not_opened: csak tulajdonosnak releváns (a vendégek e-mailjeiről szól). A digestet a
+  // tagok is megkapják (szalon: saját „összefoglalód”, étterem: push), ezért nekik is kapcsolható.
   let allowedPush: Record<PushCategoryKey, boolean> = { bookings: true, schedule: true, digest: isOwner, email_not_opened: isOwner }
 
   if (!isOwner) {
@@ -64,7 +65,7 @@ export async function GET() {
       const level = (m.custom_role as { booking_notify_level?: string | null } | null | undefined)?.booking_notify_level
       return level === 'own' || level === 'all'
     })
-    allowedPush = { bookings: bookingsAllowed, schedule: true, digest: false, email_not_opened: false }
+    allowedPush = { bookings: bookingsAllowed, schedule: true, digest: true, email_not_opened: false }
   }
 
   const allowed: Record<CategoryKey, boolean> = {

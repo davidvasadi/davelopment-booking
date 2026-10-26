@@ -239,32 +239,23 @@ export function NotificationsPage() {
 function FullNotifRow({ n, onOpen, onRemove }: {
   n: Notification; onOpen: () => void; onRemove: () => void
 }) {
-  const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
+  const { Icon, color } = notificationVisual(n.type, n.metadata)
   const isUnread = !n.read
 
   return (
     <div
       className={cn(
-        'group relative flex items-start gap-3.5 px-4 py-4 transition-colors',
-        isUnread ? 'bg-gold/[0.035]' : 'hover:bg-black/[0.018]',
+        'group relative flex items-start gap-3.5 px-4 py-4 transition-colors hover:bg-black/[0.018]',
       )}
     >
-      {/* Olvasatlan jelző */}
-      {isUnread && (
-        <span
-          aria-label="Olvasatlan"
-          className="absolute left-0 top-0 h-full w-[3px] rounded-r-full bg-gold opacity-80"
-        />
-      )}
-
-      {/* Ikon */}
-      <span className={cn('mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full', bg)}>
+      {/* Ikon — semleges kör, csak a jel színes (a típust az ikon színe mutatja) */}
+      <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F4F4F4]">
         <Icon className={cn('h-[18px] w-[18px]', color)} strokeWidth={2.2} />
       </span>
 
       {/* Tartalom */}
       <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
-        <p className={cn('text-sm text-ink', isUnread ? 'font-semibold' : 'font-medium')}>{n.title}</p>
+        <p className={cn('flex items-center gap-2 text-sm text-ink', isUnread ? 'font-semibold' : 'font-medium')}>{n.title}{isUnread && <span aria-label="Olvasatlan" className="h-2 w-2 shrink-0 rounded-full bg-gold" />}</p>
         {n.body && (
           <p className="mt-0.5 text-sm leading-relaxed text-ink-soft">{n.body}</p>
         )}
@@ -293,7 +284,7 @@ function FullNotifRow({ n, onOpen, onRemove }: {
 function FullDigestCard({ n, onMarkRead, onRemove }: {
   n: Notification; onMarkRead: () => void; onRemove: () => void
 }) {
-  const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
+  const { Icon, color } = notificationVisual(n.type, n.metadata)
   const meta = n.metadata as DigestMetadata | null
   const isEvening = n.type === 'digest_evening'
   const isUnread = !n.read
@@ -311,25 +302,18 @@ function FullDigestCard({ n, onMarkRead, onRemove }: {
         onKeyDown={(e) => e.key === 'Enter' || e.key === ' ' ? openSheet() : undefined}
         onClick={openSheet}
         className={cn(
-          'group relative cursor-pointer px-4 py-4 transition-colors select-none',
-          isEvening ? 'bg-[#f0f5ff]/60 hover:bg-[#e8efff]/70' : 'bg-[#fffdf0]/70 hover:bg-[#fffbe8]/80',
-          isUnread && 'ring-l',
+          'group relative cursor-pointer px-4 py-4 transition-colors select-none hover:bg-black/[0.018]',
         )}
       >
-        {/* Olvasatlan jelző */}
-        {isUnread && (
-          <span className="absolute left-0 top-0 h-full w-[3px] rounded-r-full bg-gold opacity-80" />
-        )}
-
         <div className="flex items-start gap-3.5">
-          {/* Ikon */}
-          <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', bg)}>
+          {/* Ikon — semleges kör, csak a jel színes */}
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#F4F4F4]">
             <Icon className={cn('h-[18px] w-[18px]', color)} strokeWidth={2.2} />
           </span>
 
           {/* Szöveg */}
           <div className="min-w-0 flex-1">
-            <p className={cn('text-sm text-ink', isUnread ? 'font-semibold' : 'font-medium')}>{n.title}</p>
+            <p className={cn('flex items-center gap-2 text-sm text-ink', isUnread ? 'font-semibold' : 'font-medium')}>{n.title}{isUnread && <span aria-label="Olvasatlan" className="h-2 w-2 shrink-0 rounded-full bg-gold" />}</p>
             <p className="mt-0.5 text-[11px] text-ink-soft2">
               {notifDate(n.createdAt)}
               <span className="mx-1.5 opacity-40">·</span>
