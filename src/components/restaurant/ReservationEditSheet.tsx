@@ -22,6 +22,7 @@ import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryI
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { EmailStatusBadge } from '@/components/shared/EmailStatusBadge'
 import type { Reservation } from '@/payload/payload-types'
+import { useGuestLookup, GuestSuggestList, type GuestSuggestion } from '@/components/shared/GuestLookup'
 
 const HU_MONTHS_SHORT = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
 function formatHuDate(dateStr: string): string {
@@ -193,6 +194,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   const [phone, setPhone] = useState('')
   const [country, setCountry] = useState('HU')
   const [email, setEmail] = useState('')
+  // Visszatérő vendég felismerése (csak új foglalásnál) — ugyanaz, mint a szalon foglaló paneljén
+  const lookup = useGuestLookup(!isEdit)
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState<Reservation['status']>('confirmed')
   // A host kézzel váltott-e státuszt: ha igen, az alap-státusz újraszámítás nem írja felül.
@@ -272,6 +275,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
     setCountry(parsedPhone.country)
     setPhone(parsedPhone.phone)
     setEmail(r?.customer_email ?? '')
+    lookup.clear()
     setNotes(r?.notes ?? '')
     const initSource = r?.source ?? 'walk_in'
     setSource(initSource)
@@ -557,6 +561,18 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
   }, [dirty, onClose])
 
   // Inline (mező alatti) hiba az e-mailre — csak ha kitöltötték és formátum-hibás.
+  const applySuggestion = (g: GuestSuggestion) => {
+    setName(g.name)
+    if (g.email) setEmail(g.email)
+    if (g.city) setCity(g.city)
+    if (g.phone) {
+      const p = splitLocalPhone(g.phone, country)
+      setCountry(p.country)
+      setPhone(p.phone)
+    }
+    lookup.clear()
+  }
+
   const emailErr = email.trim() && !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Érvénytelen e-mail cím' : null
 
   // Esc-re zárás — a saját portál-panelhez (a Radix Sheet beépített kezelése helyett).
@@ -712,13 +728,17 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                   </div>
                 ) : fetchedSlots.length === 0 ? (
                   <div className="space-y-2">
-                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                      {dayClosed
-                        ? 'Ezen a napon zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot (pl. telefonos/kivételes foglalásnál).'
-                        : selectedDate === ymdLocal(new Date()) && closeMin != null && new Date().getHours() * 60 + new Date().getMinutes() >= closeMin
-                          ? 'Mára már zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot.'
-                          : 'Ezen a napon nincs szabad időpont — de kézzel megadhatsz egyet (pl. telefonos/kivételes foglalásnál).'}
-                    </div>
+                    {/* Ugyanaz a figyelmeztetés-stílus, mint a Munkatársaknál („Importált — nézd át”): doboz nélkül */}
+                    <p className="flex items-start gap-1.5 text-[12.5px] font-bold leading-snug text-amber-600">
+                      <AlertTriangle className="mt-[1px] h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+                      <span>
+                        {dayClosed
+                          ? 'Ezen a napon zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot (pl. telefonos/kivételes foglalásnál).'
+                          : selectedDate === ymdLocal(new Date()) && closeMin != null && new Date().getHours() * 60 + new Date().getMinutes() >= closeMin
+                            ? 'Mára már zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot.'
+                            : 'Ezen a napon nincs szabad időpont — de kézzel megadhatsz egyet (pl. telefonos/kivételes foglalásnál).'}
+                      </span>
+                    </p>
                     <TimeSelect
                       value={startTime}
                       onChange={setStartTime}
@@ -899,7 +919,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                 </div>
                 <Input
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => { setName(e.target.value); lookup.type('name', e.target.value) }}
+                  autoComplete="off"
                   placeholder={source === 'walk_in' ? 'Üresen: „Beeső"' : source === 'phone' ? 'Üresen: „Telefon"' : 'Pl. Kovács Anna'}
                 />
               </div>
@@ -911,6 +932,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
               </div>
             </div>
 
+            <GuestSuggestList show={!isEdit && lookup.field === 'name'} results={lookup.results} onPick={applySuggestion} />
+
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-2">
@@ -920,7 +943,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                   country={country}
                   phone={phone}
                   onCountryChange={setCountry}
-                  onPhoneChange={setPhone}
+                  onPhoneChange={(v) => { setPhone(v); lookup.type('phone', v) }}
                   inputClass="h-10 rounded-lg border border-zinc-200 px-3 text-sm text-zinc-900 outline-none"
                 />
               </div>
@@ -937,7 +960,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                 </div>
                 <Input
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); lookup.type('email', e.target.value) }}
                   placeholder="opcionális"
                   aria-invalid={!!emailErr}
                   className={emailErr ? 'border-red-400 focus-visible:ring-red-400' : undefined}
@@ -945,6 +968,8 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                 {emailErr && <p className="text-[11px] font-medium text-red-600">{emailErr}</p>}
               </div>
             </div>
+
+            <GuestSuggestList show={!isEdit && (lookup.field === 'phone' || lookup.field === 'email')} results={lookup.results} onPick={applySuggestion} />
 
             <div className="space-y-1.5">
               <Label>Megjegyzés</Label>

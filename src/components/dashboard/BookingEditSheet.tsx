@@ -19,6 +19,7 @@ import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryI
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { EmailStatusBadge } from '@/components/shared/EmailStatusBadge'
 import type { Booking, Service, StaffMember, Media } from '@/payload/payload-types'
+import { useGuestLookup, GuestSuggestList, type GuestSuggestion } from '@/components/shared/GuestLookup'
 
 const HU_MONTHS_SHORT = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
 function formatHuDate(dateStr: string): string {
@@ -178,8 +179,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
   const [email, setEmail] = useState('')
   // Visszatérő vendég automatikus kitöltése (csak új foglalásnál): a név/telefon/e-mail
   // gépelésére a korábbi vendégekből javaslatot kérünk, kattintásra kitöltjük az adatokat.
-  const [lookupQ, setLookupQ] = useState('')
-  const [suggestions, setSuggestions] = useState<{ name: string; email: string | null; phone: string | null; city: string | null }[]>([])
+  const lookup = useGuestLookup(!isEdit)
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState<Booking['status']>('confirmed')
   const [statusTouched, setStatusTouched] = useState(false)
@@ -259,8 +259,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     setCountry(parsedPhone.country)
     setPhone(parsedPhone.phone)
     setEmail(b?.customer_email ?? '')
-    setLookupQ('')
-    setSuggestions([])
+    lookup.clear()
     setNotes(b?.notes ?? '')
     setStatus(initStatus)
     setStatusTouched(false)
@@ -384,21 +383,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, isEdit, statusTouched, startTime, duration, selectedDate])
 
-  useEffect(() => {
-    if (!open || isEdit) return
-    const q = lookupQ.trim()
-    if (q.length < 2) { setSuggestions([]); return }
-    const ctrl = new AbortController()
-    const t = setTimeout(() => {
-      fetch(`/api/customers/search?q=${encodeURIComponent(q)}`, { credentials: 'include', signal: ctrl.signal })
-        .then((r) => (r.ok ? r.json() : { results: [] }))
-        .then((d) => setSuggestions(d.results ?? []))
-        .catch(() => {})
-    }, 250)
-    return () => { clearTimeout(t); ctrl.abort() }
-  }, [lookupQ, open, isEdit])
-
-  const applySuggestion = (g: { name: string; email: string | null; phone: string | null; city: string | null }) => {
+  const applySuggestion = (g: GuestSuggestion) => {
     setName(g.name)
     if (g.email) setEmail(g.email)
     if (g.city) setCity(g.city)
@@ -407,8 +392,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
       setCountry(p.country)
       setPhone(p.phone)
     }
-    setSuggestions([])
-    setLookupQ('')
+    lookup.clear()
   }
 
   // Az e-mail opcionális (telefonos foglalásnál gyakran nincs) — csak a formátumot ellenőrizzük.
@@ -673,11 +657,15 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                         </div>
                       ) : fetchedSlots.length === 0 ? (
                         <div className="space-y-2">
-                          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                            {selectedDate === ymdLocal(new Date()) && closeMin != null && new Date().getHours() * 60 + new Date().getMinutes() >= closeMin
-                              ? 'Mára már zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot (pl. telefonos/kivételes foglalásnál).'
-                              : 'Ezen a napon nincs szabad időpont — de kézzel megadhatsz egyet (pl. telefonos/kivételes foglalásnál).'}
-                          </div>
+                          {/* Ugyanaz a figyelmeztetés-stílus, mint a Munkatársaknál („Importált — nézd át”): doboz nélkül */}
+                          <p className="flex items-start gap-1.5 text-[12.5px] font-bold leading-snug text-amber-600">
+                            <AlertTriangle className="mt-[1px] h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />
+                            <span>
+                              {selectedDate === ymdLocal(new Date()) && closeMin != null && new Date().getHours() * 60 + new Date().getMinutes() >= closeMin
+                                ? 'Mára már zárva vagyunk — válassz másik napot, vagy vedd fel kézzel az időpontot (pl. telefonos/kivételes foglalásnál).'
+                                : 'Ezen a napon nincs szabad időpont — de kézzel megadhatsz egyet (pl. telefonos/kivételes foglalásnál).'}
+                            </span>
+                          </p>
                           <TimeSelect
                             value={startTime}
                             onChange={setStartTime}
@@ -792,7 +780,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                       <div className="flex items-center justify-between gap-2">
                         <Label>Vendég neve <span className="text-zinc-400 font-normal">(opcionális)</span></Label>
                       </div>
-                      <Input value={name} onChange={(e) => { setName(e.target.value); setLookupQ(e.target.value) }} placeholder="Pl. Kovács Anna" autoComplete="off" />
+                      <Input value={name} onChange={(e) => { setName(e.target.value); lookup.type('name', e.target.value) }} placeholder="Pl. Kovács Anna" autoComplete="off" />
                     </div>
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
@@ -802,22 +790,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                     </div>
                   </div>
 
-                  {!isEdit && suggestions.length > 0 && (
-                    <div className="overflow-hidden rounded-[12px] border border-zinc-200">
-                      <div className="bg-zinc-50 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Korábbi vendég — kattints a kitöltéshez</div>
-                      {suggestions.map((g, i) => (
-                        <button
-                          key={`${g.email ?? g.phone ?? ''}-${i}`}
-                          type="button"
-                          onClick={() => applySuggestion(g)}
-                          className="flex w-full flex-col items-start border-t border-zinc-100 px-3.5 py-2 text-left transition-colors hover:bg-zinc-50"
-                        >
-                          <span className="text-sm font-medium text-zinc-900">{g.name}</span>
-                          <span className="text-[12px] text-zinc-500">{[g.phone, g.email].filter(Boolean).join(' · ')}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <GuestSuggestList show={!isEdit && lookup.field === 'name'} results={lookup.results} onPick={applySuggestion} />
 
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
@@ -828,7 +801,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                         country={country}
                         phone={phone}
                         onCountryChange={setCountry}
-                        onPhoneChange={(v) => { setPhone(v); setLookupQ(v) }}
+                        onPhoneChange={(v) => { setPhone(v); lookup.type('phone', v) }}
                         inputClass="h-10 rounded-lg border border-zinc-200 px-3 text-sm text-zinc-900 outline-none"
                       />
                     </div>
@@ -845,7 +818,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                       </div>
                       <Input
                         value={email}
-                        onChange={(e) => { setEmail(e.target.value); setLookupQ(e.target.value) }}
+                        onChange={(e) => { setEmail(e.target.value); lookup.type('email', e.target.value) }}
                         placeholder="vendeg@example.com"
                         aria-invalid={!!emailErr}
                         className={emailErr ? 'border-red-400 focus-visible:ring-red-400' : undefined}
@@ -853,6 +826,8 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                       {emailErr && <p className="text-[11px] font-medium text-red-600">{emailErr}</p>}
                     </div>
                   </div>
+
+                  <GuestSuggestList show={!isEdit && (lookup.field === 'phone' || lookup.field === 'email')} results={lookup.results} onPick={applySuggestion} />
 
                   <div className="space-y-1.5">
                     <Label>Megjegyzés</Label>

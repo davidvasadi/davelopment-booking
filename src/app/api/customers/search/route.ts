@@ -28,7 +28,15 @@ export async function GET(req: NextRequest) {
   const payload = await getPayloadClient()
   const scope = active.type // 'salon' | 'restaurant'
   const bizId: string | number = /^\d+$/.test(active.id) ? Number(active.id) : active.id
-  const textOr = (fields: string[]): Where => ({ or: fields.map((f) => ({ [f]: { like: q } })) })
+  // Telefonnál a gépelt szóközök/kötőjelek nélkül is keresünk („30 362 8377” → „303628377”),
+  // a tárolt szám jellemzően tagolás nélküli („+36303628377”).
+  const digits = q.replace(/\D/g, '')
+  const textOr = (fields: string[]): Where => ({
+    or: [
+      ...fields.map((f) => ({ [f]: { like: q } })),
+      ...(digits.length >= 4 && digits !== q ? [{ customer_phone: { like: digits } }] : []),
+    ],
+  })
 
   const [customers, history] = await Promise.all([
     payload.find({
@@ -50,8 +58,9 @@ export async function GET(req: NextRequest) {
 
   const byKey = new Map<string, Suggestion>()
   const add = (s: Suggestion) => {
-    const key = s.email?.toLowerCase() || s.phone || ''
-    if (!key || !s.name.trim()) return
+    if (!s.name.trim()) return
+    // elérhetőség nélküli (csak névvel felvett) vendég is felajánlható — a név a kulcsa
+    const key = s.email?.toLowerCase() || s.phone || `name:${s.name.trim().toLowerCase()}`
     const prev = byKey.get(key)
     if (!prev) byKey.set(key, s)
     else byKey.set(key, { name: prev.name, email: prev.email ?? s.email, phone: prev.phone ?? s.phone, city: prev.city ?? s.city })
