@@ -14,7 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { Switch } from '@/components/ui/toggle-switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Tag, Lock, GripVertical, SlidersHorizontal } from 'lucide-react'
+import { Plus, Pencil, Trash2, Camera, Loader2, X, Clock, Tag, Lock, GripVertical, SlidersHorizontal, TriangleAlert } from 'lucide-react'
 import { LocaleEditBar } from '@/components/settings/LocaleEditBar'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import { PageHeader } from '@/components/ui/page-header'
@@ -170,7 +170,9 @@ function ServiceRow({
             {s.duration_minutes} perc · {s.price === 0 ? 'Ingyenes' : formatPrice(s.price, s.currency)}
           </p>
           <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
-            {!active ? (
+            {s.import_review ? (
+              <span className="flex items-center gap-1 text-[12px] font-bold text-amber-600"><TriangleAlert className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} />Importált — nézd át</span>
+            ) : !active ? (
               <span className="rounded-[7px] bg-[#E7E1D0] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink-soft">Inaktív</span>
             ) : staffMembers.length > 0 ? (
               <>

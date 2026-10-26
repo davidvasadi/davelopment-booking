@@ -147,7 +147,7 @@ export class ImportResolver {
       case 'services': {
         const category = (extra.category as number | undefined) ?? (await this.getImportCategoryId())
         if (!category) return null
-        data = { name, salon: this.businessId, category, duration_minutes: 60, price: 0, ...extra, is_active: active }
+        data = { name, salon: this.businessId, category, duration_minutes: 60, price: 0, ...extra, is_active: active, import_review: !active }
         break
       }
       case 'staff':

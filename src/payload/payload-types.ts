@@ -987,6 +987,8 @@ export interface Service {
   price: number
   currency?: 'HUF' | 'EUR'
   is_active?: boolean | null
+  /** Import hozta létre, a tulaj még nem nézte át (az első szerkesztés törli). */
+  import_review?: boolean | null
   sort_order?: number | null
   createdAt: string
   updatedAt: string

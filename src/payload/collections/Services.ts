@@ -3,10 +3,19 @@ import { revalidateChildOnChange, revalidateChildOnDelete } from '../hooks/reval
 import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
 import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
+import { isSilentImport } from '../../lib/silentImport'
 
 export const Services: CollectionConfig = {
   slug: 'services',
   hooks: {
+    beforeChange: [
+      // Az import által létrehozott szolgáltatás „átnézendő” — a tulaj első szerkesztése (akár
+      // csak az aktív-kapcsoló) lezárja. Az import saját frissítései nem törlik a jelölést.
+      ({ req, operation, data }) => {
+        if (operation === 'update' && !isSilentImport(req)) data.import_review = false
+        return data
+      },
+    ],
     afterChange: [revalidateChildOnChange('salon', 'salon'), cleanupMediaOnChange(['image']), auditAfterChange('Szolgáltatás', 'salon')],
     afterDelete: [revalidateChildOnDelete('salon', 'salon'), auditAfterDelete('Szolgáltatás', 'salon')],
   },
@@ -103,6 +112,13 @@ export const Services: CollectionConfig = {
       type: 'checkbox',
       defaultValue: true,
       label: 'Aktív',
+    },
+    {
+      name: 'import_review',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Importált — átnézendő',
+      admin: { readOnly: true, description: 'Az import hozta létre; az első szerkesztés törli.' },
     },
     {
       // Kategórián belüli megjelenítési sorrend (drag & drop a Beállítások > Szolgáltatások
