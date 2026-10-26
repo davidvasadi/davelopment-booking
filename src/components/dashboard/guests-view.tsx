@@ -12,7 +12,7 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { sheetSpring } from '@/lib/motion'
-import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle, UserPlus, UserRound, X } from 'lucide-react'
+import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle, UserPlus, UserRound, X, MoreHorizontal, StickyNote, History, SlidersHorizontal } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { TIER_LABEL, flagEmoji, countryName, type GuestTier, type CountryBucket } from '@/lib/guests'
 import { StatusPills, type StatusSeg } from '@/components/dashboard/StatusPills'
@@ -20,31 +20,7 @@ import { CountUpKpi, type KpiIcon } from '@/components/dashboard/CountUpKpi'
 import GuestMapClient from '@/components/dashboard/GuestMapClient'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { PhoneInput } from '@/components/booking/PhoneCountryInput'
-
-/**
- * Avatar: ha van Gravatar-kép, azt mutatja; 404/betöltési hibánál a monogramos
- * színes körre esik vissza. (A Google-profilkép csak OAuth-tal érhető el; e-mailből
- * a Gravatar a legjobb, amit publikusan le lehet kérni.)
- */
-function Avatar({ url, ini, bg, fg, size, text }: { url: string | null; ini: string; bg: string; fg: string; size: number; text: number }) {
-  const [ok, setOk] = useState(!!url)
-  // Kép hiányában/hibánál egy generikus profil-ikon — NEM a monogram és NEM a böngésző
-  // törött-kép glyphje (ami pl. localhoston a Gravatar-kérés akadozásakor látszódhatott).
-  void ini
-  return (
-    <div
-      className="flex flex-shrink-0 items-center justify-center overflow-hidden rounded-full font-semibold"
-      style={{ width: size, height: size, background: bg, color: fg, fontSize: text }}
-    >
-      {ok && url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="" width={size} height={size} className="h-full w-full object-cover" onError={() => setOk(false)} />
-      ) : (
-        <UserRound style={{ width: size * 0.55, height: size * 0.55 }} strokeWidth={1.7} />
-      )}
-    </div>
-  )
-}
+import { SectionBar, FieldRow } from '@/components/shared/FormSheet'
 
 /* A Statisztika kör-diagramjával egyező tooltip. */
 function DonutTip({ active, payload }: { active?: boolean; payload?: Array<{ name?: string; value?: number }> }) {
@@ -131,6 +107,18 @@ export interface ArrivalVM {
 }
 
 /** Animált fejléc-szám (CountUpKpi-hoz). */
+/** Egy lista-sor a szerverről (lib/guestsData GuestListItem) + egy oldal. */
+export interface GuestListRow {
+  key: string
+  name: string
+  country: string | null
+  tier: GuestTier
+  blocked: boolean
+  visits: number
+  lastVisit: string | null
+}
+export interface GuestListPage { total: number; page: number; pageCount: number; items: GuestListRow[] }
+
 export interface MetricVM {
   icon: KpiIcon
   value: number
@@ -142,7 +130,10 @@ export interface MetricVM {
 interface Props {
   pills: StatusSeg[]
   metrics: MetricVM[]
-  guests: GuestVM[]
+  /** Az első oldal (20 könnyű sor) — a többit a lista görgetve kéri a /api/guests-től. */
+  initialList: GuestListPage
+  /** A legfrissebb vendég profilja előre betöltve — így a profil sosem üres. */
+  initialProfile: GuestVM | null
   arrivals: ArrivalVM[] // az adott nap ÖSSZES valós foglalása, idő szerint növekvőben
   arrivalsDateLabel: string // pl. "Ma"
   returningPct: number
@@ -161,6 +152,37 @@ interface Props {
 const TIER_BG: Record<GuestTier, string> = { 1: '#F0EAD8', 2: '#E4F2E9', 3: '#1D1C19' }
 const TIER_FG: Record<GuestTier, string> = { 1: '#86826F', 2: '#1D9D63', 3: '#F1CE45' }
 
+/** Mobil szűrő-lap: egy csoport címmel és pill-gombokkal. */
+function FilterGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="mb-4">
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-ink">{title}</p>
+      <div className="flex flex-wrap gap-1.5">{children}</div>
+    </div>
+  )
+}
+function FilterPill({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex h-9 items-center rounded-full border px-3.5 text-[13px] font-semibold transition-colors ${on ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink'}`}
+    >
+      {children}
+    </button>
+  )
+}
+
+/** Lapozó-oldalszámok: első, utolsó, az aktuális ±1, közöttük „…” (pl. 1 … 4 5 6 … 95). */
+function pageList(cur: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const set = new Set([1, total, cur - 1, cur, cur + 1].filter((n) => n >= 1 && n <= total))
+  const nums = [...set].sort((a, b) => a - b)
+  const out: (number | '…')[] = []
+  nums.forEach((n, i) => { if (i > 0 && n - nums[i - 1] > 1) out.push('…'); out.push(n) })
+  return out
+}
+const FILTER_SELECT = 'h-9 cursor-pointer appearance-none rounded-[18px] bg-white pl-4 pr-8 text-[13px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none'
 const MONTH_FULL = ['Január', 'Február', 'Március', 'Április', 'Május', 'Június', 'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December']
 const MONTH_SHORT = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
 
@@ -171,17 +193,12 @@ function birthdayLabel(iso: string): string {
   return `${MONTH_SHORT[d.getMonth()]} ${d.getDate()}.`
 }
 
-/** Törzsvendég-küszöb szöveges magyarázata a profilba. */
-function tierExplain(tier: GuestTier, visits: number): string {
-  if (tier === 3) return `${visits} látogatás — Törzsvendég (4+ látogatástól)`
-  if (tier === 2) return `${visits} látogatás — Visszatérő · ${4 - visits} látogatás a Törzsvendégig`
-  return `${visits} látogatás — Új · 2 látogatástól Visszatérő`
-}
 
 export function GuestsView({
   pills,
   metrics,
-  guests,
+  initialList,
+  initialProfile,
   arrivals,
   arrivalsDateLabel,
   returningPct,
@@ -201,14 +218,21 @@ export function GuestsView({
     const d = new Date()
     return { y: d.getFullYear(), m: d.getMonth() }
   })
-  const [selKey, setSelKey] = useState(guests[0]?.key ?? '')
+  const [selKey, setSelKey] = useState(initialProfile?.key ?? initialList.items[0]?.key ?? '')
   const [historyOpen, setHistoryOpen] = useState(false)
   const [openRow, setOpenRow] = useState<number | null>(null) // kibontott látogatás-sor indexe
   useEffect(() => { setOpenRow(null); setHistoryOpen(false) }, [selKey]) // vendégváltáskor zárjuk az előzményeket
   const [focusIso, setFocusIso] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'blocked'>('all')
+  // Időszak: alapból MINDEN vendég (lapozva); választható az adott hónap vagy egy nap
+  const [period, setPeriod] = useState<'all' | 'month' | 'day'>('all')
+  const [tierFilter, setTierFilter] = useState<'all' | '1' | '2' | '3'>('all')
+  const [sortBy, setSortBy] = useState<'last' | 'name' | 'visits' | 'spend'>('last')
+  const [page, setPage] = useState(1)
   const [editing, setEditing] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [form, setForm] = useState({ name: '', phone: '', email: '', note: '' })
   const [blockTarget, setBlockTarget] = useState<GuestVM | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<GuestVM | null>(null)
@@ -227,7 +251,6 @@ export function GuestsView({
     mq.addEventListener('change', update)
     return () => mq.removeEventListener('change', update)
   }, [])
-  const [guestsExpanded, setGuestsExpanded] = useState(false)
   const router = useRouter()
   const [isMounted, setIsMounted] = useState(false)
   useEffect(() => setIsMounted(true), [])
@@ -249,7 +272,8 @@ export function GuestsView({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      router.refresh()
+      router.refresh() // fejléc-számok, térkép, érkezések
+      await refreshAfterChange(selKey)
     } finally {
       setBusy(false)
     }
@@ -284,8 +308,8 @@ export function GuestsView({
       }
       setNewOpen(false)
       setNewForm({ name: '', phone: '', email: '', note: '' })
-      setSelKey(email || phone)
       router.refresh()
+      await refreshAfterChange(null)
     } finally {
       setBusy(false)
     }
@@ -322,6 +346,7 @@ export function GuestsView({
       setDeleteTarget(null)
       setSelKey('')
       router.refresh()
+      await refreshAfterChange(null)
     } finally {
       setBusy(false)
     }
@@ -368,28 +393,137 @@ export function GuestsView({
       return { y, m: t }
     })
 
-  const matchQuery = (g: GuestVM, q: string) =>
-    g.name.toLowerCase().includes(q) || (g.email ?? '').toLowerCase().includes(q) || (g.phone ?? '').includes(q)
+  // ── LISTA: a szűrés, rendezés és lapozás a SZERVEREN fut (/api/guests) — a kliens csak a
+  //    betöltött oldalakat tartja. Görgetés = lapozás: a lista aljára érve jön a következő 20,
+  //    a lapozó mutatja, hányadik oldalnál jársz; távoli oldalszámra kattintva azt az oldalt tölti.
+  // a mobil „Szűrők” gombon: hány szűrő tér el az alaptól
+  const activeFilterCount = [period !== 'all', tierFilter !== 'all', statusFilter !== 'all', sortBy !== 'last'].filter(Boolean).length
+  const PAGE_SIZE = 20
+  const [rows, setRows] = useState<GuestListRow[]>(initialList.items)
+  const [total, setTotal] = useState(initialList.total)
+  const [pageCount, setPageCount] = useState(initialList.pageCount)
+  const [range, setRange] = useState({ start: 1, end: 1 }) // a betöltött oldal-tartomány
+  const [listLoading, setListLoading] = useState(false)
+  const curPage = Math.min(Math.max(page, range.start), pageCount)
+  const listBoxRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const reqId = useRef(0)
 
-  const passStatus = (g: GuestVM) => (statusFilter === 'all' ? true : statusFilter === 'blocked' ? g.blocked : !g.blocked)
+  const buildQs = (pg: number) => {
+    const qs = new URLSearchParams({ page: String(pg), period, status: statusFilter, tier: tierFilter, sort: sortBy })
+    if (query.trim()) qs.set('q', query.trim())
+    if (period === 'month') qs.set('month', monthKey)
+    if (period === 'day' && day) qs.set('day', day)
+    return qs
+  }
+  const fetchPage = async (pg: number): Promise<GuestListPage | null> => {
+    const res = await fetch(`/api/guests?${buildQs(pg)}`, { credentials: 'include' })
+    return res.ok ? ((await res.json()) as GuestListPage) : null
+  }
+  // egy oldal betöltése: `mode` = csere (új szűrés / távoli oldal) vagy hozzáfűzés (görgetés)
+  const loadPage = async (pg: number, mode: 'replace' | 'append') => {
+    const id = ++reqId.current
+    setListLoading(true)
+    try {
+      const data = await fetchPage(pg)
+      if (!data || id !== reqId.current) return
+      setTotal(data.total)
+      setPageCount(data.pageCount)
+      if (mode === 'append') {
+        setRows((r) => [...r, ...data.items])
+        setRange((rg) => ({ start: rg.start, end: data.page }))
+      } else {
+        setRows(data.items)
+        setRange({ start: data.page, end: data.page })
+        setPage(data.page)
+        listBoxRef.current?.scrollTo({ top: 0 })
+      }
+    } finally {
+      if (id === reqId.current) setListLoading(false)
+    }
+  }
 
-  // Keresés → MINDEN hónap. Tiltott szűrő → MINDEN hónap (a teljes tiltólista). Egyébként a hónap.
-  const listFiltered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (q) return guests.filter((g) => matchQuery(g, q)).filter(passStatus)
-    if (statusFilter === 'blocked') return guests.filter((g) => g.blocked)
-    if (day) return guests.filter((g) => g.visitDates.includes(day)).filter(passStatus)
-    return guests.filter((g) => (g.lastVisit ?? '').slice(0, 7) === monthKey).filter(passStatus)
+  // szűrőváltás → 1. oldal (a keresés gépelés közben kicsit késleltetve); az első renderelésnél
+  // a szerver már leküldte az 1. oldalt, nem kérjük le újra
+  const firstRun = useRef(true)
+  useEffect(() => {
+    if (firstRun.current) { firstRun.current = false; return }
+    const t = setTimeout(() => { void loadPage(1, 'replace') }, query ? 250 : 0)
+    return () => clearTimeout(t)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guests, query, monthKey, day, statusFilter])
+  }, [query, period, monthKey, day, statusFilter, tierFilter, sortBy])
 
-  const sel = useMemo(() => guests.find((g) => g.key === selKey) ?? guests[0], [guests, selKey])
+  // lista aljára érve → következő oldal
+  useEffect(() => {
+    const box = listBoxRef.current, el = sentinelRef.current
+    if (!box || !el) return
+    const io = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !listLoading && range.end < pageCount) void loadPage(range.end + 1, 'append')
+    }, { root: box, rootMargin: '0px 0px 120px 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, pageCount, listLoading])
 
-  // Mobilon a lista-konténer nincs magasság-korlátozva (a deszktopos `lg:h-[560px]` csak lg+
-  // felett aktív) — korlát nélkül az EGÉSZ oldal egy hosszú, végtelen vendég-scrollá vált volna.
-  // Ezért mobilon csak az első 5-öt töltjük be, "Továbbiak" gombbal bővíthetően.
-  useEffect(() => setGuestsExpanded(false), [monthKey, day, query, statusFilter])
-  const visibleGuests = isMobile && !guestsExpanded ? listFiltered.slice(0, 5) : listFiltered
+  // görgetés közben: melyik oldal sorai vannak a doboz tetején → az az aktuális oldal
+  const onListScroll = () => {
+    const box = listBoxRef.current
+    if (!box) return
+    let current = range.start
+    box.querySelectorAll<HTMLElement>('[data-page-start]').forEach((m) => { if (m.offsetTop <= box.scrollTop + 8) current = Number(m.dataset.pageStart) })
+    if (current !== page) setPage(current)
+  }
+  // oldalszámra kattintva: ha már betöltött, odagörget; ha nem, azt az oldalt tölti be
+  const goToPage = (n: number) => {
+    const target = Math.min(Math.max(1, n), pageCount)
+    if (target >= range.start && target <= range.end) {
+      setPage(target)
+      const box = listBoxRef.current
+      const mark = box?.querySelector<HTMLElement>(`[data-page-start="${target}"]`)
+      if (box && mark) box.scrollTo({ top: mark.offsetTop, behavior: 'smooth' })
+    } else if (target === range.end + 1) {
+      void loadPage(target, 'append').then(() => requestAnimationFrame(() => goToPageScroll(target)))
+    } else {
+      void loadPage(target, 'replace')
+    }
+  }
+  const goToPageScroll = (target: number) => {
+    setPage(target)
+    const box = listBoxRef.current
+    const mark = box?.querySelector<HTMLElement>(`[data-page-start="${target}"]`)
+    if (box && mark) box.scrollTo({ top: mark.offsetTop, behavior: 'smooth' })
+  }
+  const visibleGuests = rows
+
+  // ── PROFIL: a legfrissebb előre betöltve; a többit kattintásra kéri (gyorsítótárral)
+  const [profiles, setProfiles] = useState<Record<string, GuestVM>>(() => (initialProfile ? { [initialProfile.key]: initialProfile } : {}))
+  const [profileLoading, setProfileLoading] = useState(false)
+  const loadProfile = async (key: string, force = false) => {
+    if (!key || (!force && profiles[key])) return
+    setProfileLoading(true)
+    try {
+      const res = await fetch(`/api/guests?key=${encodeURIComponent(key)}`, { credentials: 'include' })
+      if (res.ok) {
+        const { profile } = (await res.json()) as { profile: GuestVM }
+        setProfiles((p) => ({ ...p, [key]: profile }))
+      }
+    } finally {
+      setProfileLoading(false)
+    }
+  }
+  useEffect(() => { if (selKey) void loadProfile(selKey) }, [selKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  // betöltés közben az ELŐZŐ profil marad látható (halványítva) — nem villan fel üres állapot
+  const lastSelRef = useRef<GuestVM | undefined>(initialProfile ?? undefined)
+  if (profiles[selKey]) lastSelRef.current = profiles[selKey]
+  const sel: GuestVM | undefined = profiles[selKey] ?? (total > 0 ? lastSelRef.current : undefined)
+  const profileStale = !!selKey && !profiles[selKey] && profileLoading
+
+  // módosítás (tiltás, szerkesztés, új vendég, törlés) után: a betöltött lista és a profil frissítése
+  const refreshAfterChange = async (keepKey: string | null) => {
+    await loadPage(1, 'replace')
+    setProfiles({})
+    if (keepKey) { setSelKey(keepKey); void loadProfile(keepKey, true) }
+  }
 
   // Élő „most" (HH:MM) — mount után áll be (nincs SSR-hydration ütközés), percenként frissül.
   const [nowHHMM, setNowHHMM] = useState('')
@@ -534,7 +668,6 @@ export function GuestsView({
                       className={`flex items-center gap-[11px] rounded-[14px] px-1 py-[11px] text-left transition-colors ${a.guestKey ? 'cursor-pointer hover:bg-white/5' : 'cursor-default'} ${passed ? 'opacity-45' : ''}`}
                       style={{ borderBottom: i < orderedArrivals.length - 1 ? '1px solid rgba(255,255,255,.07)' : 'none' }}
                     >
-                      <Avatar url={a.avatarUrl} ini={a.ini} bg={a.av} fg={a.avText} size={38} text={13} />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-1.5 text-[14px] font-semibold text-white">
                           <span className="truncate">{a.name}</span>
@@ -565,373 +698,484 @@ export function GuestsView({
       {/* ── MAPPA-FÜL konténer (mint a Munkatársak): fül = hónap-léptető + kereső + Új vendég ── */}
       <div ref={detailRef} className="relative scroll-mt-6">
         {/* FÜL */}
-        <div className="relative z-10 flex w-full flex-wrap items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 py-2 backdrop-blur-[20px] sm:h-[52px] sm:flex-nowrap sm:py-0 sm:px-6">
-          {/* Hónap-léptető */}
-          <div className="flex w-full shrink-0 items-center gap-1 sm:w-auto sm:justify-start">
-            <button
-              type="button"
-              onClick={() => step(-1)}
-              aria-label={day ? 'Előző nap' : 'Előző hónap'}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] transition-colors hover:bg-paper"
+        <div className="relative z-10 flex w-full flex-wrap items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-4 py-2.5 backdrop-blur-[20px] sm:px-6">
+          {/* SZŰRŐSÁV: Időszak · Keresés · Szint · Állapot · Rendezés — mobilon csak a kereső +
+              „Szűrők” gomb, a többi alulról felcsúszó lapon (mint a többi aloldal) */}
+          <div className="hidden flex-shrink-0 items-center gap-2 lg:flex">
+          <div className="relative flex-shrink-0">
+            <select
+              value={period}
+              onChange={(e) => { const v = e.target.value as 'all' | 'month' | 'day'; setPeriod(v); if (v !== 'day') setDay(null) }}
+              aria-label="Időszak"
+              className={FILTER_SELECT}
             >
-              <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
-            </button>
-            {/* Ugyanaz a naptár-választó, mint a Foglalások oldalon (forgalom-színezéssel):
-                napra kattintva csak az aznapi vendégek; „Törlés” → vissza a teljes hónapra. */}
-            <div className="flex flex-1 justify-center sm:flex-none">
+              <option value="all">Minden vendég</option>
+              <option value="month">Ebben a hónapban</option>
+              <option value="day">Adott nap…</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
+          </div>
+          {/* hónap / nap választó csak akkor, ha az időszak nem „Minden vendég” */}
+          {period !== 'all' && (
+            <div className="flex flex-shrink-0 items-center gap-1">
+              <button type="button" onClick={() => step(-1)} aria-label={period === 'day' ? 'Előző nap' : 'Előző hónap'} className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] hover:bg-paper">
+                <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
+              </button>
               <DatePickerPopover
                 value={day ?? `${monthKey}-01`}
-                onChange={pickDay}
-                onClear={day ? () => setDay(null) : undefined}
+                onChange={(d) => { pickDay(d); setPeriod('day') }}
                 loadEndpoint={dayLoadEndpoint}
-                triggerClassName="flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[15px] font-semibold text-ink transition-colors hover:bg-white sm:min-w-[112px] sm:justify-center sm:text-[13px]"
+                triggerClassName="flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[13px] font-semibold text-ink hover:bg-white"
               >
                 <CalendarDays className="h-3.5 w-3.5 text-ink-soft" />
-                {day ? fmtDayLabel(day) : `${MONTH_FULL[ym.m]} ${ym.y}`}
+                {period === 'day' && day ? fmtDayLabel(day) : `${MONTH_FULL[ym.m]} ${ym.y}`}
               </DatePickerPopover>
+              <button type="button" onClick={() => step(1)} aria-label={period === 'day' ? 'Következő nap' : 'Következő hónap'} className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] hover:bg-paper">
+                <ChevronRight className="h-4 w-4" strokeWidth={2.2} />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => step(1)}
-              aria-label={day ? 'Következő nap' : 'Következő hónap'}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] transition-colors hover:bg-paper"
-            >
-              <ChevronRight className="h-4 w-4" strokeWidth={2.2} />
-            </button>
+          )}
           </div>
-          {/* Kereső (kompakt) */}
-          <div className="flex min-w-[90px] flex-1 items-center gap-2.5 rounded-[18px] bg-white px-4 py-2 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
+          {/* Kereső — minden vendégben keres */}
+          <div className="flex min-w-[140px] flex-1 items-center gap-2.5 rounded-[18px] bg-white px-4 py-2 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Keresés"
+              placeholder="Keresés név, telefon, email"
               className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none"
             />
           </div>
-          {/* Státusz-szűrő: Mind / Aktív / Tiltott */}
+          {/* mobil: szűrő-lap nyitó */}
+          <button
+            type="button"
+            onClick={() => setFiltersOpen(true)}
+            className="relative flex h-9 flex-shrink-0 items-center gap-1.5 rounded-[18px] bg-white px-3.5 text-[13px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] lg:hidden"
+          >
+            <SlidersHorizontal className="h-4 w-4" strokeWidth={1.8} /> Szűrők
+            {activeFilterCount > 0 && (
+              <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ink-dark px-1 text-[10.5px] font-bold text-gold">{activeFilterCount}</span>
+            )}
+          </button>
+          <div className="hidden flex-shrink-0 items-center gap-2 lg:flex">
           <div className="relative flex-shrink-0">
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'blocked')}
-              className="cursor-pointer appearance-none rounded-[18px] bg-white py-[9px] pl-4 pr-8 text-[13px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
-            >
-              <option value="all">Mind</option>
+            <select value={tierFilter} onChange={(e) => setTierFilter(e.target.value as 'all' | '1' | '2' | '3')} aria-label="Szint" className={FILTER_SELECT}>
+              <option value="all">Minden szint</option>
+              <option value="1">Új</option>
+              <option value="2">Visszatérő</option>
+              <option value="3">Törzsvendég</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
+          </div>
+          <div className="relative flex-shrink-0">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'blocked')} aria-label="Állapot" className={FILTER_SELECT}>
+              <option value="all">Minden állapot</option>
               <option value="active">Aktív</option>
               <option value="blocked">Tiltott</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
+          <div className="relative flex-shrink-0">
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as 'last' | 'name' | 'visits' | 'spend')} aria-label="Rendezés" className={FILTER_SELECT}>
+              <option value="last">Utolsó látogatás</option>
+              <option value="name">Név (A–Z)</option>
+              <option value="visits">Látogatásszám</option>
+              <option value="spend">Költés</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
+          </div>
+          </div>
         </div>
+
+        {/* MOBIL szűrő-lap — alulról felcsúszik (ugyanaz a nyelv, mint a többi aloldal lapjai) */}
+        {isMounted && createPortal(
+          <AnimatePresence>
+            {filtersOpen && (
+              <div className="fixed inset-0 z-[92] font-onest lg:hidden">
+                <motion.div className="absolute inset-0 bg-black/[0.15] backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={() => setFiltersOpen(false)} />
+                <motion.div
+                  className="fixed inset-x-0 bottom-0 z-10 max-h-[85dvh] overflow-y-auto rounded-t-[28px] bg-white p-4 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]"
+                  initial={{ opacity: 0, y: 24 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 16 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                  data-lenis-prevent
+                >
+                  <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-zinc-200" />
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-ink">Szűrők</h3>
+                    <button type="button" onClick={() => setFiltersOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <FilterGroup title="Időszak">
+                    {([['all', 'Minden vendég'], ['month', 'Ebben a hónapban'], ['day', 'Adott nap']] as const).map(([v, l]) => (
+                      <FilterPill key={v} on={period === v} onClick={() => { setPeriod(v); if (v !== 'day') setDay(null); if (v === 'day' && !day) pickDay(new Date().toLocaleDateString('sv-SE')) }}>{l}</FilterPill>
+                    ))}
+                  </FilterGroup>
+                  {period !== 'all' && (
+                    <div className="mb-4 flex items-center justify-between rounded-2xl border border-line px-2 py-1.5">
+                      <button type="button" onClick={() => step(-1)} aria-label="Előző" className="flex h-9 w-9 items-center justify-center rounded-full text-ink"><ChevronLeft className="h-4 w-4" strokeWidth={2.2} /></button>
+                      <DatePickerPopover
+                        value={day ?? `${monthKey}-01`}
+                        onChange={(d) => { pickDay(d); setPeriod('day') }}
+                        loadEndpoint={dayLoadEndpoint}
+                        triggerClassName="flex items-center gap-1.5 rounded-full px-2 py-1.5 text-[14px] font-semibold text-ink"
+                      >
+                        <CalendarDays className="h-4 w-4 text-ink-soft" />
+                        {period === 'day' && day ? fmtDayLabel(day) : `${MONTH_FULL[ym.m]} ${ym.y}`}
+                      </DatePickerPopover>
+                      <button type="button" onClick={() => step(1)} aria-label="Következő" className="flex h-9 w-9 items-center justify-center rounded-full text-ink"><ChevronRight className="h-4 w-4" strokeWidth={2.2} /></button>
+                    </div>
+                  )}
+                  <FilterGroup title="Szint">
+                    {([['all', 'Mind'], ['1', 'Új'], ['2', 'Visszatérő'], ['3', 'Törzsvendég']] as const).map(([v, l]) => (
+                      <FilterPill key={v} on={tierFilter === v} onClick={() => setTierFilter(v)}>{l}</FilterPill>
+                    ))}
+                  </FilterGroup>
+                  <FilterGroup title="Állapot">
+                    {([['all', 'Mind'], ['active', 'Aktív'], ['blocked', 'Tiltott']] as const).map(([v, l]) => (
+                      <FilterPill key={v} on={statusFilter === v} onClick={() => setStatusFilter(v)}>{l}</FilterPill>
+                    ))}
+                  </FilterGroup>
+                  <FilterGroup title="Rendezés">
+                    {([['last', 'Utolsó látogatás'], ['name', 'Név (A–Z)'], ['visits', 'Látogatásszám'], ['spend', 'Költés']] as const).map(([v, l]) => (
+                      <FilterPill key={v} on={sortBy === v} onClick={() => setSortBy(v)}>{l}</FilterPill>
+                    ))}
+                  </FilterGroup>
+
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => { setPeriod('all'); setDay(null); setTierFilter('all'); setStatusFilter('all'); setSortBy('last') }}
+                      className="h-12 flex-1 rounded-full border border-line bg-white text-[14px] font-semibold text-ink-soft"
+                    >
+                      Alaphelyzet
+                    </button>
+                    <button type="button" onClick={() => setFiltersOpen(false)} className="h-12 flex-[2] rounded-full bg-ink-dark text-[14px] font-semibold text-white">
+                      {total} vendég mutatása
+                    </button>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
 
         {/* TEST: lista + profil (azonos magasság) */}
         <div className="rounded-b-[28px] border border-white/40 bg-white/60 p-4 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[22px] sm:p-5">
-          <div className="grid items-stretch gap-4 lg:grid-cols-[352px_1fr]">
+          <div className="grid items-stretch gap-4 lg:grid-cols-[420px_1fr]">
             {/* LISTA — mobilon (egy-oszlopos nézet) NINCS saját kártya-keret/háttér/padding, mert
                 az már duplázná a befoglaló konténerét (lásd fent, "TEST: lista + profil") —
                 ez volt a "dupla konténer" vizuális hiba. A keret csak lg+ -on (2-oszlopos
                 nézet) jelenik meg, ahol a lista és a profil valódi, egymás melletti kártya. */}
-            <div className="flex flex-col lg:rounded-[22px] lg:border lg:border-white/55 lg:bg-[var(--dav-glass-strong)] lg:backdrop-blur-[14px] lg:p-2.5 lg:h-[560px]">
-              <div className="mb-1 px-2 pt-1 text-[11.5px] font-medium text-ink-soft">
-                {listFiltered.length} vendég{query.trim() ? ' · keresés' : ''}
+            <div className="flex h-[460px] flex-col lg:rounded-[22px] lg:border lg:border-white/55 lg:bg-[var(--dav-glass-strong)] lg:backdrop-blur-[14px] lg:p-2.5 lg:h-[560px]">
+              {/* fejléc-sáv, mint a foglalási táblázatban */}
+              <div className="grid grid-cols-[1fr_52px_74px] items-center gap-2 border-b border-line px-3 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-widest text-ink">
+                <span>{total} vendég{query.trim() ? ' · keresés' : ''}</span>
+                <span className="text-right">Látog.</span>
+                <span className="text-right">Utolsó</span>
               </div>
-              <div className="flex min-h-0 flex-1 flex-col gap-[3px] overflow-y-auto" data-lenis-prevent>
-            {listFiltered.length === 0 ? (
-              <div className="px-4 py-10 text-center text-[13px] text-ink-soft">Ebben a hónapban nincs vendég.</div>
-            ) : (
-              visibleGuests.map((g) => {
-                const active = sel?.key === g.key
-                return (
-                  <button
-                    type="button"
-                    key={g.key}
-                    onClick={() => selectGuest(g.key, { scroll: isMobile })}
-                    className={`flex items-center gap-[13px] rounded-[20px] p-[13px] text-left transition-colors ${active ? 'bg-ink-dark' : 'hover:bg-white/60'}`}
-                  >
-                    <Avatar url={g.avatarUrl} ini={g.ini} bg={g.av} fg={g.avText} size={46} text={15} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-[15px] font-semibold ${active ? 'text-white' : 'text-ink'}`}>{g.name}</span>
-                        {g.country && (
-                          <span title={countryName(g.country) ?? undefined} className="flex-shrink-0 text-[14px] leading-none">{flagEmoji(g.country)}</span>
-                        )}
-                        {g.blocked && (
-                          <span title="Tiltólistán" className="flex h-[17px] w-[17px] flex-shrink-0 items-center justify-center rounded-full bg-[#FBE3E3] text-[#C0453F]">
-                            <Ban className="h-3 w-3" strokeWidth={2.2} />
-                          </span>
-                        )}
-                        <span
-                          className="ml-0.5 rounded-[7px] px-2 py-0.5 text-[9.5px] font-semibold tracking-[0.04em]"
-                          style={{ background: TIER_BG[g.tier], color: TIER_FG[g.tier], boxShadow: active && g.tier === 3 ? 'inset 0 0 0 1px rgba(241,206,69,.4)' : undefined }}
-                        >
-                          {TIER_LABEL[g.tier]}
+              <div ref={listBoxRef} onScroll={onListScroll} className="relative mt-1 flex min-h-0 flex-1 flex-col overflow-y-auto" data-lenis-prevent>
+                {rows.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-[13px] text-ink-soft">{listLoading ? 'Betöltés…' : 'Nincs a szűrésnek megfelelő vendég.'}</div>
+                ) : (
+                  visibleGuests.map((g, i) => {
+                    const active = selKey === g.key
+                    return (
+                      <button
+                        type="button"
+                        key={g.key}
+                        // minden oldal első sora jelölő — ebből tudjuk görgetéskor, hányadik oldalnál jársz
+                        data-page-start={i % PAGE_SIZE === 0 ? range.start + i / PAGE_SIZE : undefined}
+                        onClick={() => selectGuest(g.key, { scroll: isMobile })}
+                        className={`grid grid-cols-[1fr_52px_74px] items-center gap-2 rounded-[12px] px-3 py-2.5 text-left transition-colors ${
+                          active ? 'bg-ink-dark' : 'hover:bg-black/[0.025]'
+                        } ${!active && i > 0 && selKey !== visibleGuests[i - 1]?.key ? 'border-t border-line/70' : ''}`}
+                      >
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className={`truncate text-[14px] font-semibold ${active ? 'text-white' : 'text-ink'}`}>{g.name}</span>
+                          {g.country && <span title={countryName(g.country) ?? undefined} className="flex-shrink-0 text-[13px] leading-none">{flagEmoji(g.country)}</span>}
+                          {g.blocked && <Ban className="h-3.5 w-3.5 flex-shrink-0 text-[#C0453F]" strokeWidth={2.2} aria-label="Tiltólistán" />}
+                          <span className="flex-shrink-0 rounded-full px-2 py-px text-[10px] font-semibold" style={{ background: TIER_BG[g.tier], color: TIER_FG[g.tier] }}>{TIER_LABEL[g.tier]}</span>
                         </span>
-                      </div>
-                      <div className={`mt-[3px] text-[12px] font-normal ${active ? 'text-white/55' : 'text-ink-soft'}`}>{g.meta}</div>
-                      <div className={`mt-2 h-[5px] overflow-hidden rounded-[3px] ${active ? 'bg-white/15' : 'bg-black/[0.06]'}`}>
-                        <div className="h-full rounded-[3px] bg-gold" style={{ width: `${Math.min(g.loyalty, 100)}%` }} />
-                      </div>
-                    </div>
-                  </button>
-                )
-              })
-            )}
-            {isMobile && !guestsExpanded && listFiltered.length > 5 && (
-              <button
-                type="button"
-                onClick={() => setGuestsExpanded(true)}
-                className="mt-1 flex items-center justify-center gap-1.5 rounded-[14px] py-2.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-white/60"
-              >
-                További {listFiltered.length - 5} vendég
-                <ChevronDown className="h-4 w-4" strokeWidth={2} />
-              </button>
-            )}
-          </div>
-        </div>
+                        <span className={`text-right text-[13px] font-semibold tabular-nums ${active ? 'text-white' : 'text-ink'}`}>{g.visits}</span>
+                        <span className={`text-right text-[12px] tabular-nums ${active ? 'text-white/65' : 'text-ink-soft'}`}>
+                          {g.lastVisit ? new Date(g.lastVisit).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }) : '—'}
+                        </span>
+                      </button>
+                    )
+                  })
+                )}
+                {range.end < pageCount && (
+                  <div ref={sentinelRef} className="flex items-center justify-center py-3 text-[12px] text-ink-soft2">Továbbiak betöltése…</div>
+                )}
+              </div>
+              {/* Lapozó — ugyanaz a stílus, mint a Munkatársak listáján; sok oldalnál „…”-tal rövidítve */}
+              {pageCount > 1 && (
+                <div className="mt-3 flex items-center justify-center gap-1.5">
+                  <button type="button" onClick={() => goToPage(curPage - 1)} disabled={curPage === 1} className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink-soft transition-colors hover:border-line-strong disabled:opacity-40"><ChevronLeft className="h-4 w-4" /></button>
+                  {pageList(curPage, pageCount).map((n, i) =>
+                    n === '…' ? (
+                      <span key={`gap-${i}`} className="w-5 text-center text-[13px] text-ink-soft2">…</span>
+                    ) : (
+                      <button key={n} type="button" onClick={() => goToPage(n)} className={`flex h-9 w-9 items-center justify-center rounded-full text-[13px] font-semibold transition-colors ${curPage === n ? 'bg-ink-dark text-white' : 'border border-line bg-white text-ink-soft hover:border-line-strong'}`}>{n}</button>
+                    ),
+                  )}
+                  <button type="button" onClick={() => goToPage(curPage + 1)} disabled={curPage === pageCount} className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink-soft transition-colors hover:border-line-strong disabled:opacity-40"><ChevronRight className="h-4 w-4" /></button>
+                </div>
+              )}
+            </div>
 
             {/* PROFIL — ugyanaz az ok, mint a LISTA-nál: mobilon nincs saját kártya-keret,
                 csak lg+ -on (lásd fenti komment). */}
             {sel ? (
-              <div ref={profileRef} className="flex flex-col overflow-y-auto lg:rounded-[22px] lg:border lg:border-white/55 lg:bg-[var(--dav-glass-strong)] lg:backdrop-blur-[14px] lg:p-6 lg:h-[560px] scroll-mt-6" data-lenis-prevent>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-[18px]">
-              <div className="min-w-0 flex-1">
-                <div className="flex items-start gap-4 sm:gap-[18px]">
-                  <Avatar url={sel.avatarUrl} ini={sel.ini} bg={sel.av} fg={sel.avText} size={74} text={26} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1">
-                      <div className="text-[26px] font-normal tracking-[-0.01em] text-ink">{sel.name}</div>
-                      {sel.country && (
-                        <span className="inline-flex items-center gap-1.5 rounded-[9px] bg-white/55 px-[9px] py-1 text-[12px] font-semibold text-ink-soft backdrop-blur-[6px]">
-                          <span className="text-[15px] leading-none">{flagEmoji(sel.country)}</span>
-                          {countryName(sel.country)}
-                        </span>
-                      )}
-                      <span className="rounded-[9px] px-[11px] py-1 text-[11px] font-semibold tracking-[0.04em]" style={{ background: TIER_BG[sel.tier], color: TIER_FG[sel.tier] }}>
-                        {TIER_LABEL[sel.tier]}
-                      </span>
-                      {sel.birthdayDate && (
-                        <span className="inline-flex items-center gap-1 rounded-[9px] bg-[#F7DEDE] px-[9px] py-1 text-[11px] font-semibold text-[#C2557A]">
-                          <Cake className="h-3.5 w-3.5" strokeWidth={1.8} /> Szülinap · {birthdayLabel(sel.birthdayDate)}
-                        </span>
-                      )}
-                      {sel.blocked && (
-                        <span className="inline-flex items-center gap-1 rounded-[9px] bg-[#FBE3E3] px-[9px] py-1 text-[11px] font-semibold text-[#C0453F]">
-                          <Ban className="h-3.5 w-3.5" strokeWidth={2} /> Tiltólistán
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px] text-ink-soft">
-                  {sel.phone && <span>{sel.phone}</span>}
-                  {sel.phone && sel.email && <span className="text-ink-soft2">·</span>}
-                  {sel.email && <span className="break-all">{sel.email}</span>}
-                  {!sel.phone && !sel.email && <span>—</span>}
-                </div>
-                <div className="mt-0.5 text-[12.5px] text-ink-soft">vendég {sel.since} óta</div>
-                <div className="mt-1 text-[12px] font-medium text-ink-soft2">{tierExplain(sel.tier, sel.visits)}</div>
-              </div>
-              <div className="flex flex-shrink-0 gap-2">
-                {sel.phone && canManage ? (
-                  <a href={`tel:${sel.phone}`} title={`Hívás — ${sel.phone}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
-                    <Phone className="h-4 w-4" strokeWidth={1.6} />
-                  </a>
-                ) : (
-                  <span title={sel.phone ? 'Nincs jogosultság a híváshoz' : 'Nincs telefonszám'} aria-disabled className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full bg-white/30 text-ink-soft2 opacity-50">
-                    <Phone className="h-4 w-4" strokeWidth={1.6} />
-                  </span>
-                )}
-                {sel.email && canManage ? (
-                  <a href={`mailto:${sel.email}`} title={`E-mail — ${sel.email}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
-                    <Mail className="h-4 w-4" strokeWidth={1.6} />
-                  </a>
-                ) : (
-                  <span title={sel.email ? 'Nincs jogosultság az e-mail-küldéshez' : 'Nincs e-mail-cím'} aria-disabled className="flex h-9 w-9 cursor-not-allowed items-center justify-center rounded-full bg-white/30 text-ink-soft2 opacity-50">
-                    <Mail className="h-4 w-4" strokeWidth={1.6} />
-                  </span>
-                )}
-                {canManage && (
-                  <button type="button" onClick={() => startEdit(sel)} title="Szerkesztés" className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 backdrop-blur text-ink transition-colors hover:bg-white/75">
-                    <Pencil className="h-4 w-4" strokeWidth={1.7} />
-                  </button>
-                )}
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => toggleBlock(sel)}
-                    disabled={busy}
-                    title={sel.blocked ? 'Tiltás feloldása' : 'Tiltólistára'}
-                    className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors disabled:opacity-50 ${sel.blocked ? 'bg-[#E7F2EA] text-[#1D9D63] hover:bg-[#d7ebde]' : 'bg-[#FBE3E3] text-[#C0453F] hover:bg-[#f6d4d4]'}`}
-                  >
-                    {sel.blocked ? <ShieldCheck className="h-4 w-4" strokeWidth={1.8} /> : <Ban className="h-4 w-4" strokeWidth={1.8} />}
-                  </button>
-                )}
-                {canManage && (
-                  <button
-                    type="button"
-                    onClick={() => setDeleteTarget(sel)}
-                    disabled={busy}
-                    title="Vendég törlése"
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/50 text-ink-soft backdrop-blur transition-colors hover:bg-[#FBE3E3] hover:text-[#C0453F] disabled:opacity-50"
-                  >
-                    <Trash2 className="h-4 w-4" strokeWidth={1.7} />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Szerkesztő űrlap (kézi felülírás) */}
-            {editing && canManage && (
-              <div className="mt-4 rounded-[18px] border border-white/60 bg-white/55 p-4 backdrop-blur-[10px]">
-                <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2">
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[11.5px] font-semibold text-ink-soft">Név</span>
-                    <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Vendég neve" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
-                  </label>
-                  <label className="flex flex-col gap-1">
-                    <span className="text-[11.5px] font-semibold text-ink-soft">Telefon</span>
-                    <input value={form.phone} onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))} placeholder="+36 20 123 4567" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
-                  </label>
-                  <label className="flex flex-col gap-1 sm:col-span-2">
-                    <span className="text-[11.5px] font-semibold text-ink-soft">E-mail</span>
-                    <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="vendeg@example.com" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
-                  </label>
-                  <label className="flex flex-col gap-1 sm:col-span-2">
-                    <span className="text-[11.5px] font-semibold text-ink-soft">Belső jegyzet</span>
-                    <input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Csak a személyzet látja" className="rounded-[12px] border border-line bg-white px-3 py-2 text-[13.5px] text-ink focus:outline-none" />
-                  </label>
-                </div>
-                <div className="mt-3 flex justify-end gap-2">
-                  <button type="button" onClick={() => setEditing(false)} className="rounded-[12px] bg-white/70 px-4 py-2 text-[13px] font-semibold text-ink-soft hover:text-ink">Mégse</button>
-                  <button type="button" onClick={() => saveEdit(sel)} disabled={busy} className="rounded-[12px] bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white disabled:opacity-50">Mentés</button>
-                </div>
-              </div>
-            )}
-
-            {/* Tiltás-jelző + indok */}
-            {sel.blocked && (
-              <div className="mt-4 flex items-start gap-[11px] rounded-[16px] bg-[#FBE3E3] px-4 py-3">
-                <Ban className="mt-px h-[17px] w-[17px] flex-shrink-0 text-[#C0453F]" strokeWidth={1.8} />
-                <div className="text-[13.5px] font-medium leading-[1.5] text-[#9A3A35]">
-                  Tiltólistán{sel.blockReason ? <> — {sel.blockReason}</> : ' (nincs megadva indok)'}
-                </div>
-              </div>
-            )}
-
-            {/* Adatsorok (Törzsvendég-pont gyűrű nélkül) */}
-            <div className="mt-6 grid gap-2.5 sm:grid-cols-2">
-              {sel.rows.map((r) => {
-                // Hosszú, több-tagú értékek (pl. "Balayage + Vágás + Szárítás") a címke MELLÉ
-                // (justify-between, egy sorba) szorítva egybefolytak a címkével — ezek a
-                // címke FÖLÉ kerülnek, saját sorban, mint a Megjegyzés/Vendég értékelése.
-                const stacked = r.label === 'Megjegyzés' || r.label === 'Vendég értékelése' || r.label === 'Kedvenc' || r.label === 'Kedvenc nap'
-                // Az "Értékelés" sor "★★★★★ 4.2 (3)" string-je — a csillagok arany színt kapnak,
-                // a szám/zárójel marad a szöveg-színben.
-                const starMatch = r.label === 'Értékelés' ? /^([★☆]+)(.*)$/.exec(String(r.value)) : null
-                if (stacked) {
-                  return (
-                    <div key={r.label} className="rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3 sm:col-span-2">
-                      <div className="mb-0.5 text-[13px] font-medium text-ink-soft">{r.label}</div>
-                      <div className="text-[14px] font-medium leading-[1.5] text-ink">{r.value}</div>
-                    </div>
-                  )
-                }
-                return (
-                  <div key={r.label} className="flex items-center justify-between rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3">
-                    <span className="text-[13px] font-medium text-ink-soft">{r.label}</span>
-                    <span className="text-[15px] font-semibold text-ink">
-                      {starMatch ? (
-                        <>
-                          <span className="text-gold">{starMatch[1]}</span>
-                          {starMatch[2]}
-                        </>
-                      ) : r.value}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-
-            <div className="mb-2 mt-6 text-[13px] font-semibold text-ink">Látogatási előzmények</div>
-            <div className="flex flex-col gap-0.5">
-              {sel.history.length === 0 ? (
-                <div className="py-3 text-[13px] text-ink-soft">
-                  {sel.visits <= 1 ? 'Ez az első látogatása — még nincs korábbi.' : 'Nincs korábbi látogatás.'}
-                </div>
-              ) : (
-                (historyOpen ? sel.history : sel.history.slice(0, 3)).map((h, i) => {
-                  const expandable = (h.details && h.details.length > 0) || !!h.note
-                  const isOpen = openRow === i
-                  return (
-                    <div key={i} className="border-b" style={{ borderColor: 'rgba(120,110,70,.1)' }}>
-                      <button
-                        type="button"
-                        disabled={!expandable}
-                        onClick={() => setOpenRow((o) => (o === i ? null : i))}
-                        className={`flex w-full items-center gap-3.5 py-2.5 text-left transition-colors ${expandable ? 'cursor-pointer hover:bg-white/40' : 'cursor-default'}`}
-                      >
-                        <div className="w-14 flex-shrink-0 text-[12.5px] font-semibold text-ink-soft">{h.d}</div>
-                        <div className="flex-1 text-[14px] font-medium text-ink">{h.w}</div>
-                        {h.a && <div className="text-[14px] font-semibold text-ink">{h.a}</div>}
-                        {expandable && (
-                          <ChevronDown className={`h-4 w-4 flex-shrink-0 text-ink-soft transition-transform ${isOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
+              <div ref={profileRef} className={`flex flex-col overflow-y-auto transition-opacity lg:rounded-[22px] lg:border lg:border-white/55 lg:bg-[var(--dav-glass-strong)] lg:backdrop-blur-[14px] lg:p-6 lg:h-[560px] scroll-mt-6 ${profileStale ? 'opacity-50' : ''}`} data-lenis-prevent>
+            {(() => {
+              // ── Profil: fejléc (név, zászló, szint) · 4 kulcsszám · Profil / Megjegyzések /
+              //    Előzmények adatlap-sorokban — ugyanaz a stílus, mint az új foglalás-ablakban.
+              const KPI_LABELS = ['Látogatás', 'Összes költés eddig', 'Összes létszám', 'Közelgő foglalás']
+              const rowByLabel = (l: string) => sel.rows.find((r) => r.label === l)
+              const kpis = [
+                { label: 'Látogatás', value: String(sel.visits) },
+                ...(rowByLabel('Összes költés eddig') ? [{ label: 'Költés eddig', value: String(rowByLabel('Összes költés eddig')!.value) }] : []),
+                ...(rowByLabel('Összes létszám') ? [{ label: 'Össz. létszám', value: String(rowByLabel('Összes létszám')!.value) }] : []),
+                { label: 'Utolsó látogatás', value: sel.lastVisit ? new Date(sel.lastVisit).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' }) : '—' },
+                { label: 'Közelgő', value: String(rowByLabel('Közelgő foglalás')?.value ?? '—') },
+              ].slice(0, 4)
+              // a megjegyzés külön szekcióban, egyszer — a sorok közül kivesszük
+              const profileRows = sel.rows.filter((r) => !KPI_LABELS.includes(r.label) && r.label !== 'Megjegyzés')
+              const nextTier = sel.tier === 1 ? { need: 2, label: 'Visszatérő' } : sel.tier === 2 ? { need: 4, label: 'Törzsvendég' } : null
+              const progress = nextTier ? Math.min(100, Math.round((sel.visits / nextTier.need) * 100)) : 100
+              return (
+                <>
+                  {/* FEJLÉC */}
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h2 className="text-[26px] font-light tracking-[-0.02em] text-ink">{sel.name}</h2>
+                        {sel.country && <span title={countryName(sel.country) ?? undefined} className="text-[17px] leading-none">{flagEmoji(sel.country)}</span>}
+                        <span className="rounded-full px-2.5 py-0.5 text-[11px] font-semibold" style={{ background: TIER_BG[sel.tier], color: TIER_FG[sel.tier] }}>{TIER_LABEL[sel.tier]}</span>
+                        {sel.birthdayDate && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#F7DEDE] px-2.5 py-0.5 text-[11px] font-semibold text-[#C2557A]">
+                            <Cake className="h-3 w-3" strokeWidth={1.8} /> {birthdayLabel(sel.birthdayDate)}
+                          </span>
                         )}
-                      </button>
-                      {expandable && isOpen && (
-                        <div className="mb-2.5 grid gap-x-4 gap-y-2 rounded-[14px] bg-white/55 px-3.5 py-3 backdrop-blur-[6px] sm:grid-cols-2">
-                          {h.details?.map((d) => (
-                            <div key={d.label} className="flex items-center justify-between gap-3">
-                              <span className="text-[12px] font-medium text-ink-soft">{d.label}</span>
-                              <span className="text-right text-[13px] font-semibold text-ink">{d.value}</span>
-                            </div>
-                          ))}
-                          {h.note && (
-                            <div className="flex items-center justify-between gap-3 sm:col-span-2">
-                              <span className="flex-shrink-0 text-[12px] font-medium text-ink-soft">Megjegyzés</span>
-                              <span className="text-right text-[13px] font-medium text-ink">{h.note}</span>
-                            </div>
-                          )}
+                        {sel.blocked && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#FBE3E3] px-2.5 py-0.5 text-[11px] font-semibold text-[#C0453F]">
+                            <Ban className="h-3 w-3" strokeWidth={2} /> Tiltólistán
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[13.5px] text-ink-soft">
+                        {sel.phone && <a href={`tel:${sel.phone.replace(/\s+/g, '')}`} className="hover:text-ink hover:underline">{sel.phone}</a>}
+                        {sel.phone && sel.email && <span className="text-ink-soft2">·</span>}
+                        {sel.email && <a href={`mailto:${sel.email}`} className="break-all hover:text-ink hover:underline">{sel.email}</a>}
+                        {!sel.phone && !sel.email && <span>Nincs elérhetőség</span>}
+                        <span className="text-ink-soft2">· vendég {sel.since} óta</span>
+                      </div>
+                      {/* hűség — szövegesen, mennyi kell a következő szintig */}
+                      <div className="mt-2.5 flex items-center gap-2.5">
+                        <div className="h-[5px] w-28 overflow-hidden rounded-full bg-black/[0.06]">
+                          <div className="h-full rounded-full bg-gold" style={{ width: `${progress}%` }} />
                         </div>
-                      )}
+                        <span className="text-[12px] text-ink-soft">
+                          {nextTier ? `${sel.visits} / ${nextTier.need} látogatás a „${nextTier.label}” szintig` : 'Törzsvendég'}
+                        </span>
+                      </div>
                     </div>
-                  )
-                })
-              )}
-              {sel.history.length > 3 ? (
-                <button type="button" onClick={() => setHistoryOpen((o) => !o)} className="mt-1 flex items-center justify-center gap-1.5 rounded-[14px] py-2.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-white/60">
-                  {historyOpen ? 'Kevesebb' : `További ${sel.history.length - 3} látogatás`}
-                  <ChevronDown className={`h-4 w-4 transition-transform ${historyOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
-                </button>
-              ) : null}
-            </div>
 
-            {/* Megjegyzések a foglalásokból (vendég + belső), fallback: tier-tanács */}
-            {sel.guestNote || sel.internalNote ? (
-              <div className="mt-4 flex flex-col gap-2">
-                {sel.guestNote && (
-                  <div className="rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3">
-                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-ink-soft2">Vendég megjegyzése</div>
-                    <div className="text-[13.5px] font-medium leading-[1.5] text-ink">{sel.guestNote}</div>
+                    {/* AKCIÓK — feliratos fő gombok, a ritka/veszélyes műveletek a ⋯ menüben */}
+                    {canManage && (
+                      <div className="relative flex flex-shrink-0 items-center gap-1.5">
+                        {sel.phone && (
+                          <a href={`tel:${sel.phone.replace(/\s+/g, '')}`} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-[13px] font-semibold text-ink transition-colors hover:border-line-strong">
+                            <Phone className="h-3.5 w-3.5" strokeWidth={1.8} /> Hívás
+                          </a>
+                        )}
+                        {sel.email && (
+                          <a href={`mailto:${sel.email}`} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-line bg-white px-3.5 text-[13px] font-semibold text-ink transition-colors hover:border-line-strong">
+                            <Mail className="h-3.5 w-3.5" strokeWidth={1.8} /> Email
+                          </a>
+                        )}
+                        <button type="button" onClick={() => startEdit(sel)} title="Szerkesztés" className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink transition-colors hover:border-line-strong">
+                          <Pencil className="h-3.5 w-3.5" strokeWidth={1.8} />
+                        </button>
+                        <button type="button" onClick={() => setMoreOpen((o) => !o)} title="Továbbiak" aria-expanded={moreOpen} className="flex h-9 w-9 items-center justify-center rounded-full border border-line bg-white text-ink transition-colors hover:border-line-strong">
+                          <MoreHorizontal className="h-4 w-4" strokeWidth={1.8} />
+                        </button>
+                        <AnimatePresence>
+                          {moreOpen && (
+                            <>
+                              <div className="fixed inset-0 z-10" onClick={() => setMoreOpen(false)} />
+                              <motion.div
+                                initial={{ opacity: 0, scale: 0.92, y: -4 }}
+                                animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 480, damping: 30 } }}
+                                exit={{ opacity: 0, scale: 0.95, y: -4, transition: { duration: 0.12 } }}
+                                style={{ transformOrigin: 'top right' }}
+                                className="absolute right-0 top-11 z-20 w-48 rounded-[16px] border border-line bg-white p-1.5 shadow-dav-container"
+                              >
+                                <button type="button" disabled={busy} onClick={() => { setMoreOpen(false); toggleBlock(sel) }} className="flex w-full items-center gap-2 rounded-[11px] px-3 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-[#F4F4F4] disabled:opacity-50">
+                                  {sel.blocked ? <ShieldCheck className="h-4 w-4 text-[#1D9D63]" strokeWidth={1.8} /> : <Ban className="h-4 w-4 text-[#C0453F]" strokeWidth={1.8} />}
+                                  {sel.blocked ? 'Tiltás feloldása' : 'Tiltólistára'}
+                                </button>
+                                <button type="button" disabled={busy} onClick={() => { setMoreOpen(false); setDeleteTarget(sel) }} className="flex w-full items-center gap-2 rounded-[11px] px-3 py-2 text-left text-[13px] font-medium text-[#C0453F] transition-colors hover:bg-[#FBE3E3] disabled:opacity-50">
+                                  <Trash2 className="h-4 w-4" strokeWidth={1.8} /> Vendég törlése
+                                </button>
+                              </motion.div>
+                            </>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
                   </div>
-                )}
-                {sel.internalNote && (
-                  <div className="rounded-[16px] bg-white/45 backdrop-blur-[6px] px-4 py-3">
-                    <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[#7C7B73]">Belső megjegyzés</div>
-                    <div className="text-[13.5px] font-medium leading-[1.5] text-[#565550]">{sel.internalNote}</div>
+
+                  {/* Szerkesztő űrlap (kézi felülírás) */}
+                  {editing && canManage && (
+                    <div className="mt-4 rounded-[16px] border border-line bg-white p-4">
+                      <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2">
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11.5px] font-semibold text-ink-soft">Név</span>
+                          <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Vendég neve" className="h-10 rounded-[12px] border border-line bg-white px-3 text-[13.5px] text-ink focus:outline-none" />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                          <span className="text-[11.5px] font-semibold text-ink-soft">Telefon</span>
+                          <PhoneInput value={form.phone} onChange={(v) => setForm((f) => ({ ...f, phone: v }))} inputClass="h-10 rounded-[12px] border border-line bg-white px-3 text-[13.5px] text-ink" />
+                        </label>
+                        <label className="flex flex-col gap-1 sm:col-span-2">
+                          <span className="text-[11.5px] font-semibold text-ink-soft">E-mail</span>
+                          <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} placeholder="vendeg@example.com" className="h-10 rounded-[12px] border border-line bg-white px-3 text-[13.5px] text-ink focus:outline-none" />
+                        </label>
+                        <label className="flex flex-col gap-1 sm:col-span-2">
+                          <span className="text-[11.5px] font-semibold text-ink-soft">Belső jegyzet</span>
+                          <input value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="Csak a személyzet látja" className="h-10 rounded-[12px] border border-line bg-white px-3 text-[13.5px] text-ink focus:outline-none" />
+                        </label>
+                      </div>
+                      <div className="mt-3 flex justify-end gap-2">
+                        <button type="button" onClick={() => setEditing(false)} className="h-10 rounded-full border border-line bg-white px-4 text-[13px] font-semibold text-ink-soft hover:text-ink">Mégse</button>
+                        <button type="button" onClick={() => saveEdit(sel)} disabled={busy} className="h-10 rounded-full bg-ink-dark px-5 text-[13px] font-semibold text-white disabled:opacity-50">Mentés</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Tiltás-jelző + indok */}
+                  {sel.blocked && (
+                    <p className="mt-3 flex items-start gap-1.5 text-[12.5px] font-semibold text-[#C0453F]">
+                      <Ban className="mt-[1px] h-3.5 w-3.5 flex-shrink-0" strokeWidth={2} />
+                      Tiltólistán{sel.blockReason ? ` — ${sel.blockReason}` : ' (nincs megadva indok)'}
+                    </p>
+                  )}
+
+                  {/* 4 KULCSSZÁM */}
+                  <div className="mt-5 grid grid-cols-2 overflow-hidden rounded-[16px] border border-line bg-white sm:grid-cols-4">
+                    {kpis.map((k, i) => (
+                      <div key={k.label} className={`px-4 py-3 ${i > 0 ? 'border-line sm:border-l' : ''} ${i >= 2 ? 'border-t border-line sm:border-t-0' : ''} ${i === 1 ? 'border-l' : ''}`}>
+                        <div className="text-[11.5px] text-ink-soft">{k.label}</div>
+                        <div className="mt-0.5 truncate text-[18px] font-light tracking-[-0.01em] text-ink">{k.value}</div>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
-            ) : (
-              <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-gold/25 bg-gradient-to-br from-[#FBF4DE]/70 to-white/40 px-4 py-3.5 backdrop-blur-[6px]">
-                <span className="flex h-[30px] w-[30px] flex-shrink-0 items-center justify-center rounded-full bg-gold/15">
-                  <Star className="h-[15px] w-[15px] text-gold" strokeWidth={2} fill="currentColor" />
-                </span>
-                <div>
-                  <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#B99527]">Tipp</div>
-                  <div className="text-[13.5px] font-medium leading-[1.5] text-[#4A4740]">{sel.advice}</div>
-                </div>
-              </div>
-                )}
+
+                  {/* PROFIL */}
+                  {profileRows.length > 0 && (
+                    <div className="mt-6">
+                      <SectionBar icon={UserRound} label="Profil" />
+                      {profileRows.map((r, i) => {
+                        const starMatch = r.label === 'Értékelés' ? /^([★☆]+)(.*)$/.exec(String(r.value)) : null
+                        const long = String(r.value).length > 34
+                        return (
+                          <FieldRow key={r.label} label={r.label} stacked={long} last={i === profileRows.length - 1}>
+                            <div className={`text-[14px] font-medium text-ink ${long ? '' : 'text-right'}`}>
+                              {starMatch ? <><span className="text-gold">{starMatch[1]}</span>{starMatch[2]}</> : r.value}
+                            </div>
+                          </FieldRow>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* MEGJEGYZÉSEK — egyszer, a vendégé és a belső külön */}
+                  <div className="mt-6">
+                    <SectionBar icon={StickyNote} label="Megjegyzések" />
+                    {sel.guestNote || sel.internalNote ? (
+                      <>
+                        {sel.guestNote && (
+                          <FieldRow label="Vendégtől" stacked last={!sel.internalNote}>
+                            <div className="text-[14px] font-medium leading-[1.5] text-ink">„{sel.guestNote}”</div>
+                          </FieldRow>
+                        )}
+                        {sel.internalNote && (
+                          <FieldRow label="Belső (csak a személyzet)" stacked last>
+                            <div className="text-[14px] font-medium leading-[1.5] text-ink">{sel.internalNote}</div>
+                          </FieldRow>
+                        )}
+                      </>
+                    ) : (
+                      <FieldRow label="Tipp" stacked last>
+                        <div className="flex items-start gap-1.5 text-[13.5px] leading-[1.5] text-ink-soft">
+                          <Star className="mt-[3px] h-3.5 w-3.5 flex-shrink-0 text-gold" strokeWidth={2} fill="currentColor" />
+                          {sel.advice}
+                        </div>
+                      </FieldRow>
+                    )}
+                  </div>
+
+                  {/* ELŐZMÉNYEK — táblázatos sorok, mint a foglalási listában */}
+                  <div className="mt-6">
+                    <SectionBar icon={History} label="Előzmények" />
+                    {sel.history.length === 0 ? (
+                      <p className="px-3 py-3 text-[13px] text-ink-soft">
+                        {sel.visits <= 1 ? 'Ez az első látogatása — még nincs korábbi.' : 'Nincs korábbi látogatás a rendszerben.'}
+                      </p>
+                    ) : (
+                      (historyOpen ? sel.history : sel.history.slice(0, 3)).map((h, i, arr) => {
+                        const expandable = (h.details && h.details.length > 0) || !!h.note
+                        const isOpen = openRow === i
+                        return (
+                          <div key={i} className={i < arr.length - 1 ? 'border-b border-line' : ''}>
+                            <button
+                              type="button"
+                              disabled={!expandable}
+                              onClick={() => setOpenRow((o) => (o === i ? null : i))}
+                              className={`flex w-full items-center gap-3.5 rounded-[12px] px-3 py-2.5 text-left transition-colors ${expandable ? 'cursor-pointer hover:bg-black/[0.025]' : 'cursor-default'}`}
+                            >
+                              <div className="w-16 flex-shrink-0 text-[12.5px] font-semibold tabular-nums text-ink-soft">{h.d}</div>
+                              <div className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{h.w}</div>
+                              {h.a && <div className="text-[14px] font-semibold tabular-nums text-ink">{h.a}</div>}
+                              {expandable && <ChevronDown className={`h-4 w-4 flex-shrink-0 text-ink-soft transition-transform ${isOpen ? 'rotate-180' : ''}`} strokeWidth={2} />}
+                            </button>
+                            {expandable && isOpen && (
+                              <div className="mb-2.5 grid gap-x-4 gap-y-2 rounded-[12px] bg-[#F4F4F4] px-3.5 py-3 sm:grid-cols-2">
+                                {h.details?.map((d) => (
+                                  <div key={d.label} className="flex items-center justify-between gap-3">
+                                    <span className="text-[12px] font-medium text-ink-soft">{d.label}</span>
+                                    <span className="text-right text-[13px] font-semibold text-ink">{d.value}</span>
+                                  </div>
+                                ))}
+                                {h.note && (
+                                  <div className="flex items-center justify-between gap-3 sm:col-span-2">
+                                    <span className="flex-shrink-0 text-[12px] font-medium text-ink-soft">Megjegyzés</span>
+                                    <span className="text-right text-[13px] font-medium text-ink">{h.note}</span>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })
+                    )}
+                    {sel.history.length > 3 && (
+                      <button type="button" onClick={() => setHistoryOpen((o) => !o)} className="mt-1 flex w-full items-center justify-center gap-1.5 rounded-[12px] py-2.5 text-[12.5px] font-semibold text-ink-soft transition-colors hover:bg-black/[0.025]">
+                        {historyOpen ? 'Kevesebb' : `További ${sel.history.length - 3} látogatás`}
+                        <ChevronDown className={`h-4 w-4 transition-transform ${historyOpen ? 'rotate-180' : ''}`} strokeWidth={2} />
+                      </button>
+                    )}
+                  </div>
+                </>
+              )
+            })()}
               </div>
             ) : (
               <div className="flex items-center justify-center rounded-[22px] border border-white/55 bg-[var(--dav-glass-strong)] backdrop-blur-[14px] p-7 text-[14px] text-ink-soft lg:h-[560px]">
