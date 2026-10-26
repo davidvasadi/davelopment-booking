@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { autofillSalonSchedule } from '@/lib/scheduleAutofill'
 import { bookableDayCount, type BookingWindowSource } from '@/lib/bookingWindow'
+import { assertCapability } from '@/lib/apiCapability'
 
 async function canPostToSalon(
   payload: Awaited<ReturnType<typeof getPayloadClient>>,
@@ -89,6 +90,20 @@ export async function POST(request: NextRequest) {
   const payload = await getPayloadClient()
   const canPost = await canPostToSalon(payload, user, salonId)
   if (!canPost) return NextResponse.json({ error: 'Hozzáférés megtagadva' }, { status: 403 })
+  // Ugyanaz a jog, mint a PATCH/DELETE-nél (`availability.manage`) — korábban bármely tag
+  // létrehozhatott rekordot (akár más munkatárs heti munkaidejét), csak módosítani nem tudta.
+  if ((user as { role?: string }).role !== 'admin') {
+    const denied = await assertCapability(user.id, 'salon', salonId as string | number, 'availability.manage')
+    if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
+  }
+  // A munkatárs ugyanahhoz a szalonhoz tartozzon (ne lehessen más szalon emberére írni).
+  if (body.staff != null) {
+    const staffDoc = await payload.findByID({ collection: 'staff', id: body.staff as string | number, depth: 0, overrideAccess: true }).catch(() => null)
+    const staffSalon = staffDoc && (typeof staffDoc.salon === 'object' && staffDoc.salon ? (staffDoc.salon as { id: unknown }).id : staffDoc.salon)
+    if (!staffDoc || String(staffSalon) !== String(salonId)) {
+      return NextResponse.json({ error: 'A munkatárs nem ehhez a szalonhoz tartozik' }, { status: 400 })
+    }
+  }
 
   try {
     const doc = await payload.create({
