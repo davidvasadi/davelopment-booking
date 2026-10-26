@@ -167,8 +167,32 @@ export function aggregateGuests(sources: GuestSource[]): Guest[] {
  */
 export function withManualGuests(
   guests: Guest[],
-  customers: { customer_name?: string | null; customer_email?: string | null; customer_phone?: string | null }[],
+  customers: { customer_name?: string | null; customer_email?: string | null; customer_phone?: string | null; visit_count?: number | null }[],
 ): Guest[] {
+  // Importált élettartam-látogatásszám (pl. Salonic/étterem-export „Látogatások” oszlopa): a nálunk
+  // lévő foglalásokból csak az első+utolsó látogatás rekonstruálható, így enélkül szinte minden
+  // importált vendég „Új” lenne, és a Visszatérő arány 0% körül ragadna. A nagyobbik érték számít.
+  const importedVisits = new Map<string, number>()
+  for (const c of customers) {
+    const v = Number(c.visit_count ?? 0)
+    if (!v) continue
+    const email = c.customer_email?.trim().toLowerCase()
+    const phone = c.customer_phone?.trim()
+    if (email) importedVisits.set(email, Math.max(v, importedVisits.get(email) ?? 0))
+    if (phone) importedVisits.set(phone, Math.max(v, importedVisits.get(phone) ?? 0))
+  }
+  for (const g of guests) {
+    const v = Math.max(
+      (g.email && importedVisits.get(g.email.toLowerCase())) || 0,
+      (g.phone && importedVisits.get(g.phone.trim())) || 0,
+    )
+    if (v > g.visits) {
+      g.visits = v
+      g.returning = v > 1
+      g.tier = tierFor(v)
+    }
+  }
+
   const known = new Set<string>()
   for (const g of guests) {
     known.add(g.key)
@@ -187,17 +211,18 @@ export function withManualGuests(
     known.add(key)
     if (email) known.add(email)
     if (phone) known.add(phone)
+    const visits = Number(c.visit_count ?? 0)
     extra.push({
       key,
       name: displayName(src),
       email,
       phone,
-      visits: 0,
+      visits,
       lastVisit: null,
       totalPax: 0,
       country: isoFromPhone(phone) || null,
-      returning: false,
-      tier: 1,
+      returning: visits > 1,
+      tier: tierFor(visits),
     })
   }
   return extra.length ? [...guests, ...extra] : guests

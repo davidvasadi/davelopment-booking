@@ -193,6 +193,7 @@ export function buildGuestVMs(guests: Guest[], sources: GuestSource[], opts: Bui
       since: sinceYear(g, sources),
       visits: g.visits,
       lastVisit: g.lastVisit,
+      visitDates: [...new Set(own.map((s) => (s.date ?? '').slice(0, 10)).filter(Boolean))],
       fav,
       loyalty: loyaltyPoints(g),
       rows,
@@ -327,7 +328,9 @@ export function reviewRowValue(average: number, count: number): string {
 
 export function returningPct(guests: Guest[]): number {
   if (guests.length === 0) return 0
-  return Math.round((guests.filter((g) => g.returning).length / guests.length) * 100)
+  const pct = (guests.filter((g) => g.returning).length / guests.length) * 100
+  // 10% alatt egy tizedes — különben pl. 7 visszatérő / 1883 vendég „0%”-nak látszik
+  return pct < 10 ? Math.round(pct * 10) / 10 : Math.round(pct)
 }
 
 export { flagEmoji, TIER_LABEL }

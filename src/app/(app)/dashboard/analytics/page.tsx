@@ -164,7 +164,7 @@ export default async function AnalyticsPage({
       ],
     },
     {
-      id: 'returning', label: 'Visszatérő vendégek', value: `${stats.returningGuestPct}%`, unit: '%',
+      id: 'returning', label: 'Visszatérő vendégek', value: `${stats.returningGuestPct.toLocaleString('hu-HU')}%`, unit: '%',
       color: '#1D9D63', icon: 'returning', series: stats.returningGuestTrend, deltaPct: stats.returningGuestPctDiff,
       views: [
         { id: 'new', label: `Új vendégek · ${stats.newGuestCount} fő`, icon: 'newguest', series: stats.newGuestTrend, value: `${stats.newGuestCount} fő` },

@@ -84,7 +84,7 @@ export default async function RestaurantGuestsPage() {
     collection: 'customers',
     where: { restaurant: { equals: restaurant.id } },
     depth: 0,
-    limit: 2000,
+    pagination: false, // mind (importnál ezres nagyságrend is lehet — a 2000-es korlát csendben levágta volna)
     overrideAccess: true,
   })
   // A rekord MINDEN azonosítója (match_index: régi+új e-mail/telefon) → átlinkeléshez.
@@ -220,6 +220,7 @@ export default async function RestaurantGuestsPage() {
 
   return (
     <GuestsView
+      dayLoadEndpoint="/api/restaurant/day-load"
       pills={tierSegments(guests)}
       metrics={metrics}
       guests={guestVMs}

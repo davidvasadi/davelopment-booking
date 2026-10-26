@@ -12,12 +12,13 @@ import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { sheetSpring } from '@/lib/motion'
-import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle, UserPlus, UserRound, X } from 'lucide-react'
+import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle, UserPlus, UserRound, X } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { TIER_LABEL, flagEmoji, countryName, type GuestTier, type CountryBucket } from '@/lib/guests'
 import { StatusPills, type StatusSeg } from '@/components/dashboard/StatusPills'
 import { CountUpKpi, type KpiIcon } from '@/components/dashboard/CountUpKpi'
 import GuestMapClient from '@/components/dashboard/GuestMapClient'
+import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 
 /**
  * Avatar: ha van Gravatar-kép, azt mutatja; 404/betöltési hibánál a monogramos
@@ -55,6 +56,21 @@ function DonutTip({ active, payload }: { active?: boolean; payload?: Array<{ nam
   )
 }
 
+const DAY_MONTH_SHORT = ['jan.', 'febr.', 'márc.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szept.', 'okt.', 'nov.', 'dec.']
+/** „2026. okt. 25.” — a kiválasztott nap felirata a hónap-léptetőben. */
+function fmtDayLabel(ymd: string): string {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return `${y}. ${DAY_MONTH_SHORT[m - 1]} ${d}.`
+}
+
+// Ugyanaz a „genie” belépő, mint az Új foglalás / PopupModal panelen: nagy scale-ugrás +
+// rugós túllövés (pulzáló pop), kilépéskor gyors, finom zsugorodás.
+const MODAL_GENIE = {
+  hidden: { opacity: 0, scale: 0.7, y: 14 },
+  show: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, stiffness: 520, damping: 26, mass: 0.9 } },
+  exit: { opacity: 0, scale: 0.92, y: 8, transition: { duration: 0.14, ease: 'easeIn' as const } },
+}
+
 export interface GuestHistoryVM {
   d: string // rövid dátum (bal oszlop)
   w: string // leírás
@@ -83,6 +99,7 @@ export interface GuestVM {
   since: string // "vendég X óta"
   visits: number
   lastVisit: string | null // ISO (időszak-szűréshez)
+  visitDates: string[] // YYYY-MM-DD — minden (nem lemondott) foglalás napja, a napi szűréshez
   fav: string
   loyalty: number // 0–100 (a lista alatti vékony sáv)
   rows: RowVM[] // profil-adatsorok
@@ -135,6 +152,8 @@ interface Props {
   canManage?: boolean
   mapLabel: string
   mapEmpty?: ReactNode // placeholder ha nincs bucket
+  /** A naptár-választó napi forgalom-színezéséhez (szalon: /api/salon/day-load, étterem: /api/restaurant/day-load). */
+  dayLoadEndpoint?: string
 }
 
 /* ── tier badge színek (Crextio: Új bézs · Visszatérő zöld · Törzsvendég ink/gold) ── */
@@ -171,8 +190,11 @@ export function GuestsView({
   mapLabel,
   mapEmpty,
   canManage = false,
+  dayLoadEndpoint,
 }: Props) {
   const [query, setQuery] = useState('')
+  // Kiválasztott NAP (a foglalás-oldalak naptár-választójával) — ha null, a teljes hónap látszik.
+  const [day, setDay] = useState<string | null>(null)
   // Hónap-léptető: az aktuális hónapról indul, nyilakkal előre/hátra.
   const [ym, setYm] = useState(() => {
     const d = new Date()
@@ -325,6 +347,18 @@ export function GuestsView({
   }
 
   const monthKey = `${ym.y}-${String(ym.m + 1).padStart(2, '0')}`
+  // Nyilak: ha egy nap ki van választva, napot léptetnek; különben hónapot (mint a Foglalásoknál).
+  const pickDay = (d: string) => {
+    setDay(d)
+    const [yy, mm] = d.split('-').map(Number)
+    setYm({ y: yy, m: mm - 1 })
+  }
+  const step = (dir: -1 | 1) => {
+    if (!day) return stepMonth(dir)
+    const [yy, mm, dd] = day.split('-').map(Number)
+    const t = new Date(yy, mm - 1, dd + dir)
+    pickDay(`${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`)
+  }
   const stepMonth = (dir: -1 | 1) =>
     setYm(({ y, m }) => {
       const t = m + dir
@@ -343,16 +377,17 @@ export function GuestsView({
     const q = query.trim().toLowerCase()
     if (q) return guests.filter((g) => matchQuery(g, q)).filter(passStatus)
     if (statusFilter === 'blocked') return guests.filter((g) => g.blocked)
+    if (day) return guests.filter((g) => g.visitDates.includes(day)).filter(passStatus)
     return guests.filter((g) => (g.lastVisit ?? '').slice(0, 7) === monthKey).filter(passStatus)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [guests, query, monthKey, statusFilter])
+  }, [guests, query, monthKey, day, statusFilter])
 
   const sel = useMemo(() => guests.find((g) => g.key === selKey) ?? guests[0], [guests, selKey])
 
   // Mobilon a lista-konténer nincs magasság-korlátozva (a deszktopos `lg:h-[560px]` csak lg+
   // felett aktív) — korlát nélkül az EGÉSZ oldal egy hosszú, végtelen vendég-scrollá vált volna.
   // Ezért mobilon csak az első 5-öt töltjük be, "Továbbiak" gombbal bővíthetően.
-  useEffect(() => setGuestsExpanded(false), [monthKey, query, statusFilter])
+  useEffect(() => setGuestsExpanded(false), [monthKey, day, query, statusFilter])
   const visibleGuests = isMobile && !guestsExpanded ? listFiltered.slice(0, 5) : listFiltered
 
   // Élő „most" (HH:MM) — mount után áll be (nincs SSR-hydration ütközés), percenként frissül.
@@ -456,7 +491,7 @@ export function GuestsView({
                 </PieChart>
               </ResponsiveContainer>
               <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-                <div className="text-[30px] font-light leading-none tracking-[-0.02em] text-ink">{returningPct}%</div>
+                <div className="text-[30px] font-light leading-none tracking-[-0.02em] text-ink">{returningPct.toLocaleString('hu-HU')}%</div>
                 <div className="mt-0.5 text-[11px] font-medium text-ink-soft">visszatérő</div>
               </div>
             </div>
@@ -534,17 +569,30 @@ export function GuestsView({
           <div className="flex w-full shrink-0 items-center gap-1 sm:w-auto sm:justify-start">
             <button
               type="button"
-              onClick={() => stepMonth(-1)}
-              aria-label="Előző hónap"
+              onClick={() => step(-1)}
+              aria-label={day ? 'Előző nap' : 'Előző hónap'}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] transition-colors hover:bg-paper"
             >
               <ChevronLeft className="h-4 w-4" strokeWidth={2.2} />
             </button>
-            <div className="flex-1 text-center text-[15px] font-semibold text-ink sm:min-w-[112px] sm:flex-none sm:text-[13px]">{MONTH_FULL[ym.m]} {ym.y}</div>
+            {/* Ugyanaz a naptár-választó, mint a Foglalások oldalon (forgalom-színezéssel):
+                napra kattintva csak az aznapi vendégek; „Törlés” → vissza a teljes hónapra. */}
+            <div className="flex flex-1 justify-center sm:flex-none">
+              <DatePickerPopover
+                value={day ?? `${monthKey}-01`}
+                onChange={pickDay}
+                onClear={day ? () => setDay(null) : undefined}
+                loadEndpoint={dayLoadEndpoint}
+                triggerClassName="flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[15px] font-semibold text-ink transition-colors hover:bg-white sm:min-w-[112px] sm:justify-center sm:text-[13px]"
+              >
+                <CalendarDays className="h-3.5 w-3.5 text-ink-soft" />
+                {day ? fmtDayLabel(day) : `${MONTH_FULL[ym.m]} ${ym.y}`}
+              </DatePickerPopover>
+            </div>
             <button
               type="button"
-              onClick={() => stepMonth(1)}
-              aria-label="Következő hónap"
+              onClick={() => step(1)}
+              aria-label={day ? 'Következő nap' : 'Következő hónap'}
               className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] transition-colors hover:bg-paper"
             >
               <ChevronRight className="h-4 w-4" strokeWidth={2.2} />
@@ -920,10 +968,14 @@ export function GuestsView({
         )
         return (
           <>
-            {/* Desktop — középre nyíló modal, változatlan. */}
-            {newOpen && (
-              <div className="fixed inset-0 z-[1000] hidden items-center justify-center bg-black/40 p-4 backdrop-blur-sm lg:flex" onClick={() => setNewOpen(false)}>
-                <div className="w-full max-w-[460px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
+            {/* Desktop — középre nyíló modal. A body-ra portálozva: a szülő konténer (backdrop-blur /
+                transform) különben a fixed hátteret a saját területére szorította → felül kimaradt egy csík. */}
+            {isMounted && createPortal(
+              <AnimatePresence>
+              {newOpen && (
+              <div className="fixed inset-0 z-[1000] hidden lg:flex items-center justify-center p-4 font-onest">
+                <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18, ease: 'easeOut' }} onClick={() => setNewOpen(false)} />
+                <motion.div variants={MODAL_GENIE} initial="hidden" animate="show" exit="exit" style={{ transformOrigin: 'center' }} className="relative z-10 w-full max-w-[460px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center gap-2.5">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gold/20 text-ink">
                       <UserPlus className="h-5 w-5" strokeWidth={1.8} />
@@ -938,8 +990,11 @@ export function GuestsView({
                     <button type="button" onClick={() => setNewOpen(false)} className="rounded-[13px] bg-[#F1F1EF] px-4 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
                     <button type="button" onClick={createGuest} disabled={busy} className="rounded-[13px] bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Mentés</button>
                   </div>
-                </div>
+                </motion.div>
               </div>
+              )}
+              </AnimatePresence>,
+              document.body,
             )}
             {/* Mobil — alulról felcsúszó sheet, mint a többi oldal (pl. Beállítások) menüje/
                 sheetjei: backdrop-blur, fogantyú, kattintás a hátterén zár. */}
@@ -998,9 +1053,12 @@ export function GuestsView({
       })()}
 
       {/* Tiltás-modal (Crextio) — indok bekérése */}
-      {blockTarget && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setBlockTarget(null)}>
-          <div className="w-full max-w-[420px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
+      {isMounted && createPortal(
+        <AnimatePresence>
+        {blockTarget && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 font-onest">
+          <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18, ease: 'easeOut' }} onClick={() => setBlockTarget(null)} />
+          <motion.div variants={MODAL_GENIE} initial="hidden" animate="show" exit="exit" style={{ transformOrigin: 'center' }} className="relative z-10 w-full max-w-[420px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2.5">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FBE3E3] text-[#C0453F]">
                 <Ban className="h-5 w-5" strokeWidth={1.8} />
@@ -1026,14 +1084,20 @@ export function GuestsView({
               <button type="button" onClick={() => setBlockTarget(null)} className="rounded-[13px] bg-[#F1F1EF] px-4 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
               <button type="button" onClick={confirmBlock} disabled={busy} className="rounded-[13px] bg-[#C0453F] px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Tiltás</button>
             </div>
-          </div>
+          </motion.div>
         </div>
+        )}
+        </AnimatePresence>,
+        document.body,
       )}
 
       {/* Vendég VÉGLEGES törlése — visszafordíthatatlan, ezért külön megerősítés. */}
-      {deleteTarget && (
-        <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm" onClick={() => setDeleteTarget(null)}>
-          <div className="w-full max-w-[420px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
+      {isMounted && createPortal(
+        <AnimatePresence>
+        {deleteTarget && (
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 font-onest">
+          <motion.div className="absolute inset-0 bg-black/40 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18, ease: 'easeOut' }} onClick={() => setDeleteTarget(null)} />
+          <motion.div variants={MODAL_GENIE} initial="hidden" animate="show" exit="exit" style={{ transformOrigin: 'center' }} className="relative z-10 w-full max-w-[420px] rounded-[24px] border border-white/60 bg-white p-6 shadow-[0_30px_70px_-20px_rgba(40,35,15,.5)]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2.5">
               <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#FBE3E3] text-[#C0453F]">
                 <AlertTriangle className="h-5 w-5" strokeWidth={1.8} />
@@ -1054,8 +1118,11 @@ export function GuestsView({
               <button type="button" onClick={() => setDeleteTarget(null)} className="rounded-[13px] bg-[#F1F1EF] px-4 py-2 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink">Mégse</button>
               <button type="button" onClick={confirmDelete} disabled={busy} className="rounded-[13px] bg-[#C0453F] px-4 py-2 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50">Végleges törlés</button>
             </div>
-          </div>
+          </motion.div>
         </div>
+        )}
+        </AnimatePresence>,
+        document.body,
       )}
     </div>
   )

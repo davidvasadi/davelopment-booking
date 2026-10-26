@@ -77,7 +77,7 @@ export default async function SalonGuestsPage() {
     collection: 'customers',
     where: { salon: { equals: salon.id } },
     depth: 0,
-    limit: 2000,
+    pagination: false, // mind (importnál ezres nagyságrend is lehet — a 2000-es korlát csendben levágta volna)
     overrideAccess: true,
   })
   const custByKey = new Map<string, Customer>()
@@ -246,6 +246,7 @@ export default async function SalonGuestsPage() {
 
   return (
     <GuestsView
+      dayLoadEndpoint="/api/salon/day-load"
       pills={tierSegments(guests)}
       metrics={metrics}
       guests={guestVMs}

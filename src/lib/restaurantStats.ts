@@ -451,13 +451,30 @@ export async function getRestaurantStats(
       ;(priorDatesByEmail[d.customer_email] ??= []).push(d.date)
     }
   }
+  // Importált előzmény: aki a korábbi rendszerben már járt (Customer.visit_count > 0, pl.
+  // Salonic/éttermi export), az nálunk is visszatérő — akkor is, ha a régi foglalásai nem
+  // kerültek át foglalásként. Enélkül egy import után szinte mindenki „új” lenne.
+  const importedHistory = new Set<string>()
+  if (allGuestEmails.length > 0) {
+    const custRes = await payload.find({
+      collection: 'customers',
+      where: { and: [{ restaurant: { equals: restaurantId } }, { customer_email: { in: allGuestEmails as string[] } }, { visit_count: { greater_than: 0 } }] },
+      depth: 0,
+      pagination: false,
+      select: { customer_email: true },
+      overrideAccess: true,
+    })
+    for (const c of custRes.docs as { customer_email?: string | null }[]) if (c.customer_email) importedHistory.add(c.customer_email)
+  }
   const hadPriorBefore = (email: string | undefined | null, cutoff: string) =>
-    !!email && (priorDatesByEmail[email]?.some((d) => d < cutoff) ?? false)
+    !!email && (importedHistory.has(email) || (priorDatesByEmail[email]?.some((d) => d < cutoff) ?? false))
 
   const returningGuestCount = sumPax(periodDocs.filter((r) => hadPriorBefore(r.customer_email, periodStartStr)))
   const newGuestCount = sumPax(periodDocs.filter((r) => r.customer_email && !hadPriorBefore(r.customer_email, periodStartStr)))
   const knownGuestCount = returningGuestCount + newGuestCount
-  const returningGuestPct = knownGuestCount > 0 ? Math.round((returningGuestCount / knownGuestCount) * 100) : 0
+  // 10% alatt egy tizedes, hogy pár visszatérő ne „0%”-nak látsszon
+  const returningGuestPctRaw = knownGuestCount > 0 ? (returningGuestCount / knownGuestCount) * 100 : 0
+  const returningGuestPct = returningGuestPctRaw < 10 ? Math.round(returningGuestPctRaw * 10) / 10 : Math.round(returningGuestPctRaw)
 
   const prevReturningCount = sumPax(prevPeriodDocs.filter((r) => hadPriorBefore(r.customer_email, prevPeriodStartStr)))
   const prevNewCount = sumPax(prevPeriodDocs.filter((r) => r.customer_email && !hadPriorBefore(r.customer_email, prevPeriodStartStr)))
