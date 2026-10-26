@@ -178,6 +178,7 @@ export default async function RestaurantSchedulePage({ searchParams }: { searchP
       </div>
       <ScheduleView
         variant="restaurant"
+        staffPageHref={can(capabilities, 'staff.view') || can(capabilities, 'staff.manage') ? '/restaurant/staff' : null}
         restaurantId={String(restaurant.id)}
         staff={staff}
         shifts={shifts}

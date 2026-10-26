@@ -207,6 +207,7 @@ export default async function SalonSchedulePage({ searchParams }: { searchParams
       </div>
       <ScheduleView
         variant="salon"
+        staffPageHref={can(capabilities, 'staff.view') || can(capabilities, 'staff.manage') ? '/dashboard/staff' : null}
         salonId={String(salon.id)}
         staff={staff}
         shifts={shifts}

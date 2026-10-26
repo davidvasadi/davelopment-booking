@@ -12,7 +12,7 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal, BarChart3, Bell, Loader2, Lock, Crown, Settings, Coffee } from 'lucide-react'
+import { ChevronLeft, ChevronRight, ChevronDown, Plus, Phone, Cake, Trash2, X, ArrowLeft, LogOut, User, CalendarClock, Coins, Search, SlidersHorizontal, BarChart3, Bell, Loader2, Lock, Crown, Coffee } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { DatePickerPopover } from '@/components/shared/DatePickerPopover'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
@@ -63,6 +63,9 @@ interface Props {
   closedWeekdays?: number[] // 0=vasárnap..6=szombat — heti visszatérő zárvatartásból zárt napok (csak jövőre)
   canManage?: boolean // false → csak megtekintés, szerkesztő/hozzáadás gombok rejtve
   myStaffId?: string // bejelentkezett user staff-id-je → ez az alapértelmezett kiválasztott személy
+  /** A Munkatársak / Csapat oldal útvonala — ha adott (és a nézőnek van joga), a kártya jobb felső
+   *  sarkában ↗ nyíl visz oda, és ott rögtön az adott munkatárs profilja nyílik meg (?profil=<id>). */
+  staffPageHref?: string | null
   initialDate?: string // YYYY-MM-DD — értesítés-linkből; nyitja a napot és navigál a hónapba
 }
 
@@ -187,7 +190,7 @@ function SegFilter<T extends string>({ id, options, value, onChange }: { id: str
   )
 }
 
-export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, year, month, dailyTips = {}, closedDates = [], closedWeekdays = [], canManage = true, myStaffId, initialDate }: Props) {
+export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, shifts: initialShifts, year, month, dailyTips = {}, closedDates = [], closedWeekdays = [], canManage = true, myStaffId, initialDate, staffPageHref = null }: Props) {
   const isRestaurant = variant === 'restaurant'
   const router = useRouter()
   const [shifts, setShifts] = useState<ShiftVM[]>(initialShifts)
@@ -1121,13 +1124,17 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                 <div className="truncate text-[17px] font-semibold text-ink">{sel.name}</div>
                 <div className="truncate text-[13px] font-medium text-ink-soft">{sel.role || 'Munkatárs'}</div>
               </div>
-              {myStaffId && sel.id === myStaffId && (
+              {/* ↗ a munkatárs teljes profiljához (Munkatársak / Csapat oldal, rögtön megnyitva) */}
+              {staffPageHref && (
                 <Link
-                  href={isRestaurant ? '/restaurant/settings?tab=self' : '/dashboard/settings?tab=self'}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F0EAD8] text-ink-soft transition-colors hover:bg-[#E8DFC8] hover:text-ink"
-                  title="Saját profil"
+                  href={`${staffPageHref}?profil=${encodeURIComponent(sel.id)}`}
+                  aria-label={`${sel.name} profilja`}
+                  title="Munkatárs profilja"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F0EAD8] text-ink-soft transition-colors hover:bg-[#E8DFC8] hover:text-ink"
                 >
-                  <Settings className="h-4 w-4" strokeWidth={1.8} />
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    <line x1="7" y1="17" x2="17" y2="7" /><polyline points="7 7 17 7 17 17" />
+                  </svg>
                 </Link>
               )}
             </div>

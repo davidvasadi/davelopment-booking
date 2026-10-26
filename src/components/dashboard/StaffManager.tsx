@@ -171,6 +171,18 @@ export default function StaffManager({
   const [hiringIndex, setHiringIndex] = useState<number | null>(null)
   const [staff, setStaff] = useState(initialStaff)
   const [empList, setEmpList] = useState<Employee[]>(employees ?? [])
+
+  // Beosztásból érkezve (?profil=<id>) rögtön az adott munkatárs profilja nyílik; utána a
+  // paramétert kivesszük a címből, hogy frissítéskor / visszalépéskor ne nyíljon újra.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('profil')
+    if (!id) return
+    const idx = (employees ?? []).findIndex((e) => String(e.id) === id)
+    if (idx >= 0) setHiringIndex(idx)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('profil')
+    window.history.replaceState(null, '', url.pathname + (url.search ? url.search : ''))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [togglingId, setTogglingId] = useState<string | null>(null)
   const [statusMenuId, setStatusMenuId] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
