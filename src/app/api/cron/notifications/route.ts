@@ -1078,10 +1078,11 @@ async function handle(request: NextRequest) {
           await payload.create({
             collection: 'notifications',
             overrideAccess: true,
-            data: { salon: Number(salonId), audience: 'owner', type: 'weekly_tip', title: tip.title, body: tip.body, read: false },
+            // metadata.tipId: kattintásra a Tippek oldalon PONTOSAN ez a tipp nyílik meg
+            data: { salon: Number(salonId), audience: 'owner', type: 'weekly_tip', title: tip.title, body: tip.body, read: false, metadata: { tipId: tip.id } },
           })
           try {
-            await sendPushToUsers(payload, [ownerId], { title: tip.title, body: tip.body, url: '/dashboard/tips', tag: `weekly-tip-${salonId}-${dateStr}` })
+            await sendPushToUsers(payload, [ownerId], { title: tip.title, body: tip.body, url: `/dashboard/tips?tip=${encodeURIComponent(tip.id)}`, tag: `weekly-tip-${salonId}-${dateStr}` })
           } catch (pushErr) {
             console.error('[Cron] Salon weekly tip push failed', pushErr)
           }
@@ -1129,10 +1130,10 @@ async function handle(request: NextRequest) {
           await payload.create({
             collection: 'notifications',
             overrideAccess: true,
-            data: { restaurant: Number(restId), audience: 'owner', type: 'weekly_tip', title: tip.title, body: tip.body, read: false },
+            data: { restaurant: Number(restId), audience: 'owner', type: 'weekly_tip', title: tip.title, body: tip.body, read: false, metadata: { tipId: tip.id } },
           })
           try {
-            await sendPushToUsers(payload, [ownerId], { title: tip.title, body: tip.body, url: '/restaurant/tips', tag: `weekly-tip-${restId}-${dateStr}` })
+            await sendPushToUsers(payload, [ownerId], { title: tip.title, body: tip.body, url: `/restaurant/tips?tip=${encodeURIComponent(tip.id)}`, tag: `weekly-tip-${restId}-${dateStr}` })
           } catch (pushErr) {
             console.error('[Cron] Restaurant weekly tip push failed', pushErr)
           }

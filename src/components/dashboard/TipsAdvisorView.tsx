@@ -1,5 +1,6 @@
 'use client'
 
+import { SHEET_MOBILE } from '@/lib/motion'
 import { useMemo, useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -86,6 +87,19 @@ export function TipsAdvisorView({
   // A "Később" gomb a `weeklyTipPool`-ban lép tovább (nem csak elrejti a kártyát) — a user
   // explicit kérte, hogy inkább a következő rangsorolt tippet mutassa, mint hogy elakadjon.
   const [weeklyIndex, setWeeklyIndex] = useState(0)
+  // Értesítésből érkezve (?tip=<id>) a heti tipp-kártya PONTOSAN azt a tippet mutatja; a paramétert
+  // utána kivesszük a címből (frissítésnél / visszalépésnél ne ugorjon újra).
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const id = url.searchParams.get('tip')
+    if (!id) return
+    const idx = data.weeklyTipPool.findIndex((w) => w.id === id)
+    if (idx >= 0) setWeeklyIndex(idx)
+    url.searchParams.delete('tip')
+    url.searchParams.delete('t')
+    window.history.replaceState(null, '', url.pathname + url.search)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const currentWeeklyTip = data.weeklyTipPool[weeklyIndex] ?? null
   const weeklyExhausted = data.weeklyTipPool.length > 0 && weeklyIndex >= data.weeklyTipPool.length
   const [busyId, setBusyId] = useState<string | null>(null)
@@ -177,10 +191,10 @@ export function TipsAdvisorView({
                 onClick={() => setFilterOpen(false)}
               />
               <motion.div
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }}
+                variants={SHEET_MOBILE}
+                initial="hidden"
+                animate="show"
+                exit="exit"
                 data-lenis-prevent
                 className="absolute inset-x-0 bottom-0 rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
               >
@@ -192,7 +206,7 @@ export function TipsAdvisorView({
                       type="button"
                       onClick={() => setFilterOpen(false)}
                       aria-label="Bezárás"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
+                      className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
                     >
                       <X className="h-4 w-4" strokeWidth={2} />
                     </button>

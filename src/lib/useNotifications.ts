@@ -6,7 +6,7 @@ import { CalendarPlus, CalendarX, CalendarClock, UserPlus, Sparkles, Sunrise, Su
 
 export type Notification = {
   id: number | string
-  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'contact_message' | 'admin_broadcast'
+  type: 'new_booking' | 'cancellation' | 'modification' | 'new_signup' | 'new_subscriber' | 'digest_morning' | 'digest_evening' | 'schedule_change' | 'email_not_opened' | 'contact_message' | 'admin_broadcast' | 'weekly_tip'
   title: string
   body?: string | null
   read?: boolean | null
@@ -237,6 +237,11 @@ export function useNotifications(onNavigate?: () => void) {
       const base = isRest ? '/restaurant/schedule' : '/dashboard/schedule'
       const date = (n.metadata as { date?: string } | null)?.date
       router.push(date ? `${base}?date=${date}&t=${t}` : `${base}?t=${t}`)
+    } else if (n.type === 'weekly_tip') {
+      // heti tipp → a Tippek oldal, ott PONTOSAN ez a tipp (metadata.tipId; régi értesítésnél az aktuális)
+      const base = n.restaurant != null ? '/restaurant/tips' : '/dashboard/tips'
+      const tipId = (n.metadata as { tipId?: string } | null)?.tipId
+      router.push(tipId ? `${base}?tip=${encodeURIComponent(tipId)}&t=${t}` : `${base}?t=${t}`)
     } else if (n.type === 'new_signup') {
       router.push(`/backstage/salons?t=${t}`)
     } else if (n.type === 'new_subscriber') {
