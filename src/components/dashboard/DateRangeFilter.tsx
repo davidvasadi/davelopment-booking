@@ -331,7 +331,8 @@ export function DateRangeFilter({ basePath }: { basePath: string }) {
                       <button
                         type="button"
                         onClick={() => setOpen(false)}
-                        className="flex items-center justify-center w-8 h-8 rounded-full bg-[#f0ede8] text-ink-soft"
+                        aria-label="Bezárás"
+                        className="hidden items-center justify-center w-8 h-8 rounded-full bg-[#f0ede8] text-ink-soft sm:flex"
                       >
                         <X className="h-4 w-4" />
                       </button>

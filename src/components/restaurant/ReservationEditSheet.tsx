@@ -668,11 +668,13 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
               initial="hidden"
               animate="show"
               exit="exit"
-              style={{ transformOrigin: 'center' }}
-              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white will-change-transform sm:max-h-[92vh] sm:shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-w-[840px] sm:rounded-[26px] lg:max-w-[1120px]"
+              style={{ transformOrigin: isDesktop ? 'center' : 'bottom center' }}
+              className="relative z-10 flex max-h-[85dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white will-change-transform sm:max-h-[92vh] sm:shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-w-[840px] sm:rounded-[26px] lg:max-w-[1120px]"
             >
+              {/* Mobilon fogantyú (koppintásra bezár) az X helyett — az alsó menü „…” lapjának mintája */}
+              <button type="button" aria-label="Bezárás" onClick={requestClose} className="w-full shrink-0 py-3 sm:hidden"><span className="mx-auto block h-1 w-10 rounded-full bg-[#e0ddd6]" /></button>
               {/* Fejléc (fix) */}
-              <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+              <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 pb-4 pt-0 sm:px-6 sm:py-4">
                 <div className="min-w-0">
                   <h2 className="text-[20px] font-light tracking-[-0.02em] text-ink">
                     {isDraft ? 'Vázlat szerkesztése' : isEdit ? 'Foglalás szerkesztése' : 'Új foglalás'}
@@ -744,7 +746,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                   type="button"
                   onClick={requestClose}
                   aria-label="Bezárás"
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F4F4F4] text-ink-soft transition-colors hover:bg-zinc-200"
+                  className="hidden h-9 w-9 shrink-0 sm:flex items-center justify-center rounded-full bg-[#F4F4F4] text-ink-soft transition-colors hover:bg-zinc-200"
                 >
                   <X className="h-4 w-4" />
                 </button>

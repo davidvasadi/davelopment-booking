@@ -148,15 +148,14 @@ export const popPanelCenter: Variants = {
  */
 export const SHIMMER_CLASS = 'animate-shimmer'
 /**
- * MOBILOS ALSÓ LAP — az admin összes felugró ablaka mobilon ezzel nyílik (egységes mozgás).
- * Telefonon a szaggatás fő okai: nagy, tartalommal teli lap SKÁLÁZÁSA + áttetszőség-animáció,
- * egyszerre beúszó gyerek-elemek, túllendülő rugó. Ezért itt CSAK függőleges tolás (GPU-transform),
- * túllendülés nélküli rugó (damping > kritikus), és a gyerekek csak a lap beérkezése UTÁN
- * (`when: 'beforeChildren'`) indulnak. A háttér-elmosást mobilon a globals.css kapcsolja ki.
+ * MOBILOS ALSÓ LAP — az admin összes felugró ablaka mobilon ezzel nyílik. A FŐ MINTA az alsó menü
+ * „…” lapja (MobileBottomNav): NEM a teljes lap-magasságot csúsztatjuk (az lassúnak hat és sok
+ * képkocka), hanem rövid (40px) emelkedés + előtűnés + enyhe skála, gyors rugóval. A háttér-
+ * elmosást mobilon a globals.css kapcsolja ki (képkockánkénti újraszámolás = szaggatás).
  */
-export const SHEET_SPRING: Transition = { type: 'spring', stiffness: 420, damping: 44, mass: 0.9 }
+export const SHEET_SPRING: Transition = { type: 'spring', stiffness: 520, damping: 26, mass: 0.9 }
 export const SHEET_MOBILE: Variants = {
-  hidden: { y: '100%' },
-  show: { y: 0, transition: { ...SHEET_SPRING, when: 'beforeChildren', staggerChildren: 0.03 } },
-  exit: { y: '100%', transition: { duration: 0.2, ease: [0.4, 0, 1, 1] } },
+  hidden: { opacity: 0, y: 40, scale: 0.97 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { ...SHEET_SPRING, staggerChildren: 0.03 } },
+  exit: { opacity: 0, y: 40, scale: 0.97, transition: { duration: 0.14, ease: 'easeIn' } },
 }

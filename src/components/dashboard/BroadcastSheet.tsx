@@ -26,7 +26,7 @@ export function BroadcastSheet({ n, open, onClose }: { n: Notification; open: bo
 
   const sheetMotion = isDesktop
     ? { initial: { opacity: 0, scale: 0.96, y: 12 }, animate: { opacity: 1, scale: 1, y: 0 }, exit: { opacity: 0, scale: 0.96, y: 12 }, transition: { type: 'spring' as const, stiffness: 380, damping: 30 } }
-    : { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: SHEET_SPRING }
+    : { initial: { opacity: 0, y: 40, scale: 0.97 }, animate: { opacity: 1, y: 0, scale: 1 }, exit: { opacity: 0, y: 40, scale: 0.97 }, transition: SHEET_SPRING }
 
   return createPortal(
     <AnimatePresence>

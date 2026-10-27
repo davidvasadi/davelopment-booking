@@ -362,11 +362,11 @@ export default async function RestaurantDashboardPage() {
             { label: 'Lemondva', pct: cancelledPct, background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
           ]}
         />
-        {/* Mobilon EGY sorban, automatikus térközzel; 4 KPI-nál kisebb betű (compact) */}
+        {/* Mobilon EGY sorban; sok KPI-nál (compact) egyenletesen elosztva és kisebb betűvel, kevésnél normál térközzel */}
         {(() => {
           const compact = !!restaurant.deposit_settings?.enabled
           return (
-            <div className="flex items-start justify-between gap-3 lg:justify-start lg:gap-10">
+            <div className={`flex items-start lg:justify-start lg:gap-10 ${compact ? 'justify-between gap-3' : 'gap-8'}`}>
               <HeroKpi compact={compact} icon={CalendarDays} value={String(stats.reservationsToday)} label="Foglalás" />
               <HeroKpi compact={compact} icon={Users} value={String(stats.paxToday)} label="Vendég" />
               <HeroKpi compact={compact} icon={Users2} value={String(staffToday)} label="Személyzet" />

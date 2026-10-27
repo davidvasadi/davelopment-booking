@@ -76,11 +76,13 @@ export function PopupModal({
             initial="hidden"
             animate="show"
             exit="exit"
-            style={{ transformOrigin: 'center' }}
-            className={`relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white will-change-transform sm:rounded-[26px] sm:shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] ${maxWidth}`}
+            style={{ transformOrigin: isDesktop ? 'center' : 'bottom center' }}
+            className={`relative z-10 flex max-h-[85dvh] w-full sm:max-h-[92vh] flex-col overflow-hidden rounded-t-[28px] bg-white will-change-transform sm:rounded-[26px] sm:shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] ${maxWidth}`}
           >
+            {/* Mobilon fogantyú (koppintásra bezár) az X helyett — az alsó menü „…” lapjának mintája */}
+            <button type="button" aria-label="Bezárás" onClick={onClose} className="w-full shrink-0 py-3 sm:hidden"><span className="mx-auto block h-1 w-10 rounded-full bg-[#e0ddd6]" /></button>
             {/* Fejléc (fix) */}
-            <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">
+            <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 pb-4 pt-0 sm:px-6 sm:py-4">
               <div className="min-w-0">
                 <h2 className="truncate text-lg font-light tracking-[-0.02em] text-ink">{title}</h2>
                 {subtitle && <p className="mt-0.5 text-xs text-ink-soft2">{subtitle}</p>}
@@ -89,7 +91,7 @@ export function PopupModal({
                 type="button"
                 onClick={onClose}
                 aria-label="Bezárás"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper"
+                className="hidden h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-paper sm:flex"
                 style={{ background: '#EFEFEC' }}
               >
                 <X className="h-4 w-4" />

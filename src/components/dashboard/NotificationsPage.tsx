@@ -7,7 +7,7 @@ import { Bell, Settings2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
 import { OPEN_BROADCAST_EVENT } from './BroadcastAutoPopup'
-import { listStagger, pageTransition, sheetSpring } from '@/lib/motion'
+import { listStagger, pageTransition, sheetSpring, SHEET_MOBILE } from '@/lib/motion'
 import {
   useNotifications,
   notifDate,
@@ -115,10 +115,10 @@ export function NotificationsPage() {
                 onClick={() => setSettingsSheetOpen(false)}
               />
               <motion.div
-                initial={{ y: '100%' }}
-                animate={{ y: 0 }}
-                exit={{ y: '100%' }}
-                transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }}
+                variants={SHEET_MOBILE}
+                initial="hidden"
+                animate="show"
+                exit="exit"
                 data-lenis-prevent
                 className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
               >
@@ -130,7 +130,7 @@ export function NotificationsPage() {
                       type="button"
                       onClick={() => setSettingsSheetOpen(false)}
                       aria-label="Bezárás"
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
+                      className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
                     >
                       <X className="h-4 w-4" strokeWidth={2} />
                     </button>

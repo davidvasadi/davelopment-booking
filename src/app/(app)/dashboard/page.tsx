@@ -345,7 +345,7 @@ export default async function DashboardPage() {
           ]}
         />
         {/* Mobilon EGY sorban, automatikus térközzel; 3 KPI-nál (két Ft-összeg) kisebb betű (compact) */}
-        <div className="flex items-start justify-between gap-3 lg:justify-start lg:gap-10">
+        <div className={`flex items-start lg:justify-start lg:gap-10 ${salon.deposit_settings?.enabled ? 'justify-between gap-3' : 'gap-8'}`}>
           <HeroKpi compact={!!salon.deposit_settings?.enabled} icon={CalendarDays} value={String(stats.bookingsToday)} label="Foglalás" />
           <HeroKpi compact={!!salon.deposit_settings?.enabled} icon={Banknote} value={formatPrice(stats.revenueToday, 'HUF')} label="Bevétel" />
           {/* Csak akkor jelenik meg, ha az üzletnél be van kapcsolva a vendég-előleg. */}

@@ -165,7 +165,7 @@ export function DigestSheet({
 
   const sheetMotion = isDesktop
     ? { initial: { opacity: 0, scale: 0.96, y: 12 }, animate: { opacity: 1, scale: 1, y: 0 }, exit: { opacity: 0, scale: 0.96, y: 12 }, transition: { type: 'spring' as const, stiffness: 380, damping: 30 } }
-    : { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: SHEET_SPRING }
+    : { initial: { opacity: 0, y: 40, scale: 0.97 }, animate: { opacity: 1, y: 0, scale: 1 }, exit: { opacity: 0, y: 40, scale: 0.97 }, transition: SHEET_SPRING }
 
   return createPortal(
     <AnimatePresence>
@@ -214,7 +214,8 @@ export function DigestSheet({
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft2 transition-colors hover:bg-black/[0.05] hover:text-ink"
+                    aria-label="Bezárás"
+                    className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft2 lg:flex transition-colors hover:bg-black/[0.05] hover:text-ink"
                   >
                     <X className="h-4 w-4" />
                   </button>

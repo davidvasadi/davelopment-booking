@@ -7,6 +7,7 @@
  * Referencia: Crextio „Salary" layout. CRUD: Payload REST `/api/shifts` (credentials:'include').
  */
 
+import { SHEET_MOBILE } from '@/lib/motion'
 import { useMemo, useState, useEffect, useRef, useCallback, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
@@ -715,12 +716,12 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
             {mobileStatsOpen && sel && (
               <div className="fixed inset-0 z-[160] lg:hidden">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm" onClick={() => setMobileStatsOpen(false)} />
-                <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }} data-lenis-prevent className="absolute inset-x-0 bottom-0 rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]">
+                <motion.div variants={SHEET_MOBILE} initial="hidden" animate="show" exit="exit" data-lenis-prevent className="absolute inset-x-0 bottom-0 rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]">
                   <div className="px-4 pb-3 pt-3">
                     <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
                     <div className="flex items-center justify-between">
                       <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{sel.name.split(' ')[0]} · {MONTHS[m]} összegző</span>
-                      <button type="button" onClick={() => setMobileStatsOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"><X className="h-4 w-4" strokeWidth={2} /></button>
+                      <button type="button" onClick={() => setMobileStatsOpen(false)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"><X className="h-4 w-4" strokeWidth={2} /></button>
                     </div>
                   </div>
                   <div className="px-4 pb-6">
@@ -742,7 +743,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
             {mobileFilterOpen && (
               <div className="fixed inset-0 z-[160] lg:hidden">
                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm" onClick={() => setMobileFilterOpen(false)} />
-                <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', stiffness: 400, damping: 38, mass: 0.9 }} data-lenis-prevent className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]">
+                <motion.div variants={SHEET_MOBILE} initial="hidden" animate="show" exit="exit" data-lenis-prevent className="absolute inset-x-0 bottom-0 max-h-[85vh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]">
                   <div className="px-4 pb-3 pt-3">
                     <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
                     <div className="flex items-center justify-between">
@@ -751,7 +752,7 @@ export function ScheduleView({ variant = 'salon', salonId, restaurantId, staff, 
                         {filtersActive && (
                           <button type="button" onClick={() => { setTypeFilter('all'); setPosFilter('all'); setOnlyUncovered(false); setQuery('') }} className="text-[13px] font-medium text-[#0A84FF] transition-opacity hover:opacity-70">Törlés</button>
                         )}
-                        <button type="button" onClick={() => setMobileFilterOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"><X className="h-4 w-4" strokeWidth={2} /></button>
+                        <button type="button" onClick={() => setMobileFilterOpen(false)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"><X className="h-4 w-4" strokeWidth={2} /></button>
                       </div>
                     </div>
                   </div>
@@ -1396,13 +1397,14 @@ function DayEditor({
   return <>
     {createPortal(
     <div className="fixed inset-0 z-[900] flex items-end justify-center bg-black/40 p-0 backdrop-blur-sm sm:items-center sm:p-4" onClick={onClose}>
-      <div className="flex max-h-[92vh] w-full flex-col overflow-y-auto rounded-t-[26px] bg-white p-5 shadow-dav-card sm:max-w-[460px] sm:rounded-[26px] lg:max-w-[860px]" onClick={(e) => e.stopPropagation()} data-lenis-prevent>
+      <div className="flex max-h-[85dvh] w-full flex-col overflow-y-auto rounded-t-[26px] bg-white p-5 pb-[calc(20px+env(safe-area-inset-bottom))] sm:max-h-[92vh] sm:pb-5 shadow-dav-card sm:max-w-[460px] sm:rounded-[26px] lg:max-w-[860px]" onClick={(e) => e.stopPropagation()} data-lenis-prevent>
+        <button type="button" aria-label="Bezárás" onClick={onClose} className="-mt-2 mb-2 w-full shrink-0 py-1 sm:hidden"><span className="mx-auto block h-1 w-10 rounded-full bg-[#e0ddd6]" /></button>
         <div className="mb-4 flex items-start justify-between">
           <div>
             <div className="text-[17px] font-semibold text-ink">Nap szerkesztése</div>
             <div className="mt-0.5 text-[12.5px] font-medium text-ink-soft">{fmtHu(date)} · {dayShifts.length} fő</div>
           </div>
-          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F6F2E4] text-ink">
+          <button type="button" onClick={onClose} aria-label="Bezárás" className="hidden h-8 w-8 items-center justify-center rounded-full bg-[#F6F2E4] text-ink sm:flex">
             <X className="h-4 w-4" strokeWidth={2} />
           </button>
         </div>

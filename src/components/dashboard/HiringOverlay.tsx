@@ -57,13 +57,13 @@ export function HiringOverlay({ open, onClose, variant, employees, positions = [
               animate="show"
               exit="exit"
               onClick={(e) => e.stopPropagation()}
-              style={{ transformOrigin: 'center' }}
+              style={{ transformOrigin: isMobile ? 'bottom center' : 'center' }}
               // mobilon: teljes szélesség, felül lekerekített, belül görgethető, kisebb belső margó
-              className="hv-panel relative max-h-[92dvh] w-full overflow-y-auto rounded-t-[28px] border-t border-line bg-dav-container will-change-transform px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-2 shadow-dav-container sm:my-auto sm:max-h-none sm:max-w-[1120px] sm:overflow-visible sm:rounded-[30px] sm:border sm:p-7 xl:max-w-[1360px]"
+              className="hv-panel relative max-h-[85dvh] w-full overflow-y-auto rounded-t-[28px] border-t border-line bg-dav-container will-change-transform px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-2 shadow-dav-container sm:my-auto sm:max-h-none sm:max-w-[1120px] sm:overflow-visible sm:rounded-[30px] sm:border sm:p-7 xl:max-w-[1360px]"
               data-lenis-prevent
             >
               {/* fogantyú — mint a többi alulról nyíló lapnál */}
-              <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-black/15 sm:hidden" />
+              <button type="button" aria-label="Bezárás" onClick={onClose} className="w-full shrink-0 pb-2 pt-1 sm:hidden"><span className="mx-auto block h-1 w-10 rounded-full bg-[#e0ddd6]" /></button>
               <HiringView variant={variant} employees={employees} positionOptions={positions} canManage={canManage} canEditSalary={canEditSalary} viewerEmail={viewerEmail} statusById={statusById} onStatusChange={onStatusChange} onProfileChange={onProfileChange} onOpenEdit={onOpenEdit} onCalendarRequest={onCalendarRequest} onClose={onClose} initialIndex={initialIndex} salonId={salonId} openCalendar={openCalendar} salonBooking={salonBooking} initialEditing={initialEditing} canEditAvailability={canEditAvailability} />
             </motion.div>
           </div>

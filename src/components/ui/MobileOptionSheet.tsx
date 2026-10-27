@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { SHEET_MOBILE } from '@/lib/motion'
 
 interface Option<T extends string> {
   mode: T
@@ -61,11 +62,12 @@ export function MobileOptionSheet<T extends string, U extends string = never>({
               flex-center + max-width-ből számolt szélesség), a max-width csak `sm:`-től szűkíti
               középre úszó panellé, ha valaha desktopon is megnyitnánk. */}
           <motion.div
-            className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full rounded-t-[28px] bg-white p-4 pb-[max(96px,calc(88px+env(safe-area-inset-bottom)))] shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)] sm:max-w-[520px]"
-            initial={{ opacity: 0, y: 24 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
-            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            className="fixed inset-x-0 bottom-0 z-10 mx-auto w-full rounded-t-[28px] bg-white p-4 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)] sm:max-w-[520px]"
+            variants={SHEET_MOBILE}
+            initial="hidden"
+            animate="show"
+            exit="exit"
+            style={{ transformOrigin: 'bottom center' }}
           >
             <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-zinc-200" />
             <div className="mb-3 flex items-center justify-between">
@@ -74,7 +76,7 @@ export function MobileOptionSheet<T extends string, U extends string = never>({
                 type="button"
                 onClick={onClose}
                 aria-label="Bezárás"
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-500"
+                className="hidden h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 sm:flex"
               >
                 <X className="h-4 w-4" />
               </button>

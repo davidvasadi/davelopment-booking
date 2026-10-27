@@ -108,3 +108,9 @@ export function nextImageSrc(url: string): string {
     return url
   }
 }
+
+/** Érintőképernyő (telefon/tablet)? — a felugró ablakok mezőire ott NEM teszünk automatikus fókuszt:
+ *  a billentyűzet azonnal felugrana és eltakarná a lapot. Csak kliensen, interakció után hívd. */
+export function isTouchDevice(): boolean {
+  return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+}

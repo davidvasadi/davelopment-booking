@@ -7,6 +7,7 @@
  * A referencia: docs/design_handoff_davelopment/davelopment App.dc.html (Vendégek szekció).
  */
 
+import { isTouchDevice } from '@/lib/utils'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
@@ -253,6 +254,8 @@ export function GuestsView({
   }, [])
   const router = useRouter()
   const [isMounted, setIsMounted] = useState(false)
+  // mobil: a kiválasztott vendég profilja felugró lapban
+  const [mobileProfileOpen, setMobileProfileOpen] = useState(false)
   useEffect(() => setIsMounted(true), [])
   // Mobilon a fejléc "+" ikonja (DashboardNav) nyitja az Új vendég sheetet, nem a saját,
   // oldalon belüli gomb — ugyanaz a minta, mint a többi oldal fejléc-ikonjainál.
@@ -365,11 +368,8 @@ export function GuestsView({
   function selectGuest(key: string, opts: { scroll?: boolean; iso?: string | null } = {}) {
     setSelKey(key)
     if (opts.iso !== undefined) setFocusIso(opts.iso)
-    if (opts.scroll) {
-      // Deszktopon a lista+profil egymás mellett látszik — csak mobilon (egy oszlopba
-      // rendezve, a profil a lista ALATT) van értelme automatikusan odagörgetni.
-      requestAnimationFrame(() => profileRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
-    }
+    // Mobilon a profil NEM a lista alatt jelenik meg (görgetéssel), hanem alulról felugró lapban.
+    if (opts.scroll) setMobileProfileOpen(true)
   }
 
   const monthKey = `${ym.y}-${String(ym.m + 1).padStart(2, '0')}`
@@ -804,7 +804,7 @@ export function GuestsView({
                   <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-zinc-200" />
                   <div className="mb-3 flex items-center justify-between">
                     <h3 className="text-sm font-bold text-ink">Szűrők</h3>
-                    <button type="button" onClick={() => setFiltersOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
+                    <button type="button" onClick={() => setFiltersOpen(false)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
                       <X className="h-4 w-4" />
                     </button>
                   </div>
@@ -929,9 +929,10 @@ export function GuestsView({
               )}
             </div>
 
-            {/* PROFIL — ugyanaz az ok, mint a LISTA-nál: mobilon nincs saját kártya-keret,
-                csak lg+ -on (lásd fenti komment). */}
-            {sel ? (
+            {/* PROFIL — asztalon a lista mellett; mobilon (lg alatt) alulról felugró lapban, a lista
+                kiválasztására — így nem kell lefelé görgetni, és a lista megkapja a teljes helyet. */}
+            {(() => {
+              const profileEl = sel ? (
               <div ref={profileRef} className={`flex flex-col overflow-y-auto transition-opacity lg:rounded-[22px] lg:border lg:border-white/55 lg:bg-[var(--dav-glass-strong)] lg:backdrop-blur-[14px] lg:p-6 lg:h-[560px] scroll-mt-6 ${profileStale ? 'opacity-50' : ''}`} data-lenis-prevent>
             {(() => {
               // ── Profil: fejléc (név, zászló, szint) · 4 kulcsszám · Profil / Megjegyzések /
@@ -1141,8 +1142,9 @@ export function GuestsView({
                               onClick={() => setOpenRow((o) => (o === i ? null : i))}
                               className={`flex w-full items-center gap-3.5 rounded-[12px] px-3 py-2.5 text-left transition-colors ${expandable ? 'cursor-pointer hover:bg-black/[0.025]' : 'cursor-default'}`}
                             >
-                              <div className="w-16 flex-shrink-0 text-[12.5px] font-semibold tabular-nums text-ink-soft">{h.d}</div>
-                              <div className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{h.w}</div>
+                              {/* dátum balra egy sorban, a tétel (pl. „4 fő foglalás”) jobbra */}
+                              <div className="flex-shrink-0 whitespace-nowrap text-[12.5px] font-semibold tabular-nums text-ink-soft">{h.d}</div>
+                              <div className="min-w-0 flex-1 truncate text-right text-[14px] font-medium text-ink">{h.w}</div>
                               {h.a && <div className="text-[14px] font-semibold tabular-nums text-ink">{h.a}</div>}
                               {expandable && <ChevronDown className={`h-4 w-4 flex-shrink-0 text-ink-soft transition-transform ${isOpen ? 'rotate-180' : ''}`} strokeWidth={2} />}
                             </button>
@@ -1181,7 +1183,31 @@ export function GuestsView({
               <div className="flex items-center justify-center rounded-[22px] border border-white/55 bg-[var(--dav-glass-strong)] backdrop-blur-[14px] p-7 text-[14px] text-ink-soft lg:h-[560px]">
                 Még nincs vendég. Az első foglalás után itt jelennek meg.
               </div>
-            )}
+            )
+              if (!isMobile) return profileEl
+              return isMounted && createPortal(
+                <AnimatePresence>
+                  {mobileProfileOpen && sel && (
+                    <div className="fixed inset-0 z-[92] font-onest lg:hidden">
+                      <motion.div className="absolute inset-0 bg-black/[0.15] backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={() => setMobileProfileOpen(false)} />
+                      <motion.div
+                        variants={SHEET_MOBILE}
+                        initial="hidden"
+                        animate="show"
+                        exit="exit"
+                        style={{ transformOrigin: 'bottom center' }}
+                        className="fixed inset-x-0 bottom-0 z-10 flex max-h-[85dvh] flex-col rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom)] will-change-transform"
+                        data-lenis-prevent
+                      >
+                        <button type="button" aria-label="Bezárás" onClick={() => setMobileProfileOpen(false)} className="w-full shrink-0 py-3"><span className="mx-auto block h-1 w-10 rounded-full bg-[#e0ddd6]" /></button>
+                        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">{profileEl}</div>
+                      </motion.div>
+                    </div>
+                  )}
+                </AnimatePresence>,
+                document.body,
+              )
+            })()}
           </div>
         </div>
       </div>
@@ -1193,7 +1219,7 @@ export function GuestsView({
             <div className="grid gap-x-3 gap-y-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1 sm:col-span-2">
                 <span className="text-[11.5px] font-semibold text-ink-soft">Név</span>
-                <input autoFocus value={newForm.name} onChange={(e) => setNewForm((f) => ({ ...f, name: e.target.value }))} placeholder="Vendég neve" className="rounded-[12px] border border-line bg-[#FCFCFB] px-3 py-2 text-[16px] text-ink placeholder:text-ink-soft2 focus:outline-none lg:text-[13.5px]" />
+                <input autoFocus={!isMobile} value={newForm.name} onChange={(e) => setNewForm((f) => ({ ...f, name: e.target.value }))} placeholder="Vendég neve" className="rounded-[12px] border border-line bg-[#FCFCFB] px-3 py-2 text-[16px] text-ink placeholder:text-ink-soft2 focus:outline-none lg:text-[13.5px]" />
               </label>
               <label className="flex flex-col gap-1">
                 <span className="text-[11.5px] font-semibold text-ink-soft">Telefon</span>
@@ -1275,7 +1301,7 @@ export function GuestsView({
                               <div className="text-[12px] text-ink-soft">Telefonszám vagy e-mail cím szükséges</div>
                             </div>
                           </div>
-                          <button type="button" onClick={() => setNewOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
+                          <button type="button" onClick={() => setNewOpen(false)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex shrink-0 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
                             <X className="h-4 w-4" strokeWidth={2} />
                           </button>
                         </div>
@@ -1315,7 +1341,7 @@ export function GuestsView({
             </div>
             <label className="mt-4 block text-[12.5px] font-medium text-ink-soft">Tiltás indoka (opcionális)</label>
             <textarea
-              autoFocus
+              autoFocus={!isTouchDevice()}
               value={blockReason}
               onChange={(e) => setBlockReason(e.target.value)}
               rows={3}

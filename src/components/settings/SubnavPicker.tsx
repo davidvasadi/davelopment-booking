@@ -68,7 +68,7 @@ export function SubnavPicker({
                   <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
                   <div className="flex items-center justify-between">
                     <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{title}</span>
-                    <button type="button" onClick={() => setOpen(false)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
+                    <button type="button" onClick={() => setOpen(false)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
                       <X className="h-4 w-4" strokeWidth={2} />
                     </button>
                   </div>
