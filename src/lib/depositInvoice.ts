@@ -1,6 +1,6 @@
 import { getPayloadClient } from './payload'
 import { decrypt } from './encryption'
-import { createInvoice as createSzamlazzInvoice } from './szamlazz'
+import { createInvoice as createSzamlazzInvoice, type InvoicePaymentMethod } from './szamlazz'
 import { createInvoice as createBillingoInvoice } from './billingo'
 
 type InvoiceSettings = {
@@ -26,6 +26,7 @@ export async function issueDepositInvoiceBestEffort({
   label,
   grossHuf,
   orderRef,
+  paymentMethod,
 }: {
   collection: 'bookings' | 'reservations' | 'gift-vouchers'
   id: string | number
@@ -37,6 +38,8 @@ export async function issueDepositInvoiceBestEffort({
   label: string
   grossHuf: number
   orderRef: string
+  /** számlán szereplő fizetési mód — alapból bankkártya (Stripe) */
+  paymentMethod?: InvoicePaymentMethod
 }): Promise<void> {
   if (!invoiceSettings?.invoice_provider || invoiceSettings.invoice_provider === 'none') return
 
@@ -46,10 +49,10 @@ export async function issueDepositInvoiceBestEffort({
 
     if (invoiceSettings.invoice_provider === 'szamlazz' && invoiceSettings.szamlazz_agent_key_enc) {
       const agentKeyOverride = decrypt(invoiceSettings.szamlazz_agent_key_enc)
-      result = await createSzamlazzInvoice({ buyer, lines: [{ label, grossHuf }], orderRef, paid: true, agentKeyOverride })
+      result = await createSzamlazzInvoice({ buyer, lines: [{ label, grossHuf }], orderRef, paid: true, agentKeyOverride, paymentMethod })
     } else if (invoiceSettings.invoice_provider === 'billingo' && invoiceSettings.billingo_api_key_enc) {
       const apiKey = decrypt(invoiceSettings.billingo_api_key_enc)
-      result = await createBillingoInvoice({ apiKey, buyer, lines: [{ label, grossHuf }], orderRef, paid: true })
+      result = await createBillingoInvoice({ apiKey, buyer, lines: [{ label, grossHuf }], orderRef, paid: true, paymentMethod })
     } else {
       return // provider kiválasztva, de nincs elmentett kulcs — nincs mit hívni
     }

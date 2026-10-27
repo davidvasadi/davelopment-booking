@@ -17,7 +17,7 @@
  * szolgáltatót.
  */
 
-import type { InvoiceBuyer, InvoiceLine, CreateInvoiceResult } from './szamlazz'
+import { invoiceComment, type InvoiceBuyer, type InvoiceLine, type CreateInvoiceResult, type InvoicePaymentMethod } from './szamlazz'
 
 const API_BASE = 'https://api.billingo.hu/v3'
 
@@ -27,7 +27,10 @@ export interface BillingoCreateInvoiceParams {
   lines: InvoiceLine[]
   orderRef?: string
   paid?: boolean
+  paymentMethod?: InvoicePaymentMethod
 }
+
+const BILLINGO_PAYMENT: Record<InvoicePaymentMethod, string> = { card: 'bankcard', cash: 'cash', transfer: 'wire_transfer' }
 
 function todayYmd(now: Date): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -55,13 +58,13 @@ export async function createInvoice(params: BillingoCreateInvoiceParams, now: Da
     type: 'invoice',
     fulfillment_date: date,
     due_date: date,
-    payment_method: 'bankcard',
+    payment_method: BILLINGO_PAYMENT[params.paymentMethod ?? 'card'],
     language: 'hu',
     currency: 'HUF',
     conversion_rate: { value: 1 },
     electronic: true,
     paid: !!params.paid,
-    comment: params.orderRef ? `Stripe: ${params.orderRef}` : undefined,
+    comment: invoiceComment(params.orderRef) || undefined,
     items: params.lines.map((l) => ({
       name: l.label,
       quantity: 1,

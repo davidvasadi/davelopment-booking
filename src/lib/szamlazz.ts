@@ -49,6 +49,18 @@ export interface CreateInvoiceParams {
    * (SaaS-előfizetés) számlázása változatlanul az env-kulcsot használja (nem adja meg ezt).
    */
   agentKeyOverride?: string
+  /** A számlán szereplő fizetési mód (helyszíni utalvány-kiállításnál készpénz/átutalás is
+   *  lehet). Alapértelmezés: bankkártya — a Stripe-os fizetések így maradnak. */
+  paymentMethod?: InvoicePaymentMethod
+}
+
+export type InvoicePaymentMethod = 'card' | 'cash' | 'transfer'
+const FIZMOD: Record<InvoicePaymentMethod, string> = { card: 'bankkártya', cash: 'készpénz', transfer: 'átutalás' }
+/** A számla megjegyzése: Stripe-azonosító csak valódi Stripe-fizetésnél (a helyszíni
+ *  kiállítás belső `manual-…` azonosítója nem Stripe). */
+export function invoiceComment(orderRef?: string): string {
+  if (!orderRef) return ''
+  return orderRef.startsWith('manual-') ? 'Helyszíni kiállítás' : `Stripe: ${orderRef}`
 }
 
 export type CreateInvoiceResult =
@@ -120,10 +132,10 @@ function buildXml(params: CreateInvoiceParams, now: Date): string {
     <keltDatum>${date}</keltDatum>
     <teljesitesDatum>${date}</teljesitesDatum>
     <fizetesiHataridoDatum>${date}</fizetesiHataridoDatum>
-    <fizmod>bankkártya</fizmod>
+    <fizmod>${FIZMOD[params.paymentMethod ?? 'card']}</fizmod>
     <penznem>HUF</penznem>
     <szamlaNyelve>hu</szamlaNyelve>
-    <megjegyzes>${xe(params.orderRef ? `Stripe: ${params.orderRef}` : '')}</megjegyzes>
+    <megjegyzes>${xe(invoiceComment(params.orderRef))}</megjegyzes>
     <fizetve>${params.paid ? 'true' : 'false'}</fizetve>
   </fejlec>
   <elado></elado>
@@ -198,4 +210,33 @@ export async function createInvoice(params: CreateInvoiceParams, now: Date = new
   }
 
   return { ok: true, invoiceNumber, invoiceUrl: null, pdfBase64, test: isTestMode() }
+}
+
+/**
+ * Egy MÁR kiállított számla PDF-jének lekérése a Számla Agenttől számlaszám alapján
+ * (`action-szamla_agent_pdf`) — a vendégeknek kiállított számláknál nem tároljuk a PDF-et, a
+ * Beállítások → Kiállított számlák listából kattintásra kérjük le az üzlet saját fiókjából.
+ */
+export async function fetchInvoicePdf(agentKey: string, invoiceNumber: string): Promise<{ ok: true; pdf: Buffer } | { ok: false; error: string }> {
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<xmlszamlapdf xmlns="http://www.szamlazz.hu/xmlszamlapdf" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.szamlazz.hu/xmlszamlapdf https://www.szamlazz.hu/szamla/docs/xsds/agentpdf/xmlszamlapdf.xsd">
+  <szamlaagentkulcs>${xe(agentKey)}</szamlaagentkulcs>
+  <szamlaszam>${xe(invoiceNumber)}</szamlaszam>
+  <valaszVerzio>1</valaszVerzio>
+</xmlszamlapdf>`
+  const form = new FormData()
+  form.append('action-szamla_agent_pdf', new Blob([xml], { type: 'text/xml' }), 'pdf.xml')
+  let res: Response
+  try {
+    res = await fetch(AGENT_URL, { method: 'POST', body: form, signal: AbortSignal.timeout(15000) })
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Hálózati hiba a Számlázz.hu felé' }
+  }
+  const errorCode = res.headers.get('szlahu_error_code') || res.headers.get('x-szlahu-error-code')
+  const errorMsg = res.headers.get('szlahu_error') || res.headers.get('x-szlahu-error-message')
+  if (errorCode && errorCode !== '0') return { ok: false, error: errorMsg ? decodeURIComponent(errorMsg) : `Számlázz.hu hiba (${errorCode})` }
+  const buf = Buffer.from(await res.arrayBuffer())
+  if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return { ok: true, pdf: buf }
+  const m = buf.toString('utf8').match(/<hibauzenet>(.*?)<\/hibauzenet>/s)
+  return { ok: false, error: m ? m[1] : 'A Számlázz.hu nem küldött PDF-et' }
 }
