@@ -1,4 +1,5 @@
 import { getPublicRestaurant } from '@/lib/publicPlace'
+import { depositSummary } from '@/lib/depositSummary'
 import { getReviewSummary } from '@/lib/reviews'
 import { storedGoogleReviews, refreshGoogleReviewsIfStale } from '@/lib/googleReviews'
 import { getPayloadClient } from '@/lib/payload'
@@ -107,6 +108,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
         phone: restaurant.phone,
       },
       depositEnabled: !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded,
+      depositInfo: depositSummary(restaurant),
       invoicingEnabled: !!restaurant.invoice_settings?.invoice_provider && restaurant.invoice_settings.invoice_provider !== 'none',
       voucherCompanyEnabled: restaurant.voucher_settings?.allow_company !== false,
       google: restaurant.google_rating != null ? { rating: restaurant.google_rating, count: restaurant.google_rating_count ?? null, mapsUrl: restaurant.google_maps_url ?? null, reviews: storedGoogleReviews(restaurant.google_reviews) } : null,

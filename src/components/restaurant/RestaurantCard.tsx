@@ -1,5 +1,6 @@
 'use client'
 
+import type { DepositInfo } from '@/lib/depositSummary'
 import { GoogleReviewsBlock, type GoogleReviewsData } from '@/components/booking/GoogleReviewsBlock'
 import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
@@ -56,6 +57,8 @@ export type RestaurantCardProps = {
   termsSections?: { title?: string | null; body?: string | null }[] | null
   company?: CompanyInfo | null
   depositEnabled?: boolean
+  /** előleg-összefoglaló a vendégnek (összeg + díjmentes lemondás) */
+  depositInfo?: DepositInfo | null
   invoicingEnabled?: boolean
   voucherCompanyEnabled?: boolean
   /** Google-értékelések (tárolt, kérésre frissülő másolat) — üres → nem jelenik meg. */
@@ -121,6 +124,7 @@ export function RestaurantCard({
   termsSections,
   company,
   depositEnabled,
+  depositInfo,
   invoicingEnabled,
   voucherCompanyEnabled = true,
   google = null,
@@ -482,6 +486,7 @@ export function RestaurantCard({
         initialTimeProp={bookInitial?.time}
         initialPaxProp={bookInitial?.pax}
         depositEnabled={depositEnabled}
+        depositInfo={depositInfo}
         invoicingEnabled={invoicingEnabled}
         addressRequired={addressRequired}
         addressRequiredNote={addressRequiredNote}

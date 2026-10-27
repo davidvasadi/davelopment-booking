@@ -8,7 +8,8 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { Minus, Plus, Loader2, Trees, ArrowLeft, ChevronRight } from 'lucide-react'
+import { Minus, Plus, Loader2, Trees, ArrowLeft, ChevronRight, HandCoins } from 'lucide-react'
+import { restaurantDepositLabel, type DepositInfo } from '@/lib/depositSummary'
 import { TermsModal, type CompanyInfo } from '@/components/booking/TermsModal'
 import { PhoneCountryInput, COUNTRIES } from '@/components/booking/PhoneCountryInput'
 import { HoverArrow } from '@/components/ui/HoverArrow'
@@ -42,6 +43,7 @@ export function RestaurantBookingWizard({
   initialTimeProp,
   initialPaxProp,
   depositEnabled = false,
+  depositInfo = null,
   invoicingEnabled = false,
   addressRequired = false,
   addressRequiredNote = null,
@@ -76,6 +78,8 @@ export function RestaurantBookingWizard({
   initialPaxProp?: number
   /** Vendég-előleg — ha KI van kapcsolva, a wizard a mai viselkedést mutatja bit-pontosan. */
   depositEnabled?: boolean
+  /** előleg-összefoglaló a vendégnek (összeg + díjmentes lemondás) */
+  depositInfo?: DepositInfo | null
   invoicingEnabled?: boolean
   addressRequired?: boolean
   addressRequiredNote?: string | null
@@ -521,6 +525,16 @@ export function RestaurantBookingWizard({
                 )}
               </div>
 
+              {/* Előleg-tájékoztató MÁR az adatoknál — a vendég előre tudja, mennyi, mikor és visszajár-e */}
+              {depositEnabled && depositInfo && (
+                <div data-edit-id="deposit" className="flex gap-3 rounded-[20px] p-4" style={{ background: 'rgba(241,206,69,0.12)', border: '1px solid rgba(241,206,69,0.35)' }}>
+                  <HandCoins className="mt-0.5 h-5 w-5 shrink-0 text-gold" strokeWidth={1.7} />
+                  <div className={`text-[13px] leading-relaxed ${dk ? 'text-white/70' : 'text-ink-soft'}`}>
+                    <p className={`font-semibold ${textCls}`}>{tt('public.deposit.notice', { amount: restaurantDepositLabel(depositInfo, pax) })}</p>
+                    <p>{tt('public.deposit.noticeHow')} {depositInfo.refundHours > 0 ? tt('public.deposit.noticeRefund', { hours: depositInfo.refundHours }) : tt('public.deposit.noticeRefundAny')}</p>
+                  </div>
+                </div>
+              )}
               <div className={`${cardClass} space-y-3`} style={cardStyle}>
                 <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt("rbooking.details")}</p>
                 {/* Az űrlap mezői a beállított sorrendben (`booking_rules.form_field_order`) — ugyanaz a
@@ -582,6 +596,13 @@ export function RestaurantBookingWizard({
                   </div>
                     </div>),
                     address: (<div data-edit-id="field:address" className="space-y-3">
+                  {/* Előlegnél a cím a SZÁMLÁHOZ kell — egyszer, fejlécként mondjuk el (nem mezőnként) */}
+                  {depositEnabled && (
+                    <div className="pt-1">
+                      <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${labelCls}`}>{tt('booking.details.billing')}</p>
+                      <p className={`text-[12px] ${dk ? 'text-white/45' : 'text-ink-soft2'}`}>{tt('booking.details.billingWhy')}</p>
+                    </div>
+                  )}
                   <div key={`city-${detailsShakeKey}`} className={cn(errors.city && 'animate-shake')}>
                     <input
                       ref={fieldRefs.city}
@@ -595,7 +616,7 @@ export function RestaurantBookingWizard({
                       onBlur={() => onFieldBlur('city')}
                     />
                     {errors.city && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.city}</p>}
-                    {addressGateOn && !errors.city && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
+                    {addressGateOn && !depositEnabled && !errors.city && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
                   </div>
                   {!addressCityOnly && (
                   <div key={`address-${detailsShakeKey}`} className={cn(errors.address && 'animate-shake')}>
@@ -611,7 +632,7 @@ export function RestaurantBookingWizard({
                       onBlur={() => onFieldBlur('address')}
                     />
                     {errors.address && <p role="alert" className="mt-1 text-[12px] text-red-500">{errors.address}</p>}
-                    {addressGateOn && !errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
+                    {addressGateOn && !depositEnabled && !errors.address && <p className={`mt-1 text-[11px] ${labelCls}`}>{addressNote}</p>}
                   </div>
                   )}
                   {depositEnabled && invoicingEnabled && (
@@ -705,7 +726,7 @@ export function RestaurantBookingWizard({
                     ))
                 })()}
                 {voucherEnabled && (
-                  <div className="space-y-2">
+                  <div data-edit-id="redeem" className="space-y-2">
                     {!redeemOpen ? (
                       <button
                         type="button"
@@ -731,7 +752,7 @@ export function RestaurantBookingWizard({
                   </div>
                 )}
                 {(marketingVisible || (editorStep && newsletterEnabled)) && (
-                  <div className={cn('space-y-1.5', editorStep && !marketingVisible && 'opacity-35 pointer-events-none')}>
+                  <div data-edit-id="newsletter" className={cn('space-y-1.5', editorStep && !marketingVisible && 'opacity-35 pointer-events-none')}>
                     <div className="flex items-center justify-between gap-3 py-1">
                       <span className={`text-[13px] ${dk ? 'text-white/70' : 'text-ink'}`}>Szeretnék marketing-ajánlatokat, híreket kapni erről az üzletről</span>
                       <Switch checked={marketingConsent} onChange={setMarketingConsent} ariaLabel="Feliratkozás hírlevélre" />

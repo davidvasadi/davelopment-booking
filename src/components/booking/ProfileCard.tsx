@@ -6,7 +6,8 @@ import { GoogleReviewsBlock, type GoogleReviewsData } from '@/components/booking
 import { useSearchParams } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { AnimatePresence, motion, useDragControls } from 'framer-motion'
-import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, ChevronDown, Loader2, Tag, Users, User, Phone, Mail, Globe, MapPin, Info, Gift, Camera, X } from 'lucide-react'
+import { ArrowLeft, Check, CheckCircle, Clock, ChevronRight, ChevronDown, Loader2, Tag, Users, User, Phone, Mail, Globe, MapPin, Info, Gift, Camera, X, HandCoins } from 'lucide-react'
+import { salonDepositNotice, type DepositInfo } from '@/lib/depositSummary'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { formatPrice, cn } from '@/lib/utils'
@@ -61,6 +62,8 @@ interface Props {
   company?: CompanyInfo | null
   goodToKnow?: { id?: string | null; icon?: string | null; title?: string | null; body?: string | null }[] | null
   depositEnabled?: boolean
+  /** előleg-összefoglaló a vendégnek (összeg + díjmentes lemondás) — az Adatok lépés tetején */
+  depositInfo?: DepositInfo | null
   invoicingEnabled?: boolean
   /** Google-értékelések (napi frissítésű tárolt másolat, lib/googleReviews.ts) — üres → nem jelenik meg. */
   google?: GoogleReviewsData | null
@@ -128,7 +131,7 @@ export function ProfileCard({
   services, staff, serviceCategories,
   phone, email, website, socialLinks, nextSlotNode,
   requirePhone = true, bookingWindowDays = 60,
-  termsSections, company, goodToKnow, depositEnabled = false, invoicingEnabled = false, voucherCompanyEnabled = true, google = null,
+  termsSections, company, goodToKnow, depositEnabled = false, depositInfo = null, invoicingEnabled = false, voucherCompanyEnabled = true, google = null,
   addressRequired = false, addressRequiredNote = null, hiddenFields = [], addressDetailLevel = 'full',
   voucherEnabled = false, voucherTypes = [], newsletterEnabled = false, showMarketingConsent = true,
   consentEnabled = false, consentTitle = null, consentText = null,
@@ -1389,6 +1392,16 @@ export function ProfileCard({
               {view === 'details' && (
                 <div>
                   <h2 className="mb-4 text-[22px] font-light tracking-[-0.02em] text-white">{tt('booking.details.title')}</h2>
+                  {/* Előleg-tájékoztató MÁR az adatoknál — a vendég előre tudja, mennyi, mikor és visszajár-e */}
+                  {depositEnabled && depositInfo && (
+                    <div data-edit-id="deposit" className="mb-4 flex gap-3 rounded-2xl p-4" style={{ background: 'rgba(241,206,69,0.10)', border: '1px solid rgba(241,206,69,0.30)' }}>
+                      <HandCoins className="mt-0.5 h-5 w-5 shrink-0 text-gold" strokeWidth={1.7} />
+                      <div className="text-[13px] leading-relaxed text-white/70">
+                        <p className="font-semibold text-white">{(() => { const n = salonDepositNotice(depositInfo, selectedService && (selectedService.currency ?? 'HUF') === 'HUF' ? selectedService.price : null); return tt(n.key, n.params) })()}</p>
+                        <p>{tt('public.deposit.noticeHow')} {depositInfo.refundHours > 0 ? tt('public.deposit.noticeRefund', { hours: depositInfo.refundHours }) : tt('public.deposit.noticeRefundAny')}</p>
+                      </div>
+                    </div>
+                  )}
                   {rememberedGuest && (
                     <p className="-mt-2 mb-3 text-[12px] text-white/50">
                       {tt('booking.details.remembered')}{' '}
@@ -1446,6 +1459,13 @@ export function ProfileCard({
                         ),
                         address: (
                           <>
+                      {/* Előlegnél a cím a SZÁMLÁHOZ kell — ezt egyszer, fejlécként mondjuk el (nem mezőnként) */}
+                      {depositEnabled && (
+                        <div className="pt-2">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">{tt('booking.details.billing')}</p>
+                          <p className="text-[12px] text-white/45">{tt('booking.details.billingWhy')}</p>
+                        </div>
+                      )}
                       <div data-edit-id="field:address" key={`city-${detailsShakeKey}`} className={cn('space-y-1', errors.city && 'animate-shake')}>
                         <Label htmlFor="bk-city" className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/55">
                           {addressGateOn ? `${tt('booking.field.city').replace(/\s*\([^)]*\)\s*$/, '')} *` : tt('booking.field.city')}
@@ -1459,7 +1479,7 @@ export function ProfileCard({
                           className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.city && 'ring-1 ring-red-400')}
                         />
                         {errors.city && <p role="alert" className="text-[12px] text-red-400">{errors.city}</p>}
-                        {addressGateOn && !errors.city && <p className="text-[11px] text-white/40">{addressNote}</p>}
+                        {addressGateOn && !depositEnabled && !errors.city && <p className="text-[11px] text-white/40">{addressNote}</p>}
                       </div>
                       {!addressCityOnly && (
                       <div data-edit-id="field:address" key={`address-${detailsShakeKey}`} className={cn('space-y-1', errors.address && 'animate-shake')}>
@@ -1475,7 +1495,7 @@ export function ProfileCard({
                           className={cn('h-11 rounded-[12px] border border-white/10 bg-white/[0.06] text-[14px] font-medium text-white placeholder:text-white/30 focus-visible:ring-1 focus-visible:ring-gold/50 focus-visible:border-gold/50 backdrop-blur-[10px]', errors.address && 'ring-1 ring-red-400')}
                         />
                         {errors.address && <p role="alert" className="text-[12px] text-red-400">{errors.address}</p>}
-                        {addressGateOn && !errors.address && <p className="text-[11px] text-white/40">{addressNote}</p>}
+                        {addressGateOn && !depositEnabled && !errors.address && <p className="text-[11px] text-white/40">{addressNote}</p>}
                       </div>
                       )}
                       {depositEnabled && invoicingEnabled && (

@@ -1,4 +1,5 @@
 import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
+import { depositSummary } from '@/lib/depositSummary'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getPublicSalon, getPublicRestaurant } from '@/lib/publicPlace'
@@ -176,6 +177,7 @@ export default async function SalonPublicPage({
       termsSections: salon.terms_sections,
       goodToKnow: salon.good_to_know,
       depositEnabled: !!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded,
+      depositInfo: depositSummary(salon),
       invoicingEnabled: !!salon.invoice_settings?.invoice_provider && salon.invoice_settings.invoice_provider !== 'none',
       voucherCompanyEnabled: salon.voucher_settings?.allow_company !== false,
       google: salon.google_rating != null ? { rating: salon.google_rating, count: salon.google_rating_count ?? null, mapsUrl: salon.google_maps_url ?? null, reviews: storedGoogleReviews(salon.google_reviews) } : null,
