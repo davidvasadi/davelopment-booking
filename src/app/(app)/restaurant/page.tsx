@@ -337,8 +337,8 @@ export default async function RestaurantDashboardPage() {
       {/* Onboarding-nudge */}
       <SetupNudge variant="restaurant" base="/restaurant" flags={setup} />
 
-      {/* CTA-sor: StoreSwitcher + Új foglalás */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* CTA-sor: StoreSwitcher + Új foglalás — mobilon rejtve (az üzletváltó ott az avatar-menüben van) */}
+      <div className="hidden flex-wrap items-center justify-between gap-3 lg:flex">
         <p className="text-[14px] text-ink-soft">{greeting}, <span className="font-medium text-ink">{user?.name ?? ''}</span></p>
         <div className="flex items-stretch gap-2.5">
           <StoreSwitcher name={restaurant.name} logoUrl={logoUrl} businesses={businesses} activeKey={active ? `${active.type}:${active.id}` : null} />
@@ -362,15 +362,21 @@ export default async function RestaurantDashboardPage() {
             { label: 'Lemondva', pct: cancelledPct, background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
           ]}
         />
-        <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-          <HeroKpi icon={CalendarDays} value={String(stats.reservationsToday)} label="Foglalás" />
-          <HeroKpi icon={Users} value={String(stats.paxToday)} label="Vendég" />
-          <HeroKpi icon={Users2} value={String(staffToday)} label="Személyzet" />
-          {/* Csak akkor jelenik meg, ha az étteremnél be van kapcsolva a vendég-előleg. */}
-          {restaurant.deposit_settings?.enabled && (
-            <HeroKpi icon={Banknote} value={formatPrice(stats.depositsToday, 'HUF')} label="Előleg ma" />
-          )}
-        </div>
+        {/* Mobilon EGY sorban, automatikus térközzel; 4 KPI-nál kisebb betű (compact) */}
+        {(() => {
+          const compact = !!restaurant.deposit_settings?.enabled
+          return (
+            <div className="flex items-start justify-between gap-3 lg:justify-start lg:gap-10">
+              <HeroKpi compact={compact} icon={CalendarDays} value={String(stats.reservationsToday)} label="Foglalás" />
+              <HeroKpi compact={compact} icon={Users} value={String(stats.paxToday)} label="Vendég" />
+              <HeroKpi compact={compact} icon={Users2} value={String(staffToday)} label="Személyzet" />
+              {/* Csak akkor jelenik meg, ha az étteremnél be van kapcsolva a vendég-előleg. */}
+              {restaurant.deposit_settings?.enabled && (
+                <HeroKpi compact={compact} icon={Banknote} value={formatPrice(stats.depositsToday, 'HUF')} label="Előleg ma" />
+              )}
+            </div>
+          )
+        })()}
       </div>
 
       {/* ── BENTO (Crextio Desktop design) — mobilon named grid-area sorrend: avatar → charts

@@ -319,8 +319,8 @@ export default async function DashboardPage() {
       {/* Onboarding-nudge */}
       <SetupNudge variant="salon" base="/dashboard" flags={setup} />
 
-      {/* CTA-sor: StoreSwitcher + Új foglalás */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* CTA-sor: StoreSwitcher + Új foglalás — mobilon rejtve (az üzletváltó ott az avatar-menüben van) */}
+      <div className="hidden flex-wrap items-center justify-between gap-3 lg:flex">
         <p className="text-[14px] text-ink-soft">{greeting}, <span className="font-medium text-ink">{user?.name ?? ''}</span></p>
         <div className="flex items-stretch gap-2.5">
           <StoreSwitcher name={salon.name} logoUrl={logoUrl} businesses={businesses} activeKey={active ? `${active.type}:${active.id}` : null} />
@@ -344,12 +344,13 @@ export default async function DashboardPage() {
             { label: 'Lemondva', pct: cancelledPct, background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
           ]}
         />
-        <div className="flex flex-wrap items-start gap-8 lg:gap-10">
-          <HeroKpi icon={CalendarDays} value={String(stats.bookingsToday)} label="Foglalás" />
-          <HeroKpi icon={Banknote} value={formatPrice(stats.revenueToday, 'HUF')} label="Bevétel" />
+        {/* Mobilon EGY sorban, automatikus térközzel; 3 KPI-nál (két Ft-összeg) kisebb betű (compact) */}
+        <div className="flex items-start justify-between gap-3 lg:justify-start lg:gap-10">
+          <HeroKpi compact={!!salon.deposit_settings?.enabled} icon={CalendarDays} value={String(stats.bookingsToday)} label="Foglalás" />
+          <HeroKpi compact={!!salon.deposit_settings?.enabled} icon={Banknote} value={formatPrice(stats.revenueToday, 'HUF')} label="Bevétel" />
           {/* Csak akkor jelenik meg, ha az üzletnél be van kapcsolva a vendég-előleg. */}
           {salon.deposit_settings?.enabled && (
-            <HeroKpi icon={Banknote} value={formatPrice(stats.depositsToday, 'HUF')} label="Előleg ma" />
+            <HeroKpi compact icon={Banknote} value={formatPrice(stats.depositsToday, 'HUF')} label="Előleg ma" />
           )}
         </div>
       </div>

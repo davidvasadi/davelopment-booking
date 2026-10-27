@@ -324,8 +324,9 @@ export function UserMenu({
             </motion.div>
           )}
 
-          {/* Üzletváltó — csak ha 2+ üzlet van a fiókban; accordion trigger az aktív üzlet. */}
-          {businesses.length > 1 && (() => {
+          {/* Üzletváltó — 1 üzletnél is (alul „Üzlet hozzáadása”); mobilon ez váltja ki az Áttekintés
+              oldali üdvözlő + üzletváltó sort. Accordion trigger az aktív üzlet. */}
+          {businesses.length >= 1 && (() => {
             const active = businesses.find((b) => `${b.type}:${b.id}` === activeBusinessKey) ?? businesses[0]
             const activeMono = active.name?.trim()?.[0]?.toUpperCase() ?? '?'
             return (
