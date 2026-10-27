@@ -1,5 +1,6 @@
 'use client'
 
+import { SHEET_MOBILE } from '@/lib/motion'
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -46,11 +47,8 @@ const GENIE = {
 } as const
 // Mobilon (alulról induló sheet) VALÓDI alulról-felcsúszás kell — a genie kicsinyítő-pop-ja itt
 // épp azt az érzetet keltette, hogy nem "úszik fel" alulról, csak beugrik/felnő a helyén.
-const SLIDE_UP = {
-  hidden: { opacity: 0, y: '100%' },
-  show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 380, damping: 34, mass: 0.9, staggerChildren: 0.045, delayChildren: 0.06 } },
-  exit: { opacity: 0, y: '100%', transition: { duration: 0.2, ease: 'easeIn' as const } },
-} as const
+// közös mobilos lap-mozgás (lib/motion) — csak tolás, áttetszőség/skála nélkül (telefonon sima)
+const SLIDE_UP = SHEET_MOBILE
 const PANEL_ITEM = {
   hidden: { opacity: 0, y: 8 },
   show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
@@ -573,7 +571,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
               animate="show"
               exit="exit"
               style={{ transformOrigin: 'center' }}
-              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-h-[92vh] sm:max-w-[760px] sm:rounded-[26px] lg:max-w-[1000px]"
+              className="relative z-10 flex max-h-[90dvh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white will-change-transform sm:max-h-[92vh] sm:shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:max-w-[760px] sm:rounded-[26px] lg:max-w-[1000px]"
             >
               {/* Fejléc (fix) */}
               <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">

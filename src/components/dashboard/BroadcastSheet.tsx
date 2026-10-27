@@ -1,5 +1,6 @@
 'use client'
 
+import { SHEET_SPRING } from '@/lib/motion'
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -25,7 +26,7 @@ export function BroadcastSheet({ n, open, onClose }: { n: Notification; open: bo
 
   const sheetMotion = isDesktop
     ? { initial: { opacity: 0, scale: 0.96, y: 12 }, animate: { opacity: 1, scale: 1, y: 0 }, exit: { opacity: 0, scale: 0.96, y: 12 }, transition: { type: 'spring' as const, stiffness: 380, damping: 30 } }
-    : { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: { type: 'spring' as const, stiffness: 320, damping: 32 } }
+    : { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: SHEET_SPRING }
 
   return createPortal(
     <AnimatePresence>

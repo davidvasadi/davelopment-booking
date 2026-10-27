@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
+import { SHEET_MOBILE } from '@/lib/motion'
 
 // Az avatar-menü (UserMenu) „genie" belépője — ugyanaz az érzés, mint a foglalás-panelnél
 // (nagy scale-ugrás + overshoot = pulzáló pop, a régiók staggerrel folynak be).
@@ -45,6 +46,16 @@ export function PopupModal({
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
+  // Mobilon (sm alatt) valódi alulról felcsúszó lap a közös mozgással; asztalon a genie-pop.
+  const [isDesktop, setIsDesktop] = useState(true)
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 640px)')
+    const sync = () => setIsDesktop(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
   if (typeof document === 'undefined') return null
   return createPortal(
     <AnimatePresence>
@@ -61,12 +72,12 @@ export function PopupModal({
           />
           {/* Középre úszó panel — genie spring; mobilon alsó lap */}
           <motion.div
-            variants={GENIE}
+            variants={isDesktop ? GENIE : SHEET_MOBILE}
             initial="hidden"
             animate="show"
             exit="exit"
             style={{ transformOrigin: 'center' }}
-            className={`relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] sm:rounded-[26px] ${maxWidth}`}
+            className={`relative z-10 flex max-h-[92vh] w-full flex-col overflow-hidden rounded-t-[28px] bg-white will-change-transform sm:rounded-[26px] sm:shadow-[0_28px_80px_-24px_rgba(0,0,0,.55)] ${maxWidth}`}
           >
             {/* Fejléc (fix) */}
             <motion.div variants={PANEL_ITEM} className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4 sm:px-6">

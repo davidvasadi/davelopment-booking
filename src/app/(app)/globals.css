@@ -463,3 +463,30 @@ html {
   box-shadow: 0 0 0px 1000px #fff inset;
   transition: background-color 9999s ease-in-out 0s;
 }
+
+/* ===== Mobil: mezőre kattintáskor NE nagyítson rá az iPhone =====
+   Az iOS Safari automatikusan ránagyít minden 16px-nél kisebb betűs beviteli mezőre (és utána kézzel
+   kell visszakicsinyíteni). Az Apple saját oldalain a mezők 16–17px-esek — érintőképernyőn mi is
+   legalább 16px-et adunk. (A viewport `maximum-scale=1` trükk Androidon a kétujjas nagyítást is
+   letiltaná — akadálymentességi hiba, ezért nem azt használjuk.) */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']):not([type='hidden']),
+  select,
+  textarea {
+    font-size: max(16px, 1em) !important;
+  }
+}
+
+/* ===== Mobil: a felugró ablakok teljes képernyős háttere NE legyen elmosva =====
+   Az elmosást (backdrop-filter) a telefon minden képkockánál újraszámolja, miközben a lap mozog —
+   ez a szaggatás fő oka. Mobilon csak sötétítés marad; asztalon az elmosás változatlan.
+   (Minden ilyen háttér `fixed|absolute inset-0 … backdrop-blur-*` — erre illesztünk.) */
+@media (max-width: 1023px) {
+  .fixed[class*='inset-0'][class*='backdrop-blur'],
+  .absolute[class*='inset-0'][class*='backdrop-blur'] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    /* elmosás nélkül a halvány (6%-os) dim szinte láthatatlan → egységes, kicsit erősebb sötétítés */
+    background-color: rgba(20, 18, 12, 0.28) !important;
+  }
+}

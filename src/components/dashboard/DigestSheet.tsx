@@ -6,7 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, CalendarDays, Users, Sunrise, Sunset, Banknote, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { buttonHover, EASE } from '@/lib/motion'
+import { buttonHover, EASE, SHEET_SPRING } from '@/lib/motion'
 import { UserAvatar } from './UserAvatar'
 import { eventIconByKey } from '@/components/settings/eventTypeIcons'
 import { COUNTRIES } from '@/components/booking/PhoneCountryInput'
@@ -165,7 +165,7 @@ export function DigestSheet({
 
   const sheetMotion = isDesktop
     ? { initial: { opacity: 0, scale: 0.96, y: 12 }, animate: { opacity: 1, scale: 1, y: 0 }, exit: { opacity: 0, scale: 0.96, y: 12 }, transition: { type: 'spring' as const, stiffness: 380, damping: 30 } }
-    : { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: { type: 'spring' as const, stiffness: 320, damping: 32 } }
+    : { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' }, transition: SHEET_SPRING }
 
   return createPortal(
     <AnimatePresence>

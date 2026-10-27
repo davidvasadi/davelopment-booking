@@ -11,7 +11,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { sheetSpring } from '@/lib/motion'
+import { sheetSpring, SHEET_MOBILE } from '@/lib/motion'
 import { Search, Phone, Mail, Star, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, Cake, Ban, Pencil, ShieldCheck, Check, Trash2, AlertTriangle, UserPlus, UserRound, X, MoreHorizontal, StickyNote, History, SlidersHorizontal } from 'lucide-react'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts'
 import { TIER_LABEL, flagEmoji, countryName, type GuestTier, type CountryBucket } from '@/lib/guests'
@@ -795,10 +795,10 @@ export function GuestsView({
                 <motion.div className="absolute inset-0 bg-black/[0.15] backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} onClick={() => setFiltersOpen(false)} />
                 <motion.div
                   className="fixed inset-x-0 bottom-0 z-10 max-h-[85dvh] overflow-y-auto rounded-t-[28px] bg-white p-4 pb-[calc(16px+env(safe-area-inset-bottom))] shadow-[0_-12px_40px_-12px_rgba(0,0,0,.3)]"
-                  initial={{ opacity: 0, y: 24 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: 16 }}
-                  transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                  variants={SHEET_MOBILE}
+                  initial="hidden"
+                  animate="show"
+                  exit="exit"
                   data-lenis-prevent
                 >
                   <div className="mx-auto mb-3 h-1 w-9 rounded-full bg-zinc-200" />
