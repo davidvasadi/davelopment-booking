@@ -109,6 +109,14 @@ export const GiftVouchers: CollectionConfig = {
     { name: 'redeemed_at', type: 'date', label: 'Beváltás dátuma', admin: { position: 'sidebar' } },
     { name: 'redeemed_booking', type: 'relationship', relationTo: 'bookings', label: 'Beváltó foglalás (szalon)', admin: { position: 'sidebar' } },
     { name: 'redeemed_reservation', type: 'relationship', relationTo: 'reservations', label: 'Beváltó foglalás (étterem)', admin: { position: 'sidebar' } },
+    {
+      // Ki állította ki a dashboardon (helyben vagy fizetési linkkel); üres = vendég online vásárlása
+      name: 'issued_by',
+      type: 'relationship',
+      relationTo: 'users',
+      label: 'Kiállította',
+      admin: { position: 'sidebar', readOnly: true },
+    },
     { name: 'invoice_number', type: 'text', label: 'Számlaszám', admin: { position: 'sidebar', readOnly: true } },
     { name: 'invoice_pdf_url', type: 'text', label: 'Számla PDF', admin: { position: 'sidebar', readOnly: true } },
     {
@@ -120,6 +128,8 @@ export const GiftVouchers: CollectionConfig = {
         { label: 'Nincs', value: 'none' },
         { label: 'Kiállítva', value: 'issued' },
         { label: 'Sikertelen', value: 'failed' },
+        // a kiállító szándékosan nem kért számlát (pl. pénztárgépből számláz — duplikáció ellen)
+        { label: 'Nem kért', value: 'skipped' },
       ],
       admin: { position: 'sidebar' },
     },

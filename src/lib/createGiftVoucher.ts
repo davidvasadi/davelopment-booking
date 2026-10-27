@@ -30,8 +30,12 @@ export async function createGiftVoucher(params: {
   buyer: { name: string; email: string; city: string; address: string; taxNumber?: string | null }
   recipient?: { name?: string | null; email?: string | null; message?: string | null }
   locale?: string | null
+  /** dashboardon kiállító felhasználó (helyben / fizetési link); üres = vendég online vásárlása */
+  issuedBy?: string | number | null
+  /** false = a kiállító nem kért számlát (pl. pénztárgépből számláz) → 'skipped', nincs hívás */
+  issueInvoice?: boolean
 }): Promise<{ code: string; amountHuf: number; qrCodeDataUrl: string }> {
-  const { kind, business, amountHuf, voucherTypeId, paymentIntentId, paymentMethod, buyer, recipient, locale } = params
+  const { kind, business, amountHuf, voucherTypeId, paymentIntentId, paymentMethod, buyer, recipient, locale, issuedBy, issueInvoice = true } = params
   const payload = await getPayloadClient()
 
   const voucherType = voucherTypeId
@@ -66,10 +70,12 @@ export async function createGiftVoucher(params: {
       payment_method: paymentMethod ?? null,
       expires_at: expiresAt.toISOString(),
       locale: locale || 'hu',
+      ...(issuedBy != null && issuedBy !== '' ? { issued_by: Number(issuedBy) || issuedBy } : {}),
+      ...(issueInvoice ? {} : { invoice_status: 'skipped' as const }),
     },
   })
 
-  void issueDepositInvoiceBestEffort({
+  if (issueInvoice) void issueDepositInvoiceBestEffort({
     collection: 'gift-vouchers',
     id: voucher.id,
     invoiceSettings: business.invoice_settings,
@@ -77,6 +83,8 @@ export async function createGiftVoucher(params: {
     label: `Ajándékutalvány – ${business.name}`,
     grossHuf: amountHuf,
     orderRef: paymentIntentId,
+    // helyszíni kiállításnál a valós fizetési mód kerüljön a számlára (eddig mindig bankkártya volt)
+    paymentMethod: paymentMethod === 'cash' ? 'cash' : paymentMethod === 'transfer' ? 'transfer' : 'card',
   })
 
   const emailData = {

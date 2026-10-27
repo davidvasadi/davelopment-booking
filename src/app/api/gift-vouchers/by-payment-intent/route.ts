@@ -3,6 +3,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { getStripe } from '@/lib/stripe'
 import { authOrUnauthorized } from '@/lib/salonRouteAuth'
 import { assertCapability } from '@/lib/apiCapability'
+import { ensureVoucherFromPaymentIntent } from '@/lib/voucherFromIntent'
 import type { Salon, Restaurant } from '@/payload/payload-types'
 
 /**
@@ -43,19 +44,17 @@ export async function GET(request: NextRequest) {
   const stripe = getStripe()
   if (!stripe) return NextResponse.json({ found: false })
 
-  const session = await stripe.checkout.sessions.retrieve(sessionId, undefined, { stripeAccount: business.stripe_connect_account_id }).catch(() => null)
-  const paymentIntentId = typeof session?.payment_intent === 'string' ? session.payment_intent : session?.payment_intent?.id
-  if (!paymentIntentId) return NextResponse.json({ found: false })
+  const session = await stripe.checkout.sessions.retrieve(sessionId, { expand: ['payment_intent'] }, { stripeAccount: business.stripe_connect_account_id }).catch(() => null)
+  const intent = session && typeof session.payment_intent === 'object' ? session.payment_intent : null
+  if (!intent) return NextResponse.json({ found: false })
 
-  const result = await payload.find({
-    collection: 'gift-vouchers',
-    where: { payment_intent_id: { equals: paymentIntentId } },
-    limit: 1,
-    depth: 0,
-    overrideAccess: true,
+  // Ha a fizetés sikeres, de a webhook még nem hozta létre (vagy nem érkezik meg), itt hozzuk
+  // létre — ugyanaz az idempotens út, mint a webhookban.
+  const voucher = await ensureVoucherFromPaymentIntent(payload, intent).catch((e) => {
+    console.error('[by-payment-intent] utalvány-létrehozás hiba:', e)
+    return null
   })
-  const voucher = result.docs[0]
-  if (!voucher) return NextResponse.json({ found: false })
+  if (!voucher) return NextResponse.json({ found: false, paid: intent.status === 'succeeded' })
 
   return NextResponse.json({ found: true, code: voucher.code, amountHuf: voucher.amount_huf, qrCodeDataUrl: voucher.qr_code_url })
 }

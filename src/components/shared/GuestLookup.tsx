@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react'
 import { UserRound } from 'lucide-react'
 
-export type GuestSuggestion = { name: string; email: string | null; phone: string | null; city: string | null }
+export type GuestSuggestion = { name: string; email: string | null; phone: string | null; city: string | null; address?: string | null; taxNumber?: string | null }
 export type GuestLookupField = 'name' | 'phone' | 'email'
 
 export function useGuestLookup(enabled: boolean) {

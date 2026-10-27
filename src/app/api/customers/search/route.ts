@@ -5,7 +5,8 @@ import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { assertCapability } from '@/lib/apiCapability'
 
-type Suggestion = { name: string; email: string | null; phone: string | null; city: string | null }
+// city/address/taxNumber: számlázási adatok (utalvány-kiállításnál a vásárló címe), ha ismertek
+type Suggestion = { name: string; email: string | null; phone: string | null; city: string | null; address?: string | null; taxNumber?: string | null }
 
 /**
  * GET /api/customers/search?q=… — visszatérő vendég keresése név / e-mail / telefon
@@ -63,14 +64,18 @@ export async function GET(req: NextRequest) {
     const key = s.email?.toLowerCase() || s.phone || `name:${s.name.trim().toLowerCase()}`
     const prev = byKey.get(key)
     if (!prev) byKey.set(key, s)
-    else byKey.set(key, { name: prev.name, email: prev.email ?? s.email, phone: prev.phone ?? s.phone, city: prev.city ?? s.city })
+    else byKey.set(key, { name: prev.name, email: prev.email ?? s.email, phone: prev.phone ?? s.phone, city: prev.city ?? s.city, address: prev.address ?? s.address ?? null, taxNumber: prev.taxNumber ?? s.taxNumber ?? null })
   }
   // A kézi vendég-rekord (felülírt adatok) elsőbbséget kap, utána a legfrissebb foglalások.
-  for (const c of customers.docs as { customer_name?: string | null; customer_email?: string | null; customer_phone?: string | null }[]) {
-    add({ name: c.customer_name ?? '', email: c.customer_email || null, phone: c.customer_phone || null, city: null })
+  type C = { customer_name?: string | null; customer_email?: string | null; customer_phone?: string | null; customer_city?: string | null; billing_postal_code?: string | null; billing_city?: string | null; billing_street?: string | null; billing_tax_number?: string | null }
+  for (const c of customers.docs as C[]) {
+    // számlázási cím (irsz + város / utca), ennek hiányában a vendég városa
+    const billCity = [c.billing_postal_code, c.billing_city].filter(Boolean).join(' ').trim()
+    add({ name: c.customer_name ?? '', email: c.customer_email || null, phone: c.customer_phone || null, city: billCity || c.customer_city || null, address: c.billing_street || null, taxNumber: c.billing_tax_number || null })
   }
-  for (const b of history.docs as { customer_name?: string | null; customer_email?: string | null; customer_phone?: string | null; customer_city?: string | null }[]) {
-    add({ name: b.customer_name ?? '', email: b.customer_email || null, phone: b.customer_phone || null, city: b.customer_city || null })
+  type H = { customer_name?: string | null; customer_email?: string | null; customer_phone?: string | null; customer_city?: string | null; customer_address?: string | null; customer_tax_number?: string | null }
+  for (const b of history.docs as H[]) {
+    add({ name: b.customer_name ?? '', email: b.customer_email || null, phone: b.customer_phone || null, city: b.customer_city || null, address: b.customer_address || null, taxNumber: b.customer_tax_number || null })
   }
 
   return NextResponse.json({ results: Array.from(byKey.values()).slice(0, 8) })

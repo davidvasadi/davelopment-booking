@@ -4,8 +4,7 @@ import type { Payload } from 'payload'
 import { getStripe } from '@/lib/stripe'
 import { getPayloadClient } from '@/lib/payload'
 import { isAccountFullyOnboarded } from '@/lib/stripeConnect'
-import { createGiftVoucher } from '@/lib/createGiftVoucher'
-import type { Salon, Restaurant } from '@/payload/payload-types'
+import { ensureVoucherFromPaymentIntent } from '@/lib/voucherFromIntent'
 
 export const dynamic = 'force-dynamic'
 
@@ -89,26 +88,7 @@ export async function POST(req: Request) {
         // jelölésű vendég-intentek vevő-adat nélküliek — ezeket is kihagyjuk, különben a webhook
         // a kliens `/api/vouchers` hívása ELŐTT név/e-mail nélkül hozná létre az utalványt.
         if (intent.metadata?.kind === 'gift-voucher' && intent.metadata?.purchaserEmail) {
-          const existing = await payload.find({ collection: 'gift-vouchers', where: { payment_intent_id: { equals: intent.id } }, limit: 1, overrideAccess: true })
-          if (existing.totalDocs === 0) {
-            const md = intent.metadata
-            const kind: 'salon' | 'restaurant' = md.salonId ? 'salon' : 'restaurant'
-            const business = kind === 'salon'
-              ? ((await payload.findByID({ collection: 'salons', id: md.salonId, overrideAccess: true }).catch(() => null)) as Salon | null)
-              : ((await payload.findByID({ collection: 'restaurants', id: md.restaurantId, overrideAccess: true }).catch(() => null)) as Restaurant | null)
-            if (business) {
-              await createGiftVoucher({
-                paymentMethod: 'payment_link',
-                kind,
-                business,
-                amountHuf: Math.round(intent.amount / 100),
-                voucherTypeId: md.voucherTypeId,
-                paymentIntentId: intent.id,
-                buyer: { name: md.purchaserName, email: md.purchaserEmail, city: md.purchaserCity, address: md.purchaserAddress, taxNumber: md.purchaserTaxNumber || undefined },
-                recipient: { name: md.recipientName || undefined, email: md.recipientEmail || undefined, message: md.message || undefined },
-              })
-            }
-          }
+          await ensureVoucherFromPaymentIntent(payload, intent)
           break
         }
 

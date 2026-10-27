@@ -58,6 +58,7 @@ import * as migration_20261020_100000_customer_import_summary from './20261020_1
 import * as migration_20261020_110000_customer_external_id from './20261020_110000_customer_external_id';
 import * as migration_20261025_100000_staff_import_review from './20261025_100000_staff_import_review';
 import * as migration_20261025_110000_service_import_review from './20261025_110000_service_import_review';
+import * as migration_20261027_100000_voucher_issued_by from './20261027_100000_voucher_issued_by';
 
 export const migrations = [
   {
@@ -359,5 +360,10 @@ export const migrations = [
     up: migration_20261025_110000_service_import_review.up,
     down: migration_20261025_110000_service_import_review.down,
     name: '20261025_110000_service_import_review',
+  },
+  {
+    up: migration_20261027_100000_voucher_issued_by.up,
+    down: migration_20261027_100000_voucher_issued_by.down,
+    name: '20261027_100000_voucher_issued_by',
   },
 ];

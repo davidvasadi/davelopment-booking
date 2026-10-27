@@ -19,6 +19,8 @@ const buyerFields = {
   paymentMode: z.enum(['paid', 'link']),
   // Helyben fizetett utalványnál: hogyan fizettek (a dashboard szűréséhez).
   paidMethod: z.enum(['cash', 'pos_card', 'transfer', 'other']).optional(),
+  // false = ne készüljön számla (pl. a pénztárgépből számláznak — duplikáció ellen)
+  issueInvoice: z.boolean().optional().default(true),
 }
 const schema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('salon'), salonId: z.coerce.string(), ...buyerFields }),
@@ -74,6 +76,8 @@ export async function POST(request: NextRequest) {
         paymentMethod: data.paidMethod ?? 'other',
         buyer: { name: data.purchaserName, email: data.purchaserEmail, city: data.purchaserCity, address: data.purchaserAddress, taxNumber: data.purchaserTaxNumber },
         recipient: { name: data.recipientName, email: data.recipientEmail, message: data.message },
+        issuedBy: user.id,
+        issueInvoice: data.issueInvoice,
       })
       return NextResponse.json(result)
     }
@@ -97,6 +101,15 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         }],
         customer_email: data.purchaserEmail,
+        // session-szintű metadata: a függő (még ki nem fizetett) linkek listázásához/visszavonásához
+        metadata: {
+          kind: 'gift-voucher',
+          ...(data.kind === 'salon' ? { salonId: data.salonId } : { restaurantId: data.restaurantId }),
+          typeName: voucherType.name ?? '',
+          purchaserName: data.purchaserName,
+          purchaserEmail: data.purchaserEmail,
+          issuedBy: String(user.id),
+        },
         payment_intent_data: {
           receipt_email: data.purchaserEmail,
           metadata: {
@@ -111,6 +124,8 @@ export async function POST(request: NextRequest) {
             recipientName: data.recipientName ?? '',
             recipientEmail: data.recipientEmail ?? '',
             message: (data.message ?? '').slice(0, 480),
+            issuedBy: String(user.id),
+            issueInvoice: data.issueInvoice ? '1' : '0',
           },
         },
         success_url: `${APP_URL}/${business.slug}?voucher_purchased=1`,

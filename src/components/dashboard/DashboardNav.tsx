@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, LayoutGrid, ScanLine, X, PenLine, CreditCard, BarChart3, Plus, Printer, Download, CalendarDays, Building2, UserRound, Sparkles } from 'lucide-react'
+import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, Tag, LayoutGrid, ScanLine, X, PenLine, CreditCard, BarChart3, Plus, Printer, Download, CalendarDays, Building2, UserRound, Sparkles } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import { can, type Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
@@ -669,8 +669,8 @@ export function DashboardNav({
               </button>
             </>
           )}
-          {/* Utalványok — fekete beolvasás/beváltás ikon + a "Típusok kezelése"/"Új utalvány"
-              választó-sheetet nyitó ikon (csak a vouchers oldalakon, szalon + étterem). */}
+          {/* Utalványok — fekete beolvasás/beváltás ikon + „Új utalvány” és „Típusok kezelése”
+              külön ikonként (csak a vouchers oldalakon, szalon + étterem). */}
           {pathname.endsWith('/vouchers') && can(capabilities, 'vouchers.manage') && (
             <>
               <button
@@ -683,11 +683,19 @@ export function DashboardNav({
               </button>
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-vouchers-actions'))}
-                aria-label="Utalvány-műveletek"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-vouchers-create'))}
+                aria-label="Új utalvány"
                 className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
               >
-                <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
+                <Plus className="h-[20px] w-[20px]" strokeWidth={2} />
+              </button>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new Event('davelopment:open-vouchers-types'))}
+                aria-label="Típusok kezelése"
+                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
+              >
+                <Tag className="h-[18px] w-[18px]" strokeWidth={2} />
               </button>
             </>
           )}

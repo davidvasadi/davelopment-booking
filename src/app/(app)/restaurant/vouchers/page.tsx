@@ -32,6 +32,13 @@ export default async function RestaurantVouchersPage() {
     }),
   ])
 
+  // Ki állította ki (dashboard-felhasználó) — egy lekérdezéssel a nevekért
+  const issuerIds = Array.from(new Set((res.docs as GiftVoucher[]).map((v) => (v.issued_by && typeof v.issued_by === 'object' ? v.issued_by.id : v.issued_by)).filter((x): x is string => x != null)))
+  const issuers = issuerIds.length
+    ? await payload.find({ collection: 'users', where: { id: { in: issuerIds } }, limit: issuerIds.length, depth: 0, overrideAccess: true })
+    : { docs: [] }
+  const issuerName = new Map((issuers.docs as { id: string | number; name?: string | null; email?: string | null }[]).map((u) => [String(u.id), u.name || u.email || null]))
+
   const vouchers: VoucherRow[] = (res.docs as GiftVoucher[]).map((v) => ({
     id: String(v.id),
     code: v.code,
@@ -43,6 +50,7 @@ export default async function RestaurantVouchersPage() {
     expires_at: v.expires_at,
     redeemed_at: v.redeemed_at,
     createdAt: v.createdAt,
+    issued_by_name: v.issued_by ? issuerName.get(String(typeof v.issued_by === 'object' ? v.issued_by.id : v.issued_by)) ?? null : null,
   }))
 
   const voucherTypes = (typesRes.docs as GiftVoucherType[]).map((t) => ({

@@ -1,8 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Search, ChevronDown, TicketCheck, Camera, Keyboard, Loader2, Tag, Plus, Check, Trash2 } from 'lucide-react'
+import { Search, ChevronDown, TicketCheck, Camera, Keyboard, Loader2, Tag, Plus, Check, Trash2, Copy, X, Link2 } from 'lucide-react'
+import type { PendingVoucher } from '@/app/api/gift-vouchers/pending/route'
 import { PageHeader } from '@/components/ui/page-header'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -10,6 +12,7 @@ import { PopupModal } from '@/components/ui/popup-modal'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { VoucherQrScanner } from '@/components/dashboard/VoucherQrScanner'
 import { VoucherCreateWizard } from '@/components/dashboard/VoucherCreateWizard'
+import { VoucherDetailModal } from '@/components/dashboard/VoucherDetailModal'
 import { VoucherTypeManager, type VoucherTypeData } from '@/components/settings/VoucherTypeManager'
 import { formatPrice } from '@/lib/utils'
 
@@ -31,12 +34,18 @@ export type VoucherRow = {
   expires_at: string
   redeemed_at?: string | null
   createdAt: string
+  /** dashboardon kiállító felhasználó neve; null = vendég online vásárlása vagy régi rekord */
+  issued_by_name?: string | null
 }
+
+/** Ki állította ki — a listában a fizetési mód mellett. */
+// online (foglalóoldali) vásárlásnál nincs kiállító — a fizetési mód felirata ott önmagában elmondja
+const issuerLabel = (v: VoucherRow): string | null => v.issued_by_name ?? null
 
 /** Fizetési mód felirat (null = régi, helyben kiállított utalvány, ahol nem rögzítettük). */
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  online: 'Online kártya',
-  payment_link: 'Fizetési link',
+  online: 'Bankkártya, foglalóoldalon', // a foglalóoldalon csak kártyás (Stripe) fizetés van
+  payment_link: 'Bankkártya, fizetési link',
   cash: 'Készpénz',
   pos_card: 'Bankkártya',
   transfer: 'Átutalás',
@@ -74,7 +83,41 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
   // propot küld, de a `useState` csak MOUNT-kor olvassa be — enélkül a lista a wizard bezárása
   // után is a régi maradna, csak teljes oldal-újratöltésnél frissülne.
   useEffect(() => { setVouchers(initialVouchers) }, [initialVouchers])
-  const [statusFilter, setStatusFilter] = useState<'all' | VoucherRow['status']>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | VoucherRow['status']>('all')
+  const router = useRouter()
+  // FÜGGŐ fizetési linkek (még nem fizették ki) — a Stripe-ból; a betöltés egyben szinkronizál is:
+  // a már kifizetett, de utalvánnyá még nem vált linkekből létrejön az utalvány (→ lista frissítése).
+  const [pending, setPending] = useState<PendingVoucher[]>([])
+  const [cancelSessionId, setCancelSessionId] = useState<string | null>(null)
+  const [cancelling, setCancelling] = useState(false)
+  const loadPending = useCallback(() => {
+    fetch(`/api/gift-vouchers/pending?kind=${variant}&id=${encodeURIComponent(businessId)}`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { pending?: PendingVoucher[]; reconciled?: number } | null) => {
+        if (!d) return
+        setPending(d.pending ?? [])
+        if ((d.reconciled ?? 0) > 0) { toast.success(`${d.reconciled} kifizetett utalvány bekerült a listába`); router.refresh() }
+      })
+      .catch(() => {})
+  }, [variant, businessId, router])
+  useEffect(() => { loadPending() }, [loadPending])
+  const cancelPending = async () => {
+    if (!cancelSessionId) return
+    setCancelling(true)
+    try {
+      const res = await fetch(`/api/gift-vouchers/pending?kind=${variant}&id=${encodeURIComponent(businessId)}&sessionId=${encodeURIComponent(cancelSessionId)}`, { method: 'DELETE', credentials: 'include' })
+      const j = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(j.error ?? 'Nem sikerült visszavonni')
+      setPending((p) => p.filter((x) => x.sessionId !== cancelSessionId))
+      toast.success('A fizetési link visszavonva')
+      setCancelSessionId(null)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Nem sikerült visszavonni')
+      loadPending()
+    } finally {
+      setCancelling(false)
+    }
+  }
   const [methodFilter, setMethodFilter] = useState<string>('all')
   const [query, setQuery] = useState('')
   const [redeemOpen, setRedeemOpen] = useState(false)
@@ -83,7 +126,6 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
   const [redeeming, setRedeeming] = useState(false)
   const [typesOpen, setTypesOpen] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
-  const [mobileActionsOpen, setMobileActionsOpen] = useState(false)
   const [statusMenuId, setStatusMenuId] = useState<string | null>(null)
 
   // Mobilon a fejléc csengő melletti ikonjai nyitják ezeket (DashboardNav dispatch-eli) — a
@@ -91,16 +133,21 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
   useEffect(() => {
     if (!canManage) return
     const openRedeem = () => { setMode('code'); setRedeemOpen(true) }
-    const openActions = () => setMobileActionsOpen(true)
+    const openCreate = () => setCreateOpen(true)
+    const openTypes = () => setTypesOpen(true)
     window.addEventListener('davelopment:open-vouchers-redeem', openRedeem)
-    window.addEventListener('davelopment:open-vouchers-actions', openActions)
+    window.addEventListener('davelopment:open-vouchers-create', openCreate)
+    window.addEventListener('davelopment:open-vouchers-types', openTypes)
     return () => {
       window.removeEventListener('davelopment:open-vouchers-redeem', openRedeem)
-      window.removeEventListener('davelopment:open-vouchers-actions', openActions)
+      window.removeEventListener('davelopment:open-vouchers-create', openCreate)
+      window.removeEventListener('davelopment:open-vouchers-types', openTypes)
     }
   }, [canManage])
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  // részletes nézet (sorra kattintva)
+  const [detailId, setDetailId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -141,7 +188,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     return vouchers.filter(v => {
-      if (statusFilter !== 'all' && v.status !== statusFilter) return false
+      if (statusFilter !== 'all' && v.status !== statusFilter) return false // 'pending' → nincs kész utalvány
       if (methodFilter !== 'all' && (v.payment_method ?? 'unknown') !== methodFilter) return false
       if (!q) return true
       return v.code.toLowerCase().includes(q) || v.purchaser_name.toLowerCase().includes(q) || (v.type_name ?? '').toLowerCase().includes(q)
@@ -151,6 +198,13 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
   // Szűrés/keresés váltásakor a lapozás visszaáll az elejére.
   useEffect(() => { setVisibleCount(PAGE_SIZE) }, [statusFilter, methodFilter, query])
   const visible = filtered.slice(0, visibleCount)
+  // függő linkek ugyanazokkal a szűrőkkel (állapot: mind/függőben; fizetés: mind/fizetési link)
+  const pendingVisible = pending.filter((p) => {
+    if (statusFilter !== 'all' && statusFilter !== 'pending') return false
+    if (methodFilter !== 'all' && methodFilter !== 'payment_link') return false
+    const q = query.trim().toLowerCase()
+    return !q || (p.purchaserName ?? '').toLowerCase().includes(q) || (p.purchaserEmail ?? '').toLowerCase().includes(q) || (p.typeName ?? '').toLowerCase().includes(q)
+  })
 
   const redeem = async (rawCode: string) => {
     const code = rawCode.trim().toUpperCase()
@@ -225,15 +279,20 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
     <div className="hidden flex-wrap items-center gap-2.5 lg:flex">
       <button
         onClick={() => setTypesOpen(true)}
-        className="flex h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+        title="Típusok kezelése"
+        aria-label="Típusok kezelése"
+        // 2xl alatt csak ikon — különben a gombsor a mappa-fül alá tört (üres sáv a kártya fölött)
+        className="flex h-[38px] min-w-[38px] items-center justify-center gap-2 rounded-[18px] bg-white px-2.5 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper 2xl:px-4"
       >
-        <Tag className="h-[15px] w-[15px]" strokeWidth={1.7} /> Típusok kezelése
+        <Tag className="h-[15px] w-[15px]" strokeWidth={1.7} /> <span className="hidden 2xl:inline">Típusok kezelése</span>
       </button>
       <button
         onClick={() => setCreateOpen(true)}
-        className="flex h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper"
+        title="Új utalvány"
+        aria-label="Új utalvány"
+        className="flex h-[38px] min-w-[38px] items-center justify-center gap-2 rounded-[18px] bg-white px-2.5 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper 2xl:px-4"
       >
-        <Plus className="h-[15px] w-[15px]" strokeWidth={1.9} /> Új utalvány
+        <Plus className="h-[15px] w-[15px]" strokeWidth={1.9} /> <span className="hidden 2xl:inline">Új utalvány</span>
       </button>
       <button
         onClick={() => { setMode('code'); setRedeemOpen(true) }}
@@ -268,7 +327,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
             segments={[
               { label: 'Aktív', pct: (activeCount / total) * 100, value: activeCount, suffix: ' db', background: '#1D1C19', color: '#fff' },
               { label: 'Beváltva', pct: (redeemedCount / total) * 100, value: redeemedCount, suffix: ' db', background: '#F1CE45', color: '#1D1C19' },
-              { label: 'Lejárt / visszatérítve', pct: (otherCount / total) * 100, value: otherCount, suffix: ' db', background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
+              { label: 'Lejárt', pct: (otherCount / total) * 100, value: otherCount, suffix: ' db', background: 'repeating-linear-gradient(115deg, rgba(255,255,255,.5), rgba(255,255,255,.5) 7px, rgba(190,180,140,.24) 7px, rgba(190,180,140,.24) 14px)', color: '#57564f', border: '1px solid var(--dav-line-strong)', align: 'end' },
             ]}
           />
           <div className="flex flex-wrap items-start gap-8 lg:gap-10">
@@ -282,14 +341,15 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
       {/* ── MAPPA-FÜL kártya ── */}
       <div className="relative">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-56px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:min-w-[380px] sm:max-w-[600px] sm:px-6">
+          <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-56px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:min-w-[380px] sm:max-w-[calc(100%-56px)] sm:px-6">
             <div className="relative shrink-0">
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="cursor-pointer appearance-none rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
+                className="max-w-[164px] cursor-pointer appearance-none truncate rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
               >
                 <option value="all">Minden állapot</option>
+                <option value="pending">Függőben</option>
                 <option value="active">Aktív</option>
                 <option value="redeemed">Beváltva</option>
                 <option value="expired">Lejárt</option>
@@ -302,14 +362,14 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                 value={methodFilter}
                 onChange={(e) => setMethodFilter(e.target.value)}
                 aria-label="Fizetési mód"
-                className="cursor-pointer appearance-none rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
+                className="max-w-[164px] cursor-pointer appearance-none truncate rounded-[18px] bg-white py-2 pl-4 pr-8 text-[12.5px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] focus:outline-none"
               >
                 <option value="all">Minden fizetés</option>
                 {Object.entries(PAYMENT_METHOD_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
               <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
             </div>
-            <div className="flex w-[120px] min-w-0 shrink items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:min-w-[110px] sm:flex-1 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
+            <div className="flex w-[190px] min-w-0 shrink items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:w-[196px] sm:flex-none sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
               <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
               <input
                 value={query}
@@ -339,7 +399,51 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
             <div />
           </div>
 
-          {filtered.length === 0 && (
+          {/* FÜGGŐ fizetési linkek — még nincs utalvány (kód), a vendég fizetésére vár */}
+          {pendingVisible.map((p) => (
+            <div key={p.sessionId} className="mt-2 rounded-[18px] border border-dashed border-amber-300/70 bg-amber-50/40">
+              <div className={`hidden ${GRID} items-center gap-3.5 px-3.5 py-2.5 lg:grid`}>
+                <span />
+                <div className="min-w-0">
+                  <p className="inline-flex items-center gap-1.5 truncate text-[14.5px] font-semibold text-ink"><Link2 className="h-4 w-4 text-ink-soft" /> Fizetési link</p>
+                  {p.typeName && <p className="truncate text-[12px] font-medium text-ink-soft">{p.typeName}</p>}
+                </div>
+                <div className="truncate text-[13.5px] font-medium text-ink">{p.purchaserName ?? p.purchaserEmail ?? '—'}</div>
+                <div className="truncate text-[11.5px] text-ink-soft">Fizetési link{p.issuedByName ? ` · ${p.issuedByName}` : ''}</div>
+                <div className="text-[13.5px] font-medium text-ink">{formatPrice(p.amountHuf, 'HUF')}</div>
+                <div className="text-[12.5px] font-medium text-ink-soft" title="Eddig fizethető a link">link: {new Date(p.expiresAt).toLocaleString('hu-HU', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-[14px] bg-amber-100 px-3 py-[5px] text-[12px] font-semibold text-amber-800"><Loader2 className="h-3 w-3 animate-spin" /> Függőben</span>
+                  {p.url && (
+                    <button type="button" title="Link másolása" onClick={() => { navigator.clipboard.writeText(p.url!); toast.success('Link másolva') }} className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition-colors hover:bg-white hover:text-ink">
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+                {canManage ? (
+                  <button type="button" title="Link visszavonása" onClick={() => setCancelSessionId(p.sessionId)} className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B] transition-colors hover:bg-paper">
+                    <X className="h-[15px] w-[15px]" strokeWidth={1.8} />
+                  </button>
+                ) : <span />}
+              </div>
+              <div className="flex items-center justify-between gap-3 px-3.5 py-3 lg:hidden">
+                <div className="min-w-0 flex-1">
+                  <p className="inline-flex items-center gap-1.5 text-[15px] font-semibold text-ink"><Link2 className="h-4 w-4 text-ink-soft" /> Fizetési link</p>
+                  <p className="truncate text-[12.5px] font-medium text-ink-soft">{p.purchaserName ?? p.purchaserEmail ?? '—'} · {formatPrice(p.amountHuf, 'HUF')}{p.issuedByName ? ` · ${p.issuedByName}` : ''}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-[14px] bg-amber-100 px-3 py-[5px] text-[12px] font-semibold text-amber-800">Függőben</span>
+                  {canManage && (
+                    <button type="button" aria-label="Link visszavonása" onClick={() => setCancelSessionId(p.sessionId)} className="flex h-8 w-8 items-center justify-center rounded-full text-[#C0392B]">
+                      <X className="h-[15px] w-[15px]" strokeWidth={1.8} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {filtered.length === 0 && pendingVisible.length === 0 && (
             <p className="py-10 text-center text-sm text-ink-soft">Nincs találat.</p>
           )}
 
@@ -349,8 +453,13 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
             return (
               <div
                 key={v.id}
+                role="button"
+                tabIndex={0}
+                // sorra kattintva a részletes nézet nyílik (a státusz-menü nyitott állapotában nem)
+                onClick={() => { if (!statusMenuId) setDetailId(v.id) }}
+                onKeyDown={(e) => { if (e.key === 'Enter') setDetailId(v.id) }}
                 style={isSel ? { background: 'var(--dav-accent)' } : undefined}
-                className={`mt-2 rounded-[18px] transition-all ${isSel ? 'shadow-[0_10px_24px_-12px_rgba(180,150,40,.55)]' : 'hover:bg-gold/10'}`}
+                className={`mt-2 cursor-pointer rounded-[18px] transition-all ${isSel ? 'shadow-[0_10px_24px_-12px_rgba(180,150,40,.55)]' : 'hover:bg-gold/10'}`}
               >
                 {/* DESKTOP */}
                 <div className={`hidden ${GRID} items-center gap-3.5 px-3.5 py-2.5 lg:grid`}>
@@ -370,7 +479,9 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                     {v.type_name && <p className="truncate text-[12px] font-medium text-ink-soft">{v.type_name}</p>}
                   </div>
                   <div className="truncate text-[13.5px] font-medium text-ink">{v.purchaser_name}</div>
-                  <div className="truncate text-[11.5px] text-ink-soft">{PAYMENT_METHOD_LABEL[v.payment_method ?? 'unknown']}</div>
+                  <div className="truncate text-[11.5px] text-ink-soft" title={v.issued_by_name ? `Kiállította: ${v.issued_by_name}` : undefined}>
+                    {PAYMENT_METHOD_LABEL[v.payment_method ?? 'unknown']}{issuerLabel(v) ? ` · ${issuerLabel(v)}` : ''}
+                  </div>
                   <div className="text-[13.5px] font-medium text-ink">{formatPrice(v.amount_huf, 'HUF')}</div>
                   <div className="text-[13.5px] font-medium text-ink-soft">{fmtDate(v.expires_at)}</div>
                   <div className="relative">
@@ -423,7 +534,7 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
                 <div className="flex items-center justify-between gap-3 px-3.5 py-3 lg:hidden">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[15px] font-semibold tracking-wide text-ink">{v.code}</p>
-                    <p className="truncate text-[12.5px] font-medium text-ink-soft">{v.purchaser_name} · {formatPrice(v.amount_huf, 'HUF')} · {PAYMENT_METHOD_LABEL[v.payment_method ?? 'unknown']}</p>
+                    <p className="truncate text-[12.5px] font-medium text-ink-soft">{v.purchaser_name} · {formatPrice(v.amount_huf, 'HUF')} · {PAYMENT_METHOD_LABEL[v.payment_method ?? 'unknown']}{issuerLabel(v) ? ` · ${issuerLabel(v)}` : ''}</p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <div className="relative shrink-0">
@@ -512,6 +623,8 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
         onCancel={() => setBulkOpen(false)}
       />
 
+      <VoucherDetailModal voucherId={detailId} onClose={() => setDetailId(null)} paymentLabels={PAYMENT_METHOD_LABEL} />
+
       <PopupModal open={redeemOpen} onClose={() => setRedeemOpen(false)} title="Utalvány beváltása" subtitle="Helyszíni beváltás — nem foglaláshoz kötött">
         <div className="space-y-4">
           <div className="flex rounded-[14px] bg-paper p-1">
@@ -568,32 +681,26 @@ export function VouchersManager({ variant, businessId, initialVouchers, voucherT
         />
       </PopupModal>
 
+      <ConfirmDialog
+        open={cancelSessionId !== null}
+        title="Fizetési link visszavonása"
+        description="A vendég ezután már nem tud fizetni ezen a linken, és nem jön létre utalvány. Biztosan visszavonod?"
+        confirmLabel="Visszavonás"
+        cancelLabel="Mégse"
+        destructive
+        busy={cancelling}
+        onConfirm={cancelPending}
+        onCancel={() => setCancelSessionId(null)}
+      />
+
       <VoucherCreateWizard
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => { setCreateOpen(false); loadPending() }}
         variant={variant}
         businessId={businessId}
         voucherTypes={voucherTypes}
       />
 
-      <PopupModal open={mobileActionsOpen} onClose={() => setMobileActionsOpen(false)} title="Utalványok">
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => { setMobileActionsOpen(false); setTypesOpen(true) }}
-            className="flex w-full items-center gap-3 rounded-[14px] border border-line px-4 py-3.5 text-left text-[14px] font-semibold text-ink transition-colors hover:bg-paper"
-          >
-            <Tag className="h-[18px] w-[18px]" strokeWidth={1.7} /> Típusok kezelése
-          </button>
-          <button
-            type="button"
-            onClick={() => { setMobileActionsOpen(false); setCreateOpen(true) }}
-            className="flex w-full items-center gap-3 rounded-[14px] border border-line px-4 py-3.5 text-left text-[14px] font-semibold text-ink transition-colors hover:bg-paper"
-          >
-            <Plus className="h-[18px] w-[18px]" strokeWidth={1.9} /> Új utalvány
-          </button>
-        </div>
-      </PopupModal>
     </>
   )
 }

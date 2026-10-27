@@ -422,7 +422,8 @@ export interface GiftVoucher {
   redeemed_reservation?: string | Reservation | null
   invoice_number?: string | null
   invoice_pdf_url?: string | null
-  invoice_status?: 'none' | 'issued' | 'failed' | null
+  invoice_status?: 'none' | 'issued' | 'failed' | 'skipped' | null
+  issued_by?: string | User | null
   locale?: 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr' | null
   createdAt: string
   updatedAt: string
