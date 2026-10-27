@@ -8,7 +8,10 @@
  * /api/team/members/[id]-n. SMS sehol; valós adat + CRUD.
  */
 
-import { useState, useEffect } from 'react'
+import { MobileFilterButton, MobileFilterSheet } from '@/components/shared/MobileFilterSheet'
+import { downloadCsv, employeesCsv, todayStamp } from '@/lib/csv'
+import { isTouchDevice } from '@/lib/utils'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { Plus, Trash2, Loader2, X, Search, Download, ChevronDown, Check, UserRound, ShieldCheck } from 'lucide-react'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
@@ -89,6 +92,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'pending'>('all')
   // Egységes: a szerep-szűrő a TÉNYLEGES szerep-nevekre szűr (amit a kártya is mutat), nem beépített tone-okra.
   const [roleFilter, setRoleFilter] = useState<string>('all')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   // Melyik tag státusz-menüje van nyitva (választás, nem instant-toggle → nem lehet elütni).
   const [statusMenuFor, setStatusMenuFor] = useState<string | null>(null)
@@ -109,9 +113,14 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
 
   // Mobilon az "Új munkatárs"/"Export" a fejléc csengő melletti ikonjaiból nyílik (DashboardNav
   // dispatch-eli) — a gombok maguk a toolbarból mobilon rejtve, ld. lent.
+  // a fejléc-ikon (mobil) és a toolbar gomb is ezt hívja — ref-en át mindig a friss listával
+  const exportStaff = () => downloadCsv(`munkatarsak-${todayStamp()}.csv`, employeesCsv(roster))
+  const exportRef = useRef(exportStaff)
+  exportRef.current = exportStaff
   useEffect(() => {
     const handleAdd = () => { if (canManage) setOpen(true) }
-    const handleExport = () => { if (canManage) window.print() }
+    // Export = letölthető CSV (a nyomtatás telefonon, a telepített appból nem működik)
+    const handleExport = () => { if (canManage) exportRef.current() }
     window.addEventListener('davelopment:open-staff-add', handleAdd)
     window.addEventListener('davelopment:staff-export', handleExport)
     return () => {
@@ -292,9 +301,9 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
 
       {/* ── MAPPA-FÜL kártya (davelopment App): NORMÁL folyású fül + szűrők + kereső + homorú notch-ív ── */}
       <div className="relative">
-        <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-56px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:w-full sm:max-w-[600px] sm:px-6 print:hidden">
-          {/* Szűrő: állapot */}
-          <div className="relative shrink-0">
+        <div className="relative z-10 flex h-[52px] w-full items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:max-w-[600px] sm:px-6 print:hidden">
+          {/* Szűrő: állapot — mobilon a „Szűrők” lapon */}
+          <div className="relative hidden shrink-0 lg:block">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'pending')}
@@ -307,7 +316,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
           {/* Szűrő: szerep */}
-          <div className="relative hidden shrink-0 md:block">
+          <div className="relative hidden shrink-0 lg:block">
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
@@ -321,23 +330,25 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-soft" />
           </div>
           {/* Kereső — kisebb szélesség mobilon */}
-          <div className="flex w-[140px] min-w-0 shrink items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:min-w-[110px] sm:flex-1 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[18px] bg-white px-4 py-2 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Keresés"
+              placeholder="Keresés név, pozíció"
               className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none"
             />
           </div>
+          {/* mobil: a szűrők alulról nyíló lapon (mint a Vendégeknél) */}
+          <MobileFilterButton onClick={() => setFiltersOpen(true)} count={(statusFilter !== 'all' ? 1 : 0) + (roleFilter !== 'all' ? 1 : 0)} />
           {/* Homorú ív a fül jobb végén */}
           <span
-            className="pointer-events-none absolute -right-[24px] bottom-0 h-[24px] w-[24px]"
+            className="pointer-events-none absolute -right-[24px] bottom-0 hidden h-[24px] w-[24px] sm:block"
             style={{ background: 'radial-gradient(circle at top right, transparent 23px, rgba(255,255,255,.62) 23.5px)' }}
           />
         </div>
 
-        <div className="rounded-b-[28px] rounded-tr-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
+        <div className="rounded-b-[28px] bg-[rgba(255,255,255,.9)] p-2.5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:rounded-tr-[28px] sm:p-6">
           {canManage && (
             <div className="flex flex-wrap items-center gap-2.5 print:hidden">
               <button
@@ -347,7 +358,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
                 <Plus className="h-[15px] w-[15px]" strokeWidth={2} /> Új munkatárs
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={exportStaff}
                 className="hidden h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper lg:flex"
               >
                 <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
@@ -490,7 +501,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
                 </div>
 
                 {/* MOBIL */}
-                <div className="flex items-center gap-3 px-3.5 py-3 lg:hidden">
+                <div className="flex items-center gap-2.5 px-2 py-2.5 lg:hidden">
                   {!isOwner && canManage && (
                     <button
                       type="button"
@@ -503,14 +514,14 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
                     </button>
                   )}
                   {m.avatarUrl ? (
-                    <img src={m.avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
+                    <img src={m.avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover object-top" />
                   ) : (
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold" style={{ background: grad.bg, color: grad.fg }}>
                       {initials(m.name)}
                     </span>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className={`truncate text-[15px] font-semibold ${suspended ? 'text-ink-soft line-through' : 'text-ink'}`}>{m.name}</p>
+                    <p className={`line-clamp-2 break-words text-[14px] leading-tight font-semibold ${suspended ? 'text-ink-soft line-through' : 'text-ink'}`}>{m.name}</p>
                     <p className="truncate text-[12.5px] font-medium text-ink-soft">{roleLabelOf(m)}</p>
                   </div>
                   <div className="relative shrink-0">
@@ -585,7 +596,7 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
                     value={inviteName}
                     onChange={(e) => setInviteName(e.target.value)}
                     placeholder="Kovács Anna"
-                    autoFocus
+                    autoFocus={!isTouchDevice()}
                     className={`${ROW_INPUT} w-full outline-none`}
                   />
                 </FieldRow>
@@ -693,6 +704,17 @@ export default function RestaurantTeamManager({ initialTeam, employees, customRo
         }}
         initialIndex={hiringIndex ?? 0}
       />
+      <MobileFilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        groups={[
+          { title: 'Állapot', value: statusFilter, onChange: (v) => setStatusFilter(v as typeof statusFilter), options: [
+            { value: 'all', label: 'Mind' }, { value: 'active', label: 'Aktív' }, { value: 'pending', label: 'Függő' },
+          ] },
+          ...(roleFilterOptions.length > 0 ? [{ title: 'Szerep', value: roleFilter, onChange: setRoleFilter, options: [{ value: 'all', label: 'Mind' }, ...roleFilterOptions.map((l) => ({ value: l, label: l }))] }] : []),
+        ]}
+      />
+
     </>
   )
 }

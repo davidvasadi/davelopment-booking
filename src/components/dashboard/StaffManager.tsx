@@ -1,5 +1,7 @@
 'use client'
 
+import { MobileFilterButton, MobileFilterSheet } from '@/components/shared/MobileFilterSheet'
+import { downloadCsv, employeesCsv, todayStamp } from '@/lib/csv'
 import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -7,7 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import type { StaffMember, Media, Service } from '@/payload/payload-types'
-import { fixMediaUrl } from '@/lib/utils'
+import { fixMediaUrl, isTouchDevice } from '@/lib/utils'
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { Plus, CalendarDays, Trash2, Search, Download, ChevronDown, Check, UserRound, Pencil, TriangleAlert, Sparkles } from 'lucide-react'
 
@@ -165,6 +167,7 @@ export default function StaffManager({
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'review'>('all')
   const [posFilter, setPosFilter] = useState('all')
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   // Sorra kattintva nyílik a Munkavállalók-adatlap overlay (a kattintott sor indexével előre-kiválasztva).
   const [hiringIndex, setHiringIndex] = useState<number | null>(null)
@@ -225,9 +228,14 @@ export default function StaffManager({
 
   // Mobilon az "Új munkatárs"/"Export" a fejléc csengő melletti ikonjaiból nyílik (DashboardNav
   // dispatch-eli) — a gombok maguk a toolbarból mobilon rejtve, ld. lent.
+  // a fejléc-ikon (mobil) és a toolbar gomb is ezt hívja — ref-en át mindig a friss listával
+  const exportStaff = () => downloadCsv(`munkatarsak-${todayStamp()}.csv`, employeesCsv(empList))
+  const exportRef = useRef(exportStaff)
+  exportRef.current = exportStaff
   useEffect(() => {
     const handleAdd = () => { if (canManage) openAdd() }
-    const handleExport = () => { if (canManage) window.print() }
+    // Export = letölthető CSV (a nyomtatás telefonon, a telepített appból nem működik)
+    const handleExport = () => { if (canManage) exportRef.current() }
     window.addEventListener('davelopment:open-staff-add', handleAdd)
     window.addEventListener('davelopment:staff-export', handleExport)
     return () => {
@@ -512,9 +520,9 @@ export default function StaffManager({
       {/* ── MAPPA-FÜL kártya (davelopment App 67–75): NORMÁL folyású fül + homorú notch-ív (nem takarja a stat-csíkot) ── */}
       <div className="relative">
         {/* Fül: szűrők + kereső — a kártya bal-felső sarkára ül, jobbra homorú ív köti a kártyához */}
-        <div className="relative z-10 flex h-[48px] w-fit max-w-[calc(100%-56px)] items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:w-full sm:max-w-[600px] sm:px-6">
-          {/* Szűrő: állapot */}
-          <div className="relative shrink-0">
+        <div className="relative z-10 flex h-[52px] w-full items-center gap-2 rounded-t-[24px] bg-[rgba(255,255,255,.62)] px-3 backdrop-blur-[20px] sm:max-w-[600px] sm:px-6">
+          {/* Szűrő: állapot — mobilon a „Szűrők” lapon */}
+          <div className="relative hidden shrink-0 lg:block">
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive' | 'review')}
@@ -529,7 +537,7 @@ export default function StaffManager({
           </div>
           {/* Szűrő: pozíció (ha van adat) */}
           {positions.length > 0 && (
-            <div className="relative hidden shrink-0 md:block">
+            <div className="relative hidden shrink-0 lg:block">
               <select
                 value={posFilter}
                 onChange={(e) => setPosFilter(e.target.value)}
@@ -544,23 +552,25 @@ export default function StaffManager({
             </div>
           )}
           {/* Kereső — kisebb szélesség mobilon */}
-          <div className="flex w-[140px] min-w-0 shrink items-center gap-2.5 rounded-[18px] bg-white px-3 py-2 sm:min-w-[110px] sm:flex-1 sm:px-4 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
+          <div className="flex min-w-0 flex-1 items-center gap-2.5 rounded-[18px] bg-white px-4 py-2 shadow-[0_1px_4px_rgba(70,60,20,.06)]">
             <Search className="h-4 w-4 shrink-0 text-ink-soft" strokeWidth={1.7} />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Keresés"
+              placeholder="Keresés név, pozíció"
               className="min-w-0 flex-1 bg-transparent text-[13px] font-medium text-ink placeholder:text-ink-soft2 focus:outline-none"
             />
           </div>
+          {/* mobil: a szűrők alulról nyíló lapon (mint a Vendégeknél) */}
+          <MobileFilterButton onClick={() => setFiltersOpen(true)} count={(statusFilter !== 'all' ? 1 : 0) + (posFilter !== 'all' ? 1 : 0)} />
           {/* Homorú ív a fül jobb végén */}
           <span
-            className="pointer-events-none absolute -right-[24px] bottom-0 h-[24px] w-[24px]"
+            className="pointer-events-none absolute -right-[24px] bottom-0 hidden h-[24px] w-[24px] sm:block"
             style={{ background: 'radial-gradient(circle at top right, transparent 23px, rgba(255,255,255,.62) 23.5px)' }}
           />
         </div>
 
-        <div className="rounded-b-[28px] rounded-tr-[28px] bg-[rgba(255,255,255,.9)] p-5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:p-6">
+        <div className="rounded-b-[28px] bg-[rgba(255,255,255,.9)] p-2.5 shadow-[0_18px_42px_-26px_rgba(70,60,20,.3)] backdrop-blur-[18px] sm:rounded-tr-[28px] sm:p-6">
           {/* Akció-sor */}
           {canManage && (
             <div className="flex flex-wrap items-center gap-2.5">
@@ -571,7 +581,7 @@ export default function StaffManager({
                 <Plus className="h-[15px] w-[15px]" strokeWidth={2} /> Új munkatárs
               </button>
               <button
-                onClick={() => window.print()}
+                onClick={exportStaff}
                 className="hidden h-[38px] items-center gap-2 rounded-[18px] bg-white px-4 text-[13px] font-semibold text-ink shadow-[0_2px_6px_rgba(70,60,20,.07)] transition-colors hover:bg-paper lg:flex"
               >
                 <Download className="h-[15px] w-[15px]" strokeWidth={1.7} /> Export
@@ -640,17 +650,17 @@ export default function StaffManager({
                 </div>
               </div>
               {/* MOBIL */}
-              <div className="flex items-center gap-3 px-3.5 py-3 lg:hidden">
+              <div className="flex items-center gap-2.5 px-2 py-2.5 lg:hidden">
                 {canManage && <div className="h-[18px] w-[18px] shrink-0" />}
                 {fixMediaUrl(ownerUser.avatar_url) ? (
-                  <img src={fixMediaUrl(ownerUser.avatar_url) ?? undefined} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
+                  <img src={fixMediaUrl(ownerUser.avatar_url) ?? undefined} alt="" className="h-10 w-10 shrink-0 rounded-full object-cover object-top" />
                 ) : (
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full" style={{ background: 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                     <UserRound className="h-6 w-6 text-white/30" strokeWidth={1.2} />
                   </span>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold text-ink">{ownerUser.name ?? 'Tulajdonos'}</p>
+                  <p className="line-clamp-2 break-words text-[14px] leading-tight font-semibold text-ink">{ownerUser.name ?? 'Tulajdonos'}</p>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                     <span className="inline-flex rounded-[7px] bg-ink-dark px-2 py-[3px] text-[11px] font-semibold text-gold">Tulajdonos</span>
                     {ownerUser.role_title && <span className="truncate text-[12.5px] font-medium text-ink-soft">{ownerUser.role_title}</span>}
@@ -777,7 +787,7 @@ export default function StaffManager({
                 </div>
 
                 {/* MOBIL kártya-stack */}
-                <div className="flex items-center gap-3 px-3.5 py-3 lg:hidden">
+                <div className="flex items-center gap-2.5 px-2 py-2.5 lg:hidden">
                   {canManage && (
                     <button
                       type="button"
@@ -789,7 +799,7 @@ export default function StaffManager({
                       {isSel && <span className="h-2 w-2 rounded-[2px] bg-gold" />}
                     </button>
                   )}
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ background: url ? grad.bg : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full" style={{ background: url ? grad.bg : 'linear-gradient(145deg, #2a2720 0%, #1d1c19 100%)' }}>
                     {url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={url} alt={m.name} className="h-full w-full object-cover object-top" />
@@ -798,7 +808,7 @@ export default function StaffManager({
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[15px] font-semibold text-ink">{m.name}</p>
+                    <p className="line-clamp-2 break-words text-[14px] leading-tight font-semibold text-ink">{m.name}</p>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                       {isOwnerRow && <span className="inline-flex rounded-[7px] bg-ink-dark px-2 py-[3px] text-[11px] font-semibold text-gold">Tulajdonos</span>}
                       <span className="truncate text-[12.5px] font-medium text-ink-soft">{position}</span>
@@ -824,7 +834,7 @@ export default function StaffManager({
               <section>
                 <SectionBar icon={UserRound} label="Alapadatok" />
                 <FieldRow label="Név *" hint={errors.name?.message} hintTone="bad">
-                  <input className={`${ROW_INPUT} w-full outline-none`} placeholder="Kovács Anna" autoFocus {...register('name')} />
+                  <input className={`${ROW_INPUT} w-full outline-none`} placeholder="Kovács Anna" autoFocus={!isTouchDevice()} {...register('name')} />
                 </FieldRow>
                 <FieldRow label="Email" hint={errors.email?.message} hintTone="bad">
                   <input type="email" className={`${ROW_INPUT} w-full outline-none`} placeholder="ide mennek a foglalás-értesítők" {...register('email')} />
@@ -967,6 +977,18 @@ export default function StaffManager({
           setEmpList(prev => prev.map(e => e.id === id ? { ...e, ...patch, hr: { ...e.hr, ...(patch.hr ?? {}) } } : e))
         }
       />
+      <MobileFilterSheet
+        open={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        groups={[
+          { title: 'Állapot', value: statusFilter, onChange: (v) => setStatusFilter(v as typeof statusFilter), options: [
+            { value: 'all', label: 'Mind' }, { value: 'active', label: 'Aktív' }, { value: 'inactive', label: 'Inaktív' },
+            ...(reviewCount > 0 ? [{ value: 'review', label: `Átnézendő (${reviewCount})` }] : []),
+          ] },
+          ...(positions.length > 0 ? [{ title: 'Pozíció', value: posFilter, onChange: setPosFilter, options: [{ value: 'all', label: 'Mind' }, ...positions.map((p) => ({ value: p, label: p }))] }] : []),
+        ]}
+      />
+
     </>
   )
 }

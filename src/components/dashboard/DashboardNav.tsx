@@ -568,11 +568,11 @@ export function DashboardNav({
               </button>
               <button
                 type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:print-bookings-day'))}
-                aria-label="Napi lista nyomtatása"
+                onClick={() => window.dispatchEvent(new Event('davelopment:export-bookings-day'))}
+                aria-label="Foglalások letöltése (CSV)"
                 className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
               >
-                <Printer className="h-[19px] w-[19px]" strokeWidth={2} />
+                <Download className="h-[19px] w-[19px]" strokeWidth={1.8} />
               </button>
               <button
                 type="button"
@@ -654,10 +654,10 @@ export function DashboardNav({
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new Event('davelopment:staff-export'))}
-                aria-label="Export"
+                aria-label="Munkatársak letöltése (CSV)"
                 className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
               >
-                <Download className="h-[19px] w-[19px]" strokeWidth={1.7} />
+                <Download className="h-[19px] w-[19px]" strokeWidth={1.8} />
               </button>
               <button
                 type="button"

@@ -1,9 +1,10 @@
 'use client'
 
+import { downloadCsv, employeesCsv, fileSlug, todayStamp } from '@/lib/csv'
 import { useState, useEffect, useRef, useId } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence, animate, type Variants } from 'framer-motion'
-import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, Printer, PhoneCall, Search, SlidersHorizontal, X, Check, Pencil, Lock, CalendarDays, Loader2, UserRound, Plus, Trash2, Sparkles } from 'lucide-react'
+import { MessageCircle, Phone, ArrowUpRight, ChevronLeft, ChevronRight, ChevronDown, PhoneCall, Search, SlidersHorizontal, X, Check, Pencil, Lock, CalendarDays, Loader2, UserRound, Plus, Trash2, Sparkles, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import type { BreakWindow } from '@/payload/payload-types'
 import { popItem } from '@/lib/motion'
@@ -32,17 +33,6 @@ const fmtDate = (iso?: string | null) => {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('hu-HU', { year: 'numeric', month: '2-digit', day: '2-digit' })
 }
 
-/** CSAK a profilt nyomtatja: body-osztályt tesz fel (a print CSS e szerint mindent elrejt, kivéve a
- *  [data-print-root]-ot — a profil-kártyát), majd `afterprint`-nél leszedi. */
-function printProfileNow() {
-  document.body.classList.add('printing-profile')
-  const cleanup = () => {
-    document.body.classList.remove('printing-profile')
-    window.removeEventListener('afterprint', cleanup)
-  }
-  window.addEventListener('afterprint', cleanup)
-  window.print()
-}
 
 type EditForm = {
   name: string; position: string; phone: string; birthday: string; address: string
@@ -1547,7 +1537,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
       {/* Bezárás — mobilon a panel jobb felső sarkában (a kereső/szűrő sorral összezsúfolódott
           volna); lg+ felett a fenti header-sorban marad. */}
       {onClose && (
-        <button onClick={onClose} aria-label="Bezárás" className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-line bg-white text-ink-soft shadow-dav-card transition-colors hover:border-line-strong hover:text-ink lg:hidden print:hidden">
+        <button onClick={onClose} aria-label="Bezárás" className="absolute right-4 top-4 z-10 hidden h-10 w-10 sm:flex items-center justify-center rounded-full border border-line bg-white text-ink-soft shadow-dav-card transition-colors hover:border-line-strong hover:text-ink lg:hidden print:hidden">
           <X className="h-[17px] w-[17px]" strokeWidth={1.8} />
         </button>
       )}
@@ -2017,7 +2007,7 @@ export function HiringView({ variant, employees, positionOptions = [], currentUs
                       {variant === 'salon' && salonId && (
                         <button type="button" onClick={() => { const today = new Date().toISOString().split('T')[0]; handleCalDayClick(today); setTimeout(() => calendarRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 100) }} title="Ugrás a mai naphoz" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><CalendarDays className="h-[17px] w-[17px]" strokeWidth={1.7} /></button>
                       )}
-                      <button type="button" onClick={printProfileNow} title="Profil nyomtatása" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink print:hidden"><Printer className="h-[18px] w-[18px]" strokeWidth={1.7} /></button>
+                      <button type="button" onClick={() => downloadCsv(`munkatars-${fileSlug(eff.name)}-${todayStamp()}.csv`, employeesCsv([eff]))} title="Adatlap letöltése (CSV)" aria-label="Adatlap letöltése (CSV)" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink print:hidden"><Download className="h-[18px] w-[18px]" strokeWidth={1.7} /></button>
                       {eff.phone ? (
                         <a href={`sms:${eff.phone.replace(/\s+/g, '')}`} title="Üzenet küldése" className="flex h-10 w-10 items-center justify-center rounded-full border border-line bg-[#F7F7F7] text-ink-soft transition-colors hover:border-line-strong hover:text-ink"><MessageCircle className="h-[17px] w-[17px]" strokeWidth={1.7} /></a>
                       ) : (
