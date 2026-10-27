@@ -215,7 +215,9 @@ export function BookingPageEditor({
   const [locDrafts, setLocDrafts] = useState<Partial<Record<Locale, LocDraft>>>({})
   const [lang, setLang] = useState<Locale>('hu')
   const [langLoading, setLangLoading] = useState(false)
-  const [langMenu, setLangMenu] = useState(false)
+  // melyik példány nyitotta: 'compact' (mobil fejléc) | 'full' (asztali sor) — a kettő egyszerre
+  // renderelődik (CSS dönti el, melyik látszik), a menü csak a megnyitónál jelenjen meg
+  const [langMenu, setLangMenu] = useState<false | 'compact' | 'full'>(false)
   // A nyelv-választó a valódi oldal-fejlécbe (SettingsHub "Beállítások" cím mellé) portálozódik,
   // hogy a usernek ez tűnjön a tényleges fejlécnek, ne egy a szerkesztő belsejében elbújó gomb.
   const [langSlot, setLangSlot] = useState<HTMLElement | null>(null)
@@ -251,6 +253,21 @@ export function BookingPageEditor({
 
   // ── Mentetlen állapot ──
   const dirty = JSON.stringify(draft) !== JSON.stringify(baseline) || JSON.stringify(locDrafts) !== JSON.stringify(locBaseline)
+  // Más fülön (Előleg, Ajándékutalvány, Dokumentumok) mentett beállítás a `router.refresh()` után
+  // friss `initial`-t ad — a draft eddig csak MOUNT-kor olvasta be, ezért pl. a bekapcsolt Előleg
+  // lépés csak oldal-újratöltés után jelent meg. Mentetlen szerkesztés nélkül teljesen újraalapozunk;
+  // ha van szerkesztés, csak a máshol kezelt kapcsolókat szinkronizáljuk (a többi munkát nem írjuk felül).
+  const initialKey = JSON.stringify(draftFrom(initial))
+  const lastInitialKey = useRef(initialKey)
+  useEffect(() => {
+    if (lastInitialKey.current === initialKey) return
+    lastInitialKey.current = initialKey
+    const fresh = draftFrom(initial)
+    if (!dirty) { setBaseline(fresh); setDraft(fresh); return }
+    const ext = { depositEnabled: fresh.depositEnabled, voucherEnabled: fresh.voucherEnabled, consentEnabled: fresh.consentEnabled, consentTitle: fresh.consentTitle, consentText: fresh.consentText }
+    setBaseline((b) => ({ ...b, ...ext }))
+    setDraft((d) => ({ ...d, ...ext }))
+  }, [initialKey]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { onDirtyChange?.(dirty) }, [dirty, onDirtyChange])
 
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }))
@@ -641,7 +658,7 @@ export function BookingPageEditor({
       {compact ? (
         <button
           type="button"
-          onClick={() => setLangMenu((o) => !o)}
+          onClick={() => setLangMenu((o) => (o ? false : 'compact'))}
           aria-label="Nyelv"
           className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
         >
@@ -649,14 +666,14 @@ export function BookingPageEditor({
         </button>
       ) : (
         <HoverButton
-          onClick={() => setLangMenu((o) => !o)}
+          onClick={() => setLangMenu((o) => (o ? false : 'full'))}
           className="inline-flex h-11 items-center gap-2 rounded-full border border-line bg-white/75 px-4 text-[13px] font-semibold text-ink"
         >
           {langLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" strokeWidth={1.8} />}
           {LOCALE_LABELS[lang]}
         </HoverButton>
       )}
-      {langMenu && !compact && (
+      {langMenu === 'full' && !compact && (
         <>
           <div className="fixed inset-0 z-20" onClick={() => setLangMenu(false)} />
           <div className="absolute right-0 top-14 z-30 w-52 rounded-[18px] border border-line bg-white p-1.5 shadow-[0_18px_40px_-18px_rgba(70,60,20,.35)]">
@@ -682,7 +699,7 @@ export function BookingPageEditor({
           mobileNavOpen) — egységes interakciós nyelv, nem egy eltérő mini-dropdown. */}
       {compact && isMounted && createPortal(
         <AnimatePresence>
-          {langMenu && (
+          {langMenu === 'compact' && (
             <div className="fixed inset-0 z-[160] font-onest">
               <motion.div
                 initial={{ opacity: 0 }}
@@ -703,7 +720,7 @@ export function BookingPageEditor({
                   <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
                   <div className="flex items-center justify-between">
                     <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Nyelv</span>
-                    <button type="button" onClick={() => setLangMenu(false)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
+                    <button type="button" onClick={() => setLangMenu(false)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
                       <X className="h-4 w-4" strokeWidth={2} />
                     </button>
                   </div>
@@ -735,7 +752,8 @@ export function BookingPageEditor({
 
   return (
     <div className="space-y-4">
-      {langSlot && createPortal(<div className="relative">{renderLangControl(true)}</div>, langSlot)}
+      {/* Mobil fejléc-slot: csak lg alatt látszik (a slot asztalon is létezik, csak rejtett) */}
+      {langSlot && createPortal(<div className="relative lg:hidden">{renderLangControl(true)}</div>, langSlot)}
       {/* Fejléc: eszköz + szerkesztett nyelv */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         {/* Mobilon elrejtve — a hosszú szöveg lenyomná a léptetőt/nyelv-gombot egy külön,
@@ -807,10 +825,10 @@ export function BookingPageEditor({
               </button>
             ))}
           </div>
-          {/* A gomb+legördülő maga a langSlot portál-célba renderelődik lentebb — itt (a
-              szerkesztő saját sorában) csak akkor marad, ha a célpont még nem található
-              (pl. nagyon korai render), hogy sose tűnjön el teljesen. */}
-          {!langSlot && <div className="relative">{renderLangControl(false)}</div>}
+          {/* Asztali nézetben (lg+) a nyelvváltó a szerkesztő saját sorában van. Korábban CSAK a
+              mobil fejléc-slotba került, ha az létezett — de a slot asztalon is ott van (rejtve),
+              így desktopon eltűnt a nyelvváltó. lg alatt a mobil fejléc-ikon veszi át. */}
+          <div className={cn('relative', langSlot && 'hidden lg:block')}>{renderLangControl(false)}</div>
         </div>
       </div>
 
@@ -864,11 +882,10 @@ export function BookingPageEditor({
           )}
         >
           {narrow && sel && (
-            <div className="-mt-2 flex items-center justify-between">
-              <span className="w-9" />
-              <span className="h-1 w-10 rounded-full bg-black/15" />
-              <button type="button" onClick={() => setSel(null)} aria-label="Bezárás" className="flex h-9 w-9 items-center justify-center rounded-full bg-black/[0.05] text-ink-soft">
-                <X className="h-4 w-4" />
+            /* mobil: csak fogantyú (koppintásra zár) — X nélkül, mint a többi alulról nyíló lap */
+            <div className="-mt-2 flex items-center justify-center">
+              <button type="button" onClick={() => setSel(null)} aria-label="Bezárás" className="w-full py-2">
+                <span className="mx-auto block h-1 w-10 rounded-full bg-black/15" />
               </button>
             </div>
           )}
@@ -1122,6 +1139,19 @@ export function BookingPageEditor({
             <>
               <p className="text-[12.5px] leading-relaxed text-ink-soft">Ezeken a nyelveken választhat a vendég. Hiányzó fordítás helyén a magyar szöveg látszik.</p>
               <SupportedLocalesPicker value={draft.supportedLocales} onChange={(v) => set('supportedLocales', v)} />
+              {/* A „HU” gombra kattintva ide jutunk — innen is lehessen átváltani az előnézet/szerkesztés nyelvét */}
+              {languages.length > 1 && (
+                <div className="space-y-2 pt-2">
+                  <p className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Előnézet és szerkesztés nyelve</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {languages.map((code) => (
+                      <button key={code} type="button" onClick={() => selectLang(code)} className={cn('h-8 rounded-full border px-3 text-[12.5px] font-semibold transition-colors', lang === code ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink hover:border-line-strong')}>
+                        {LOCALE_LABELS[code]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </>
           )}
 
@@ -1354,7 +1384,7 @@ export function BookingPageEditor({
 
           {sel === 'deposit' && (
             <>
-              <p className="text-[12.5px] leading-relaxed text-ink-soft">Előleg: <b className="text-ink">{initial.flags.depositLabel}</b>. Az összeget, a visszatérítést és a Stripe-fiókot a Fizetés fülön állítod.</p>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">Előleg: <b className="text-ink">{initial.flags.depositLabel}</b>. Az összeget és a visszatérítést a Fizetés fülön állítod.</p>
               <NavButton onClick={() => onNavigate?.('payments')}>Előleg beállításai</NavButton>
             </>
           )}
@@ -1375,7 +1405,7 @@ export function BookingPageEditor({
                 checked={draft.showMarketingConsent}
                 onChange={() => set('showMarketingConsent', !draft.showMarketingConsent)}
               />
-              <NavButton onClick={() => onNavigate?.('payments')}>Hírlevél</NavButton>
+              <NavButton onClick={() => onNavigate?.('newsletter')}>Hírlevél</NavButton>
             </>
           )}
 
