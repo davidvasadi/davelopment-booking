@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import PhoneNumberInput from 'react-phone-number-input/input'
 import flags from 'react-phone-number-input/flags'
-import { parsePhoneNumberFromString, type CountryCode } from 'libphonenumber-js'
+import { parsePhoneNumberFromString, validatePhoneNumberLength, type CountryCode } from 'libphonenumber-js'
 
 /** Ország + nemzetközi előhívó. A `code` az ISO-2 (statisztikához), a `dial` a hívókód. */
 export type Country = { code: string; name: string; dial: string }
@@ -175,7 +175,22 @@ export function PhoneCountryInput({
     if (next !== value) setValue(next)
   }, [country, phone]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Túl hosszú szám (az adott országban) → nem fogadjuk el. A `limitMaxLength` ennél az „input”
+  // változatnál HATÁSTALAN (csak a zászló-választós komponens ismeri), ezért itt korlátozunk.
+  const tooLong = (v?: string) => !!v && validatePhoneNumberLength(v) === 'TOO_LONG'
+  // Gépelésnél: ha a következő számjegy már túl hosszúvá tenné, a leütést elnyeljük.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!/^\d$/.test(e.key) || e.metaKey || e.ctrlKey) return
+    const el = e.currentTarget
+    const atEnd = el.selectionStart === el.value.length && el.selectionEnd === el.value.length
+    if (atEnd && value && tooLong(value + e.key)) e.preventDefault()
+  }
+
   const handleChange = (v?: string) => {
+    // Ciklus-védelem: ugyanazt az értéket nem küldjük újra a szülőnek.
+    if (v === value) return
+    // Túl hosszú (pl. beillesztés, középre gépelés) → elutasítjuk, a mező az előző értéken marad.
+    if (tooLong(v)) return
     setValue(v)
     if (!v) { lastEmitted.current = { country, phone: '' }; onPhoneChange(''); return }
     const { country: cc, local } = fromE164(v)
@@ -195,9 +210,8 @@ export function PhoneCountryInput({
       <PhoneNumberInput
         ref={inputRef as React.Ref<HTMLInputElement>}
         defaultCountry="HU"
-        // az adott ország leghosszabb számánál több számjegyet nem enged beírni
-        limitMaxLength
         value={value}
+        onKeyDown={onKeyDown}
         onChange={handleChange}
         onBlur={onBlur}
         required={required}
