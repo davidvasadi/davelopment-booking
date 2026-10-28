@@ -45,7 +45,9 @@
       linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
 
     /* Státusz */
-    --dav-ok: #4A7A2A;      --dav-ok-bg: #E3F0D8;
+    /* „OK” zöld (2026-10-28, Dave): a kitöltés (pötty, gomb, kör) #74AA19 — az árazás-kártyák
+       zöldje —, a SZÖVEG ugyanennek a sötétebb árnyalata (világos háttéren is olvasható). */
+    --dav-ok: #4F7F12;      --dav-ok-bg: #EAF3DA;   --dav-ok-fill: #74AA19;
     --dav-warn: #8A6D12;    --dav-warn-bg: #FDF3CF;
     --dav-bad: #C0564A;     --dav-bad-bg: #FDE2DD;
 

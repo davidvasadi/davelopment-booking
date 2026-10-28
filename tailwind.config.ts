@@ -35,7 +35,7 @@ const config: Config = {
           DEFAULT: 'var(--dav-line)',
           strong: 'var(--dav-line-strong)',
         },
-        ok: { DEFAULT: 'var(--dav-ok)', bg: 'var(--dav-ok-bg)' },
+        ok: { DEFAULT: 'var(--dav-ok)', bg: 'var(--dav-ok-bg)', fill: 'var(--dav-ok-fill)' },
         warn: { DEFAULT: 'var(--dav-warn)', bg: 'var(--dav-warn-bg)' },
         bad: { DEFAULT: 'var(--dav-bad)', bg: 'var(--dav-bad-bg)' },
         'track-off': 'var(--dav-track-off)',
