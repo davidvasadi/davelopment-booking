@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, ymdLocal, fixMediaUrl, formatPrice } from '@/lib/utils'
-import { List, LayoutGrid, Plus, Clock, Repeat, CalendarDays, CalendarRange, CalendarClock, UserRound, Banknote, Coffee } from 'lucide-react'
+import { List, ChartNoAxesGantt, Plus, Clock, Repeat, CalendarDays, CalendarRange, CalendarClock, UserRound, Banknote, Coffee } from 'lucide-react'
 import type { BookingsRange } from './DateFilter'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
@@ -16,13 +16,17 @@ import { getDrafts, subscribeDrafts, type SalonBookingDraft } from '@/lib/salonB
 import { MobileOptionSheet } from '@/components/ui/MobileOptionSheet'
 import { HoverButton } from '@/components/shared/HoverButton'
 import type { Booking, Service, StaffMember, Media } from '@/payload/payload-types'
+import { StatusLegend, SALON_LEGEND } from '@/components/shared/StatusLegend'
 
 type ViewMode = 'list' | 'timeline'
-const STORAGE_KEY = 'salon-daily-view'
 
 const statusLabel: Record<string, string> = {
   pending: 'Megerősítésre vár', confirmed: 'Megerősítve',
   completed: 'Befejezett', cancelled: 'Lemondva',
+}
+// Mobil lista-nézet: rövid státusz-felirat a pötty mellé (keskeny oszlopba is kiférjen).
+const statusShort: Record<string, string> = {
+  pending: 'Függő', confirmed: 'Megerősítve', completed: 'Befejezett', cancelled: 'Lemondva',
 }
 // A hatch-mintás (szaggatott "börtön") hátterek NEM Tailwind bg-[...] arbitrary osztályként
 // mennek — Safariban (és mobil WebKiten) a bonyolult repeating-linear-gradient bracket-szintaxis
@@ -183,10 +187,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
     return subscribeDrafts(salonId, setDrafts)
   }, [salonId])
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) as ViewMode | null
-    if (saved === 'list' || saved === 'timeline') setView(saved)
-  }, [])
+  // Az oldal mindig az Idősáv nézettel nyílik (nem a legutóbb választottal).
 
   // Mobilon a nézet-váltó a fejléc csengő melletti ikonjából nyílik (DashboardNav dispatch-eli).
   useEffect(() => {
@@ -197,7 +198,6 @@ export function SalonDailyView(props: SalonDailyViewProps) {
 
   const pick = (v: ViewMode) => {
     setView(v)
-    localStorage.setItem(STORAGE_KEY, v)
   }
 
   // A vázlatok beolvadnak a foglalások közé (jelölve maradnak). Csak az adott napiak.
@@ -277,7 +277,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
   const activeStaff = useMemo(() => staff.filter((s) => s.is_active !== false), [staff])
 
   const viewButtons: { mode: ViewMode; icon: typeof List; label: string }[] = [
-    { mode: 'timeline', icon: LayoutGrid, label: 'Idősáv' },
+    { mode: 'timeline', icon: ChartNoAxesGantt, label: 'Idősáv' },
     { mode: 'list', icon: List, label: 'Lista' },
   ]
 
@@ -520,6 +520,7 @@ function ListTableView({ date, bookings, onEdit, consentEnabled }: { date: strin
                 <span className="hidden text-right text-[13.5px] font-medium tabular-nums text-ink sm:block">{price != null && price > 0 ? formatPrice(price, (b.price_snapshot_currency as string) || 'HUF') : '—'}</span>
                 <span className={`flex items-center justify-end gap-1.5 text-[12.5px] font-semibold sm:justify-start ${overdue ? 'text-[#9A7B12]' : ts.text}`}>
                   <span className={`h-2 w-2 shrink-0 rounded-full ${overdue ? 'bg-gold' : ts.dot}`} />
+                  <span className="truncate text-[11.5px] sm:hidden">{overdue ? 'Kezelendő' : (statusShort[b.status] ?? b.status)}</span>
                   <span className="hidden truncate sm:inline">{overdue ? 'Kezelendő' : (statusLabel[b.status] ?? b.status)}</span>
                 </span>
                 <span className="hidden justify-end sm:flex" onClick={(e) => e.stopPropagation()}>
@@ -909,11 +910,15 @@ export function HourList({
           const inHour = groupOverlaps(inHourRaw)
           // Korábbi órában induló, de a szolgáltatás hossza miatt ide is átnyúló foglalások —
           // enélkül egy 4 órás foglalás a kezdő-óráján túl üresnek tűnt volna.
-          const continuing = active.filter((b) => {
-            const s = hhmmToMinutes(b.start_time)
-            const e = hhmmToMinutes(b.end_time)
-            return s < lo && e > lo
-          })
+          // Csak akkor jelennek meg, ha az órában nem indul foglalás — különben ugyanaz a
+          // foglalás több órában ismétlődne, és a „+N" sem egyezne a látott kártyákkal.
+          const continuing = active
+            .filter((b) => {
+              const s = hhmmToMinutes(b.start_time)
+              const e = hhmmToMinutes(b.end_time)
+              return s < lo && e > lo
+            })
+            .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
           // Saját szünet erre az órára — induló VAGY korábbról átnyúló (ugyanaz a minta, mint a
           // desktop-oszlopoknál: több órás szünet is egybefüggő, összekötött sávként fut).
           const soleBreakStarts = soleBreak && hhmmToMinutes(soleBreak.start) >= lo && hhmmToMinutes(soleBreak.start) < hi
@@ -1013,18 +1018,11 @@ export function HourList({
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    {continuing.length > 0 && (
-                      <div className="space-y-2 pt-2">
-                        {continuing.map((b) => (
-                          <div key={`cont-${b.id}`}>{renderBookingCard(b, onEdit, true, nowMin)}</div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 ) : continuing.length > 0 ? (
                   <div className="space-y-2">
                     {continuing.map((b) => (
-                      <div key={`cont-${b.id}`}>{renderBookingCard(b, onEdit, true, nowMin)}</div>
+                      <div key={`cont-${b.id}`} className="opacity-60">{renderBookingCard(b, onEdit, true, nowMin)}</div>
                     ))}
                     {viewerCard}
                   </div>
@@ -1172,6 +1170,7 @@ function MobileTimeline({
     <div className="rounded-[26px] p-4 dav-card-glass">
       <div className="mb-3 text-[17px] font-medium text-ink">Napi időbeosztás</div>
       <HourList {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit, staff, staffBreaks, staffOffType, viewerStaffId, isClosedToday }} />
+      <StatusLegend items={SALON_LEGEND} className="mt-1 border-t border-line/70 px-1 pt-3" />
     </div>
   )
 }

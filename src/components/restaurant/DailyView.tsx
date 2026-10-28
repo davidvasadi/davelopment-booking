@@ -6,9 +6,11 @@ import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { hhmmToMinutes, minutesToHHMM, minutesToHHMMWrapped, durationMinutes, ymdLocal } from '@/lib/utils'
-import { List, LayoutGrid, Map as MapIcon, Plus, Users, User, Clock, Repeat, Banknote, CalendarDays, CalendarRange, CalendarClock } from 'lucide-react'
+import { List, ChartNoAxesGantt, Map as MapIcon, Plus, Users, User, Clock, Repeat, Banknote, CalendarDays, CalendarRange, CalendarClock } from 'lucide-react'
 import type { BookingsRange } from './ReservationDateFilter'
-import { eventIconByKey } from '@/components/settings/eventTypeIcons'
+import { eventIconByKey, eventColorByKey } from '@/components/settings/eventTypeIcons'
+import { OccasionBadge } from '@/components/shared/OccasionBadge'
+import { StatusLegend, RESTAURANT_LEGEND } from '@/components/shared/StatusLegend'
 import { StatusPills } from '@/components/dashboard/StatusPills'
 import { CountUpKpi } from '@/components/dashboard/CountUpKpi'
 import { TableGlyph } from './TableGlyph'
@@ -23,11 +25,15 @@ import { CLOSED_BORDER, CLOSED_FG, CLOSED_HATCH } from '@/components/dashboard/S
 import type { Reservation, Table, Room } from '@/payload/payload-types'
 
 type ViewMode = 'list' | 'timeline' | 'floor'
-const STORAGE_KEY = 'restaurant-daily-view'
 
 const statusLabel: Record<string, string> = {
   pending: 'Megerősítésre vár', confirmed: 'Megerősítve', seated: 'Leültetve',
   completed: 'Befejezett', no_show: 'Nem jött meg', cancelled: 'Lemondva',
+}
+// Mobil lista-nézet: rövid státusz-felirat a pötty mellé (keskeny oszlopba is kiférjen).
+const statusShort: Record<string, string> = {
+  pending: 'Függő', confirmed: 'Megerősítve', seated: 'Leültetve',
+  completed: 'Befejezett', no_show: 'Nem jött', cancelled: 'Lemondva',
 }
 // Tömör blokk-színek (háttér) a davelopment-design kánon szerint. Kiosztás:
 // confirmed=sötét (alap, megerősített — referencia #1D1C19), pending=gold (függő),
@@ -234,18 +240,9 @@ export function DailyView(props: DailyViewProps) {
     return [...props.reservations, ...dayDrafts]
   }, [props.reservations, drafts, date])
 
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY) as ViewMode | null
-    if (saved === 'list' || saved === 'timeline' || saved === 'floor') {
-      setView(saved)
-      // Perzisztált timeline nézettel betöltve rögtön fókusz módba lépünk.
-      if (saved === 'timeline') enterFocus()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  // Az oldal mindig az Idősáv nézettel nyílik (nem a legutóbb választottal).
   const pick = (v: ViewMode) => {
     setView(v)
-    localStorage.setItem(STORAGE_KEY, v)
     // Timeline-ra váltás → fókusz mód (nav csuk + KPI rejt); egyébként normál.
     if (v === 'timeline') enterFocus()
     else exitFocus()
@@ -331,7 +328,7 @@ export function DailyView(props: DailyViewProps) {
   }
 
   const viewButtons: { mode: ViewMode; icon: typeof List; label: string }[] = [
-    { mode: 'timeline', icon: LayoutGrid, label: 'Idősáv' },
+    { mode: 'timeline', icon: ChartNoAxesGantt, label: 'Idősáv' },
     { mode: 'list', icon: List, label: 'Lista' },
     { mode: 'floor', icon: MapIcon, label: 'Terem' },
   ]
@@ -569,7 +566,7 @@ function ListTableView({ date, reservations, onEdit, consentEnabled }: { date: s
                   <span className="flex min-w-0 items-center gap-1.5">
                     <span className={`truncate text-[14px] font-semibold text-ink ${r.status === 'cancelled' ? 'line-through decoration-ink-soft2/60' : ''}`}>{r.customer_name || 'Vendég'}</span>
                     {draft && <span className="shrink-0 rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-bold uppercase text-ink-dark">Vázlat</span>}
-                    {r.occasion && (() => { const OccIcon = eventIconByKey(r.occasion_icon); return <span title={r.occasion}><OccIcon className="h-3.5 w-3.5 shrink-0 text-[#9A7B12]" /></span> })()}
+                    {r.occasion && (() => { const OccIcon = eventIconByKey(r.occasion_icon); return <span title={r.occasion}><OccIcon className="h-3.5 w-3.5 shrink-0" style={{ color: eventColorByKey(r.occasion_icon) }} /></span> })()}
                     {r.series_id && <Repeat className="h-3.5 w-3.5 shrink-0 text-[#9A7B12]" aria-label="Sorozat" />}
                     {r.payment_status === 'paid' && <Banknote className="h-3.5 w-3.5 shrink-0 text-[#1D7A3C]" aria-label="Előleg befizetve" />}
                   </span>
@@ -582,6 +579,7 @@ function ListTableView({ date, reservations, onEdit, consentEnabled }: { date: s
                 <span className="hidden text-[13px] text-ink-soft sm:block">{SOURCE_LABEL[r.source] ?? '—'}</span>
                 <span className={`flex items-center justify-end gap-1.5 text-[12.5px] font-semibold sm:justify-start ${overdue ? 'text-[#9A7B12]' : ts.text}`}>
                   <span className={`h-2 w-2 shrink-0 rounded-full ${overdue ? 'bg-gold' : ts.dot}`} />
+                  <span className="truncate text-[11.5px] sm:hidden">{overdue ? 'Kezelendő' : (statusShort[r.status] ?? r.status)}</span>
                   <span className="hidden truncate sm:inline">{overdue ? 'Kezelendő' : (statusLabel[r.status] ?? r.status)}</span>
                 </span>
                 <span className="hidden justify-end sm:flex" onClick={(e) => e.stopPropagation()}>
@@ -649,14 +647,7 @@ export function ReservationRow({ r, onEdit, nowMin, consentEnabled }: { r: Reser
                 {sourceBadge[r.source]}
               </span>
             )}
-            {r.occasion && (() => {
-              const OccIcon = eventIconByKey(r.occasion_icon)
-              return (
-                <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-gold/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">
-                  <OccIcon className="h-3 w-3" /> {r.occasion}
-                </span>
-              )
-            })()}
+            {r.occasion && <OccasionBadge occasion={r.occasion} icon={r.occasion_icon} />}
             {r.series_id && (
               // Ismétlődő sorozat tagja (közös series_id). Csak jelölés — a viselkedést nem érinti.
               <span className="inline-flex shrink-0 items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
@@ -999,19 +990,15 @@ export function renderReservationCard(
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <span className="min-w-0 truncate text-sm font-semibold">
-            {r.customer_name} · {r.pax} fő
+          <span className="flex min-w-0 items-center gap-1.5">
+            <span className="min-w-0 truncate text-sm font-semibold">
+              {r.customer_name} · {r.pax} fő
+            </span>
+            {/* Alkalom: csak kis ikon-kör a név után — a név marad a fő elem. */}
+            {r.occasion && <OccasionBadge occasion={r.occasion} icon={r.occasion_icon} />}
           </span>
           <span className="flex shrink-0 items-center gap-1.5">
-            {/* Ugyanazok a jelölők, mint a lista-nézetben: alkalom + ismétlődő sorozat. */}
-            {r.occasion && (() => {
-              const OccIcon = eventIconByKey(r.occasion_icon)
-              return (
-                <span className="inline-flex items-center gap-1 rounded-md bg-gold/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-ink">
-                  <OccIcon className="h-3 w-3" /> {r.occasion}
-                </span>
-              )
-            })()}
+            {/* Ugyanazok a jelölők, mint a lista-nézetben: ismétlődő sorozat, előleg. */}
             {r.series_id && (
               <span className="inline-flex items-center gap-1 rounded-md bg-[#F0E7CF] px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#9A7B12]">
                 <Repeat className="h-3 w-3" /> Sorozat
@@ -1064,11 +1051,19 @@ export function HourList({
           const inHour = groupOverlaps(inHourRaw)
           // Korábbi órában induló, de a foglalás hossza miatt ide is átnyúló asztalfoglalások —
           // enélkül egy hosszabb vacsora a kezdő-óráján túl üresnek tűnt volna.
-          const continuing = active.filter((r) => {
-            const s = hhmmToMinutes(r.start_time)
-            const e = hhmmToMinutes(r.end_time)
-            return s < lo && e > lo
-          })
+          // Csak akkor mutatjuk őket, ha az órában nem indul semmi — különben ugyanaz a foglalás
+          // több órában is ismétlődne, és a „+N" sem egyezne a látott kártyákkal.
+          const continuing = active
+            .filter((r) => {
+              const s = hhmmToMinutes(r.start_time)
+              const e = hhmmToMinutes(r.end_time)
+              return s < lo && e > lo
+            })
+            .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
+          // Megjelenített lista: az órában induló foglalások, vagy ha nincs, a még tartók
+          // (ugyanúgy: első kártya + „+N" kibontó, időrendben).
+          const isCont = inHour.length === 0 && continuing.length > 0
+          const shown = isCont ? groupOverlaps(continuing) : inHour
           const isNow = nowMin != null && nowMin >= m && nowMin < (hourMarks[i + 1] ?? closeMin + 1)
           const isOpen = expanded.has(m)
           const pillCls = isNow
@@ -1087,14 +1082,14 @@ export function HourList({
                 {!last && (
                   <div className="relative flex min-h-[30px] flex-1 items-center justify-center py-1.5">
                     <span className="absolute inset-y-0 border-l-2 border-dotted border-line-strong" />
-                    {inHour.length > 1 && (
+                    {shown.length > 1 && (
                       <button
                         type="button"
                         onClick={() => toggle(m)}
-                        aria-label={`még ${inHour.length - 1} foglalás ${minutesToHHMMWrapped(m)}-kor — ${isOpen ? 'bezárás' : 'megnyitás'}`}
+                        aria-label={`még ${shown.length - 1} foglalás ${minutesToHHMMWrapped(m)}-kor — ${isOpen ? 'bezárás' : 'megnyitás'}`}
                         className={`relative z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
                       >
-                        +{inHour.length - 1}
+                        +{shown.length - 1}
                       </button>
                     )}
                   </div>
@@ -1103,11 +1098,11 @@ export function HourList({
               {/* Jobb: alapból az első foglalás kártyája, kinyitva az összes.
                   A kinyíló extra kártyák staggered springgel úsznak be (nem ugranak). */}
               <div className="min-w-0 flex-1 pb-3">
-                {inHour.length > 0 ? (
-                  <div>
-                    {renderCellItem(inHour[0], onEdit, tableNamesOf, nowMin)}
+                {shown.length > 0 ? (
+                  <div className={isCont ? 'opacity-60' : undefined}>
+                    {renderCellItem(shown[0], onEdit, tableNamesOf, nowMin)}
                     <AnimatePresence initial={false}>
-                      {isOpen && inHour.length > 1 && (
+                      {isOpen && shown.length > 1 && (
                         <motion.div
                           key="extra"
                           className="overflow-hidden"
@@ -1122,7 +1117,7 @@ export function HourList({
                             animate="show"
                             variants={{ hidden: {}, show: { transition: { staggerChildren: 0.045, delayChildren: 0.02 } } }}
                           >
-                            {inHour.slice(1).map((item) => (
+                            {shown.slice(1).map((item) => (
                               <motion.div key={cellKey(item)} variants={TL_EXTRA_ITEM}>
                                 {renderCellItem(item, onEdit, tableNamesOf, nowMin)}
                               </motion.div>
@@ -1131,19 +1126,6 @@ export function HourList({
                         </motion.div>
                       )}
                     </AnimatePresence>
-                    {continuing.length > 0 && (
-                      <div className="space-y-2 pt-2">
-                        {continuing.map((r) => (
-                          <div key={`cont-${r.id}`}>{renderReservationCard(r, onEdit, tableNamesOf, nowMin)}</div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : continuing.length > 0 ? (
-                  <div className="space-y-2">
-                    {continuing.map((r) => (
-                      <div key={`cont-${r.id}`}>{renderReservationCard(r, onEdit, tableNamesOf, nowMin)}</div>
-                    ))}
                   </div>
                 ) : isClosedToday ? (
                   <div
@@ -1186,6 +1168,7 @@ function MobileTimeline({
     <div className="rounded-[26px] p-4 dav-card-glass">
       <div className="mb-3 text-[17px] font-medium text-ink">Mai szervizterv</div>
       <HourList {...{ hourMarks, active, openMin, closeMin, nowMin, onEdit, isClosedToday }} />
+      <StatusLegend items={RESTAURANT_LEGEND} className="mt-1 border-t border-line/70 px-1 pt-3" />
     </div>
   )
 }
@@ -1497,7 +1480,7 @@ function TableGrid({
     // Alkalom-jelvény a pillen: KIS arany ikon-kör (ne takarja a nevet). A teljes
     // felirat a tooltipben + a megnyitott foglalás fejlécében látszik.
     const occasionBadge = occasion && OccIcon ? (
-      <span title={occasion} className="flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full bg-gold text-ink-dark ring-1 ring-black/10">
+      <span title={occasion} className="flex h-[15px] w-[15px] shrink-0 items-center justify-center rounded-full text-white ring-1 ring-black/10" style={{ background: eventColorByKey(r.occasion_icon) }}>
         <OccIcon className="h-2.5 w-2.5" strokeWidth={2.4} />
       </span>
     ) : null
@@ -2060,7 +2043,7 @@ function LiveTableCard({
           {occasionOf?.occasion && (() => {
             const OccIcon = eventIconByKey(occasionOf.occasion_icon)
             return (
-              <span title={occasionOf.occasion} className="flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-full bg-gold text-ink-dark ring-1 ring-black/10">
+              <span title={occasionOf.occasion} className="flex h-[19px] w-[19px] shrink-0 items-center justify-center rounded-full text-white ring-1 ring-black/10" style={{ background: eventColorByKey(occasionOf.occasion_icon) }}>
                 <OccIcon className="h-2.5 w-2.5" strokeWidth={2.4} />
               </span>
             )

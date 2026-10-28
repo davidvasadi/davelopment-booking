@@ -561,10 +561,10 @@ export function DashboardNav({
               <button
                 type="button"
                 onClick={() => window.dispatchEvent(new Event('davelopment:open-bookings-view'))}
-                aria-label="Nézet váltása"
+                aria-label="Nézet és időszak"
                 className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
               >
-                <LayoutGrid className="h-[19px] w-[19px]" strokeWidth={2} />
+                <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
               </button>
               <button
                 type="button"
