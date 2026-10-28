@@ -170,19 +170,19 @@ function Section({ title, children, full, id, collapsible, defaultOpen = false }
     })
   }
   return (
-    <div id={id} className={`rounded-[26px] dav-card-glass overflow-hidden font-onest scroll-mt-6 ${full ? 'lg:col-span-2' : ''}`}>
+    <div id={id} className={`rounded-[22px] border border-line bg-white overflow-hidden font-onest scroll-mt-6 ${full ? 'lg:col-span-2' : ''}`}>
       {collapsible ? (
         <button
           type="button"
           onClick={toggle}
           className={`flex w-full items-center justify-between px-5 py-4 sm:px-6 text-left ${open ? 'border-b border-line' : ''}`}
         >
-          <span className="text-[15px] font-semibold text-ink">{title}</span>
+          <span className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">{title}</span>
           <ChevronDown className={`h-4 w-4 shrink-0 text-ink-soft transition-transform duration-200 ${open ? 'rotate-180' : ''}`} strokeWidth={2} />
         </button>
       ) : (
         <div className="flex items-center justify-between border-b border-line px-5 py-4 sm:px-6">
-          <span className="text-[15px] font-semibold text-ink">{title}</span>
+          <span className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">{title}</span>
         </div>
       )}
       {open && <div className="px-5 py-5 space-y-4 sm:px-6">{children}</div>}

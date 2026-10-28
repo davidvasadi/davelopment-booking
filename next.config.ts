@@ -33,7 +33,8 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
-        source: '/(.*)',
+        // minden útvonal — KIVÉVE a vendég-számla PDF-et (lent), amit a Beállítások előnézete keretez
+        source: '/:path((?!api/invoicing/pdf).*)',
         missing: [{ type: 'query', key: 'embed', value: '1' }, { type: 'query', key: 'editor', value: '1' }],
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -53,6 +54,16 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           { key: 'Content-Security-Policy', value: EMBED_CSP },
+        ],
+      },
+      {
+        // Vendég-számla PDF (Beállítások → Kiállított számlák előnézet): csak azonos originről keretezhető.
+        source: '/api/invoicing/pdf',
+        headers: [
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Content-Security-Policy', value: EDITOR_CSP },
         ],
       },
       {

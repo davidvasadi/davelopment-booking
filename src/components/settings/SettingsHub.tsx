@@ -25,7 +25,7 @@ import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext
 import {
   Home, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
   Plus, ScrollText, Building2, Mail, Check, FileText,
-  Trash2, X, Loader2, Pencil, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, PanelsTopLeft, Send, Gift, Receipt, PanelLeftClose, PanelLeftOpen, MoreVertical, type LucideIcon,
+  Trash2, X, Loader2, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, PanelsTopLeft, Send, Gift, HandCoins, PanelLeftClose, PanelLeftOpen, type LucideIcon,
 } from 'lucide-react'
 import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
 import { IntegrationsPanel } from './IntegrationsPanel'
@@ -34,6 +34,8 @@ import { GoogleIcon } from '@/components/auth/GoogleSignInButton'
 import { Toggle } from './SettingsToggle'
 import { SubnavPicker } from './SubnavPicker'
 import { HoverButton } from '@/components/shared/HoverButton'
+import { IssuedInvoicesTable } from './IssuedInvoicesTable'
+import { DataTableCard, DataTableHead, StatusDot, tableActionCls, type StatusTone } from '@/components/shared/DataTable'
 import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData, type VoucherSettingsData, type ConsentSettingsData } from './PaymentsSettingsPanel'
 import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
 import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
@@ -62,28 +64,42 @@ export type NotificationPrefs = {
 /* ── Fehér kártya — a Nyitvatartás/Foglalások kártya-mintája (bordered, dav árnyék) ── */
 function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
-    <div className={`rounded-[26px] dav-card-glass p-6 ${className}`}>
+    <div className={`rounded-[22px] border border-line bg-white p-6 ${className}`}>
       {children}
     </div>
   )
 }
 
+/* ── Számlázási adatok egy sora: balra címke (+ csillag) és magyarázat, jobbra a mező ── */
+function BillRow({ label, hint, required, last, children }: { label: string; hint?: string; required?: boolean; last?: boolean; children: ReactNode }) {
+  return (
+    <div className={`flex flex-col gap-2 py-3.5 sm:flex-row sm:items-start sm:gap-6 ${last ? '' : 'border-b border-line'}`}>
+      <div className="sm:w-[220px] sm:shrink-0 sm:pt-2.5">
+        <p className="text-[13.5px] font-medium text-ink">{label}{required && <span className="ml-0.5 text-bad" aria-hidden>*</span>}</p>
+        {hint && <p className="text-[12px] text-ink-soft">{hint}</p>}
+      </div>
+      <div className="min-w-0 flex-1 sm:max-w-[520px]">{children}</div>
+    </div>
+  )
+}
+
 /* ── Előfizetés-státusz badge ────────────────────────────────────────────── */
+// A referencia-táblázat nyelve: színes pötty + színes szöveg (nem pill).
 function StatusBadge({ status }: { status: BillingData['subscriptionStatus'] }) {
-  const cfg: Record<string, { label: string; cls: string }> = {
-    trialing:  { label: 'Próbaidőszak',   cls: 'bg-warn-bg text-warn' },
-    active:    { label: 'Aktív',          cls: 'bg-ok-bg text-ok' },
-    past_due:  { label: 'Lejárt fizetés', cls: 'bg-bad-bg text-bad' },
-    canceled:  { label: 'Lemondva',       cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' },
-    paused:    { label: 'Szüneteltetve',  cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' },
+  const cfg: Record<string, { label: string; tone: StatusTone }> = {
+    trialing:  { label: 'Próbaidőszak',   tone: 'warn' },
+    active:    { label: 'Aktív',          tone: 'ok' },
+    past_due:  { label: 'Lejárt fizetés', tone: 'bad' },
+    canceled:  { label: 'Lemondva',       tone: 'muted' },
+    paused:    { label: 'Szüneteltetve',  tone: 'muted' },
   }
-  const { label, cls } = (status && cfg[status]) ?? { label: '—', cls: 'bg-[rgba(0,0,0,.06)] text-ink-soft' }
-  return <span className={`inline-block rounded-[8px] px-2.5 py-[3px] text-[11px] font-semibold ${cls}`}>{label}</span>
+  const { label, tone } = (status && cfg[status]) ?? { label: '—', tone: 'muted' as StatusTone }
+  return <StatusDot tone={tone}>{label}</StatusDot>
 }
 
 
 type RailId =
-  | 'site' | 'newsletter' | 'vouchers' | 'invoicing' | 'email'
+  | 'site' | 'newsletter' | 'vouchers' | 'invoicing' | 'deposit' | 'email'
   | 'notifications' | 'team' | 'audit'
   | 'self' | 'documents' | 'billing' | 'invoices' | 'sites'
   | 'integrations' | 'danger' | 'payments' | 'google'
@@ -96,12 +112,12 @@ const FORM_TABS: Record<string, string> = {
 
 // A kiválasztott szekció neve = a tartalom címe (mivel nincs felső fül-sor, ez jelzi „hol vagy").
 const RAIL_LABELS: Record<RailId, string> = {
-  site: 'Foglalóoldal', newsletter: 'Hírlevél', vouchers: 'Ajándékutalvány', invoicing: 'Számlázás',
+  site: 'Foglalóoldal', newsletter: 'Hírlevél', vouchers: 'Ajándékutalvány', invoicing: 'Számlázás', deposit: 'Előleg',
   email: 'Vendég e-mailek',
   notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
-  self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés & számlázás', invoices: 'Számlák', sites: 'Telephelyek',
+  self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés', invoices: 'Számlák', sites: 'Telephelyek',
   integrations: 'API & Integrációk', danger: 'Fiók törlése',
-  payments: 'Fizetés & előleg', google: 'Google',
+  payments: 'Fizetés & számlázás', google: 'Google',
 }
 
 export interface RulesData {
@@ -309,7 +325,9 @@ export function SettingsHub({
   // Jogosulatlan tab (pl. ?tab=billing manager-nek) → visszaesik profile-ra.
   const searchParams = useSearchParams()
   const initialTab = ((): RailId => {
-    const t = searchParams.get('tab')
+    // régi fülek → összevont helyük (mély-linkek, pl. az utalvány-ablak „Számlázó beállítása” linkje)
+    const rawT = searchParams.get('tab')
+    const t = rawT === 'invoicing' ? 'payments' : rawT === 'invoices' ? 'billing' : rawT
     const limitedOnly = !!myCapabilities && !can(myCapabilities, 'settings.profile')
     // `settings.own_profile` users alapértelmezett tabja 'self', a többieké a Foglalóoldal.
     if (!t || MOVED_TO_SITE.has(t) || !(t in RAIL_LABELS)) return limitedOnly ? 'self' : 'site'
@@ -483,6 +501,7 @@ export function SettingsHub({
   const newsletterPanel = usePanelRegistration()
   const vouchersPanel = usePanelRegistration()
   const invoicingPanel = usePanelRegistration()
+  const depositPanel = usePanelRegistration()
 
   /** Egy group PATCH-elése a valós collection-endpointra (credentials:'include'). */
   const patchGroup = async (body: Record<string, unknown>): Promise<boolean> => {
@@ -571,14 +590,17 @@ export function SettingsHub({
   const [auditFilter, setAuditFilter] = useState<'all' | 'create' | 'update' | 'delete'>('all')
   const [auditDays, setAuditDays] = useState<7 | 30 | 90>(90)
   const [auditShown, setAuditShown] = useState(25)
+  const [auditQuery, setAuditQuery] = useState('')
   const filteredAudit = useMemo(() => {
     const cutoff = Date.now() - auditDays * 86_400_000
+    const q = auditQuery.trim().toLowerCase()
     return auditLog.filter(
       (e) =>
         (auditFilter === 'all' || e.action === auditFilter) &&
-        new Date(e.createdAt).getTime() >= cutoff,
+        new Date(e.createdAt).getTime() >= cutoff &&
+        (!q || `${e.summary ?? ''} ${e.actor} ${e.actorEmail ?? ''}`.toLowerCase().includes(q)),
     )
-  }, [auditFilter, auditDays, auditLog])
+  }, [auditFilter, auditDays, auditLog, auditQuery])
   const visibleAudit = filteredAudit.slice(0, auditShown)
 
   // ── Csapat & jogok — VALÓS bekötés a /api/team végpontokra.
@@ -598,6 +620,7 @@ export function SettingsHub({
   // Csapat fül al-navigáció — tag-kezelés és szerepkör-szerkesztés két külön koncepció,
   // eddig sub-navigáció nélkül egymás alatt zsúfolva egy fülön.
   const [teamSubTab, setTeamSubTab] = useState<'members' | 'roles'>('members')
+  const [teamQuery, setTeamQuery] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
   // Érték: `c:<roleId>` (a megadott egyedi szerepek közül). Nincs hardcoded szerep.
   const [inviteRole, setInviteRole] = useState<string>(customRoles[0] ? `c:${customRoles[0].id}` : '')
@@ -824,7 +847,7 @@ export function SettingsHub({
 
   // Az új menü önálló Pénzügy/Vendégek panelei — mindegyik a saját API-jával ment.
   const [splitSaved, setSplitSaved] = useState(false)
-  const splitPanel = active === 'newsletter' ? newsletterPanel : active === 'vouchers' ? vouchersPanel : active === 'invoicing' ? invoicingPanel : null
+  const splitPanel = active === 'newsletter' ? newsletterPanel : active === 'vouchers' ? vouchersPanel : active === 'invoicing' ? invoicingPanel : active === 'deposit' ? depositPanel : null
   const saveSplitTab = async () => {
     if (!splitPanel) return
     setSaving(true)
@@ -917,9 +940,10 @@ export function SettingsHub({
         ] },
         ...(canPayments
           ? [{ group: 'Pénzügy', items: [
-              { kind: 'btn' as const, id: 'payments' as RailId, icon: Wallet, label: 'Fizetés & előleg' },
+              // Vendég-oldali pénzügy egy helyen: online fizetés + előleg + számlázó + kiállított számlák
+              { kind: 'btn' as const, id: 'payments' as RailId, icon: Wallet, label: 'Fizetés & számlázás' },
+              { kind: 'btn' as const, id: 'deposit' as RailId, icon: HandCoins, label: 'Előleg' },
               { kind: 'btn' as const, id: 'vouchers' as RailId, icon: Gift, label: 'Ajándékutalvány' },
-              { kind: 'btn' as const, id: 'invoicing' as RailId, icon: Receipt, label: 'Számlázás' },
             ] }]
           : []),
         { group: 'Kapcsolatok', items: [
@@ -933,8 +957,8 @@ export function SettingsHub({
         { group: 'Fiók', items: [
           { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
           { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
-          ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Előfizetés & számlázás', badge: trialBadge }] : []),
-          ...(canBilling ? [{ kind: 'btn' as const, id: 'invoices' as RailId, icon: Download, label: 'Számlák' }] : []),
+          // a TE előfizetésed és a davelopment számlái neked (a Számlák fül ide olvadt be)
+          ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Előfizetés', badge: trialBadge }] : []),
           { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
         ] },
       ]
@@ -1014,7 +1038,7 @@ export function SettingsHub({
                         type="button"
                         onClick={() => setMobileNavOpen(false)}
                         aria-label="Bezárás"
-                        className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
+                        className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
                       >
                         <X className="h-4 w-4" strokeWidth={2} />
                       </button>
@@ -1180,7 +1204,7 @@ export function SettingsHub({
           {/* ── „Vendég e-mailek" (új menü): a sablonok (profil-form email-füle) MELLÉ ide kerültek a
               vendégnek menő levelek be/ki kapcsolói is — korábban az Értesítéseknél voltak. ── */}
           {active === 'email' && (
-            <div className="mt-5 rounded-[26px] dav-card-glass px-6 py-2">
+            <div className="mt-5 rounded-[22px] border border-line bg-white px-6 py-2">
               <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                 <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Levelek a vendégnek</span>
                 <span className="text-center text-[12px] font-semibold uppercase text-ink-soft2">Küldés</span>
@@ -1245,7 +1269,7 @@ export function SettingsHub({
             />
           )}
 
-          {(['newsletter', 'vouchers', 'invoicing'] as const).map((tab) => active === tab && (
+          {(['newsletter', 'vouchers', 'invoicing', 'deposit'] as const).map((tab) => active === tab && (
             <PaymentsSettingsPanel
               key={tab}
               variant={variant}
@@ -1260,8 +1284,8 @@ export function SettingsHub({
               businessId={activeBusinessId}
               tier={businessTier}
               sections={[tab === 'vouchers' ? 'voucher' : tab]}
-              onDirtyChange={(tab === 'newsletter' ? newsletterPanel : tab === 'vouchers' ? vouchersPanel : invoicingPanel).onDirtyChange}
-              registerApi={(tab === 'newsletter' ? newsletterPanel : tab === 'vouchers' ? vouchersPanel : invoicingPanel).registerApi}
+              onDirtyChange={(tab === 'newsletter' ? newsletterPanel : tab === 'vouchers' ? vouchersPanel : tab === 'deposit' ? depositPanel : invoicingPanel).onDirtyChange}
+              registerApi={(tab === 'newsletter' ? newsletterPanel : tab === 'vouchers' ? vouchersPanel : tab === 'deposit' ? depositPanel : invoicingPanel).registerApi}
             />
           ))}
 
@@ -1278,10 +1302,15 @@ export function SettingsHub({
               pricing={pricing}
               businessId={activeBusinessId}
               tier={businessTier}
-              sections={['stripe', 'deposit']}
+              sections={['stripe', 'invoicing']}
               onDirtyChange={paymentsTabPanel.onDirtyChange}
               registerApi={paymentsTabPanel.registerApi}
             />
+          )}
+          {active === 'payments' && activeBusinessId && (
+            <div className="mt-4">
+              <IssuedInvoicesTable variant={variant} businessId={activeBusinessId} />
+            </div>
           )}
 
           {active === 'notifications' && (
@@ -1292,7 +1321,7 @@ export function SettingsHub({
               <PushSubscribeToggle />
 
               {/* Egységes értesítési kártya — Push/App + Email szekciók */}
-              <div className="rounded-[26px] dav-card-glass px-6 py-2">
+              <div className="rounded-[22px] border border-line bg-white px-6 py-2">
                 {/* Push/App szekció fejléc */}
                 <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
                   <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Értesítési preferenciák</span>
@@ -1404,18 +1433,18 @@ export function SettingsHub({
                 </button>,
                 subnavSlot,
               )}
-              <div className="hidden lg:inline-flex rounded-[14px] bg-[#FBF9F2] p-1">
+              <div className="hidden lg:inline-flex rounded-[14px] border border-line bg-white p-1">
                 <button
                   type="button"
                   onClick={() => setTeamSubTab('members')}
-                  className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${teamSubTab === 'members' ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink'}`}
+                  className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${teamSubTab === 'members' ? 'bg-ink-dark text-white' : 'text-ink-soft hover:bg-black/[0.04] hover:text-ink'}`}
                 >
                   Tagok
                 </button>
                 <button
                   type="button"
                   onClick={() => setTeamSubTab('roles')}
-                  className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${teamSubTab === 'roles' ? 'bg-ink-dark text-white' : 'text-ink-soft hover:text-ink'}`}
+                  className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${teamSubTab === 'roles' ? 'bg-ink-dark text-white' : 'text-ink-soft hover:bg-black/[0.04] hover:text-ink'}`}
                 >
                   Szerepek & jogosultságok
                 </button>
@@ -1423,26 +1452,9 @@ export function SettingsHub({
 
               {teamSubTab === 'roles' ? rolesSection : (
               <>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-medium text-ink-soft">
-                  {team.filter((m) => !m.pending).length} tag
-                  {team.some((m) => m.pending) && ` · ${team.filter((m) => m.pending).length} függő meghívó`}
-                </p>
-                {canTeamManage && (
-                  <button
-                    type="button"
-                    onClick={() => setInviteOpen((v) => !v)}
-                    className="hidden items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white lg:inline-flex"
-                  >
-                    {inviteOpen ? <X className="h-[15px] w-[15px] text-gold" strokeWidth={2} /> : <Plus className="h-[15px] w-[15px] text-gold" strokeWidth={1.8} />}
-                    {inviteOpen ? 'Mégse' : 'Tag meghívása'}
-                  </button>
-                )}
-              </div>
-
               {canTeamManage && inviteOpen && (
                 <Card>
-                  <div className="text-[15px] font-medium text-ink">Új tag meghívása</div>
+                  <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Új tag meghívása</div>
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
                     <input
                       type="email"
@@ -1479,82 +1491,66 @@ export function SettingsHub({
                 </Card>
               )}
 
-              <div className="rounded-[26px] dav-card-glass px-6 py-2">
-                {team.map((m, i) => {
-                  const showStatus = !m.pending && m.id && m.roleTone !== 'owner'
-                  return (
-                  <div
-                    key={(m.id ?? m.email) + i}
-                    className={`relative flex flex-col gap-3 py-[18px] ${i < team.length - 1 ? 'border-b border-line' : ''}`}
-                  >
-                    {/* Státusz — a sor (kártya) jobb felső sarkában, szöveggel ellátott pill
-                        (nem csak szín), kattintva nyitja a státusz-sheetet. */}
-                    {showStatus && (
-                      canTeamManage ? (
-                        <HoverButton
-                          disabled={rowBusy === m.id}
-                          onClick={() => setStatusMenuId(m.id!)}
-                          className="absolute right-0 top-[18px] inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] font-semibold disabled:opacity-60"
-                          style={m.suspended ? { background: '#F1EEE6', color: '#86826F', borderColor: 'var(--dav-line-strong)' } : { background: '#E7F1E9', color: '#3B6B4B', borderColor: '#BEE0C4' }}
-                        >
-                          {rowBusy === m.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
+              {/* Tagok — referencia-táblázat: Tag · Szerep · Állapot. A szerep és az állapot
+                  kattintva a meglévő alulról felcsúszó sheeteket nyitja. */}
+              <DataTableCard
+                title={`Tagok · ${team.filter((m) => !m.pending).length}`}
+                search={team.length > 5 ? { value: teamQuery, onChange: setTeamQuery, placeholder: 'Tag keresése' } : undefined}
+                actions={canTeamManage ? (
+                  <button type="button" onClick={() => setInviteOpen((v) => !v)} className={`${tableActionCls} hidden lg:inline-flex`}>
+                    {inviteOpen ? <X className="h-4 w-4" strokeWidth={2} /> : <Plus className="h-4 w-4" strokeWidth={2} />}
+                    {inviteOpen ? 'Mégse' : 'Tag meghívása'}
+                  </button>
+                ) : undefined}
+              >
+                <DataTableHead cols="md:grid-cols-[1.8fr_1.2fr_150px]" labels={['Tag', 'Szerep', 'Állapot']} />
+                {team
+                  .filter((m) => {
+                    const q = teamQuery.trim().toLowerCase()
+                    return !q || `${m.name} ${m.email} ${m.role}`.toLowerCase().includes(q)
+                  })
+                  .map((m, i) => {
+                    const canEditRow = canTeamManage && !!m.id && m.roleTone !== 'owner'
+                    return (
+                      <div key={(m.id ?? m.email) + i} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 border-b border-line px-3 py-3 last:border-0 md:grid-cols-[1.8fr_1.2fr_150px] md:border-0">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Avatar name={m.name} email={m.email} pending={m.pending} gold={m.roleTone === 'manager'} avatarUrl={m.avatarUrl} />
+                          <div className="min-w-0">
+                            <div className="truncate text-[13.5px] font-semibold text-ink">{m.pending ? m.email : m.name}</div>
+                            <div className="truncate text-[12px] text-ink-soft">{m.pending ? 'Meghívó elküldve' : m.email}{m.position ? ` · ${m.position}` : ''}</div>
+                          </div>
+                        </div>
+                        {/* Állapot — mobilon a sor jobb oldalán, desktopon a saját oszlopában */}
+                        <div className="justify-self-end md:order-3 md:justify-self-start">
+                          {m.pending ? (
+                            <StatusDot tone="warn">Meghívó függőben</StatusDot>
+                          ) : m.roleTone === 'owner' || !m.id ? (
+                            <StatusDot tone="ok">Aktív</StatusDot>
+                          ) : canTeamManage ? (
+                            <button type="button" disabled={rowBusy === m.id} onClick={() => setStatusMenuId(m.id!)} className="inline-flex items-center gap-1 rounded-[8px] px-1 py-0.5 hover:bg-black/[0.04] disabled:opacity-50">
+                              {rowBusy === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StatusDot tone={m.suspended ? 'muted' : 'ok'}>{m.suspended ? 'Felfüggesztett' : 'Aktív'}</StatusDot>}
+                              <ChevronDown className="h-3.5 w-3.5 text-ink-soft2" strokeWidth={2} />
+                            </button>
                           ) : (
-                            <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: m.suspended ? '#B7B2A4' : '#4F9E6A' }} />
+                            <StatusDot tone={m.suspended ? 'muted' : 'ok'}>{m.suspended ? 'Felfüggesztett' : 'Aktív'}</StatusDot>
                           )}
-                          {m.suspended ? 'Felfüggesztett' : 'Aktív'}
-                        </HoverButton>
-                      ) : (
-                        <span
-                          className="absolute right-0 top-[18px] inline-flex h-8 items-center gap-1.5 whitespace-nowrap rounded-full border px-3 text-[12px] font-semibold"
-                          style={m.suspended ? { background: '#F1EEE6', color: '#86826F', borderColor: 'var(--dav-line)' } : { background: '#E7F1E9', color: '#3B6B4B', borderColor: '#BEE0C4' }}
-                        >
-                          <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: m.suspended ? '#B7B2A4' : '#4F9E6A' }} />
-                          {m.suspended ? 'Felfüggesztett' : 'Aktív'}
-                        </span>
-                      )
-                    )}
-                    {/* A jobb oldali hely-fenntartás (a sarok-badge miatt) csak sm+ -on marad —
-                        mobilon a kártya elég keskeny ahhoz, hogy ez feleslegesen vágja az emailt. */}
-                    <div className={`flex items-center gap-3.5 ${showStatus ? 'mt-1.5 sm:pr-[128px]' : ''}`}>
-                      <Avatar name={m.name} email={m.email} pending={m.pending} gold={m.roleTone === 'manager'} avatarUrl={m.avatarUrl} />
-                      <div className="min-w-0 flex-1">
-                        <div className="truncate text-[14.5px] font-semibold text-ink">
-                          {m.pending ? m.email : m.name}
                         </div>
-                        {/* Egy sorban, de nem a jobb-fenti státusz-pill alá csúszva — a konténer
-                            lejjebb tolva (mt-1.5) ad neki annyi vízszintes+függőleges helyet,
-                            hogy a teljes email kiférjen egy sorban. */}
-                        <div className={`truncate text-[12.5px] ${m.pending ? 'text-[#C99A3A]' : 'text-ink-soft'}`}>
-                          {m.pending ? 'Meghívó elküldve · függőben' : m.email}
+                        <div className="col-span-2 min-w-0 md:order-2 md:col-span-1">
+                          {canEditRow ? (
+                            <button type="button" disabled={rowBusy === m.id} onClick={() => setRoleMenuId(m.id!)} className="inline-flex max-w-full items-center gap-1 rounded-[8px] px-1 py-0.5 text-[13.5px] text-ink hover:bg-black/[0.04] disabled:opacity-50">
+                              <span className="truncate">{m.customRoleId ? m.role : `${m.role} (beépített)`}</span>
+                              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-soft2" strokeWidth={2} />
+                            </button>
+                          ) : (
+                            <span className="text-[13.5px] text-ink">{m.role}</span>
+                          )}
                         </div>
-                        {m.position && <div className="truncate text-[12px] font-medium text-ink-soft2">{m.position}</div>}
                       </div>
-                    </div>
-                    {/* Szerep — teljes szélességű gomb (nem a sor végén, összenyomva), kattintva
-                        az alulról felcsúszó szerep-sheetet nyitja (lásd lentebb). A tulajdonos-
-                        badge ugyanakkora (h-11, teljes szélesség) konténerbe kerül, mint a többi
-                        sor gombja — különben a tulajdonos-kártya alacsonyabb/más méretű volt. */}
-                    {m.roleTone === 'owner' || !m.id || !canTeamManage ? (
-                      <div className="flex h-11 w-full items-center">
-                        <RoleBadge role={m.role} tone={m.roleTone} pending={m.pending} />
-                      </div>
-                    ) : (
-                      <HoverButton
-                        disabled={rowBusy === m.id}
-                        onClick={() => setRoleMenuId(m.id!)}
-                        className="flex h-11 w-full items-center justify-between gap-2 rounded-[14px] border border-line-strong bg-white px-4 text-[13.5px] font-semibold text-ink outline-none disabled:opacity-40"
-                      >
-                        <span className="truncate">{m.customRoleId ? m.role : `${m.role} (beépített)`}</span>
-                        {rowBusy === m.id ? <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> : <MoreVertical className="h-4 w-4 shrink-0 opacity-60" strokeWidth={2} />}
-                      </HoverButton>
-                    )}
-                  </div>
-                  )
-                })}
-              </div>
+                    )
+                  })}
+              </DataTableCard>
               <p className="px-1 text-xs text-ink-soft2">
-                A tulajdonos hozzáférése mindig megmarad. A meghívott tagok az email-linkkel csatlakoznak.
+                A tulajdonos hozzáférése mindig megmarad. A meghívott tagok az e-mailben kapott linkkel csatlakoznak.
               </p>
 
               {/* Státusz- és szerep-váltó — egy-egy alulról felcsúszó sheet (mint a nyelv/
@@ -1581,7 +1577,7 @@ export function SettingsHub({
                             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
                             <div className="flex items-center justify-between">
                               <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{sm.name} — Státusz</span>
-                              <button type="button" onClick={() => setStatusMenuId(null)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
+                              <button type="button" onClick={() => setStatusMenuId(null)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
                                 <X className="h-4 w-4" strokeWidth={2} />
                               </button>
                             </div>
@@ -1633,7 +1629,7 @@ export function SettingsHub({
                             <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
                             <div className="flex items-center justify-between">
                               <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{rm.name} — Szerep</span>
-                              <button type="button" onClick={() => setRoleMenuId(null)} aria-label="Bezárás" className="flex h-8 w-8 items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
+                              <button type="button" onClick={() => setRoleMenuId(null)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
                                 <X className="h-4 w-4" strokeWidth={2} />
                               </button>
                             </div>
@@ -1736,7 +1732,7 @@ export function SettingsHub({
               <Card>
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="text-[17px] font-medium text-ink">Számlázási adatok</div>
+                    <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Számlázási adatok</div>
                     <p className="mt-0.5 text-[12.5px] text-ink-soft2">
                       Ezek az adatok kerülnek a Számlázz.hu által kiállított számlákon.
                     </p>
@@ -1753,84 +1749,57 @@ export function SettingsHub({
                     </button>
                   )}
                 </div>
-                <div id="bill-details-form" className="mt-5 space-y-6">
-                  {/* ── Cégadatok */}
-                  <div className="space-y-3.5">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Cégadatok</p>
-                    <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">
-                        Cégnév / Teljes név <span className="text-bad" aria-hidden>*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={billDetails.legalName}
-                        onChange={(e) => setBillField('legalName', e.target.value)}
-                        onBlur={() => touchBillField('legalName')}
-                        placeholder="Pl. Minta Bt."
-                        aria-required
-                        aria-invalid={!!billError('legalName')}
-                        className={`h-[44px] w-full rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('legalName') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
-                      />
-                      {billError('legalName') && (
-                        <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('legalName')}</p>
-                      )}
-                    </div>
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <div>
-                        <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Adószám</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={billDetails.taxNumber}
-                          onChange={(e) => setBillField('taxNumber', maskTaxNumber(e.target.value))}
-                          placeholder="12345678-1-23"
-                          maxLength={13}
-                          className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                        />
-                      </div>
-                      <div>
-                        <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">Cégjegyzékszám</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={billDetails.companyRegNumber}
-                          onChange={(e) => setBillField('companyRegNumber', maskCompanyReg(e.target.value))}
-                          placeholder="01-09-123456"
-                          maxLength={12}
-                          className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ── Elérhetőség */}
-                  <div className="space-y-3.5 border-t border-line pt-6">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Elérhetőség</p>
-                    <div>
-                      <label className="mb-1.5 block text-[12px] font-medium text-ink-soft">
-                        Számlázási email <span className="text-bad" aria-hidden>*</span>
-                      </label>
-                      <input
-                        type="email"
-                        value={billDetails.billingEmail}
-                        onChange={(e) => setBillField('billingEmail', e.target.value)}
-                        onBlur={() => touchBillField('billingEmail')}
-                        placeholder="szamlazas@ceg.hu"
-                        aria-required
-                        aria-invalid={!!billError('billingEmail')}
-                        className={`h-[44px] w-full max-w-sm rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingEmail') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
-                      />
-                      {billError('billingEmail') && (
-                        <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingEmail')}</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* ── Számlázási cím */}
-                  <div className="space-y-3 border-t border-line pt-6">
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">
-                      Számlázási cím <span className="text-bad normal-case tracking-normal" aria-hidden>*</span>
-                    </p>
+                {/* Sor-elrendezés (mint a többi beállítás): balra címke + magyarázat, jobbra a mező. */}
+                <div id="bill-details-form" className="mt-3">
+                  <BillRow label="Cégnév / teljes név" required hint="Ez a név szerepel a számlán.">
+                    <input
+                      type="text"
+                      value={billDetails.legalName}
+                      onChange={(e) => setBillField('legalName', e.target.value)}
+                      onBlur={() => touchBillField('legalName')}
+                      placeholder="Pl. Minta Bt."
+                      aria-required
+                      aria-invalid={!!billError('legalName')}
+                      className={`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('legalName') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                    />
+                    {billError('legalName') && <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('legalName')}</p>}
+                  </BillRow>
+                  <BillRow label="Adószám" hint="Egyéni vállalkozónál és cégnél kell.">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={billDetails.taxNumber}
+                      onChange={(e) => setBillField('taxNumber', maskTaxNumber(e.target.value))}
+                      placeholder="12345678-1-23"
+                      maxLength={13}
+                      className="h-[42px] w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20 tabular-nums"
+                    />
+                  </BillRow>
+                  <BillRow label="Cégjegyzékszám" hint="Csak cégnél.">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={billDetails.companyRegNumber}
+                      onChange={(e) => setBillField('companyRegNumber', maskCompanyReg(e.target.value))}
+                      placeholder="01-09-123456"
+                      maxLength={12}
+                      className="h-[42px] w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20 tabular-nums"
+                    />
+                  </BillRow>
+                  <BillRow label="Számlázási e-mail" required hint="Ide érkeznek a számlák.">
+                    <input
+                      type="email"
+                      value={billDetails.billingEmail}
+                      onChange={(e) => setBillField('billingEmail', e.target.value)}
+                      onBlur={() => touchBillField('billingEmail')}
+                      placeholder="szamlazas@ceg.hu"
+                      aria-required
+                      aria-invalid={!!billError('billingEmail')}
+                      className={`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingEmail') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                    />
+                    {billError('billingEmail') && <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingEmail')}</p>}
+                  </BillRow>
+                  <BillRow label="Számlázási cím" required hint="Keress rá, vagy írd be kézzel." last>
                     <AddressAutocompleteInput
                       onSelect={(a) => {
                         if (a.postalCode) { setBillField('billingPostalCode', a.postalCode); touchBillField('billingPostalCode') }
@@ -1838,71 +1807,54 @@ export function SettingsHub({
                         if (a.street) { setBillField('billingStreet', a.street); touchBillField('billingStreet') }
                       }}
                     />
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-[120px_1fr_2fr]">
-                      <div>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={billDetails.billingPostalCode}
-                          onChange={(e) => setBillField('billingPostalCode', e.target.value.replace(/\D/g, '').slice(0, 4))}
-                          onBlur={() => touchBillField('billingPostalCode')}
-                          placeholder="1234"
-                          maxLength={4}
-                          aria-label="Irányítószám"
-                          aria-required
-                          aria-invalid={!!billError('billingPostalCode')}
-                          className={`h-[44px] w-full rounded-[14px] border bg-white px-4 font-mono text-[14px] text-ink outline-none transition-colors placeholder:font-sans placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingPostalCode') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
-                        />
-                        {billError('billingPostalCode') && (
-                          <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingPostalCode')}</p>
-                        )}
-                      </div>
-                      <div>
-                        <input
-                          type="text"
-                          value={billDetails.billingCity}
-                          onChange={(e) => setBillField('billingCity', e.target.value)}
-                          onBlur={() => touchBillField('billingCity')}
-                          placeholder="Budapest"
-                          aria-label="Város"
-                          aria-required
-                          aria-invalid={!!billError('billingCity')}
-                          className={`h-[44px] w-full rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingCity') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
-                        />
-                        {billError('billingCity') && (
-                          <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingCity')}</p>
-                        )}
-                      </div>
-                      <div>
-                        <input
-                          type="text"
-                          value={billDetails.billingStreet}
-                          onChange={(e) => setBillField('billingStreet', e.target.value)}
-                          onBlur={() => touchBillField('billingStreet')}
-                          placeholder="Példa u. 1."
-                          aria-label="Utca, házszám"
-                          aria-required
-                          aria-invalid={!!billError('billingStreet')}
-                          className={`h-[44px] w-full rounded-[14px] border bg-white px-4 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingStreet') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
-                        />
-                        {billError('billingStreet') && (
-                          <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingStreet')}</p>
-                        )}
-                      </div>
+                    <div className="mt-2 grid grid-cols-[88px_1fr] gap-2 sm:grid-cols-[88px_1fr_1.6fr]">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={billDetails.billingPostalCode}
+                        onChange={(e) => setBillField('billingPostalCode', e.target.value.replace(/\D/g, '').slice(0, 4))}
+                        onBlur={() => touchBillField('billingPostalCode')}
+                        placeholder="Irsz."
+                        maxLength={4}
+                        aria-label="Irányítószám"
+                        aria-required
+                        aria-invalid={!!billError('billingPostalCode')}
+                        className={`${`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingPostalCode') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`} tabular-nums`}
+                      />
+                      <input
+                        type="text"
+                        value={billDetails.billingCity}
+                        onChange={(e) => setBillField('billingCity', e.target.value)}
+                        onBlur={() => touchBillField('billingCity')}
+                        placeholder="Település"
+                        aria-label="Település"
+                        aria-required
+                        aria-invalid={!!billError('billingCity')}
+                        className={`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingCity') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
+                      />
+                      <input
+                        type="text"
+                        value={billDetails.billingStreet}
+                        onChange={(e) => setBillField('billingStreet', e.target.value)}
+                        onBlur={() => touchBillField('billingStreet')}
+                        placeholder="Utca, házszám"
+                        aria-label="Utca, házszám"
+                        aria-required
+                        aria-invalid={!!billError('billingStreet')}
+                        className={`col-span-2 sm:col-span-1 ${`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingStreet') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}`}
+                      />
                     </div>
-                    <p className="text-[11px] text-ink-soft2">Irányítószám · Város · Utca, házszám</p>
-                  </div>
-
-                  <p className="border-t border-line pt-4 text-[11px] text-ink-soft2">
-                    <span className="text-bad">*</span> Kötelező mezők — a számla kiállításához szükségesek
-                  </p>
+                    {(billError('billingPostalCode') || billError('billingCity') || billError('billingStreet')) && (
+                      <p className="mt-1 text-[11.5px] font-medium text-bad">A teljes cím kötelező (irányítószám, település, utca).</p>
+                    )}
+                  </BillRow>
                 </div>
               </Card>
 
               {/* 3. ── Fizetés & előfizetés */}
               <Card>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-[17px] font-medium text-ink">Fizetés & előfizetés</div>
+                  <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Fizetés & előfizetés</div>
                   <StatusBadge status={billing.subscriptionStatus} />
                 </div>
 
@@ -1923,7 +1875,7 @@ export function SettingsHub({
                   </div>
                 )}
 
-                <div className="mt-5 flex items-center justify-between rounded-[16px] bg-paper px-4 py-3.5">
+                <div className="mt-4 flex items-center justify-between border-y border-line py-3.5">
                   <div>
                     <div className="text-[12px] text-ink-soft">
                       {billing.subscriptionStatus === 'trialing' ? 'Próbaidőszak vége' : 'Következő terhelés'}
@@ -1971,261 +1923,136 @@ export function SettingsHub({
                 )}
               </Card>
 
-              {/* 4. ── Üzletek & díjak */}
-              <Card>
-                <div className="text-[17px] font-medium text-ink">Üzletek & díjak</div>
-                <div className="mt-4 space-y-2">
-                  {billingAccount.items.map((item) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between gap-3 rounded-[16px] bg-paper px-4 py-3.5"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-white shadow-dav-card">
-                          <Building2 className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
-                        </div>
-                        <div>
-                          <div className="text-[13.5px] font-semibold text-ink">{item.name}</div>
-                          <div className="text-[11.5px] text-ink-soft">
-                            {item.type === 'salon' ? 'Szalon' : 'Étterem'}
-                            {item.type === 'salon' && item.staffCount > 0 && ` · ${item.staffCount} naptár`}
-                            {' · '}{item.tier === 'starter' ? 'Starter' : item.tier === 'egyedi' ? 'Egyedi' : 'Pro'}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="text-[14px] font-semibold text-ink">{ft(item.feeHuf)}</div>
-                        <div className="text-[11px] text-ink-soft">lista/hó</div>
-                      </div>
-                    </div>
-                  ))}
-                  {billingAccount.items.length === 0 && (
-                    <p className="text-sm text-ink-soft">Nincs aktív üzlet a fiókban.</p>
-                  )}
-                </div>
+              {/* 4. ── Üzletek & díjak — referencia-táblázat, alul az összesítő sor */}
+              <DataTableCard title="Üzletek & díjak">
+                <DataTableHead cols="md:grid-cols-[1.6fr_1fr_1fr_120px]" labels={['Üzlet', 'Típus', 'Csomag', <span key="d" className="block text-right">Díj / hó</span>]} />
+                {billingAccount.items.length > 0 ? billingAccount.items.map((item) => (
+                  <div key={item.id} className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-3 text-[13.5px] last:border-0 md:grid-cols-[1.6fr_1fr_1fr_120px] md:border-0">
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-ink">{item.name}</span>
+                      {/* mobilon a típus + csomag a név alatt */}
+                      <span className="block truncate text-[12px] text-ink-soft md:hidden">
+                        {item.type === 'salon' ? 'Szalon' : 'Étterem'} · {item.tier === 'starter' ? 'Starter' : item.tier === 'egyedi' ? 'Egyedi' : 'Pro'}
+                      </span>
+                    </span>
+                    <span className="hidden text-ink md:block">
+                      {item.type === 'salon' ? 'Szalon' : 'Étterem'}
+                      {item.type === 'salon' && item.staffCount > 0 && <span className="text-ink-soft"> · {item.staffCount} naptár</span>}
+                    </span>
+                    <span className="hidden text-ink md:block">{item.tier === 'starter' ? 'Starter' : item.tier === 'egyedi' ? 'Egyedi' : 'Pro'}</span>
+                    <span className="text-right font-semibold tabular-nums text-ink">{ft(item.feeHuf)}</span>
+                  </div>
+                )) : (
+                  <p className="py-8 text-center text-[13px] text-ink-soft">Nincs aktív üzlet a fiókban.</p>
+                )}
                 {billingAccount.items.length > 0 && (
-                  <div className="mt-4 flex items-center justify-between border-t border-line pt-4">
-                    <div>
-                      <div className="text-[13px] font-medium text-ink-soft">
+                  <div className="mt-2 flex items-center justify-between gap-3 rounded-[10px] bg-[#EFEFEF] px-3 py-3">
+                    <div className="min-w-0">
+                      <div className="text-[13px] font-semibold text-ink">
                         {billingAccount.cycle === 'annual'
-                          ? `Éves ciklus · ${billingAccount.annualDiscountPct}% kedvezménnyel`
-                          : 'Havi ciklus'}
+                          ? `Összesen · éves ciklus, ${billingAccount.annualDiscountPct}% kedvezménnyel`
+                          : 'Összesen · havi ciklus'}
                       </div>
                       {billingAccount.cycle === 'annual' && (
-                        <div className="mt-0.5 text-[12px] text-ink-soft2">
-                          Lista összeg: {ft(billingAccount.listMonthlyHuf)}/hó
-                        </div>
+                        <div className="mt-0.5 text-[12px] text-ink-soft">Lista összeg: {ft(billingAccount.listMonthlyHuf)}/hó</div>
                       )}
                     </div>
-                    <div className="text-right">
-                      <div className="text-[22px] font-light tracking-[-0.02em] text-ink">
-                        {ft(billingAccount.totalMonthlyHuf)}
-                      </div>
-                      <div className="text-[11.5px] text-ink-soft">Ft/hó</div>
-                    </div>
+                    <div className="shrink-0 text-right text-[18px] font-semibold tabular-nums text-ink">{ft(billingAccount.totalMonthlyHuf)}<span className="ml-1 text-[12px] font-medium text-ink-soft">/hó</span></div>
                   </div>
                 )}
                 {startedAt && (
-                  <p className="mt-3 text-[12px] text-ink-soft2">
+                  <p className="mt-3 px-1 text-[12px] text-ink-soft2">
                     Fiók indulása: {fmtDate(startedAt)} · {billingAccount.count} üzlet a fiókban
                   </p>
                 )}
-              </Card>
+              </DataTableCard>
 
-              {/* A korábbi számlák saját fülre költöztek (lásd lent, `active === 'invoices'`) —
-                  itt csak egy rövid link, hogy a hosszú Előfizetés-oldal aljára görgetés helyett
-                  egy kattintással odajusson, aki a Számlák fület a navból nyitotta meg. */}
-              <button
-                type="button"
-                onClick={() => setActive('invoices')}
-                className="flex w-full items-center justify-between gap-3 rounded-[26px] dav-card-glass px-6 py-5 text-left transition-colors hover:bg-black/[0.015]"
-              >
-                <div className="flex items-center gap-2.5">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
-                    <Download className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
+              {/* A davelopment számlái NEKED (előfizetés) — a korábbi külön „Számlák” fül ide olvadt be */}
+              <DataTableCard title="A davelopment számlái">
+                <p className="-mt-2 mb-3 text-[12.5px] text-ink-soft">Az előfizetésedről neked kiállított számlák.</p>
+                <DataTableHead cols="md:grid-cols-[1.4fr_1fr_1fr_120px]" labels={['Számlaszám', 'Dátum', 'Összeg', '']} />
+                {billing.invoices.length > 0 ? billing.invoices.map((inv) => (
+                  <div key={inv.id} className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-3 text-[13.5px] last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px] md:border-0">
+                    <span className="flex min-w-0 items-center gap-2 font-semibold text-ink">
+                      <span className="truncate">{inv.invoice_number}</span>
+                      {inv.test && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Teszt</span>}
+                    </span>
+                    <span className="hidden text-ink md:block">{inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</span>
+                    <span className="hidden text-ink md:block">{inv.amount_huf ? `${inv.amount_huf.toLocaleString('hu-HU')} Ft` : '—'}</span>
+                    <a href={`/api/billing/invoice-pdf?id=${inv.id}`} download={`${inv.invoice_number}.pdf`} className={`${tableActionCls} justify-center`}>
+                      <Download className="h-3.5 w-3.5" strokeWidth={1.8} /> Letöltés
+                    </a>
                   </div>
-                  <div>
-                    <div className="text-[15px] font-medium text-ink">Számlák</div>
-                    <div className="text-[13px] text-ink-soft">{billing.invoices.length > 0 ? `${billing.invoices.length} kiállított számla` : 'Még nincs kiállított számla'}</div>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 shrink-0 text-ink-soft2" strokeWidth={2} />
-              </button>
-            </div>
-          )}
-
-          {/* ── Számlák ── a korábbi előfizetői (Számlázz.hu) számlák — a Fiók csoportban saját
-              navelemet kapott, hogy ne a hosszú Előfizetés-oldal aljára kelljen görgetni érte. */}
-          {active === 'invoices' && (
-            <div className="space-y-4">
-              <Card>
-                <div className="text-[17px] font-medium text-ink">Számlák</div>
-                {billing.invoices.length > 0 ? (
-                  <div className="mt-4 flex flex-col gap-2">
-                    {billing.invoices.map((inv) => (
-                      <div key={inv.id} className="flex flex-col gap-3 rounded-[16px] bg-paper px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center rounded-[10px] bg-white shadow-dav-card">
-                            <FileText className="h-4 w-4 text-ink-soft" strokeWidth={1.6} />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[13.5px] font-semibold text-ink">{inv.invoice_number}</span>
-                              {inv.test && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Teszt</span>}
-                            </div>
-                            <div className="text-[11.5px] text-ink-soft">
-                              {inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' }) : ''}
-                              {inv.amount_huf ? ` · ${inv.amount_huf.toLocaleString('hu-HU')} Ft` : ''}
-                            </div>
-                          </div>
-                        </div>
-                        <a
-                          href={`/api/billing/invoice-pdf?id=${inv.id}`}
-                          download={`${inv.invoice_number}.pdf`}
-                          className="inline-flex w-full items-center justify-center gap-1.5 rounded-[12px] border border-line-strong bg-white px-3.5 py-2 text-[12.5px] font-semibold text-ink transition-colors hover:bg-paper sm:w-auto"
-                        >
-                          <Download className="h-3.5 w-3.5" strokeWidth={1.8} />
-                          Letöltés
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-4 rounded-[16px] bg-paper px-4 py-8 text-center">
-                    <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-[12px] bg-white shadow-dav-card">
-                      <FileText className="h-5 w-5 text-ink-soft2" strokeWidth={1.5} />
-                    </div>
-                    <p className="text-[13px] font-medium text-ink-soft">
-                      {billing.subscriptionStatus === 'trialing'
-                        ? 'Próbaidőszak alatt nincs kiállított számla.'
-                        : 'Még nincs kiállított számla.'}
-                    </p>
-                    <p className="mt-1 text-[12px] text-ink-soft2">
-                      Az első Pro-számla az előfizetés indítása után érkezik.
-                    </p>
-                  </div>
+                )) : (
+                  <p className="py-8 text-center text-[13px] text-ink-soft">
+                    {billing.subscriptionStatus === 'trialing' ? 'Próbaidőszak alatt nincs kiállított számla.' : 'Még nincs kiállított számla — az első az előfizetés indítása után érkezik.'}
+                  </p>
                 )}
-              </Card>
+              </DataTableCard>
             </div>
           )}
+
 
           {/* ── Audit-napló ── VALÓS bejegyzések az AuditLog collectionből (üzletre szűrve). */}
           {active === 'audit' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-medium text-ink-soft">Ki mit módosított — visszakövethetően</p>
-                <span className="text-[12.5px] font-medium text-ink-soft2">
-                  {filteredAudit.length} bejegyzés · utolsó {auditDays} nap
-                </span>
-              </div>
-              <div className="rounded-[26px] dav-card-glass p-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {AUDIT_FILTERS.map((f) => (
-                      <button
-                        key={f.id}
-                        type="button"
-                        onClick={() => setAuditFilter(f.id)}
-                        className={`rounded-[12px] px-3.5 py-2 text-[12px] font-semibold transition-colors ${
-                          auditFilter === f.id
-                            ? 'bg-ink-dark text-white'
-                            : 'border border-line bg-[#FBF9F2] text-ink-soft hover:text-ink'
-                        }`}
-                      >
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
-                  {/* Dátum-ablak (visszatekintés). A szerver 90 napig ad adatot; itt szűkíthető. */}
-                  <div className="flex items-center gap-1 rounded-[13px] border border-line bg-[#FBF9F2] p-1">
-                    {AUDIT_DAY_WINDOWS.map((d) => (
-                      <button
-                        key={d}
-                        type="button"
-                        onClick={() => setAuditDays(d)}
-                        className={`rounded-[9px] px-3 py-1.5 text-[12px] font-semibold transition-colors ${
-                          auditDays === d ? 'bg-white text-ink shadow-dav-card' : 'text-ink-soft hover:text-ink'
-                        }`}
-                      >
-                        {d} nap
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              {filteredAudit.length === 0 ? (
-                <div className="rounded-[26px] dav-card-glass px-6 py-12 text-center">
-                  <span className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-[14px] bg-[#FBF9F2]">
-                    <ScrollText className="h-5 w-5 text-ink-soft2" strokeWidth={1.6} />
-                  </span>
-                  <p className="text-sm font-medium text-ink-soft">Nincs naplózott esemény ebben az időszakban</p>
-                </div>
-              ) : (
-                <>
-                  <div className="rounded-[26px] dav-card-glass px-6 py-2">
-                    {visibleAudit.map((e, i) => {
-                      const color = AUDIT_ACTION_COLOR[e.action]
-                      const Icon = AUDIT_ACTION_ICON[e.action]
-                      // Csak az érdemi változások (az üres → üres, pl. null → '' zaj kiesik).
-                      const changes = (e.changes ?? []).filter(
-                        (c) => auditFormatVal(c.from) !== auditFormatVal(c.to),
-                      )
-                      return (
-                        <div
-                          key={e.id}
-                          className={`flex gap-3.5 py-4 ${i < visibleAudit.length - 1 ? 'border-b border-line' : ''}`}
-                        >
-                          <span
-                            className="mt-0.5 flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[10px]"
-                            style={{ background: `${color}1f` }}
-                          >
-                            <Icon className="h-[16px] w-[16px]" strokeWidth={1.9} style={{ color }} />
+              {/* Audit-napló — referencia-táblázat: Időpont · Ki · Esemény (+ a mezőnkénti változás) */}
+              <DataTableCard
+                title={`Napló · ${filteredAudit.length}`}
+                search={{ value: auditQuery, onChange: setAuditQuery, placeholder: 'Keresés esemény vagy név szerint' }}
+                actions={
+                  <>
+                    <select value={auditFilter} onChange={(e) => setAuditFilter(e.target.value as typeof auditFilter)} className={`${tableActionCls} pr-8`} aria-label="Esemény típusa">
+                      {AUDIT_FILTERS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
+                    </select>
+                    {/* Dátum-ablak (visszatekintés). A szerver 90 napig ad adatot; itt szűkíthető. */}
+                    <select value={auditDays} onChange={(e) => setAuditDays(Number(e.target.value) as typeof auditDays)} className={`${tableActionCls} pr-8`} aria-label="Időszak">
+                      {AUDIT_DAY_WINDOWS.map((d) => <option key={d} value={d}>Utolsó {d} nap</option>)}
+                    </select>
+                  </>
+                }
+              >
+                <DataTableHead cols="md:grid-cols-[130px_1.1fr_2fr]" labels={['Időpont', 'Ki', 'Esemény']} />
+                {filteredAudit.length === 0 ? (
+                  <p className="py-10 text-center text-[13px] text-ink-soft">Nincs naplózott esemény ebben az időszakban.</p>
+                ) : visibleAudit.map((e) => {
+                  // Csak az érdemi változások (az üres → üres, pl. null → '' zaj kiesik).
+                  const changes = (e.changes ?? []).filter((c) => auditFormatVal(c.from) !== auditFormatVal(c.to))
+                  const tone: StatusTone = e.action === 'create' ? 'ok' : e.action === 'delete' ? 'bad' : 'warn'
+                  return (
+                    <div key={e.id} className="grid grid-cols-1 gap-1 border-b border-line px-3 py-3 last:border-0 md:grid-cols-[130px_1.1fr_2fr] md:gap-3 md:border-0">
+                      <span className="text-[12.5px] text-ink-soft md:text-[13px] md:text-ink">{relativeTime(e.createdAt)}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-[13.5px] font-semibold text-ink">{e.actor}</span>
+                        {e.actorEmail && e.actorEmail !== e.actor && <span className="block truncate text-[12px] text-ink-soft">{e.actorEmail}</span>}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <StatusDot tone={tone}>{AUDIT_ACTION_LABEL[e.action]}</StatusDot>
+                          <span className="text-[13.5px] text-ink">{e.summary}</span>
+                        </span>
+                        {changes.length > 0 && (
+                          <span className="mt-1 flex flex-col gap-0.5">
+                            {changes.map((c, ci) => (
+                              <span key={ci} className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-soft">
+                                <span className="font-medium">{auditFieldLabel(c.field)}:</span>
+                                <span className="line-through decoration-ink-soft2/50">{auditFormatVal(c.from)}</span>
+                                <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2} />
+                                <span className="font-medium text-ink">{auditFormatVal(c.to)}</span>
+                              </span>
+                            ))}
                           </span>
-                          <div className="min-w-0 flex-1">
-                            {/* Fő cím: a módosított tevékenység (mi történt) */}
-                            <div className="text-[13.5px] font-semibold leading-snug text-ink">
-                              {e.summary || AUDIT_ACTION_LABEL[e.action]}
-                            </div>
-                            {/* Alatta: KI csinálta — félkövér név + email mellette */}
-                            <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 leading-snug">
-                              <b className="text-[12.5px] font-semibold text-ink">{e.actor}</b>
-                              {e.actorEmail && e.actorEmail !== e.actor && (
-                                <span className="text-[11.5px] font-normal text-ink-soft2">{e.actorEmail}</span>
-                              )}
-                            </div>
-                            {changes.length > 0 && (
-                              <div className="mt-1.5 flex flex-col gap-1">
-                                {changes.map((c, ci) => (
-                                  <div key={ci} className="flex flex-wrap items-center gap-1.5 text-[11.5px]">
-                                    <span className="font-medium text-ink-soft">{auditFieldLabel(c.field)}:</span>
-                                    <span className="rounded-[6px] bg-[#FBF9F2] px-1.5 py-0.5 text-ink-soft2 line-through decoration-ink-soft2/40">
-                                      {auditFormatVal(c.from)}
-                                    </span>
-                                    <ArrowRight className="h-3 w-3 shrink-0 text-ink-soft2" strokeWidth={2} />
-                                    <span className="rounded-[6px] bg-[#F0EAD8] px-1.5 py-0.5 font-medium text-ink">
-                                      {auditFormatVal(c.to)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                            <div className="mt-1 text-[11.5px] text-ink-soft2">{relativeTime(e.createdAt)}</div>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                  {filteredAudit.length > auditShown && (
-                    <button
-                      type="button"
-                      onClick={() => setAuditShown((n) => n + 25)}
-                      className="mx-auto flex items-center gap-2 rounded-[14px] border border-line bg-white px-5 py-2.5 text-[13px] font-semibold text-ink-soft shadow-dav-card transition-colors hover:text-ink"
-                    >
-                      További {Math.min(25, filteredAudit.length - auditShown)} megjelenítése
-                    </button>
-                  )}
-                </>
-              )}
+                        )}
+                      </span>
+                    </div>
+                  )
+                })}
+                {filteredAudit.length > auditShown && (
+                  <button type="button" onClick={() => setAuditShown((n) => n + 25)} className={`${tableActionCls} mx-auto mt-3 flex`}>
+                    További {Math.min(25, filteredAudit.length - auditShown)} megjelenítése
+                  </button>
+                )}
+              </DataTableCard>
             </div>
           )}
 
@@ -2245,69 +2072,43 @@ export function SettingsHub({
                 </Link>,
                 subnavSlot,
               )}
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p className="text-sm font-medium text-ink-soft">
-                  {businessCount} aktív üzlet · {planLabel}
-                </p>
-                <Link
-                  href={variant === 'restaurant' ? '/register-restaurant' : '/register'}
-                  className="hidden items-center gap-2 rounded-[18px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white lg:inline-flex"
-                >
-                  <Plus className="h-[15px] w-[15px] text-gold" strokeWidth={1.8} />
-                  Új telephely
-                </Link>
-              </div>
-
-              <div className="rounded-[26px] dav-card-glass px-6 py-2">
-                <div className="py-3 text-[17px] font-medium text-ink">Üzleteid</div>
+              {/* Üzleteid — referencia-táblázat: Üzlet · Szerepem · (kezelés) */}
+              <DataTableCard
+                title={`Üzleteid · ${businessCount}`}
+                actions={
+                  <Link href={variant === 'restaurant' ? '/register-restaurant' : '/register'} className={`${tableActionCls} hidden lg:inline-flex`}>
+                    <Plus className="h-4 w-4" strokeWidth={2} /> Új telephely
+                  </Link>
+                }
+              >
+                <DataTableHead cols="md:grid-cols-[2fr_1fr_140px]" labels={['Üzlet', 'Szerepem', '']} />
                 {sites.map((s, i) => (
-                  <div
-                    key={s.name + i}
-                    className={`flex flex-col gap-3 py-[18px] sm:flex-row sm:flex-wrap sm:items-center sm:gap-3.5 ${
-                      i < sites.length - 1 ? 'border-b border-line' : ''
-                    }`}
-                  >
-                    <div className="flex min-w-0 flex-1 items-center gap-3.5">
-                    {s.logoUrl ? (
-                      // `object-contain` + belső padding, mint az üzletváltó gombnál (StoreSwitcher) —
-                      // a logó (gyakran nem négyzetes) így mindig teljesen kifér, nem vágódik le.
-                      <img src={s.logoUrl} alt="" className="h-[46px] w-[46px] shrink-0 rounded-[13px] bg-[#f5f5f4] object-contain p-1.5" />
-                    ) : (
-                      <span
-                        className={`flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-[13px] text-[15px] font-semibold ${
-                          s.gold ? 'bg-[#C9A24B] text-ink-dark' : 'bg-ink-dark text-gold'
-                        }`}
-                      >
-                        {s.initials}
-                      </span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="truncate text-[14.5px] font-semibold text-ink">{s.name}</span>
-                        {s.current && (
-                          <span className="rounded-[7px] bg-[rgba(255,216,95,.22)] px-2 py-0.5 text-[10px] font-semibold text-[#9A7B12]">
-                            Jelenlegi
-                          </span>
-                        )}
-                      </div>
-                      <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">{s.meta}</div>
-                    </div>
-                    </div>
-                    {/* Szerep + kezelés-gomb — mobilon egy saját sorban, a névblokk alatt,
-                        egymás mellett (nem a névvel/logóval zsúfolva egy sorba). */}
-                    <div className="flex items-center justify-between gap-3 sm:ml-auto sm:w-auto sm:justify-end">
-                      <span className="text-[12.5px] font-medium text-ink-soft">{s.role}</span>
-                      {s.current ? (
-                        <span className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[12px] font-semibold text-ink opacity-40 cursor-default">
-                          Jelenlegi
-                        </span>
+                  <div key={s.name + i} className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-3 last:border-0 md:grid-cols-[2fr_1fr_140px] md:border-0">
+                    <div className="flex min-w-0 items-center gap-3">
+                      {s.logoUrl ? (
+                        // object-contain + belső padding (mint az üzletváltóban) — a nem négyzetes logó is kifér
+                        <img src={s.logoUrl} alt="" className="h-10 w-10 shrink-0 rounded-[11px] bg-[#f5f5f4] object-contain p-1" />
                       ) : (
-                        <SiteManageButton id={s.id} type={s.type} />
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] text-[13px] font-semibold ${s.gold ? 'bg-[#C9A24B] text-ink-dark' : 'bg-ink-dark text-gold'}`}>
+                          {s.initials}
+                        </span>
                       )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-[13.5px] font-semibold text-ink">{s.name}</span>
+                          {s.current && <StatusDot tone="ok">Jelenlegi</StatusDot>}
+                        </div>
+                        <div className="truncate text-[12px] text-ink-soft">{s.meta}<span className="md:hidden"> · {s.role}</span></div>
+                      </div>
+                    </div>
+                    <span className="hidden text-[13.5px] text-ink md:block">{s.role}</span>
+                    <div className="justify-self-end">
+                      {!s.current && <SiteManageButton id={s.id} type={s.type} />}
                     </div>
                   </div>
                 ))}
-              </div>
+                <p className="mt-2 px-3 text-[12px] text-ink-soft2">{planLabel}</p>
+              </DataTableCard>
 
               <div className="flex flex-wrap items-center justify-between gap-4 rounded-[26px] bg-ink-dark p-6 shadow-[0_20px_44px_-26px_rgba(40,35,15,.5)]">
                 <div>
@@ -2420,20 +2221,10 @@ const AUDIT_FILTERS: { id: 'all' | 'create' | 'update' | 'delete'; label: string
   { id: 'update', label: 'Módosítás' },
   { id: 'delete', label: 'Törlés' },
 ]
-const AUDIT_ACTION_COLOR: Record<'create' | 'update' | 'delete', string> = {
-  create: 'var(--dav-ok)',
-  update: 'var(--dav-warn)',
-  delete: 'var(--dav-bad)',
-}
 const AUDIT_ACTION_LABEL: Record<'create' | 'update' | 'delete', string> = {
   create: 'létrehozott egy elemet',
   update: 'módosított egy elemet',
   delete: 'törölt egy elemet',
-}
-const AUDIT_ACTION_ICON: Record<'create' | 'update' | 'delete', typeof Plus> = {
-  create: Plus,
-  update: Pencil,
-  delete: Trash2,
 }
 /** Visszatekintési dátum-ablakok (nap). A 90 a szerver által adott maximum. */
 const AUDIT_DAY_WINDOWS: (7 | 30 | 90)[] = [7, 30, 90]
@@ -2584,20 +2375,6 @@ function Avatar({ name, email, pending, gold, avatarUrl }: { name: string; email
 }
 
 /* ── Csapat: szerep-badge ───────────────────────────────────────────────── */
-function RoleBadge({ role, tone, pending }: { role: string; tone: 'owner' | 'manager' | 'staff'; pending?: boolean }) {
-  if (pending) {
-    return (
-      <span className="shrink-0 rounded-[13px] border-[1.5px] border-line-strong px-3.5 py-1.5 text-[12px] font-semibold text-ink-soft">
-        {role}
-      </span>
-    )
-  }
-  const cls =
-    tone === 'owner'
-      ? 'bg-ink-dark text-white'
-      : 'bg-[#F2ECDA] text-ink-soft'
-  return <span className={`shrink-0 rounded-[13px] px-3.5 py-1.5 text-[12px] font-semibold ${cls}`}>{role}</span>
-}
 
 /* ── Telephelyek: üzlet-kezelés gomb ────────────────────────────────────── */
 function SiteManageButton({ id, type }: { id: string; type: 'salon' | 'restaurant' }) {
@@ -2629,7 +2406,7 @@ function SiteManageButton({ id, type }: { id: string; type: 'salon' | 'restauran
       type="button"
       onClick={handle}
       disabled={loading}
-      className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[12px] font-semibold text-ink transition-colors hover:border-ink-soft2 hover:bg-paper disabled:opacity-40"
+      className={`${tableActionCls} disabled:opacity-40`}
     >
       {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Kezelés'}
     </button>

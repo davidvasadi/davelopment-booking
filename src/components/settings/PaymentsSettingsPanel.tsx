@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, FileSignature, Receipt, AlertTriangle, Lock, Check } from 'lucide-react'
+import { CreditCard, Loader2, ExternalLink, ShieldCheck, ShieldAlert, Mail, FileSignature, Receipt, AlertTriangle, Lock, Check, Gift, HandCoins, ChevronRight } from 'lucide-react'
 import { monthlyEmailCapForTier, resolveTier } from '@/lib/tier'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
 import type { Pricing } from '@/lib/pricing'
@@ -89,7 +89,7 @@ interface Props {
 
 const ALL_SECTIONS: NonNullable<Props['sections']> = ['stripe', 'deposit', 'voucher', 'consent', 'newsletter', 'invoicing']
 
-export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, consent, stripeConnectAccountId, stripeConnectOnboarded, pricing, tier, sections = ALL_SECTIONS, onDirtyChange, registerApi, supportedLocales }: Props) {
+export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, voucher, consent, stripeConnectAccountId, stripeConnectOnboarded, pricing, businessId, tier, sections = ALL_SECTIONS, onDirtyChange, registerApi, supportedLocales }: Props) {
   const show = (s: NonNullable<Props['sections']>[number]) => sections.includes(s)
   const [connecting, setConnecting] = useState(false)
   const [loginLinkLoading, setLoginLinkLoading] = useState(false)
@@ -144,6 +144,43 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
   const [invoiceProvider, setInvoiceProvider] = useState(invoice.provider)
   const [szamlazzKeyInput, setSzamlazzKeyInput] = useState('')
   const [billingoKeyInput, setBillingoKeyInput] = useState('')
+  // Kulcs törlése (mentéskor null-t küldünk) — korábban nem lehetett eltávolítani egy kulcsot
+  const [delSzamlazz, setDelSzamlazz] = useState(false)
+  const [delBillingo, setDelBillingo] = useState(false)
+  // A ténylegesen MENTETT állapot (mentés után helyben frissül, nem kell oldal-újratöltés)
+  const [savedInv, setSavedInv] = useState(invoice)
+  useEffect(() => { setSavedInv(invoice) }, [invoice])
+  // Élő számlázó-státusz (`/api/invoicing/status`); a kiállított számlák listája külön táblázat
+  const [invLive, setInvLive] = useState<{ provider: string | null; ok: boolean; reason?: string; detail?: string } | null>(null)
+  const loadInvLive = () => {
+    if (!businessId) return
+    setInvLive(null)
+    fetch(`/api/invoicing/status?kind=${variant}&id=${encodeURIComponent(businessId)}`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((j) => setInvLive(j?.error ? { provider: null, ok: false, reason: j.error } : j))
+      .catch(() => setInvLive({ provider: null, ok: false, reason: 'Az állapot nem kérdezhető le.' }))
+  }
+  useEffect(() => { if (sections.includes('invoicing') || sections.includes('voucher') || sections.includes('deposit')) loadInvLive() }, [businessId, variant]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Előleg-feltétel: kitöltött foglalási feltételek (a szerver is ezt ellenőrzi bekapcsoláskor)
+  const docsHref = variant === 'salon' ? '/dashboard/settings?tab=documents' : '/restaurant/settings?tab=documents'
+  const [termsFilled, setTermsFilled] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!sections.includes('deposit')) return
+    fetch(apiBase, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((doc: { terms_sections?: { title?: string | null; body?: string | null }[] | null }) => {
+        const secs = Array.isArray(doc?.terms_sections) ? doc.terms_sections : []
+        setTermsFilled(secs.some((x) => (x?.title ?? '').trim() !== '' || (x?.body ?? '').trim() !== ''))
+      })
+      .catch(() => setTermsFilled(null))
+  }, [apiBase]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Utalvány-típusok (az Ajándékutalvány kártya áttekintéséhez) — publikus lista-végpont
+  const [voucherTypes, setVoucherTypes] = useState<{ id: string; name: string; amount_huf: number; active?: boolean | null }[] | null>(null)
+  useEffect(() => {
+    if (!sections.includes('voucher') || !businessId) return
+    fetch(`/api/gift-voucher-types?${variant === 'salon' ? 'salonId' : 'restaurantId'}=${encodeURIComponent(businessId)}`)
+      .then((r) => r.json()).then((j) => setVoucherTypes(j.docs ?? [])).catch(() => setVoucherTypes([]))
+  }, [businessId, variant]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Csak a ténylegesen LÁTSZÓ (`sections`) kártyák dirty-je számít bele az összevont
   // állapotba — egy `sections={['consent']}` példányon a d/v/invoiceProvider mögötti state
@@ -151,7 +188,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
   const depositDirty = show('deposit') && JSON.stringify(d) !== JSON.stringify(deposit)
   const voucherDirty = show('voucher') && JSON.stringify(v) !== JSON.stringify(voucher)
   const consentDirty = show('consent') && JSON.stringify(c) !== JSON.stringify(consent)
-  const invoiceDirty = show('invoicing') && (invoiceProvider !== invoice.provider || szamlazzKeyInput.trim() !== '' || billingoKeyInput.trim() !== '')
+  const invoiceDirty = show('invoicing') && (invoiceProvider !== savedInv.provider || szamlazzKeyInput.trim() !== '' || billingoKeyInput.trim() !== '' || delSzamlazz || delBillingo)
   const translateDirty = show('consent') && translateLocale !== null && (translateTitle !== translatePristine.title || translateText !== translatePristine.text)
   const dirty = depositDirty || voucherDirty || consentDirty || invoiceDirty || translateDirty
 
@@ -192,7 +229,9 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
           // MEGLÉVŐ (titkosított) érték marad, nem íródik felül üresre.
           const invoice_settings: Record<string, unknown> = { invoice_provider: invoiceProvider }
           if (szamlazzKeyInput.trim()) invoice_settings.szamlazz_agent_key_enc = szamlazzKeyInput.trim()
+          else if (delSzamlazz) invoice_settings.szamlazz_agent_key_enc = null
           if (billingoKeyInput.trim()) invoice_settings.billingo_api_key_enc = billingoKeyInput.trim()
+          else if (delBillingo) invoice_settings.billingo_api_key_enc = null
           body.invoice_settings = invoice_settings
         }
         try {
@@ -227,11 +266,28 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
             if (!res.ok) throw new Error()
             setTranslatePristine({ title: translateTitle, text: translateText })
           }
+          if (invoiceDirty) {
+            setSavedInv({
+              provider: invoiceProvider,
+              hasSzamlazzKey: szamlazzKeyInput.trim() ? true : delSzamlazz ? false : savedInv.hasSzamlazzKey,
+              hasBillingoKey: billingoKeyInput.trim() ? true : delBillingo ? false : savedInv.hasBillingoKey,
+            })
+            setDelSzamlazz(false)
+            setDelBillingo(false)
+            loadInvLive()
+          }
           setSzamlazzKeyInput('')
           setBillingoKeyInput('')
           return true
         } catch (err) {
-          toast.error(err instanceof Error && err.message ? err.message : 'Hiba történt')
+          const msg = err instanceof Error && err.message ? err.message : 'Hiba történt'
+          // a hiányzó foglalási feltételek miatti elutasításnál egy kattintással oda lehessen menni
+          if (msg.includes('foglalási feltételeket')) {
+            setTermsFilled(false)
+            toast.error('Előbb töltsd ki a foglalási feltételeket — ezekben rögzíted a vendég felé az előleg visszatérítési szabályait.', {
+              action: { label: 'Kitöltöm', onClick: () => { window.location.href = docsHref } },
+            })
+          } else toast.error(msg)
           return false
         }
       },
@@ -239,15 +295,17 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
         setD(deposit)
         setV(voucher)
         setC(consent)
-        setInvoiceProvider(invoice.provider)
+        setInvoiceProvider(savedInv.provider)
         setSzamlazzKeyInput('')
         setBillingoKeyInput('')
+        setDelSzamlazz(false)
+        setDelBillingo(false)
         setTranslateTitle(translatePristine.title)
         setTranslateText(translatePristine.text)
       },
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [d, v, c, invoiceProvider, szamlazzKeyInput, billingoKeyInput, deposit, voucher, consent, invoice, translateLocale, translateTitle, translateText, translatePristine, translateDirty])
+  }, [d, v, c, invoiceProvider, szamlazzKeyInput, billingoKeyInput, delSzamlazz, delBillingo, savedInv, deposit, voucher, consent, invoice, translateLocale, translateTitle, translateText, translatePristine, translateDirty])
 
   const startOnboarding = async () => {
     setConnecting(true)
@@ -282,21 +340,18 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
       {show('stripe') && (
       <div
         ref={stripeCardRef}
-        className={`rounded-[26px] dav-card-glass px-6 py-5 transition-shadow duration-300 ${stripeAlert ? 'animate-shake ring-2 ring-red-400/70' : ''}`}
+        className={`rounded-[22px] border border-line bg-white px-6 py-5 transition-shadow duration-300 ${stripeAlert ? 'animate-shake ring-2 ring-red-400/70' : ''}`}
       >
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
-            <CreditCard className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
-          </div>
           <div>
-            <div className="text-[15px] font-medium text-ink">Stripe fizetési fiók</div>
+            <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Stripe fizetési fiók</div>
             <div className="text-[13px] text-ink-soft">A vendég-előleg egyenesen ide érkezik — a platform sosem kezeli a pénzedet.</div>
           </div>
         </div>
         <div className="mt-4">
           {stripeConnectOnboarded ? (
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2F7A3C]">
+              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ok">
                 <ShieldCheck className="h-4 w-4" /> Csatlakoztatva
               </span>
               <button
@@ -333,14 +388,11 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
 
       {/* Hírlevél — csak olvasható infó, a keret a csomaggal jár, nincs önálló kapcsoló/választó. */}
       {show('newsletter') && (
-      <div className="rounded-[26px] dav-card-glass px-6 py-5">
+      <div className="rounded-[22px] border border-line bg-white px-6 py-5">
         <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
-              <Mail className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
-            </div>
             <div>
-              <div className="text-[15px] font-medium text-ink">Hírlevél — mindig bekapcsolva</div>
+              <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Hírlevél — mindig bekapcsolva</div>
               <div className="text-[13px] text-ink-soft">
                 Minden csomagba beépítve, nincs mit bekapcsolnod: a foglaló oldalon a vendégeid feliratkozhatnak, a Marketing menüpontban pedig kampányt küldhetsz nekik.
               </div>
@@ -353,173 +405,259 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
       </div>
       )}
 
-      {/* Előleg-szabály */}
-      {show('deposit') && (
-      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
+      {/* Előleg — az Ajándékutalvány kártya mintájára: áttekintés (Stripe + számlázó), szabályok élő
+          példákkal, számlázás. Étteremnél csak fix Ft-összeg (nincs ár-alap a %-hoz). */}
+      {show('deposit') && (() => {
+        const paymentsHref = variant === 'salon' ? '/dashboard/settings?tab=payments' : '/restaurant/settings?tab=payments'
+        const row = 'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line py-3.5 last:border-0'
+        const seg = (on: boolean) => `h-8 rounded-full border px-3 text-[12px] font-semibold transition-colors ${on ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink hover:border-line-strong'}`
+        const isPercent = variant === 'salon' && d.type === 'percent'
+        const amountExample = isPercent
+          ? d.percentValue ? `Pl. egy 12 000 Ft-os szolgáltatásnál ${Math.round(12000 * d.percentValue / 100).toLocaleString('hu-HU')} Ft előleg.` : 'Add meg, hány százalék legyen.'
+          : d.fixedAmountHuf ? `Minden ${variant === 'salon' ? 'foglalásnál' : 'asztalfoglalásnál'} ${d.fixedAmountHuf.toLocaleString('hu-HU')} Ft előleg.` : 'Add meg az előleg összegét.'
+        const amountMissing = isPercent ? !d.percentValue : !d.fixedAmountHuf
+        const h = d.refundHoursBefore
+        const refundExample = h === 0
+          ? 'A foglalás kezdetéig bármikor visszatérítéssel lemondható.'
+          : `Pl. egy pénteki 18:00-s foglalás ${h % 24 === 0 && h / 24 <= 6 ? `${['péntek', 'csütörtök', 'szerda', 'kedd', 'hétfő', 'vasárnap', 'szombat'][h / 24]} 18:00-ig` : `${h} órával előtte`} mondható le visszatérítéssel — utána az előleg nálad marad.`
+        return (
+      <div className="rounded-[22px] border border-line bg-white px-6 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[15px] font-medium text-ink">Vendég-előleg</div>
-            <div className="text-[13px] text-ink-soft">A vendégnek fizetnie kell a foglalás véglegesítéséhez.</div>
+          <div className="flex items-center gap-2.5">
+            <div>
+              <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Előleg</div>
+              <div className="text-[13px] text-ink-soft">Online foglaláskor a vendég kártyával előleget fizet — csökkenti az el nem jövő vendégeket.</div>
+            </div>
           </div>
           <Toggle checked={d.enabled} onChange={() => setD((s) => ({ ...s, enabled: !s.enabled }))} />
         </div>
 
-        {d.enabled && (
-          <div className="space-y-3 border-t border-dashed border-line pt-4">
-            {/* Étteremnél nincs értelmes alapja a %-nak/fejenkéntinek a jelenlegi egyszerűsített
-                körben — csak egy sima Ft-összeg kérünk, típus-választó nélkül. Szalonnál marad
-                a Fix/Százalék választás, mert ott van ár-alap (service.price). */}
-            {variant === 'salon' && (
-              <div>
-                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Típus</label>
-                <div className="mt-1.5 flex gap-2">
-                  {/* Típusváltáskor a MÁSIK típus mezőjét nullázzuk — különben egy korábbi
-                      kísérlet (pl. beírt százalék) némán ottmarad a DB-ben, miközben a UI már
-                      fixet mutat, ami zavaró, ellentmondó állapotot eredményez mentéskor. */}
-                  <button
-                    type="button"
-                    onClick={() => setD((s) => ({ ...s, type: 'fixed', percentValue: null }))}
-                    className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${d.type === 'fixed' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}
-                  >
-                    Fix összeg
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setD((s) => ({ ...s, type: 'percent', fixedAmountHuf: null }))}
-                    className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${d.type === 'percent' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}
-                  >
-                    Százalék
-                  </button>
+        {/* Előfeltételek — egységes sorok (mint a Szabályok), jobbra pötty + szöveg státusz;
+            ami hiányzik, ott egy körvonalas gomb visz a beállításához. */}
+        <div>
+          <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Előfeltételek</p>
+          <div className="">
+            {([
+              {
+                label: 'Foglalási feltételek',
+                desc: 'Ebben rögzíted a vendég felé a visszatérítés szabályait.',
+                state: termsFilled === null ? 'loading' : termsFilled ? 'ok' : 'missing',
+                okText: 'Kitöltve', missingText: 'Hiányzik',
+                href: docsHref, action: termsFilled ? 'Megnyitás' : 'Kitöltöm',
+              },
+              {
+                label: 'Online fizetés (Stripe)',
+                desc: 'Ide érkezik a vendég által fizetett előleg.',
+                state: stripeConnectOnboarded ? 'ok' : 'missing',
+                okText: 'Bekötve', missingText: 'Nincs bekötve',
+                href: paymentsHref, action: stripeConnectOnboarded ? null : 'Bekötöm',
+              },
+              {
+                label: 'Számlázó',
+                desc: 'Sikeres fizetés után automatikusan kiáll a számla. Nem kötelező.',
+                state: !invLive ? 'loading' : invLive.ok ? 'ok' : 'optional',
+                okText: invLive?.detail ?? 'Bekötve', missingText: invLive?.provider ? 'Hibás bekötés' : 'Nincs számla',
+                href: paymentsHref, action: invLive && !invLive.ok ? 'Beállítom' : null,
+              },
+            ] as const).map((r) => (
+              <div key={r.label} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line py-3.5 last:border-0">
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-medium text-ink">{r.label}</p>
+                  <p className="text-[12px] text-ink-soft">{r.desc}</p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`inline-flex items-center gap-1.5 text-[13px] font-medium ${r.state === 'ok' ? 'text-ok' : r.state === 'missing' ? 'text-[#B7790B]' : 'text-ink-soft'}`}>
+                    {r.state === 'loading' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <span className={`h-[7px] w-[7px] rounded-full ${r.state === 'ok' ? 'bg-ok-fill' : r.state === 'missing' ? 'bg-[#D99A1E]' : 'bg-[#B7B2A4]'}`} />}
+                    {r.state === 'loading' ? 'Ellenőrzés…' : r.state === 'ok' ? r.okText : r.missingText}
+                  </span>
+                  {r.action && r.state !== 'loading' && (
+                    <a href={r.href} className="inline-flex h-8 items-center gap-1 rounded-[10px] border border-line bg-white px-3 text-[12.5px] font-medium text-ink transition-colors hover:border-line-strong">
+                      {r.action} <ChevronRight className="h-3.5 w-3.5" />
+                    </a>
+                  )}
                 </div>
               </div>
-            )}
+            ))}
+          </div>
+        </div>
 
-            {variant === 'salon' && d.type === 'fixed' && (
-              <div>
-                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Összeg (Ft)</label>
-                <input
-                  type="number" inputMode="numeric" min={0}
-                  value={d.fixedAmountHuf ?? ''}
-                  onChange={(e) => setD((s) => ({ ...s, fixedAmountHuf: e.target.value ? Number(e.target.value) : null }))}
-                  onFocus={scrollFieldIntoView}
-                  className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-                />
+        {d.enabled && (
+          <div>
+            <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Szabályok</p>
+            <div className="">
+              <div className={row}>
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-medium text-ink">Összeg</p>
+                  <p className={`text-[12px] ${amountMissing ? 'font-medium text-amber-600' : 'text-ink-soft'}`}>{amountExample}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {/* Típusváltáskor a MÁSIK típus mezőjét nullázzuk — ne maradjon ellentmondó érték a DB-ben */}
+                  {variant === 'salon' && (
+                    <>
+                      <button type="button" onClick={() => setD((s) => ({ ...s, type: 'fixed', percentValue: null }))} className={seg(d.type === 'fixed')}>Fix összeg</button>
+                      <button type="button" onClick={() => setD((s) => ({ ...s, type: 'percent', fixedAmountHuf: null }))} className={seg(d.type === 'percent')}>Százalék</button>
+                    </>
+                  )}
+                  <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-soft">
+                    {isPercent ? (
+                      <input type="number" inputMode="numeric" min={1} max={100} value={d.percentValue ?? ''} onChange={(e) => setD((s) => ({ ...s, percentValue: e.target.value ? Math.min(100, Number(e.target.value)) : null }))} onFocus={scrollFieldIntoView} aria-label="Előleg százalék" className="h-8 w-[72px] rounded-full border border-line bg-white px-2 text-center text-[13px] text-ink focus:outline-none focus:border-line-strong" />
+                    ) : (
+                      <input type="number" inputMode="numeric" min={0} step={500} value={d.fixedAmountHuf ?? ''} onChange={(e) => setD((s) => ({ ...s, type: 'fixed', fixedAmountHuf: e.target.value ? Number(e.target.value) : null }))} onFocus={scrollFieldIntoView} aria-label="Előleg összeg" className="h-8 w-[100px] rounded-full border border-line bg-white px-3 text-right text-[13px] text-ink focus:outline-none focus:border-line-strong" />
+                    )}
+                    {isPercent ? '%' : 'Ft'}
+                  </span>
+                </div>
               </div>
-            )}
-            {variant === 'salon' && d.type === 'percent' && (
-              <div>
-                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Százalék (%)</label>
-                <input
-                  type="number" inputMode="numeric" min={1} max={100}
-                  value={d.percentValue ?? ''}
-                  onChange={(e) => setD((s) => ({ ...s, percentValue: e.target.value ? Number(e.target.value) : null }))}
-                  onFocus={scrollFieldIntoView}
-                  className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-                />
+              <div className={row}>
+                <div className="min-w-0">
+                  <p className="text-[13.5px] font-medium text-ink">Ingyenes lemondás</p>
+                  <p className="text-[12px] text-ink-soft">{refundExample}</p>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {[12, 24, 48, 72].map((n) => (
+                    <button key={n} type="button" onClick={() => setD((s) => ({ ...s, refundHoursBefore: n }))} className={seg(d.refundHoursBefore === n)}>{n} óra</button>
+                  ))}
+                  <input type="number" inputMode="numeric" min={0} value={d.refundHoursBefore} onChange={(e) => setD((s) => ({ ...s, refundHoursBefore: Math.max(0, Number(e.target.value) || 0) }))} onFocus={scrollFieldIntoView} aria-label="Ingyenes lemondás órában" className="h-8 w-[64px] rounded-full border border-line bg-white px-2 text-center text-[12.5px] text-ink focus:outline-none focus:border-line-strong" />
+                </div>
               </div>
-            )}
-            {variant === 'restaurant' && (
-              <div>
-                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Összeg (Ft)</label>
-                <input
-                  type="number" inputMode="numeric" min={0}
-                  value={d.fixedAmountHuf ?? ''}
-                  onChange={(e) => setD((s) => ({ ...s, type: 'fixed', fixedAmountHuf: e.target.value ? Number(e.target.value) : null }))}
-                  onFocus={scrollFieldIntoView}
-                  className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-                />
-              </div>
-            )}
-
-            <div>
-              <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Ingyenes lemondás határideje (óra a foglalás előtt)</label>
-              <input
-                type="number" inputMode="numeric" min={0}
-                value={d.refundHoursBefore}
-                onChange={(e) => setD((s) => ({ ...s, refundHoursBefore: Number(e.target.value) || 0 }))}
-                onFocus={scrollFieldIntoView}
-                className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-              />
-              <p className="mt-1 text-[12px] text-ink-soft2">Ennyi órával a foglalás előtt még teljes visszatérítés jár — utána az előleg az üzletnél marad.</p>
             </div>
           </div>
         )}
       </div>
-      )}
+        )
+      })()}
 
       {/* Ajándékutalvány */}
-      {show('voucher') && (
-      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
+      {show('voucher') && (() => {
+        // Ajándékutalvány — áttekintés (típusok, linkek) + szabályok + számlázás, adatlap-sorokban.
+        const vouchersHref = variant === 'salon' ? '/dashboard/vouchers' : '/restaurant/vouchers'
+        const paymentsHref = variant === 'salon' ? '/dashboard/settings?tab=payments' : '/restaurant/settings?tab=payments'
+        const activeTypes = (voucherTypes ?? []).filter((t) => t.active !== false)
+        const until = new Date(); until.setMonth(until.getMonth() + (v.validityMonths || 1))
+        const rangeBad = v.minAmountHuf > 0 && v.maxAmountHuf > 0 && v.minAmountHuf > v.maxAmountHuf
+        const outOfRange = activeTypes.filter((t) => t.amount_huf < v.minAmountHuf || (v.maxAmountHuf > 0 && t.amount_huf > v.maxAmountHuf))
+        const numCls = 'h-9 w-[110px] rounded-[10px] border border-line bg-white px-2.5 text-right text-[14px] text-ink focus:outline-none focus:border-line-strong'
+        const row = 'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-line py-3.5 last:border-0'
+        return (
+      <div className="rounded-[22px] border border-line bg-white px-6 py-5 space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <div className="text-[15px] font-medium text-ink">Ajándékutalvány</div>
-            <div className="text-[13px] text-ink-soft">A típusok kezelése és az eladott utalványok a dashboard "Utalványok" oldalán érhetők el.</div>
+          <div className="flex items-center gap-2.5">
+            <div>
+              <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Ajándékutalvány</div>
+              <div className="text-[13px] text-ink-soft">Vendégeid a foglalóoldalon vásárolhatnak, te pedig helyben is kiállíthatsz utalványt.</div>
+            </div>
           </div>
           <Toggle checked={v.enabled} onChange={() => setV((s) => ({ ...s, enabled: !s.enabled }))} />
         </div>
 
         {v.enabled && (
-          <div className="space-y-3 border-t border-dashed border-line pt-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Min. összeg (Ft)</label>
-                <input
-                  type="number" inputMode="numeric" min={0}
-                  value={v.minAmountHuf}
-                  onChange={(e) => setV((s) => ({ ...s, minAmountHuf: Number(e.target.value) || 0 }))}
-                  onFocus={scrollFieldIntoView}
-                  className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-                />
-              </div>
-              <div>
-                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Max. összeg (Ft)</label>
-                <input
-                  type="number" inputMode="numeric" min={0}
-                  value={v.maxAmountHuf}
-                  onChange={(e) => setV((s) => ({ ...s, maxAmountHuf: Number(e.target.value) || 0 }))}
-                  onFocus={scrollFieldIntoView}
-                  className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-                />
+          <>
+            {/* Áttekintés — típusok + gyors-linkek */}
+            <div className="py-1">
+              {voucherTypes === null ? (
+                <span className="inline-flex items-center gap-1.5 text-[13px] text-ink-soft"><Loader2 className="h-4 w-4 animate-spin" /> Típusok betöltése…</span>
+              ) : activeTypes.length === 0 ? (
+                <span className="inline-flex items-start gap-1.5 text-[13px] font-semibold text-amber-600">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> Még nincs aktív utalvány-típus — amíg nincs, a vendégek nem tudnak vásárolni.
+                </span>
+              ) : (
+                <div className="space-y-2">
+                  <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ok">
+                    <ShieldCheck className="h-4 w-4" /> Elérhető a foglalóoldalon — {activeTypes.length} típus
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {activeTypes.map((t) => (
+                      <span key={t.id} className="inline-flex h-7 items-center rounded-full border border-line bg-white px-2.5 text-[12px] font-medium text-ink">
+                        {t.name} · {t.amount_huf.toLocaleString('hu-HU')} Ft
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1">
+                <a href={vouchersHref} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-ink hover:underline">Típusok és eladott utalványok <ExternalLink className="h-3 w-3" /></a>
               </div>
             </div>
+
+            {/* Szabályok */}
             <div>
-              <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Érvényesség (hónap)</label>
-              <input
-                type="number" inputMode="numeric" min={1}
-                value={v.validityMonths}
-                onChange={(e) => setV((s) => ({ ...s, validityMonths: Number(e.target.value) || 1 }))}
-                onFocus={scrollFieldIntoView}
-                className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-              />
-              <p className="mt-1 text-[12px] text-ink-soft2">A vásárlástól számítva ennyi hónapig váltható be az utalvány.</p>
+              <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Szabályok</p>
+              <div className="">
+                <div className={row}>
+                  <div>
+                    <p className="text-[13.5px] font-medium text-ink">Érvényesség</p>
+                    <p className="text-[12px] text-ink-soft">Ma vásárolt utalvány {until.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })}-ig váltható be.</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {[3, 6, 12, 24].map((m) => (
+                      <button key={m} type="button" onClick={() => setV((s) => ({ ...s, validityMonths: m }))} className={`h-8 rounded-full border px-3 text-[12px] font-semibold transition-colors ${v.validityMonths === m ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink hover:border-line-strong'}`}>
+                        {m} hó
+                      </button>
+                    ))}
+                    <input
+                      type="number" inputMode="numeric" min={1} max={60}
+                      value={v.validityMonths}
+                      onChange={(e) => setV((s) => ({ ...s, validityMonths: Math.max(1, Number(e.target.value) || 1) }))}
+                      onFocus={scrollFieldIntoView}
+                      aria-label="Érvényesség hónapban"
+                      className="h-8 w-[64px] rounded-full border border-line bg-white px-2 text-center text-[12.5px] text-ink focus:outline-none focus:border-line-strong"
+                    />
+                  </div>
+                </div>
+                <div className={row}>
+                  <div>
+                    <p className="text-[13.5px] font-medium text-ink">Összeghatár</p>
+                    <p className={`text-[12px] ${rangeBad || outOfRange.length ? 'font-medium text-amber-600' : 'text-ink-soft'}`}>
+                      {rangeBad
+                        ? 'A minimum nagyobb, mint a maximum.'
+                        : outOfRange.length
+                          ? `${outOfRange.length} típus összege kívül esik ezen a határon.`
+                          : 'Az utalvány-típusok összege ezen belül lehet.'}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 text-[13px] text-ink-soft">
+                    <input type="number" inputMode="numeric" min={0} step={1000} value={v.minAmountHuf} onChange={(e) => setV((s) => ({ ...s, minAmountHuf: Number(e.target.value) || 0 }))} onFocus={scrollFieldIntoView} aria-label="Minimum összeg" className={numCls} />
+                    –
+                    <input type="number" inputMode="numeric" min={0} step={1000} value={v.maxAmountHuf} onChange={(e) => setV((s) => ({ ...s, maxAmountHuf: Number(e.target.value) || 0 }))} onFocus={scrollFieldIntoView} aria-label="Maximum összeg" className={numCls} />
+                    Ft
+                  </div>
+                </div>
+              </div>
             </div>
-            <label className="flex items-start gap-2.5 text-sm text-ink sm:col-span-2">
-              <input
-                type="checkbox"
-                checked={v.allowCompany !== false}
-                onChange={(e) => setV((s) => ({ ...s, allowCompany: e.target.checked }))}
-                className="mt-0.5 h-4 w-4 accent-[#1D1C19]"
-              />
-              <span>
-                „Cégként vásárolok” opció a vásárlásnál
-                <span className="block text-[12px] text-ink-soft2">Adószámos számlát kérhet a vásárló. Csak beállított számlázóval (Számlázás fül) jelenik meg.</span>
-              </span>
-            </label>
-          </div>
+
+            {/* Számlázás */}
+            <div>
+              <p className="mb-1 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Számlázás</p>
+              <div className="">
+                <div className={row}>
+                  <div className="min-w-0">
+                    <p className="text-[13.5px] font-medium text-ink">„Cégként vásárolok” a foglalóoldalon</p>
+                    <p className="text-[12px] text-ink-soft">A vásárló adószámos számlát kérhet. Csak bekötött számlázóval jelenik meg.</p>
+                    {invLive && !invLive.ok && (
+                      <p className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-amber-600">
+                        <AlertTriangle className="h-3.5 w-3.5" /> {invLive.provider ? 'Hibás számlázó-bekötés' : 'Nincs bekötve számlázó'} —
+                        <a href={paymentsHref} className="underline underline-offset-2">beállítás</a>
+                      </p>
+                    )}
+                    {invLive?.ok && <p className="mt-1 inline-flex items-center gap-1 text-[12px] font-medium text-ok"><Check className="h-3.5 w-3.5" strokeWidth={2.5} /> {invLive.detail}</p>}
+                  </div>
+                  <Toggle checked={v.allowCompany !== false} onChange={() => setV((s) => ({ ...s, allowCompany: s.allowCompany === false }))} />
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
-      )}
+        )
+      })()}
 
       {/* Beleegyező nyilatkozat — mindig nyitott kártya (nincs nyit/zár gomb), EGY mezőkészlet
           van, amit a nyelvváltó sáv vezérel (nem külön HU + külön fordítás-blokk). */}
       {show('consent') && (
-      <div id="consent" className="rounded-[26px] dav-card-glass overflow-hidden font-onest scroll-mt-6">
+      <div id="consent" className="rounded-[22px] border border-line bg-white overflow-hidden font-onest scroll-mt-6">
         <div className="flex items-center gap-3 border-b border-line px-5 py-4 sm:px-6">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
-            <FileSignature className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
-          </div>
           <div className="min-w-0 flex-1">
-            <div className="text-[15px] font-semibold text-ink">Beleegyező nyilatkozat</div>
+            <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Beleegyező nyilatkozat</div>
             <div className="text-[13px] text-ink-soft">A vendégnek el kell fogadnia a foglalás véglegesítéséhez — vagy helyszínen, check-inkor.</div>
           </div>
           <Toggle
@@ -567,7 +705,7 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
                           <button
                             type="button"
                             onClick={() => {
-                              const tpl = consentTemplate(translateLocale ?? 'hu')
+                              const tpl = consentTemplate(translateLocale ?? 'hu', variant === 'restaurant' ? 'restaurant' : 'salon')
                               setActiveTitle(tpl.title)
                               setActiveText(tpl.text)
                             }}
@@ -598,83 +736,123 @@ export function PaymentsSettingsPanel({ variant, apiBase, deposit, invoice, vouc
       </div>
       )}
 
-      {/* Számlázás — az előzőnél (pill-választó + egy jelszó-mező, semmi visszajelzés, hogy
-          ténylegesen AKTÍV-e valami) sokkal informatívabb: fejléc ikon (mint a többi kártyán),
-          explicit státusz-sor a TÉNYLEGESEN MENTETT (nem a még-el-nem-mentett draft) provider+
-          kulcs állapotáról, és egy infó-sor arról, hogy a kulcs titkosítva tárolódik. */}
+      {/* Számlázás — élő státusz (valódi ellenőrzés, nem csak „van-e elmentett kulcs”), mire készül
+          számla, szolgáltató-választó (pipa CSAK az aktív, működő bekötésen), kulcs csere/törlés,
+          legutóbbi kiállítások. */}
       {show('invoicing') && (() => {
-        const savedHasKey = invoice.provider === 'szamlazz' ? invoice.hasSzamlazzKey : invoice.provider === 'billingo' ? invoice.hasBillingoKey : false
-        const savedProviderLabel = invoice.provider === 'szamlazz' ? 'Számlázz.hu' : invoice.provider === 'billingo' ? 'Billingo' : null
+        const savedLabel = savedInv.provider === 'szamlazz' ? 'Számlázz.hu' : savedInv.provider === 'billingo' ? 'Billingo' : null
+        const savedHasKey = savedInv.provider === 'szamlazz' ? savedInv.hasSzamlazzKey : savedInv.provider === 'billingo' ? savedInv.hasBillingoKey : false
+        const liveOk = !!invLive?.ok && savedHasKey
+        const pillCls = (on: boolean) => `inline-flex items-center gap-1.5 rounded-[10px] border px-3 py-1.5 text-[13px] font-medium transition-colors ${on ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft hover:border-ink-soft'}`
+        const keyField = (which: 'szamlazz' | 'billingo') => {
+          const has = which === 'szamlazz' ? savedInv.hasSzamlazzKey : savedInv.hasBillingoKey
+          const del = which === 'szamlazz' ? delSzamlazz : delBillingo
+          const val = which === 'szamlazz' ? szamlazzKeyInput : billingoKeyInput
+          const setVal = which === 'szamlazz' ? setSzamlazzKeyInput : setBillingoKeyInput
+          const setDel = which === 'szamlazz' ? setDelSzamlazz : setDelBillingo
+          return (
+            <div>
+              <div className="flex items-center justify-between gap-2">
+                <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">{which === 'szamlazz' ? 'Számlázz.hu Agent-kulcs' : 'Billingo API-kulcs'}</label>
+                {has && !del && (
+                  <button type="button" onClick={() => { setDel(true); setVal('') }} className="text-[12px] font-semibold text-[#C0453F] hover:underline">Kulcs törlése</button>
+                )}
+              </div>
+              <input
+                type="password"
+                value={val}
+                onChange={(e) => { setVal(e.target.value); if (e.target.value) setDel(false) }}
+                placeholder={del ? 'Mentéskor törlődik — vagy írj be új kulcsot' : has ? '•••••••• elmentve — cseréhez írj be újat' : which === 'szamlazz' ? 'Agent-kulcs beillesztése' : 'API-kulcs beillesztése'}
+                className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
+              />
+              {del ? (
+                <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] font-medium text-amber-600">
+                  <AlertTriangle className="h-3 w-3" strokeWidth={2} /> A kulcs mentéskor törlődik. <button type="button" onClick={() => setDel(false)} className="underline">Mégse</button>
+                </p>
+              ) : (
+                <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-soft2">
+                  <Lock className="h-3 w-3" strokeWidth={2} /> Titkosítva tároljuk — {which === 'szamlazz' ? 'a Számlázz.hu fiókod Beállítások → Számla Agent menüjében' : 'a Billingo fiókod Beállítások → API kulcsok menüjében'} találod.
+                </p>
+              )}
+            </div>
+          )
+        }
         return (
-      <div className="rounded-[26px] dav-card-glass px-6 py-5 space-y-4">
+      <div className="rounded-[22px] border border-line bg-white px-6 py-5 space-y-4">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-ink-dark">
-            <Receipt className="h-[18px] w-[18px] text-gold" strokeWidth={1.6} />
-          </div>
           <div>
-            <div className="text-[15px] font-medium text-ink">Számlázás az előlegről</div>
-            <div className="text-[13px] text-ink-soft">Sikeres előleg-fizetés után automatikus bizonylat a saját Számlázz.hu/Billingo fiókodból.</div>
+            <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Automatikus számlázás</div>
+            <div className="text-[13px] text-ink-soft">Sikeres fizetés után a számla a saját Számlázz.hu / Billingo fiókodból áll ki, és emailben megy a vevőnek.</div>
           </div>
         </div>
 
-        {/* Státusz — a MENTETT állapotot mutatja, nem a lenti pill-választó még-el-nem-
-            mentett kiválasztását (az kettő eltérhet, amíg nincs elmentve). */}
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-[16px] bg-paper px-4 py-3.5">
-          {invoice.provider === 'none' ? (
+        {/* Élő státusz — a MENTETT beállítást ellenőrzi (Billingónál valódi API-hívással) */}
+        <div className="py-1">
+          {savedInv.provider === 'none' ? (
             <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink-soft">
-              <span className="h-2 w-2 rounded-full bg-track-off" /> Kikapcsolva — nincs automatikus számla
+              <span className="h-2 w-2 rounded-full bg-track-off" /> Kikapcsolva — nem készül automatikus számla
             </span>
-          ) : savedHasKey ? (
-            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2F7A3C]">
-              <ShieldCheck className="h-4 w-4" /> Aktív — {savedProviderLabel} csatlakoztatva
+          ) : !savedHasKey ? (
+            <span className="inline-flex items-start gap-1.5 text-[13px] font-semibold text-amber-600">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {savedLabel} kiválasztva, de nincs elmentve kulcs — így nem készül számla.
+            </span>
+          ) : !invLive ? (
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-soft"><Loader2 className="h-4 w-4 animate-spin" /> {savedLabel} ellenőrzése…</span>
+          ) : liveOk ? (
+            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ok">
+              <ShieldCheck className="h-4 w-4" /> Működik — {savedLabel} bekötve
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#B45309]">
-              <AlertTriangle className="h-4 w-4" /> {savedProviderLabel} kiválasztva, de nincs elmentve kulcs — így NEM készül számla
+            <span className="inline-flex items-start gap-1.5 text-[13px] font-semibold text-amber-600">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {invLive.reason ?? `${savedLabel}: hibás bekötés`}
             </span>
           )}
+          {invoiceDirty && <p className="mt-1.5 text-[11.5px] text-ink-soft2">Nem mentett módosítás — a státusz mentés után frissül.</p>}
         </div>
 
-        <div className="flex gap-2">
-          <button type="button" onClick={() => setInvoiceProvider('szamlazz')} className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${invoiceProvider === 'szamlazz' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}>
-            Számlázz.hu{invoice.hasSzamlazzKey && <Check className="ml-1 inline h-3 w-3 align-[-1px] text-[#2F7A3C]" strokeWidth={2.5} />}
-          </button>
-          <button type="button" onClick={() => setInvoiceProvider('billingo')} className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${invoiceProvider === 'billingo' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}>
-            Billingo{invoice.hasBillingoKey && <Check className="ml-1 inline h-3 w-3 align-[-1px] text-[#2F7A3C]" strokeWidth={2.5} />}
-          </button>
-          <button type="button" onClick={() => setInvoiceProvider('none')} className={`rounded-[10px] border px-3 py-1.5 text-[13px] font-medium ${invoiceProvider === 'none' ? 'border-ink-dark bg-ink-dark text-white' : 'border-line-strong text-ink-soft'}`}>Nincs</button>
+        {/* Mire készül számla */}
+        <div className="divide-y divide-line">
+          {[
+            ['Előleg', 'Online foglalásnál befizetett előleg után.'],
+            ['Ajándékutalvány — online / fizetési link', 'Minden sikeres kártyás fizetés után.'],
+            ['Ajándékutalvány — helyszíni kiállítás', 'Választható a kiállításkor.'],
+          ].map(([t, d]) => (
+            <div key={t} className="flex items-start justify-between gap-3 py-2.5">
+              <span className="text-[13px] font-medium text-ink">{t}</span>
+              <span className="max-w-[60%] text-right text-[12px] text-ink-soft">{d}</span>
+            </div>
+          ))}
         </div>
 
-        {invoiceProvider === 'szamlazz' && (
-          <div>
-            <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Számlázz.hu Agent kulcs</label>
-            <input
-              type="password"
-              value={szamlazzKeyInput}
-              onChange={(e) => setSzamlazzKeyInput(e.target.value)}
-              placeholder={invoice.hasSzamlazzKey ? '•••••••• beállítva — cserére írj be új kulcsot' : 'Agent kulcs beillesztése'}
-              className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-            />
-            <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-soft2">
-              <Lock className="h-3 w-3" strokeWidth={2} /> Titkosítva tároljuk — a Számlázz.hu fiókod Beállítások → Számla Agent menüjében találod.
-            </p>
+        <div>
+          <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Számlázó</p>
+          <div className="flex flex-wrap gap-2">
+            {(['szamlazz', 'billingo', 'none'] as const).map((p) => (
+              <button key={p} type="button" onClick={() => setInvoiceProvider(p)} className={pillCls(invoiceProvider === p)}>
+                {p === 'szamlazz' ? 'Számlázz.hu' : p === 'billingo' ? 'Billingo' : 'Nincs'}
+                {/* pipa CSAK a mentett, aktív ÉS működő bekötésen */}
+                {p !== 'none' && savedInv.provider === p && liveOk && <Check className={`h-3 w-3 ${invoiceProvider === p ? 'text-gold' : 'text-ok'}`} strokeWidth={2.5} />}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {invoiceProvider === 'szamlazz' && keyField('szamlazz')}
+        {invoiceProvider === 'billingo' && keyField('billingo')}
+        {invoiceProvider === 'none' && (savedInv.hasSzamlazzKey || savedInv.hasBillingoKey) && (
+          <div className="space-y-2 rounded-[14px] bg-warn-bg px-4 py-3">
+            <p className="text-[12.5px] text-ink-soft">Kikapcsolva a számlázás, de van elmentett kulcsod — ha már nem kell, töröld:</p>
+            <div className="flex flex-wrap gap-3">
+              {savedInv.hasSzamlazzKey && (
+                <button type="button" onClick={() => setDelSzamlazz(!delSzamlazz)} className="text-[12px] font-semibold text-[#C0453F] hover:underline">{delSzamlazz ? '✓ Számlázz.hu-kulcs törlődik' : 'Számlázz.hu-kulcs törlése'}</button>
+              )}
+              {savedInv.hasBillingoKey && (
+                <button type="button" onClick={() => setDelBillingo(!delBillingo)} className="text-[12px] font-semibold text-[#C0453F] hover:underline">{delBillingo ? '✓ Billingo-kulcs törlődik' : 'Billingo-kulcs törlése'}</button>
+              )}
+            </div>
           </div>
         )}
-        {invoiceProvider === 'billingo' && (
-          <div>
-            <label className="text-[12px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Billingo API kulcs</label>
-            <input
-              type="password"
-              value={billingoKeyInput}
-              onChange={(e) => setBillingoKeyInput(e.target.value)}
-              placeholder={invoice.hasBillingoKey ? '•••••••• beállítva — cserére írj be új kulcsot' : 'API kulcs beillesztése'}
-              className="mt-1.5 h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-sm text-ink focus-visible:ring-2 focus-visible:ring-gold/60"
-            />
-            <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-soft2">
-              <Lock className="h-3 w-3" strokeWidth={2} /> Titkosítva tároljuk — a Billingo fiókod Beállítások → API kulcsok menüjében találod.
-            </p>
-          </div>
-        )}
+
       </div>
         )
       })()}

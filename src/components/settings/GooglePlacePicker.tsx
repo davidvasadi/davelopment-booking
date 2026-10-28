@@ -123,7 +123,7 @@ export function GooglePlacePicker({ businessName, businessCity }: { businessName
   if (loading || !enabled) return null
 
   return (
-    <div className="rounded-dav-lg dav-card-glass p-5 lg:p-6">
+    <div className="rounded-[22px] border border-line bg-white p-5 lg:p-6">
       <div className="flex items-center gap-3.5">
         <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-dav-sm bg-gold/15 text-ink-dark">
           <MapPin className="h-5 w-5" strokeWidth={1.6} />

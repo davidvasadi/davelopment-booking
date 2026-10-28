@@ -93,9 +93,9 @@ export function AddressAutocompleteInput({ onSelect }: { onSelect: (a: AddressDe
           onChange={(e) => setQuery(e.target.value)}
           onFocus={() => suggestions.length > 0 && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          placeholder="Keress rá a céged címére…"
+          placeholder="Cím keresése…"
           disabled={maintenance || loadingDetails}
-          className="h-[44px] w-full rounded-[14px] border border-line-strong bg-white pl-10 pr-10 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/60 focus:border-gold/60 focus:ring-2 focus:ring-gold/20 disabled:opacity-60"
+          className="h-[42px] w-full rounded-[12px] border border-line-strong bg-white pl-10 pr-10 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/60 focus:border-gold/60 focus:ring-2 focus:ring-gold/20 disabled:opacity-60"
         />
         {(searching || loadingDetails) && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ink-soft2" />}
       </div>
@@ -105,9 +105,7 @@ export function AddressAutocompleteInput({ onSelect }: { onSelect: (a: AddressDe
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
           A cím-kitöltés most karbantartás alatt áll — add meg kézzel lent a mezőket.
         </p>
-      ) : (
-        <p className="mt-1.5 text-[11px] text-ink-soft2">Válassz a találatok közül, vagy töltsd ki kézzel lent.</p>
-      )}
+      ) : null}
 
       {open && suggestions.length > 0 && (
         <div className="absolute z-20 mt-1.5 w-full divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-white shadow-lg">

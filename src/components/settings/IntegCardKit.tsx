@@ -22,7 +22,7 @@ export function CopyBtn({ value, label = 'Másolás' }: { value: string; label?:
       onClick={copy}
       className="inline-flex items-center gap-1.5 rounded-dav-sm border border-line bg-white px-3 py-1.5 text-[12px] font-medium text-ink-soft transition-colors hover:text-ink shrink-0"
     >
-      {copied ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? <Check className="h-3.5 w-3.5 text-ok" /> : <Copy className="h-3.5 w-3.5" />}
       {copied ? 'Másolva' : label}
     </button>
   )
@@ -85,7 +85,7 @@ export function IntegCard({
   const { label, cls } = statusCfg[status]
 
   return (
-    <div className="rounded-dav-lg dav-card-glass overflow-hidden">
+    <div className="rounded-[22px] border border-line bg-white overflow-hidden">
       <button
         type="button"
         onClick={() => status !== 'soon' && setOpen((o) => !o)}
@@ -99,7 +99,7 @@ export function IntegCard({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[15px] font-semibold text-ink">{title}</span>
+            <span className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">{title}</span>
             <span className={`rounded-dav-sm px-2 py-0.5 text-[11px] font-semibold ${cls}`}>{label}</span>
           </div>
           <p className="mt-0.5 text-[13px] text-ink-soft">{description}</p>

@@ -452,7 +452,7 @@ export function ImportPanel() {
         <div className="space-y-5">
 
           {/* File info + detected type + reset */}
-          <div className="rounded-2xl dav-card-glass px-4 py-3 space-y-2.5">
+          <div className="rounded-2xl border border-line bg-white px-4 py-3 space-y-2.5">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5 min-w-0">
                 <FileText className="h-4 w-4 shrink-0 text-ink-soft" />
@@ -524,9 +524,9 @@ export function ImportPanel() {
 
               {/* All-sheets result */}
               {allSheetsResult && (
-                <div className="rounded-[22px] dav-card-glass p-5 space-y-3">
+                <div className="rounded-[22px] border border-line bg-white p-5 space-y-3">
                   <div className="flex items-center gap-2">
-                    <Check className="h-5 w-5 text-green-600" />
+                    <Check className="h-5 w-5 text-ok" />
                     <p className="font-semibold text-ink">Összes munkalap importálva</p>
                   </div>
                   <div className="space-y-2">
@@ -579,7 +579,7 @@ export function ImportPanel() {
           {/* Column mapping + preview + import (single sheet or active sheet) */}
           {!allSheetsResult && headers.length > 0 && (
             <>
-              <div className="rounded-[22px] dav-card-glass p-5 space-y-3">
+              <div className="rounded-[22px] border border-line bg-white p-5 space-y-3">
                 <p className="text-sm font-semibold text-ink">Oszlopleképezés</p>
                 <p className="text-xs text-ink-soft">A felismert oszlopokat manuálisan is átírhatod.</p>
                 <div className="space-y-2">
@@ -605,7 +605,7 @@ export function ImportPanel() {
               </div>
 
               {rows.length > 0 && (
-                <div className="rounded-[22px] dav-card-glass p-5 space-y-3 overflow-hidden">
+                <div className="rounded-[22px] border border-line bg-white p-5 space-y-3 overflow-hidden">
                   <p className="text-sm font-semibold text-ink">Előnézet — első {Math.min(PREVIEW_ROWS, rows.length)} sor</p>
                   <div className="overflow-x-auto -mx-1">
                     <table className="w-full text-xs text-left border-collapse">
@@ -663,9 +663,9 @@ export function ImportPanel() {
               )}
 
               {result && (
-                <div className="rounded-[22px] dav-card-glass p-5 space-y-4">
+                <div className="rounded-[22px] border border-line bg-white p-5 space-y-4">
                   <div className="flex items-center gap-2">
-                    <Check className="h-5 w-5 text-green-600" />
+                    <Check className="h-5 w-5 text-ok" />
                     <p className="font-semibold text-ink">Importálás kész</p>
                   </div>
                   <div className={cn('grid gap-3', RESULT_LABELS[importType].length === 1 ? 'grid-cols-2' : 'grid-cols-3')}>

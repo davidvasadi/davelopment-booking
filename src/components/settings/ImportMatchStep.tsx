@@ -68,7 +68,7 @@ export function ImportMatchStep({
     onChange({ ...decisions, [kind]: { ...(decisions[kind] ?? {}), [value]: d } })
 
   return (
-    <div className="rounded-[22px] dav-card-glass p-5 space-y-5">
+    <div className="rounded-[22px] border border-line bg-white p-5 space-y-5">
       <div>
         <p className="text-sm font-semibold text-ink">Párosítás</p>
         <p className="text-xs text-ink-soft mt-1">
@@ -227,7 +227,7 @@ function Chip({ tone, icon, children }: { tone: 'ok' | 'warn' | 'new'; icon: Rea
     <span
       className={cn(
         'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-        tone === 'ok' && 'bg-green-600/10 text-green-700',
+        tone === 'ok' && 'bg-ok-bg text-ok',
         tone === 'warn' && 'bg-gold/15 text-ink',
         tone === 'new' && 'bg-paper text-ink-soft ring-1 ring-line-strong',
       )}

@@ -137,6 +137,35 @@ const CONSENT: Record<Locale, { title: string; text: string }> = {
   },
 }
 
-export function consentTemplate(locale: Locale): { title: string; text: string } {
-  return { ...(CONSENT[locale] ?? CONSENT.hu) }
+// Étterem: nem kezelés, hanem ételallergia/-érzékenység és a rendezvény-szabályok elfogadása.
+const CONSENT_RESTAURANT: Record<Locale, { title: string; text: string }> = {
+  hu: {
+    title: 'Nyilatkozat ételallergiáról és a foglalás feltételeiről',
+    text: 'Kijelentem, hogy a társaságom tagjainak ételallergiáját, -érzékenységét és étrendi korlátozásait a foglaláskor vagy legkésőbb érkezéskor jelzem. Tudomásul veszem, hogy a konyhában allergének nyomokban minden ételben előfordulhatnak. Rendezvény esetén az egyeztetett létszám, menü és időtartam betartásához hozzájárulok.',
+  },
+  en: {
+    title: 'Food allergy and booking declaration',
+    text: 'I declare that I will report any food allergies, intolerances and dietary restrictions of my party when booking or at the latest upon arrival. I acknowledge that traces of allergens may be present in any dish. For events, I agree to the agreed number of guests, menu and duration.',
+  },
+  de: {
+    title: 'Erklärung zu Lebensmittelallergien und Buchungsbedingungen',
+    text: 'Ich erkläre, dass ich Lebensmittelallergien, Unverträglichkeiten und Ernährungseinschränkungen meiner Gruppe bei der Buchung oder spätestens bei der Ankunft mitteile. Ich nehme zur Kenntnis, dass Spuren von Allergenen in allen Speisen vorkommen können. Bei Veranstaltungen stimme ich der vereinbarten Personenzahl, dem Menü und der Dauer zu.',
+  },
+  es: {
+    title: 'Declaración sobre alergias alimentarias y condiciones de reserva',
+    text: 'Declaro que comunicaré las alergias, intolerancias y restricciones alimentarias de mi grupo al reservar o, a más tardar, a la llegada. Acepto que puede haber trazas de alérgenos en cualquier plato. En caso de eventos, acepto el número de comensales, el menú y la duración acordados.',
+  },
+  it: {
+    title: 'Dichiarazione su allergie alimentari e condizioni di prenotazione',
+    text: 'Dichiaro che comunicherò allergie, intolleranze e restrizioni alimentari del mio gruppo al momento della prenotazione o al più tardi all\'arrivo. Prendo atto che tracce di allergeni possono essere presenti in qualsiasi piatto. In caso di eventi, accetto il numero di ospiti, il menù e la durata concordati.',
+  },
+  fr: {
+    title: 'Déclaration relative aux allergies alimentaires et aux conditions de réservation',
+    text: 'Je déclare signaler les allergies, intolérances et restrictions alimentaires de mon groupe lors de la réservation ou au plus tard à l\'arrivée. Je reconnais que des traces d\'allergènes peuvent être présentes dans tous les plats. Pour les événements, j\'accepte le nombre de convives, le menu et la durée convenus.',
+  },
+}
+
+export function consentTemplate(locale: Locale, variant: 'salon' | 'restaurant' = 'salon'): { title: string; text: string } {
+  const set = variant === 'restaurant' ? CONSENT_RESTAURANT : CONSENT
+  return { ...(set[locale] ?? set.hu) }
 }

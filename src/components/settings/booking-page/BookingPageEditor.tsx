@@ -613,7 +613,7 @@ export function BookingPageEditor({
   // jelezzük, ne csak mentéskor derüljön ki egy hibaüzenetből.
   const toggleDeposit = () => {
     if (!draft.depositEnabled) {
-      if (!initial.flags.stripeOnboarded) { toast.error('Előbb kösd össze a Stripe-fiókot a Fizetés fülön.'); onNavigate?.('payments'); return }
+      if (!initial.flags.stripeOnboarded) { toast.error('Előbb kösd össze a Stripe-fiókot a Fizetés & számlázás fülön.'); onNavigate?.('payments'); return }
       if (!initial.flags.termsFilled) { toast.error('Előbb töltsd ki a foglalási feltételeket a Dokumentumok & jogi fülön.'); onNavigate?.('documents'); return }
     }
     // Előleg mellett kötelező az automatikus megerősítés (fizetett foglalást nem hagyunk függőben).
@@ -633,7 +633,7 @@ export function BookingPageEditor({
   }
   const autoConfirmBlocked = depositOn && (autoConfirmWarn || !draft.autoConfirm)
   const toggleVoucher = () => {
-    if (!draft.voucherEnabled && !initial.flags.stripeOnboarded) { toast.error('Előbb kösd össze a Stripe-fiókot a Fizetés fülön.'); onNavigate?.('payments'); return }
+    if (!draft.voucherEnabled && !initial.flags.stripeOnboarded) { toast.error('Előbb kösd össze a Stripe-fiókot a Fizetés & számlázás fülön.'); onNavigate?.('payments'); return }
     set('voucherEnabled', !draft.voucherEnabled)
   }
   const setRem = (patch: Partial<Draft['reminders']>) => setDraft((d) => ({ ...d, reminders: { ...d.reminders, ...patch } }))
@@ -1017,14 +1017,14 @@ export function BookingPageEditor({
               />
               <ToggleRow
                 label="Előleg lépés"
-                hint={!initial.flags.stripeOnboarded ? 'A bekapcsoláshoz kösd össze a Stripe-fiókot (Fizetés fül).' : !initial.flags.termsFilled ? 'A bekapcsoláshoz töltsd ki a foglalási feltételeket (Dokumentumok & jogi fül).' : 'Az összeget és a visszatérítést a Fizetés fülön állítod.'}
+                hint={!initial.flags.stripeOnboarded ? 'A bekapcsoláshoz kösd össze a Stripe-fiókot (Fizetés & számlázás fül).' : !initial.flags.termsFilled ? 'A bekapcsoláshoz töltsd ki a foglalási feltételeket (Dokumentumok & jogi fül).' : 'Az összeget és a visszatérítést az Előleg fülön állítod.'}
                 checked={draft.depositEnabled}
                 onChange={toggleDeposit}
                 onView={depositOn ? () => goStep('deposit') : undefined}
               />
               <ToggleRow
                 label="Ajándékutalvány lépés"
-                hint={!initial.flags.stripeOnboarded ? 'A bekapcsoláshoz kösd össze a Stripe-fiókot (Fizetés fül).' : 'A típusokat és összegeket az Ajándékutalvány fülön állítod.'}
+                hint={!initial.flags.stripeOnboarded ? 'A bekapcsoláshoz kösd össze a Stripe-fiókot (Fizetés & számlázás fül).' : 'A típusokat és összegeket az Ajándékutalvány fülön állítod.'}
                 checked={draft.voucherEnabled}
                 onChange={toggleVoucher}
                 onView={voucherOn ? () => goStep('voucher') : undefined}
@@ -1298,7 +1298,7 @@ export function BookingPageEditor({
                 warn={autoConfirmBlocked}
                 checked={draft.autoConfirm || depositOn}
                 onChange={toggleAutoConfirm}
-                onView={autoConfirmBlocked ? () => onNavigate?.('payments') : undefined}
+                onView={autoConfirmBlocked ? () => onNavigate?.('deposit') : undefined}
                 viewLabel="Előleg beállításai"
               />
               <ToggleRow label="Visszaigazoló e-mail a vendégnek" hint={draft.autoConfirm ? 'Azonnal a foglalás után.' : 'Amikor jóváhagyod.'} checked={draft.confirmEmail} onChange={() => set('confirmEmail', !draft.confirmEmail)} />
@@ -1408,8 +1408,8 @@ export function BookingPageEditor({
 
           {sel === 'deposit' && (
             <>
-              <p className="text-[12.5px] leading-relaxed text-ink-soft">Előleg: <b className="text-ink">{initial.flags.depositLabel}</b>. Az összeget és a visszatérítést a Fizetés fülön állítod.</p>
-              <NavButton onClick={() => onNavigate?.('payments')}>Előleg beállításai</NavButton>
+              <p className="text-[12.5px] leading-relaxed text-ink-soft">Előleg: <b className="text-ink">{initial.flags.depositLabel}</b>. Az összeget és a visszatérítést az Előleg fülön állítod.</p>
+              <NavButton onClick={() => onNavigate?.('deposit')}>Előleg beállításai</NavButton>
             </>
           )}
 

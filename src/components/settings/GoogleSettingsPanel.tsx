@@ -186,7 +186,7 @@ export function GoogleSettingsPanel({
       {/* ── Értékelések — custom kártya (URL mindig látható, toggle csak URL után aktív).
           A fejléc-ikon/cím/jelvény ugyanazt a nyelvet beszéli, mint a lenti IntegCard
           (Google Cégem), hogy a két kártya egy stílust kövessen ugyanazon az oldalon. ── */}
-      <div className="rounded-dav-lg dav-card-glass px-5 py-4 sm:px-6">
+      <div className="rounded-[22px] border border-line bg-white px-5 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-dav-sm bg-[#FBF9F2] text-ink-soft2">
@@ -194,7 +194,7 @@ export function GoogleSettingsPanel({
             </span>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-[15px] font-semibold text-ink">Google értékelés</h2>
+                <h2 className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Google értékelés</h2>
                 <span className={`rounded-dav-sm px-2 py-0.5 text-[11px] font-semibold ${reviewStatus.cls}`}>{reviewStatus.label}</span>
               </div>
               <p className="mt-0.5 text-[13px] text-ink-soft">

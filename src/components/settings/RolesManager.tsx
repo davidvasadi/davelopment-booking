@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 import {
-  Plus, Pencil, Trash2, Check, X, Loader2, ShieldCheck, ShieldAlert,
+  Plus, Pencil, Trash2, Check, X, Loader2, ShieldAlert,
   LayoutDashboard, CalendarDays, CalendarRange, MapPin, Briefcase, Armchair,
   Users, BarChart2, Settings, Shield, CreditCard, AlertTriangle, ScrollText,
   ChevronRight, Sparkles, Clock, Gift, Megaphone, Bell,
@@ -329,22 +329,17 @@ export function RolesManager({
   const editorTitle = isEditorNew ? 'Új szerep' : (editing as RoleRow | null)?.name ?? ''
 
   return (
-    <div className="rounded-[26px] p-5 lg:p-6 dav-card-glass">
+    <div className="rounded-[22px] border border-line bg-white p-5 lg:p-6">
 
       {/* Fejléc */}
       <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gold/20 text-ink-dark">
-            <ShieldCheck className="h-[18px] w-[18px]" strokeWidth={1.8} />
-          </div>
-          <div>
-            <div className="text-[17px] font-semibold text-ink">Egyedi szerepek</div>
-            <div className="text-[12.5px] text-ink-soft">Saját jogosultságok az üzletedhez</div>
-          </div>
+        <div>
+          <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Egyedi szerepek</div>
+          <div className="text-[12.5px] text-ink-soft">Saját jogosultságok az üzletedhez</div>
         </div>
         {editing === null && isOwner && (
-          <button onClick={openNew} className="inline-flex items-center gap-1.5 rounded-dav-pill bg-ink-dark px-3.5 py-2 text-[13px] font-semibold text-white">
-            <Plus className="h-4 w-4 text-gold" strokeWidth={2.5} />
+          <button onClick={openNew} className="inline-flex h-10 items-center gap-1.5 rounded-[12px] border border-line bg-white px-3.5 text-[13px] font-medium text-ink transition-colors hover:border-line-strong">
+            <Plus className="h-4 w-4" strokeWidth={2} />
             Új szerep
           </button>
         )}
@@ -374,7 +369,11 @@ export function RolesManager({
                 <div className="mt-0.5 text-[12px] text-ink-soft2">Hozz létre egyet sablonból vagy nulláról</div>
               </div>
             ) : (
-              <div className="space-y-[5px]">
+              <div>
+                {/* referencia-táblázat: Szerep · Jogosultságok · (műveletek) */}
+                <div className="hidden grid-cols-[1.6fr_1fr_80px] items-center gap-3 rounded-[10px] bg-[#EFEFEF] px-3 py-2.5 text-[13px] font-semibold text-ink md:grid">
+                  <div>Szerep</div><div>Jogosultságok</div><div />
+                </div>
                 {roles.map((r) => {
                   const capCount = (r.capabilities ?? []).length
                   return (
@@ -385,26 +384,17 @@ export function RolesManager({
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.97 }}
                       transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      className="group flex items-center gap-3 rounded-[18px] border border-line bg-white/70 px-4 py-3.5 transition-colors hover:bg-white/90"
+                      className="group grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-3 last:border-0 md:grid-cols-[1.6fr_1fr_80px] md:border-0"
                     >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[#F4F2EC]">
-                        <Shield className="h-[18px] w-[18px] text-ink-soft" strokeWidth={1.6} />
+                      <div className="min-w-0">
+                        <div className="truncate text-[13.5px] font-semibold text-ink">{r.name}</div>
+                        <div className="text-[12px] text-ink-soft md:hidden">{capCount === 0 ? 'Nincs jog kiválasztva' : `${capCount} jogosultság`}</div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[14px] font-semibold text-ink">{r.name}</div>
-                        <div className="mt-0.5">
-                          {capCount === 0 ? (
-                            <span className="text-[11.5px] text-ink-soft2">Nincs jog kiválasztva</span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2 py-0.5 text-[11px] font-semibold text-ink-dark">
-                              <Check className="h-3 w-3 text-gold" strokeWidth={2.5} />
-                              {capCount} jogosultság
-                            </span>
-                          )}
-                        </div>
+                      <div className="hidden text-[13.5px] md:block">
+                        {capCount === 0 ? <span className="text-ink-soft2">Nincs jog kiválasztva</span> : <span className="text-ink">{capCount} jogosultság</span>}
                       </div>
                       {isOwner && (
-                        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                        <div className="flex shrink-0 items-center justify-end gap-1">
                           <button onClick={() => openEdit(r)} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-ink-soft hover:bg-black/[0.06] hover:text-ink">
                             <Pencil className="h-[15px] w-[15px]" />
                           </button>
