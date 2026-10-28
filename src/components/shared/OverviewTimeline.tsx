@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronLeft, ChevronRight, ArrowUpRight, User, UserRound } from 'lucide-react'
-import { eventIconByKey } from '@/components/settings/eventTypeIcons'
+import { OccasionBadge } from './OccasionBadge'
 import { buttonHover } from '@/lib/motion'
 
 const MotionLink = motion.create(Link)
@@ -36,11 +36,15 @@ const ROW_H = 54
 // Ha egy blokk ennél szűkebb, a ReservationBlock "+N" kompakt módra vált (ld. lent). Ugyanezt
 // használjuk a látható óraszám (win) kiszámolásához is, hogy a két érték ne csússzon szét.
 const BLOCK_COMPACT_PX = 168
+// Rövid foglalás-blokk minimum szélessége (px), ha a sorban van mellette hely.
+const MIN_BLOCK_PX = 104
 const pad = (n: number) => String(n).padStart(2, '0')
 const fmt = (m: number) => `${pad(Math.floor(m / 60) % 24)}:${pad(m % 60)}`
 // Óra-CÍMKÉHEZ: az ablak túlnyúlhat éjfélen (pl. 21–25h a belső logikában), de egy nap
 // max 24 óráig tart — a KIJELZETT címke 24/25/26… helyett 00/01/02-t mutasson.
 const padH = (h: number) => pad(h % 24)
+// Időtartam röviden (mint a napi nézet pillján): 45p · 1ó · 1,5ó
+const fmtDur = (m: number) => (m < 60 ? `${m}p` : `${(m / 60).toFixed(m % 60 === 0 ? 0 : 1).replace('.', ',')}ó`)
 
 export function OverviewTimeline({
   rows,
@@ -51,6 +55,8 @@ export function OverviewTimeline({
   allHref = '/restaurant/bookings',
   title = 'Közelgő foglalások',
   compactPx = BLOCK_COMPACT_PX,
+  tableCol = TABLE_COL,
+  badge = 'pax',
 }: {
   rows: TimelineRow[]
   hourMin: number
@@ -64,6 +70,10 @@ export function OverviewTimeline({
    *  helyeken (pl. étterem, ahol egy asztalfoglalás jellemzően 1,5-2+ óra) kisebbre állítva
    *  több/keskenyebb óra fér ki egyszerre anélkül, hogy a jellemző foglalás olvashatatlanná válna. */
   compactPx?: number
+  /** Bal (asztal/munkatárs) oszlop szélessége px-ben — étteremnél a rövid asztalnevek miatt keskenyebb. */
+  tableCol?: number
+  /** Jobb oldali jelző a blokkon: létszám (étterem) vagy időtartam (szalon — ott mindig 1 fő). */
+  badge?: 'pax' | 'duration'
 }) {
   // Hány órát mutatunk egyszerre — a rácsterület (TABLE_COL-on túli rész) szélességétől függ.
   // Annyi órát mutatunk, hogy egy 1 órás foglalás blokkja ÁTLÉPJE a kompakt-küszöböt
@@ -120,6 +130,8 @@ export function OverviewTimeline({
   const allHours = Array.from({ length: totalHours + 1 }, (_, i) => hourMin + i)
   const hourLeftPct = (h: number) => ((h - hourMin) / totalHours) * 100
   const minBlockPct = 8 * (visibleSpan / totalHours)
+  // MIN_BLOCK_PX a csúszó sáv %-ában (a sáv = rácsszélesség × stripWidthPct).
+  const minBlockPctPx = gridPx > 0 ? (MIN_BLOCK_PX / (gridPx * (stripWidthPct / 100))) * 100 : 0
   // Jobb szélen halványuló maszk — jelzi, hogy a sáv folytatódik (a "kukucskáló" óra ez alatt tűnik el).
   const edgeMaskStyle = {
     maskImage: 'linear-gradient(to right, black calc(100% - 12px), transparent 100%)',
@@ -139,32 +151,69 @@ export function OverviewTimeline({
   const isDragging = dragDirRef.current === 'x'
   const stripXLive = isDragging ? stripX + dragPct : stripX
   const liveTransition = isDragging ? { duration: 0 } : stripTransition
-  const handlePan = (info: { offset: { x: number; y: number } }) => {
-    if (dragDirRef.current === null) {
-      if (Math.abs(info.offset.x) < 6 && Math.abs(info.offset.y) < 6) return
-      dragDirRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) * 1.2 ? 'x' : 'y'
-    }
-    if (dragDirRef.current !== 'x' || gridPx === 0) return
+  // Húzás-eltolás → sáv-% (a széleken, ahol nincs hova lépni, rugalmas fékezéssel).
+  const followDrag = (offsetX: number) => {
+    if (gridPx === 0) return
+    const blocked = (offsetX < 0 && !canNext) || (offsetX > 0 && !canPrev)
     const stripPx = gridPx * (stripWidthPct / 100)
-    setDragPct((info.offset.x / stripPx) * 100)
+    setDragPct(((blocked ? offsetX * 0.25 : offsetX) / stripPx) * 100)
   }
-  const handlePanEnd = (info: { offset: { x: number; y: number }; velocity: { x: number; y: number } }) => {
+  const commitDrag = (offsetX: number, velocityX: number) => {
     if (dragDirRef.current === 'x' && gridPx > 0) {
       const hourPx = gridPx / win
-      const past = info.offset.x <= -hourPx * 0.28 || info.velocity.x < -450
-      const back = info.offset.x >= hourPx * 0.28 || info.velocity.x > 450
+      const past = offsetX <= -hourPx * 0.28 || velocityX < -450
+      const back = offsetX >= hourPx * 0.28 || velocityX > 450
       if (past) setWinStart((s) => Math.min(maxStart, s + 1))
       else if (back) setWinStart((s) => Math.max(hourMin, s - 1))
     }
     dragDirRef.current = null
     setDragPct(0)
   }
+  const handlePan = (info: { offset: { x: number; y: number } }) => {
+    if (dragDirRef.current === null) {
+      if (Math.abs(info.offset.x) < 6 && Math.abs(info.offset.y) < 6) return
+      dragDirRef.current = Math.abs(info.offset.x) > Math.abs(info.offset.y) * 1.2 ? 'x' : 'y'
+    }
+    if (dragDirRef.current !== 'x') return
+    followDrag(info.offset.x)
+  }
+  const handlePanEnd = (info: { offset: { x: number; y: number }; velocity: { x: number; y: number } }) =>
+    commitDrag(info.offset.x, info.velocity.x)
+
+  // Desktop: a trackpad kétujjas oldalra-húzása `wheel` esemény (nem pan) — ugyanúgy élőben
+  // viszi a sávot, és a gesztus (lendülettel együtt) végén 1 órát lép. Natív, nem-passzív
+  // listener kell, hogy a preventDefault megfogja a böngésző „vissza" swipe-navigációját.
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const wheelRef = useRef<{ acc: number; timer: ReturnType<typeof setTimeout> | null }>({ acc: 0, timer: null })
+  const dragFnsRef = useRef({ followDrag, commitDrag, hourPx: gridPx / win })
+  dragFnsRef.current = { followDrag, commitDrag, hourPx: gridPx / win }
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const onWheel = (e: WheelEvent) => {
+      const w = wheelRef.current
+      if (w.timer === null && Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return
+      e.preventDefault()
+      const { followDrag: follow, hourPx } = dragFnsRef.current
+      dragDirRef.current = 'x'
+      w.acc = Math.max(-hourPx, Math.min(hourPx, w.acc - e.deltaX))
+      follow(w.acc)
+      if (w.timer) clearTimeout(w.timer)
+      w.timer = setTimeout(() => {
+        dragFnsRef.current.commitDrag(w.acc, 0)
+        w.acc = 0
+        w.timer = null
+      }, 140)
+    }
+    el.addEventListener('wheel', onWheel, { passive: false })
+    return () => el.removeEventListener('wheel', onWheel)
+  }, [])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col rounded-[26px] bg-[var(--dav-glass-strong)] backdrop-blur-lg p-[22px] shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]">
-      {/* Fejléc: BAL óra-léptető, KÖZÉPEN a cím (referencia), JOBBRA óra-léptető + ↗ a foglalásokra */}
-      <div className="flex items-center gap-2">
-        <div className="flex w-[84px] shrink-0 items-center">
+      {/* Fejléc — a gombok egyszer definiálva, két elrendezésben használva */}
+      {(() => {
+        const prevBtn = (
           <motion.button
             type="button"
             onClick={() => setWinStart((s) => Math.max(hourMin, s - 1))}
@@ -179,28 +228,8 @@ export function OverviewTimeline({
           >
             <ChevronLeft className="h-[18px] w-[18px]" strokeWidth={2.2} />
           </motion.button>
-        </div>
-        <div className="min-w-0 flex-1 text-center">
-          <div className="truncate text-[19px] font-medium text-ink">{title}</div>
-          <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">
-            {dayLabel} <span className="text-ink-soft2">|</span>{' '}
-            <span className="relative inline-block overflow-hidden align-bottom">
-              <AnimatePresence mode="wait" initial={false}>
-                <motion.span
-                  key={`${winStart}-${win}`}
-                  initial={{ y: 7, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  exit={{ y: -7, opacity: 0 }}
-                  transition={{ duration: 0.18, ease: [0.42, 0, 0.58, 1] }}
-                  className="inline-block"
-                >
-                  {padH(winStart)}:00 – {padH(winStart + win)}:00
-                </motion.span>
-              </AnimatePresence>
-            </span>
-          </div>
-        </div>
-        <div className="flex w-[84px] shrink-0 items-center justify-end gap-1.5">
+        )
+        const nextBtn = (
           <motion.button
             type="button"
             onClick={() => setWinStart((s) => Math.min(maxStart, s + 1))}
@@ -215,6 +244,8 @@ export function OverviewTimeline({
           >
             <ChevronRight className="h-[18px] w-[18px]" strokeWidth={2.2} />
           </motion.button>
+        )
+        const allLink = (
           <MotionLink
             href={allHref}
             aria-label="Összes foglalás"
@@ -227,12 +258,62 @@ export function OverviewTimeline({
           >
             <ArrowUpRight className="h-[15px] w-[15px]" strokeWidth={2.2} />
           </MotionLink>
-        </div>
-      </div>
+        )
+        const timeLabel = (
+          <span className="relative inline-block overflow-hidden align-bottom">
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={`${winStart}-${win}`}
+                  initial={{ y: 7, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -7, opacity: 0 }}
+                  transition={{ duration: 0.18, ease: [0.42, 0, 0.58, 1] }}
+                  className="inline-block"
+                >
+                  {padH(winStart)}:00 – {padH(winStart + win)}:00
+                </motion.span>
+              </AnimatePresence>
+            </span>
+        )
+        // a „Ma” fölösleges (mindig a mai nap az alap) — csak más napnál (pl. Holnap) írjuk ki
+        const dayPrefix = dayLabel && dayLabel !== 'Ma' ? <>{dayLabel} <span className="text-ink-soft2">|</span>{' '}</> : null
+        return (
+          <>
+            {/* MOBIL: felül a cím (teljes szélesség) + ↗, alatta ‹ nap | idősáv › — a lapozó az
+                időpontot lépteti, így oda is tartozik, a cím pedig kifér */}
+            <div className="sm:hidden">
+              {/* cím középen: bal oldalt a ↗-vel azonos szélességű üres hely */}
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 shrink-0" />
+                <div className="min-w-0 flex-1 truncate text-center text-[19px] font-medium text-ink">{title}</div>
+                {allLink}
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2">
+                {prevBtn}
+                <div className="min-w-0 truncate text-center text-[12.5px] text-ink-soft">
+                  {dayPrefix}{timeLabel}
+                </div>
+                {nextBtn}
+              </div>
+            </div>
+            {/* ASZTAL: BAL óra-léptető, KÖZÉPEN a cím, JOBBRA óra-léptető + ↗ a foglalásokra */}
+            <div className="hidden items-center gap-2 sm:flex">
+              <div className="flex w-[84px] shrink-0 items-center">{prevBtn}</div>
+              <div className="min-w-0 flex-1 text-center">
+                <div className="truncate text-[19px] font-medium text-ink">{title}</div>
+                <div className="mt-0.5 truncate text-[12.5px] text-ink-soft">
+                  {dayPrefix}{timeLabel}
+                </div>
+              </div>
+              <div className="flex w-[84px] shrink-0 items-center justify-end gap-1.5">{nextBtn}{allLink}</div>
+            </div>
+          </>
+        )
+      })()}
 
       {/* Óra-fejléc (vízszintes időtengely) */}
       <div className="mt-4 flex">
-        <div className="shrink-0" style={{ width: TABLE_COL }} />
+        <div className="shrink-0" style={{ width: tableCol }} />
         <div ref={gridRef} className="relative h-4 flex-1 overflow-hidden" style={edgeMaskStyle}>
           {/* Egyetlen csúszó sáv a TELJES [hourMin, hourMax] tartomány óráival — winStart
               változásakor a sávot toljuk (transform), a jobb szélen kimaszkolt rész adja a
@@ -261,11 +342,12 @@ export function OverviewTimeline({
           min-height is kell: lg alatt a grid 1 oszlopra esik, a sorok egymás alá kerülnek, és
           a szülőnek NINCS meghatározott magassága → flex-1 önmagában 0-ra esne, az abszolút
           görgő sáv (inset-0) is 0 magas lenne, és semmi (még az üres-állapot szöveg sem) látszana. */}
-      <div className="relative mt-1 min-h-[200px] flex-1">
+      <div className="relative mt-1 min-h-[340px] flex-1 lg:min-h-[200px]">
         <motion.div
-          className="no-scrollbar absolute inset-0 overflow-y-auto"
+          ref={scrollRef}
+          className="no-scrollbar absolute inset-0 select-none overflow-y-auto"
           data-lenis-prevent
-          style={{ touchAction: 'pan-y' }}
+          style={{ touchAction: 'pan-y', overscrollBehaviorX: 'contain' }}
           onPan={(_e, info) => handlePan(info)}
           onPanEnd={(_e, info) => handlePanEnd(info)}
         >
@@ -275,13 +357,15 @@ export function OverviewTimeline({
           </div>
         ) : (
           rows.map((row) => {
-            const vis = row.blocks.filter((b) => b.endMin > hourMin * 60 && b.startMin < hourMax * 60)
+            const vis = row.blocks
+              .filter((b) => b.endMin > hourMin * 60 && b.startMin < hourMax * 60)
+              .sort((a, b) => a.startMin - b.startMin)
             return (
               <div key={row.table} className="flex" style={{ minHeight: ROW_H }}>
 
                 <div
                   className="flex shrink-0 items-center gap-1.5 border-t border-dotted border-[#e4dfd0] pr-2 text-[12px] font-semibold text-ink"
-                  style={{ width: TABLE_COL }}
+                  style={{ width: tableCol }}
                 >
                   {row.avatarUrl !== undefined && (
                     row.avatarUrl ? (
@@ -320,7 +404,7 @@ export function OverviewTimeline({
                       />
                     ))}
                     {/* Foglalás-blokkok az asztal sorában (idő szerint, a sávon belül fix pozícióban) */}
-                    {vis.map((b) => {
+                    {vis.map((b, k) => {
                       // Ha KORÁN befejezték (completed) és még nem járt le az idő, a blokk a MOST-ig zsugorodik,
                       // így a felszabaduló idő láthatóvá válik a sávban.
                       const effEnd = b.status === 'completed' && nowMin != null && nowMin > b.startMin
@@ -328,9 +412,14 @@ export function OverviewTimeline({
                         : b.endMin
                       const left = Math.max(0, ((b.startMin - hourMin * 60) / (totalHours * 60)) * 100)
                       const right = Math.min(100, ((effEnd - hourMin * 60) / (totalHours * 60)) * 100)
-                      const width = Math.max(right - left, minBlockPct)
+                      // Rövid (pl. 30 perces) foglalás is olvasható legyen: ha van hely, legalább
+                      // MIN_BLOCK_PX széles — de csak a sor következő foglalásáig, hogy ne fedjék egymást.
+                      const next = vis[k + 1]
+                      const nextLeft = next ? ((next.startMin - hourMin * 60) / (totalHours * 60)) * 100 : 100
+                      const minPct = minBlockPctPx > 0 && effEnd === b.endMin ? Math.min(minBlockPctPx, nextLeft - left) : 0
+                      const width = Math.max(right - left, minBlockPct, minPct)
                       return (
-                        <ReservationBlock key={b.id} b={b} left={left} width={width} tone={blockTone(b.status)} freedEarly={effEnd < b.endMin} compactPx={compactPx} />
+                        <ReservationBlock key={b.id} b={b} left={left} width={width} tone={blockTone(b.status)} freedEarly={effEnd < b.endMin} compactPx={compactPx} badge={badge} />
                       )
                     })}
                   </motion.div>
@@ -363,7 +452,7 @@ function blockTone(status: string): BlockTone {
  * „+N" létszám-kört mutat (a teljes fővel), hogy a kör ne torzuljon és ne legyen zavaros.
  */
 function ReservationBlock({
-  b, left, width, tone, freedEarly, compactPx,
+  b, left, width, tone, freedEarly, compactPx, badge,
 }: {
   b: TimelineBlock
   left: number
@@ -371,6 +460,7 @@ function ReservationBlock({
   tone: BlockTone
   freedEarly: boolean
   compactPx: number
+  badge: 'pax' | 'duration'
 }) {
   const ref = useRef<HTMLDivElement>(null)
   const [px, setPx] = useState(0)
@@ -384,9 +474,14 @@ function ReservationBlock({
 
   // Szűk blokk → csak egy létszám-kör. (px===0 az első festésig: legyen compact, hogy sose deformáljon.)
   const compact = px === 0 || px < compactPx
-  const showCount = b.pax > 3
   // A ring a BLOKK hátterével egyezik → tiszta kaszkád-elválasztás. Felszabadult blokknál semleges.
   const ringColor = freedEarly ? '#e6e3da' : tone.bg
+  // Max 2 profil-ikon, a többi fő „+N" körben — így a blokk szélén is kifér.
+  const AVATARS = 2
+  const showCount = b.pax > AVATARS
+  // Alkalom (szülinap stb.) — kis ikon-kör az alkalom saját színével (mint a napi nézetben);
+  // a létszám elé kerül, hogy szűk blokkon se csússzon ki a név mögül.
+  const occasionBadge = b.occasion ? <OccasionBadge occasion={b.occasion} icon={b.occasionIcon} ring={ringColor} /> : null
   // TÖMÖR (nem átlátszó) avatar-chipek → átfedéskor tisztán takarják egymást; a gyűrű (tone.bg)
   // adja a kaszkád-elválasztást. Sötét blokkon világos chip, világoson sötét chip.
   const avatarBg = freedEarly ? '#d3cec0' : tone.onDark ? '#efece5' : '#1D1C19'
@@ -419,15 +514,24 @@ function ReservationBlock({
       title={freedEarly ? `${b.name} · ${b.pax} fő · korán befejezve, felszabadult` : `${b.name} · ${b.pax} fő`}
     >
       <div className="min-w-0 flex-1">
-        <div className={`flex items-center gap-1 truncate text-[12px] font-semibold leading-tight ${freedEarly ? 'line-through decoration-[#a9a498]' : ''}`}>
-          {b.name}{b.occasion && (() => { const OccIcon = eventIconByKey(b.occasionIcon); return <OccIcon className="ml-1 h-3 w-3 shrink-0" /> })()}
+        <div className={`truncate text-[12px] font-semibold leading-tight ${freedEarly ? 'line-through decoration-[#a9a498]' : ''}`}>
+          {b.name}
         </div>
         <div className={`truncate text-[10px] ${freedEarly ? 'text-ink-soft2' : tone.sub}`}>
           {freedEarly ? 'korán zárt · felszabadult' : (b.subline ?? `${b.pax} fő · ${fmt(b.startMin)}`)}
         </div>
       </div>
-      {/* Létszám-jelző. SZŰK blokk → egyetlen, fix méretű „+N" kör (nem deformál). */}
-      {compact ? (
+      {occasionBadge}
+      {/* Szalon: időtartam-pill (pl. „1,5ó") a létszám helyett. */}
+      {badge === 'duration' ? (
+        <span
+          className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 text-[10px] font-bold tabular-nums"
+          style={{ background: countBg, color: countFg, boxShadow: `0 0 0 2px ${ringColor}` }}
+        >
+          {fmtDur(b.endMin - b.startMin)}
+        </span>
+      ) : /* Létszám-jelző. SZŰK blokk → egyetlen, fix méretű „+N" kör (nem deformál). */
+      compact ? (
         <span
           className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1 text-[10px] font-bold tabular-nums"
           style={{ background: countBg, color: countFg, boxShadow: `0 0 0 2px ${ringColor}` }}
@@ -436,7 +540,7 @@ function ReservationBlock({
         </span>
       ) : (
         <div className="flex shrink-0 items-center pr-0.5">
-          {Array.from({ length: showCount ? 3 : Math.min(b.pax, 3) }).map((_, i) => (
+          {Array.from({ length: Math.min(b.pax, AVATARS) }).map((_, i) => (
             <span
               key={i}
               className="flex h-5 w-5 items-center justify-center rounded-full"
@@ -451,7 +555,7 @@ function ReservationBlock({
               className="relative flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[9px] font-bold tabular-nums"
               style={{ marginLeft: -8, zIndex: 10, background: countBg, color: countFg, boxShadow: `0 0 0 2px ${ringColor}` }}
             >
-              +{b.pax - 3}
+              +{b.pax - AVATARS}
             </span>
           )}
         </div>

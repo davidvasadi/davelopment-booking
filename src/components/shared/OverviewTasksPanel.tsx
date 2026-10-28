@@ -224,7 +224,7 @@ export function OverviewTasksPanel({ restaurantId, salonId, initial }: { restaur
       </div>
 
       {/* KÁRTYA-STACK — a 3 nézet LÁTHATÓAN egymás mögött; a kiválasztott animálva előre kerül */}
-      <div className="relative mt-5 min-h-[300px] flex-1">
+      <div className="relative mt-5 min-h-[420px] flex-1 lg:min-h-[300px]">
         {SEGS.map((s) => {
           const stack: Tab[] = [tab, ...(['today', 'tomorrow', 'yesterday'] as Tab[]).filter((k) => k !== tab)]
           const pos = stack.indexOf(s.key) // 0 = elöl, 1/2 = mögötte

@@ -441,9 +441,22 @@ export default async function DashboardPage() {
 
         {/* ── Grafikon-kártyák + idővonal ── */}
         <div className="flex min-h-0 flex-col gap-[5px]" style={{ gridArea: 'charts' }}>
-          <div className="grid grid-cols-1 gap-[5px] sm:grid-cols-2">
+          {/* Idővonal — SZAKEMBERENKÉNT (óra-léptethető, foglalás-blokkok) */}
+          <div className="order-2 flex min-h-0 flex-1 flex-col sm:order-3">
+            <OverviewTimeline
+              rows={timelineRows}
+              hourMin={tlHourMin}
+              hourMax={tlHourMax}
+              initialWin={tlInitWin}
+              dayLabel={tlDayLabel}
+              allHref="/dashboard/bookings"
+              badge="duration"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-[5px] max-sm:contents sm:grid-cols-2">
             {/* Foglalások a héten — oszlopdiagram */}
-            <div className={`${CARD} flex flex-col p-[22px]`}>
+            <div className={`${CARD} order-1 flex flex-col p-[22px]`}>
               <div className="flex items-start justify-between">
                 <div className="text-[17px] font-medium text-ink">Foglalások a héten</div>
                 <DetailSheet title="Foglalások a héten" subtitle="Napi foglalásszám az e-héten">
@@ -477,7 +490,7 @@ export default async function DashboardPage() {
               </div>
             </div>
             {/* Kihasználtság — donut (foglalt idő / nyitott kapacitás) */}
-            <div className={`${CARD} flex flex-col p-[22px]`}>
+            <div className={`${CARD} order-3 flex flex-col p-[22px]`}>
               <div className="flex w-full items-start justify-between">
                 <div className="text-[17px] font-medium text-ink">Kihasználtság</div>
                 <DetailSheet title="Kihasználtság" subtitle="Mai foglalt idő a nyitott kapacitáshoz">
@@ -516,15 +529,6 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          {/* Idővonal — SZAKEMBERENKÉNT (óra-léptethető, foglalás-blokkok) */}
-          <OverviewTimeline
-            rows={timelineRows}
-            hourMin={tlHourMin}
-            hourMax={tlHourMax}
-            initialWin={tlInitWin}
-            dayLabel={tlDayLabel}
-            allHref="/dashboard/bookings"
-          />
         </div>
 
         {/* ── Mai teendők (valós, salonId scope) ── */}

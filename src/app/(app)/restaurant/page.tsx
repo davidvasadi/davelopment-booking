@@ -473,9 +473,22 @@ export default async function RestaurantDashboardPage() {
 
         {/* ── Grafikon-kártyák + naptár idővonal ── */}
         <div className="flex min-h-0 flex-col gap-[5px]" style={{ gridArea: 'charts' }}>
-          <div className="grid grid-cols-1 gap-[5px] sm:grid-cols-2">
+          {/* Naptár — vízszintes idővonal-panel (óra-léptethető, foglalás-blokkok) */}
+          <div className="order-2 flex min-h-0 flex-1 flex-col sm:order-3">
+            <OverviewTimeline
+              rows={timelineRows}
+              hourMin={tlHourMin}
+              hourMax={tlHourMax}
+              initialWin={tlInitWin}
+              dayLabel={tlDayLabel}
+              compactPx={96}
+              tableCol={52}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 gap-[5px] max-sm:contents sm:grid-cols-2">
             {/* Foglalások (köv. 7 nap) — oszlopdiagram (Crextio „Progress"-stílus) */}
-            <div className={`${CARD} flex flex-col p-[22px]`}>
+            <div className={`${CARD} order-1 flex flex-col p-[22px]`}>
               <div className="flex items-start justify-between">
                 <div className="text-[17px] font-medium text-ink">Köv. 7 nap</div>
                 <DetailSheet title="Köv. 7 nap vendégei" subtitle="Napi várható vendéglétszám">
@@ -514,7 +527,7 @@ export default async function RestaurantDashboardPage() {
               </div>
             </div>
             {/* Kihasználtság — donut gauge (Crextio „Time tracker"-stílus) */}
-            <div className={`${CARD} flex flex-col p-[22px]`}>
+            <div className={`${CARD} order-3 flex flex-col p-[22px]`}>
               <div className="flex w-full items-start justify-between">
                 <div className="text-[17px] font-medium text-ink">Kihasználtság</div>
                 <DetailSheet title="Kihasználtság" subtitle="Mai telítettség és összetétel">
@@ -553,15 +566,6 @@ export default async function RestaurantDashboardPage() {
             </div>
           </div>
 
-          {/* Naptár — vízszintes idővonal-panel (óra-léptethető, foglalás-blokkok) */}
-          <OverviewTimeline
-            rows={timelineRows}
-            hourMin={tlHourMin}
-            hourMax={tlHourMax}
-            initialWin={tlInitWin}
-            dayLabel={tlDayLabel}
-            compactPx={120}
-          />
         </div>
 
         {/* ── Mai teendők — 3 kis grafikon-gomb (Mind/Kész/Elérhető) + kapcsolható lista ── */}
