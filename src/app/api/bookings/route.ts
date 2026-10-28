@@ -260,8 +260,10 @@ export async function POST(request: NextRequest) {
     // Automatikus megerősítés (Beállítások → Foglalási szabályok): alap (null/true) → 'confirmed'.
     // Kikapcsolva → 'pending', a tulaj hagyja jóvá; a vendég visszaigazolója a jóváhagyáskor megy
     // ki (`confirmOnApproval` hook). Korábban a kapcsolót a szalon-foglalás figyelmen kívül hagyta.
+    // Előleges foglalás MINDIG azonnal megerősített (a vendég már fizetett); a szerkesztő sem
+    // engedi kikapcsolni az automatikus megerősítést, amíg az előleg be van kapcsolva.
     const bookingStatus: 'confirmed' | 'pending' =
-      salon.booking_rules?.auto_confirm === false ? 'pending' : 'confirmed'
+      salon.booking_rules?.auto_confirm === false && !depositRequired ? 'pending' : 'confirmed'
 
     // Ismétlődés csak akkor él, ha jött `repeat` ÉS a modul be van kapcsolva. Máskülönben
     // (nincs repeat, vagy recurring_on ki) → egyszeri foglalás, közös series_id nélkül.

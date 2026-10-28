@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bell, Settings2, X } from 'lucide-react'
+import { ApprovalActions, isAwaitingApproval } from './ApprovalActions'
 import { cn } from '@/lib/utils'
 import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
 import { OPEN_BROADCAST_EVENT } from './BroadcastAutoPopup'
@@ -19,7 +20,7 @@ import {
 import { PersonalNotifPrefsCard } from '@/components/settings/PersonalNotifPrefsCard'
 
 export function NotificationsPage() {
-  const { groups, items, remove, markRead, clearAll, openItem } = useNotifications()
+  const { groups, items, remove, markRead, clearAll, openItem, reload } = useNotifications()
   const [tab, setTab] = useState<'inbox' | 'settings'>('inbox')
   // MOBIL: a Beérkező úgyis végig látszik alattuk — a Beállítások egy alulról felcsúszó bottom
   // sheetben jelenik meg fölötte (ua. minta, mint a Beállítások oldal nav-jánál), nem egy külön tab.
@@ -219,7 +220,7 @@ export function NotificationsPage() {
                           ? <FullDigestCard n={n} onMarkRead={() => markRead(n.id)} onRemove={() => remove(n.id)} />
                           : n.type === 'admin_broadcast'
                             ? <FullNotifRow n={n} onOpen={() => { if (!n.read) markRead(n.id); window.dispatchEvent(new CustomEvent(OPEN_BROADCAST_EVENT, { detail: n })) }} onRemove={() => remove(n.id)} />
-                            : <FullNotifRow n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} />}
+                            : <FullNotifRow n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} onHandled={() => { if (!n.read) markRead(n.id); void reload() }} />}
                       </motion.div>
                     ))}
                   </AnimatePresence>
@@ -236,8 +237,8 @@ export function NotificationsPage() {
 
 /* ── Egyszerű értesítés-sor ────────────────────────────────────────────── */
 
-function FullNotifRow({ n, onOpen, onRemove }: {
-  n: Notification; onOpen: () => void; onRemove: () => void
+function FullNotifRow({ n, onOpen, onRemove, onHandled }: {
+  n: Notification; onOpen: () => void; onRemove: () => void; onHandled?: () => void
 }) {
   const { Icon, color } = notificationVisual(n.type, n.metadata)
   const isUnread = !n.read
@@ -264,6 +265,9 @@ function FullNotifRow({ n, onOpen, onRemove }: {
           <span className="mx-1.5 opacity-40">·</span>
           {timeAgo(n.createdAt)}
         </p>
+        {isAwaitingApproval(n) && (
+          <ApprovalActions n={n} onHandled={onHandled} />
+        )}
       </button>
 
       {/* Törlés — mobilon halvány, desktopOn hover-re látszik */}

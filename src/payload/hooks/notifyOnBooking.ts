@@ -95,11 +95,16 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
       const name = doc.customer_name ?? 'Vendég'
       const when = [doc.date, doc.start_time].filter(Boolean).join(' ')
 
+      // Kikapcsolt automatikus megerősítésnél az új foglalás 'pending' — az értesítésben
+      // gyorsgombbal elfogadható/elutasítható (ld. NotificationsPage).
+      const awaitingApproval = type === 'new_booking' && doc.status === 'pending'
       const title = becameCancelled
         ? 'Lemondott foglalás'
         : isModification
           ? 'Foglalás módosítva'
-          : 'Új foglalás'
+          : awaitingApproval
+            ? 'Új foglalás – jóváhagyásra vár'
+            : 'Új foglalás'
       const body = becameCancelled
         ? `${name} lemondta a foglalását${when ? ` – ${when}` : ''}`
         : isModification
@@ -114,6 +119,7 @@ export function notifyOnBooking(kind: 'restaurant' | 'salon'): CollectionAfterCh
         body,
         read: false,
         [kind === 'restaurant' ? 'reservation' : 'booking']: Number(doc.id),
+        ...(awaitingApproval ? { metadata: { awaiting_approval: true } } : {}),
       }
       console.log('[notifyOnBooking] create data:', notifData)
       await req.payload.create({

@@ -126,8 +126,11 @@ export async function POST(request: NextRequest) {
 
     // Defenzív auto_confirm: alap (null/true) → 'confirmed' (változatlan). Csak explicit
     // false esetén 'pending' → a tulaj a meglévő státusz-kezeléssel erősíti meg.
+    // Előleges foglalás MINDIG azonnal megerősített (a vendég már fizetett — jóváhagyásra várás
+    // és utólagos elutasítás itt visszatérítési zűrt okozna); a szerkesztő sem engedi kikapcsolni.
+    const depositOnForAutoConfirm = !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded && !!restaurant.stripe_connect_account_id
     const reservationStatus: 'confirmed' | 'pending' =
-      restaurant.booking_rules?.auto_confirm === false ? 'pending' : 'confirmed'
+      restaurant.booking_rules?.auto_confirm === false && !depositOnForAutoConfirm ? 'pending' : 'confirmed'
 
     // Ha az étteremnél be van kapcsolva az előleg ÉS a Stripe onboarding kész, a fizetés
     // KÖTELEZŐ — sose bízzunk kliens-oldali jelzésben.

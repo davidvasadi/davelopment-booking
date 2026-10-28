@@ -11,8 +11,8 @@ import { TimeSelect } from '@/components/ui/time-select'
 import { TimeSlotGrid } from '@/components/ui/TimeSlotGrid'
 import { DurationSlider } from '@/components/ui/DurationSlider'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, AlertTriangle, X, ChevronDown, ChevronRight, CalendarClock, UserRound, Sparkles } from 'lucide-react'
-import { eventIconByKey } from '@/components/settings/eventTypeIcons'
+import { Loader2, Trash2, AlertTriangle, X, ChevronDown, ChevronRight, CalendarClock, UserRound, Sparkles, Check } from 'lucide-react'
+import { eventIconByKey, eventColorByKey } from '@/components/settings/eventTypeIcons'
 import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
 import { addDraft, updateDraft, removeDraft } from '@/lib/offlineDrafts'
 import { useOnline } from '@/lib/useOnline'
@@ -499,7 +499,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
     onClose()
   }
 
-  const save = async (opts?: { allowOverCapacity?: boolean }) => {
+  const save = async (opts?: { allowOverCapacity?: boolean; status?: Reservation['status'] }) => {
     if (!startTime) return toast.error('Adj meg időpontot')
     // Kisebb asztalra ültetés csak tudatos megerősítés után (a szerver alapból elutasítaná).
     if (pickedTooSmall && !opts?.allowOverCapacity) { setConfirmSmallTable(true); return }
@@ -534,7 +534,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
           country,
           customer_email: email,
           notes,
-          status,
+          status: opts?.status ?? status,
           source,
           occasion,
           occasion_icon: occasionIcon,
@@ -546,7 +546,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
       if (!res.ok) throw new Error(json.error ?? 'Hiba')
       // Sikeres véglegesítés után a lokális vázlat törölhető (különben duplán látszana).
       if (isDraft && draftId) removeDraft(restaurantId, draftId)
-      toast.success(isDraft ? 'Vázlat véglegesítve' : isEdit ? 'Foglalás frissítve' : 'Foglalás rögzítve')
+      toast.success(opts?.status === 'confirmed' ? 'Elfogadva — a vendég megkapta a visszaigazolást' : isDraft ? 'Vázlat véglegesítve' : isEdit ? 'Foglalás frissítve' : 'Foglalás rögzítve')
       onClose()
       markLocalMutation()
       router.refresh()
@@ -734,7 +734,7 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                       {occasion && (() => {
                         const OccIcon = eventIconByKey(occasionIcon)
                         return (
-                          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-ink-dark shadow-[0_1px_4px_rgba(120,90,10,.28)]">
+                          <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-white shadow-[0_1px_4px_rgba(40,30,10,.22)]" style={{ background: eventColorByKey(occasionIcon) }}>
                             <OccIcon className="h-3.5 w-3.5 shrink-0" strokeWidth={2.2} /> {occasion}
                           </span>
                         )
@@ -1065,6 +1065,13 @@ export function ReservationEditSheet({ open, onClose, date, restaurantId, eventT
                   </span>
                 </div>
                 {/* A vázlat lokális → online/offline is menthető. Valódi foglalás szerkesztéséhez szerver kell. */}
+                {/* Jóváhagyásra váró foglalás: egy kattintással elfogadható (a módosításokkal együtt
+                    ment, a vendég a `confirmOnApproval` hookon át megkapja a visszaigazolót). */}
+                {isEdit && !isDraft && target?.reservation?.status === 'pending' && (
+                  <Button onClick={() => save({ status: 'confirmed' })} disabled={saving || !online} className="h-12 w-full rounded-full bg-[#74AA19] text-[15px] font-semibold text-ink-dark hover:bg-[#74AA19]/90 lg:w-auto lg:px-8">
+                    <Check className="h-4 w-4 mr-2" strokeWidth={2.6} /> Elfogadás
+                  </Button>
+                )}
                 <Button onClick={() => save()} disabled={saving || (!online && isEdit && !isDraft)} className="h-12 w-full rounded-full bg-ink-dark text-[15px] font-semibold text-white hover:bg-ink-dark/90 lg:w-auto lg:px-10">
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   {isDraft

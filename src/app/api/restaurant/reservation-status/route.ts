@@ -3,7 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
 import { assertCapability } from '@/lib/apiCapability'
-import type { Reservation } from '@/payload/payload-types'
+import type { Reservation, Restaurant } from '@/payload/payload-types'
 
 /**
  * FOGLALÁS-STÁTUSZ váltás a dashboardról (lemondás / leültetés / távozott / no-show / visszaigazolás).
@@ -17,13 +17,15 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  let body: { reservationId?: string | number; status?: Reservation['status'] }
+  // `decline`: jóváhagyásra váró foglalás ELUTASÍTÁSA (pending → cancelled) — ilyenkor a vendég
+  // semleges „nem jött létre” e-mailt kap (sima lemondásnál nem).
+  let body: { reservationId?: string | number; status?: Reservation['status']; decline?: boolean }
   try {
     body = await req.json()
   } catch {
     return NextResponse.json({ error: 'Hibás kérés' }, { status: 400 })
   }
-  const { reservationId, status } = body
+  const { reservationId, status, decline } = body
   if (!reservationId || !status || !ALLOWED.includes(status)) {
     return NextResponse.json({ error: 'Hiányzó vagy érvénytelen státusz' }, { status: 400 })
   }
@@ -55,5 +57,16 @@ export async function POST(req: NextRequest) {
     overrideAccess: true,
     user,
   })
+
+  if (decline && status === 'cancelled' && existing.status === 'pending' && existing.customer_email) {
+    try {
+      const locale = ((existing as { locale?: string }).locale ?? 'hu') as 'hu'
+      const restaurant = (await payload.findByID({ collection: 'restaurants', id: active.id, overrideAccess: true, locale, fallbackLocale: 'hu' })) as Restaurant
+      const { sendReservationDeclined } = await import('@/lib/restaurantEmail')
+      await sendReservationDeclined({ reservation: updated as Reservation, restaurant })
+    } catch (err) {
+      console.error('[reservation-status] decline email:', err)
+    }
+  }
   return NextResponse.json({ ok: true, reservation: updated })
 }

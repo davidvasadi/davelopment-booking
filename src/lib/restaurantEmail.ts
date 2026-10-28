@@ -209,6 +209,30 @@ export async function sendReservationCancellation(data: ReservationEmailData) {
   }
 }
 
+/** Elutasított (jóváhagyásra váró → elutasítva) asztalfoglalás — semleges hangú értesítés a
+ *  vendégnek, link a foglalóoldalra. */
+export async function sendReservationDeclined(data: ReservationEmailData) {
+  const { reservation, restaurant } = data
+  const resend = getResend()
+  if (!resend) return
+  if (!reservation.customer_email) return
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
+  const subject = t(locale, 'email.decline.subjectFallback', { place: restaurant.name })
+  try {
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(restaurant.name, restaurant.slug),
+      reply_to: restaurant.email || undefined,
+      to: reservation.customer_email,
+      subject,
+      html: declineHtml(data),
+    })
+    await logEmail('cancellation', reservation.customer_email, subject, true, undefined, { resendId: sendResult?.id, reservationId: reservation.id })
+  } catch (err) {
+    console.error('[RestaurantEmail] Decline failed:', err)
+    await logEmail('cancellation', reservation.customer_email, subject, false, String(err), { reservationId: reservation.id })
+  }
+}
+
 export async function sendReminderEmail(data: ReservationEmailData) {
   const { reservation, restaurant } = data
   const resend = getResend()
@@ -607,6 +631,25 @@ function cancellationHtml(data: ReservationEmailData): string {
     })}
     ${introBlockFromJson(restaurant.cancel_email_intro, emailVars(data))}
     ${detailsCard(detailRows(data))}
+    ${bottomSpacer()}
+  `)
+}
+
+function declineHtml(data: ReservationEmailData): string {
+  const { reservation, restaurant } = data
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
+  return wrap(restaurant, `
+    ${heroBlock({
+      icon: 'cancel',
+      title: t(locale, 'email.decline.title'),
+      subtitle: t(locale, 'email.decline.body'),
+    })}
+    ${detailsCard(detailRows(data))}
+    <tr>
+      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <a href="${APP_URL}/${restaurant.slug}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${t(locale, 'email.decline.cta')}</a>
+      </td>
+    </tr>
     ${bottomSpacer()}
   `)
 }

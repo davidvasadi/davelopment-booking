@@ -616,8 +616,22 @@ export function BookingPageEditor({
       if (!initial.flags.stripeOnboarded) { toast.error('Előbb kösd össze a Stripe-fiókot a Fizetés fülön.'); onNavigate?.('payments'); return }
       if (!initial.flags.termsFilled) { toast.error('Előbb töltsd ki a foglalási feltételeket a Dokumentumok & jogi fülön.'); onNavigate?.('documents'); return }
     }
+    // Előleg mellett kötelező az automatikus megerősítés (fizetett foglalást nem hagyunk függőben).
+    if (!draft.depositEnabled && !draft.autoConfirm) {
+      setDraft((d) => ({ ...d, depositEnabled: true, autoConfirm: true }))
+      toast('Az automatikus megerősítés bekapcsolt — előleg mellett kötelező.')
+      return
+    }
     set('depositEnabled', !draft.depositEnabled)
   }
+  // Automatikus megerősítés: előleg mellett nem kapcsolható ki — próbálkozáskor figyelmeztetés alá.
+  const [autoConfirmWarn, setAutoConfirmWarn] = useState(false)
+  const toggleAutoConfirm = () => {
+    if (depositOn && draft.autoConfirm) { setAutoConfirmWarn(true); return }
+    setAutoConfirmWarn(false)
+    set('autoConfirm', !draft.autoConfirm)
+  }
+  const autoConfirmBlocked = depositOn && (autoConfirmWarn || !draft.autoConfirm)
   const toggleVoucher = () => {
     if (!draft.voucherEnabled && !initial.flags.stripeOnboarded) { toast.error('Előbb kösd össze a Stripe-fiókot a Fizetés fülön.'); onNavigate?.('payments'); return }
     set('voucherEnabled', !draft.voucherEnabled)
@@ -1276,7 +1290,17 @@ export function BookingPageEditor({
 
           {sel === 'confirm' && (
             <>
-              <ToggleRow label="Automatikus megerősítés" hint="Kikapcsolva te hagyod jóvá; a vendég „beérkezett” üzenetet lát." checked={draft.autoConfirm} onChange={() => set('autoConfirm', !draft.autoConfirm)} />
+              <ToggleRow
+                label="Automatikus megerősítés"
+                hint={autoConfirmBlocked
+                  ? 'Előleg mellett nem kapcsolható ki: az előleggel fizetett foglalás mindig azonnal megerősített. Kikapcsoláshoz előbb az előleget kell kikapcsolni.'
+                  : 'Kikapcsolva te hagyod jóvá; a vendég „beérkezett” üzenetet lát.'}
+                warn={autoConfirmBlocked}
+                checked={draft.autoConfirm || depositOn}
+                onChange={toggleAutoConfirm}
+                onView={autoConfirmBlocked ? () => onNavigate?.('payments') : undefined}
+                viewLabel="Előleg beállításai"
+              />
               <ToggleRow label="Visszaigazoló e-mail a vendégnek" hint={draft.autoConfirm ? 'Azonnal a foglalás után.' : 'Amikor jóváhagyod.'} checked={draft.confirmEmail} onChange={() => set('confirmEmail', !draft.confirmEmail)} />
               <div className="border-t border-line pt-4">
                 <ToggleRow label="Automata emlékeztetők" hint="A foglalás előtt." checked={draft.reminders.on} onChange={() => setRem({ on: !draft.reminders.on })} />

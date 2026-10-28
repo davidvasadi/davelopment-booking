@@ -241,6 +241,31 @@ export async function sendCancellationEmail(data: BookingEmailData) {
   }
 }
 
+/** Elutasított (jóváhagyásra váró → elutasítva) foglalás — semleges hangú értesítés a vendégnek,
+ *  link a foglalóoldalra. A dashboard státusz-váltó küldi, ha kifejezetten elutasítás történt. */
+export async function sendBookingDeclined(data: BookingEmailData) {
+  const { booking, salon } = data
+  const resend = getResend()
+  if (!resend) return
+  const to = booking.customer_email
+  if (!to) return
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
+  const subject = t(locale, 'email.decline.subjectFallback', { place: salon.name })
+  try {
+    const { data: sendResult } = await resend.emails.send({
+      from: fromHeader(salon.name, salon.slug),
+      reply_to: salon.email || undefined,
+      to,
+      subject,
+      html: declineHtml(data),
+    })
+    await logEmail('cancellation', to, subject, true, undefined, { resendId: sendResult?.id, bookingId: booking.id })
+  } catch (err) {
+    console.error('[Email] Decline email failed:', err)
+    await logEmail('cancellation', to, subject, false, String(err), { bookingId: booking.id })
+  }
+}
+
 export async function sendReminderEmail(data: BookingEmailData) {
   const { booking, salon } = data
   const resend = getResend()
@@ -694,6 +719,30 @@ function cancellationHtml(data: BookingEmailData): string {
     <tr><td style="background:${COLORS.surface};padding:16px 32px 0;text-align:center">
       <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.cancel.hint')}</p>
     </td></tr>
+    ${bottomSpacer()}
+  `)
+}
+
+function declineHtml(data: BookingEmailData): string {
+  const { booking, salon, service } = data
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
+  const rows = [
+    infoRow('scissors', t(locale, 'email.label.service'), service.name),
+    infoRow('calendar', t(locale, 'email.label.date'), booking.date),
+    infoRow('clock', t(locale, 'email.label.time'), `${booking.start_time} – ${booking.end_time}`),
+  ].join('')
+  return wrap(salon, `
+    ${heroBlock({
+      icon: 'cancel',
+      title: t(locale, 'email.decline.title'),
+      subtitle: t(locale, 'email.decline.body'),
+    })}
+    ${detailsCard(rows)}
+    <tr>
+      <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+        <a href="${APP_URL}/${salon.slug}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${t(locale, 'email.decline.cta')}</a>
+      </td>
+    </tr>
     ${bottomSpacer()}
   `)
 }

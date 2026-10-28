@@ -16,6 +16,8 @@ export type Notification = {
   booking?: number | string | null
   salon?: number | string | null
   restaurant?: number | string | null
+  /** Jóváhagyásra váró foglalás-értesítésnél a foglalás aktuális státusza (az API teszi hozzá). */
+  target_status?: string
 }
 
 export type DigestMetadata = {
@@ -221,7 +223,9 @@ export function useNotifications(onNavigate?: () => void) {
 
   const openItem = useCallback((n: Notification) => {
     onNavigate?.()
-    remove(n.id)
+    // Jóváhagyásra váró (még függő) foglalás értesítése megmarad a gyorsgombokkal, csak olvasott lesz.
+    const awaiting = !!(n.metadata as { awaiting_approval?: boolean } | null)?.awaiting_approval && n.target_status === 'pending'
+    if (awaiting) { if (!n.read) void markRead(n.id) } else remove(n.id)
     const t = Date.now()
     if (n.reservation != null) {
       router.push(`/restaurant/bookings?reservation=${encodeURIComponent(String(n.reservation))}&t=${t}`)
@@ -249,7 +253,7 @@ export function useNotifications(onNavigate?: () => void) {
     } else if (n.type === 'contact_message') {
       router.push(`/backstage/contact?t=${t}`)
     }
-  }, [onNavigate, remove, router])
+  }, [onNavigate, remove, markRead, router])
 
   const groups = [
     { label: 'Új', rows: items.filter((n) => !n.read) },

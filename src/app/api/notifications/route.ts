@@ -57,7 +57,32 @@ export async function GET() {
     }),
   ])
 
-  return NextResponse.json({ notifications: list.docs, unread: unread.totalDocs })
+  // Jóváhagyásra váró foglalás-értesítéseknél a foglalás AKTUÁLIS státusza is menjen — a lista
+  // gyorsgombjai (Elfogadom/Elutasítom) csak addig látszanak, amíg még 'pending'.
+  const pendingOf = (kind: 'booking' | 'reservation') =>
+    list.docs
+      .filter((n) => (n.metadata as { awaiting_approval?: boolean } | null)?.awaiting_approval && n[kind] != null)
+      .map((n) => (typeof n[kind] === 'object' ? (n[kind] as { id: number }).id : (n[kind] as number)))
+  const bookingIds = pendingOf('booking')
+  const reservationIds = pendingOf('reservation')
+  const [bk, rs] = await Promise.all([
+    bookingIds.length
+      ? payload.find({ collection: 'bookings', where: { id: { in: bookingIds } }, depth: 0, limit: bookingIds.length, overrideAccess: true, select: { status: true } })
+      : null,
+    reservationIds.length
+      ? payload.find({ collection: 'reservations', where: { id: { in: reservationIds } }, depth: 0, limit: reservationIds.length, overrideAccess: true, select: { status: true } })
+      : null,
+  ])
+  const statusOf = new Map<string, string>()
+  for (const d of bk?.docs ?? []) statusOf.set(`booking:${d.id}`, String(d.status))
+  for (const d of rs?.docs ?? []) statusOf.set(`reservation:${d.id}`, String(d.status))
+  const notifications = list.docs.map((n) => {
+    const key = n.booking != null ? `booking:${typeof n.booking === 'object' ? n.booking.id : n.booking}`
+      : n.reservation != null ? `reservation:${typeof n.reservation === 'object' ? n.reservation.id : n.reservation}` : null
+    return key && statusOf.has(key) ? { ...n, target_status: statusOf.get(key) } : n
+  })
+
+  return NextResponse.json({ notifications, unread: unread.totalDocs })
 }
 
 // PATCH — olvasottnak jelöl (egy id, vagy mind a felhasználó helyén)

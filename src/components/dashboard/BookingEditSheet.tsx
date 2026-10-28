@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { TimeSelect } from '@/components/ui/time-select'
 import { TimeSlotGrid } from '@/components/ui/TimeSlotGrid'
 import { Button } from '@/components/ui/button'
-import { Loader2, Trash2, AlertTriangle, X, CalendarClock, UserRound, Lock, ChevronRight, ChevronDown, Sparkles } from 'lucide-react'
+import { Loader2, Trash2, AlertTriangle, X, CalendarClock, UserRound, Lock, ChevronRight, ChevronDown, Sparkles, Check } from 'lucide-react'
 import { hhmmToMinutes, minutesToHHMM, ymdLocal } from '@/lib/utils'
 import { addDraft, updateDraft, removeDraft } from '@/lib/salonBookingDrafts'
 import { useOnline } from '@/lib/useOnline'
@@ -456,7 +456,7 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
     onClose()
   }
 
-  const save = async () => {
+  const save = async (opts?: { status?: Booking['status'] }) => {
     if (!serviceId) return toast.error('Válassz szolgáltatást')
     if (!staffId) return toast.error('Válassz szakembert')
     if (!startTime) return toast.error('Adj meg időpontot')
@@ -483,13 +483,13 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
           customer_phone: phone.trim() ? `${DIAL_BY_CODE[country] ?? ''} ${phone.trim()}`.trim() : '',
           customer_email: email.trim(),
           notes,
-          status,
+          status: opts?.status ?? status,
         }),
       })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error ?? 'Hiba')
       if (isDraft && draftId) removeDraft(salonId, draftId)
-      toast.success(isDraft ? 'Vázlat véglegesítve' : isEdit ? 'Foglalás frissítve' : 'Foglalás rögzítve')
+      toast.success(opts?.status === 'confirmed' ? 'Elfogadva — a vendég megkapta a visszaigazolást' : isDraft ? 'Vázlat véglegesítve' : isEdit ? 'Foglalás frissítve' : 'Foglalás rögzítve')
       onClose()
       markLocalMutation()
       router.refresh()
@@ -876,7 +876,14 @@ export function BookingEditSheet({ open, onClose, date, salonId, target, service
                     </div>
                   )
                 })()}
-                <Button onClick={save} disabled={saving || (!online && isEdit && !isDraft)} className="h-12 w-full rounded-full bg-ink-dark text-[15px] font-semibold text-white hover:bg-ink-dark/90 lg:w-auto lg:px-10">
+                {/* Jóváhagyásra váró foglalás: egy kattintással elfogadható (a módosításokkal együtt
+                    ment, a vendég a `confirmOnApproval` hookon át megkapja a visszaigazolót). */}
+                {isEdit && !isDraft && target?.booking?.status === 'pending' && (
+                  <Button onClick={() => save({ status: 'confirmed' })} disabled={saving || !online} className="h-12 w-full rounded-full bg-[#74AA19] text-[15px] font-semibold text-ink-dark hover:bg-[#74AA19]/90 lg:w-auto lg:px-8">
+                    <Check className="h-4 w-4 mr-2" strokeWidth={2.6} /> Elfogadás
+                  </Button>
+                )}
+                <Button onClick={() => save()} disabled={saving || (!online && isEdit && !isDraft)} className="h-12 w-full rounded-full bg-ink-dark text-[15px] font-semibold text-white hover:bg-ink-dark/90 lg:w-auto lg:px-10">
                   {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   {isDraft
                     ? (online ? 'Vázlat véglegesítése' : 'Vázlat mentése (offline)')

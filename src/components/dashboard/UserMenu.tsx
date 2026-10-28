@@ -15,6 +15,7 @@ import { OPEN_DIGEST_EVENT } from './DigestAutoPopup'
 import { OPEN_BROADCAST_EVENT } from './BroadcastAutoPopup'
 import type { SwitcherBusiness } from './StoreSwitcher'
 import type { Capability } from '@/lib/permissions'
+import { ApprovalActions, isAwaitingApproval } from './ApprovalActions'
 
 /** A panel gyerek-elemeinek „folyami" belépője (a genie-spring stagger alá). */
 const PANEL_ITEM = {
@@ -75,7 +76,7 @@ export function UserMenu({
   // A csengő ÉRTESÍTÉSEKET, az avatar FIÓK-menüt nyit — külön tartalom, nem ugyanaz.
   const [mode, setMode] = useState<'account' | 'notifications'>('account')
 
-  const { items, unread, groups, remove, markRead, clearAll, openItem } = useNotifications(() => setOpen(false))
+  const { items, unread, groups, remove, markRead, clearAll, openItem, reload } = useNotifications(() => setOpen(false))
 
   const canSettings = !capabilities || capabilities.includes('settings.profile')
   const canBilling = !capabilities || capabilities.includes('billing.manage')
@@ -489,7 +490,7 @@ export function UserMenu({
                       ? <DigestCard key={n.id} n={n} onMarkRead={() => markRead(n.id)} onRemove={() => remove(n.id)} />
                       : n.type === 'admin_broadcast'
                         ? <NotificationRow key={n.id} n={n} onOpen={() => { if (!n.read) markRead(n.id); window.dispatchEvent(new CustomEvent(OPEN_BROADCAST_EVENT, { detail: n })) }} onRemove={() => remove(n.id)} />
-                        : <NotificationRow key={n.id} n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} />
+                        : <NotificationRow key={n.id} n={n} onOpen={() => openItem(n)} onRemove={() => remove(n.id)} onHandled={() => { if (!n.read) markRead(n.id); void reload() }} />
                   )}
                 </div>
               ))
@@ -508,7 +509,7 @@ export function UserMenu({
 }
 
 /** Egyetlen értesítés sor a fiók-popoverben: kör ikon-badge + cím/idő + törlés (hoverre). */
-function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () => void; onRemove: () => void }) {
+function NotificationRow({ n, onOpen, onRemove, onHandled }: { n: Notification; onOpen: () => void; onRemove: () => void; onHandled?: () => void }) {
   const { Icon, color, bg } = notificationVisual(n.type, n.metadata)
   return (
     <div className="group flex items-start gap-3 rounded-[16px] px-2.5 py-2.5 transition-colors hover:bg-[#f4f4f5]">
@@ -523,6 +524,7 @@ function NotificationRow({ n, onOpen, onRemove }: { n: Notification; onOpen: () 
           <span className="mx-1 opacity-50">·</span>
           {timeAgo(n.createdAt)}
         </p>
+        {isAwaitingApproval(n) && <ApprovalActions n={n} onHandled={onHandled} />}
       </button>
       <span className="relative flex h-6 w-6 shrink-0 items-center justify-center">
         {!n.read && (
