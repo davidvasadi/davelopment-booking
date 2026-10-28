@@ -8,7 +8,7 @@ import { ArrowRight, CalendarDays, Users, Sunrise, Sunset, Banknote, X } from 'l
 import { cn } from '@/lib/utils'
 import { buttonHover, EASE, SHEET_SPRING } from '@/lib/motion'
 import { UserAvatar } from './UserAvatar'
-import { eventIconByKey } from '@/components/settings/eventTypeIcons'
+import { eventIconByKey, eventColorByKey } from '@/components/settings/eventTypeIcons'
 import { COUNTRIES } from '@/components/booking/PhoneCountryInput'
 import { notifDate, timeAgo, type Notification, type DigestMetadata } from '@/lib/useNotifications'
 
@@ -294,7 +294,7 @@ export function DigestSheet({
                         const OccIcon = eventIconByKey(info.icon)
                         return (
                           <span key={occ} className="inline-flex items-center gap-1.5 rounded-full border border-line bg-paper/60 px-3 py-1 text-[13px] font-medium text-ink">
-                            <OccIcon className="h-3.5 w-3.5 text-ink-soft2" strokeWidth={1.8} />
+                            <OccIcon className="h-3.5 w-3.5" strokeWidth={1.8} style={{ color: eventColorByKey(info.icon) }} />
                             {occLabel(occ)}
                             <span className="ml-0.5 tabular-nums text-ink-soft2">· {info.count}</span>
                           </span>
