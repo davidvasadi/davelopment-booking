@@ -187,7 +187,7 @@ export function DailyView(props: DailyViewProps) {
     return [...props.reservations, ...dayDrafts]
   }, [props.reservations, drafts, date])
 
-  // Az oldal mindig az Idősáv nézettel nyílik (nem a legutóbb választottal).
+  // Alapból az Idősáv nézettel nyílik — ha ezen az eszközön van mentett nézet („Nézet és szűrők” › Mentés), azzal (BookingsHead).
   const pick = (v: ViewMode) => {
     setView(v)
     // Timeline-ra váltás → fókusz mód (nav csuk + KPI rejt); egyébként normál.
@@ -680,7 +680,7 @@ function MobileTimeline({ date, active, openMin, closeMin, nowMin, onEdit, isClo
   const live = active.filter((r) => r.status !== 'cancelled' && r.status !== 'no_show')
   const byKey = new Map(live.map((r) => [String(r.id), r]))
   const rows = hourRows(live, {
-    openMin, closeMin, nowMin,
+    openMin, closeMin, nowMin, pastDay: date < ymdLocal(new Date()),
     start: (r) => hhmmToMinutes(r.start_time),
     end: (r) => hhmmToMinutes(r.end_time),
     ev: (r) => ({

@@ -1,8 +1,8 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
-import { Avatar, Card, IconButton, IconCircle, Pill, blockTone } from '@/components/ui-kit'
+import { Avatar, Button, Card, IconButton, IconCircle, Pill, blockTone } from '@/components/ui-kit'
 import { MiniBar } from '@/components/blocks/charts'
 import { DayHead } from '@/components/blocks/calendar'
 import { hhmmToMinutes } from '@/lib/utils'
@@ -50,24 +50,30 @@ export function WeekGrid({ days, today, closed, rows, cell, totalLabel = 'Hét',
   /** étterem (6.16): termek, a cella két sorban (szám fent, telítettség lent), a zárt napon „zárva” */
   rooms?: boolean
 }) {
-  const cols = rooms ? `150px repeat(${days.length},minmax(0,1fr)) 70px` : `140px repeat(${days.length},minmax(0,1fr)) 60px`
+  // a név-oszlop mobilon (sm alatt) keskeny (szalon: csak az avatar) — különben a nevek elfoglalták a képernyőt
+  const scroller = useTodayScroll(days, today)
+  const cols = rooms ? `var(--wk-name,150px) repeat(${days.length},minmax(0,1fr)) 70px` : `var(--wk-name,140px) repeat(${days.length},minmax(0,1fr)) 60px`
   return (
-    <Card className="overflow-x-auto">
+    // mobilon: a lap fehér (a ragadós név-oszlop alatt ne látszódjanak át a chipek), a rács vízszintesen görgethető, a
+    // nevek / termek bal oldalt ragadósak, és betöltéskor a mai napra görget
+    <Card className={`max-sm:bg-white ${rooms ? 'max-sm:[--wk-name:96px]' : 'max-sm:[--wk-name:44px]'}`}>
       {top}
-      <div className={`grid gap-1.5 ${rooms ? 'min-w-[900px]' : 'min-w-[860px]'}`} style={{ gridTemplateColumns: cols }}>
-        <span />
+      <div ref={scroller} className={SCROLLER}>
+      <div className={`relative grid gap-1.5 ${rooms ? 'min-w-[900px] max-sm:min-w-[720px]' : 'min-w-[860px] max-sm:min-w-[700px]'}`} style={{ gridTemplateColumns: cols }}>
+        <span data-first-col className={`${STICKY} ${STICKY_TOP} max-sm:z-30`} />
         {days.map((d) => (
-          <button key={d} type="button" onClick={() => onDay?.(d)} className="rounded-ui-control outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20" aria-label="A nap megnyitása">{head(d, today, closed(d))}</button>
+          <button key={d} type="button" data-today={d === today || undefined} onClick={() => onDay?.(d)} className={`${STICKY_TOP} rounded-ui-control outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20`} aria-label="A nap megnyitása">{head(d, today, closed(d))}</button>
         ))}
-        <span className="self-end pb-1 text-right text-ui-label text-ui-muted">{totalLabel}</span>
+        <span className={`self-end pb-1 text-right text-ui-label text-ui-muted ${STICKY_TOP}`}>{totalLabel}</span>
         {rows.map((r) => (
           <Fragment key={r.id}>
-            <span className={`border-t border-dashed border-ui-divider py-2 ${rooms ? '' : 'flex items-center gap-2'}`}>{r.label}</span>
+            <span className={`border-t border-dashed border-ui-divider py-2 ${STICKY} ${rooms ? '' : 'flex items-center gap-2'}`}>{r.label}</span>
             {days.map((d) => {
               const c = cell(r.id, d)
-              const bg = c === null ? 'ui-hatch-cell' : d === today ? 'bg-white/80' : 'bg-white/40'
+              // a mai napot a sötét nap-fej jelzi (design 6.5: desktopon a mai oszlop kicsit világosabb); mobilon a lap fehér, a cellák szürkék
+              const bg = c === null ? 'ui-hatch-cell' : d === today ? 'bg-white/80 max-sm:bg-ui-cell/60' : 'bg-white/40 max-sm:bg-ui-cell/60'
               return (
-                <div key={d} className={`rounded-ui-control border-t border-dashed border-ui-divider ${rooms ? 'flex min-h-[92px] flex-col justify-between p-2' : 'min-h-[96px] space-y-1 p-1.5'} ${bg}`}>
+                <div key={d} className={`relative rounded-ui-control border-t border-dashed border-ui-divider ${rooms ? 'flex min-h-[92px] flex-col justify-between p-2' : 'min-h-[96px] space-y-1 p-1.5'} ${bg}`}>
                   {c === null ? rooms && <span className="text-ui-label text-ui-muted">zárva</span> : c}
                 </div>
               )
@@ -77,15 +83,38 @@ export function WeekGrid({ days, today, closed, rows, cell, totalLabel = 'Hét',
         ))}
         {footer && (
           <>
-            <span className="pt-2 text-ui-label text-ui-muted">{footer.label}</span>
+            <span className={`pt-2 text-ui-label text-ui-muted ${STICKY}`}>{footer.label}</span>
             {footer.values.map((v, i) => <span key={i} className="pt-2 text-center text-ui-title font-light text-ui-text">{v || '—'}</span>)}
             <span className="pt-2 text-right text-ui-title font-light text-ui-text">{footer.total}</span>
           </>
         )}
       </div>
+      </div>
     </Card>
   )
 }
+
+/** Mobilon a heti rács saját görgető dobozban van (mindkét irányba): így a dátumsor fent, az első oszlop bal oldalt
+ *  ragadós tud maradni. Betöltéskor (és hét-váltáskor) a mai napra görget. */
+function useTodayScroll(days: string[], today: string) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const box = ref.current, el = box?.querySelector<HTMLElement>('[data-today]')
+    if (!box) return
+    // nem az aktuális hét (nincs benne a mai nap): a hét elejétől
+    if (!el) { box.scrollLeft = 0; return }
+    if (box.scrollWidth <= box.clientWidth) return
+    const first = (box.querySelector<HTMLElement>('[data-first-col]')?.offsetWidth ?? 0) + 6
+    box.scrollLeft = Math.max(0, el.offsetLeft - first)
+  }, [days.join(), today]) // eslint-disable-line react-hooks/exhaustive-deps -- a napok tartalma számít, nem a tömb
+  return ref
+}
+const SCROLLER = 'overflow-x-auto max-sm:max-h-[70dvh] max-sm:overflow-y-auto'
+/** a dátumsor mobilon fent ragad (a görgető dobozban) */
+const STICKY_TOP = 'max-sm:sticky max-sm:top-0 max-sm:z-20 max-sm:bg-white'
+
+/** A heti rács első oszlopa mobilon ragadós (a nevek görgetéskor is látszanak) — fehér alappal, a lap színével. */
+const STICKY = 'max-sm:sticky max-sm:left-0 max-sm:z-10 max-sm:bg-white'
 
 /** Étterem heti cellája (6.16): foglalás + fő, az alkalmak száma ikonnal, alul a telítettség sávja (95% fölött sárga). */
 export function RoomWeekCell({ count, pax, pct, occasions, occIcon, onOpen }: { count: number; pax: number; pct: number | null; occasions: number; occIcon?: React.ReactNode; onOpen?: () => void }) {
@@ -129,13 +158,16 @@ export function WeekHours({ days, today, closed, items, openMin, closeMin, nowMi
   // óránként 56px — így a félórás foglalás is olvasható (név + idő egy sorban)
   const HOUR_PX = 56
   const height = Math.max(1, h1 - h0) * HOUR_PX
+  const scroller = useTodayScroll(days, today)
   return (
-    <Card className="overflow-x-auto">
+    // mobilon saját görgető doboz: a dátumsor fent, az órák oszlopa bal oldalt ragad; a mai napra görget
+    <Card className="max-sm:bg-white">
       {header}
-      <div className="grid min-w-[760px] gap-1.5" style={{ gridTemplateColumns: `44px repeat(${days.length},minmax(0,1fr))` }}>
-        <span />
-        {days.map((d) => head(d, today, closed(d)))}
-        <div className="relative" style={{ height }}>{Array.from({ length: h1 - h0 + 1 }, (_, i) => <span key={i} className="absolute right-1 -translate-y-1/2 text-ui-label text-ui-muted" style={{ top: `${top((h0 + i) * 60)}%` }}>{h0 + i}:00</span>)}</div>
+      <div ref={scroller} className={SCROLLER}>
+      <div className="relative grid min-w-[760px] gap-1.5" style={{ gridTemplateColumns: `44px repeat(${days.length},minmax(0,1fr))` }}>
+        <span data-first-col className={`${STICKY} ${STICKY_TOP} max-sm:z-30`} />
+        {days.map((d) => <span key={d} data-today={d === today || undefined} className={STICKY_TOP}>{head(d, today, closed(d))}</span>)}
+        <div className={`relative ${STICKY}`} style={{ height }}>{Array.from({ length: h1 - h0 + 1 }, (_, i) => <span key={i} className="absolute right-1 -translate-y-1/2 text-ui-label text-ui-muted" style={{ top: `${top((h0 + i) * 60)}%` }}>{h0 + i}:00</span>)}</div>
         {days.map((d) => {
           const list = items.filter((x) => x.day === d).sort((a, b) => hhmmToMinutes(a.start) - hhmmToMinutes(b.start))
           // sávok: egy foglalás a legelső olyan sávba kerül, ahol nem fed át az előzővel
@@ -150,7 +182,7 @@ export function WeekHours({ days, today, closed, items, openMin, closeMin, nowMi
           }
           const lanes = Math.max(1, laneEnd.length)
           return (
-            <div key={d} style={{ height }} className={`relative rounded-ui-inner ${closed(d) ? 'ui-hatch-cell' : d === today ? 'bg-white/80' : 'bg-white/40'}`}>
+            <div key={d} style={{ height }} className={`relative rounded-ui-inner ${closed(d) ? 'ui-hatch-cell' : d === today ? 'bg-white/80 max-sm:bg-ui-cell/60' : 'bg-white/40 max-sm:bg-ui-cell/60'}`}>
               {Array.from({ length: h1 - h0 + 1 }, (_, i) => <span key={i} className="absolute inset-x-0 border-t border-dotted border-ui-divider" style={{ top: `${top((h0 + i) * 60)}%` }} />)}
               {d === today && nowMin != null && nowMin >= h0 * 60 && nowMin <= h1 * 60 && (
                 <span className="absolute inset-x-0 z-[2] border-t-2 border-ui-yellow" style={{ top: `${top(nowMin)}%` }}><span className="absolute -left-1 -top-[5px] h-2.5 w-2.5 rounded-full bg-ui-yellow" /></span>
@@ -175,6 +207,7 @@ export function WeekHours({ days, today, closed, items, openMin, closeMin, nowMi
           )
         })}
       </div>
+      </div>
     </Card>
   )
 }
@@ -184,7 +217,11 @@ export function WeekHours({ days, today, closed, items, openMin, closeMin, nowMi
  * jobbra a telítettség %. Teltház (95% felett) sárga, zárt nap csíkos, hónapon kívüli halvány. Sor végén a hét összege.
  * Napra kattintva a nap idővonala nyílik.
  */
-export function MonthGrid({ month, today, counts, pct, unit, closed, onDay, onStep }: {
+/** mobil havi nézet: a kiválasztott nap részletei (a hívó adja) */
+export type MonthDayInfo = { first?: string | null; last?: string | null; who?: { name: string; img?: string | null }[]; extra?: string | null }
+export function MonthGrid({ month, today, counts, pct, unit, closed, onDay, onStep, dayInfo }: {
+  /** mobilon a rács alatti nap-kártyához: első / utolsó időpont, ki dolgozik, egyéb sor */
+  dayInfo?: (day: string) => MonthDayInfo
   /** bármelyik nap a hónapból (YYYY-MM-DD) */
   month: string
   today: string
@@ -212,8 +249,14 @@ export function MonthGrid({ month, today, counts, pct, unit, closed, onDay, onSt
   const pcts = pct ? inMonth.filter((d) => !closed(ymd(d))).map((d) => pct(ymd(d))).filter((v): v is number => v != null) : []
   const avg = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null
   // a hét napja zárt, ha a hónapban minden ilyen napon zárva (a fejlécben piros)
+  // mobil: koppintás = kiválasztás (a rács alatt a nap kártyája, „Megnyitás” gombbal); desktopon azonnal a nap nyílik
+  const monthKey = ymd(m0).slice(0, 7)
+  const [sel, setSel] = useState<string>(today.startsWith(monthKey) ? today : `${monthKey}-01`)
+  useEffect(() => { setSel(today.startsWith(monthKey) ? today : `${monthKey}-01`) }, [monthKey, today])
+  const tap = (key: string) => { if (window.matchMedia('(max-width: 639px)').matches) setSel(key); else onDay(key) }
   const closedCol = [0, 1, 2, 3, 4, 5, 6].map((i) => { const ds = weeks.map((w) => w[i]).filter((d) => d.getMonth() === m0.getMonth()); return ds.length > 0 && ds.every((d) => closed(ymd(d))) })
   return (
+    <>
     <Card>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <span className="flex items-center gap-2">
@@ -226,28 +269,32 @@ export function MonthGrid({ month, today, counts, pct, unit, closed, onDay, onSt
           <span className="text-ui-sub font-light text-ui-text">{total.toLocaleString('hu-HU')} <span className="text-ui-body text-ui-muted">{unit}</span></span>
         </span>
       </div>
-      <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_64px] gap-1.5 text-center text-ui-meta">
+      {/* mobilon (sm alatt) csak a 7 nap: a heti összeg oszlopa, a „zárva” felirat és a pill nem fér el */}
+      <div className="grid grid-cols-7 gap-1 text-center text-ui-meta sm:grid-cols-[repeat(7,minmax(0,1fr))_64px] sm:gap-1.5">
         {['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V'].map((d, i) => <span key={d} className={closedCol[i] ? 'text-ui-bad-dot' : 'text-ui-muted'}>{d}</span>)}
-        <span className="text-ui-muted">Hét</span>
+        <span className="text-ui-muted max-sm:hidden">Hét</span>
       </div>
-      <div className="mt-2 space-y-1.5">
+      <div className="mt-2 space-y-1 sm:space-y-1.5">
         {weeks.map((row, wi) => {
           const total = row.reduce((sum, d) => sum + (d.getMonth() === m0.getMonth() ? counts[ymd(d)] ?? 0 : 0), 0)
           return (
-            <div key={wi} className="grid grid-cols-[repeat(7,minmax(0,1fr))_64px] gap-1.5">
+            <div key={wi} className="grid grid-cols-7 gap-1 sm:grid-cols-[repeat(7,minmax(0,1fr))_64px] sm:gap-1.5">
               {row.map((d) => {
                 const key = ymd(d), out = d.getMonth() !== m0.getMonth(), isClosed = closed(key)
                 const n = out ? 0 : counts[key] ?? 0
                 const p = out || isClosed ? null : pct?.(key) ?? null
                 const full = p != null && p >= 95
                 return (
-                  <button key={key} type="button" onClick={() => onDay(key)} className={`relative flex h-[82px] flex-col justify-between rounded-ui-inner p-2.5 text-left outline-none transition-[filter] hover:brightness-[.97] focus-visible:ring-2 focus-visible:ring-ui-dark/20 ${out || isClosed ? 'ui-hatch-cell' : full ? 'bg-ui-yellow' : 'bg-ui-cell'} ${out ? 'opacity-55' : ''}`}>
+                  <button key={key} type="button" onClick={() => tap(key)} className={`relative flex h-16 flex-col justify-between overflow-hidden rounded-ui-inner p-1.5 text-left ${key === sel && !out && !isClosed && !full ? 'max-sm:!bg-white' : ''} sm:h-[82px] sm:p-2.5 outline-none transition-[filter] hover:brightness-[.97] focus-visible:ring-2 focus-visible:ring-ui-dark/20 ${out || isClosed ? 'ui-hatch-cell' : full ? 'bg-ui-yellow' : 'bg-ui-cell'} ${out ? 'opacity-55' : ''}`}>
                     <span className="flex items-center justify-between">
                       {key === today ? <IconCircle size="sm">{d.getDate()}</IconCircle> : <span className={`text-ui-body ${out ? 'text-ui-muted' : 'text-ui-text'}`}>{d.getDate()}</span>}
-                      {isClosed && !out && <span className="text-ui-label text-ui-muted">zárva</span>}
+                      {isClosed && !out && <span className="text-ui-label text-ui-muted max-sm:hidden">zárva</span>}
                     </span>
+                    {/* mobilon a desktop pillje, csak a szám (a „db” és a % nem fér el) */}
+                    {/* mobil: a foglalások száma kis sárga számlálóban (teltháznál — sárga cellán — sötétben), mint a Naptár létszáma */}
+                    {n > 0 && <span className={`absolute bottom-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-ui-label leading-none sm:hidden ${full ? 'bg-ui-dark text-white' : 'bg-ui-yellow text-ui-dark'}`}>{n}</span>}
                     {n > 0 && (
-                      <span className="flex items-center justify-between gap-1">
+                      <span className="flex items-center justify-between gap-1 max-sm:hidden">
                         <Pill tone={full ? 'dark' : 'white'} size="sm">{n} {unit}</Pill>
                         {p != null && <span className="text-ui-label text-ui-muted">{p}%</span>}
                       </span>
@@ -255,7 +302,7 @@ export function MonthGrid({ month, today, counts, pct, unit, closed, onDay, onSt
                   </button>
                 )
               })}
-              <div className="flex flex-col items-center justify-center rounded-ui-inner bg-white/70">
+              <div className="flex flex-col items-center justify-center rounded-ui-inner bg-white/70 max-sm:hidden">
                 <span className="text-ui-title font-light leading-none text-ui-text">{total || '—'}</span>
                 <span className="mt-1 text-ui-label text-ui-muted">{unit}</span>
               </div>
@@ -270,8 +317,61 @@ export function MonthGrid({ month, today, counts, pct, unit, closed, onDay, onSt
         <span className="flex items-center gap-1.5"><IconCircle size="xs">{toDate(today).getDate()}</IconCircle>Ma</span>
       </div>
     </Card>
+    {/* mobil: a rács alatt a kiválasztott nap, és a hónap legforgalmasabb napjai */}
+    {(() => {
+      const sd = toDate(sel), sn = counts[sel] ?? 0, sp = closed(sel) ? null : pct?.(sel) ?? null, info = dayInfo?.(sel)
+      const top = inMonth.map((d) => ymd(d)).filter((k) => (counts[k] ?? 0) > 0).sort((a, b) => (counts[b] ?? 0) - (counts[a] ?? 0)).slice(0, 3)
+      return (
+        <div className="mt-[5px] space-y-[5px] sm:hidden">
+          <Card>
+            <div className="text-ui-title font-light text-ui-text">{sel === today ? 'Ma, ' : ''}{HU_DAY_NAME[sd.getDay()]}, {HU_MONTH_SHORT[sd.getMonth()]} {sd.getDate()}.</div>
+            {closed(sel) ? <div className="mt-1 text-ui-meta text-ui-muted">Zárva</div> : (
+              <>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  <span><span className="block text-ui-sub font-light leading-none text-ui-text">{sn}</span><span className="mt-1 block text-ui-label text-ui-muted">{unit}</span></span>
+                  <span><span className="block text-ui-sub font-light leading-none text-ui-text">{sp != null ? `${sp}%` : '—'}</span><span className="mt-1 block text-ui-label text-ui-muted">telítettség</span></span>
+                  <span><span className="block text-ui-sub font-light leading-none text-ui-text">{info?.first ? `${info.first}` : '—'}</span><span className="mt-1 block text-ui-label text-ui-muted">{info?.last ? `első · utolsó ${info.last}` : 'első'}</span></span>
+                </div>
+                {info?.extra && <div className="mt-3 text-ui-meta text-ui-muted">{info.extra}</div>}
+                {info?.who && info.who.length > 0 && (
+                  <div className="mt-3 flex items-center gap-2"><span className="flex -space-x-2">{info.who.slice(0, 6).map((w) => <Avatar key={w.name} size="sm" src={w.img ?? null} name={w.name} className="ring-2 ring-white" />)}</span><span className="text-ui-meta text-ui-muted">{info.who.length} dolgozik</span></div>
+                )}
+              </>
+            )}
+            <Button className="mt-4 w-full" onClick={() => onDay(sel)}>Megnyitás</Button>
+          </Card>
+          {/* a hónap 3 legforgalmasabb napja: három álló oszlop (a meglévő oszlopdiagram), alatta a napok adatai */}
+          {top.length > 0 && (
+            <Card>
+              <div className="text-ui-title font-light text-ui-text">Legforgalmasabb napok</div>
+              {/* széles, lekerekített oszlopok (mint a „Foglaltság a héten” kártyán): a legforgalmasabb sárga, felettük a szám */}
+              <div className="mt-4 flex h-[200px] items-end justify-center gap-4">
+                {top.map((k, i) => { const d = toDate(k), v = counts[k] ?? 0, mx = counts[top[0]] ?? 1; return (
+                  <div key={k} className="flex w-full max-w-[64px] flex-col items-center justify-end">
+                    <span className="mb-1 text-ui-meta text-ui-text">{v}</span>
+                    <div className={`ui-grow-y w-full rounded-ui-inner ${i === 0 ? 'bg-ui-yellow' : 'bg-ui-dark'}`} style={{ height: Math.max(16, (v / mx) * 150), ['--i' as string]: i }} />
+                    <span className="mt-1.5 text-ui-label text-ui-muted">{HU_MONTH_SHORT[d.getMonth()]} {d.getDate()}.</span>
+                  </div>
+                ) })}
+              </div>
+              <div className="mt-4 space-y-1 border-t border-dashed border-ui-divider pt-2">
+                {top.map((k) => { const d = toDate(k), pp = pct?.(k) ?? null; return (
+                  <button key={k} type="button" onClick={() => setSel(k)} className="flex w-full items-center justify-between rounded-ui-control px-2 py-2 text-left outline-none transition-colors hover:bg-ui-cell">
+                    <span className="text-ui-body text-ui-text">{HU_DAY_NAME[d.getDay()]}, {HU_MONTH_SHORT[d.getMonth()]} {d.getDate()}.</span>
+                    <span className="text-ui-meta text-ui-muted">{counts[k]} {unit}{pp != null ? ` · ${pp}%` : ''}</span>
+                  </button>
+                ) })}
+              </div>
+            </Card>
+          )}
+        </div>
+      )
+    })()}
+    </>
   )
 }
+const HU_DAY_NAME = ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat']
+const HU_MONTH_SHORT = ['Jan.', 'Febr.', 'Márc.', 'Ápr.', 'Máj.', 'Jún.', 'Júl.', 'Aug.', 'Szept.', 'Okt.', 'Nov.', 'Dec.']
 
 /** A foglalás-chip színe a kit szerint (megerősített sötét, függő sárga, befejezett szürke, lemondott piros). */
 export const chipTone = (status: string) => (status === 'pending' ? blockTone('pending') : status === 'completed' ? blockTone('done') : status === 'cancelled' || status === 'no_show' ? 'bg-ui-bad-bg text-ui-bad' : blockTone('ok'))

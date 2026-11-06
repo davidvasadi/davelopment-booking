@@ -1,5 +1,6 @@
 import { Pencil, X, type LucideIcon } from 'lucide-react'
-import { Button, IconButton, Meta, Pill, StatusPill, type Status } from '@/components/ui-kit'
+import { GUEST_TIER_LABEL, GuestTierPill, guestTierOf } from '@/components/blocks/guest-tier'
+import { Button, IconButton, MarqueeText, Meta, Pill, StatusPill, type Status } from '@/components/ui-kit'
 
 export type DrawerAction = { label: string; icon?: LucideIcon; variant?: 'dark' | 'glass' | 'cell' | 'danger'; onClick?: () => void; href?: string; disabled?: boolean }
 export type GuestProfile = { visits: number; since: string; country: string | null; history: { d: string; w: string }[] }
@@ -32,17 +33,21 @@ export function BookingDrawerBody({ desktop, onClose, onEdit, edit = !!onEdit, w
     <>
       <div className="flex items-center justify-between gap-2">
         {/* mobilon (6.12) balra a teendő, jobbra az időpont */}
-        {desktop ? <Meta>Foglalás · {when}</Meta> : alert ? <StatusPill status={alert.tone}>{alert.text}</StatusPill> : <span />}
+        {desktop ? <Meta>Foglalás</Meta> : alert ? <StatusPill status={alert.tone}>{alert.text}</StatusPill> : <span />}
         <span className="flex items-center gap-1.5">
-          {!desktop && <Meta className="text-ui-label">{when}</Meta>}
-          {edit && <IconButton icon={Pencil} label="Szerkesztés" variant="ghost" size="sm" onClick={onEdit} />}
           {desktop && <IconButton icon={X} label="Bezárás" variant="cell" size="sm" onClick={onClose} />}
         </span>
       </div>
-      <div className="mt-3 text-ui-sub font-light leading-tight text-ui-text">{title}</div>
+      {/* a vendég neve és mellette nagyban az időpont */}
+      {/* egy sorban elférjenek: telefonon kisebb (19px), szélesebb képernyőn a nagy (26px); a hosszú név elúszik */}
+      <div className="mt-3 flex items-baseline gap-3 text-ui-title font-light leading-tight text-ui-text sm:text-ui-sub">
+        <MarqueeText className="flex-1">{title}</MarqueeText>
+        {when && <span className="shrink-0 whitespace-nowrap">{when}</span>}
+      </div>
       <div className="mt-1 flex flex-wrap gap-1.5">
         {/* design 6.7: hányadik alkalommal jön, honnan */}
-        {profile && <Pill tone="dark" size="sm" className="text-ui-yellow">{profile.visits > 1 ? `Törzsvendég · ${profile.visits}. alkalom` : 'Új vendég'}</Pill>}
+        {/* a vendég szintje — ugyanaz a pill, mint a Vendégeknél: Új sárga, Visszatérő sötét, Törzsvendég (4+) sötét + csillag */}
+        {profile && <GuestTierPill tier={guestTierOf(profile.visits)}>{profile.visits >= 2 ? `${GUEST_TIER_LABEL[guestTierOf(profile.visits)]} · ${profile.visits}. alkalom` : 'Új vendég'}</GuestTierPill>}
         {(city || profile?.country) && <Pill tone="cell" size="sm">{profile?.country ? `${flag(profile.country)} ` : ''}{city ?? ''}</Pill>}
         {pills}
       </div>
@@ -65,6 +70,8 @@ export function BookingDrawerBody({ desktop, onClose, onEdit, edit = !!onEdit, w
           </div>
         </>
       )}
+      {/* a foglalás szerkesztése: fő gomb a lap alján, teljes szélességben */}
+      {edit && <Button icon={Pencil} className="mt-5 w-full" onClick={onEdit}>Szerkesztés</Button>}
     </>
   )
 }

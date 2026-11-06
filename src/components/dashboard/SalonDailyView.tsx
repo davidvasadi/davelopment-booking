@@ -155,7 +155,7 @@ export function SalonDailyView(props: SalonDailyViewProps) {
     return subscribeDrafts(salonId, setDrafts)
   }, [salonId])
 
-  // Az oldal mindig az Idősáv nézettel nyílik (nem a legutóbb választottal).
+  // Alapból az Idősáv nézettel nyílik — ha ezen az eszközön van mentett nézet („Nézet és szűrők” › Mentés), azzal (BookingsHead).
 
 
   const pick = (v: ViewMode) => {
@@ -602,8 +602,10 @@ function MobileTimeline({
   const byKey = new Map(live.map((b) => [String(b.id), b]))
   const own = staff.length === 1 ? staff[0] : viewerStaffId ? staff.find((t) => String(t.id) === viewerStaffId) : undefined
   const off = own ? staffOffType[String(own.id)] : undefined
+  // egy ember napja (szűrve / a saját napja / egyszemélyes üzlet): a több órás foglalás egy kártya (referencia)
+  const single = staff.length === 1
   const rows = hourRows(live, {
-    openMin, closeMin, nowMin,
+    openMin, closeMin, nowMin, merge: single, pastDay: date < ymdLocal(new Date()),
     start: (b) => hhmmToMinutes(b.start_time),
     end: (b) => hhmmToMinutes(b.end_time),
     ev: (b) => ({
@@ -612,20 +614,21 @@ function MobileTimeline({
       // a munkatárs neve is a kártyán (nem csak az avatarja)
       s: [`${b.start_time}–${b.end_time}`, staffOf(b)?.name, serviceOf(b)?.name].filter(Boolean).join(' · '),
       ...statusCard(b.status),
-      avatars: staffOf(b) ? [{ src: avatarUrlOf(staffOf(b)), name: staffOf(b)!.name }] : undefined,
+      // egy munkatársas módban (szűrve / a saját napja / egyszemélyes üzlet) nem kell az avatar — mind az övé
+      avatars: !single && staffOf(b) ? [{ src: avatarUrlOf(staffOf(b)), name: staffOf(b)!.name }] : undefined,
     }),
     // a látható munkatársak szünetei, névvel és avatarral (kié a szünet)
     extra: (lo, hi) => staff.flatMap((t) => {
       const br = staffBreaks[String(t.id)]
       if (!br || hhmmToMinutes(br.start) < lo || hhmmToMinutes(br.start) >= hi) return []
-      return [{ n: `Szünet · ${t.name}`, s: `${br.start}–${br.end}`, tone: 'light' as const, dot: 'bg-ui-bad-dot', avatars: [{ src: avatarUrlOf(t), name: t.name }] }]
+      return [{ n: `Szünet · ${t.name}`, s: `${br.start}–${br.end}`, tone: 'light' as const, dot: 'bg-ui-bad-dot', avatars: !single ? [{ src: avatarUrlOf(t), name: t.name }] : undefined }]
     }),
   })
   return (
     <Card>
       <DayStrip base="/dashboard" date={date} />
       {(isClosedToday || off) && <Note className="mt-3">{isClosedToday ? 'Ezen a napon zárva vagytok.' : `${OFF_TYPE_LABEL[off!]} — ezen a napon nincs beosztásod.`}</Note>}
-      <MobileDayTimeline rows={rows} more={false} onOpen={(k) => { const b = byKey.get(k); if (b) onEdit(b) }} />
+      <MobileDayTimeline rows={rows} more={false} merged={single} onOpen={(k) => { const b = byKey.get(k); if (b) onEdit(b) }} />
     </Card>
   )
 }
