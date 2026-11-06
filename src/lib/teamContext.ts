@@ -26,6 +26,7 @@ export async function getTeamForBusiness(opts: {
   // staff-rekordhoz (mert maga is dolgozik szakemberként), annak a rekordnak a pozíciója
   // (`role_title`) jelenik meg itt is — eddig a tulaj-sornak SOSEM volt pozíciója.
   let ownerPosition: string | null = null
+  let ownerStaff: string | null = null
   if (opts.type === 'salon' && opts.ownerUserId != null) {
     const linkedStaff = await payload.find({
       collection: 'staff',
@@ -33,7 +34,9 @@ export async function getTeamForBusiness(opts: {
       limit: 1, depth: 0, overrideAccess: true,
     })
     ownerPosition = (linkedStaff.docs[0] as StaffMember | undefined)?.role_title ?? null
+    ownerStaff = (linkedStaff.docs[0] as StaffMember | undefined)?.name ?? null
   }
+  const ownerUser = opts.ownerUserId != null ? ((await payload.findByID({ collection: 'users', id: opts.ownerUserId, depth: 0, overrideAccess: true }).catch(() => null)) as User | null) : null
 
   const owner: TeamMember = {
     name: opts.ownerName,
@@ -42,6 +45,8 @@ export async function getTeamForBusiness(opts: {
     roleTone: 'owner',
     avatarUrl: fixMediaUrl(opts.ownerAvatarUrl),
     position: ownerPosition,
+    lastLogin: ownerUser?.last_login_at ?? null,
+    staffName: ownerStaff,
   }
 
   let members: TeamMember[] = []
@@ -54,7 +59,15 @@ export async function getTeamForBusiness(opts: {
       overrideAccess: true,
       sort: 'createdAt',
     })
-    members = (res.docs as Membership[]).map((m) => {
+    // a tagok fiókjához kötött munkatárs-profilok (szalon: foglalható profil) — user-id → név
+    const docs = res.docs as Membership[]
+    const userIds = docs.map((m) => (typeof m.user === 'object' ? (m.user as User | null)?.id : m.user)).filter((x): x is string => x != null).map(String)
+    const staffByUser = new Map<string, string>()
+    if (opts.type === 'salon' && userIds.length) {
+      const st = await payload.find({ collection: 'staff', where: { and: [{ salon: { equals: opts.businessId } }, { user: { in: userIds } }] }, limit: 500, depth: 0, overrideAccess: true })
+      for (const s of st.docs as StaffMember[]) { const uid = typeof s.user === 'object' ? (s.user as User | null)?.id : s.user; if (uid != null) staffByUser.set(String(uid), s.name ?? '') }
+    }
+    members = docs.map((m) => {
       const u = typeof m.user === 'object' ? (m.user as User) : null
       const custom = m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role) : null
       const tone = m.role === 'manager' ? 'manager' : 'staff'
@@ -72,6 +85,9 @@ export async function getTeamForBusiness(opts: {
         // A tag SAJÁT profilképe (`Users.avatar_url`, `depth:1` miatt már betöltve `m.user`-be) —
         // ez a fiók-szintű kép, nem üzletenkénti (a Staff.avatar-tól függetlenül).
         avatarUrl: fixMediaUrl(u?.avatar_url),
+        lastLogin: u?.last_login_at ?? null,
+        staffName: u ? staffByUser.get(String(u.id)) ?? null : null,
+        invitedAt: m.status === 'invited' ? m.createdAt : null,
       }
     })
   } catch {

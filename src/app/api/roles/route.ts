@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  let body: { type?: string; id?: string; name?: string; capabilities?: unknown; booking_notify_level?: unknown }
+  let body: { type?: string; id?: string; name?: string; description?: unknown; capabilities?: unknown; booking_notify_level?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest) {
   try {
     const doc = await payload.create({
       collection: 'roles',
-      data: { name, capabilities: caps, booking_notify_level: bookingNotifyLevel, [type]: num(id) } as never,
+      data: { name, description: typeof body.description === 'string' ? body.description.trim().slice(0, 200) : null, capabilities: caps, booking_notify_level: bookingNotifyLevel, [type]: num(id) } as never,
       overrideAccess: true,
       user,
     })

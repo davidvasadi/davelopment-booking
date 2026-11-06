@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react'
 import { Toggle } from './SettingsToggle'
 
-export type CategoryKey = 'bookings' | 'schedule' | 'digest' | 'email_not_opened' | 'bookings_email' | 'schedule_email'
+/** `pending_popup`: új függő foglalásnál azonnal a jóváhagyó popup (különben sáv) · `payment_bar`: „Fizetésre vár” sáv is (különben csak a jel) — design 6.8.1 */
+export type CategoryKey = 'bookings' | 'schedule' | 'digest' | 'email_not_opened' | 'bookings_email' | 'schedule_email' | 'pending_popup' | 'payment_bar'
 
 const CATS: { key: CategoryKey; label: string; sub: string }[] = [
   { key: 'bookings',  label: 'Foglalás',          sub: 'Új foglalás, lemondás, módosítás' },
@@ -12,8 +13,8 @@ const CATS: { key: CategoryKey; label: string; sub: string }[] = [
   { key: 'email_not_opened', label: 'Meg nem nyitott email', sub: 'Ha a vendég 24, majd 12 órával a foglalás előtt sem nyitotta meg a visszaigazolást' },
 ]
 
-const DEFAULT_PREFS: Record<CategoryKey, boolean> = { bookings: true, schedule: true, digest: true, email_not_opened: true, bookings_email: false, schedule_email: false }
-const DEFAULT_ALLOWED: Record<CategoryKey, boolean> = { bookings: true, schedule: true, digest: false, email_not_opened: false, bookings_email: true, schedule_email: true }
+const DEFAULT_PREFS: Record<CategoryKey, boolean> = { bookings: true, schedule: true, digest: true, email_not_opened: true, bookings_email: false, schedule_email: false, pending_popup: false, payment_bar: false }
+const DEFAULT_ALLOWED: Record<CategoryKey, boolean> = { bookings: true, schedule: true, digest: false, email_not_opened: false, bookings_email: true, schedule_email: true, pending_popup: true, payment_bar: true }
 
 export function useNotifPrefs() {
   const [prefs, setPrefs] = useState<Record<CategoryKey, boolean>>(DEFAULT_PREFS)
@@ -89,16 +90,16 @@ export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean 
         type="button"
         onClick={() => setAll(visibleKeys, true)}
         disabled={allOn}
-        className="text-[12px] font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:cursor-default disabled:text-ink-soft2/50 disabled:no-underline"
+        className="text-[12px] font-semibold text-ui-muted underline-offset-2 hover:text-ui-text hover:underline disabled:cursor-default disabled:no-underline"
       >
         Mindet bekapcsolom
       </button>
-      <span className="text-ink-soft2/40">·</span>
+      <span className="">·</span>
       <button
         type="button"
         onClick={() => setAll(visibleKeys, false)}
         disabled={allOff}
-        className="text-[12px] font-semibold text-ink-soft underline-offset-2 hover:text-ink hover:underline disabled:cursor-default disabled:text-ink-soft2/50 disabled:no-underline"
+        className="text-[12px] font-semibold text-ui-muted underline-offset-2 hover:text-ui-text hover:underline disabled:cursor-default disabled:no-underline"
       >
         Mindet kikapcsolom
       </button>
@@ -110,10 +111,10 @@ export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean 
       <>
         {bulkControls}
         {visible.map((cat) => (
-          <div key={cat.key} className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4 last:border-0">
+          <div key={cat.key} className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-ui-divider py-4 last:border-0">
             <div className="min-w-0">
-              <div className="text-[14px] font-semibold text-ink">{cat.label}</div>
-              <div className="mt-0.5 text-[12px] text-ink-soft">{cat.sub}</div>
+              <div className="text-[14px] font-semibold text-ui-text">{cat.label}</div>
+              <div className="mt-0.5 text-[12px] text-ui-muted">{cat.sub}</div>
             </div>
             <div className="flex justify-center">
               <Toggle checked={prefs[cat.key]} onChange={() => toggle(cat.key)} />
@@ -128,10 +129,10 @@ export function PersonalNotifPrefsCard({ compact = false }: { compact?: boolean 
     <div className="space-y-2">
       {bulkControls}
       {visible.map((cat) => (
-        <div key={cat.key} className="flex items-center justify-between gap-3 rounded-[13px] border border-line bg-white px-4 py-3">
+        <div key={cat.key} className="flex items-center justify-between gap-3 rounded-[13px] border border-ui-divider bg-white px-4 py-3">
           <div>
-            <div className="text-[14px] font-semibold text-ink">{cat.label}</div>
-            <div className="mt-0.5 text-[12px] text-ink-soft">{cat.sub}</div>
+            <div className="text-[14px] font-semibold text-ui-text">{cat.label}</div>
+            <div className="mt-0.5 text-[12px] text-ui-muted">{cat.sub}</div>
           </div>
           <Toggle checked={prefs[cat.key]} onChange={() => toggle(cat.key)} />
         </div>

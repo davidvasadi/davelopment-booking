@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   const user = await getCurrentUser()
   if (!user) return NextResponse.json({ error: 'Bejelentkezés szükséges' }, { status: 401 })
 
-  let body: { email?: string; name?: string; role?: string; position?: string; custom_role?: string }
+  let body: { email?: string; name?: string; role?: string; position?: string; custom_role?: string; profile?: string }
   try {
     body = await request.json()
   } catch {
@@ -112,7 +112,16 @@ export async function POST(request: NextRequest) {
 
   // Szalon meghívónál: ha még nincs staff rekord erre az emailre, létrehozunk egyet
   // (is_active: false, meghívás alatt) → megjelenik a Munkavállalók listában is.
-  if (active.type === 'salon') {
+  // A munkatárs-profil (design 16.4): 'new' (alap) = új foglalható profil, 'none' = nem foglalható (csak a rendszert
+  // kezeli, pl. recepció), egy staff-id = a meglévő profilhoz köti a fiókot (az e-mail-cím a párosítás kulcsa).
+  const profile = (body.profile ?? 'new').trim()
+  if (active.type === 'salon' && profile !== 'new' && profile !== 'none') {
+    const target = await payload.findByID({ collection: 'staff', id: profile, depth: 0, overrideAccess: true }).catch(() => null)
+    const targetSalon = target ? (typeof target.salon === 'object' && target.salon ? target.salon.id : target.salon) : null
+    if (target && String(targetSalon) === String(active.id)) {
+      await payload.update({ collection: 'staff', id: target.id, overrideAccess: true, user, data: { email } })
+    }
+  } else if (active.type === 'salon' && profile === 'new') {
     const existingStaff = await payload.find({
       collection: 'staff',
       where: { and: [{ salon: { equals: bizRel } }, { email: { equals: email } }] },

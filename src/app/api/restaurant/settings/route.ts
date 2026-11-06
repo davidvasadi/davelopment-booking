@@ -108,6 +108,20 @@ export async function PATCH(request: NextRequest) {
     return currentDoc
   }
 
+  // Kézi jóváhagyás és előleg egyszerre nem lehet: a fizetett foglalást nem hagyjuk függőben (elutasításkor vissza
+  // kellene utalni). A mentés UTÁNI állapotot nézzük — ha a kérés nem küldi az egyiket, a mentett érték számít.
+  {
+    const rules = safeBody.booking_rules as { auto_confirm?: boolean | null } | undefined
+    const depositOn = depositSettings && 'enabled' in depositSettings ? depositSettings.enabled === true : ((await loadCurrentDoc()).deposit_settings as { enabled?: boolean } | null)?.enabled === true
+    const manual = rules && 'auto_confirm' in rules ? rules.auto_confirm === false : ((await loadCurrentDoc()).booking_rules as { auto_confirm?: boolean | null } | null)?.auto_confirm === false
+    if (depositOn && manual) {
+      return NextResponse.json(
+        { error: 'Kézi jóváhagyás mellett nem kérhető előleg. Kapcsold be az automatikus megerősítést (Foglalóoldal › Szabályok), vagy kapcsold ki az előleget.' },
+        { status: 400 },
+      )
+    }
+  }
+
   if (wantsDeposit) {
     const termsSections = Array.isArray(safeBody.terms_sections) ? safeBody.terms_sections : (await loadCurrentDoc()).terms_sections
     if (!hasFilledTerms(termsSections)) {

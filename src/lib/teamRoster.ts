@@ -1,385 +1,230 @@
 import { getPayloadClient } from '@/lib/payload'
-import { getStaffStats } from '@/lib/staffStats'
-import { roleLabel } from '@/lib/permissions'
-import type { Employee } from '@/components/dashboard/HiringView'
-import type { Shift, StaffMember, Membership, Media, User, Restaurant, Role } from '@/payload/payload-types'
+import { num, rawQuery, shiftsSince, sql } from '@/lib/fastRead'
+import { fixMediaUrl } from '@/lib/utils'
+import type { TeamDoc, TeamMemberVM, TeamStatus } from '@/lib/teamTypes'
+import type { Shift, StaffMember, Membership, Media, User, Restaurant, Role, Booking, Service } from '@/payload/payload-types'
 
 /**
- * VALÓS munkatárs-adatlap adat (a HiringView „Employee" VM-je) — a mock helyett.
- * Szalon = `staff` collection (teljes HR) + foglalás/szolgáltatás/értékelés (staffStats).
- * Étterem = `memberships` (HR-mezők a modellen) + műszak-statisztika. Étteremnél NINCS
- * per-fő foglalás/szolgáltatás (nem foglalható), ezért ott a tag-ek üresek.
- *
- * A műszak-statisztika (jelenlét %, ledolgozott/szabadság/beteg nap, havi órák, heti bontás)
- * a `shifts` collectionből számol; ahol nincs adat, 0 (valós üres, nem kamu).
+ * A Munkatársak oldal (design 10.x) adatai VALÓS adatból — szalon és étterem közösen.
+ * Szalon = `staff` (foglalható profilok) + a párosított `memberships` (e-mail alapján: szerep, meghívó) + foglalások.
+ * Étterem = `memberships` (HR-mezők a modellen), nem foglalható; a havi szám a ledolgozott óra és a borravaló.
+ * Az órák a `shifts`-ből számolnak; ahol nincs adat, 0 (valós üres).
  */
 
 type Variant = 'salon' | 'restaurant'
 
-function relId(rel: unknown): string | null {
+const relId = (rel: unknown): string | null => {
   if (rel == null) return null
-  if (typeof rel === 'object') {
-    const id = (rel as { id?: number | string }).id
-    return id != null ? String(id) : null
-  }
+  if (typeof rel === 'object') { const id = (rel as { id?: number | string }).id; return id != null ? String(id) : null }
   return String(rel)
 }
-
-function mediaUrl(m: unknown): string | null {
-  if (m && typeof m === 'object') {
-    const url = (m as Media).url
-    return typeof url === 'string' && url ? url : null
-  }
-  return null
+const mediaUrl = (m: unknown): string | null => (m && typeof m === 'object' && (m as Media).url ? fixMediaUrl((m as Media).url) ?? null : null)
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const mins = (t?: string | null) => { if (!t) return null; const [h, m] = t.split(':').map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null }
+const docsOf = (list: unknown): TeamDoc[] => (Array.isArray(list) ? list : []).map((d: { label?: string | null; file?: unknown }) => ({
+  label: d.label ?? '', fileId: d.file && typeof d.file === 'object' ? Number((d.file as Media).id) : d.file != null ? Number(d.file) : null, url: mediaUrl(d.file),
+}))
+const roleName = (m: Membership | null | undefined): string => {
+  if (!m) return '—'
+  if (m.role === 'owner') return 'Tulajdonos'
+  if (m.custom_role && typeof m.custom_role === 'object') return (m.custom_role as Role).name
+  return m.role === 'manager' ? 'Vezető' : 'Nincs szerep'
 }
 
-function fmtMonth(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  return d.toLocaleDateString('hu-HU', { year: 'numeric', month: 'short' })
-}
-
-function contractLabel(weekly: number | null | undefined): string {
-  if (weekly == null) return '—'
-  return weekly >= 35 ? 'Teljes munkaidő' : 'Részmunkaidő'
-}
-
-/** Egy műszak órái: az explicit `hours`, különben start–end különbség, végül 0. */
+/** Egy műszak órái: az explicit `hours`, különben start–end különbség. */
 function shiftHours(sh: Shift): number {
   if (typeof sh.hours === 'number') return sh.hours
-  if (sh.start_time && sh.end_time) {
-    const [sh1, sm1] = sh.start_time.split(':').map(Number)
-    const [sh2, sm2] = sh.end_time.split(':').map(Number)
-    const mins = (sh2 * 60 + sm2) - (sh1 * 60 + sm1)
-    if (mins > 0) return Math.round((mins / 60) * 10) / 10
-  }
-  return 0
+  const a = mins(sh.start_time), b = mins(sh.end_time)
+  return a != null && b != null && b > a ? Math.round(((b - a) / 60) * 10) / 10 : 0
 }
 
-function ymd(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-/** Per-fő műszak-statisztika egy hónapra + az aktuális/előző hét napi óráira. */
-function computeShiftStats(shifts: Shift[], now: Date = new Date()) {
-  const thisYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
-  const lastDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-  const lastYm = `${lastDate.getFullYear()}-${String(lastDate.getMonth() + 1).padStart(2, '0')}`
-
-  // Hét eleje (hétfő, helyi idő szerint) + előző hét eleje.
-  const dow = (now.getDay() + 6) % 7 // 0 = hétfő
-  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - dow)
-  const lastMonday = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() - 7)
-  const weekKeys = Array.from({ length: 7 }, (_, i) => ymd(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i)))
-  const lastWeekKeys = Array.from({ length: 7 }, (_, i) => ymd(new Date(lastMonday.getFullYear(), lastMonday.getMonth(), lastMonday.getDate() + i)))
-
-  let daysWorked = 0, vacationDays = 0, sickDays = 0, shiftsCount = 0, hoursThisMonth = 0, hoursLastMonth = 0
-  const recent = Array(7).fill(0) as number[]
-  const previous = Array(7).fill(0) as number[]
-  const monthWeeks = Array(5).fill(0) as number[] // e hónap heti (1.-5.) óra-összegei
-  const prevMonthWeeks = Array(5).fill(0) as number[] // előző hónap heti óra-összegei
-  const calendar: Record<string, 'shift' | 'leave' | 'sick' | 'vacation'> = {}
-
+/** Per-fő műszak-számok: e hónap, előző hónap, e hét, az év havi órái. */
+function shiftStats(shifts: Shift[], now: Date) {
+  const thisYm = ymd(now).slice(0, 7)
+  const last = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const lastYm = ymd(last).slice(0, 7)
+  const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7))
+  const weekKeys = new Set(Array.from({ length: 7 }, (_, i) => ymd(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i))))
+  const year = String(now.getFullYear())
+  let daysWorked = 0, vacationDays = 0, sickDays = 0, count = 0, hours = 0, hoursPrev = 0, weekHours = 0, weekMinutes = 0
+  const weeks = [0, 0, 0, 0, 0]
+  // a ledolgozott órák kártya görbéi: e hónap és az előző hónap napi órái (utána napról napra összeadva — gyűlő görbe;
+  // heti összegekből egyenletes beosztásnál egyenes vonal lenne)
+  const daysThis = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const daysLast = new Date(now.getFullYear(), now.getMonth(), 0).getDate()
+  const dayThis = Array(daysThis).fill(0) as number[]
+  const dayLast = Array(daysLast).fill(0) as number[]
+  const series = Array(12).fill(0) as number[]
   for (const sh of shifts) {
     const date = (sh.date ?? '').slice(0, 10)
-    const hrs = shiftHours(sh)
-    // Szabadság/beteg/szabadnap MINDIG elsőbbséget élvez egy ugyanarra a napra eső "Műszak"
-    // rekorddal szemben (pl. az automata feltöltés alap-műszakja) — soha nem írjuk felül azzal.
-    if (date && (!(date in calendar) || calendar[date] === 'shift')) calendar[date] = sh.type as 'shift' | 'leave' | 'sick' | 'vacation'
-    if (date.startsWith(thisYm)) {
-      if (sh.type === 'shift') {
-        daysWorked += 1; shiftsCount += 1; hoursThisMonth += hrs
-        monthWeeks[Math.min(4, Math.floor((Number(date.slice(8, 10)) - 1) / 7))] += hrs
-      } else if (sh.type === 'vacation' || sh.type === 'leave') vacationDays += 1
-      else if (sh.type === 'sick') sickDays += 1
-    } else if (date.startsWith(lastYm)) {
-      if (sh.type === 'shift') {
-        hoursLastMonth += hrs
-        prevMonthWeeks[Math.min(4, Math.floor((Number(date.slice(8, 10)) - 1) / 7))] += hrs
-      }
-    }
+    const h = shiftHours(sh)
     if (sh.type === 'shift') {
-      const wi = weekKeys.indexOf(date)
-      if (wi >= 0) recent[wi] += hrs
-      const li = lastWeekKeys.indexOf(date)
-      if (li >= 0) previous[li] += hrs
+      if (date.startsWith(thisYm)) dayThis[Number(date.slice(8, 10)) - 1] += h
+      else if (date.startsWith(lastYm)) dayLast[Number(date.slice(8, 10)) - 1] += h
+      if (date.startsWith(year)) series[Number(date.slice(5, 7)) - 1] += h
+      if (weekKeys.has(date)) { weekHours += h; weekMinutes += h * 60 }
     }
+    if (date.startsWith(thisYm)) {
+      if (sh.type === 'shift') { daysWorked++; count++; hours += h; weeks[Math.min(4, Math.floor((Number(date.slice(8, 10)) - 1) / 7))] += h }
+      else if (sh.type === 'vacation' || sh.type === 'leave') vacationDays++
+      else if (sh.type === 'sick') sickDays++
+    } else if (date.startsWith(lastYm) && sh.type === 'shift') hoursPrev += h
   }
-
-  const denom = daysWorked + sickDays + vacationDays
-  const attendance = denom > 0 ? Math.round((daysWorked / denom) * 100) : 0
-  const todayYmd = ymd(now)
-  const weeklyHours = Math.round(recent.reduce((a, b) => a + b, 0)) // e heti VALÓS órák a naptárból
-  const onVacation = calendar[todayYmd] === 'vacation' || calendar[todayYmd] === 'leave'
+  const cum = (a: number[]) => { let n = 0; return a.map((v) => Math.round((n += v))) }
+  // e hónap a mai napig, az előző hónap végig
+  const trend = cum(dayThis).slice(0, now.getDate())
+  const trendPrev = cum(dayLast)
   return {
-    attendance, daysWorked, vacationDays, sickDays, shifts: shiftsCount,
-    hoursThisMonth: Math.round(hoursThisMonth), hoursLastMonth: Math.round(hoursLastMonth),
-    recent, previous, calendar, weeklyHours, onVacation,
-    monthWeeks: monthWeeks.map((v) => Math.round(v)),
-    prevMonthWeeks: prevMonthWeeks.map((v) => Math.round(v)),
+    daysWorked, vacationDays, sickDays, shifts: count, hours: Math.round(hours), hoursPrev: Math.round(hoursPrev),
+    weeks: weeks.map(Math.round), trend, trendPrev, series: series.map(Math.round), weekHours: Math.round(weekHours), weekMinutes,
   }
 }
 
-export async function getTeamRoster(variant: Variant, businessId: string | number): Promise<Employee[]> {
-  const payload = await getPayloadClient()
-  const now = new Date() // egyetlen „most" az egész roszterre → a havi számok (bér, órák, borravaló) ugyanarra a hónapra esnek
+type Stats = ReturnType<typeof shiftStats>
+const base = (s: Stats) => ({
+  weekHours: s.weekHours,
+  month: { bookings: 0, revenue: 0, noShow: 0, tips: 0, hours: s.hours, hoursPrev: s.hoursPrev, daysWorked: s.daysWorked, sickDays: s.sickDays, vacationDays: s.vacationDays, shifts: s.shifts, weeks: s.weeks, trend: s.trend, trendPrev: s.trendPrev },
+})
 
-  // ── Műszakok az üzletre (mindkét variánsnál a shifts collection; a reláció más mezőn). ──
-  const shiftsRes = await payload.find({
-    collection: 'shifts',
-    where: variant === 'salon' ? { salon: { equals: businessId } } : { restaurant: { equals: businessId } },
-    depth: 0,
-    limit: 5000,
-    pagination: false,
-    overrideAccess: true,
-  })
-  const shiftsByPerson: Record<string, Shift[]> = {}
-  for (const sh of shiftsRes.docs as Shift[]) {
-    const pid = relId(variant === 'salon' ? sh.staff : sh.member)
-    if (!pid) continue
-    ;(shiftsByPerson[pid] ??= []).push(sh)
+/** A fiókból (Users) épülő tulaj-sor — ha nincs foglalható profilja (étteremben mindig így). */
+function ownerRow(owner: User | null, s: Stats): TeamMemberVM {
+  const o = (owner ?? {}) as User & { join_date?: string | null; createdAt?: string; role_title?: string | null }
+  return {
+    id: 'owner', owner: true, name: o.name || o.email || 'Tulajdonos', img: fixMediaUrl(o.avatar_url) ?? null,
+    position: o.role_title || 'Tulajdonos', email: o.email || '', phone: o.phone || '',
+    joinDate: (o.join_date ?? o.createdAt ?? '').slice(0, 10) || null,
+    role: 'Tulajdonos', roleKey: 'owner', customRoleId: null, membershipId: null, status: 'active', review: false, bookable: false,
+    weeklyTarget: o.weekly_hours ?? null, weekUtil: null, serviceIds: [], bio: o.bio || '', socialLinks: [],
+    birthday: o.birthday ?? null, address: o.address ?? null, taxId: o.tax_id ?? null, taxNumber: o.tax_number ?? null,
+    payType: 'daily', payRate: null, tipEligible: false, buffer: null, breaks: [], minLead: null, documents: [],
+    series: s.series, ...base(s),
   }
+}
+
+export async function getTeamRoster(variant: Variant, businessId: string | number): Promise<TeamMemberVM[]> {
+  const payload = await getPayloadClient()
+  const now = new Date()
+  // Sebesség: a beosztások és (lent) a foglalások KÖZVETLEN SQL-lel (lib/fastRead, docs/sebesseg) — a Payload soronként
+  // ~2 ms; itt az év összes beosztása + összes foglalása ment rajta, és közben az oldal többi lekérdezése is várt.
+  // az év eleje (januárban a december is), de legalább 9 hét
+  const shiftsFrom = ymd(new Date(Math.min(new Date(now.getFullYear(), Math.min(0, now.getMonth() - 1), 1).getTime(), now.getTime() - 63 * 86_400_000)))
+  const shiftsRes = { docs: await shiftsSince(variant === 'salon' ? { salon: businessId } : { restaurant: businessId }, shiftsFrom) }
+  const shifts = shiftsRes.docs as unknown as Shift[]
+  const byPerson: Record<string, Shift[]> = {}
+  for (const sh of shifts) { const pid = relId(variant === 'salon' ? sh.staff : sh.member); if (pid) (byPerson[pid] ??= []).push(sh) }
+  const ownerShifts = shifts.filter((sh) => sh.owner_shift)
 
   if (variant === 'salon') {
-    const [salonRes, staffRes, stats, invitedRes] = await Promise.all([
+    const year = now.getFullYear()
+    const monthYm = ymd(now).slice(0, 7)
+    const [salonRes, staffRes, memRes, bookingsRes, servicesRes] = await Promise.all([
       payload.findByID({ collection: 'salons', id: businessId, depth: 1, overrideAccess: true }).catch(() => null),
-      payload.find({ collection: 'staff', where: { salon: { equals: businessId } }, sort: 'name', depth: 1, limit: 500, overrideAccess: true }),
-      getStaffStats(businessId),
-      payload.find({ collection: 'memberships', where: { and: [{ salon: { equals: businessId } }, { status: { equals: 'invited' } }] }, depth: 0, limit: 500, overrideAccess: true }),
+      payload.find({ collection: 'staff', where: { salon: { equals: businessId } }, sort: 'name', depth: 1, populate: { salons: { name: true } }, limit: 500, overrideAccess: true }),
+      payload.find({ collection: 'memberships', where: { salon: { equals: businessId } }, depth: 1, populate: { salons: { name: true } }, limit: 500, overrideAccess: true }),
+      rawQuery<{ staff_id: number | null; date: string; status: string; start_time: string | null; end_time: string | null; price_snapshot: string | null; service_id: number | null }>(sql`
+        SELECT staff_id, date, status, start_time, end_time, price_snapshot, service_id FROM bookings
+        WHERE salon_id = ${Number(businessId)} AND date >= ${`${year}-01-01`} AND status <> 'cancelled'`)
+        .then((rows) => ({ docs: rows.map((r) => ({ staff: r.staff_id, date: r.date, status: r.status, start_time: r.start_time, end_time: r.end_time, price_snapshot: num(r.price_snapshot), service: r.service_id })) })),
+      payload.find({ collection: 'services', where: { salon: { equals: businessId } }, depth: 0, limit: 500, overrideAccess: true, select: { staff: true, price: true } }),
     ])
-    const salonStaff = staffRes.docs as StaffMember[]
-    const invitedEmails = new Set((invitedRes.docs as { email?: string }[]).map(m => (m.email ?? '').toLowerCase()).filter(Boolean))
+    const staff = staffRes.docs as StaffMember[]
+    const memByEmail = new Map((memRes.docs as Membership[]).map((m) => [(m.email ?? '').toLowerCase(), m]))
+    const services = servicesRes.docs as Service[]
+    const priceOf = new Map(services.map((s) => [String(s.id), s.price ?? 0]))
+    const servicesOf = (id: string) => services.filter((s) => (s.staff ?? []).some((x) => relId(x) === id)).map((s) => String(s.id))
 
-    // User account avatars by email — ha a staff-rekordhoz nincs feltöltött kép, de a linked
-    // felhasználónak van profilképe (avatar_url), azt mutatjuk a HiringView fejlécénél.
-    const emails = salonStaff.map(s => s.email).filter((e): e is string => typeof e === 'string' && e.length > 0)
-    const userAvatarByEmail: Record<string, string> = {}
-    if (emails.length > 0) {
-      const userRes = await payload.find({
-        collection: 'users',
-        where: { email: { in: emails } },
-        depth: 0,
-        limit: 500,
-        overrideAccess: true,
-      })
-      for (const u of userRes.docs as User[]) {
-        if (u.email && u.avatar_url) userAvatarByEmail[u.email] = u.avatar_url
-      }
+    // foglalások munkatársanként: az év havi száma, e hónap (bevétel, elmaradt), e heti foglalt percek
+    const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7))
+    const weekFrom = ymd(monday), weekTo = ymd(new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6))
+    const bk: Record<string, { series: number[]; bookings: number; revenue: number; noShow: number; weekMinutes: number }> = {}
+    for (const b of bookingsRes.docs as unknown as Booking[]) {
+      const sid = relId(b.staff)
+      if (!sid) continue
+      const d = (b.date ?? '').slice(0, 10)
+      const r = (bk[sid] ??= { series: Array(12).fill(0), bookings: 0, revenue: 0, noShow: 0, weekMinutes: 0 })
+      if (b.status === 'no_show') { if (d.startsWith(monthYm)) r.noShow++; continue }
+      r.series[Number(d.slice(5, 7)) - 1]++
+      if (d.startsWith(monthYm)) { r.bookings++; r.revenue += typeof b.price_snapshot === 'number' ? b.price_snapshot : priceOf.get(relId(b.service) ?? '') ?? 0 }
+      if (d >= weekFrom && d <= weekTo) { const a = mins(b.start_time), e = mins(b.end_time); if (a != null && e != null && e > a) r.weekMinutes += e - a }
     }
 
     const ownerRel = (salonRes as { owner?: unknown } | null)?.owner
     const owner = ownerRel && typeof ownerRel === 'object' ? (ownerRel as User) : null
-    const ownerUserId = owner?.id != null ? String(owner.id) : null
-    // A tulaj VALÓDI, linkelt staff-rekordja (`Staff.user`) — ha van (a Salons `afterChange`
-    // hookja mostantól mindig létrehozza regisztrációkor, régi fiókoknál backfillelve), AZT a
-    // rekordot mutatjuk "Tulajdonos"-ként, nem egy külön szintetikus sort. A korábbi email-
-    // egyeztetéses dedup ("s.email === owner.email") megbízhatatlan volt — pont az ÚJONNAN
-    // linkelt tulaj-staff rekordot szűrte ki hibásan a listából (index-eltolódás → rossz
-    // adatlap nyílt meg kattintásra), miközben a `salonStaff`/`filtered` (Munkatársak lista)
-    // MÁR a `.user` relációt nézi, nem az emailt — a két lista szétcsúszott.
-    const linkedOwnerStaff = ownerUserId
-      ? salonStaff.find((s) => s.user != null && (typeof s.user === 'object' ? String((s.user as { id: string | number }).id) : String(s.user)) === ownerUserId)
-      : null
-    const ownerShifts = (shiftsRes.docs as Shift[]).filter((sh) => sh.owner_shift)
-    const ownerJoinDate = (owner as unknown as { join_date?: string | null; createdAt?: string | null } | null)?.join_date ?? (owner as unknown as { createdAt?: string | null } | null)?.createdAt ?? null
-    const ownerExtraPosition = ((owner as unknown as { role_title?: string | null } | null)?.role_title || '').trim()
-    // A szintetikus "owner" sor CSAK akkor kell, ha a tulajnak MÉG NINCS valódi linkelt staff-
-    // rekordja — ha van (`linkedOwnerStaff`), ő MAGA jelenik meg lent a listában, "Tulajdonos"
-    // jelöléssel, nem duplikáljuk.
-    const ownerEmp: Employee | null = linkedOwnerStaff ? null : {
-      id: 'owner',
-      name: owner?.name || owner?.email || 'Tulajdonos',
-      avatarUrl: owner?.avatar_url ?? null,
-      position: ownerExtraPosition ? `Tulajdonos · ${ownerExtraPosition}` : 'Tulajdonos',
-      extraPosition: ownerExtraPosition,
-      roleTone: 'owner',
-      email: owner?.email || '',
-      phone: owner?.phone || '',
-      since: fmtMonth(ownerJoinDate),
-      contract: contractLabel(owner?.weekly_hours),
-      tags: [],
-      note: owner?.bio || '',
-      status: 'active',
-      tipsThisMonth: 0,
-      hr: {
-        birthday: owner?.birthday ?? null,
-        address: owner?.address ?? null,
-        tax_id: owner?.tax_id ?? null,
-        tax_number: owner?.tax_number ?? null,
-        weekly_hours: owner?.weekly_hours ?? null,
-        join_date: ownerJoinDate,
-        salary: null,
-        pay_type: 'daily',
-        pay_rate: null,
-        tip_eligible: false,
-        suspended_at: null,
-        position_history: [],
-      },
-      ...computeShiftStats(ownerShifts, now),
-    }
+    const ownerId = owner?.id != null ? String(owner.id) : null
+    const linkedOwner = ownerId ? staff.find((s) => relId(s.user) === ownerId) : undefined
 
-    // FONTOS: itt NEM szűrünk email alapján (a korábbi `s.email === owner.email` heurisztika
-    // pont az újonnan linkelt tulaj-staff rekordot dobta ki hibásan a listából, szétcsúsztatva
-    // ezt a sorrendet a Munkatársak oldal saját, szűretlen listájától — lásd a fenti kommentet).
-    const staffEmps = salonStaff.map((s): Employee => {
+    const rows = staff.map((s): TeamMemberVM => {
       const id = String(s.id)
-      const st = computeShiftStats(shiftsByPerson[id] ?? [], now)
-      const isOwner = !!linkedOwnerStaff && String(s.id) === String(linkedOwnerStaff.id)
+      const st = shiftStats(byPerson[id] ?? [], now)
+      const b = bk[id]
+      const isOwner = linkedOwner?.id === s.id
+      const mem = s.email ? memByEmail.get(s.email.toLowerCase()) : undefined
+      const status: TeamStatus = mem?.status === 'invited' ? 'invited' : mem?.status === 'suspended' || s.is_active === false ? 'suspended' : 'active'
+      const userAvatar = mem?.user && typeof mem.user === 'object' ? fixMediaUrl((mem.user as User).avatar_url) : null
       return {
-        id,
-        name: s.name,
-        avatarUrl: mediaUrl(s.avatar) ?? (s.email ? (userAvatarByEmail[s.email] ?? null) : null),
-        // A `role_title` a VALÓS staff-rekordnál mindig a TELJES, kész megjelenítendő szöveg (ezt
-        // várja a Naptár oldal is, ld. `dashboard/schedule/page.tsx` StaffVM.role) — a tulaj-sornál
-        // NEM fűzünk elé "Tulajdonos · "-t, azt a `roleTone==='owner'` jelvény már jelzi külön.
-        position: isOwner ? (s.role_title || 'Tulajdonos') : (s.role_title || s.department || ''),
-        roleTone: isOwner ? 'owner' : 'staff',
-        email: s.email || '',
-        phone: s.phone || '',
-        since: fmtMonth(s.join_date ?? (s as unknown as { createdAt?: string }).createdAt),
-        contract: contractLabel(s.weekly_hours),
-        tags: stats.servicesById[id] ?? [],
-        note: s.bio || '',
-        socialLinks: (s.social_links ?? []).map((l) => l.url),
-        status: invitedEmails.has((s.email ?? '').toLowerCase()) ? 'invited' : s.is_active === false ? 'suspended' : 'active',
-        hr: {
-          birthday: s.birthday ?? null,
-          join_date: s.join_date ?? (s as unknown as { createdAt?: string }).createdAt ?? null,
-          address: s.address ?? null,
-          tax_id: s.tax_id ?? null,
-          tax_number: s.tax_number ?? null,
-          weekly_hours: s.weekly_hours ?? null,
-          salary: s.salary ?? null,
-          pay_type: 'daily' as const,
-          pay_rate: s.salary ?? null,
-          tip_eligible: null,
-        },
-        ...st,
+        id, owner: isOwner, name: s.name, img: mediaUrl(s.avatar) ?? userAvatar ?? (isOwner ? fixMediaUrl(owner?.avatar_url) ?? null : null),
+        position: s.role_title || s.department || (isOwner ? 'Tulajdonos' : ''), email: s.email || '', phone: s.phone || '',
+        joinDate: (s.join_date ?? s.createdAt ?? '').slice(0, 10) || null,
+        role: isOwner ? 'Tulajdonos' : roleName(mem), roleKey: isOwner ? 'owner' : mem?.role ?? null,
+        customRoleId: relId(mem?.custom_role), membershipId: mem ? String(mem.id) : null, status, review: !!s.import_review, bookable: s.is_active !== false,
+        weeklyTarget: s.weekly_hours ?? null, weekUtil: st.weekMinutes > 0 ? Math.min(100, Math.round(((b?.weekMinutes ?? 0) / st.weekMinutes) * 100)) : null,
+        serviceIds: servicesOf(id), bio: s.bio || '', socialLinks: (s.social_links ?? []).map((l) => l.url),
+        birthday: s.birthday ?? null, address: s.address ?? null, taxId: s.tax_id ?? null, taxNumber: s.tax_number ?? null,
+        payType: 'daily', payRate: s.salary ?? null, tipEligible: false, buffer: s.booking_buffer_minutes ?? null, breaks: (s.default_breaks ?? []).map((b) => ({ start: b.start_time, end: b.end_time })), minLead: s.min_lead_hours ?? null,
+        documents: docsOf(s.documents), series: b?.series ?? Array(12).fill(0), ...base(st),
+        month: { ...base(st).month, bookings: b?.bookings ?? 0, revenue: b?.revenue ?? 0, noShow: b?.noShow ?? 0 },
       }
     })
-
-    return ownerEmp ? [ownerEmp, ...staffEmps] : staffEmps
+    return linkedOwner ? rows : [ownerRow(owner, shiftStats(ownerShifts, now)), ...rows]
   }
 
-  // ── Étterem: [tulaj-sor] + memberships. A LISTÁVAL AZONOS sorrend (tulaj elöl, majd a
-  //    nem-owner tagok createdAt szerint) — hogy a sorra-kattintás indexe a jó embert nyissa. ──
+  // ── étterem ──
   const [restRes, memRes] = await Promise.all([
     payload.findByID({ collection: 'restaurants', id: businessId, depth: 1, overrideAccess: true }).catch(() => null),
-    payload.find({ collection: 'memberships', where: { restaurant: { equals: businessId } }, sort: 'createdAt', depth: 1, limit: 500, overrideAccess: true }),
+    payload.find({ collection: 'memberships', where: { restaurant: { equals: businessId } }, sort: 'createdAt', depth: 1, populate: { restaurants: { name: true } }, limit: 500, overrideAccess: true }),
   ])
-
-  // ── Havi borravaló: a napi KÖZPONTI összeg / az aznap dolgozó JOGOSULTAK száma, e hónapra összegezve. ──
-  const thisYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const rest = restRes as Restaurant | null
+  const thisYm = ymd(now).slice(0, 7)
+  const members = (memRes.docs as Membership[]).filter((m) => m.role !== 'owner')
+
+  // havi borravaló: a napi központi összeg / az aznap dolgozó jogosultak száma (design 11.3)
   const dailyTips: Record<string, number> = {}
-  for (const t of rest?.daily_tips ?? []) {
-    const d = (t.date ?? '').slice(0, 10)
-    if (d && typeof t.amount === 'number') dailyTips[d] = t.amount
-  }
-  const eligibleIds = new Set(
-    (memRes.docs as Membership[]).filter((m) => m.tip_eligible && m.role !== 'owner').map((m) => String(m.id)),
-  )
-  // Per nap: MELY jogosultak dolgoztak (type 'shift') — a Set miatt egy fő/nap egyszer számít.
-  const eligibleByDate: Record<string, Set<string>> = {}
-  for (const pid of eligibleIds) {
-    for (const sh of shiftsByPerson[pid] ?? []) {
-      if (sh.type !== 'shift') continue
-      const d = (sh.date ?? '').slice(0, 10)
-      if (d) (eligibleByDate[d] ??= new Set()).add(pid)
-    }
-  }
-  const monthlyTips = (pid: string): number => {
-    if (!eligibleIds.has(pid)) return 0
-    const seen = new Set<string>()
+  for (const t of rest?.daily_tips ?? []) { const d = (t.date ?? '').slice(0, 10); if (d && typeof t.amount === 'number') dailyTips[d] = t.amount }
+  const eligible = new Set(members.filter((m) => m.tip_eligible).map((m) => String(m.id)))
+  const workingByDate: Record<string, Set<string>> = {}
+  for (const pid of eligible) for (const sh of byPerson[pid] ?? []) if (sh.type === 'shift') (workingByDate[(sh.date ?? '').slice(0, 10)] ??= new Set()).add(pid)
+  const tipsOf = (pid: string) => {
+    if (!eligible.has(pid)) return 0
     let sum = 0
-    for (const sh of shiftsByPerson[pid] ?? []) {
-      if (sh.type !== 'shift') continue
+    const seen = new Set<string>()
+    for (const sh of byPerson[pid] ?? []) {
       const d = (sh.date ?? '').slice(0, 10)
-      if (!d || seen.has(d) || !d.startsWith(thisYm)) continue
+      if (sh.type !== 'shift' || seen.has(d) || !d.startsWith(thisYm)) continue
       seen.add(d)
-      const amt = dailyTips[d]
-      const cnt = eligibleByDate[d]?.size ?? 0
-      if (amt && cnt > 0) sum += amt / cnt
+      const n = workingByDate[d]?.size ?? 0
+      if (dailyTips[d] && n) sum += dailyTips[d] / n
     }
     return Math.round(sum)
   }
 
-  const ownerRel = (restRes as Restaurant | null)?.owner
+  const ownerRel = rest?.owner
   const owner = ownerRel && typeof ownerRel === 'object' ? (ownerRel as User) : null
-  // A tulaj coverage-műszakjai (owner_shift; nincs member) — csak fedettség-statisztika, bér/borravaló nélkül.
-  const ownerShifts = (shiftsRes.docs as Shift[]).filter((sh) => sh.owner_shift)
-  const ownerJoinDate = (owner as unknown as { join_date?: string | null; createdAt?: string | null } | null)?.join_date ?? (owner as unknown as { createdAt?: string | null } | null)?.createdAt ?? null
-  const ownerEmp: Employee = {
-    id: 'owner',
-    name: owner?.name || owner?.email || 'Tulajdonos',
-    avatarUrl: owner?.avatar_url ?? null,
-    position: 'Tulajdonos',
-    roleTone: 'owner',
-    email: owner?.email || '',
-    phone: owner?.phone || '',
-    since: fmtMonth(ownerJoinDate),
-    contract: contractLabel(owner?.weekly_hours),
-    tags: [],
-    note: owner?.bio || '',
-    status: 'active',
-    tipsThisMonth: 0,
-    // Fiók-szintű adatlap (szerkeszthető) — a tulajnak nincs membershipje; bér/borravaló SOHA.
-    hr: {
-      birthday: owner?.birthday ?? null,
-      address: owner?.address ?? null,
-      tax_id: owner?.tax_id ?? null,
-      tax_number: owner?.tax_number ?? null,
-      weekly_hours: owner?.weekly_hours ?? null,
-      join_date: ownerJoinDate,
-      salary: null,
-      pay_type: 'daily',
-      pay_rate: null,
-      tip_eligible: false,
-      suspended_at: null,
-      position_history: [],
-    },
-    ...computeShiftStats(ownerShifts, now),
-  }
-  const members: Employee[] = (memRes.docs as Membership[])
-    .filter((m) => m.role !== 'owner') // a tulaj-membershipet a külön owner-sor jeleníti meg
-    .map((m) => {
-      const id = String(m.id)
-      const st = computeShiftStats(shiftsByPerson[id] ?? [], now)
-      const user = typeof m.user === 'object' && m.user ? (m.user as User) : null
-      return {
-        id,
-        name: m.name || user?.name || m.email,
-        avatarUrl: mediaUrl(m.avatar) ?? (user?.avatar_url ?? null),
-        // Egyedi szerep esetén annak NEVE a pozíció (nincs külön munkakör-kategória).
-        position: (m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role).name : null) || m.position || roleLabel(m.role),
-        roleTone: m.role,
-        email: m.email || user?.email || '',
-        phone: m.phone || '',
-        since: fmtMonth(m.join_date ?? m.createdAt),
-        contract: contractLabel(m.weekly_hours),
-        tags: [],
-        note: m.bio || '',
-        status: (m.status ?? 'invited') as 'active' | 'invited' | 'suspended',
-        tipsThisMonth: monthlyTips(id),
-        hr: {
-          birthday: m.birthday ?? null,
-          address: m.address ?? null,
-          tax_id: m.tax_id ?? null,
-          tax_number: m.tax_number ?? null,
-          weekly_hours: m.weekly_hours ?? null,
-          join_date: m.join_date ?? m.createdAt ?? null,
-          salary: m.salary ?? null,
-          pay_type: (m.pay_type ?? 'daily') as 'daily' | 'hourly',
-          pay_rate: m.pay_rate ?? null,
-          tip_eligible: !!m.tip_eligible,
-          suspended_at: m.suspended_at ?? null,
-          position_history: (m.position_history ?? [])
-            .map((h) => ({ position: h.position ?? '', changed_at: (h.changed_at ?? '').slice(0, 10) }))
-            .filter((h) => h.position),
-        },
-        ...st,
-      }
-    })
-  return [ownerEmp, ...members]
+  const rows = members.map((m): TeamMemberVM => {
+    const id = String(m.id)
+    const st = shiftStats(byPerson[id] ?? [], now)
+    const user = m.user && typeof m.user === 'object' ? (m.user as User) : null
+    const custom = m.custom_role && typeof m.custom_role === 'object' ? (m.custom_role as Role) : null
+    return {
+      id, owner: false, name: m.name || user?.name || m.email, img: mediaUrl(m.avatar) ?? fixMediaUrl(user?.avatar_url) ?? null,
+      position: m.position || custom?.name || '', email: m.email || user?.email || '', phone: m.phone || '',
+      joinDate: (m.join_date ?? m.createdAt ?? '').slice(0, 10) || null,
+      role: roleName(m), roleKey: m.role, customRoleId: relId(m.custom_role), membershipId: id, status: m.status ?? 'invited',
+      review: false, bookable: false, weeklyTarget: m.weekly_hours ?? null, weekUtil: null, serviceIds: [], bio: m.bio || '', socialLinks: [],
+      birthday: m.birthday ?? null, address: m.address ?? null, taxId: m.tax_id ?? null, taxNumber: m.tax_number ?? null,
+      payType: m.pay_type === 'hourly' ? 'hourly' : 'daily', payRate: m.pay_rate ?? null, tipEligible: !!m.tip_eligible, buffer: null, breaks: [], minLead: null,
+      documents: docsOf((m as unknown as { documents?: unknown }).documents), series: st.series, ...base(st),
+      month: { ...base(st).month, tips: tipsOf(id) },
+    }
+  })
+  return [ownerRow(owner, shiftStats(ownerShifts, now)), ...rows]
 }

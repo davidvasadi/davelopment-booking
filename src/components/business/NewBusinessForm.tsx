@@ -1,334 +1,92 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
 import { toast } from 'sonner'
-import { UtensilsCrossed, Scissors, ChevronLeft, Loader2, Check } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { listStagger } from '@/lib/motion'
-import { Label } from '@/components/ui/label'
-import { BrandLogo } from '@/components/BrandLogo'
+import { AuthMobile, AuthScreen } from '@/components/blocks/auth'
+import { ImportStep, NEW_BUSINESS_STEPS, NewBusinessStep, ReadyCard, type NewBusinessValues } from '@/components/blocks/onboarding'
+import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
 import { WizardImportStep } from '@/components/auth/WizardImportStep'
-import { PhoneInput } from '@/components/booking/PhoneCountryInput'
-import {
-  authInputBase, authInputDark,
-  authLabelBase, authLabelDark,
-  authPillBtn, authPillBtnLight,
-  BRAND_COPYRIGHT,
-} from '@/components/auth/authStyles'
+import { useAvailabilityCheck } from '@/components/auth/useAvailabilityCheck'
+import { slugify } from '@/lib/slug'
 
-type BizType = 'salon' | 'restaurant'
+const APP_HOST = (process.env.NEXT_PUBLIC_APP_URL ?? 'https://booking.davelopment.hu').replace(/^https?:\/\//, '').replace(/\/$/, '')
 
-const TYPES: { v: BizType; label: string; sub: string; icon: React.ElementType }[] = [
-  { v: 'salon', label: 'Szalon', sub: 'Időpontfoglalás', icon: Scissors },
-  { v: 'restaurant', label: 'Étterem', sub: 'Asztalfoglalás', icon: UtensilsCrossed },
+const TITLES = [
+  { title: <>Még egy<br />üzlet,<br />egy fiók.</>, sub: 'Ugyanazzal a belépéssel kezeled — külön foglalóoldallal, külön csapattal, a fiókmenüből váltasz.' },
+  { title: <>Hozd át<br />az adataid.</>, sub: 'Ha más rendszerből jössz — kihagyható, később is megcsinálhatod.' },
+  { title: <>Kész az<br />új üzlet.</>, sub: 'Oszd meg a foglalóoldalát, és jöhetnek a vendégek.' },
 ]
 
 /**
- * Több-üzlet: új szalon/étterem hozzáadása bejelentkezett felhasználónak.
- * Jelszó/újraregisztráció NÉLKÜL — csak az üzlet adatai.
+ * Új szalon / étterem a MÁR BEJELENTKEZETT fiókhoz (design 23.7) — a regisztráció keretében és darabjaiból, belépés és
+ * jelszó nélkül, 3 lépésben: 1 üzlet (típus, név a foglalóoldal címével, város, telefon, mi lesz az előfizetéssel) →
+ * 2 import (kihagyható) → 3 kész (link, irány az új üzlet). Mobilon a sötét videón, üvegből — mint a regisztráció.
  */
 export function NewBusinessForm({ alreadyPaying }: { alreadyPaying: boolean }) {
   const router = useRouter()
-  const [type, setType] = useState<BizType>('salon')
-  const [name, setName] = useState('')
-  const [city, setCity] = useState('')
-  const [phone, setPhone] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [step, setStep] = useState<'form' | 'import'>('form')
-  const [redirectTo, setRedirectTo] = useState('')
+  const [kind, setKind] = useState<'salon' | 'restaurant'>('salon')
+  const [v, setV] = useState<NewBusinessValues>({ name: '', city: '', phone: '' })
+  const [step, setStep] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState<{ redirectTo: string; slug: string } | null>(null)
+  const [mounted, setMounted] = useState(false)
+  const [desktop, setDesktop] = useState(false)
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault()
-    if (name.trim().length < 2) {
-      toast.error('Adj meg egy nevet (min. 2 karakter)')
-      return
-    }
-    setSubmitting(true)
+  useEffect(() => {
+    setMounted(true)
+    const mq = window.matchMedia('(min-width: 1024px)')
+    const up = () => setDesktop(mq.matches)
+    up(); mq.addEventListener('change', up)
+    return () => mq.removeEventListener('change', up)
+  }, [])
+
+  const nameStatus = useAvailabilityCheck('business-name', v.name, v.name.trim().length >= 2)
+
+  async function submit() {
+    if (v.name.trim().length < 2) { setError('Adj meg egy nevet (legalább 2 karakter)'); return }
+    if (nameStatus === 'taken') { setError('Ez a név már foglalt — válassz másikat'); return }
+    setBusy(true)
+    setError(null)
     try {
       const res = await fetch('/api/business/add', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({
-          type,
-          name: name.trim(),
-          city: city.trim() || undefined,
-          phone: phone.trim() || undefined,
-        }),
+        body: JSON.stringify({ type: kind, name: v.name.trim(), city: v.city.trim() || undefined, phone: v.phone.trim() || undefined }),
       })
-      const data = (await res.json().catch(() => null)) as { redirectTo?: string; error?: string } | null
+      const data = (await res.json().catch(() => null)) as { redirectTo?: string; slug?: string; error?: string } | null
       if (!res.ok || !data?.redirectTo) throw new Error(data?.error || 'Nem sikerült létrehozni az üzletet')
-      toast.success('Üzlet létrehozva!')
-      setRedirectTo(data.redirectTo)
-      setStep('import')
+      toast.success('Üzlet létrehozva')
+      setDone({ redirectTo: data.redirectTo, slug: data.slug ?? slugify(v.name) })
+      setStep(1)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Ismeretlen hiba')
-      setSubmitting(false)
+      setError(err instanceof Error ? err.message : 'Ismeretlen hiba')
+    } finally {
+      setBusy(false)
     }
   }
 
-  const handleImportDone = () => {
-    router.push(redirectTo)
-    router.refresh()
-  }
+  const copy = () => { if (done) void navigator.clipboard?.writeText(`https://${APP_HOST}/${done.slug}`).then(() => toast.success('Link másolva')) }
 
-  const typeCards = (isDark: boolean) => (
-    <div className="grid grid-cols-2 gap-3">
-      {TYPES.map(({ v, label, sub, icon: Icon }) => {
-        const isSelected = type === v
-        return (
-          <button
-            key={v}
-            type="button"
-            onClick={() => setType(v)}
-            className={cn(
-              'relative flex flex-col items-start p-4 rounded-2xl border text-left transition-all duration-200',
-              isDark
-                ? isSelected
-                  ? 'border-gold bg-white/[0.06] ring-2 ring-gold'
-                  : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
-                : isSelected
-                  ? 'border-gold bg-gold/[0.06] ring-2 ring-gold'
-                  : 'border-line-strong bg-white hover:border-ink-soft2/50 hover:bg-paper',
-            )}
-          >
-            {isSelected && (
-              <div className="absolute top-2.5 right-2.5 h-5 w-5 rounded-full bg-gold flex items-center justify-center">
-                <Check className="h-3 w-3 text-ink-dark" />
-              </div>
-            )}
-            <div className={cn(
-              'h-9 w-9 rounded-xl flex items-center justify-center mb-2.5',
-              isDark ? (isSelected ? 'bg-gold' : 'bg-white/10') : (isSelected ? 'bg-gold' : 'bg-paper'),
-            )}>
-              <Icon
-                className={cn(isDark ? (isSelected ? 'text-ink-dark' : 'text-white/70') : (isSelected ? 'text-ink-dark' : 'text-ink-soft'))}
-                style={{ width: 18, height: 18 }}
-              />
-            </div>
-            <p className={cn('font-semibold text-sm leading-tight', isDark ? (isSelected ? 'text-white' : 'text-white/80') : 'text-ink')}>{label}</p>
-            <p className={cn('text-xs mt-0.5', isDark ? 'text-white/45' : 'text-ink-soft')}>{sub}</p>
-          </button>
-        )
-      })}
-    </div>
+  if (!mounted) return <div className="min-h-dvh bg-ui-dark" />
+
+  const body = step === 0 ? (
+    <NewBusinessStep kind={kind} onKind={(k) => { setKind(k); setError(null) }} values={v} onChange={(p) => { setV((x) => ({ ...x, ...p })); setError(null) }}
+      slugUrl={`${APP_HOST}/${slugify(v.name) || '…'}`} slugStatus={nameStatus} paying={alreadyPaying} error={error} busy={busy} onSubmit={() => void submit()} backHref={desktop ? '/dashboard' : undefined} dark={!desktop} />
+  ) : step === 1 ? (
+    <ImportStep labels={NEW_BUSINESS_STEPS} dark={!desktop}><WizardImportStep isDark={!desktop} onContinue={() => setStep(2)} /></ImportStep>
+  ) : (
+    <ReadyCard kind={kind} labels={NEW_BUSINESS_STEPS} url={`${APP_HOST}/${done?.slug ?? ''}`} onCopy={copy} href={done?.redirectTo} />
   )
+  const t = TITLES[step]
 
-  const subscriptionNote = (isDark: boolean) => (
-    <p className={cn('text-xs leading-relaxed', isDark ? 'text-white/40' : 'text-ink-soft')}>
-      {alreadyPaying
-        ? 'Aktív előfizetésed van — az új üzlet díja azonnal hozzáadódik a havi számládhoz.'
-        : 'Ez az üzlet a fiókod közös próbaidőszaka alá kerül — még nem kell fizetned.'}
-    </p>
-  )
-
-  return (
-    <>
-      {/* ── MOBILE ── */}
-      <div className="lg:hidden min-h-dvh bg-ink-dark font-onest flex flex-col">
-        <div
-          className="flex flex-col flex-1 px-7 pb-10"
-          style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}
-        >
-          {step === 'form' && (
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-1.5 text-white/45 text-sm hover:text-white/80 transition-colors w-fit"
-            >
-              <ChevronLeft className="h-4 w-4" /> Vissza
-            </button>
-          )}
-
-          <div className="mt-12">
-            {step === 'import' ? (
-              <>
-                <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-2">
-                  ADATOK<br />IMPORTÁ-<br />LÁSA.
-                </h2>
-                <p className="text-white/45 text-sm mb-8">Opcionális — töltsd be adataidat az új üzletbe.</p>
-                <WizardImportStep isDark={true} onContinue={handleImportDone} />
-              </>
-            ) : (
-              <>
-                <h2 className="text-white font-light text-[2.5rem] uppercase leading-[1.0] tracking-[-0.02em] mb-8">
-                  ÚJ ÜZLET<br />HOZZÁ-<br />ADÁSA.
-                </h2>
-                <motion.form
-                  variants={listStagger.container}
-                  initial="hidden"
-                  animate="show"
-                  onSubmit={submit}
-                  className="space-y-4"
-                  noValidate
-                >
-                  <motion.div variants={listStagger.item}>
-                    {typeCards(true)}
-                  </motion.div>
-
-                  <motion.div variants={listStagger.item} className="space-y-1.5">
-                    <Label className={authLabelDark}>{type === 'salon' ? 'Szalon neve' : 'Étterem neve'}</Label>
-                    <input
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      placeholder={type === 'salon' ? 'pl. Anna Fodrászat' : 'pl. Kis Bistro'}
-                      autoComplete="organization"
-                      className={authInputDark}
-                      autoFocus
-                    />
-                  </motion.div>
-
-                  <motion.div variants={listStagger.item} className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className={authLabelDark}>Város</Label>
-                      <input
-                        value={city}
-                        onChange={e => setCity(e.target.value)}
-                        placeholder="Budapest"
-                        autoComplete="address-level2"
-                        className={authInputDark}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className={authLabelDark}>Telefon</Label>
-                      <PhoneInput
-                        value={phone}
-                        onChange={setPhone}
-                        inputClass={authInputDark}
-                        dark
-                      />
-                    </div>
-                  </motion.div>
-
-                  <motion.div variants={listStagger.item} className="pt-1 space-y-3">
-                    {subscriptionNote(true)}
-                    <button type="submit" disabled={submitting} className={authPillBtnLight}>
-                      {submitting
-                        ? <Loader2 className="h-5 w-5 animate-spin" />
-                        : 'Üzlet létrehozása'}
-                    </button>
-                  </motion.div>
-                </motion.form>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── DESKTOP ── */}
-      <div className="hidden lg:flex min-h-dvh font-onest">
-        {/* Left panel */}
-        <div className="w-[45%] bg-ink-dark flex flex-col justify-between p-14 select-none">
-          <BrandLogo variant="dark" className="h-8" />
-          <div>
-            {step === 'import' ? (
-              <>
-                <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em]">
-                  ADATOK<br />IMPORTÁ-<br />LÁSA.
-                </h1>
-                <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">
-                  Opcionális lépés — importálj meglévő adatokat az újonnan létrehozott üzletbe.
-                </p>
-              </>
-            ) : (
-              <>
-                <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.05] tracking-[-0.02em]">
-                  ÚJ ÜZLET<br />HOZZÁ-<br />ADÁSA.
-                </h1>
-                <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">
-                  Adj hozzá egy szalont vagy éttermet a meglévő fiókodhoz — nem kell újra bejelentkezned.
-                </p>
-              </>
-            )}
-          </div>
-          <p className="text-white/30 text-xs">{BRAND_COPYRIGHT}</p>
-        </div>
-
-        {/* Right panel */}
-        <div className="flex-1 flex items-center justify-center px-6 py-12 bg-white [color-scheme:light] overflow-y-auto">
-          <div className="w-full max-w-sm">
-            {step === 'import' ? (
-              <>
-                <div className="mb-8">
-                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Adatok importálása</h2>
-                  <p className="text-ink-soft text-sm mt-1">Töltsd fel a meglévő adataidat — kihagyható.</p>
-                </div>
-                <WizardImportStep isDark={false} onContinue={handleImportDone} />
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => router.back()}
-                  className="flex items-center gap-1.5 text-ink-soft text-xs mb-8 hover:text-ink transition-colors"
-                >
-                  <ChevronLeft className="h-3 w-3" /> Vissza
-                </button>
-
-                <div className="mb-8">
-                  <h2 className="text-2xl font-light tracking-[-0.01em] text-ink">Új üzlet hozzáadása</h2>
-                  <p className="text-ink-soft text-sm mt-1">A meglévő fiókodhoz — jelszó nélkül.</p>
-                </div>
-
-                <motion.form
-                  variants={listStagger.container}
-                  initial="hidden"
-                  animate="show"
-                  onSubmit={submit}
-                  className="space-y-5"
-                  noValidate
-                >
-                  <motion.div variants={listStagger.item}>
-                    {typeCards(false)}
-                  </motion.div>
-
-                  <motion.div variants={listStagger.item} className="space-y-1.5">
-                    <Label className={authLabelBase}>{type === 'salon' ? 'Szalon neve' : 'Étterem neve'}</Label>
-                    <input
-                      value={name}
-                      onChange={e => setName(e.target.value)}
-                      placeholder={type === 'salon' ? 'pl. Anna Fodrászat' : 'pl. Kis Bistro'}
-                      autoComplete="organization"
-                      className={authInputBase}
-                      autoFocus
-                    />
-                  </motion.div>
-
-                  <motion.div variants={listStagger.item} className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className={authLabelBase}>Város</Label>
-                      <input
-                        value={city}
-                        onChange={e => setCity(e.target.value)}
-                        placeholder="Budapest"
-                        autoComplete="address-level2"
-                        className={authInputBase}
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className={authLabelBase}>Telefon</Label>
-                      <PhoneInput
-                        value={phone}
-                        onChange={setPhone}
-                        inputClass={authInputBase}
-                      />
-                    </div>
-                  </motion.div>
-
-                  <motion.div variants={listStagger.item} className="space-y-3">
-                    {subscriptionNote(false)}
-                    <button type="submit" disabled={submitting} className={authPillBtn}>
-                      {submitting
-                        ? <Loader2 className="h-4 w-4 animate-spin" />
-                        : 'Üzlet létrehozása'}
-                    </button>
-                  </motion.div>
-                </motion.form>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </>
-  )
+  return desktop
+    ? <AuthScreen full media={<AuthVideoBg />} logoHref="/dashboard" title={t.title} sub={t.sub} info={[]}>{body}</AuthScreen>
+    : (
+      <AuthMobile full media={<AuthVideoBg fullScreen />} logoHref="/dashboard" onBack={step === 0 ? () => router.back() : undefined}>
+        {body}
+      </AuthMobile>
+    )
 }

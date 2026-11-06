@@ -87,7 +87,7 @@ export function AddressAutocompleteInput({ onSelect }: { onSelect: (a: AddressDe
   return (
     <div className="relative">
       <div className="relative">
-        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-soft2" />
+        <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ui-muted" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -95,30 +95,30 @@ export function AddressAutocompleteInput({ onSelect }: { onSelect: (a: AddressDe
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           placeholder="Cím keresése…"
           disabled={maintenance || loadingDetails}
-          className="h-[42px] w-full rounded-[12px] border border-line-strong bg-white pl-10 pr-10 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/60 focus:border-gold/60 focus:ring-2 focus:ring-gold/20 disabled:opacity-60"
+          className="h-[42px] w-full rounded-[12px] border border-ui-divider bg-white pl-10 pr-10 text-[14px] text-ui-text outline-none transition-colors focus:ring-2 disabled:opacity-60"
         />
-        {(searching || loadingDetails) && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ink-soft2" />}
+        {(searching || loadingDetails) && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ui-muted" />}
       </div>
 
       {maintenance ? (
-        <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-medium text-warn">
+        <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-medium text-ui-warn">
           <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
           A cím-kitöltés most karbantartás alatt áll — add meg kézzel lent a mezőket.
         </p>
       ) : null}
 
       {open && suggestions.length > 0 && (
-        <div className="absolute z-20 mt-1.5 w-full divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-white shadow-lg">
+        <div className="absolute z-20 mt-1.5 w-full divide-y divide-ui-divider overflow-hidden rounded-[14px] border border-ui-divider bg-white shadow-lg">
           {suggestions.map((s) => (
             <button
               key={s.placeId}
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => pick(s)}
-              className="flex w-full flex-col items-start px-3.5 py-2.5 text-left transition-colors hover:bg-paper"
+              className="flex w-full flex-col items-start px-3.5 py-2.5 text-left transition-colors hover:bg-ui-cell"
             >
-              <span className="text-sm font-medium text-ink">{s.mainText}</span>
-              {s.secondaryText && <span className="text-[12px] text-ink-soft">{s.secondaryText}</span>}
+              <span className="text-sm font-medium text-ui-text">{s.mainText}</span>
+              {s.secondaryText && <span className="text-[12px] text-ui-muted">{s.secondaryText}</span>}
             </button>
           ))}
         </div>

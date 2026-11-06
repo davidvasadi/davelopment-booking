@@ -12,6 +12,7 @@ import { bookableDayCount, type BookingWindowSource } from '@/lib/bookingWindow'
  * DELETE. RBAC: `staff.manage` (owner + manager) a munkatárs szalonjában. Az avatar
  * relationship SZÁM-ra coerce-ölve (a kliens string id-t küld).
  */
+const PROTECTED_STAFF_KEYS = new Set(['invoice_provider', 'szamlazz_agent_key_enc', 'billingo_api_key_enc', 'stripe_connect_account_id', 'stripe_connect_onboarded'])
 const num = (v: unknown) => (/^\d+$/.test(String(v)) ? Number(v) : v)
 
 async function loadManageableStaff(id: string, userId: string | number) {
@@ -130,7 +131,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...('default_breaks' in body ? { default_breaks: Array.isArray(body.default_breaks) ? body.default_breaks : [] } : {}),
       }
     : {
-        ...body,
+        // a saját számlázás mezői (kulcsok, Stripe-fiók) NEM innen írhatók — csak a /invoicing végpont és a Stripe
+        ...Object.fromEntries(Object.entries(body).filter(([k]) => !PROTECTED_STAFF_KEYS.has(k))),
         ...(body.salon != null ? { salon: num(body.salon) } : {}),
         ...(body.avatar != null ? { avatar: num(body.avatar) } : {}),
       }

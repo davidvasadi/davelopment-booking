@@ -83,7 +83,7 @@ export function CoverFocalPointEditor({
         className="w-full max-w-lg rounded-2xl bg-white p-4 sm:p-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="mb-3 text-sm font-semibold text-ink">Borítókép beállítása</p>
+        <p className="mb-3 text-sm font-semibold text-ui-text">Borítókép beállítása</p>
 
         <div
           ref={frameRef}
@@ -91,7 +91,7 @@ export function CoverFocalPointEditor({
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
           onPointerCancel={handlePointerUp}
-          className="relative aspect-[16/9] w-full touch-none select-none overflow-hidden rounded-xl bg-line-strong"
+          className="relative aspect-[16/9] w-full touch-none select-none overflow-hidden rounded-xl bg-ui-divider"
           style={{ cursor: dragging ? 'grabbing' : 'grab' }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -114,7 +114,7 @@ export function CoverFocalPointEditor({
         </div>
 
         <div className="mt-3 flex items-center gap-3">
-          <ZoomOut className="h-4 w-4 shrink-0 text-ink-soft2" />
+          <ZoomOut className="h-4 w-4 shrink-0 text-ui-muted" />
           <input
             type="range"
             min={MIN_ZOOM}
@@ -122,17 +122,17 @@ export function CoverFocalPointEditor({
             step={0.02}
             value={zoom}
             onChange={(e) => setZoom(Number(e.target.value))}
-            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-line-strong accent-ink-dark"
+            className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-ui-divider accent-ui-dark"
           />
-          <ZoomIn className="h-4 w-4 shrink-0 text-ink-soft2" />
+          <ZoomIn className="h-4 w-4 shrink-0 text-ui-muted" />
         </div>
-        <p className="mt-2 text-center text-[11px] text-ink-soft2">Húzd a képet a pozícióhoz, a csúszkával nagyíthatsz rá.</p>
+        <p className="mt-2 text-center text-[11px] text-ui-muted">Húzd a képet a pozícióhoz, a csúszkával nagyíthatsz rá.</p>
 
         <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} disabled={saving} className="inline-flex items-center gap-1.5 rounded-full border border-line px-4 py-2 text-[13px] font-medium text-ink-soft hover:bg-paper disabled:opacity-40">
+          <button type="button" onClick={onCancel} disabled={saving} className="inline-flex items-center gap-1.5 rounded-full border border-ui-divider px-4 py-2 text-[13px] font-medium text-ui-muted hover:bg-ui-cell disabled:opacity-40">
             <X className="h-3.5 w-3.5" /> Mégse
           </button>
-          <button type="button" onClick={handleSave} disabled={saving} className="inline-flex min-w-[110px] items-center justify-center gap-1.5 rounded-full bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-70">
+          <button type="button" onClick={handleSave} disabled={saving} className="inline-flex min-w-[110px] items-center justify-center gap-1.5 rounded-full bg-ui-dark px-4 py-2 text-[13px] font-semibold text-white hover:opacity-90 disabled:opacity-70">
             {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
             {saving ? 'Mentés...' : 'Mentés'}
           </button>

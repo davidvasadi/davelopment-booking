@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { motion } from 'framer-motion'
-import { AlertTriangle, Loader2, MapPin, Star } from 'lucide-react'
+import { Button, Field, FieldRow, Input, ListRow, Meta, Note, Pill, StatusPill } from '@/components/ui-kit'
 
 type Current = { id: string; name: string | null; rating: number | null; count: number | null; updatedAt?: string | null }
 type Suggestion = { placeId: string; mainText: string; secondaryText: string }
@@ -41,11 +40,6 @@ export function GooglePlacePicker({ businessName, businessCity }: { businessName
   const [searchedOnce, setSearchedOnce] = useState(false)
   const [saving, setSaving] = useState(false)
   const [maintenance, setMaintenance] = useState<Maintenance>({ search: false, details: false })
-  // Nincs találat → a mező megrezeg + piros keretet kap, ugyanaz a minta, mint az értékelés-link
-  // mezőnél (GoogleSettingsPanel.tsx) — a user számára azonnal, vizuálisan jelezze a hibát, nem
-  // csak egy alatta lévő szövegsor.
-  const [shake, setShake] = useState(false)
-  const triggerShake = () => { setShake(true); setTimeout(() => setShake(false), 600) }
   const invalid = !searching && searchedOnce && suggestions.length === 0
 
   const newSessionToken = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`)
@@ -83,7 +77,6 @@ export function GooglePlacePicker({ businessName, businessCity }: { businessName
         const found: Suggestion[] = d.suggestions ?? []
         setSuggestions(found)
         setSearchedOnce(true)
-        if (found.length === 0) triggerShake()
       } catch {
         /* élő gépelés közben nem zavarjuk toast-tal egy-egy hálózati hibánál — a user úgyis tovább ír */
       } finally {
@@ -120,110 +113,41 @@ export function GooglePlacePicker({ businessName, businessCity }: { businessName
     }
   }
 
-  if (loading || !enabled) return null
+  if (loading) return <Meta className="py-3">Betöltés…</Meta>
+  if (!enabled) return <Note className="mt-1">A Google-profil összekötése most nem érhető el.</Note>
 
+  const updated = current?.updatedAt ? new Date(current.updatedAt) : null
   return (
-    <div className="rounded-[22px] border border-line bg-white p-5 lg:p-6">
-      <div className="flex items-center gap-3.5">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-dav-sm bg-gold/15 text-ink-dark">
-          <MapPin className="h-5 w-5" strokeWidth={1.6} />
-        </span>
-        <div>
-          <h2 className="text-[16px] font-semibold tracking-[-0.01em] text-ink">Google-értékelések a foglaló oldalon</h2>
-          <p className="mt-0.5 text-[12.5px] leading-relaxed text-ink-soft">
-            Válaszd ki a Google Térképes profilodat — az átlag és a legutóbbi értékelések naponta frissülnek.
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-5 border-t border-line pt-5">
-        {current ? (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-ink">{current.name ?? 'Google-profil'}</p>
-              <p className="mt-0.5 flex items-center gap-1 text-[12.5px] text-ink-soft">
-                {current.rating != null
-                  ? <><Star className="h-3.5 w-3.5 fill-current text-gold" /> {current.rating.toLocaleString('hu-HU', { maximumFractionDigits: 1 })} · {current.count ?? 0} értékelés</>
-                  : 'Még nincs értékelés'}
-              </p>
+    <>
+      {current ? (
+        <>
+          <Field label="Az üzleted a Google-on" className="mt-1"><Input value={current.name ?? 'Google-profil'} readOnly /></Field>
+          <FieldRow label={current.rating != null ? `★ ${current.rating.toLocaleString('hu-HU', { maximumFractionDigits: 1 })} · ${current.count ?? 0} értékelés` : 'Még nincs értékelés'}
+            hint={updated ? `frissítve ${updated.toDateString() === new Date().toDateString() ? 'ma' : updated.toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })} ${updated.toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' })}` : undefined}>
+            <span className="flex items-center gap-1.5"><StatusPill status="ok">Összekötve</StatusPill><Button variant="cell" size="sm" loading={saving} onClick={() => void save(null)}>Leválasztás</Button></span>
+          </FieldRow>
+        </>
+      ) : (
+        <>
+          <Field label="Az üzleted a Google-on" className="mt-1"
+            hint={searching ? 'Keresés…' : 'Előre kitöltöttük az üzleted adataival — írd át, ha nem a sajátod van a találatok közt.'}
+            error={!maintenance.search && invalid ? `Nincs találat erre: „${query}”. Lehet, hogy a Google-on másképp szerepel a neve vagy a városa.` : undefined}>
+            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Pl. Bella Szalon Budapest" disabled={maintenance.search} />
+          </Field>
+          {!maintenance.search && suggestions.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {suggestions.map((sg) => (
+                <button key={sg.placeId} type="button" disabled={saving} onClick={() => void save(sg.placeId)} className="block w-full text-left ui-press disabled:opacity-50">
+                  <ListRow filled title={sg.mainText} meta={sg.secondaryText} trailing={<Pill tone="dark" size="sm">Kiválasztom</Pill>} />
+                </button>
+              ))}
             </div>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => save(null)}
-              className="h-10 rounded-dav-pill border border-line-strong bg-white px-4 text-sm font-semibold text-ink transition-colors hover:border-ink/40 disabled:opacity-50"
-            >
-              Leválasztás
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <p className="text-[12px] text-ink-soft2">
-              Előre kitöltöttük az üzleted adataival — írd át, ha nem a sajátod van a találatok közt;
-              a lista gépelés közben, automatikusan frissül.
-            </p>
-            <motion.div
-              className="relative"
-              animate={shake ? { x: [0, -8, 8, -6, 6, -3, 3, 0] } : { x: 0 }}
-              transition={{ duration: 0.45, ease: 'easeInOut' }}
-            >
-              <input
-                value={query}
-                onChange={(e) => { setQuery(e.target.value); setShake(false) }}
-                onFocus={() => setShake(false)}
-                placeholder="Pl. Bella Szalon Budapest"
-                disabled={maintenance.search}
-                className="h-11 w-full rounded-[12px] border border-line-strong bg-white px-3.5 pr-10 text-[16px] text-ink outline-none transition-colors disabled:opacity-60 lg:text-sm"
-                style={{
-                  borderColor: invalid ? 'var(--dav-bad)' : undefined,
-                  boxShadow: invalid ? '0 0 0 2px color-mix(in srgb, var(--dav-bad) 20%, transparent)' : undefined,
-                }}
-              />
-              {searching && <Loader2 className="absolute right-3.5 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-ink-soft2" />}
-            </motion.div>
-
-            {/* Karbantartás-jelzés MINDIG a mező alatt — állandó, nem egy eltűnő toast. */}
-            {maintenance.search && (
-              <p className="flex items-start gap-1.5 rounded-dav-chip border border-warn/30 bg-warn-bg px-3.5 py-2.5 text-[12px] font-medium text-warn">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                Ez a funkció jelenleg karbantartás alatt áll — elérte a havi biztonsági keretét.
-                A hónap fordulásával automatikusan visszatér, addig nem lehet rajta keresni.
-              </p>
-            )}
-
-            {!maintenance.search && suggestions.length > 0 && (
-              <div className="divide-y divide-line overflow-hidden rounded-[14px] border border-line bg-white">
-                {suggestions.map((s) => (
-                  <button
-                    key={s.placeId}
-                    type="button"
-                    disabled={saving}
-                    onClick={() => save(s.placeId)}
-                    className="flex w-full flex-col items-start px-3.5 py-2.5 text-left transition-colors hover:bg-paper disabled:opacity-50"
-                  >
-                    <span className="text-sm font-medium text-ink">{s.mainText}</span>
-                    <span className="text-[12px] text-ink-soft">{s.secondaryText}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {!maintenance.search && invalid && (
-              <p className="text-[12px] font-medium text-bad">
-                Nincs találat erre: „{query}". Lehet, hogy a Google-n másképp szerepel az üzleted neve
-                vagy a városa — próbáld meg pontosítani a mező szövegét.
-              </p>
-            )}
-            {maintenance.details && !maintenance.search && (
-              <p className="flex items-start gap-1.5 rounded-dav-chip border border-warn/30 bg-warn-bg px-3.5 py-2.5 text-[12px] font-medium text-warn">
-                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                A keresés megy, de a kiválasztás utáni csillag/vélemény-lekérés most karbantartás
-                alatt áll — ha most csatlakoztatsz egy profilt, az átlag/vélemény csak a hónap
-                fordulása után töltődik be.
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+          )}
+          {maintenance.search && <Note warn className="mt-2">A keresés most karbantartás alatt áll — elérte a havi biztonsági keretét. A hónap fordulásával automatikusan visszatér.</Note>}
+          {maintenance.details && !maintenance.search && <Note warn className="mt-2">A kiválasztás utáni csillag- és vélemény-lekérés most karbantartás alatt áll — ha most kötöd össze, az átlag a hónap fordulása után töltődik be.</Note>}
+        </>
+      )}
+      <Note tip className="mt-1">Az átlagot, a darabszámot és a legutóbbi 5 értékelést a Google-től kérjük le — naponta legfeljebb egyszer, amikor valaki megnyitja a foglalóoldalad. A foglalóoldalon ezek látszanak.</Note>
+    </>
   )
 }

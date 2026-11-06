@@ -40,7 +40,7 @@ const PRESET_QUESTIONS: { label: string; type: CustomQuestionType; options?: str
 ]
 
 const fieldBase =
-  'w-full rounded-[12px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 focus:outline-none focus:border-gold/60 focus:ring-2 focus:ring-gold/25 transition-colors'
+  'w-full rounded-[12px] bg-white border border-ui-divider text-ui-text focus:outline-none focus:ring-2 transition-colors'
 
 /**
  * Egyedi, foglaláskor feltett kérdések szerkesztője (a `GoodToKnowEditor` mintájára) —
@@ -66,7 +66,7 @@ export function CustomQuestionsEditor({
 
   const presetRow = (
     <div className="space-y-2">
-      <p className="text-[11.5px] font-semibold uppercase tracking-[0.08em] text-ink-soft2">Gyors javaslatok</p>
+      <p className="text-ui-label font-medium text-ui-muted">Gyors javaslatok</p>
       <div className="flex flex-wrap gap-1.5">
         {PRESET_QUESTIONS.map((p) => {
           const already = value.some((q) => q.label.trim().toLowerCase() === p.label.trim().toLowerCase())
@@ -78,7 +78,7 @@ export function CustomQuestionsEditor({
               onClick={() => addPreset(p)}
               className={cn(
                 'inline-flex items-center gap-1 rounded-[10px] border px-3 py-1.5 text-[12.5px] font-medium transition-colors',
-                already ? 'cursor-default border-line bg-paper text-ink-soft2' : 'border-line-strong bg-white text-ink-soft hover:text-ink',
+                already ? 'cursor-default border-ui-divider bg-ui-cell/60 text-ui-muted' : 'border-ui-divider bg-white text-ui-muted hover:text-ui-text',
               )}
             >
               {already ? null : <Plus className="h-3 w-3" />}
@@ -93,20 +93,20 @@ export function CustomQuestionsEditor({
   if (value.length === 0) {
     return (
       <div className="space-y-3">
-        <div className="flex flex-col items-center gap-3 rounded-[18px] border border-dashed border-line-strong bg-white px-6 py-10 text-center">
-          <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-ink-dark text-gold">
+        <div className="flex flex-col items-center gap-3 rounded-ui-inner border border-dashed border-ui-divider bg-white px-6 py-10 text-center">
+          <span className="flex h-11 w-11 items-center justify-center rounded-ui-control bg-ui-dark text-ui-yellow">
             <HelpCircle className="h-5 w-5" strokeWidth={1.7} />
           </span>
           <div>
-            <p className="text-sm font-semibold text-ink">Még nincs egyedi kérdés</p>
-            <p className="mt-0.5 text-xs text-ink-soft">Pl. „Allergiás vagy valamire?" vagy „Milyen alkalomra jössz?"</p>
+            <p className="text-sm font-medium text-ui-text">Még nincs egyedi kérdés</p>
+            <p className="mt-0.5 text-xs text-ui-muted">Pl. „Allergiás vagy valamire?" vagy „Milyen alkalomra jössz?"</p>
           </div>
           <button
             type="button"
             onClick={add}
-            className="mt-1 inline-flex items-center gap-1.5 rounded-[14px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="mt-1 inline-flex items-center gap-1.5 rounded-ui-control bg-ui-dark px-4 py-2.5 text-ui-meta font-medium text-white transition-opacity hover:opacity-90"
           >
-            <Plus className="h-4 w-4 text-gold" />
+            <Plus className="h-4 w-4 text-ui-yellow" />
             Új kérdés
           </button>
         </div>
@@ -131,7 +131,7 @@ export function CustomQuestionsEditor({
       <button
         type="button"
         onClick={add}
-        className="inline-flex items-center gap-1.5 rounded-[14px] border border-line bg-white px-4 py-2.5 text-[13px] font-semibold text-ink-soft shadow-dav-card transition-colors hover:text-ink"
+        className="inline-flex items-center gap-1.5 rounded-ui-control border border-ui-divider bg-white px-4 py-2.5 text-ui-meta font-medium text-ui-muted transition-colors hover:text-ui-text"
       >
         <Plus className="h-4 w-4" />
         Új kérdés
@@ -164,7 +164,7 @@ function CustomQuestionRow({
       value={item}
       dragListener={false}
       dragControls={dragControls}
-      className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card"
+      className="space-y-3 rounded-ui-inner border border-ui-divider bg-white p-4"
     >
       <div className="flex items-center gap-2.5">
         <input
@@ -176,12 +176,12 @@ function CustomQuestionRow({
         <div className="flex shrink-0 items-center">
           <div
             onPointerDown={(e) => dragControls.start(e)}
-            className="flex h-8 w-7 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+            className="flex h-8 w-7 cursor-grab items-center justify-center text-ui-muted transition-colors hover:text-ui-text active:cursor-grabbing"
             title="Húzd az átrendezéshez"
           >
             <GripVertical className="h-4 w-4" />
           </div>
-          <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-red-500">
+          <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ui-muted transition-colors hover:text-red-500">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>
@@ -189,7 +189,7 @@ function CustomQuestionRow({
 
       <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Típus</p>
+          <p className="text-ui-label font-medium text-ui-muted">Típus</p>
           <select
             value={item.type}
             onChange={(e) => onChange({ type: e.target.value as CustomQuestionType })}
@@ -203,8 +203,8 @@ function CustomQuestionRow({
 
         {item.type !== 'yesno' && (
           <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Kötelező</p>
-            <label className="flex h-10 items-center gap-2 text-[13px] text-ink-soft">
+            <p className="text-ui-label font-medium text-ui-muted">Kötelező</p>
+            <label className="flex h-10 items-center gap-2 text-ui-meta text-ui-muted">
               <Switch checked={item.required} onChange={(v) => onChange({ required: v })} size="sm" ariaLabel="Kötelező" />
               {item.required ? 'Igen' : 'Nem'}
             </label>
@@ -213,8 +213,8 @@ function CustomQuestionRow({
       </div>
 
       {item.type === 'select' && (
-        <div className="space-y-2 rounded-[14px] border border-dashed border-line-strong p-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-soft">Választható opciók</p>
+        <div className="space-y-2 rounded-ui-control border border-dashed border-ui-divider p-3">
+          <p className="text-ui-label font-medium text-ui-muted">Választható opciók</p>
           {options.map((o, i) => (
             <div key={i} className="flex items-center gap-2">
               <input
@@ -223,7 +223,7 @@ function CustomQuestionRow({
                 placeholder={`Opció ${i + 1}`}
                 className={cn(fieldBase, 'h-9 flex-1 min-w-0 px-3 text-sm')}
               />
-              <button type="button" onClick={() => removeOption(i)} title="Opció törlése" className="p-1.5 text-ink-soft2 transition-colors hover:text-red-500">
+              <button type="button" onClick={() => removeOption(i)} title="Opció törlése" className="p-1.5 text-ui-muted transition-colors hover:text-red-500">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -231,7 +231,7 @@ function CustomQuestionRow({
           <button
             type="button"
             onClick={addOption}
-            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-ink-soft underline underline-offset-2 hover:text-ink"
+            className="inline-flex items-center gap-1.5 text-ui-label font-medium text-ui-muted underline underline-offset-2 hover:text-ui-text"
           >
             <Plus className="h-3.5 w-3.5" />
             Opció hozzáadása

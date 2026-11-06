@@ -35,7 +35,7 @@ export function Toggle({
       onClick={disabled ? undefined : onChange}
       className={`relative h-[27px] w-[46px] shrink-0 rounded-full transition-colors duration-200 ${
         disabled ? 'cursor-not-allowed opacity-50' : ''
-      } ${checked ? 'bg-ink-dark' : 'bg-track-off'}`}
+      } ${checked ? 'bg-ui-dark' : 'bg-ui-grey'}`}
     >
       <motion.span
         className="absolute top-[3px] h-[21px] w-[21px] rounded-full bg-white shadow-sm"

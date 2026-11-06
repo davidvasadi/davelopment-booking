@@ -112,7 +112,8 @@ export async function POST(req: NextRequest) {
     console.warn('[business/add] last_active_business frissítés meghiúsult (nem blokkoló):', err)
   }
 
-  const res = NextResponse.json({ ok: true, redirectTo })
+  // a foglalóoldal tényleges címe (ütközésnél -2, -3 …) — az új üzlet kész-kártyájához (design 23.7)
+  const res = NextResponse.json({ ok: true, redirectTo, slug })
   res.cookies.set(ACTIVE_BUSINESS_COOKIE, key, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',

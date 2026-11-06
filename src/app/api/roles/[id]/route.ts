@@ -38,7 +38,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const denied = await assertOwner(user.id, loaded.type, loaded.bizId)
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
-  let body: { name?: unknown; capabilities?: unknown; booking_notify_level?: unknown }
+  let body: { name?: unknown; description?: unknown; capabilities?: unknown; booking_notify_level?: unknown }
   try {
     body = await request.json()
   } catch {
@@ -51,6 +51,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!n) return NextResponse.json({ error: 'A szerep neve kötelező' }, { status: 400 })
     data.name = n
   }
+  if (typeof body.description === 'string') data.description = body.description.trim().slice(0, 200)
   if ('capabilities' in body) {
     const mine = await capabilitiesForBusiness(user.id, loaded.type, loaded.bizId)
     data.capabilities = cleanCaps(body.capabilities).filter((c) => can(mine, c))

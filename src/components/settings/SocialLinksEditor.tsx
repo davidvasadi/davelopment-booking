@@ -46,7 +46,7 @@ export function SocialLinksEditor({
               type="button"
               onClick={() => remove(i)}
               aria-label="Link eltávolítása"
-              className="shrink-0 rounded-full p-1.5 text-ink-soft transition-colors hover:bg-bad/10 hover:text-bad"
+              className="shrink-0 rounded-full p-1.5 text-ui-muted transition-colors hover:text-ui-bad"
             >
               <X className="h-4 w-4" />
             </button>
@@ -56,7 +56,7 @@ export function SocialLinksEditor({
       <button
         type="button"
         onClick={add}
-        className="inline-flex items-center gap-1.5 text-[13px] font-medium text-ink-soft transition-colors hover:text-ink"
+        className="inline-flex items-center gap-1.5 text-ui-meta font-medium text-ui-muted transition-colors hover:text-ui-text"
       >
         <Plus className="h-3.5 w-3.5" /> Link hozzáadása
       </button>

@@ -14,41 +14,54 @@
  * (kommentelt TODO backend-bekötésre).
  */
 
-import Link from 'next/link'
-import { createPortal } from 'react-dom'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
-import { AnimatePresence, motion } from 'framer-motion'
-import { EASE, DUR, sheetSpring } from '@/lib/motion'
+import { vatFromTaxNumber } from '@/lib/vatFromTaxNumber'
+import { Avatar, Button as KitButton, Card as KitCard, CardTitle, Field, IconButton, Input, Modal, ListRow, Menu, MenuItem, Meta, PageHead, Pagination, Pill, SearchField, Segmented, Select, SheetHandle, SLIDE_SPRING, StatusPill } from '@/components/ui-kit'
+import { AuditTable, NewsletterSettings, NotificationsSettings, type NotifRow, SitesPage, SettingsMobileList, SettingsNav, SettingsPage, SetupProgressCard, SubscriptionPage, TrialChecklist, TeamMembers, type MemberRow, type NewsletterSummary, type SettingsTopic, type SettingsTopicGroup } from '@/components/blocks/settings'
+import { auditView } from '@/lib/auditText'
+import { hoursRows } from '@/lib/hoursRows'
+import { BulkDock, StaffBulkBar } from '@/components/blocks/team'
+import { InviteFlow } from '@/components/dashboard/InviteFlow'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { PopupModal } from '@/components/ui/popup-modal'
+import { ANNUAL_BILLING_UI_ENABLED, applyCycle, businessMonthlyFee, monthlyEmailCapForTier } from '@/lib/tier'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence, animate, motion } from 'framer-motion'
+import { EASE } from '@/lib/motion'
 import { toast } from 'sonner'
-import { SettingsFormContext, type SettingsFormApi } from './settingsFormContext'
+import { SettingsFormContext, type GuestEmailCtl, type SettingsFormApi } from './settingsFormContext'
 import {
-  Home, Clock, Bell, Users, LayoutGrid, CreditCard, Download, Sparkles,
-  Plus, ScrollText, Building2, Mail, Check, FileText,
-  Trash2, X, Loader2, ArrowRight, ChevronDown, SlidersHorizontal, UserRound, Upload, Wallet, Lock, PanelsTopLeft, Send, Gift, HandCoins, PanelLeftClose, PanelLeftOpen, type LucideIcon,
+  Clock, Bell, Users, CreditCard, MoreHorizontal, ArrowLeft,
+  Building2, Mail, Check, FileText,
+  Trash2, ShieldCheck, Star, Globe as Globe2, Link2, Landmark, ChevronDown, UserRound, Wallet, PanelsTopLeft, Send, Gift, HandCoins, PanelLeftClose, PanelLeftOpen, type LucideIcon,
 } from 'lucide-react'
-import type { FeatureModules } from '@/components/onboarding/BookingFeatures'
-import { IntegrationsPanel } from './IntegrationsPanel'
-import { GoogleSettingsPanel } from './GoogleSettingsPanel'
-import { GoogleIcon } from '@/components/auth/GoogleSignInButton'
-import { Toggle } from './SettingsToggle'
-import { SubnavPicker } from './SubnavPicker'
-import { HoverButton } from '@/components/shared/HoverButton'
-import { IssuedInvoicesTable } from './IssuedInvoicesTable'
-import { DataTableCard, DataTableHead, StatusDot, tableActionCls, type StatusTone } from '@/components/shared/DataTable'
-import { PaymentsSettingsPanel, type DepositSettingsData, type InvoiceSettingsData, type VoucherSettingsData, type ConsentSettingsData } from './PaymentsSettingsPanel'
-import { PushSubscribeToggle } from '@/components/dashboard/PushSubscribeToggle'
-import { PwaInstallCard } from '@/components/dashboard/PwaInstallCard'
-import { PersonalNotifPrefsCard, useNotifPrefs } from './PersonalNotifPrefsCard'
-import { BillingPortalButton } from '@/components/dashboard/BillingPortalButton'
-import { PricingCards } from '@/components/dashboard/PricingCards'
-import { StripeCheckoutButton } from '@/components/dashboard/StripeCheckoutButton'
-import { CancelSubscriptionButton } from '@/components/dashboard/CancelSubscriptionButton'
+import type { FeatureModules } from '@/lib/featureModules'
+import type { SelfProfileData } from './SelfProfileView'
+import type { CapacityVM } from '@/lib/restaurantCapacity'
+import type { DepositSettingsData, InvoiceSettingsData, VoucherSettingsData, ConsentSettingsData } from './PaymentsSettingsPanel'
+import { useNotifPrefs, type CategoryKey } from './PersonalNotifPrefsCard'
+import { useDevicePush } from './useDevicePush'
 import type { AccountBilling } from '@/lib/accountBilling'
 import type { Pricing } from '@/lib/pricing'
-import { can, type Capability } from '@/lib/permissions'
-import { BookingPageEditor, type BookingPageEditorInitial } from '@/components/settings/booking-page/BookingPageEditor'
+import { ALL_CAPABILITIES, can, type Capability } from '@/lib/permissions'
+import type { RoleRow } from './RolesManager'
+import type { OpeningHoursVM } from '@/lib/openingHours'
+import type { BookingPageEditorInitial } from '@/components/settings/booking-page/BookingPageEditor'
+import type { RoomVM, TableVM } from '@/components/restaurant/TablesView'
 import { AddressAutocompleteInput } from '@/components/settings/AddressAutocompleteInput'
+import { AttentionSettings } from '@/components/blocks/booking'
+import { BusinessQrLauncher } from './BusinessQrLauncher'
+import { ReferralPanel } from './ReferralPanel'
+import { IntegrationsPanel } from './IntegrationsPanel'
+import { GoogleSettingsPanel } from './GoogleSettingsPanel'
+import { SelfProfileView } from './SelfProfileView'
+import { CapacitySettingsView } from './CapacitySettingsView'
+import { IssuedInvoicesTable } from './IssuedInvoicesTable'
+import { PaymentsSettingsPanel } from './PaymentsSettingsPanel'
+import { RolesManager } from './RolesManager'
+import { OpeningHoursView } from './OpeningHoursView'
+import { TablesView } from '@/components/restaurant/TablesView'
+import { BookingPageEditor } from '@/components/settings/booking-page/BookingPageEditor'
 
 /* ── VALÓS beállítás-groupok (payload group-mezők, PATCH-elve a collection-endpointon) ── */
 // Értesítések = tranzakciós emailek. Az emlékeztető/visszajelzés a Funkciók gazdája.
@@ -61,48 +74,11 @@ export type NotificationPrefs = {
 }
 // Foglalási szabályok = CSAK a valós, hatással bíró kapcsoló (auto_confirm). A deposit/no-show
 // „Hamarosan", a várólista a Funkciók gazdája — ezért nincsenek itt.
-/* ── Fehér kártya — a Nyitvatartás/Foglalások kártya-mintája (bordered, dav árnyék) ── */
-function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={`rounded-[22px] border border-line bg-white p-6 ${className}`}>
-      {children}
-    </div>
-  )
-}
-
-/* ── Számlázási adatok egy sora: balra címke (+ csillag) és magyarázat, jobbra a mező ── */
-function BillRow({ label, hint, required, last, children }: { label: string; hint?: string; required?: boolean; last?: boolean; children: ReactNode }) {
-  return (
-    <div className={`flex flex-col gap-2 py-3.5 sm:flex-row sm:items-start sm:gap-6 ${last ? '' : 'border-b border-line'}`}>
-      <div className="sm:w-[220px] sm:shrink-0 sm:pt-2.5">
-        <p className="text-[13.5px] font-medium text-ink">{label}{required && <span className="ml-0.5 text-bad" aria-hidden>*</span>}</p>
-        {hint && <p className="text-[12px] text-ink-soft">{hint}</p>}
-      </div>
-      <div className="min-w-0 flex-1 sm:max-w-[520px]">{children}</div>
-    </div>
-  )
-}
-
-/* ── Előfizetés-státusz badge ────────────────────────────────────────────── */
-// A referencia-táblázat nyelve: színes pötty + színes szöveg (nem pill).
-function StatusBadge({ status }: { status: BillingData['subscriptionStatus'] }) {
-  const cfg: Record<string, { label: string; tone: StatusTone }> = {
-    trialing:  { label: 'Próbaidőszak',   tone: 'warn' },
-    active:    { label: 'Aktív',          tone: 'ok' },
-    past_due:  { label: 'Lejárt fizetés', tone: 'bad' },
-    canceled:  { label: 'Lemondva',       tone: 'muted' },
-    paused:    { label: 'Szüneteltetve',  tone: 'muted' },
-  }
-  const { label, tone } = (status && cfg[status]) ?? { label: '—', tone: 'muted' as StatusTone }
-  return <StatusDot tone={tone}>{label}</StatusDot>
-}
-
-
 type RailId =
   | 'site' | 'newsletter' | 'vouchers' | 'invoicing' | 'deposit' | 'email'
   | 'notifications' | 'team' | 'audit'
   | 'self' | 'documents' | 'billing' | 'invoices' | 'sites'
-  | 'integrations' | 'danger' | 'payments' | 'google'
+  | 'integrations' | 'danger' | 'payments' | 'google' | 'reviews' | 'rules' | 'tables' | 'hours'
 
 // A bal lista mely elemei a MEGLÉVŐ profil-form egy-egy fülét mutatják (rail vezérli a fület).
 const FORM_TABS: Record<string, string> = {
@@ -116,16 +92,8 @@ const RAIL_LABELS: Record<RailId, string> = {
   email: 'Vendég e-mailek',
   notifications: 'Értesítések', team: 'Csapat & jogok', audit: 'Audit-napló',
   self: 'Saját profil', documents: 'Dokumentumok & jogi', billing: 'Előfizetés', invoices: 'Számlák', sites: 'Telephelyek',
-  integrations: 'API & Integrációk', danger: 'Fiók törlése',
-  payments: 'Fizetés & számlázás', google: 'Google',
-}
-
-export interface RulesData {
-  slotDurationMin: number | null   // idősáv hossza (turn_duration / vendéglátás)
-  bufferMin: number | null         // buffer / puffer
-  maxParty: number | null          // max létszám / foglalás (— ha nincs mező)
-  leadTimeHours: number | null     // legkorábbi (— ha nincs)
-  windowDays: number | null        // legkésőbbi (előre foglalható napok)
+  integrations: 'API & integrációk', danger: 'Fiók törlése',
+  payments: 'Fizetés & számlázás', google: 'Google Cégprofil', reviews: 'Értékelések', rules: 'Foglalási szabályok', tables: 'Asztalok & termek', hours: 'Nyitvatartás',
 }
 
 export interface BillingData {
@@ -149,6 +117,10 @@ export interface BillingData {
   invoices: Array<{ id: string; invoice_number: string; invoice_url?: string | null; amount_huf?: number | null; issued_at?: string | null; test?: boolean | null }>
   lastInvoiceNumber: string | null
   lastInvoiceUrl: string | null
+  /** a mentett fizetési mód a Stripe-tól ÉLŐBEN (nálunk nincs tárolva) — márka, utolsó 4, lejárat */
+  card?: { brand: string; last4: string; expiry: string } | null
+  /** e havi felhasználás (16.5): hírlevél-keret, foglalható munkatársak (étteremnél nincs) */
+  usage?: { emailsUsed: number; emailCap: number; staff?: number; staffIncluded?: number }
 }
 
 /** Csapat & jogok — egy tag. VALÓS adatból (tulajdonos + membershipök). */
@@ -165,6 +137,12 @@ export interface TeamMember {
   /** Munkaköri pozíció (pl. "Stylist"). Tagoknál a Membership.position, a tulajnál a linkelt
    *  Staff-rekord role_title-je (ha a tulaj saját magát is felvette szakembernek). */
   position?: string | null
+  /** a legutóbbi belépés (ISO) — design 16.2 „Utolsó belépés” */
+  lastLogin?: string | null
+  /** a fiókhoz kötött munkatárs-profil neve (szalon: foglalható profil); nincs = nem foglalható */
+  staffName?: string | null
+  /** függő meghívónál: mikor küldték (ISO) */
+  invitedAt?: string | null
 }
 
 /** Telephelyek — VALÓS: a fiók egy üzlete. */
@@ -178,6 +156,8 @@ export interface SiteData {
   current?: boolean                // ez az aktuálisan megnyitott üzlet
   gold?: boolean                   // avatar arany háttér (nem-aktuális kiemeléshez)
   logoUrl?: string | null          // az üzlet logója, ha van (a `getActiveBusiness` már betölti)
+  team?: number                    // csapat létszáma (szalon: aktív munkatárs, étterem: aktív tag)
+  monthBookings?: number           // e havi foglalások
 }
 
 /** Egy mező-változás a naplóban (módosításnál): mi → mire. */
@@ -192,6 +172,7 @@ export interface AuditEntry {
   id: string
   actor: string                    // végrehajtó neve (vagy „Online foglalás" / „Rendszer")
   actorEmail?: string              // végrehajtó email címe (bejelentkezett usernél)
+  actorImg?: string | null         // a végrehajtó profilképe (Users.avatar_url)
   action: 'create' | 'update' | 'delete'
   summary: string                  // olvasható összegzés, pl. „Foglalás módosítva — Nagy Péter"
   collection: string               // érintett collection-felirat
@@ -220,8 +201,11 @@ export interface SettingsHubProps {
   bookingPageEditor?: BookingPageEditorInitial
   /** `notify_new_bookings` — az új menüben az Értesítések fülön állítható. */
   notifyNewBookings?: boolean
-  selfProfile?: ReactNode          // „Saját profil" — a bejelentkezett user szerkesztője (ProfileEditor)
-  rules: RulesData
+  selfProfile?: SelfProfileData    // „Saját profil" (16.17) — a bejelentkezett user adatai
+  /** étterem: Asztalok & termek / Foglalási szabályok (design 16.22, 16.21) */
+  capacity?: CapacityVM
+  /** Asztalok & termek (étterem, design 16.22): a termek, asztalok, sablonok a szerkesztőhöz (a külön Asztalok oldal helyett) */
+  tablesData?: { rooms: RoomVM[]; tables: TableVM[]; templates: { id: string; label: string; rooms: number; turn: number }[]; canManage: boolean }
   senderLabel: string              // Értesítések: jelenlegi feladó
   billing: BillingData
   /** Csapat & jogok — VALÓS tulajdonos (+ UI-state meghívók). */
@@ -246,9 +230,17 @@ export interface SettingsHubProps {
   ga4Id?: string | null
   facebookPixelId?: string | null
   /** Egyedi szerepek panel (2. fázis) — a Csapat tab alján renderelődik. */
-  rolesSection?: ReactNode
+  /** Csapat & jogok › Szerepek (16.3): az üzlet szerepei és hogy a néző szerkesztheti-e (owner-only) */
+  rolesData?: { initial: RoleRow[]; isOwner: boolean }
+  /** Nyitvatartás (16.8): a heti rend, a kivételek és a foglaltság — és hogy szerkesztheti-e */
+  hoursVM?: OpeningHoursVM
+  /** Dokumentumok (16.12): hány foglalásnál fogadták el a nyilatkozatot, ebből helyszínen */
+  consentStats?: { total: number; onsite: number }
+  hoursCanManage?: boolean
   /** Egyedi szerepek (id + név) — a meghívó/tag-szerep legördülőhöz. */
-  customRoles?: { id: string; name: string }[]
+  customRoles?: { id: string; name: string; desc?: string }[]
+  /** a meghíváshoz (közös InviteFlow): fiókhoz még nem kötött munkatárs-profilok, foglalható létszám, extra díj */
+  inviteSetup?: { freeStaff: { id: string; name: string }[]; bookable: number; extraFee?: { fee: number; included: number } }
   /** Fiók-szintű számlázás összesítő — üzlet-bontás, ciklus, kedvezmény. */
   billingAccount: AccountBilling
   /** Globális árazási beállítások — a PricingCards-nak. */
@@ -272,11 +264,6 @@ export interface SettingsHubProps {
   supportedLocales?: (string | null | undefined)[] | null
 }
 
-function fmtDate(dateStr?: string | null): string {
-  if (!dateStr) return '—'
-  return new Date(dateStr).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
-}
-const ft = (n: number) => `${n.toLocaleString('hu-HU')} Ft`
 
 // Magyar adószám: XXXXXXXX-X-XX (8-1-2 számjegy)
 function maskTaxNumber(raw: string): string {
@@ -305,10 +292,24 @@ function usePanelRegistration() {
   return { dirty, apiRef, onDirtyChange, registerApi }
 }
 
+/** relatív idő a tag-listához: „most”, „ma 09:12”, „tegnap”, „3 napja”, „2 hete”, „2 hónapja” */
+function relWhen(iso: string): string {
+  const d = new Date(iso); const now = new Date()
+  const min = (now.getTime() - d.getTime()) / 60_000
+  if (min < 5) return 'most'
+  const day0 = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+  const days = Math.round((day0(now) - day0(d)) / 86_400_000)
+  if (days === 0) return `ma ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  if (days === 1) return 'tegnap'
+  if (days < 14) return `${days} napja`
+  if (days < 60) return `${Math.round(days / 7)} hete`
+  return `${Math.round(days / 30)} hónapja`
+}
+
 export function SettingsHub({
-  variant, subtitle, availabilityHref, businessName, businessCity, profilePanel, selfProfile, rules, senderLabel, billing,
+  variant, subtitle, availabilityHref, businessName, businessCity, profilePanel, selfProfile, capacity, tablesData, senderLabel, billing,
   team, sites, businessCount, planLabel, apiBase, notificationPrefs,
-  featureModules, auditLog, rolesSection, customRoles = [],
+  featureModules, auditLog, rolesData, customRoles = [], inviteSetup, hoursVM, hoursCanManage = false, consentStats,
   billingAccount, pricing, activeBusinessId, startedAt,
   icalUrl, bookingUrl, embedUrl, embedSmartSnippet, webhookUrl, ga4Id, facebookPixelId, myCapabilities,
   depositSettings, invoiceSettings, voucherSettings, consentSettings, stripeConnectAccountId, stripeConnectOnboarded,
@@ -327,12 +328,18 @@ export function SettingsHub({
   const initialTab = ((): RailId => {
     // régi fülek → összevont helyük (mély-linkek, pl. az utalvány-ablak „Számlázó beállítása” linkje)
     const rawT = searchParams.get('tab')
-    const t = rawT === 'invoicing' ? 'payments' : rawT === 'invoices' ? 'billing' : rawT
+    const t = rawT === 'invoicing' ? 'payments' : rawT
     const limitedOnly = !!myCapabilities && !can(myCapabilities, 'settings.profile')
-    // `settings.own_profile` users alapértelmezett tabja 'self', a többieké a Foglalóoldal.
-    if (!t || MOVED_TO_SITE.has(t) || !(t in RAIL_LABELS)) return limitedOnly ? 'self' : 'site'
-    if ((t === 'billing' || t === 'invoices') && myCapabilities && !can(myCapabilities, 'billing.manage')) return limitedOnly ? 'self' : 'site'
-    if (t === 'danger' && myCapabilities && !can(myCapabilities, 'danger')) return limitedOnly ? 'self' : 'site'
+    // a Beállítások kezdő témája: a Nyitvatartás (a Foglalóoldal-szerkesztő teljes képernyős, oda csak kattintásra / linkkel megyünk)
+    const home: RailId = limitedOnly ? 'self' : hoursVM ? 'hours' : 'site'
+    // `settings.own_profile` jogú tagnak a Saját profil; régi (a Foglalóoldalba költözött) fülek linkje a szerkesztőbe visz.
+    if (!t || !(t in RAIL_LABELS) && !MOVED_TO_SITE.has(t)) return home
+    if (MOVED_TO_SITE.has(t)) return 'site'
+    if (t === 'billing' && myCapabilities && !can(myCapabilities, 'billing.manage')) return home
+    if ((t === 'invoices' || t === 'payments' || t === 'deposit' || t === 'vouchers' || t === 'newsletter') && myCapabilities && !can(myCapabilities, 'payments.manage')) return home
+    if ((t === 'rules' || t === 'tables') && (variant !== 'restaurant' || !capacity)) return home
+    if (t === 'hours' && !hoursVM) return home
+    if (t === 'danger' && myCapabilities && !can(myCapabilities, 'danger')) return home
     // Jogosulatlan tab URL-ből → visszaesik self-re.
     if (limitedOnly && t !== 'self') return 'self'
     // Lejárt/megszűnt/szüneteltetett előfizetésnél egy mély-linkelt (?tab=...) tiltott fül is
@@ -344,8 +351,30 @@ export function SettingsHub({
     return t as RailId
   })()
   const [active, setActive] = useState<RailId>(initialTab)
+  // a Foglalóoldal-szerkesztő teljes képernyőn nyílik — kilépéskor az előző témára térünk vissza
+  const lastTopic = useRef<RailId>(initialTab === 'site' ? 'hours' : initialTab)
+  useEffect(() => { if (active !== 'site') lastTopic.current = active }, [active])
+  // teljes szélességű témák (design 16.6: a Vendég e-mailek a kampány-szerkesztő felépítésével) — a bal lista helyett felül
+  // visszalépés az előző témára
+  const fullWidth = active === 'email'
+  const lastTab = useRef<RailId>(initialTab === 'email' ? 'site' : initialTab)
+  useEffect(() => { if (active !== 'email') lastTab.current = active }, [active])
+  // Fülváltás (desktop): a panel oldalra csúszik, mint a jóváhagyó popup lapozása (SlideSwap) — lefelé lépve jobbról,
+  // felfelé balról érkezik. Nem mountol újra (a profil-form mentetlen mezői megmaradnak), csak a burkoló mozog.
+  const panelRef = useRef<HTMLDivElement>(null)
+  const navOrderRef = useRef<string[]>([])
+  const prevActive = useRef(active)
+  useEffect(() => {
+    const prev = prevActive.current
+    prevActive.current = active
+    const el = panelRef.current
+    if (prev === active || !el || !window.matchMedia('(min-width: 1024px)').matches) return
+    const order = navOrderRef.current
+    const dir = order.indexOf(active) < order.indexOf(prev) ? -1 : 1
+    animate(el, { x: [dir * 56, 0] }, SLIDE_SPRING)
+    animate(el, { opacity: [0, 1] }, { duration: 0.2, ease: 'easeOut' })
+  }, [active])
   // Az Értesítések fül alján a tulajnak szóló „Értesítő” e-mail sablonja (profil-form).
-  const ownerEmailTab = active === 'notifications'
   // A bal-sáv alapból NYITVA van a Foglalóoldal fülön is — csak akkor csukódik ikon-csíkra
   // (nagyobb szerkesztő-ablak), ha a user kézzel rákattint az össze-csukó gombra; a kézi
   // csukás csak addig tart, amíg el nem hagyja a fület (akkor újra nyitva kezd).
@@ -354,26 +383,24 @@ export function SettingsHub({
   const railCollapsed = active === 'site' && railManuallyCollapsed
   // A "link"-típusú rail-elemek (pl. Nyitvatartás) saját, RailBtn-en kívüli címke-animációja —
   // ugyanaz a zsugorodó max-width+opacity minta, mint a RailBtn-ben.
-  const railLabelCls = `overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${railCollapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'}`
   const [saving, setSaving] = useState(false)
-  const [mobileNavOpen, setMobileNavOpen] = useState(false)
-  const [isMounted, setIsMounted] = useState(false)
-  const [subnavSlot, setSubnavSlot] = useState<HTMLElement | null>(null)
-  useEffect(() => { setIsMounted(true); setSubnavSlot(document.getElementById('settings-subnav-slot')) }, [])
-  // A top nav SlidersHorizontal ikonja ezt az eventet dispatch-eli.
+  // mobil (design 16.20): az első képernyő a téma-lista; egy témára koppintva a lapja alulról felcsúszik (`mobileSheet`).
+  // Mély-linkkel (?tab=…) érkezve rögtön a téma lapja nyílik.
+  const [mobileSheet, setMobileSheet] = useState(() => !!searchParams.get('tab'))
+  const [navQuery, setNavQuery] = useState('')
+  // mobil: a téma-lista keresője a fejléc kereső-ikonjáról nyílik (DashboardNav › davelopment:open-settings-search)
+  const [mobileSearch, setMobileSearch] = useState(false)
   useEffect(() => {
-    const handler = () => setMobileNavOpen(true)
+    const on = () => { setMobileSheet(false); setMobileSearch((v) => !v) }
+    window.addEventListener('davelopment:open-settings-search', on)
+    return () => window.removeEventListener('davelopment:open-settings-search', on)
+  }, [])
+  // a mobil fejléc szűrő-ikonja (DashboardNav) a téma-listára visz vissza
+  useEffect(() => {
+    const handler = () => setMobileSheet(false)
     window.addEventListener('davelopment:open-settings-nav', handler)
     return () => window.removeEventListener('davelopment:open-settings-nav', handler)
   }, [])
-  // Bottom sheet megnyílásakor az aktív elem látható legyen (az animáció után görgeti oda).
-  useEffect(() => {
-    if (!mobileNavOpen) return
-    const t = setTimeout(() => {
-      document.getElementById('settings-nav-active-item')?.scrollIntoView({ block: 'center', behavior: 'smooth' })
-    }, 180)
-    return () => clearTimeout(t)
-  }, [mobileNavOpen])
 
   useEffect(() => {
     if (searchParams.get('checkout') !== 'success') return
@@ -407,6 +434,22 @@ export function SettingsHub({
 
   // ── Számlázási adatok helyi form (Számlázás panel) — PATCH az apiBase-re.
   const [selectedCycle, setSelectedCycle] = useState<'monthly' | 'annual'>(billing.billingCycle)
+  // Előfizetés (16.5): a műveletek (csomagváltás, fizetés indítása, ügyfélportál, lemondás) és az ablakok
+  const [subBusy, setSubBusy] = useState<string | null>(null)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [billOpen, setBillOpen] = useState(false)
+  // Hírlevél (16.13): az összesítő csak a fül megnyitásakor
+  const [newsSummary, setNewsSummary] = useState<NewsletterSummary | null>(null)
+  useEffect(() => {
+    if (active !== 'newsletter' || newsSummary || !activeBusinessId) return
+    fetch(`/api/marketing/summary?kind=${variant}&businessId=${activeBusinessId}`, { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && !j.error) setNewsSummary(j) }).catch(() => {})
+  }, [active, newsSummary, activeBusinessId, variant])
+  // a mentett kártya a Stripe-tól élőben — csak az Előfizetés fül megnyitásakor (külső hívás)
+  const [stripeCard, setStripeCard] = useState<BillingData['card'] | undefined>(undefined)
+  useEffect(() => {
+    if (active !== 'billing' || stripeCard !== undefined || !billing.hasStripeCustomer) return
+    fetch('/api/billing/card', { credentials: 'include' }).then((r) => (r.ok ? r.json() : null)).then((j) => setStripeCard(j?.card ?? null)).catch(() => setStripeCard(null))
+  }, [active, stripeCard, billing.hasStripeCustomer])
 
   const [billDetails, setBillDetails] = useState({
     legalName: billing.legalName,
@@ -417,6 +460,8 @@ export function SettingsHub({
     billingCity: billing.billingCity,
     billingStreet: billing.billingStreet,
   })
+  // ki fizet — a mentett adatokból: cégjegyzékszám → cég, adószám → egyéni vállalkozó, különben magánszemély
+  const [payerKind, setPayerKind] = useState<'person' | 'sole' | 'company'>(billing.companyRegNumber ? 'company' : billing.taxNumber ? 'sole' : 'person')
   const [billDirty, setBillDirty] = useState(false)
   const [billSaving, setBillSaving] = useState(false)
   type BillKey = keyof typeof billDetails
@@ -498,10 +543,11 @@ export function SettingsHub({
   const integPanel = usePanelRegistration()
   const googlePanel = usePanelRegistration()
   const sitePanel = usePanelRegistration()
-  const newsletterPanel = usePanelRegistration()
   const vouchersPanel = usePanelRegistration()
   const invoicingPanel = usePanelRegistration()
   const depositPanel = usePanelRegistration()
+  const capacityPanel = usePanelRegistration()
+  const selfPanel = usePanelRegistration()
 
   /** Egy group PATCH-elése a valós collection-endpointra (credentials:'include'). */
   const patchGroup = async (body: Record<string, unknown>): Promise<boolean> => {
@@ -528,6 +574,8 @@ export function SettingsHub({
   //    `personal_notif_prefs.bookings_email`/`schedule_email`-je (owner VAGY staff nézetben is).
   //    Külön a lenti `notif`-tól, ami az ÜZLET vendég-emailjeit (notification_prefs) kezeli.
   const internalEmailPrefs = useNotifPrefs()
+  const devicePush = useDevicePush()
+  const [testBusy, setTestBusy] = useState(false)
 
   // ── Értesítések — tranzakciós emailek + digest. Az emlékeztető és a visszajelzés-kérés
   //    a Funkciók oldal gazdája (`feature_modules`). VALÓS `notification_prefs` group.
@@ -570,26 +618,13 @@ export function SettingsHub({
   }, [notifSaved, notifDirty])
   const resetNotif = () => { setNotif(notifBaseline); setNewBookingsNotif(notifyNewBookings) }
 
-  // A reggeli + esti digest email egyszerre kapcsolódik (1 toggle vezérli mindkettőt).
-  const digestEmailOn = notif.digest_morning.email && notif.digest_evening.email
-  function toggleDigestEmail() {
-    const v = !digestEmailOn
-    setNotif((s) => ({ ...s, digest_morning: { email: v }, digest_evening: { email: v } }))
-  }
-
-  type NotifKey = keyof typeof notif
   // Sorok a vendég-emailekhez (mind a kettő modulban ugyanaz).
-  const notifRows: { key: NotifKey; title: string; sub: string }[] = [
-    { key: 'confirm', title: 'Foglalás visszaigazolás', sub: 'A vendégnek · foglaláskor azonnal, .ics naptárfájllal' },
-    { key: 'cancel', title: 'Lemondás visszaigazolás', sub: 'A vendégnek · foglalás törlése után' },
-    { key: 'modification', title: 'Módosítás értesítő', sub: variant === 'salon' ? 'A vendégnek · ha dátum, idő vagy szakember változik' : 'A vendégnek · ha dátum, idő vagy létszám változik' },
-  ]
 
   // ── Audit-napló szűrő — kliens-oldali szűrés a VALÓS bejegyzéseken (akció-típus + dátum-ablak).
   // A szerver a visszatekintési ablakon (90 nap) belüli sorokat adja; itt tovább szűkíthető.
   const [auditFilter, setAuditFilter] = useState<'all' | 'create' | 'update' | 'delete'>('all')
   const [auditDays, setAuditDays] = useState<7 | 30 | 90>(90)
-  const [auditShown, setAuditShown] = useState(25)
+  const [auditPage, setAuditPage] = useState(1)
   const [auditQuery, setAuditQuery] = useState('')
   const filteredAudit = useMemo(() => {
     const cutoff = Date.now() - auditDays * 86_400_000
@@ -601,64 +636,30 @@ export function SettingsHub({
         (!q || `${e.summary ?? ''} ${e.actor} ${e.actorEmail ?? ''}`.toLowerCase().includes(q)),
     )
   }, [auditFilter, auditDays, auditLog, auditQuery])
-  const visibleAudit = filteredAudit.slice(0, auditShown)
 
   // ── Csapat & jogok — VALÓS bekötés a /api/team végpontokra.
   // RolesManager custom event-tel jelzi ha változott a lista → azonnal frissül a meghívó dropdown.
-  const [liveRoles, setLiveRoles] = useState<{ id: string; name: string }[]>(customRoles)
+  const [liveRoles, setLiveRoles] = useState<{ id: string; name: string; desc?: string }[]>(customRoles)
   useEffect(() => {
     const handler = (e: Event) => {
       const roles = (e as CustomEvent<{ id: string; name: string }[]>).detail
-      setLiveRoles(roles)
-      setInviteRole((prev) => (roles.length && !prev ? `c:${roles[0].id}` : prev))
+      setLiveRoles((cur) => roles.map((r) => ({ ...r, desc: cur.find((x) => x.id === r.id)?.desc })))
     }
     window.addEventListener('davelopment:roles-changed', handler)
     return () => window.removeEventListener('davelopment:roles-changed', handler)
   }, [])
 
   const [inviteOpen, setInviteOpen] = useState(false)
-  // Csapat fül al-navigáció — tag-kezelés és szerepkör-szerkesztés két külön koncepció,
-  // eddig sub-navigáció nélkül egymás alatt zsúfolva egy fülön.
+  // Csapat & jogok (design 16.2 / 16.3): Tagok / Szerepek váltó
   const [teamSubTab, setTeamSubTab] = useState<'members' | 'roles'>('members')
-  const [teamQuery, setTeamQuery] = useState('')
-  const [inviteEmail, setInviteEmail] = useState('')
-  // Érték: `c:<roleId>` (a megadott egyedi szerepek közül). Nincs hardcoded szerep.
-  const [inviteRole, setInviteRole] = useState<string>(customRoles[0] ? `c:${customRoles[0].id}` : '')
-  const [inviteBusy, setInviteBusy] = useState(false)
   const [rowBusy, setRowBusy] = useState<string | null>(null)
-  const [statusMenuId, setStatusMenuId] = useState<string | null>(null)
-  // Szerep-menü (kebab) — mobilon a select+törlés helyett EGY kompakt ikon-gomb nyit egy
-  // legördülőt (szerep-választás + eltávolítás), mert a natív <select> szélessége a kártya
-  // keskeny mobil-szélességén kifolyt a konténerből (a "Stylist / Szakem…" levágva, a törlés-
-  // gomb a kártyán kívülre csúszott — ez volt a konkrétan jelentett hiba).
-  const [roleMenuId, setRoleMenuId] = useState<string | null>(null)
-
-  const sendInvite = async () => {
-    const email = inviteEmail.trim()
-    if (!email) return
-    // Szerep NÉLKÜL is elküldhető — a tag ilyenkor csak az alap `overview.view`-t kapja,
-    // utólag bármikor adható neki szerep. Korábban ez a gomb véglegesen le volt tiltva, ha az
-    // üzletnek még egyetlen egyedi szerepe sem volt (nem volt visszaesés beépített szerepre).
-    setInviteBusy(true)
-    try {
-      const res = await fetch('/api/team/invite', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ email, ...(inviteRole.startsWith('c:') ? { custom_role: inviteRole.slice(2) } : {}) }),
-      })
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error || 'Hiba')
-      toast.success('Meghívó elküldve')
-      setInviteOpen(false)
-      setInviteEmail('')
-      setInviteRole(liveRoles[0] ? `c:${liveRoles[0].id}` : '')
-      router.refresh()
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Hiba történt')
-    } finally {
-      setInviteBusy(false)
-    }
+  // a sorok szerep- és ⋯ menüje, a kijelölés (tömeges sáv), a törlés / visszavonás megerősítése
+  const [teamMenu, setTeamMenu] = useState<{ id: string; kind: 'role' | 'more' } | null>(null)
+  const [teamSel, setTeamSel] = useState<string[]>([])
+  const [teamConfirm, setTeamConfirm] = useState<{ ids: string[]; title: string; label: string } | null>(null)
+  const resendInvite = async (id: string) => {
+    const r = await fetch(`/api/team/members/${id}/resend`, { method: 'POST', credentials: 'include' }).catch(() => null)
+    if (r?.ok) toast.success('Meghívó újraküldve'); else toast.error('Az újraküldés nem sikerült')
   }
 
   const changeRole = async (id: string, value: string) => {
@@ -679,24 +680,18 @@ export function SettingsHub({
     }
   }
 
-  const removeMember = async (id: string) => {
-    setRowBusy(id)
-    try {
-      const res = await fetch(`/api/team/members/${id}`, { method: 'DELETE', credentials: 'include' })
-      if (!res.ok) throw new Error()
-      toast.success('Tag eltávolítva')
-      router.refresh()
-    } catch {
-      toast.error('Hiba történt')
-    } finally {
-      setRowBusy(null)
-    }
+  const removeMembers = async (ids: string[]) => {
+    const results = await Promise.allSettled(ids.map((id) => fetch(`/api/team/members/${id}`, { method: 'DELETE', credentials: 'include' }).then((r) => { if (!r.ok) throw new Error() })))
+    const failed = results.filter((r) => r.status === 'rejected').length
+    if (failed) toast.error(`${failed} tag eltávolítása nem sikerült`)
+    else toast.success(ids.length > 1 ? `${ids.length} tag eltávolítva` : 'Eltávolítva')
+    setTeamSel([]); setTeamConfirm(null); router.refresh()
   }
 
   // Státusz-váltás a lenyíló menüből — a Munkatárs-adatlap (HiringView) státusz-menüjével AZONOS.
   // A route a membership.status-t állítja ÉS a párosított staff.is_active-ot is szinkronizálja.
   const setMemberStatus = async (id: string, status: 'active' | 'suspended') => {
-    setStatusMenuId(null)
+    setTeamMenu(null)
     setRowBusy(id)
     try {
       const res = await fetch(`/api/team/members/${id}`, {
@@ -827,27 +822,11 @@ export function SettingsHub({
     }
   }, [googleSaved, googlePanel.dirty])
 
-  // A „Foglalóoldal" szerkesztő — saját draft, a közös sávból ment.
-  const [siteSaved, setSiteSaved] = useState(false)
-  const saveSiteTab = useCallback(async () => {
-    setSaving(true)
-    try {
-      const ok = await sitePanel.apiRef.current?.save()
-      if (ok) setSiteSaved(true)
-    } finally {
-      setSaving(false)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (siteSaved && !sitePanel.dirty) {
-      const t = setTimeout(() => setSiteSaved(false), 1200)
-      return () => clearTimeout(t)
-    }
-  }, [siteSaved, sitePanel.dirty])
+  // A „Foglalóoldal" szerkesztő — saját vázlat és saját Közzététel-sáv (teljes képernyőn), a hub sávja nem kell.
 
   // Az új menü önálló Pénzügy/Vendégek panelei — mindegyik a saját API-jával ment.
   const [splitSaved, setSplitSaved] = useState(false)
-  const splitPanel = active === 'newsletter' ? newsletterPanel : active === 'vouchers' ? vouchersPanel : active === 'invoicing' ? invoicingPanel : active === 'deposit' ? depositPanel : null
+  const splitPanel = active === 'vouchers' ? vouchersPanel : active === 'invoicing' ? invoicingPanel : active === 'deposit' ? depositPanel : active === 'self' ? selfPanel : active === 'rules' ? capacityPanel : null
   const saveSplitTab = async () => {
     if (!splitPanel) return
     setSaving(true)
@@ -866,18 +845,42 @@ export function SettingsHub({
   }, [splitSaved, splitPanel?.dirty])
   // „Vendég e-mailek" (új menü): a sablonok (profil-form) ÉS a küldési kapcsolók együtt mentődnek.
   // Ugyanígy az Értesítések: a kapcsolók + a tulajnak szóló Értesítő sablon.
+  // a Vendég e-mailek (16.6) emlékeztető- és visszajelzés-beállításai (a `feature_modules`-ban) — a TELJES csoportot
+  // küldjük vissza, különben a nem szerkesztett mezők (várólista, Google stb.) lenullázódnának
+  const fmBase = useMemo(() => ({ reminders_on: !!featureModules.reminders_on, reviews_on: !!featureModules.reviews_on, reminder_t_48h: !!featureModules.reminder_t_48h, reminder_t_24h: !!featureModules.reminder_t_24h, reminder_t_3h: !!featureModules.reminder_t_3h, reminder_t_1h: !!featureModules.reminder_t_1h, reminder_ch_email: !!featureModules.reminder_ch_email, reminder_ch_push: !!featureModules.reminder_ch_push }), [featureModules])
+  const [emailFm, setEmailFm] = useState(fmBase)
+  const emailFmDirty = JSON.stringify(emailFm) !== JSON.stringify(fmBase)
   const saveGuestEmailTab = async () => {
     if (notifDirty) await saveNotif()
+    if (emailFmDirty && await patchGroup({ feature_modules: { ...featureModules, ...emailFm } })) router.refresh()
     if (formDirty) await saveForm()
+  }
+  const guestEmail: GuestEmailCtl = {
+    on: { confirm: notif.confirm.email, cancel: notif.cancel.email, modification: notif.modification.email, reminder: emailFm.reminders_on, feedback: emailFm.reviews_on },
+    setOn: (k, on) => {
+      if (k === 'reminder') setEmailFm((f) => ({ ...f, reminders_on: on }))
+      else if (k === 'feedback') setEmailFm((f) => ({ ...f, reviews_on: on }))
+      else setNotif((n) => ({ ...n, [k]: { email: on } }))
+    },
+    reminder: { t48: emailFm.reminder_t_48h, t24: emailFm.reminder_t_24h, t3: emailFm.reminder_t_3h, t1: emailFm.reminder_t_1h, email: emailFm.reminder_ch_email, push: emailFm.reminder_ch_push },
+    setReminder: (p) => setEmailFm((f) => ({
+      ...f,
+      ...(p.t48 !== undefined ? { reminder_t_48h: p.t48 } : {}), ...(p.t24 !== undefined ? { reminder_t_24h: p.t24 } : {}),
+      ...(p.t3 !== undefined ? { reminder_t_3h: p.t3 } : {}), ...(p.t1 !== undefined ? { reminder_t_1h: p.t1 } : {}),
+      ...(p.email !== undefined ? { reminder_ch_email: p.email } : {}), ...(p.push !== undefined ? { reminder_ch_push: p.push } : {}),
+    })),
+    feedbackDelayHours: featureModules.review_delay_hours ?? null,
+    save: () => void saveGuestEmailTab(), saving, dirty: formDirty || notifDirty || emailFmDirty,
   }
 
   const activeBar =
     splitPanel
       ? { dirty: splitPanel.dirty, saved: splitSaved, onSave: saveSplitTab, onCancel: () => splitPanel.apiRef.current?.discard() }
-      : active === 'email' || ownerEmailTab
-      ? { dirty: formDirty || notifDirty, saved: formSaved || notifSaved, onSave: saveGuestEmailTab, onCancel: () => { formApiRef.current?.discard(); resetNotif() } }
+      : active === 'email' || active === 'notifications'
+      ? { dirty: formDirty || notifDirty || emailFmDirty, saved: formSaved || notifSaved, onSave: saveGuestEmailTab, onCancel: () => { formApiRef.current?.discard(); resetNotif(); setEmailFm(fmBase) } }
+      // a Foglalóoldal-szerkesztőnek saját Közzététel-sávja van (teljes képernyőn)
       : active === 'site'
-      ? { dirty: sitePanel.dirty, saved: siteSaved, onSave: saveSiteTab, onCancel: () => sitePanel.apiRef.current?.discard() }
+      ? null
       : active === 'documents'
       ? {
           dirty: formDirty || documentsPanel.dirty,
@@ -894,14 +897,14 @@ export function SettingsHub({
           onSave: saveIntegrationsTab,
           onCancel: () => integPanel.apiRef.current?.discard(),
         }
-      : active === 'google'
+      : active === 'google' || active === 'reviews'
       ? { dirty: googlePanel.dirty, saved: googleSaved, onSave: saveGoogleTab, onCancel: () => googlePanel.apiRef.current?.discard() }
       : active in FORM_TABS
       ? { dirty: formDirty, saved: formSaved, onSave: saveForm, onCancel: () => formApiRef.current?.discard() }
       : null
 
   // ── Navigáció adatvezérelten (a desktop rail ÉS a mobil legördülő EGY forrásból) ──
-  type NavItem =
+  type NavEntry =
     | { kind: 'btn'; id: RailId; icon: LucideIcon; label: string; soon?: boolean; badge?: string }
     | { kind: 'link'; href: string; icon: LucideIcon; label: string }
   const canBilling = !myCapabilities || can(myCapabilities, 'billing.manage')
@@ -927,11 +930,59 @@ export function SettingsHub({
   const canSeeTeamTab = canFullSettings
     || !!myCapabilities && (can(myCapabilities, 'team.view') || can(myCapabilities, 'team.manage') || can(myCapabilities, 'roles.view'))
   const canPayments = !myCapabilities || can(myCapabilities, 'payments.manage')
-  const navGroups: { group: string; items: NavItem[] }[] = canFullSettings
+  const selectTier = async (tier: 'starter' | 'pro') => {
+    if (!activeBizForPricing || subBusy) return
+    setSubBusy(tier)
+    try {
+      const res = await fetch('/api/subscription/select', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: activeBizForPricing.type, id: activeBizForPricing.id, tier, cycle: selectedCycle }) })
+      const data = (await res.json().catch(() => ({}))) as { error?: string; cancelReversed?: boolean }
+      if (!res.ok) throw new Error(data.error || 'Nem sikerült menteni.')
+      toast.success(data.cancelReversed ? 'Az előfizetés visszaállt — a lemondás törölve' : `${tier === 'starter' ? 'Starter' : 'Pro'} csomag kiválasztva`)
+      router.refresh()
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Nem sikerült menteni.') } finally { setSubBusy(null) }
+  }
+  // fizetés indítása a Stripe oldalán — előtte a számlázási adatok kötelezők (hiányosnál megnyílik az ablak)
+  const startCheckout = async () => {
+    if (!billFieldsComplete) { markAllBillTouched(); setBillOpen(true); toast.error('Töltsd ki a számlázási adatokat a fizetés előtt.'); return }
+    setSubBusy('checkout')
+    try {
+      const res = await fetch('/api/stripe/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ cycle: selectedCycle, returnPath: `${window.location.pathname}?tab=billing` }) })
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+      if (!res.ok || !data.url) throw new Error(data.error || 'Nem sikerült elindítani a fizetést.')
+      window.location.href = data.url
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Hiba történt a fizetés indításakor.'); setSubBusy(null) }
+  }
+  // a Stripe ügyfélportálja: kártya csere, számlák, fizetési adatok — a kártya a Stripe-nál marad
+  const openPortal = async () => {
+    setSubBusy('portal')
+    try {
+      const res = await fetch('/api/stripe/portal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ returnPath: `${window.location.pathname}?tab=billing` }) })
+      const data = (await res.json().catch(() => ({}))) as { url?: string; error?: string }
+      if (!res.ok || !data.url) throw new Error(data.error || 'Nem sikerült megnyitni.')
+      window.location.href = data.url
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Nem sikerült megnyitni.'); setSubBusy(null) }
+  }
+  const cancelSub = async (undo: boolean) => {
+    setSubBusy('cancel')
+    const res = await fetch('/api/subscription/cancel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ undo }) }).catch(() => null)
+    setSubBusy(null)
+    if (!res?.ok) { toast.error((await res?.json().catch(() => null))?.error ?? 'A művelet nem sikerült. Próbáld újra.'); return }
+    setCancelOpen(false)
+    toast.success(undo ? 'A lemondás visszavonva' : 'Lemondva — a fizetett időszak végéig minden elérhető')
+    router.refresh()
+  }
+
+  // a téma-lista a design 16.1 szerint (csoportok, sorrend, ikonok); étteremnél az Üzletben az Asztalok & termek és a
+  // Foglalási szabályok is
+  const navGroups: { group: string; items: NavEntry[] }[] = canFullSettings
     ? [
         { group: 'Üzlet', items: [
           { kind: 'btn', id: 'site', icon: PanelsTopLeft, label: 'Foglalóoldal' },
-          { kind: 'link', href: availabilityHref, icon: Clock, label: 'Nyitvatartás' },
+          ...(hoursVM ? [{ kind: 'btn' as const, id: 'hours' as RailId, icon: Clock, label: 'Nyitvatartás' }] : [{ kind: 'link' as const, href: availabilityHref, icon: Clock, label: 'Nyitvatartás' }]),
+          ...(variant === 'restaurant' ? [
+            { kind: 'btn' as const, id: 'tables' as RailId, icon: Building2, label: 'Asztalok & termek' },
+            { kind: 'btn' as const, id: 'rules' as RailId, icon: ShieldCheck, label: 'Foglalási szabályok' },
+          ] : []),
           { kind: 'btn', id: 'documents', icon: FileText, label: 'Dokumentumok & jogi' },
         ] },
         { group: 'Vendégek', items: [
@@ -940,26 +991,26 @@ export function SettingsHub({
         ] },
         ...(canPayments
           ? [{ group: 'Pénzügy', items: [
-              // Vendég-oldali pénzügy egy helyen: online fizetés + előleg + számlázó + kiállított számlák
               { kind: 'btn' as const, id: 'payments' as RailId, icon: Wallet, label: 'Fizetés & számlázás' },
+              { kind: 'btn' as const, id: 'invoices' as RailId, icon: FileText, label: 'Számlák' },
               { kind: 'btn' as const, id: 'deposit' as RailId, icon: HandCoins, label: 'Előleg' },
               { kind: 'btn' as const, id: 'vouchers' as RailId, icon: Gift, label: 'Ajándékutalvány' },
             ] }]
           : []),
         { group: 'Kapcsolatok', items: [
-          { kind: 'btn', id: 'google', icon: GoogleIcon, label: 'Google' },
-          { kind: 'btn', id: 'integrations', icon: LayoutGrid, label: 'API & integrációk' },
+          { kind: 'btn', id: 'reviews', icon: Star, label: 'Értékelések' },
+          { kind: 'btn', id: 'google', icon: Globe2, label: 'Google Cégprofil' },
+          { kind: 'btn', id: 'integrations', icon: Link2, label: 'API & integrációk' },
         ] },
         { group: 'Csapat', items: [
           { kind: 'btn', id: 'team', icon: Users, label: 'Csapat & jogok' },
-          { kind: 'btn', id: 'sites', icon: Building2, label: 'Telephelyek' },
+          { kind: 'btn', id: 'sites', icon: Landmark, label: 'Telephelyek' },
         ] },
         { group: 'Fiók', items: [
           { kind: 'btn', id: 'self', icon: UserRound, label: 'Saját profil' },
           { kind: 'btn', id: 'notifications', icon: Bell, label: 'Értesítések' },
-          // a TE előfizetésed és a davelopment számlái neked (a Számlák fül ide olvadt be)
           ...(canBilling ? [{ kind: 'btn' as const, id: 'billing' as RailId, icon: CreditCard, label: 'Előfizetés', badge: trialBadge }] : []),
-          { kind: 'btn', id: 'audit', icon: ScrollText, label: 'Audit-napló' },
+          { kind: 'btn', id: 'audit', icon: FileText, label: 'Audit-napló' },
         ] },
       ]
     : [
@@ -970,271 +1021,108 @@ export function SettingsHub({
           ? [{ group: 'Csapat', items: [{ kind: 'btn' as const, id: 'team' as RailId, icon: Users, label: 'Csapat & jogok' }] }]
           : []),
       ]
-  const activeBtn = navGroups.flatMap((g) => g.items).find((it) => it.kind === 'btn' && it.id === active) as
-    | Extract<NavItem, { kind: 'btn' }> | undefined
-  const ActiveIcon = activeBtn?.icon ?? (active === 'danger' ? Trash2 : Home)
+  navOrderRef.current = [...navGroups.flatMap((g) => g.items.flatMap((it) => (it.kind === 'btn' ? [it.id as string] : []))), 'danger']
+
+  // „Beállítás kész” (design 16.1): a valós állapotból számolt lépések — a hiányzók a kártyán, és sárga pötty a témájuk
+  // mellett a listában
+  const setupSteps: { label: string; tab: RailId; done: boolean }[] = canFullSettings ? [
+    { label: 'Foglalóoldal: logó, borító, bemutatkozás', tab: 'site', done: !bookingPageEditor || (!!bookingPageEditor.logoUrl && !!bookingPageEditor.coverUrl && !!bookingPageEditor.description?.trim()) },
+    ...(canPayments ? [
+      { label: 'Stripe összekötése', tab: 'payments' as RailId, done: !!stripeConnectOnboarded },
+      { label: 'Számlázó bekötése', tab: 'payments' as RailId, done: invoiceSettings.provider !== 'none' && (invoiceSettings.hasSzamlazzKey || invoiceSettings.hasBillingoKey) },
+    ] : []),
+    { label: 'Google értékelés-link', tab: 'reviews', done: !!featureModules?.google_review_url?.trim() },
+    { label: 'Csapat meghívása', tab: 'team', done: team.length > 1 },
+  ] : []
+  const setupMissing = setupSteps.filter((x) => !x.done)
+  const setupPct = setupSteps.length ? Math.round(((setupSteps.length - setupMissing.length) / setupSteps.length) * 100) : 100
+  const todoTabs = new Set(setupMissing.map((x) => x.tab))
+
+  // a téma-lista (desktop kártya és mobil lap ugyanaz): csoportonként, a keresés szűri, zárolt előfizetésnél lakat
+  const navNorm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  const openTopic = (id: RailId) => { setActive(id); setMobileSheet(true) }
+  // a téma-lista adatai (desktop SettingsNav és mobil SettingsMobileList ugyanebből): a keresés szűri, teendőnél pötty,
+  // lejárt előfizetésnél lakat (az Előfizetés kivétel)
+  const topicGroups: SettingsTopicGroup[] = (() => {
+    const q = navNorm(navQuery.trim())
+    return navGroups.map((g) => ({
+      group: g.group,
+      items: g.items.filter((it) => !q || navNorm(it.label).includes(q) || navNorm(g.group).includes(q)).map((it): SettingsTopic => it.kind === 'btn'
+        ? { key: it.id, label: it.label, icon: it.icon, active: active === it.id, todo: todoTabs.has(it.id), badge: it.badge, locked: subscriptionLocked && it.id !== 'billing', onClick: () => openTopic(it.id) }
+        : { key: it.href, label: it.label, icon: it.icon, href: it.href, locked: subscriptionLocked }),
+    })).filter((g) => g.items.length)
+  })()
+  const dangerTopic: SettingsTopicGroup[] = canDanger && !navQuery.trim() ? [{ group: '', items: [{ key: 'danger', label: 'Fiók törlése', icon: Trash2, active: active === 'danger', danger: true, onClick: () => openTopic('danger') }] }] : []
 
   return (
     // font-onest ITT, egyszer — minden alá ágyazott panel (BookingFeatures, GoogleSettingsPanel,
     // RolesManager, stb.) örökli, nem kell mindegyiknek külön emlékeznie rá.
     <div
       className="space-y-5 font-onest"
-      // A `bg-paper` token (--dav-paper) alapból az OLDAL-háttér színe (konténeren kívülre
-      // szánva) — a Beállításokban viszont sok helyen belső sor/doboz-háttérként (pl. "Üzletek
-      // & díjak" lista) van újrahasznosítva, ahol túl sötét szürkének hat a fehér kártyákon
-      // belül. Itt, a teljes Beállítások-fa gyökerén felülírjuk világosabbra — ez a CSS-változó
-      // öröklődik LE minden beágyazott panelbe (ImportPanel, VoucherTypeManager stb.), tehát
-      // egyetlen helyen cserélhető, nem kell minden egyes `bg-paper` előfordulást külön bejárni.
-      style={{ '--dav-paper': '#F4F4F4' } as CSSProperties}
     >
-      {/* Fejléc — a mentés innen kikerült a KÖZÖS lebegő sávba (lásd lentebb). A Foglalóoldal
-          fülön a nyelv-választó, a Vendég e-mailek fülön a sablon-választó, a Csapat fülön a
-          Tagok/Szerepek-váltó a globális mobil-fejlécbe (DashboardNav, #settings-subnav-slot)
-          portálozódik — ugyanúgy, mint a többi oldal saját fejléc-ikonjai, nem a szerkesztő
-          saját belső sorában bujkál. */}
-      <div>
-        <h1 className="text-[32px] font-light leading-none tracking-[-0.02em] text-ink lg:text-[42px]">
-          Beállítások
-        </h1>
-        <p className="mt-1.5 text-sm font-medium text-ink-soft">
-          {subtitle}
-          <span className="lg:hidden"> · {RAIL_LABELS[active]}</span>
-        </p>
-      </div>
+      {/* fejléc (design 16.1): cím, jobbra a kereső — a téma-listát szűri */}
+      <div className="max-lg:hidden"><PageHead title="Beállítások" className="mb-[5px]" actions={<SearchField className="w-[240px]" value={navQuery} onChange={setNavQuery}>Beállítás keresése</SearchField>} /></div>
+      {/* mobil (16.20): a téma-lista az első képernyő */}
+      <SettingsMobileList className="lg:hidden" groups={[...topicGroups, ...dangerTopic.map((g) => ({ ...g, group: 'Veszélyzóna' }))]} query={navQuery} onQuery={setNavQuery} searchOpen={mobileSearch || !!navQuery} />
 
       {/* Bal-sáv + panel */}
-      <div className={`lg:grid lg:items-start lg:gap-[18px] lg:transition-[grid-template-columns] lg:duration-300 lg:ease-[cubic-bezier(0.22,1,0.36,1)] ${railCollapsed ? 'lg:grid-cols-[72px_1fr]' : 'lg:grid-cols-[262px_1fr]'}`}>
-        {/* RAIL — MOBIL: bottom sheet (portálon keresztül, a top nav SlidersHorizontal ikonja nyitja). */}
-        {isMounted && createPortal(
-          <AnimatePresence>
-            {mobileNavOpen && (
-              <div className="fixed inset-0 z-[160] font-onest lg:hidden">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm"
-                  onClick={() => setMobileNavOpen(false)}
-                />
-                <motion.div
-                  initial={{ y: '100%' }}
-                  animate={{ y: 0 }}
-                  exit={{ y: '100%' }}
-                  transition={sheetSpring.transition}
-                  data-lenis-prevent
-                  // `78vh` mobil Safari-n a böngésző-sáv nélküli nagy viewportot vette alapul (a
-                  // ténylegesen látható terület alá is belógott) — `dvh` + alacsonyabb érték,
-                  // UGYANAZ a magasság, mint a `MobileBottomNav` "Több" sheetje (egységes mobil
-                  // menü-magasság az egész appban).
-                  className="absolute inset-x-0 bottom-0 max-h-[70dvh] overflow-y-auto rounded-t-[28px] bg-white pb-[env(safe-area-inset-bottom,16px)]"
-                >
-                  {/* Handle + fejléc */}
-                  <div className="sticky top-0 z-10 bg-white px-4 pb-3 pt-3">
-                    <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
-                    <div className="flex items-center justify-between">
-                      <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">Beállítások</span>
-                      <button
-                        type="button"
-                        onClick={() => setMobileNavOpen(false)}
-                        aria-label="Bezárás"
-                        className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70"
-                      >
-                        <X className="h-4 w-4" strokeWidth={2} />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="px-2 pb-4">
-                    {navGroups.map((grp) => (
-                      <div key={grp.group}>
-                        <div className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{grp.group}</div>
-                        {grp.items.map((it) => {
-                          const Icon = it.icon
-                          const itemLocked = subscriptionLocked && (it.kind !== 'btn' || it.id !== 'billing')
-                          if (itemLocked) {
-                            return (
-                              <span
-                                key={it.kind === 'btn' ? it.id : it.href}
-                                aria-disabled
-                                className="flex cursor-not-allowed items-center gap-3 rounded-dav-chip px-3 py-3 text-[14.5px] font-medium text-ink/35"
-                              >
-                                <Icon className="h-[18px] w-[18px]" strokeWidth={1.5} />
-                                {it.label}
-                                <Lock className="ml-auto h-4 w-4 shrink-0" strokeWidth={1.6} />
-                              </span>
-                            )
-                          }
-                          return it.kind === 'btn' ? (
-                            <button
-                              key={it.id}
-                              id={active === it.id ? 'settings-nav-active-item' : undefined}
-                              type="button"
-                              onClick={() => { setActive(it.id); setMobileNavOpen(false) }}
-                              className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-[14.5px] ${active === it.id ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-ink-soft'}`}
-                            >
-                              <Icon className={`h-[18px] w-[18px] ${active === it.id ? 'text-gold' : 'text-ink-soft2'}`} strokeWidth={1.5} />
-                              {it.label}
-                              {it.badge && !it.soon && (
-                                <span className="ml-auto rounded-full bg-gold px-2 py-0.5 text-[11px] font-semibold leading-none text-ink-dark">{it.badge}</span>
-                              )}
-                              {it.soon && (
-                                <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-semibold ${active === it.id ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>Hamarosan</span>
-                              )}
-                              {active === it.id && !it.soon && !it.badge && (
-                                <Check className="ml-auto h-4 w-4 text-gold" strokeWidth={2.5} />
-                              )}
-                            </button>
-                          ) : (
-                            <Link
-                              key={it.href}
-                              href={it.href}
-                              onClick={() => setMobileNavOpen(false)}
-                              className="flex items-center gap-3 rounded-[14px] px-3 py-3 text-[14.5px] font-medium text-ink-soft"
-                            >
-                              <Icon className="h-[18px] w-[18px] text-ink-soft2" strokeWidth={1.5} />
-                              {it.label}
-                            </Link>
-                          )
-                        })}
-                      </div>
-                    ))}
-                    {canDanger && <>
-                      <div className="my-2 h-px bg-line" />
-                      <button
-                        id={active === 'danger' ? 'settings-nav-active-item' : undefined}
-                        type="button"
-                        onClick={() => { setActive('danger'); setMobileNavOpen(false) }}
-                        className={`flex w-full items-center gap-3 rounded-[14px] px-3 py-3 text-left text-[14.5px] font-medium ${active === 'danger' ? 'bg-ink-dark text-white' : 'text-bad'}`}
-                      >
-                        <Trash2 className={`h-[18px] w-[18px] ${active === 'danger' ? 'text-gold' : 'text-bad'}`} strokeWidth={1.5} />
-                        Fiók törlése
-                        {active === 'danger' && <Check className="ml-auto h-4 w-4 text-gold" strokeWidth={2.5} />}
-                      </button>
-                    </>}
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>,
-          document.body
-        )}
+      <div className={`lg:grid lg:items-start lg:gap-[5px] lg:overflow-x-clip ${fullWidth ? 'lg:grid-cols-1' : railCollapsed ? 'lg:grid-cols-[64px_minmax(0,1fr)]' : 'lg:grid-cols-[240px_minmax(0,1fr)]'}`}>
+        {/* desktop: a téma-lista csoportonként (aktív sötét), sticky — a Foglalóoldalon ikon-csíkra csukható */}
+        <KitCard pad="sm" className={`hidden lg:sticky lg:top-6 lg:self-start ${fullWidth ? '' : 'lg:block'}`}>
+          {active === 'site' && <IconButton icon={railCollapsed ? PanelLeftOpen : PanelLeftClose} label={railCollapsed ? 'Menü megnyitása' : 'Menü összecsukása'} size="sm" variant="ghost" className="mb-1" onClick={() => setRailManuallyCollapsed((v) => !v)} />}
+          <SettingsNav groups={topicGroups} collapsed={railCollapsed}
+            footer={dangerTopic.length > 0 && <div className="mt-2 border-t border-dashed border-ui-divider pt-2"><SettingsNav groups={dangerTopic} collapsed={railCollapsed} /></div>} />
+          {!topicGroups.length && <Meta className="px-3 py-4 text-ui-label">Nincs ilyen beállítás.</Meta>}
+        </KitCard>
 
-        {/* RAIL — DESKTOP: függőleges üveges sáv — sticky, követi a scroll-t.
-            A Foglalóoldal fülön automatikusan ikon-csíkra csukódik (lásd railCollapsed),
-            hogy a szerkesztőnek több hely jusson — a fejléc-gomb bármikor visszanyitja. */}
-        <nav
-          data-lenis-prevent
-          className="hidden lg:sticky lg:top-6 lg:self-start lg:flex lg:flex-col lg:gap-[3px] lg:overflow-hidden lg:rounded-[24px] lg:bg-[var(--dav-glass)] lg:p-[11px] lg:shadow-[0_1px_2px_rgba(80,70,30,0.05),0_16px_36px_-30px_rgba(80,70,30,0.18)]"
-        >
-          {active === 'site' && (
-            <HoverButton
-              onClick={() => setRailManuallyCollapsed((v) => !v)}
-              title={railCollapsed ? 'Menü megnyitása' : 'Menü összecsukása'}
-              className="mb-1 flex w-11 shrink-0 items-center justify-center self-start rounded-[16px] p-3 text-ink-soft2 transition-colors hover:bg-[#F0EDE6] hover:text-ink"
-            >
-              {railCollapsed ? <PanelLeftOpen className="h-[17px] w-[17px]" strokeWidth={1.5} /> : <PanelLeftClose className="h-[17px] w-[17px]" strokeWidth={1.5} />}
-            </HoverButton>
-          )}
-          {navGroups.map((grp) => (
-            <div key={grp.group} className="contents">
-              <GroupLabel collapsed={railCollapsed}>{grp.group}</GroupLabel>
-              {grp.items.map((it) => {
-                const Icon = it.icon
-                if (it.kind === 'btn') {
-                  const itemLocked = subscriptionLocked && it.id !== 'billing'
-                  return <RailBtn key={it.id} id={it.id} active={active} onClick={setActive} icon={it.icon} label={it.label} soon={it.soon} badge={it.badge} locked={itemLocked} collapsed={railCollapsed} />
-                }
-                if (subscriptionLocked) {
-                  return (
-                    <span
-                      key={it.href}
-                      aria-disabled
-                      title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
-                      className="flex cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink/35"
-                    >
-                      <Icon className="h-[17px] w-[17px] shrink-0" strokeWidth={1.5} />
-                      <span className={railLabelCls}>{it.label}</span>
-                      {!railCollapsed && <Lock className="ml-auto h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />}
-                    </span>
-                  )
-                }
-                return (
-                  <Link
-                    key={it.href}
-                    href={it.href}
-                    title={railCollapsed ? it.label : undefined}
-                    className="flex items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink-soft transition-colors hover:text-ink"
-                  >
-                    <Icon className="h-[17px] w-[17px] shrink-0 text-ink-soft2" strokeWidth={1.5} />
-                    <span className={railLabelCls}>{it.label}</span>
-                  </Link>
-                )
-              })}
-            </div>
-          ))}
-          {canDanger && <>
-            <div className="my-1.5 h-px bg-line" />
-            <RailBtn id="danger" active={active} onClick={setActive} icon={Trash2} label="Fiók törlése" danger collapsed={railCollapsed} />
-          </>}
-        </nav>
+        {/* mobil: a téma lapja alulról (16.20) — a háttér sötétít, fent fogantyú, cím, bezárás */}
+        {/* a közös felugró ablak (PopupModal) mobil-lapja: ugyanaz a sötétítés, fehér lap alulról, 85%-ig, fent fogantyú (koppintásra
+            bezár, X nincs). A tartalom mountolva marad (a mentetlen mezők ne vesszenek el), ezért nem maga a PopupModal. */}
+        {mobileSheet && <span className="fixed inset-0 z-[94] bg-ui-dark/25 backdrop-blur-sm lg:hidden" onClick={() => setMobileSheet(false)} aria-hidden />}
 
         {/* PANEL — az Értesítéseknél a profil-form (Értesítő sablon) a kapcsolók ALÁ kerül (order-last). */}
-        <div className={ownerEmailTab ? 'flex min-w-0 flex-col' : 'min-w-0'}>
-          {/* Szekció-cím (desktop) — mobilon a legördülő gomb jelzi az aktív szekciót. */}
-          <div className="hidden lg:mb-5 lg:flex lg:items-center lg:justify-between">
-            <h2 className="text-[22px] font-medium tracking-[-0.01em] text-ink">{RAIL_LABELS[active]}</h2>
-            {active === 'billing' && trialBadge && (
-              <span className="rounded-full bg-gold px-3 py-1 text-[13px] font-semibold leading-none text-ink-dark">
-                {trialBadge}
-              </span>
-            )}
+        <div ref={panelRef} className={`min-w-0 ${mobileSheet ? 'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[95] max-lg:max-h-[85dvh] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:rounded-t-ui-card max-lg:bg-white max-lg:px-3 max-lg:pb-28 max-lg:shadow-ui-popup' : 'max-lg:hidden'}`} data-lenis-prevent>
+          <div className="sticky top-0 z-10 -mx-3 mb-1 bg-white px-6 pb-3 lg:hidden">
+            <button type="button" aria-label="Vissza a témákhoz" onClick={() => setMobileSheet(false)} className="w-full pt-2.5"><SheetHandle /></button>
+            <div className="truncate pt-4 text-ui-sub font-light text-ui-text">{RAIL_LABELS[active]}</div>
+          </div>
+          {/* teljes szélességű téma (pl. Vendég e-mailek): vissza a Beállításokhoz — mint a Foglalóoldal szerkesztőjében */}
+          {fullWidth && (
+            <div className="mb-[5px] flex items-center gap-2 px-1 py-1 max-lg:hidden">
+              <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" size="sm" onClick={() => setActive(lastTab.current)} />
+              <span className="text-ui-title font-normal text-ui-text">{RAIL_LABELS[active]}</span>
+            </div>
+          )}
+          {setupMissing.length > 0 && active !== 'site' && !fullWidth && <SetupProgressCard className="mb-[5px]" pct={setupPct} done={setupSteps.length - setupMissing.length} missing={setupMissing.map((x) => ({ label: x.label, onClick: () => openTopic(x.tab) }))} />}
+          {/* a téma címe (desktop) — mobilon a lap fejlécében */}
+          <div className={`mb-[5px] items-center justify-between gap-2 px-1 pt-1 ${PAGE_TABS.has(active) ? 'hidden' : 'hidden lg:flex'}`}>
+            <span className="text-ui-sub font-light text-ui-text">{RAIL_LABELS[active]}</span>
+            {active === 'billing' && trialBadge && <Pill tone="yellow" size="sm">{trialBadge}</Pill>}
           </div>
 
           {/* Profil-form (Üzlet profil / Foglalás / Nyelvek / Email / Dokumentumok / Fiók törlése):
               MINDIG mountolva marad (a mentetlen mezők ne vesszenek el lista-váltáskor), csak a
               láthatóságot váltjuk. A fület a bal lista vezérli — a formhoz CONTEXTen át jut le
               (RSC-határon a cloneElement-prop nem megbízható), így a form a saját fül-sorát is elrejti. */}
-          <SettingsFormContext.Provider value={{ controlledTab: ownerEmailTab ? 'ownerEmail' : FORM_TABS[active] ?? 'general', reportDirty, registerApi }}>
-            <div className={ownerEmailTab ? 'order-last mt-4' : active in FORM_TABS ? '' : 'hidden'}>{profilePanel}</div>
+          {/* Dokumentumok & jogi (16.12): egy lap-kártya a két csoporttal (feltételek a formból, nyilatkozat alatta), jobbra az
+              elfogadások — a burkolók mindig ott vannak (a profil-form nem mountolódik újra), csak a kinézetük vált */}
+          <div className={active === 'documents' ? 'grid grid-cols-1 items-start gap-[5px] lg:grid-cols-[minmax(0,1fr)_300px] [&>*]:min-w-0' : 'contents'}>
+          <div className={active === 'documents' ? 'min-w-0 rounded-ui-card bg-white pb-6' : 'contents'}>
+          {active === 'documents' && <div className="px-6 pb-1 pt-6 max-lg:hidden"><div className="text-ui-label text-ui-muted">Üzlet</div><div className="mt-0.5 text-ui-sub font-light text-ui-text">Dokumentumok & jogi</div></div>}
+          <SettingsFormContext.Provider value={{ controlledTab: FORM_TABS[active] ?? 'general', reportDirty, registerApi, guestEmail }}>
+            <div className={active in FORM_TABS ? '' : 'hidden'}>{profilePanel}</div>
           </SettingsFormContext.Provider>
 
           {/* ── „Dokumentumok & jogi" fül folytatása — a profil-form saját dokumentumok-fülje
               (ÁSZF-szakaszok) UTÁN a beleegyező nyilatkozat sablon-szerkesztője, ami régen a
               Fizetéseknél volt, pedig jogi dokumentum, nem fizetési beállítás. ── */}
-          {/* ── „Vendég e-mailek" (új menü): a sablonok (profil-form email-füle) MELLÉ ide kerültek a
-              vendégnek menő levelek be/ki kapcsolói is — korábban az Értesítéseknél voltak. ── */}
-          {active === 'email' && (
-            <div className="mt-5 rounded-[22px] border border-line bg-white px-6 py-2">
-              <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
-                <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Levelek a vendégnek</span>
-                <span className="text-center text-[12px] font-semibold uppercase text-ink-soft2">Küldés</span>
-              </div>
-              {notifRows.map((row) => (
-                <div key={row.key} className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4 last:border-0">
-                  <div className="min-w-0">
-                    <div className="text-[14px] font-semibold text-ink">{row.title}</div>
-                    <div className="mt-0.5 text-[12px] text-ink-soft">{row.sub}</div>
-                  </div>
-                  <div className="flex justify-center">
-                    <Toggle
-                      checked={notif[row.key].email}
-                      onChange={() => setNotif((s) => ({ ...s, [row.key]: { ...s[row.key], email: !s[row.key].email } }))}
-                    />
-                  </div>
-                </div>
-              ))}
-              <div className="py-4 text-[12.5px] leading-relaxed text-ink-soft">
-                Az emlékeztető időzítését és a visszajelzés-kérést a <button type="button" onClick={() => setActive('site')} className="font-semibold text-ink underline underline-offset-2">Foglalóoldal → Visszaigazolás</button> lépésnél állítod; a neked szóló értesítéseket az <button type="button" onClick={() => setActive('notifications')} className="font-semibold text-ink underline underline-offset-2">Értesítések</button> között.
-              </div>
-            </div>
-          )}
-
           {active === 'documents' && (
-            <div className="mt-5">
+            <div>
               <PaymentsSettingsPanel
                 variant={variant}
                 apiBase={apiBase}
                 deposit={depositSettings}
+              manualApproval={bookingPageEditor ? !bookingPageEditor.autoConfirm : false}
                 invoice={invoiceSettings}
                 voucher={voucherSettings}
                 consent={consentSettings}
@@ -1250,15 +1138,15 @@ export function SettingsHub({
               />
             </div>
           )}
+          </div>
+          {active === 'documents' && consentStats && (
+            <KitCard tone="dark"><Meta dark>Elfogadta</Meta><div className="mt-1 text-ui-num font-light leading-none">{consentStats.total.toLocaleString('hu-HU')}</div><Meta dark className="mt-2">{variant === 'salon' ? 'foglalás' : 'asztalfoglalás'} · ebből {consentStats.onsite.toLocaleString('hu-HU')} helyben, tableten</Meta></KitCard>
+          )}
+          </div>
 
           {/* ── Nem-form panelek — key változásakor fade-in animáció (a profilePanel mindig mountolva marad). ── */}
           {!(active in FORM_TABS) && (
-          <motion.div
-            key={active}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.16, ease: EASE }}
-          >
+          <motion.div key={active}>
 
           {active === 'site' && bookingPageEditor && (
             <BookingPageEditor
@@ -1266,15 +1154,20 @@ export function SettingsHub({
               onDirtyChange={sitePanel.onDirtyChange}
               registerApi={sitePanel.registerApi}
               onNavigate={(tab) => { if (tab in RAIL_LABELS) setActive(tab as RailId) }}
+              onExit={() => { setActive(lastTopic.current); setMobileSheet(false) }}
             />
           )}
 
-          {(['newsletter', 'vouchers', 'invoicing', 'deposit'] as const).map((tab) => active === tab && (
+          {/* Hírlevél (16.13): az összesítő a fül megnyitásakor töltődik */}
+          {active === 'newsletter' && <NewsletterSettings data={newsSummary} marketingHref={variant === 'salon' ? '/dashboard/marketing' : '/restaurant/marketing'} subscribersHref={`${variant === 'salon' ? '/dashboard/marketing' : '/restaurant/marketing'}?tab=subscribers`} />}
+
+          {(['vouchers', 'invoicing', 'deposit'] as const).map((tab) => active === tab && (
             <PaymentsSettingsPanel
               key={tab}
               variant={variant}
               apiBase={apiBase}
               deposit={depositSettings}
+              manualApproval={bookingPageEditor ? !bookingPageEditor.autoConfirm : false}
               invoice={invoiceSettings}
               voucher={voucherSettings}
               consent={consentSettings}
@@ -1284,8 +1177,8 @@ export function SettingsHub({
               businessId={activeBusinessId}
               tier={businessTier}
               sections={[tab === 'vouchers' ? 'voucher' : tab]}
-              onDirtyChange={(tab === 'newsletter' ? newsletterPanel : tab === 'vouchers' ? vouchersPanel : tab === 'deposit' ? depositPanel : invoicingPanel).onDirtyChange}
-              registerApi={(tab === 'newsletter' ? newsletterPanel : tab === 'vouchers' ? vouchersPanel : tab === 'deposit' ? depositPanel : invoicingPanel).registerApi}
+              onDirtyChange={(tab === 'vouchers' ? vouchersPanel : tab === 'deposit' ? depositPanel : invoicingPanel).onDirtyChange}
+              registerApi={(tab === 'vouchers' ? vouchersPanel : tab === 'deposit' ? depositPanel : invoicingPanel).registerApi}
             />
           ))}
 
@@ -1294,6 +1187,7 @@ export function SettingsHub({
               variant={variant}
               apiBase={apiBase}
               deposit={depositSettings}
+              manualApproval={bookingPageEditor ? !bookingPageEditor.autoConfirm : false}
               invoice={invoiceSettings}
               voucher={voucherSettings}
               consent={consentSettings}
@@ -1307,376 +1201,132 @@ export function SettingsHub({
               registerApi={paymentsTabPanel.registerApi}
             />
           )}
-          {active === 'payments' && activeBusinessId && (
-            <div className="mt-4">
-              <IssuedInvoicesTable variant={variant} businessId={activeBusinessId} />
-            </div>
+          {active === 'hours' && hoursVM && <OpeningHoursView vm={hoursVM} canManage={hoursCanManage} />}
+
+          {/* Foglalási szabályok (étterem, 16.21) — az értékek; a szerkesztésük ma a Foglalóoldal szerkesztőjében van */}
+          {/* Asztalok & termek (16.22) és Foglalási szabályok (16.21) — étterem: a vendég online foglalásának korlátai */}
+          {active === 'rules' && capacity && (
+            <CapacitySettingsView key={active} part={active} vm={capacity} apiBase={apiBase} onDirtyChange={capacityPanel.onDirtyChange} registerApi={capacityPanel.registerApi} />
+          )}
+          {/* Asztalok & termek (16.22): a szerkesztő és az online kapacitás egy helyen — azonnal ment (nincs mentés-sáv) */}
+          {active === 'tables' && tablesData && (
+            <TablesView restaurantId={activeBusinessId} rooms={tablesData.rooms} tables={tablesData.tables} templates={tablesData.templates} canManage={tablesData.canManage}
+              capacity={{ pct: capacity?.pct ?? 100, apiBase }} />
           )}
 
-          {active === 'notifications' && (
-            <div className="space-y-4">
-              {/* PWA telepítés — előfeltétele az iOS push-nak, ezért legfelül. */}
-              <PwaInstallCard />
-              {/* Eszköz-szintű PUSH (böngésző/OS) — az e-mail-mátrix fölött, mert ez a leggyorsabb csatorna. */}
-              <PushSubscribeToggle />
+          {/* Számlák (16.7.1): a vendégeknek kiállított számlák — külön téma, a Fizetés & számlázás aljáról ide került */}
+          {active === 'invoices' && activeBusinessId && <IssuedInvoicesTable variant={variant} businessId={activeBusinessId} />}
 
-              {/* Egységes értesítési kártya — Push/App + Email szekciók */}
-              <div className="rounded-[22px] border border-line bg-white px-6 py-2">
-                {/* Push/App szekció fejléc */}
-                <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
-                  <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Értesítési preferenciák</span>
-                  <span className="text-center text-[12px] font-semibold uppercase text-ink-soft2">App</span>
-                </div>
-                <PersonalNotifPrefsCard compact />
-                {canFullSettings && (
-                  <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
-                    <div className="min-w-0">
-                      <div className="text-[14px] font-semibold text-ink">Új foglalás és lemondás az üzletben</div>
-                      <div className="mt-0.5 text-[12px] text-ink-soft">Az alkalmazáson belül, minden csapattagnak</div>
-                    </div>
-                    <div className="flex justify-center">
-                      <Toggle checked={newBookingsNotif} onChange={() => setNewBookingsNotif((v) => !v)} />
-                    </div>
-                  </div>
-                )}
-
-                {/* Email szekció fejléc */}
-                <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
-                  <span className="text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-soft2">Esemény</span>
-                  <span className="text-center text-[12px] font-semibold uppercase text-ink-soft2">E-mail</span>
-                </div>
-                {/* Napi digest email */}
-                <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4">
-                  <div className="min-w-0">
-                    <div className="text-[14px] font-semibold text-ink">Napi digest email</div>
-                    <div className="mt-0.5 text-[12px] text-ink-soft">
-                      {variant === 'salon'
-                        ? 'Neked · reggeli + esti összefoglaló egyszerre'
-                        : 'Neked · napi forgalom összefoglalója zárás után'}
-                    </div>
-                  </div>
-                  <div className="flex justify-center">
-                    <Toggle checked={digestEmailOn} onChange={toggleDigestEmail} />
-                  </div>
-                </div>
-
-                {/* Belső emailek — SAJÁT (owner VAGY staff) email-opt-in, alapból kikapcsolva,
-                    mert az app/push a fő csatorna. A guest-emailektől eltérően EZEK azonnal
-                    mentődnek kattintásra (nincs Mentés-gomb, ugyanaz a minta, mint az App oszlop). */}
-                {internalEmailPrefs.loaded && internalEmailPrefs.allowed.bookings_email && (
-                  <div className="grid grid-cols-[1fr_84px] items-center gap-2 border-b border-line py-4 last:border-0">
-                    <div className="min-w-0">
-                      <div className="text-[14px] font-semibold text-ink">Új foglalás</div>
-                      <div className="mt-0.5 text-[12px] text-ink-soft">Neked · amikor új foglalás érkezik (a push/app mellett)</div>
-                    </div>
-                    <div className="flex justify-center">
-                      <Toggle checked={internalEmailPrefs.prefs.bookings_email} onChange={() => internalEmailPrefs.toggle('bookings_email')} />
-                    </div>
-                  </div>
-                )}
-                {internalEmailPrefs.loaded && internalEmailPrefs.allowed.schedule_email && (
-                  <div className="grid grid-cols-[1fr_84px] items-center gap-2 py-4 last:border-0">
-                    <div className="min-w-0">
-                      <div className="text-[14px] font-semibold text-ink">Beosztás változás</div>
-                      <div className="mt-0.5 text-[12px] text-ink-soft">Neked · ha a műszakod létrejön, módosul vagy törlődik (a push/app mellett)</div>
-                    </div>
-                    <div className="flex justify-center">
-                      <Toggle checked={internalEmailPrefs.prefs.schedule_email} onChange={() => internalEmailPrefs.toggle('schedule_email')} />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Sötét PRO kártya */}
-              <div className="rounded-[26px] bg-ink-dark p-6 shadow-[0_20px_44px_-26px_rgba(40,35,15,.5)]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2 text-[15px] font-medium text-white">
-                    <Sparkles className="h-4 w-4 text-gold" />
-                    Feladó & sablon márkázás
-                  </div>
-                  <span className="rounded-full bg-gold px-3 py-[5px] text-[10px] font-bold tracking-[0.04em] text-ink-dark">PRO</span>
-                </div>
-                <p className="mt-2 max-w-[520px] text-[13px] leading-relaxed text-white/60">
-                  Egyedi feladónév, logó és színek az e-mailekben. Jelenlegi feladó:{' '}
-                  <span className="text-gold">{senderLabel}</span>
-                </p>
-              </div>
-              <p className="px-1 text-xs text-ink-soft2">
-                  Itt a <b className="font-semibold text-ink-soft">neked</b> szóló értesítéseket állítod. A vendégnek menő leveleket a{' '}
-                  <button type="button" onClick={() => setActive('email')} className="font-semibold text-ink underline decoration-line-strong underline-offset-2 hover:decoration-ink">Vendég e-mailek</button>{' '}
-                  alatt kapcsolod és szerkeszted.
-                </p>
-            </div>
+          {/* Értesítések (design 16.18) — a SAJÁT értesítéseid: az App / E-mail kapcsolók a személyes beállításból azonnal
+              mentődnek; a csapat foglalás-értesítése és a napi összefoglaló e-mailje üzleti beállítás (a közös sávon). */}
+          {/* „Ami figyelmet kér” (design 6.8.1) — a saját beállításod: új függő foglalásnál sáv vagy popup, és a fizetés-sáv */}
+          {active === 'notifications' && internalEmailPrefs.loaded && (
+            <AttentionSettings className="mb-4" payment={variant === 'salon'}
+              value={{ pending: internalEmailPrefs.prefs.pending_popup ? 'popup' : 'bar', payment: internalEmailPrefs.prefs.payment_bar }}
+              onChange={(v) => {
+                if ((v.pending === 'popup') !== internalEmailPrefs.prefs.pending_popup) void internalEmailPrefs.toggle('pending_popup')
+                if (v.payment !== internalEmailPrefs.prefs.payment_bar) void internalEmailPrefs.toggle('payment_bar')
+              }} />
           )}
+          {active === 'notifications' && (() => {
+            const p = internalEmailPrefs
+            const own = (k: CategoryKey) => (p.loaded && p.allowed[k] ? { on: p.prefs[k], onChange: () => void p.toggle(k) } : null)
+            const rows: NotifRow[] = [
+              { key: 'bookings', title: 'Új foglalás és lemondás', desc: 'neked — az appban (és ha kéred, e-mailben is)', app: own('bookings'), mail: own('bookings_email') },
+              ...(canFullSettings ? [{ key: 'team', title: 'Foglalás-értesítés a csapatnak', desc: 'az üzletben — az appban minden csapattagnak', app: { on: newBookingsNotif, onChange: setNewBookingsNotif }, mail: null }] : []),
+              { key: 'digest', title: 'Napi összefoglaló', desc: variant === 'salon' ? 'reggel mi vár ma, este hogy ment — az appban' : 'a napi forgalom összefoglalója zárás után — az appban', pro: true, app: own('digest'), mail: null },
+              { key: 'schedule', title: 'Beosztás változás', desc: 'ha a műszakod létrejön, módosul vagy törlődik', app: own('schedule'), mail: own('schedule_email') },
+              { key: 'not_opened', title: 'Meg nem nyitott visszaigazolás', desc: 'ha a vendég 24, majd 12 órával előtte sem nyitotta meg', app: own('email_not_opened'), mail: null },
+            ].filter((r) => r.app || r.mail)
+            const d = devicePush
+            const push = d.env === 'loading' ? { status: <StatusPill status="neutral">Ellenőrzés…</StatusPill>, text: '' }
+              : d.env === 'ios-browser' ? { status: <StatusPill status="pending">Előbb tedd a főképernyőre</StatusPill>, text: 'iPhone-on: Safari › Megosztás › Főképernyőhöz adás, majd nyisd meg onnan — utána itt bekapcsolhatod.' }
+              : d.env === 'unsupported' ? { status: <StatusPill status="neutral">Nem támogatott</StatusPill>, text: 'Ez a böngésző nem tud push-értesítést fogadni.' }
+              : d.env === 'denied' ? { status: <StatusPill status="bad">Letiltva</StatusPill>, text: 'A böngésző beállításaiban engedélyezd az oldal értesítéseit, és frissítsd az oldalt.' }
+              : d.enabled ? { status: <StatusPill status="ok">Bekapcsolva ezen az eszközön</StatusPill>, text: 'Minden foglalásról push-értesítést kapsz, akkor is, ha az app be van zárva.' }
+              : { status: <StatusPill status="neutral">Kikapcsolva ezen az eszközön</StatusPill>, text: d.installed ? 'Kapcsold be, és minden foglalásról push-értesítést kapsz.' : 'Kapcsold be, vagy telepítsd az appot — utána minden foglalásról push-értesítést kapsz.' }
+            const action = (d.env === 'ready' || d.canInstall) ? (
+              <span className="flex flex-wrap gap-1.5">
+                {d.env === 'ready' && <KitButton variant={d.enabled ? 'ghostDark' : 'yellow'} size="sm" loading={d.busy} onClick={() => void (d.enabled ? d.disable() : d.enable())}>{d.enabled ? 'Kikapcsolás' : 'Bekapcsolás'}</KitButton>}
+                {d.canInstall && <KitButton variant="ghostDark" size="sm" onClick={() => void d.install()}>App telepítése</KitButton>}
+              </span>
+            ) : undefined
+            return (
+              <NotificationsSettings save={false} rows={rows} push={{ ...push, action }} testBusy={testBusy}
+                onTest={async () => {
+                  setTestBusy(true)
+                  try {
+                    const r = await fetch('/api/push/test', { method: 'POST', credentials: 'include' })
+                    const j = await r.json().catch(() => ({}))
+                    if (!r.ok) throw new Error(j.error || 'A küldés nem sikerült')
+                    toast.success(`Próba-értesítés elküldve (${j.devices} eszköz)`)
+                  } catch (e) { toast.error(e instanceof Error ? e.message : 'A küldés nem sikerült') } finally { setTestBusy(false) }
+                }}
+                guestLink={<>A vendégeknek menő levelek a <button type="button" onClick={() => setActive('email')} className="text-ui-text underline underline-offset-2">Vendég e-mailek</button> alatt állíthatók.</>} />
+            )
+          })()}
 
-          {/* ── Csapat & jogok ── ref 536–556. VALÓS tulajdonos + membershipök. */}
-          {active === 'team' && (
-            <div className="space-y-4">
-              {/* Al-navigáció — Tagok (meghívás/kezelés) vs. Szerepek (jogosultság-szerkesztés).
-                  Mobilon a globális fejlécbe portálozott ikon-gomb (sheet-tel, lásd SubnavPicker)
-                  + egy külön, ikon-only "+" meghívás-gomb; desktopon a megszokott pill-sor. */}
-              <SubnavPicker
-                items={[{ id: 'members', label: 'Tagok' }, { id: 'roles', label: 'Szerepek & jogosultságok' }]}
-                activeId={teamSubTab}
-                onSelect={(id) => setTeamSubTab(id as 'members' | 'roles')}
-                title="Csapat nézet"
-                icon={Users}
-              />
-              {canTeamManage && teamSubTab === 'members' && subnavSlot && createPortal(
-                <button
-                  type="button"
-                  onClick={() => setInviteOpen((v) => !v)}
-                  aria-label={inviteOpen ? 'Mégse' : 'Tag meghívása'}
-                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95 lg:hidden"
-                >
-                  {inviteOpen ? <X className="h-[19px] w-[19px]" strokeWidth={2.2} /> : <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />}
-                </button>,
-                subnavSlot,
-              )}
-              <div className="hidden lg:inline-flex rounded-[14px] border border-line bg-white p-1">
-                <button
-                  type="button"
-                  onClick={() => setTeamSubTab('members')}
-                  className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${teamSubTab === 'members' ? 'bg-ink-dark text-white' : 'text-ink-soft hover:bg-black/[0.04] hover:text-ink'}`}
-                >
-                  Tagok
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTeamSubTab('roles')}
-                  className={`rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors ${teamSubTab === 'roles' ? 'bg-ink-dark text-white' : 'text-ink-soft hover:bg-black/[0.04] hover:text-ink'}`}
-                >
-                  Szerepek & jogosultságok
-                </button>
+          {/* ── Csapat & jogok (design 16.2 Tagok / 16.3 Szerepek) — a tagok ugyanaz az adat, mint a Munkatársaknál; a
+              meghívás a közös InviteFlow ── */}
+          {active === 'team' && (() => {
+            const members = team.filter((m) => !m.pending)
+            const rows: MemberRow[] = members.map((m) => ({
+              id: m.id ?? 'owner', name: m.name, email: m.email, img: m.avatarUrl ?? null, role: m.role, owner: m.roleTone === 'owner' || !m.id,
+              staff: m.staffName ?? null, last: m.lastLogin ? relWhen(m.lastLogin) : 'még nem lépett be', status: m.suspended ? 'suspended' : 'active',
+            }))
+            const pending = team.filter((m) => m.pending && m.id).map((m) => ({ id: m.id!, email: m.email, meta: `${m.role} · ${m.invitedAt ? `${relWhen(m.invitedAt)} küldve` : 'meghívó elküldve'}` }))
+            const menuWrap = (open: boolean, close: () => void, trigger: React.ReactNode, menu: React.ReactNode) => (
+              <span className="relative inline-flex" onClick={(e) => e.stopPropagation()}>
+                {trigger}
+                {open && <><span className="fixed inset-0 z-40" onClick={close} aria-hidden /><Menu className="absolute right-0 top-full z-50 mt-1">{menu}</Menu></>}
+              </span>
+            )
+            const header = (tab: number) => (
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div><div className="text-ui-label text-ui-muted">Csapat</div><div className="text-ui-sub font-light text-ui-text">Csapat & jogok</div></div>
+                <Segmented options={['Tagok', 'Szerepek']} active={tab} onSelect={(i) => setTeamSubTab(i ? 'roles' : 'members')} tone="cell" />
               </div>
-
-              {teamSubTab === 'roles' ? rolesSection : (
+            )
+            if (teamSubTab === 'roles') return rolesData && activeBusinessId
+              ? <RolesManager variant={variant} businessId={activeBusinessId} initialRoles={rolesData.initial} myCapabilities={myCapabilities ?? ALL_CAPABILITIES} isOwner={rolesData.isOwner} header={header(1)}
+                  members={team.filter((m) => !m.pending).map((m) => ({ roleId: m.customRoleId ?? null, owner: m.roleTone === 'owner', name: m.name, img: m.avatarUrl ?? null }))} />
+              : <div className="rounded-ui-card bg-white p-6">{header(1)}<Meta className="mt-5">A szerepek megtekintéséhez nincs jogosultságod.</Meta></div>
+            return (
               <>
-              {canTeamManage && inviteOpen && (
-                <Card>
-                  <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Új tag meghívása</div>
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
-                    <input
-                      type="email"
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="email@pelda.hu"
-                      className="min-w-0 flex-1 rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25"
-                    />
-                    <select
-                      value={inviteRole}
-                      onChange={(e) => setInviteRole(e.target.value)}
-                      className="rounded-[14px] border border-line-strong bg-white px-4 py-3 text-[14px] font-medium text-ink outline-none transition-colors focus:border-gold/60 focus:ring-2 focus:ring-gold/25"
-                    >
-                      <option value="">Szerep nélkül (utólag beállítható)</option>
-                      {liveRoles.map((r) => (
-                        <option key={r.id} value={`c:${r.id}`}>{r.name}</option>
-                      ))}
-                    </select>
-                    <button
-                      type="button"
-                      onClick={sendInvite}
-                      disabled={inviteBusy || !inviteEmail.trim()}
-                      className="inline-flex items-center justify-center gap-2 rounded-[14px] bg-ink-dark px-5 py-3 text-[13px] font-semibold text-white transition-opacity disabled:opacity-40"
-                    >
-                      {inviteBusy && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Meghívó küldése
-                    </button>
-                  </div>
-                  {!inviteRole.startsWith('c:') && (
-                    <p className="mt-2 text-[12px] text-ink-soft2">
-                      Szerep nélkül a tag csak alap hozzáférést kap (belép, de üres a felülete) — ezt utólag is beállíthatod.
-                    </p>
-                  )}
-                </Card>
-              )}
-
-              {/* Tagok — referencia-táblázat: Tag · Szerep · Állapot. A szerep és az állapot
-                  kattintva a meglévő alulról felcsúszó sheeteket nyitja. */}
-              <DataTableCard
-                title={`Tagok · ${team.filter((m) => !m.pending).length}`}
-                search={team.length > 5 ? { value: teamQuery, onChange: setTeamQuery, placeholder: 'Tag keresése' } : undefined}
-                actions={canTeamManage ? (
-                  <button type="button" onClick={() => setInviteOpen((v) => !v)} className={`${tableActionCls} hidden lg:inline-flex`}>
-                    {inviteOpen ? <X className="h-4 w-4" strokeWidth={2} /> : <Plus className="h-4 w-4" strokeWidth={2} />}
-                    {inviteOpen ? 'Mégse' : 'Tag meghívása'}
-                  </button>
-                ) : undefined}
-              >
-                <DataTableHead cols="md:grid-cols-[1.8fr_1.2fr_150px]" labels={['Tag', 'Szerep', 'Állapot']} />
-                {team
-                  .filter((m) => {
-                    const q = teamQuery.trim().toLowerCase()
-                    return !q || `${m.name} ${m.email} ${m.role}`.toLowerCase().includes(q)
-                  })
-                  .map((m, i) => {
-                    const canEditRow = canTeamManage && !!m.id && m.roleTone !== 'owner'
-                    return (
-                      <div key={(m.id ?? m.email) + i} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 border-b border-line px-3 py-3 last:border-0 md:grid-cols-[1.8fr_1.2fr_150px] md:border-0">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <Avatar name={m.name} email={m.email} pending={m.pending} gold={m.roleTone === 'manager'} avatarUrl={m.avatarUrl} />
-                          <div className="min-w-0">
-                            <div className="truncate text-[13.5px] font-semibold text-ink">{m.pending ? m.email : m.name}</div>
-                            <div className="truncate text-[12px] text-ink-soft">{m.pending ? 'Meghívó elküldve' : m.email}{m.position ? ` · ${m.position}` : ''}</div>
-                          </div>
-                        </div>
-                        {/* Állapot — mobilon a sor jobb oldalán, desktopon a saját oszlopában */}
-                        <div className="justify-self-end md:order-3 md:justify-self-start">
-                          {m.pending ? (
-                            <StatusDot tone="warn">Meghívó függőben</StatusDot>
-                          ) : m.roleTone === 'owner' || !m.id ? (
-                            <StatusDot tone="ok">Aktív</StatusDot>
-                          ) : canTeamManage ? (
-                            <button type="button" disabled={rowBusy === m.id} onClick={() => setStatusMenuId(m.id!)} className="inline-flex items-center gap-1 rounded-[8px] px-1 py-0.5 hover:bg-black/[0.04] disabled:opacity-50">
-                              {rowBusy === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <StatusDot tone={m.suspended ? 'muted' : 'ok'}>{m.suspended ? 'Felfüggesztett' : 'Aktív'}</StatusDot>}
-                              <ChevronDown className="h-3.5 w-3.5 text-ink-soft2" strokeWidth={2} />
-                            </button>
-                          ) : (
-                            <StatusDot tone={m.suspended ? 'muted' : 'ok'}>{m.suspended ? 'Felfüggesztett' : 'Aktív'}</StatusDot>
-                          )}
-                        </div>
-                        <div className="col-span-2 min-w-0 md:order-2 md:col-span-1">
-                          {canEditRow ? (
-                            <button type="button" disabled={rowBusy === m.id} onClick={() => setRoleMenuId(m.id!)} className="inline-flex max-w-full items-center gap-1 rounded-[8px] px-1 py-0.5 text-[13.5px] text-ink hover:bg-black/[0.04] disabled:opacity-50">
-                              <span className="truncate">{m.customRoleId ? m.role : `${m.role} (beépített)`}</span>
-                              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink-soft2" strokeWidth={2} />
-                            </button>
-                          ) : (
-                            <span className="text-[13.5px] text-ink">{m.role}</span>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-              </DataTableCard>
-              <p className="px-1 text-xs text-ink-soft2">
-                A tulajdonos hozzáférése mindig megmarad. A meghívott tagok az e-mailben kapott linkkel csatlakoznak.
-              </p>
-
-              {/* Státusz- és szerep-váltó — egy-egy alulról felcsúszó sheet (mint a nyelv/
-                  al-navigáció választók), a body-ra portálozva: pozíciójuk FÜGGETLEN attól,
-                  hol van a sor a (görgetett, keskeny) listában — ez volt a korábbi, a sorban
-                  elhelyezett abszolút-pozicionált panel hibája (rossz helyre csúszott). */}
-              {isMounted && createPortal(
-                <AnimatePresence>
-                  {(() => {
-                    const sm = team.find((t) => t.id === statusMenuId)
-                    if (!sm) return null
-                    return (
-                      <div className="fixed inset-0 z-[160] font-onest">
-                        <motion.div
-                          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-                          className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm" onClick={() => setStatusMenuId(null)}
-                        />
-                        <motion.div
-                          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={sheetSpring.transition}
-                          data-lenis-prevent
-                          className="absolute inset-x-0 bottom-0 max-h-[78vh] overflow-y-auto rounded-t-[28px] bg-white pb-[max(1.5rem,env(safe-area-inset-bottom))]"
-                        >
-                          <div className="sticky top-0 z-10 bg-white px-4 pb-3 pt-3">
-                            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
-                            <div className="flex items-center justify-between">
-                              <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{sm.name} — Státusz</span>
-                              <button type="button" onClick={() => setStatusMenuId(null)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
-                                <X className="h-4 w-4" strokeWidth={2} />
-                              </button>
-                            </div>
-                          </div>
-                          <div className="px-3 pb-4">
-                            {(['active', 'suspended'] as const).map((s) => {
-                              const isCur = (s === 'suspended') === !!sm.suspended
-                              return (
-                                <button
-                                  key={s}
-                                  type="button"
-                                  onClick={() => setMemberStatus(sm.id!, s)}
-                                  className="flex h-12 w-full items-center gap-2.5 rounded-[14px] px-3.5 text-left text-[14px] font-medium text-ink transition-colors hover:bg-black/[0.04]"
-                                >
-                                  <span className="h-2.5 w-2.5 rounded-full" style={{ background: s === 'suspended' ? '#B7B2A4' : '#4F9E6A' }} />
-                                  {s === 'suspended' ? 'Felfüggesztett' : 'Aktív'}
-                                  {isCur && <Check className="ml-auto h-4 w-4 text-ink" strokeWidth={2} />}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </motion.div>
-                      </div>
-                    )
-                  })()}
-                </AnimatePresence>,
-                document.body,
-              )}
-              {isMounted && createPortal(
-                <AnimatePresence>
-                  {(() => {
-                    const rm = team.find((t) => t.id === roleMenuId)
-                    if (!rm) return null
-                    return (
-                      <div className="fixed inset-0 z-[160] font-onest">
-                        <motion.div
-                          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}
-                          className="absolute inset-0 bg-ink-dark/40 backdrop-blur-sm" onClick={() => setRoleMenuId(null)}
-                        />
-                        {/* `flex flex-col` + a lista saját `overflow-y-auto`-ja — sok egyedi
-                            szerepnél (elvileg korlátlan) a lista görgethető, de a fejléc (fogantyú
-                            + cím) és az "Eltávolítás" mindig fixen látható marad, nem úszik el
-                            egy hosszú listával együtt görgetve. */}
-                        <motion.div
-                          initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={sheetSpring.transition}
-                          className="absolute inset-x-0 bottom-0 flex max-h-[78vh] flex-col overflow-hidden rounded-t-[28px] bg-white"
-                        >
-                          <div className="shrink-0 bg-white px-4 pb-3 pt-3">
-                            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-line-strong" />
-                            <div className="flex items-center justify-between">
-                              <span className="text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-soft2">{rm.name} — Szerep</span>
-                              <button type="button" onClick={() => setRoleMenuId(null)} aria-label="Bezárás" className="hidden h-8 w-8 sm:flex items-center justify-center rounded-full bg-[#F4F2EC] text-ink-soft transition-opacity hover:opacity-70">
-                                <X className="h-4 w-4" strokeWidth={2} />
-                              </button>
-                            </div>
-                          </div>
-                          <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto px-3 pb-2">
-                            {liveRoles.map((r) => (
-                              <button
-                                key={r.id}
-                                type="button"
-                                onClick={() => { changeRole(rm.id!, `c:${r.id}`); setRoleMenuId(null) }}
-                                className="flex h-12 w-full items-center gap-2.5 rounded-[14px] px-3.5 text-left text-[14px] font-medium text-ink transition-colors hover:bg-black/[0.04]"
-                              >
-                                {r.name}
-                                {rm.customRoleId === r.id && <Check className="ml-auto h-4 w-4 text-ink" strokeWidth={2} />}
-                              </button>
-                            ))}
-                          </div>
-                          <div className="shrink-0 border-t border-line px-3 py-2 pb-[max(1rem,env(safe-area-inset-bottom))]">
-                            <button
-                              type="button"
-                              onClick={() => { setRoleMenuId(null); removeMember(rm.id!) }}
-                              className="flex h-12 w-full items-center gap-2.5 rounded-[14px] px-3.5 text-left text-[14px] font-semibold text-bad transition-colors hover:bg-bad-bg"
-                            >
-                              <Trash2 className="h-4 w-4" strokeWidth={1.8} />
-                              Eltávolítás
-                            </button>
-                          </div>
-                        </motion.div>
-                      </div>
-                    )
-                  })()}
-                </AnimatePresence>,
-                document.body,
-              )}
+                <TeamMembers rows={rows} pending={pending} tab={0} onTab={(i) => setTeamSubTab(i ? 'roles' : 'members')} onInvite={canTeamManage ? () => setInviteOpen(true) : undefined}
+                  selected={teamSel} onToggle={canTeamManage ? (id) => setTeamSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id])) : undefined}
+                  onToggleAll={canTeamManage ? () => { const ids = rows.filter((r) => !r.owner).map((r) => r.id); setTeamSel((s) => (ids.every((i) => s.includes(i)) ? [] : ids)) } : undefined}
+                  renderRole={(r) => r.owner ? <Pill tone="dark" size="sm">Tulajdonos</Pill> : !canTeamManage ? <Pill tone="white" size="sm">{r.role}</Pill> : menuWrap(teamMenu?.id === r.id && teamMenu.kind === 'role', () => setTeamMenu(null),
+                    <button type="button" disabled={rowBusy === r.id} onClick={() => setTeamMenu({ id: r.id, kind: 'role' })} className="ui-press rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20"><Pill tone="white" size="sm">{r.role}<ChevronDown className="h-3.5 w-3.5 text-ui-muted" /></Pill></button>,
+                    <>{liveRoles.map((x) => <MenuItem key={x.id} active={members.find((m) => m.id === r.id)?.customRoleId === x.id} onClick={() => { setTeamMenu(null); void changeRole(r.id, `c:${x.id}`) }}>{x.name}</MenuItem>)}{!liveRoles.length && <Meta className="px-3 py-2">Még nincs szerep — a Szerepek fülön hozod létre.</Meta>}</>)}
+                  renderActions={(r) => r.owner || !canTeamManage ? null : menuWrap(teamMenu?.id === r.id && teamMenu.kind === 'more', () => setTeamMenu(null),
+                    <IconButton icon={MoreHorizontal} size="sm" variant="ghost" label="Műveletek" onClick={() => setTeamMenu({ id: r.id, kind: 'more' })} />,
+                    <>
+                      <MenuItem onClick={() => void setMemberStatus(r.id, r.status === 'suspended' ? 'active' : 'suspended')}>{r.status === 'suspended' ? 'Aktiválás' : 'Felfüggesztés'}</MenuItem>
+                      <MenuItem icon={Trash2} danger onClick={() => { setTeamMenu(null); setTeamConfirm({ ids: [r.id], title: `${r.name} eltávolítása`, label: 'Eltávolítás' }) }}>Eltávolítás</MenuItem>
+                    </>)}
+                  onResend={canTeamManage ? (id) => void resendInvite(id) : undefined}
+                  onRevoke={canTeamManage ? (id) => setTeamConfirm({ ids: [id], title: 'Meghívó visszavonása', label: 'Visszavonás' }) : undefined}
+                  bulk={canTeamManage && teamSel.length > 0 ? (
+                    <BulkDock><StaffBulkBar count={teamSel.length} onClear={() => setTeamSel([])} actions={[
+                      { label: 'Felfüggesztés', onClick: () => { void Promise.all(teamSel.map((id) => setMemberStatus(id, 'suspended'))).then(() => setTeamSel([])) } },
+                      { label: 'Eltávolítás', danger: true, onClick: () => setTeamConfirm({ ids: teamSel, title: `${teamSel.length} tag eltávolítása`, label: 'Eltávolítás' }) },
+                    ]} /></BulkDock>
+                  ) : undefined} />
+                <InviteFlow open={inviteOpen} onClose={() => setInviteOpen(false)} restaurant={variant === 'restaurant'} businessId={activeBusinessId ?? ''}
+                  roles={liveRoles.map((x) => ({ id: x.id, label: x.name, desc: x.desc ?? '' }))} freeStaff={inviteSetup?.freeStaff} bookable={inviteSetup?.bookable} extraFee={inviteSetup?.extraFee} />
+                <ConfirmDialog open={!!teamConfirm} title={teamConfirm?.title ?? ''} description="A tag elveszíti a hozzáférését; a munkatárs-profilja és a foglalásai megmaradnak." confirmLabel={teamConfirm?.label ?? 'Eltávolítás'}
+                  onConfirm={() => teamConfirm && void removeMembers(teamConfirm.ids)} onCancel={() => setTeamConfirm(null)} zIndexClass="z-[100]" />
               </>
-              )}
-            </div>
-          )}
+            )
+          })()}
 
           {/* ── Saját profil ── a bejelentkezett user (bárki: tulaj/vezető/alkalmazott) szerkeszti
-              a saját nevét/avatarját/jelszavát. A panel-tartalom a settings page-ről jön (ProfileEditor),
+              a saját nevét/avatarját/jelszavát. A panel-tartalom a settings page-ről jön (SelfProfileView, a hub rendereli),
               hogy a user-adat ott, szerver-oldalon oldódjon fel. */}
-          {active === 'self' && (
-            <div className="w-full">
-              {selfProfile ?? <p className="text-sm text-ink-soft">A profil szerkesztő nem érhető el.</p>}
-            </div>
-          )}
+          {active === 'self' && (selfProfile
+            ? <SelfProfileView data={selfProfile} onDirtyChange={selfPanel.onDirtyChange} registerApi={selfPanel.registerApi} />
+            : <Meta>A profil szerkesztő nem érhető el.</Meta>)}
 
           {/* ── API & Integrációk — MINDEN kulcs/API/webhook-jellegű beállítás egy helyen
               (user-döntés: ne szedjük szét irány szerint, ez egyszerűbb, mint a szolgáltatás-
@@ -1685,6 +1335,7 @@ export function SettingsHub({
             <div className="space-y-4">
               <IntegrationsPanel
                 variant={variant}
+                businessId={activeBusinessId}
                 bookingUrl={bookingUrl}
                 icalUrl={icalUrl}
                 embedUrl={embedUrl}
@@ -1696,13 +1347,17 @@ export function SettingsHub({
                 initialFeatureModules={featureModules}
                 onDirtyChange={integPanel.onDirtyChange}
                 registerApi={integPanel.registerApi}
+                qr={<BusinessQrLauncher variant="card" url={bookingUrl} businessName={bookingPageEditor?.name ?? businessName} restaurant={variant === 'restaurant'} logoUrl={bookingPageEditor?.logoUrl ?? null} hours={bookingPageEditor?.hours ?? (hoursVM ? hoursRows(hoursVM.days) : [])} socialLinks={bookingPageEditor?.socialLinks ?? []} />}
               />
             </div>
           )}
 
-          {active === 'google' && (
+          {(active === 'google' || active === 'reviews') && (
             <GoogleSettingsPanel
+              key={active}
+              part={active === 'reviews' ? 'reviews' : 'profile'}
               variant={variant}
+              businessId={activeBusinessId}
               apiBase={apiBase}
               bookingUrl={bookingUrl}
               businessName={businessName}
@@ -1713,423 +1368,140 @@ export function SettingsHub({
             />
           )}
 
-          {active === 'billing' && (
-            <div className="space-y-5">
-
-              {/* 1. ── Csomag-kártyák */}
-              <PricingCards
-                kind={variant}
-                pricing={pricing}
-                annualDiscountPct={billingAccount.annualDiscountPct}
-                currentCycle={billing.billingCycle}
-                activeBusiness={activeBizForPricing}
-                isTrial={billing.subscriptionStatus === 'trialing'}
-                needsCheckout={billing.subscriptionStatus !== 'trialing' && billing.subscriptionStatus !== 'active'}
-                onCycleChange={setSelectedCycle}
-              />
-
-              {/* 2. ── Számlázási adatok (szerkeszthető) */}
-              <Card>
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Számlázási adatok</div>
-                    <p className="mt-0.5 text-[12.5px] text-ink-soft2">
-                      Ezek az adatok kerülnek a Számlázz.hu által kiállított számlákon.
-                    </p>
-                  </div>
-                  {billDirty && (
-                    <button
-                      type="button"
-                      disabled={billSaving}
-                      onClick={saveBillDetails}
-                      className="inline-flex shrink-0 items-center gap-2 rounded-dav-pill bg-ink-dark px-4 py-2 text-[13px] font-semibold text-white transition-opacity disabled:opacity-60"
-                    >
-                      {billSaving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                      Mentés
-                    </button>
-                  )}
-                </div>
-                {/* Sor-elrendezés (mint a többi beállítás): balra címke + magyarázat, jobbra a mező. */}
-                <div id="bill-details-form" className="mt-3">
-                  <BillRow label="Cégnév / teljes név" required hint="Ez a név szerepel a számlán.">
-                    <input
-                      type="text"
-                      value={billDetails.legalName}
-                      onChange={(e) => setBillField('legalName', e.target.value)}
-                      onBlur={() => touchBillField('legalName')}
-                      placeholder="Pl. Minta Bt."
-                      aria-required
-                      aria-invalid={!!billError('legalName')}
-                      className={`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('legalName') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
-                    />
-                    {billError('legalName') && <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('legalName')}</p>}
-                  </BillRow>
-                  <BillRow label="Adószám" hint="Egyéni vállalkozónál és cégnél kell.">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={billDetails.taxNumber}
-                      onChange={(e) => setBillField('taxNumber', maskTaxNumber(e.target.value))}
-                      placeholder="12345678-1-23"
-                      maxLength={13}
-                      className="h-[42px] w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20 tabular-nums"
-                    />
-                  </BillRow>
-                  <BillRow label="Cégjegyzékszám" hint="Csak cégnél.">
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={billDetails.companyRegNumber}
-                      onChange={(e) => setBillField('companyRegNumber', maskCompanyReg(e.target.value))}
-                      placeholder="01-09-123456"
-                      maxLength={12}
-                      className="h-[42px] w-full rounded-[12px] border border-line-strong bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:border-gold/60 focus:ring-2 focus:ring-gold/20 tabular-nums"
-                    />
-                  </BillRow>
-                  <BillRow label="Számlázási e-mail" required hint="Ide érkeznek a számlák.">
-                    <input
-                      type="email"
-                      value={billDetails.billingEmail}
-                      onChange={(e) => setBillField('billingEmail', e.target.value)}
-                      onBlur={() => touchBillField('billingEmail')}
-                      placeholder="szamlazas@ceg.hu"
-                      aria-required
-                      aria-invalid={!!billError('billingEmail')}
-                      className={`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingEmail') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
-                    />
-                    {billError('billingEmail') && <p className="mt-1 text-[11.5px] font-medium text-bad">{billError('billingEmail')}</p>}
-                  </BillRow>
-                  <BillRow label="Számlázási cím" required hint="Keress rá, vagy írd be kézzel." last>
-                    <AddressAutocompleteInput
-                      onSelect={(a) => {
-                        if (a.postalCode) { setBillField('billingPostalCode', a.postalCode); touchBillField('billingPostalCode') }
-                        if (a.city) { setBillField('billingCity', a.city); touchBillField('billingCity') }
-                        if (a.street) { setBillField('billingStreet', a.street); touchBillField('billingStreet') }
-                      }}
-                    />
-                    <div className="mt-2 grid grid-cols-[88px_1fr] gap-2 sm:grid-cols-[88px_1fr_1.6fr]">
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        value={billDetails.billingPostalCode}
-                        onChange={(e) => setBillField('billingPostalCode', e.target.value.replace(/\D/g, '').slice(0, 4))}
-                        onBlur={() => touchBillField('billingPostalCode')}
-                        placeholder="Irsz."
-                        maxLength={4}
-                        aria-label="Irányítószám"
-                        aria-required
-                        aria-invalid={!!billError('billingPostalCode')}
-                        className={`${`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingPostalCode') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`} tabular-nums`}
-                      />
-                      <input
-                        type="text"
-                        value={billDetails.billingCity}
-                        onChange={(e) => setBillField('billingCity', e.target.value)}
-                        onBlur={() => touchBillField('billingCity')}
-                        placeholder="Település"
-                        aria-label="Település"
-                        aria-required
-                        aria-invalid={!!billError('billingCity')}
-                        className={`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingCity') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}
-                      />
-                      <input
-                        type="text"
-                        value={billDetails.billingStreet}
-                        onChange={(e) => setBillField('billingStreet', e.target.value)}
-                        onBlur={() => touchBillField('billingStreet')}
-                        placeholder="Utca, házszám"
-                        aria-label="Utca, házszám"
-                        aria-required
-                        aria-invalid={!!billError('billingStreet')}
-                        className={`col-span-2 sm:col-span-1 ${`h-[42px] w-full rounded-[12px] border bg-white px-3.5 text-[14px] text-ink outline-none transition-colors placeholder:text-ink-soft2/50 focus:ring-2 focus:ring-gold/20 ${billError('billingStreet') ? 'border-bad/60 focus:border-bad/60' : 'border-line-strong focus:border-gold/60'}`}`}
-                      />
-                    </div>
-                    {(billError('billingPostalCode') || billError('billingCity') || billError('billingStreet')) && (
-                      <p className="mt-1 text-[11.5px] font-medium text-bad">A teljes cím kötelező (irányítószám, település, utca).</p>
-                    )}
-                  </BillRow>
-                </div>
-              </Card>
-
-              {/* 3. ── Fizetés & előfizetés */}
-              <Card>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Fizetés & előfizetés</div>
-                  <StatusBadge status={billing.subscriptionStatus} />
-                </div>
-
-                {billing.subscriptionStatus === 'past_due' && (
-                  <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-bad/30 bg-bad-bg px-4 py-3.5">
-                    <CreditCard className="mt-0.5 h-4 w-4 shrink-0 text-bad" strokeWidth={1.8} />
-                    <p className="text-[13px] text-bad">
-                      A fizetés nem sikerült. Kérjük frissítsd a bankkártyád, hogy az előfizetés aktív maradjon.
-                    </p>
-                  </div>
-                )}
-                {billing.subscriptionStatus === 'canceled' && (
-                  <div className="mt-4 flex items-start gap-3 rounded-[16px] border border-bad/30 bg-bad-bg px-4 py-3.5">
-                    <X className="mt-0.5 h-4 w-4 shrink-0 text-bad" strokeWidth={1.8} />
-                    <p className="text-[13px] text-bad">
-                      Az előfizetés le van mondva. Új előfizetés indításával az összes Pro funkció ismét elérhető.
-                    </p>
-                  </div>
-                )}
-
-                <div className="mt-4 flex items-center justify-between border-y border-line py-3.5">
-                  <div>
-                    <div className="text-[12px] text-ink-soft">
-                      {billing.subscriptionStatus === 'trialing' ? 'Próbaidőszak vége' : 'Következő terhelés'}
-                    </div>
-                    <div className="mt-0.5 text-[14px] font-semibold text-ink">{billing.nextChargeDate ?? '—'}</div>
-                  </div>
-                  {billing.subscriptionStatus === 'active' && (
-                    <div className="text-right">
-                      <div className="text-[11.5px] text-ink-soft">
-                        {billing.billingCycle === 'annual' ? 'Éves számlázás' : 'Havi számlázás'}
-                      </div>
-                      <div className="text-[24px] font-light tracking-[-0.02em] text-ink">
-                        {billing.nextChargeAmount}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                  {(billing.subscriptionStatus === 'trialing' ||
-                    billing.subscriptionStatus === 'past_due' ||
-                    billing.subscriptionStatus === 'canceled') && (
-                    <StripeCheckoutButton
-                      cycle={selectedCycle}
-                      billFieldsComplete={billFieldsComplete}
-                      billDirty={billDirty}
-                      onMarkBillTouched={markAllBillTouched}
-                    />
-                  )}
-                  {billing.subscriptionStatus === 'active' && billing.hasStripeCustomer && (
-                    <BillingPortalButton variant="button" label="Fizetési mód kezelése" />
-                  )}
-                  {billing.subscriptionStatus === 'active' && (
-                    <CancelSubscriptionButton
-                      cancelScheduled={billing.cancelAtPeriodEnd}
-                      periodEndLabel={billing.nextChargeDate ?? '—'}
-                    />
-                  )}
-                </div>
-
-                {billing.cancelAtPeriodEnd && billing.nextChargeDate && (
-                  <p className="mt-3 text-[12px] text-ink-soft2">
-                    Lemondva — {billing.nextChargeDate}-ig minden Pro funkció elérhető.
-                  </p>
-                )}
-              </Card>
-
-              {/* 4. ── Üzletek & díjak — referencia-táblázat, alul az összesítő sor */}
-              <DataTableCard title="Üzletek & díjak">
-                <DataTableHead cols="md:grid-cols-[1.6fr_1fr_1fr_120px]" labels={['Üzlet', 'Típus', 'Csomag', <span key="d" className="block text-right">Díj / hó</span>]} />
-                {billingAccount.items.length > 0 ? billingAccount.items.map((item) => (
-                  <div key={item.id} className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-3 text-[13.5px] last:border-0 md:grid-cols-[1.6fr_1fr_1fr_120px] md:border-0">
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-ink">{item.name}</span>
-                      {/* mobilon a típus + csomag a név alatt */}
-                      <span className="block truncate text-[12px] text-ink-soft md:hidden">
-                        {item.type === 'salon' ? 'Szalon' : 'Étterem'} · {item.tier === 'starter' ? 'Starter' : item.tier === 'egyedi' ? 'Egyedi' : 'Pro'}
-                      </span>
-                    </span>
-                    <span className="hidden text-ink md:block">
-                      {item.type === 'salon' ? 'Szalon' : 'Étterem'}
-                      {item.type === 'salon' && item.staffCount > 0 && <span className="text-ink-soft"> · {item.staffCount} naptár</span>}
-                    </span>
-                    <span className="hidden text-ink md:block">{item.tier === 'starter' ? 'Starter' : item.tier === 'egyedi' ? 'Egyedi' : 'Pro'}</span>
-                    <span className="text-right font-semibold tabular-nums text-ink">{ft(item.feeHuf)}</span>
-                  </div>
-                )) : (
-                  <p className="py-8 text-center text-[13px] text-ink-soft">Nincs aktív üzlet a fiókban.</p>
-                )}
-                {billingAccount.items.length > 0 && (
-                  <div className="mt-2 flex items-center justify-between gap-3 rounded-[10px] bg-[#EFEFEF] px-3 py-3">
-                    <div className="min-w-0">
-                      <div className="text-[13px] font-semibold text-ink">
-                        {billingAccount.cycle === 'annual'
-                          ? `Összesen · éves ciklus, ${billingAccount.annualDiscountPct}% kedvezménnyel`
-                          : 'Összesen · havi ciklus'}
-                      </div>
-                      {billingAccount.cycle === 'annual' && (
-                        <div className="mt-0.5 text-[12px] text-ink-soft">Lista összeg: {ft(billingAccount.listMonthlyHuf)}/hó</div>
+          {/* ── Előfizetés (design 16.5) — a fizetési mód a Stripe-tól élőben (nálunk nincs kártya-adat), a csomagváltás,
+              a fizetés indítása, az ügyfélportál és a lemondás a meglévő végpontokon ── */}
+          {active === 'billing' && (() => {
+            const st = billing.subscriptionStatus
+            const biz = activeBizForPricing
+            const kindB = variant
+            const staffN = biz?.staffCount ?? 0
+            const curTier = biz?.tier ?? 'pro'
+            const price = (t: 'starter' | 'pro') => applyCycle(businessMonthlyFee(pricing, kindB, staffN, t), selectedCycle, billingAccount.annualDiscountPct)
+            const cap = (t: 'starter' | 'pro') => `${monthlyEmailCapForTier(pricing, t).toLocaleString('hu-HU')} hírlevél / hó`
+            const trialLeft = st === 'trialing' && billing.trialEndsAt ? Math.max(0, Math.ceil((new Date(billing.trialEndsAt).getTime() - Date.now()) / 86_400_000)) : null
+            const needsCheckout = st !== 'trialing' && st !== 'active'
+            const planBtn = (t: 'starter' | 'pro') => (curTier === t ? (st === 'trialing' ? 'Jelenlegi (próba)' : 'Jelenlegi') : needsCheckout ? 'Kiválasztom' : 'Váltás')
+            const pill = st === 'trialing' ? `Próbaidő · ${trialLeft === 0 ? 'ma jár le' : `még ${trialLeft} nap`}` : st === 'past_due' ? 'Sikertelen fizetés' : st === 'canceled' ? 'Lemondva' : billing.cancelAtPeriodEnd ? 'Lemondás folyamatban' : st === 'paused' ? 'Szünetel' : null
+            const line = st === 'trialing' ? `Próbaidő vége: ${billing.nextChargeDate ?? '—'} — utána ${billing.nextChargeAmount} / hó, bármikor lemondható.`
+              : st === 'active' ? (billing.cancelAtPeriodEnd ? `Lemondva — ${billing.nextChargeDate ?? '—'}-ig minden funkció elérhető.` : `Következő terhelés: ${billing.nextChargeDate ?? '—'} · ${billing.nextChargeAmount}${billingAccount.count > 1 ? ` · ${billingAccount.count} üzlet a fiókban` : ''}`)
+              : st === 'past_due' ? 'A legutóbbi fizetés nem sikerült — frissítsd a kártyád, hogy az előfizetés aktív maradjon.'
+              : 'Az előfizetés nem aktív — indítsd újra, és minden funkció ismét elérhető.'
+            const card = billing.hasStripeCustomer ? stripeCard ?? null : null
+            const u = billing.usage
+            const month = new Date().toLocaleDateString('hu-HU', { month: 'long' })
+            return (
+              <>
+                <SubscriptionPage showPause={false}
+                  notice={st === 'trialing' && (!billFieldsComplete || !card) ? (
+                    <TrialChecklist daysLeft={trialLeft ?? 0} endLabel={billing.nextChargeDate ?? 'a próbaidő vége'} steps={[
+                      { key: 'plan', label: 'Csomag', hint: `${curTier === 'starter' ? 'Starter' : curTier === 'egyedi' ? 'Egyedi' : 'Pro'} · ${billing.nextChargeAmount} / hó`, done: true },
+                      { key: 'billing', label: 'Számlázási adatok', hint: 'név, adószám, cím — ez kerül a számlára', done: billFieldsComplete, action: { label: 'Megadom', onClick: () => setBillOpen(true) } },
+                      { key: 'card', label: 'Fizetési mód', hint: 'kártya a Stripe-nál — csak a próbaidő után terhelünk', done: !!card, action: { label: 'Kártya', onClick: () => void startCheckout() } },
+                    ]} />
+                  ) : undefined}
+                  plan={curTier === 'starter' ? 'Starter' : curTier === 'egyedi' ? 'Egyedi' : 'Pro'} statusPill={pill} statusLine={line}
+                  primary={card && !needsCheckout ? { label: 'Fizetés kezelése', onClick: () => void openPortal(), busy: subBusy === 'portal' } : { label: st === 'trialing' ? 'Fizetési mód megadása' : 'Előfizetés indítása', onClick: () => void startCheckout(), busy: subBusy === 'checkout' }}
+                  cardLine={card ? `${card.brand} •••• ${card.last4}` : 'Nincs mentett kártya'}
+                  usageTitle={`Felhasználás · ${month.charAt(0).toUpperCase()}${month.slice(1)}`}
+                  usage={[
+                    ...(u ? [{ label: 'Hírlevél-keret', value: u.emailsUsed, max: Math.max(1, u.emailCap), unit: ' e-mail' }] : []),
+                    ...(u?.staff != null ? [{ label: 'Munkatársak', value: u.staff, max: Math.max(u.staff, u.staffIncluded ?? 1), unit: ' fő', yellow: true }] : []),
+                  ]}
+                  usageNote={u?.staff != null && u.staffIncluded != null && u.staff > u.staffIncluded ? `${u.staffIncluded} foglalható munkatárs az árban, a többi +${pricing.salon_extra_staff_huf.toLocaleString('hu-HU')} Ft / fő / hó.` : 'Keret felett nem megy ki hírlevél — ilyenkor jelzünk, és a következő hónapban újraindul.'}
+                  card={card} cardHint={st === 'trialing' ? 'A próbaidő végéig ráérsz megadni.' : 'A kártyát a Stripe biztonságos oldalán adod meg.'}
+                  onCard={() => void (billing.hasStripeCustomer ? openPortal() : startCheckout())}
+                  billingRows={[['Számlázási név', billDetails.legalName], ['Adószám', billDetails.taxNumber], ['Számlázási e-mail', billDetails.billingEmail]]}
+                  onEditBilling={() => setBillOpen(true)}
+                  showCycle={ANNUAL_BILLING_UI_ENABLED} cycle={selectedCycle === 'annual' ? 1 : 0} onCycle={(i) => setSelectedCycle(i ? 'annual' : 'monthly')} annualPct={billingAccount.annualDiscountPct}
+                  plans={[
+                    { key: 'starter', name: 'Starter', badge: 'Belépő', price: price('starter').toLocaleString('hu-HU'), perMonth: true, cap: cap('starter'), extra: kindB === 'salon' ? 'Minden funkció' : 'Minden funkció, fix havidíj', current: curTier === 'starter', btn: planBtn('starter'), onClick: curTier === 'starter' ? undefined : () => void selectTier('starter'), busy: subBusy === 'starter' },
+                    { key: 'pro', name: 'Pro', badge: 'Népszerű', price: price('pro').toLocaleString('hu-HU'), perMonth: true, cap: cap('pro'), extra: kindB === 'salon' ? `+ ${applyCycle(pricing.salon_extra_staff_huf, selectedCycle, billingAccount.annualDiscountPct).toLocaleString('hu-HU')} Ft / további munkatárs` : 'Minden funkció, fix havidíj', current: curTier !== 'starter' && curTier !== 'egyedi', btn: planBtn('pro'), onClick: curTier === 'pro' ? undefined : () => void selectTier('pro'), busy: subBusy === 'pro' },
+                    { key: 'egyedi', name: 'Egyedi', badge: 'Vállalati', price: 'Egyedi', cap: 'Korlátlan hírlevél', extra: 'Több telephely, veled egyeztetve', current: curTier === 'egyedi', btn: curTier === 'egyedi' ? 'Jelenlegi' : 'Kapcsolat', onClick: curTier === 'egyedi' ? undefined : () => { window.location.href = `mailto:hello@davelopment.hu?subject=${encodeURIComponent(`Egyedi ${kindB === 'salon' ? 'szalon' : 'étterem'} csomag`)}` } },
+                  ]}
+                  invoices={billing.invoices.map((inv) => ({ key: inv.id, period: inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' }) : '—', plan: `${inv.invoice_number}${inv.test ? ' · teszt' : ''}`, amount: inv.amount_huf ? `${inv.amount_huf.toLocaleString('hu-HU')} Ft` : '—', status: 'Fizetve', url: `/api/billing/invoice-pdf?id=${inv.id}` }))}
+                  cancel={st === 'active' ? (billing.cancelAtPeriodEnd
+                    ? { label: 'Lemondás visszavonása', onClick: () => void cancelSub(true), busy: subBusy === 'cancel', note: `Lemondva — ${billing.nextChargeDate ?? '—'}-ig minden funkció elérhető, utána nem terhelünk.` }
+                    : { label: 'Lemondás', onClick: () => setCancelOpen(true), note: 'Az adataid megmaradnak; a lemondás a fizetett időszak végén lép életbe.' }) : null}
+                />
+                <ConfirmDialog open={cancelOpen} title="Előfizetés lemondása" description={`A fizetett időszak végéig (${billing.nextChargeDate ?? '—'}) minden funkció elérhető marad, utána nem terhelünk. Bármikor visszavonhatod.`} confirmLabel="Lemondás" busy={subBusy === 'cancel'}
+                  onConfirm={() => void cancelSub(false)} onCancel={() => setCancelOpen(false)} zIndexClass="z-[100]" />
+                {/* számlázási adatok (a számlán ez szerepel; a fizetés előtt kötelező) */}
+                <PopupModal open={billOpen} onClose={() => setBillOpen(false)} panel={
+                  <Modal title="Számlázási adatok" subtitle="Ezek kerülnek a davelopment számláira." onClose={() => setBillOpen(false)}
+                    footer={<><KitButton variant="cell" onClick={() => setBillOpen(false)}>Mégse</KitButton><KitButton loading={billSaving} disabled={!billDirty} onClick={async () => { await saveBillDetails(); setBillOpen(false) }}>Mentés</KitButton></>}>
+                    <div id="bill-details-form" className="space-y-3">
+                      {/* ki fizet (design 16.5.1) — ettől függ, mi kell: magánszemélynél nincs adószám, cégjegyzékszám csak cégnél */}
+                      <Segmented full size="sm" tone="cell" options={['Magánszemély', 'Egyéni vállalkozó', 'Cég']} active={payerKind === 'person' ? 0 : payerKind === 'sole' ? 1 : 2}
+                        onSelect={(i) => { const k = (['person', 'sole', 'company'] as const)[i]; setPayerKind(k); if (k === 'person') { setBillField('taxNumber', ''); setBillField('companyRegNumber', '') } else if (k === 'sole') setBillField('companyRegNumber', '') }} />
+                      <Field label="Cégnév / teljes név" hint={billError('legalName') ?? 'Ez a név szerepel a számlán.'}><Input value={billDetails.legalName} onChange={(e) => setBillField('legalName', e.target.value)} onBlur={() => touchBillField('legalName')} placeholder="Pl. Minta Bt." aria-invalid={!!billError('legalName')} /></Field>
+                      {payerKind !== 'person' && (
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <Field label="Adószám" hint={vatFromTaxNumber(billDetails.taxNumber)?.label ?? 'a 9. jegye mutatja az adózást'}><Input inputMode="numeric" value={billDetails.taxNumber} onChange={(e) => setBillField('taxNumber', maskTaxNumber(e.target.value))} placeholder="12345678-1-23" maxLength={13} /></Field>
+                          {payerKind === 'company' && <Field label="Cégjegyzékszám"><Input inputMode="numeric" value={billDetails.companyRegNumber} onChange={(e) => setBillField('companyRegNumber', maskCompanyReg(e.target.value))} placeholder="01-09-123456" maxLength={12} /></Field>}
+                        </div>
                       )}
+                      <Field label="Számlázási e-mail" hint={billError('billingEmail') ?? 'Ide érkeznek a számlák.'}><Input type="email" value={billDetails.billingEmail} onChange={(e) => setBillField('billingEmail', e.target.value)} onBlur={() => touchBillField('billingEmail')} placeholder="szamlazas@ceg.hu" aria-invalid={!!billError('billingEmail')} /></Field>
+                      <Field label="Számlázási cím" hint={billError('billingPostalCode') || billError('billingCity') || billError('billingStreet') ? 'A teljes cím kötelező (irányítószám, település, utca).' : 'Keress rá, vagy írd be kézzel.'}>
+                        <AddressAutocompleteInput onSelect={(ad) => {
+                          if (ad.postalCode) { setBillField('billingPostalCode', ad.postalCode); touchBillField('billingPostalCode') }
+                          if (ad.city) { setBillField('billingCity', ad.city); touchBillField('billingCity') }
+                          if (ad.street) { setBillField('billingStreet', ad.street); touchBillField('billingStreet') }
+                        }} />
+                        <div className="mt-2 grid grid-cols-[88px_1fr] gap-2 sm:grid-cols-[88px_1fr_1.6fr]">
+                          <Input inputMode="numeric" value={billDetails.billingPostalCode} onChange={(e) => setBillField('billingPostalCode', e.target.value.replace(/\D/g, '').slice(0, 4))} onBlur={() => touchBillField('billingPostalCode')} placeholder="Irsz." maxLength={4} aria-label="Irányítószám" />
+                          <Input value={billDetails.billingCity} onChange={(e) => setBillField('billingCity', e.target.value)} onBlur={() => touchBillField('billingCity')} placeholder="Település" aria-label="Település" />
+                          <Input value={billDetails.billingStreet} onChange={(e) => setBillField('billingStreet', e.target.value)} onBlur={() => touchBillField('billingStreet')} placeholder="Utca, házszám" aria-label="Utca, házszám" className="col-span-2 sm:col-span-1" />
+                        </div>
+                      </Field>
                     </div>
-                    <div className="shrink-0 text-right text-[18px] font-semibold tabular-nums text-ink">{ft(billingAccount.totalMonthlyHuf)}<span className="ml-1 text-[12px] font-medium text-ink-soft">/hó</span></div>
-                  </div>
-                )}
-                {startedAt && (
-                  <p className="mt-3 px-1 text-[12px] text-ink-soft2">
-                    Fiók indulása: {fmtDate(startedAt)} · {billingAccount.count} üzlet a fiókban
-                  </p>
-                )}
-              </DataTableCard>
-
-              {/* A davelopment számlái NEKED (előfizetés) — a korábbi külön „Számlák” fül ide olvadt be */}
-              <DataTableCard title="A davelopment számlái">
-                <p className="-mt-2 mb-3 text-[12.5px] text-ink-soft">Az előfizetésedről neked kiállított számlák.</p>
-                <DataTableHead cols="md:grid-cols-[1.4fr_1fr_1fr_120px]" labels={['Számlaszám', 'Dátum', 'Összeg', '']} />
-                {billing.invoices.length > 0 ? billing.invoices.map((inv) => (
-                  <div key={inv.id} className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-3 text-[13.5px] last:border-0 md:grid-cols-[1.4fr_1fr_1fr_120px] md:border-0">
-                    <span className="flex min-w-0 items-center gap-2 font-semibold text-ink">
-                      <span className="truncate">{inv.invoice_number}</span>
-                      {inv.test && <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-700">Teszt</span>}
-                    </span>
-                    <span className="hidden text-ink md:block">{inv.issued_at ? new Date(inv.issued_at).toLocaleDateString('hu-HU', { year: 'numeric', month: 'short', day: 'numeric' }) : '—'}</span>
-                    <span className="hidden text-ink md:block">{inv.amount_huf ? `${inv.amount_huf.toLocaleString('hu-HU')} Ft` : '—'}</span>
-                    <a href={`/api/billing/invoice-pdf?id=${inv.id}`} download={`${inv.invoice_number}.pdf`} className={`${tableActionCls} justify-center`}>
-                      <Download className="h-3.5 w-3.5" strokeWidth={1.8} /> Letöltés
-                    </a>
-                  </div>
-                )) : (
-                  <p className="py-8 text-center text-[13px] text-ink-soft">
-                    {billing.subscriptionStatus === 'trialing' ? 'Próbaidőszak alatt nincs kiállított számla.' : 'Még nincs kiállított számla — az első az előfizetés indítása után érkezik.'}
-                  </p>
-                )}
-              </DataTableCard>
-            </div>
-          )}
-
+                  </Modal>
+                } />
+              </>
+            )
+          })()}
 
           {/* ── Audit-napló ── VALÓS bejegyzések az AuditLog collectionből (üzletre szűrve). */}
-          {active === 'audit' && (
-            <div className="space-y-4">
-              {/* Audit-napló — referencia-táblázat: Időpont · Ki · Esemény (+ a mezőnkénti változás) */}
-              <DataTableCard
-                title={`Napló · ${filteredAudit.length}`}
-                search={{ value: auditQuery, onChange: setAuditQuery, placeholder: 'Keresés esemény vagy név szerint' }}
-                actions={
-                  <>
-                    <select value={auditFilter} onChange={(e) => setAuditFilter(e.target.value as typeof auditFilter)} className={`${tableActionCls} pr-8`} aria-label="Esemény típusa">
-                      {AUDIT_FILTERS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
-                    </select>
-                    {/* Dátum-ablak (visszatekintés). A szerver 90 napig ad adatot; itt szűkíthető. */}
-                    <select value={auditDays} onChange={(e) => setAuditDays(Number(e.target.value) as typeof auditDays)} className={`${tableActionCls} pr-8`} aria-label="Időszak">
-                      {AUDIT_DAY_WINDOWS.map((d) => <option key={d} value={d}>Utolsó {d} nap</option>)}
-                    </select>
-                  </>
-                }
-              >
-                <DataTableHead cols="md:grid-cols-[130px_1.1fr_2fr]" labels={['Időpont', 'Ki', 'Esemény']} />
-                {filteredAudit.length === 0 ? (
-                  <p className="py-10 text-center text-[13px] text-ink-soft">Nincs naplózott esemény ebben az időszakban.</p>
-                ) : visibleAudit.map((e) => {
-                  // Csak az érdemi változások (az üres → üres, pl. null → '' zaj kiesik).
-                  const changes = (e.changes ?? []).filter((c) => auditFormatVal(c.from) !== auditFormatVal(c.to))
-                  const tone: StatusTone = e.action === 'create' ? 'ok' : e.action === 'delete' ? 'bad' : 'warn'
-                  return (
-                    <div key={e.id} className="grid grid-cols-1 gap-1 border-b border-line px-3 py-3 last:border-0 md:grid-cols-[130px_1.1fr_2fr] md:gap-3 md:border-0">
-                      <span className="text-[12.5px] text-ink-soft md:text-[13px] md:text-ink">{relativeTime(e.createdAt)}</span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-[13.5px] font-semibold text-ink">{e.actor}</span>
-                        {e.actorEmail && e.actorEmail !== e.actor && <span className="block truncate text-[12px] text-ink-soft">{e.actorEmail}</span>}
-                      </span>
-                      <span className="min-w-0">
-                        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <StatusDot tone={tone}>{AUDIT_ACTION_LABEL[e.action]}</StatusDot>
-                          <span className="text-[13.5px] text-ink">{e.summary}</span>
-                        </span>
-                        {changes.length > 0 && (
-                          <span className="mt-1 flex flex-col gap-0.5">
-                            {changes.map((c, ci) => (
-                              <span key={ci} className="flex flex-wrap items-center gap-1.5 text-[12px] text-ink-soft">
-                                <span className="font-medium">{auditFieldLabel(c.field)}:</span>
-                                <span className="line-through decoration-ink-soft2/50">{auditFormatVal(c.from)}</span>
-                                <ArrowRight className="h-3 w-3 shrink-0" strokeWidth={2} />
-                                <span className="font-medium text-ink">{auditFormatVal(c.to)}</span>
-                              </span>
-                            ))}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )
-                })}
-                {filteredAudit.length > auditShown && (
-                  <button type="button" onClick={() => setAuditShown((n) => n + 25)} className={`${tableActionCls} mx-auto mt-3 flex`}>
-                    További {Math.min(25, filteredAudit.length - auditShown)} megjelenítése
-                  </button>
+          {active === 'audit' && (() => {
+            const pages = Math.max(1, Math.ceil(filteredAudit.length / AUDIT_PAGE))
+            const page = Math.min(auditPage, pages)
+            const rows = filteredAudit.slice((page - 1) * AUDIT_PAGE, page * AUDIT_PAGE)
+            const actorImgs = new Map(auditLog.filter((e) => e.actorImg).map((e) => [e.actor, e.actorImg]))
+            const byActor = [...filteredAudit.reduce((m, e) => m.set(e.actor, (m.get(e.actor) ?? 0) + 1), new Map<string, number>())].sort((x, y) => y[1] - x[1]).slice(0, 6)
+            return (
+              <SettingsPage group="Fiók" title="Audit-napló" save={false} aside={<>
+                <KitCard tone="dark"><Meta dark>Az elmúlt {auditDays} napban</Meta><div className="mt-1 text-ui-num font-light leading-none">{filteredAudit.length.toLocaleString('hu-HU')}</div><Meta dark className="mt-2">esemény · {filteredAudit.filter((e) => e.action === 'delete').length} törlés</Meta></KitCard>
+                {byActor.length > 0 && (
+                  <KitCard pad="sm">
+                    <div className="px-2 pb-1 pt-1"><CardTitle>Csapattag szerint</CardTitle></div>
+                    {byActor.map(([n, c]) => (
+                      <button key={n} type="button" onClick={() => { setAuditQuery(auditQuery === n ? '' : n); setAuditPage(1) }} className="ui-press mb-1 block w-full rounded-ui-inner text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">
+                        <ListRow filled open={auditQuery === n} leading={<Avatar size="sm" src={actorImgs.get(n)} name={n} />} title={n} trailing={<Pill size="sm" tone={auditQuery === n ? 'white' : 'cell'}>{c}</Pill>} />
+                      </button>
+                    ))}
+                  </KitCard>
                 )}
-              </DataTableCard>
-            </div>
-          )}
-
-          {/* ── Telephelyek ── ref 652–667. VALÓS fiók-üzletek + Üzleti-csomag CTA. */}
-          {active === 'sites' && (
-            <div className="space-y-4">
-              {/* "Új telephely" mobilon a globális fejlécbe portálozva (ugyanaz a fekete kör +
-                  fehér plusz, mint a Csapat fül meghívás-gombja) — desktopon a megszokott,
-                  felirattal ellátott gomb a tartalom tetején. */}
-              {subnavSlot && createPortal(
-                <Link
-                  href={variant === 'restaurant' ? '/register-restaurant' : '/register'}
-                  aria-label="Új telephely"
-                  className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95 lg:hidden"
-                >
-                  <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
-                </Link>,
-                subnavSlot,
-              )}
-              {/* Üzleteid — referencia-táblázat: Üzlet · Szerepem · (kezelés) */}
-              <DataTableCard
-                title={`Üzleteid · ${businessCount}`}
-                actions={
-                  <Link href={variant === 'restaurant' ? '/register-restaurant' : '/register'} className={`${tableActionCls} hidden lg:inline-flex`}>
-                    <Plus className="h-4 w-4" strokeWidth={2} /> Új telephely
-                  </Link>
-                }
-              >
-                <DataTableHead cols="md:grid-cols-[2fr_1fr_140px]" labels={['Üzlet', 'Szerepem', '']} />
-                {sites.map((s, i) => (
-                  <div key={s.name + i} className="grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-3 last:border-0 md:grid-cols-[2fr_1fr_140px] md:border-0">
-                    <div className="flex min-w-0 items-center gap-3">
-                      {s.logoUrl ? (
-                        // object-contain + belső padding (mint az üzletváltóban) — a nem négyzetes logó is kifér
-                        <img src={s.logoUrl} alt="" className="h-10 w-10 shrink-0 rounded-[11px] bg-[#f5f5f4] object-contain p-1" />
-                      ) : (
-                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[11px] text-[13px] font-semibold ${s.gold ? 'bg-[#C9A24B] text-ink-dark' : 'bg-ink-dark text-gold'}`}>
-                          {s.initials}
-                        </span>
-                      )}
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-[13.5px] font-semibold text-ink">{s.name}</span>
-                          {s.current && <StatusDot tone="ok">Jelenlegi</StatusDot>}
-                        </div>
-                        <div className="truncate text-[12px] text-ink-soft">{s.meta}<span className="md:hidden"> · {s.role}</span></div>
-                      </div>
-                    </div>
-                    <span className="hidden text-[13.5px] text-ink md:block">{s.role}</span>
-                    <div className="justify-self-end">
-                      {!s.current && <SiteManageButton id={s.id} type={s.type} />}
-                    </div>
+              </>}>
+                <div className="px-6 pt-4">
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                    <SearchField className="w-[220px]" value={auditQuery} onChange={(v) => { setAuditQuery(v); setAuditPage(1) }}>Esemény vagy név</SearchField>
+                    <Select toolbar value={auditFilter} onChange={(e) => { setAuditFilter(e.target.value as typeof auditFilter); setAuditPage(1) }} className="w-[170px]">{AUDIT_FILTERS.map((f) => <option key={f.id} value={f.id}>{f.id === 'all' ? 'Minden esemény' : f.label}</option>)}</Select>
+                    <Select toolbar value={String(auditDays)} onChange={(e) => { setAuditDays(Number(e.target.value) as typeof auditDays); setAuditPage(1) }} className="w-[150px]">{AUDIT_DAY_WINDOWS.map((d) => <option key={d} value={d}>Utolsó {d} nap</option>)}</Select>
                   </div>
-                ))}
-                <p className="mt-2 px-3 text-[12px] text-ink-soft2">{planLabel}</p>
-              </DataTableCard>
-
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-[26px] bg-ink-dark p-6 shadow-[0_20px_44px_-26px_rgba(40,35,15,.5)]">
-                <div>
-                  <div className="flex items-center gap-2.5">
-                    <div className="text-[15px] font-medium text-white">3+ telephely?</div>
-                    <span className="rounded-full bg-gold px-3 py-[5px] text-[10px] font-bold tracking-[0.04em] text-ink-dark">
-                      ÜZLETI
-                    </span>
-                  </div>
-                  <p className="mt-1.5 max-w-[460px] text-[13px] leading-relaxed text-white/60">
-                    Központi irányítópult, telephelyek közti riportok és dedikált account manager.
-                  </p>
+                  {rows.length === 0 ? <Meta className="py-10 text-center">Nincs naplózott esemény ebben az időszakban.</Meta> : (
+                    <AuditTable rows={rows.map((e) => ({ key: e.id, time: relativeTime(e.createdAt), actor: { name: e.actor, email: e.actorEmail, img: e.actorImg }, ...auditView(e) }))} />
+                  )}
+                  <Pagination page={page} pages={pages} label={filteredAudit.length ? `${(page - 1) * AUDIT_PAGE + 1}–${Math.min(filteredAudit.length, page * AUDIT_PAGE)} / ${filteredAudit.length}` : '0'} onPage={setAuditPage} className="mt-2" />
                 </div>
-                <Link
-                  href={variant === 'restaurant' ? '/restaurant/subscription' : '/dashboard/subscription'}
-                  className="whitespace-nowrap rounded-[14px] bg-gold px-5 py-2.5 text-[13px] font-semibold text-ink-dark"
-                >
-                  Üzleti csomag
-                </Link>
-              </div>
-            </div>
+              </SettingsPage>
+            )
+          })()}
+
+          {/* ── Telephelyek (design 16.16) — a fiókhoz tartozó valós üzletek ── */}
+          {/* Telephelyek (16.16) — az ajánló (a design alján) élőben még nincs */}
+          {active === 'sites' && (
+            <SitesPage count={String(businessCount)} countLabel="Telephely a fiókban" plan={planLabel} contactHref="/kapcsolat" referral={<ReferralPanel className="mt-4" partnerHref={variant === 'restaurant' ? '/restaurant/partnerprogram' : '/dashboard/partnerprogram'} />}
+              newHref={{ salon: '/register', restaurant: '/register-restaurant' }}
+              rows={sites.map((x) => ({ key: `${x.type}:${x.id}`, name: x.name, meta: x.meta, logo: x.logoUrl, initials: x.initials, type: x.type, role: x.role, team: x.team, monthBookings: x.monthBookings, current: x.current, action: <SiteManageButton id={x.id} type={x.type} /> }))} />
           )}
 
           </motion.div>
@@ -2174,37 +1546,15 @@ function UnsavedBar({
             animate={{ y: 0, opacity: 1, scale: 1 }}
             exit={{ y: 22, opacity: 0, scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            className="pointer-events-auto flex items-center gap-3 rounded-[18px] border border-line bg-white/85 py-2.5 pl-4 pr-2.5 shadow-[0_18px_40px_-20px_rgba(40,35,15,.45)] backdrop-blur-xl"
+            className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-ui-dark p-1.5 pl-4 text-ui-body text-white shadow-ui-float"
           >
             {saved ? (
-              <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-[#2E9E63]">
-                <Check className="h-4 w-4" strokeWidth={2.2} /> Mentve
-              </span>
+              <span className="flex items-center gap-1.5 py-1.5 pr-3 text-ui-yellow"><Check className="h-4 w-4" strokeWidth={2.2} />Mentve</span>
             ) : (
               <>
-                <span className="inline-flex items-center gap-2 text-[13px] font-medium text-ink-soft">
-                  <span className="h-1.5 w-1.5 rounded-full bg-gold" />
-                  Mentetlen változások
-                </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={onCancel}
-                    disabled={!dirty || saving}
-                    className="rounded-[13px] border-[1.5px] border-line-strong px-4 py-2 text-[13px] font-semibold text-ink transition-opacity disabled:opacity-40"
-                  >
-                    Mégse
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onSave}
-                    disabled={!dirty || saving}
-                    className="flex items-center gap-1.5 rounded-[13px] bg-ink-dark px-5 py-2 text-[13px] font-semibold text-white transition-opacity disabled:opacity-70"
-                  >
-                    {saving && <Loader2 className="h-3.5 w-3.5 animate-spin text-gold" />}
-                    {saving ? 'Mentés…' : 'Mentés'}
-                  </button>
-                </div>
+                <span className="mr-2 text-white/60">Mentetlen változások</span>
+                <KitButton variant="ghostDark" size="sm" onClick={onCancel} disabled={!dirty || saving}>Elvetés</KitButton>
+                <KitButton variant="yellow" size="sm" onClick={onSave} disabled={!dirty} loading={saving}>Mentés</KitButton>
               </>
             )}
           </motion.div>
@@ -2221,36 +1571,11 @@ const AUDIT_FILTERS: { id: 'all' | 'create' | 'update' | 'delete'; label: string
   { id: 'update', label: 'Módosítás' },
   { id: 'delete', label: 'Törlés' },
 ]
-const AUDIT_ACTION_LABEL: Record<'create' | 'update' | 'delete', string> = {
-  create: 'létrehozott egy elemet',
-  update: 'módosított egy elemet',
-  delete: 'törölt egy elemet',
-}
 /** Visszatekintési dátum-ablakok (nap). A 90 a szerver által adott maximum. */
+const AUDIT_PAGE = 20
+/** a fülek, amelyek már a design SettingsPage lapját használják (saját csoport + cím) — fölöttük nincs külön cím */
+const PAGE_TABS = new Set<string>(['audit', 'sites', 'team', 'rules', 'email', 'payments', 'invoices', 'hours', 'documents', 'newsletter', 'deposit', 'vouchers', 'reviews', 'google', 'self', 'sites', 'notifications', 'integrations', 'tables', 'danger'])
 const AUDIT_DAY_WINDOWS: (7 | 30 | 90)[] = [7, 30, 90]
-
-/** Gyakori mezőnevek emberi felirata a diffhez (ismeretlen → maga a mezőnév). */
-const AUDIT_FIELD_LABELS: Record<string, string> = {
-  status: 'Státusz', date: 'Dátum', start_time: 'Kezdés', end_time: 'Vége', time: 'Időpont',
-  pax: 'Létszám', party_size: 'Létszám', customer_name: 'Vendég neve', customer_phone: 'Telefon',
-  customer_email: 'Email', notes: 'Megjegyzés', internal_notes: 'Belső jegyzet', role: 'Szerep',
-  position: 'Pozíció', pay_rate: 'Bér', pay_type: 'Bér típusa', name: 'Név', email: 'Email',
-  phone: 'Telefon', is_birthday: 'Születésnap', tip_eligible: 'Borravaló', weekly_hours: 'Heti óraszám',
-  title: 'Megnevezés', price: 'Ár', duration_minutes: 'Ülésidő', source: 'Forrás', address: 'Cím',
-  occasion: 'Alkalom', join_date: 'Belépés', birthday: 'Születésnap', bio: 'Megjegyzés', note: 'Jegyzet',
-}
-function auditFieldLabel(field: string): string {
-  return AUDIT_FIELD_LABELS[field] || field
-}
-
-/** Diff-érték formázása: bool → Igen/Nem, üres → „—", egyébként szöveg. */
-function auditFormatVal(v: string | number | boolean | null): string {
-  if (v === true) return 'Igen'
-  if (v === false) return 'Nem'
-  if (v == null || v === '') return '—'
-  return String(v)
-}
-
 
 /** Relatív idő magyarul (pl. „2 órája", „Tegnap", teljes dátum régebbieknél). */
 function relativeTime(iso: string): string {
@@ -2273,109 +1598,6 @@ function relativeTime(iso: string): string {
 /** Csoport-címke a bal listában (desktopon; mobil chip-soron elrejtve). */
 /** `collapsed`-nél magasság+opacity szerint tűnik el (nem instant unmount) — így a rail
  *  összecsukása a csoport-címkék mentén is folyamatos animáció. */
-function GroupLabel({ children, collapsed }: { children: ReactNode; collapsed?: boolean }) {
-  return (
-    <div
-      className={`hidden overflow-hidden px-3.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-soft2 transition-[max-height,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] first:pt-1 lg:block ${
-        collapsed ? 'max-h-0 pb-0 pt-0 opacity-0' : 'max-h-10 pb-1.5 pt-3 opacity-100'
-      }`}
-    >
-      {children}
-    </div>
-  )
-}
-
-function RailBtn({
-  id, active, onClick, icon: Icon, label, soon, danger, badge, locked, collapsed,
-}: {
-  id: RailId
-  active: RailId
-  onClick: (id: RailId) => void
-  icon: typeof Home
-  label: string
-  soon?: boolean
-  danger?: boolean
-  badge?: string
-  /** Lejárt/megszűnt/szüneteltetett előfizetésnél true minden fülre, KIVÉVE az Előfizetés &
-   *  számlázást és a Fiók törlését — lakat-ikonnal jelzett, nem kattintható. */
-  locked?: boolean
-  /** Ikon-csík mód (ld. railCollapsed) — a címke/badge elrejtve, az ikon középre kerül,
-   *  a label title-attribútumként (natív tooltip) marad elérhető. */
-  collapsed?: boolean
-}) {
-  const isActive = active === id
-  // A címke/badge NEM eltűnik, hanem max-width+opacity váltással zsugorodik — így a rail
-  // összecsukása/kinyitása (ld. railCollapsed) egy folyamatos animáció, nem villanás. A
-  // padding mindig azonos (nincs justify-center ugrás), hogy az ikon se "ugorjon" középre.
-  const labelCls = `overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${collapsed ? 'max-w-0 opacity-0' : 'max-w-[160px] opacity-100'}`
-  if (locked) {
-    return (
-      <span
-        aria-disabled
-        title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
-        className="flex shrink-0 cursor-not-allowed items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] font-medium text-ink/35"
-      >
-        <Icon className="h-[17px] w-[17px] shrink-0" strokeWidth={1.5} />
-        <span className={labelCls}>{label}</span>
-        {!collapsed && <Lock className="ml-auto h-[15px] w-[15px] shrink-0" strokeWidth={1.6} />}
-      </span>
-    )
-  }
-  return (
-    <button
-      type="button"
-      onClick={() => onClick(id)}
-      title={collapsed ? label : undefined}
-      className={`flex shrink-0 items-center gap-3 rounded-[16px] px-3.5 py-3 text-[14px] transition-colors ${
-        isActive
-          ? 'bg-ink-dark font-semibold text-white'
-          : danger
-            ? 'font-medium text-bad hover:bg-bad-bg hover:text-bad'
-            : 'font-medium text-ink-soft hover:bg-[#F0EDE6] hover:text-ink'
-      }`}
-    >
-      <Icon className={`h-[17px] w-[17px] shrink-0 ${isActive ? 'text-gold' : danger ? 'text-bad' : 'text-ink-soft2'}`} strokeWidth={1.5} />
-      <span className={labelCls}>{label}</span>
-      {!collapsed && badge && !soon && (
-        <span className="ml-auto shrink-0 rounded-full bg-gold px-2 py-0.5 text-[11px] font-semibold leading-none text-ink-dark">
-          {badge}
-        </span>
-      )}
-      {!collapsed && soon && (
-        <span className={`ml-auto shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${isActive ? 'bg-white/15 text-white/80' : 'bg-[#F2ECDA] text-ink-soft'}`}>
-          Hamarosan
-        </span>
-      )}
-    </button>
-  )
-}
-
-/* ── Csapat: avatar (monogram vagy meghívó-ikon) ────────────────────────── */
-function Avatar({ name, email, pending, gold, avatarUrl }: { name: string; email: string; pending?: boolean; gold?: boolean; avatarUrl?: string | null }) {
-  if (pending) {
-    return (
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#EDE7D6]">
-        <Mail className="h-[18px] w-[18px] text-ink-soft2" strokeWidth={1.6} />
-      </span>
-    )
-  }
-  if (avatarUrl) {
-    return <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover object-top" />
-  }
-  const initials = (name || email).split(/\s+/).map((p) => p[0]).slice(0, 2).join('').toUpperCase()
-  return (
-    <span
-      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[15px] font-semibold ${
-        gold ? 'bg-[#C9A24B] text-ink-dark' : 'bg-ink-dark text-gold'
-      }`}
-    >
-      {initials}
-    </span>
-  )
-}
-
-/* ── Csapat: szerep-badge ───────────────────────────────────────────────── */
-
 /* ── Telephelyek: üzlet-kezelés gomb ────────────────────────────────────── */
 function SiteManageButton({ id, type }: { id: string; type: 'salon' | 'restaurant' }) {
   const router = useRouter()
@@ -2401,14 +1623,5 @@ function SiteManageButton({ id, type }: { id: string; type: 'salon' | 'restauran
     }
   }
 
-  return (
-    <button
-      type="button"
-      onClick={handle}
-      disabled={loading}
-      className={`${tableActionCls} disabled:opacity-40`}
-    >
-      {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Kezelés'}
-    </button>
-  )
+  return <KitButton variant="cell" size="sm" onClick={handle} loading={loading}>Váltás</KitButton>
 }

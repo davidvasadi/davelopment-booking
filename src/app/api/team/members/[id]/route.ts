@@ -144,6 +144,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const data: Record<string, unknown> = {}
   const textFields = ['name', 'position', 'phone', 'birthday', 'address', 'tax_id', 'tax_number', 'join_date', 'bio']
   for (const k of textFields) if (k in body) data[k] = body[k] === '' ? null : body[k]
+  // profilkép + dokumentumok (média-azonosítók; a kliens string id-t is küldhet)
+  const mediaId = (v: unknown) => (v == null || v === '' ? null : /^\d+$/.test(String(v)) ? Number(v) : v)
+  if ('avatar' in body) data.avatar = mediaId(body.avatar)
+  if (Array.isArray(body.documents)) data.documents = (body.documents as { label?: string; file?: unknown }[]).map((d) => ({ label: d.label ?? '', file: mediaId(d.file) }))
   if ('weekly_hours' in body) data.weekly_hours = body.weekly_hours === '' || body.weekly_hours == null ? null : Number(body.weekly_hours)
   if ('salary' in body && loaded.isOwner) data.salary = body.salary === '' || body.salary == null ? null : Number(body.salary)
   // Bér típusa + rate — csak a tulaj (a fizetés a naptárból számolódik a profilon).

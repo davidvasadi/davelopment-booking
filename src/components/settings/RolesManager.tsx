@@ -1,51 +1,34 @@
 'use client'
 
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  Plus, Pencil, Trash2, Check, X, Loader2, ShieldAlert,
-  LayoutDashboard, CalendarDays, CalendarRange, MapPin, Briefcase, Armchair,
-  Users, BarChart2, Settings, Shield, CreditCard, AlertTriangle, ScrollText,
-  ChevronRight, Sparkles, Clock, Gift, Megaphone, Bell,
+  BarChart3, Bell, Briefcase, CalendarDays, Clock, CreditCard, FileText, Gift, Megaphone, Settings, Shield, Users, X, Armchair,
   type LucideIcon,
 } from 'lucide-react'
 import { CAPABILITY_META, type Capability } from '@/lib/permissions'
-import { Toggle } from './SettingsToggle'
+import { Pill } from '@/components/ui-kit'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { RolesEditor, type PermGroup, type RoleItem } from '@/components/blocks/settings'
 
-
-export type NotificationPrefs = {
-  bookings: boolean
-  schedule: boolean
-}
-
-const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
-  bookings: true,
-  schedule: false,
-}
-
-// "Rendszer"/"Munkatársak" kategóriák töröltek — semmilyen tényleges értesítést nem
-// gate-eltek soha (halott UI volt, a hozzájuk tartozó `notifications.system`/
-// `notifications.staff` capability soha semmit nem ellenőrzött).
-const NOTIF_CATEGORIES: { key: keyof NotificationPrefs; label: string; sub: string }[] = [
-  { key: 'bookings',  label: 'Foglalás',    sub: 'Új foglalás, lemondás, módosítás' },
-  { key: 'schedule', label: 'Beosztás',    sub: 'Heti beosztás elkészülte és változása' },
-]
+/**
+ * Beállítások › Csapat & jogok › Szerepek (design 16.3) — az élő szerep-szerkesztő a közös `RolesEditor` blokkal: bal
+ * oldalt a szerepek (Tulajdonos zárolt), új szerep üresen vagy sablonból; jobbra név, leírás, tagok, a jogcsoportok
+ * („mind” kapcsoló, chipek) és a foglalás-értesítés szintje; változáskor lebegő mentés. A szerep-definíció szerkesztése
+ * owner-only (a szerver is kényszeríti), másnak csak megtekintés.
+ */
 
 export interface RoleRow {
   id: string
   name: string
+  description?: string | null
   capabilities?: Capability[] | null
-  notification_prefs?: NotificationPrefs | null
   booking_notify_level?: 'off' | 'own' | 'all' | null
 }
-
-// ── ELŐRE DEFINIÁLT SABLONOK ──────────────────────────────────────────────────
 
 type RoleTemplate = {
   id: string
   name: string
-  icon: LucideIcon
   desc: string
   caps: Capability[]
   /** A sablon a Foglalás-értesítés szintjét is előtölti — nincs alapértelmezett érték nélkül
@@ -57,7 +40,6 @@ const SALON_TEMPLATES: RoleTemplate[] = [
   {
     id: 'manager',
     name: 'Üzletvezető',
-    icon: Briefcase,
     desc: 'Teljes üzletirányítás — analitika, csapat, beállítások, audit',
     caps: [
       'overview.view', 'analytics.view',
@@ -77,7 +59,6 @@ const SALON_TEMPLATES: RoleTemplate[] = [
   {
     id: 'receptionist',
     name: 'Recepcionista',
-    icon: CalendarDays,
     desc: 'Foglalások + vendégek kezelése, szolgáltatások megtekintése',
     caps: [
       'overview.view',
@@ -92,7 +73,6 @@ const SALON_TEMPLATES: RoleTemplate[] = [
   {
     id: 'stylist',
     name: 'Stylist / Szakember',
-    icon: Shield,
     desc: 'Saját naptár szerkesztése + foglalások megtekintése (önálló időbeosztás)',
     caps: [
       'overview.view',
@@ -106,7 +86,6 @@ const SALON_TEMPLATES: RoleTemplate[] = [
   {
     id: 'assistant',
     name: 'Asszisztens',
-    icon: Users,
     desc: 'Saját naptár megtekintése és profil szerkesztése',
     caps: [
       'overview.view',
@@ -121,7 +100,6 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
   {
     id: 'manager',
     name: 'Üzletvezető',
-    icon: Briefcase,
     desc: 'Teljes üzletirányítás — analitika, csapat, beállítások, audit',
     caps: [
       'overview.view', 'analytics.view',
@@ -141,7 +119,6 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
   {
     id: 'scheduler',
     name: 'Beosztásvezető',
-    icon: CalendarRange,
     desc: 'Teljes csapatnaptár kezelése, munkatársak és foglalások megtekintése',
     caps: [
       'overview.view',
@@ -157,7 +134,6 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
   {
     id: 'head_waiter',
     name: 'Főpincér',
-    icon: BarChart2,
     desc: 'Foglalások és vendégek kezelése, asztalok megtekintése, saját naptár',
     caps: [
       'overview.view',
@@ -173,7 +149,6 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
   {
     id: 'waiter',
     name: 'Felszolgáló',
-    icon: Users,
     desc: 'Foglalások megtekintése, saját naptár (olvasás) és profil',
     caps: [
       'overview.view',
@@ -186,461 +161,138 @@ const RESTAURANT_TEMPLATES: RoleTemplate[] = [
   },
 ]
 
-// ── Csoport-ikonok ─────────────────────────────────────────────────────────────
 
+// a jogcsoportok ikonjai (a design 16.3 szerint) és a chipek rövid feliratai
 const GROUP_ICON: Record<string, LucideIcon> = {
-  Alap:             LayoutDashboard,
-  Foglalás:         CalendarDays,
-  Naptár:           CalendarRange,
-  Vendégek:         MapPin,
-  Szolgáltatások:   Briefcase,
-  Asztalok:         Armchair,
-  Nyitvatartás:     Clock,
-  Utalványok:       Gift,
-  Marketing:        Megaphone,
-  Munkatársak:      Users,
-  Statisztika:      BarChart2,
-  Beállítások:      Settings,
-  Csapat:           Shield,
-  Számlázás:        CreditCard,
-  Veszélyzóna:      AlertTriangle,
-  Audit:            ScrollText,
-  Értesítések:      Bell,
+  Foglalás: CalendarDays, Naptár: Clock, Vendégek: Users, Szolgáltatások: Briefcase, Asztalok: Armchair, Nyitvatartás: Clock, Utalványok: Gift,
+  Marketing: Megaphone, Munkatársak: Users, Statisztika: BarChart3, Beállítások: Settings, Csapat: Users, Számlázás: CreditCard, Audit: FileText, Veszélyzóna: X,
 }
-
-const DANGER_GROUPS = new Set(['Veszélyzóna'])
-
-// Csoportok variant-szűréssel: szalon nem látja az Asztalokat, étterem nem látja a Szolgáltatásokat.
-// Minden jogosultság EGYSÉGESEN, ugyanolyan chipen jelenik meg (user-döntés: nincs külön,
-// "elsőrangú" kártyás kivétel egyiknek sem) — az `analytics.view`/`analytics.view.own` is sima
-// chip a Statisztika csoportban. Az `overview.view` az EGYETLEN kivétel: ez az egyedi szerep
-// alap-küszöbe, amit `effectiveCapabilities()` mindig automatikusan hozzáad — checkboxként
-// megjelenítve élő, de hatástalan kapcsoló lenne (soha nem lehetne kikapcsolni).
-function buildGroups(variant: 'salon' | 'restaurant') {
-  return CAPABILITY_META
-    .filter((c) => c.value !== 'overview.view' && (!c.variant || c.variant === variant))
-    .reduce<Record<string, typeof CAPABILITY_META>>((acc, c) => {
-      ;(acc[c.group] ??= []).push(c)
-      return acc
-    }, {})
+const SHORT: Partial<Record<Capability, string>> = {
+  'bookings.view': 'Foglalások megtekintése', 'bookings.manage': 'Foglalások kezelése',
+  'schedule.view.own': 'Saját naptár — megtekintés', 'schedule.manage.own': 'Saját naptár — szerkesztés', 'schedule.manage': 'Teljes csapatnaptár kezelése',
+  'guests.view': 'Vendégek megtekintése', 'guests.manage': 'Vendégek kezelése',
+  'catalog.view': 'Megtekintés', 'catalog.manage': 'Kezelés', 'tables.view': 'Megtekintés', 'tables.manage': 'Kezelés',
+  'availability.view': 'Megtekintés', 'availability.manage': 'Kezelés', 'vouchers.view': 'Megtekintés', 'vouchers.manage': 'Kezelés',
+  'marketing.view': 'Megtekintés', 'marketing.manage': 'Kampány-küldés',
+  'staff.view': 'Megtekintés', 'staff.manage': 'Kezelés', 'staff.salary': 'Mások fizetése',
+  'analytics.view': 'Teljes cég', 'analytics.view.own': 'Saját', 'tips.view': 'Tippek', 'tips.manage': 'Tippek alkalmazása',
+  'settings.own_profile': 'Saját profil', 'settings.profile': 'Üzleti beállítások', 'roles.view': 'Jogosultságok megtekintése',
+  'team.view': 'Csapat megtekintése', 'team.manage': 'Meghívás / szerep', 'billing.manage': 'Előfizetés', 'payments.manage': 'Előleg / Stripe',
+  'audit.view': 'Audit-napló', danger: 'Üzlet törlése',
 }
+const NOTIFY: ['off' | 'own' | 'all', string][] = [['off', 'Nem kér'], ['own', 'Csak a sajátjáról'], ['all', 'Az összesről']]
 
-const CHIP_LIST = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.025, delayChildren: 0.04 } },
-}
-const CHIP_ITEM = {
-  hidden: { opacity: 0, scale: 0.92, y: 4 },
-  show: { opacity: 1, scale: 1, y: 0, transition: { type: 'spring' as const, stiffness: 500, damping: 30 } },
-}
+type Draft = { id: string | 'new'; name: string; desc: string; caps: Capability[]; notify: 'off' | 'own' | 'all' }
+const draftOf = (r: RoleRow): Draft => ({ id: r.id, name: r.name, desc: r.description ?? '', caps: (r.capabilities ?? []).filter((c) => c !== 'overview.view'), notify: r.booking_notify_level ?? 'off' })
 
-// ─────────────────────────────────────────────────────────────────────────────
-
-export function RolesManager({
-  variant,
-  businessId,
-  initialRoles,
-  myCapabilities,
-  isOwner = false,
-}: {
+export function RolesManager({ variant, businessId, initialRoles, myCapabilities, isOwner = false, header, members = [] }: {
   variant: 'salon' | 'restaurant'
   businessId: string
   initialRoles: RoleRow[]
   myCapabilities: Capability[]
-  /** Szerep-DEFINÍCIÓ létrehozása/szerkesztése/törlése szándékosan owner-only (a szerver is ezt
-   *  kényszeríti ki) — nem-tulaj `team.manage`-es tag csak MEGLÉVŐ szerepeket oszthat ki
-   *  embereknek, a jog-listát magát nem módosíthatja (anti-eszkaláció). */
+  /** Szerep-DEFINÍCIÓ szerkesztése owner-only (a szerver is) — más csak megtekinti (anti-eszkaláció). */
   isOwner?: boolean
+  /** a nézet fejléce (cím + Tagok / Szerepek váltó) — a Beállítások adja */
+  header?: React.ReactNode
+  /** a tagok szerepenként (a szerep tagjainak avatarjai és száma) */
+  members?: { roleId: string | null; owner?: boolean; name: string; img?: string | null }[]
 }) {
-  const [roles, setRoles] = useState<RoleRow[]>(initialRoles)
-  const [editing, setEditing] = useState<RoleRow | 'new' | null>(null)
-  const [name, setName] = useState('')
-  const [caps, setCaps] = useState<Set<Capability>>(new Set())
-  const [bookingNotifyLevel, setBookingNotifyLevel] = useState<'off' | 'own' | 'all'>('off')
-  const [saving, setSaving] = useState(false)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
-
-  const grantable = new Set(myCapabilities)
   const templates = variant === 'salon' ? SALON_TEMPLATES : RESTAURANT_TEMPLATES
-  const groups = buildGroups(variant)
+  const [roles, setRoles] = useState<RoleRow[]>(initialRoles)
+  const [selected, setSelected] = useState<string>(initialRoles[0]?.id ?? 'owner')
+  const [draft, setDraft] = useState<Draft | null>(initialRoles[0] ? draftOf(initialRoles[0]) : null)
+  const [saving, setSaving] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
 
-  function openNew() { setEditing('new'); setName(''); setCaps(new Set()); setBookingNotifyLevel('off') }
-  function openEdit(r: RoleRow) { setEditing(r); setName(r.name); setCaps(new Set(r.capabilities ?? [])); setBookingNotifyLevel(r.booking_notify_level ?? 'off') }
+  const metas = useMemo(() => CAPABILITY_META.filter((c) => c.value !== 'overview.view' && (!c.variant || c.variant === variant)), [variant])
+  const ownerSel = selected === 'owner'
+  const base = ownerSel ? null : selected === 'new' ? null : roles.find((r) => r.id === selected) ?? null
+  const dirty = !!draft && (draft.id === 'new' || !base || JSON.stringify(draftOf(base)) !== JSON.stringify({ ...draft, caps: [...draft.caps] }))
+  const changes = !draft || !base ? (draft?.id === 'new' ? 1 : 0) : (draft.name !== base.name ? 1 : 0) + (draft.desc !== (base.description ?? '') ? 1 : 0) + (draft.notify !== (base.booking_notify_level ?? 'off') ? 1 : 0)
+    + metas.filter((m) => draft.caps.includes(m.value) !== (base.capabilities ?? []).includes(m.value)).length
 
-  function applyTemplate(t: RoleTemplate) {
-    setName(t.name)
-    setCaps(new Set(t.caps.filter((c) => grantable.has(c))))
-    // "own" csak szalonnál értelmezhető (lásd `roles.booking_notify_level` admin-leírása).
-    setBookingNotifyLevel(variant === 'restaurant' && t.bookingNotifyLevel === 'own' ? 'off' : t.bookingNotifyLevel)
+  const caps = ownerSel ? metas.map((m) => m.value) : draft?.caps ?? []
+  const groups: PermGroup[] = Object.entries(metas.reduce<Record<string, typeof metas>>((acc, c) => { (acc[c.group] ??= []).push(c); return acc }, {}))
+    .map(([name, list]) => ({ name, icon: GROUP_ICON[name] ?? Shield, caps: list.map((c) => ({ value: c.value, label: SHORT[c.value] ?? c.label, on: caps.includes(c.value) })) }))
+  // csak a saját jogainkon belül adhatunk (a szerver is szűr)
+  const allowed = (c: Capability) => myCapabilities.includes(c)
+  const toggle = (v: string) => setDraft((d) => (d ? { ...d, caps: d.caps.includes(v as Capability) ? d.caps.filter((x) => x !== v) : allowed(v as Capability) ? [...d.caps, v as Capability] : d.caps } : d))
+  const toggleAll = (g: PermGroup, on: boolean) => setDraft((d) => (d ? { ...d, caps: on ? [...new Set([...d.caps, ...g.caps.map((c) => c.value as Capability).filter(allowed)])] : d.caps.filter((x) => !g.caps.some((c) => c.value === x)) } : d))
+
+  const select = (id: string) => {
+    setSelected(id)
+    const r = roles.find((x) => x.id === id)
+    setDraft(r ? draftOf(r) : null)
   }
-
-  function toggle(c: Capability) {
-    setCaps((prev) => { const n = new Set(prev); n.has(c) ? n.delete(c) : n.add(c); return n })
+  const fromTemplate = (name: string) => {
+    const t = templates.find((x) => x.name === name)
+    if (!t) return
+    setSelected('new')
+    setDraft({ id: 'new', name: t.name, desc: t.desc, caps: t.caps.filter((c) => c !== 'overview.view' && allowed(c)), notify: t.bookingNotifyLevel })
   }
+  const newRole = () => { setSelected('new'); setDraft({ id: 'new', name: '', desc: '', caps: ['bookings.view'], notify: 'off' }) }
 
+  const broadcast = (next: RoleRow[]) => window.dispatchEvent(new CustomEvent('davelopment:roles-changed', { detail: next.map((r) => ({ id: r.id, name: r.name })) }))
   async function save() {
-    const nm = name.trim()
+    if (!draft) return
+    const nm = draft.name.trim()
     if (!nm) { toast.error('Adj nevet a szerepnek'); return }
     setSaving(true)
     try {
-      const capabilities = Array.from(caps)
-      const isNew = editing === 'new'
-      const res = await fetch(isNew ? '/api/roles' : `/api/roles/${(editing as RoleRow).id}`, {
-        method: isNew ? 'POST' : 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify(isNew
-          ? { type: variant, id: businessId, name: nm, capabilities, booking_notify_level: bookingNotifyLevel }
-          : { name: nm, capabilities, booking_notify_level: bookingNotifyLevel }),
-      })
-      if (!res.ok) throw new Error()
+      const isNew = draft.id === 'new'
+      const payload = { name: nm, description: draft.desc.trim(), capabilities: draft.caps, booking_notify_level: draft.notify }
+      const res = await fetch(isNew ? '/api/roles' : `/api/roles/${draft.id}`, { method: isNew ? 'POST' : 'PATCH', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify(isNew ? { type: variant, id: businessId, ...payload } : payload) })
+      if (!res.ok) throw new Error((await res.json().catch(() => null))?.error || 'Nem sikerült menteni')
       const json = await res.json()
-      const saved: RoleRow = { id: String((json?.doc ?? json).id), name: nm, capabilities, booking_notify_level: bookingNotifyLevel }
+      const saved: RoleRow = { id: String((json?.doc ?? json).id), name: nm, description: draft.desc.trim(), capabilities: draft.caps, booking_notify_level: draft.notify }
       const next = isNew ? [...roles, saved] : roles.map((r) => (r.id === saved.id ? saved : r))
-      setRoles(next)
-      window.dispatchEvent(new CustomEvent('davelopment:roles-changed', { detail: next.map((r) => ({ id: r.id, name: r.name })) }))
-      setEditing(null)
-      toast.success(isNew ? 'Szerep létrehozva' : 'Szerep frissítve')
-    } catch {
-      toast.error('Nem sikerült menteni')
-    } finally {
-      setSaving(false)
-    }
+      setRoles(next); broadcast(next); setSelected(saved.id); setDraft(draftOf(saved))
+      toast.success(isNew ? 'Szerep létrehozva' : 'Szerep mentve')
+    } catch (e) { toast.error(e instanceof Error ? e.message : 'Nem sikerült menteni') } finally { setSaving(false) }
+  }
+  async function remove() {
+    if (!base) return
+    const res = await fetch(`/api/roles/${base.id}`, { method: 'DELETE', credentials: 'include' }).catch(() => null)
+    setConfirmDel(false)
+    if (!res?.ok) { toast.error((await res?.json().catch(() => null))?.error || 'Nem sikerült törölni'); return }
+    const next = roles.filter((x) => x.id !== base.id)
+    setRoles(next); broadcast(next); select(next[0]?.id ?? 'owner')
+    toast.success('Szerep törölve')
   }
 
-  async function remove(r: RoleRow) {
-    setDeletingId(r.id)
-    try {
-      const res = await fetch(`/api/roles/${r.id}`, { method: 'DELETE', credentials: 'include' })
-      if (!res.ok) throw new Error()
-      const next = roles.filter((x) => x.id !== r.id)
-      setRoles(next)
-      window.dispatchEvent(new CustomEvent('davelopment:roles-changed', { detail: next.map((x) => ({ id: x.id, name: x.name })) }))
-      toast.success('Szerep törölve')
-    } catch {
-      toast.error('Nem sikerült törölni')
-    } finally {
-      setDeletingId(null)
-    }
-  }
-
-  const selectedCount = caps.size
-  const isEditorNew = editing === 'new'
-  const editorTitle = isEditorNew ? 'Új szerep' : (editing as RoleRow | null)?.name ?? ''
+  const owners = members.filter((m) => m.owner)
+  const list: RoleItem[] = [
+    { id: 'owner', name: 'Tulajdonos', desc: 'Minden jog, nem szerkeszthető', members: owners.length || 1, locked: true },
+    ...roles.map((r) => ({ id: r.id, name: r.name, desc: r.description ?? `${(r.capabilities ?? []).length} jogosultság`, members: members.filter((m) => m.roleId === r.id).length })),
+    ...(selected === 'new' ? [{ id: 'new', name: draft?.name || 'Új szerep', desc: draft?.desc || 'még nincs mentve', members: 0 }] : []),
+  ]
+  const roleMembers = ownerSel ? owners : members.filter((m) => m.roleId === selected)
+  const readOnly = ownerSel || !isOwner
+  // a szerep foglalás-értesítése (a notifyOnBooking ezt nézi) — a jogcsoportok mellett, ugyanolyan kártyán
+  const notifyCard = !ownerSel && draft && (
+    <div className="rounded-ui-inner bg-ui-cell p-3.5">
+      <span className="flex items-center gap-2 text-ui-body text-ui-text"><Bell className="h-4 w-4" strokeWidth={1.8} />Foglalás-értesítés</span>
+      <div className="mt-2.5 flex flex-wrap gap-1">
+        {NOTIFY.map(([k, l]) => {
+          const pill = <Pill tone={draft.notify === k ? 'dark' : 'white'} size="sm">{l}</Pill>
+          return readOnly ? <span key={k}>{pill}</span> : <button key={k} type="button" aria-pressed={draft.notify === k} onClick={() => setDraft({ ...draft, notify: k })} className="ui-press rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20">{pill}</button>
+        })}
+      </div>
+    </div>
+  )
 
   return (
-    <div className="rounded-[22px] border border-line bg-white p-5 lg:p-6">
-
-      {/* Fejléc */}
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="text-[15px] font-bold uppercase tracking-[0.02em] text-ink">Egyedi szerepek</div>
-          <div className="text-[12.5px] text-ink-soft">Saját jogosultságok az üzletedhez</div>
-        </div>
-        {editing === null && isOwner && (
-          <button onClick={openNew} className="inline-flex h-10 items-center gap-1.5 rounded-[12px] border border-line bg-white px-3.5 text-[13px] font-medium text-ink transition-colors hover:border-line-strong">
-            <Plus className="h-4 w-4" strokeWidth={2} />
-            Új szerep
-          </button>
-        )}
-        {editing !== null && (
-          <button onClick={() => setEditing(null)} className="inline-flex items-center gap-1.5 rounded-dav-pill border border-line bg-white/80 px-3 py-1.5 text-[13px] font-medium text-ink-soft hover:border-line-strong">
-            <X className="h-3.5 w-3.5" />
-            Mégse
-          </button>
-        )}
-      </div>
-
-      <AnimatePresence mode="wait">
-
-        {/* ── Szerep-lista ── */}
-        {editing === null && (
-          <motion.div
-            key="list"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 400, damping: 32 } }}
-            exit={{ opacity: 0, y: -6, transition: { duration: 0.14 } }}
-            className="mt-4"
-          >
-            {roles.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-line bg-white/40 py-8 text-center">
-                <ShieldAlert className="mx-auto h-8 w-8 text-ink-soft2/50" strokeWidth={1.5} />
-                <div className="mt-2 text-[13px] font-medium text-ink-soft">Még nincs egyedi szerep</div>
-                <div className="mt-0.5 text-[12px] text-ink-soft2">Hozz létre egyet sablonból vagy nulláról</div>
-              </div>
-            ) : (
-              <div>
-                {/* referencia-táblázat: Szerep · Jogosultságok · (műveletek) */}
-                <div className="hidden grid-cols-[1.6fr_1fr_80px] items-center gap-3 rounded-[10px] bg-[#EFEFEF] px-3 py-2.5 text-[13px] font-semibold text-ink md:grid">
-                  <div>Szerep</div><div>Jogosultságok</div><div />
-                </div>
-                {roles.map((r) => {
-                  const capCount = (r.capabilities ?? []).length
-                  return (
-                    <motion.div
-                      key={r.id}
-                      layout
-                      initial={{ opacity: 0, y: 6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.97 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-                      className="group grid grid-cols-[1fr_auto] items-center gap-3 border-b border-line px-3 py-3 last:border-0 md:grid-cols-[1.6fr_1fr_80px] md:border-0"
-                    >
-                      <div className="min-w-0">
-                        <div className="truncate text-[13.5px] font-semibold text-ink">{r.name}</div>
-                        <div className="text-[12px] text-ink-soft md:hidden">{capCount === 0 ? 'Nincs jog kiválasztva' : `${capCount} jogosultság`}</div>
-                      </div>
-                      <div className="hidden text-[13.5px] md:block">
-                        {capCount === 0 ? <span className="text-ink-soft2">Nincs jog kiválasztva</span> : <span className="text-ink">{capCount} jogosultság</span>}
-                      </div>
-                      {isOwner && (
-                        <div className="flex shrink-0 items-center justify-end gap-1">
-                          <button onClick={() => openEdit(r)} title="Szerkesztés" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-ink-soft hover:bg-black/[0.06] hover:text-ink">
-                            <Pencil className="h-[15px] w-[15px]" />
-                          </button>
-                          <button onClick={() => remove(r)} disabled={deletingId === r.id} title="Törlés" className="flex h-8 w-8 items-center justify-center rounded-[10px] text-bad hover:bg-bad/10 disabled:opacity-40">
-                            {deletingId === r.id ? <Loader2 className="h-[15px] w-[15px] animate-spin" /> : <Trash2 className="h-[15px] w-[15px]" />}
-                          </button>
-                        </div>
-                      )}
-                    </motion.div>
-                  )
-                })}
-              </div>
-            )}
-          </motion.div>
-        )}
-
-        {/* ── Szerkesztő ── */}
-        {editing !== null && (
-          <motion.div
-            key="editor"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0, transition: { type: 'spring', stiffness: 500, damping: 30 } }}
-            exit={{ opacity: 0, y: 8, transition: { duration: 0.14 } }}
-            className="mt-4 space-y-5"
-          >
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink-dark/[0.07]">
-                {isEditorNew ? <Plus className="h-[14px] w-[14px] text-ink-soft" strokeWidth={2.5} /> : <Pencil className="h-[14px] w-[14px] text-ink-soft" />}
-              </div>
-              <span className="text-[13px] font-semibold text-ink">
-                {isEditorNew ? 'Új szerep létrehozása' : `Szerkesztés: ${editorTitle}`}
-              </span>
-            </div>
-
-            {/* ── Sablon-kártyák (csak új szerkesztésnél) ── */}
-            {isEditorNew && (
-              <div>
-                <div className="mb-2.5 flex items-center gap-1.5">
-                  <Sparkles className="h-3.5 w-3.5 text-gold" strokeWidth={2} />
-                  <span className="text-[12px] font-semibold uppercase tracking-wide text-ink-soft">
-                    Sablon alapján (ajánlott)
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {templates.map((t) => {
-                    const Icon = t.icon
-                    const grantedCaps = t.caps.filter((c) => grantable.has(c))
-                    const isSelected = name === t.name
-                    return (
-                      <button
-                        key={t.id}
-                        type="button"
-                        onClick={() => applyTemplate(t)}
-                        className={[
-                          'flex items-start gap-3 rounded-[16px] border p-3.5 text-left transition-all',
-                          isSelected
-                            ? 'border-ink-dark/30 bg-ink-dark/[0.04] ring-1 ring-ink-dark/10'
-                            : 'border-line bg-white hover:border-line-strong hover:bg-[#fafaf8]',
-                        ].join(' ')}
-                      >
-                        <div
-                          className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-gold/15"
-                        >
-                          <Icon className="h-4 w-4 text-ink-dark" strokeWidth={1.8} />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[13px] font-semibold text-ink">{t.name}</span>
-                            {isSelected && <Check className="h-3.5 w-3.5 text-gold" strokeWidth={2.5} />}
-                          </div>
-                          <div className="mt-0.5 text-[11.5px] leading-snug text-ink-soft">{t.desc}</div>
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {t.caps.slice(0, 4).map((c) => {
-                              const meta = CAPABILITY_META.find((m) => m.value === c)
-                              const ok = grantable.has(c)
-                              return meta ? (
-                                <span key={c} className={`rounded-full px-1.5 py-0.5 text-[9.5px] font-semibold ${ok ? 'bg-gold/15 text-ink-dark' : 'bg-black/[0.04] text-ink-soft2/50 line-through'}`}>
-                                  {meta.label}
-                                </span>
-                              ) : null
-                            })}
-                            {t.caps.length > 4 && (
-                              <span className="rounded-full bg-[#F0EEE8] px-1.5 py-0.5 text-[9.5px] font-semibold text-ink-soft">
-                                +{t.caps.length - 4} jog
-                              </span>
-                            )}
-                          </div>
-                          {grantedCaps.length < t.caps.length && (
-                            <div className="mt-1 text-[10px] text-ink-soft2">
-                              {t.caps.length - grantedCaps.length} jog a te hatáskörödön kívül esik
-                            </div>
-                          )}
-                        </div>
-                        <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-ink-soft2/50" />
-                      </button>
-                    )
-                  })}
-                </div>
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="flex-1 border-t border-line" />
-                  <span className="text-[10.5px] font-semibold uppercase tracking-wide text-ink-soft2">vagy nulláról</span>
-                  <div className="flex-1 border-t border-line" />
-                </div>
-              </div>
-            )}
-
-            {/* Név mező */}
-            <div>
-              <label className="mb-1.5 block text-[12.5px] font-semibold uppercase tracking-wide text-ink-soft">
-                Szerep neve
-              </label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="pl. Supervisor, Csapatvezető"
-                className="h-[46px] w-full rounded-[14px] border border-line-strong bg-white px-3.5 text-[14px] text-ink placeholder:text-ink-soft2/50 focus-visible:border-gold/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/25"
-              />
-            </div>
-
-
-            {/* Jogosultság-chipek */}
-            <div>
-              <div className="mb-3 flex items-center justify-between">
-                <label className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-soft">
-                  Jogosultságok
-                </label>
-                {selectedCount > 0 && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-gold/15 px-2.5 py-0.5 text-[11px] font-semibold text-ink-dark">
-                    <Check className="h-3 w-3 text-gold" strokeWidth={2.5} />
-                    {selectedCount} kiválasztva
-                  </span>
-                )}
-              </div>
-
-              <motion.div variants={CHIP_LIST} initial="hidden" animate="show" className="space-y-4">
-                {/* Értesítések — a "Foglalás-értesítés" szint (booking_notify_level) ugyanolyan
-                    chipen, mint a sima jogosultságok, csak a 3 (szalonnál) / 2 (étteremnél) opció
-                    EGYMÁST KIZÁRÓ (nem külön-külön kapcsolható, mint a sima chipeknél). Elöl, hogy
-                    a Veszélyzóna maradjon a lista LEGVÉGÉN (lásd `CAPABILITY_META` sorrendje). */}
-                <motion.div variants={CHIP_ITEM}>
-                  <div className="mb-2 flex items-center gap-1.5">
-                    <Bell className="h-[13px] w-[13px] text-ink-soft2" strokeWidth={2} />
-                    <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-soft2">
-                      Értesítések
-                    </span>
-                    <div className="flex-1 border-t border-line" />
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {(variant === 'salon'
-                      ? ([
-                          { level: 'off' as const, label: 'Foglalás-értesítés: kikapcsolva' },
-                          { level: 'own' as const, label: 'Foglalás-értesítés: csak a sajátja' },
-                          { level: 'all' as const, label: 'Foglalás-értesítés: az összes' },
-                        ])
-                      : ([
-                          { level: 'off' as const, label: 'Foglalás-értesítés: kikapcsolva' },
-                          { level: 'all' as const, label: 'Foglalás-értesítés: bekapcsolva' },
-                        ])
-                    ).map(({ level, label }) => {
-                      const isOn = bookingNotifyLevel === level
-                      return (
-                        <button
-                          key={level}
-                          type="button"
-                          onClick={() => setBookingNotifyLevel(level)}
-                          className={[
-                            'inline-flex items-center gap-1.5 rounded-[11px] border px-3 py-[7px] text-[12.5px] font-medium transition-all',
-                            isOn
-                              ? 'border-transparent bg-ink-dark text-white shadow-sm'
-                              : 'border-line bg-white text-ink hover:border-line-strong hover:bg-[#fafaf8]',
-                          ].join(' ')}
-                        >
-                          {isOn && <Check className="h-[13px] w-[13px] shrink-0 text-gold" strokeWidth={2.5} />}
-                          {label}
-                        </button>
-                      )
-                    })}
-                  </div>
-                </motion.div>
-
-                {Object.entries(groups).map(([group, items]) => {
-                  const Icon = GROUP_ICON[group] ?? Shield
-                  const isDanger = DANGER_GROUPS.has(group)
-                  return (
-                    <motion.div key={group} variants={CHIP_ITEM}>
-                      <div className="mb-2 flex items-center gap-1.5">
-                        <Icon className={`h-[13px] w-[13px] ${isDanger ? 'text-bad' : 'text-ink-soft2'}`} strokeWidth={2} />
-                        <span className={`text-[10.5px] font-bold uppercase tracking-[0.08em] ${isDanger ? 'text-bad' : 'text-ink-soft2'}`}>
-                          {group}
-                        </span>
-                        <div className="flex-1 border-t border-line" />
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {items.map((c) => {
-                          const canGrant = grantable.has(c.value)
-                          const isOn = caps.has(c.value)
-                          return (
-                            <button
-                              key={c.value}
-                              type="button"
-                              disabled={!canGrant}
-                              onClick={() => toggle(c.value)}
-                              className={[
-                                'inline-flex items-center gap-1.5 rounded-[11px] border px-3 py-[7px] text-[12.5px] font-medium transition-all',
-                                isOn
-                                  ? 'border-transparent bg-ink-dark text-white shadow-sm'
-                                  : canGrant
-                                  ? 'border-line bg-white text-ink hover:border-line-strong hover:bg-[#fafaf8]'
-                                  : 'cursor-not-allowed border-line/50 bg-black/[0.02] text-ink-soft2/40',
-                              ].join(' ')}
-                            >
-                              {isOn && <Check className="h-[13px] w-[13px] shrink-0 text-gold" strokeWidth={2.5} />}
-                              {c.label}
-                              {!canGrant && <span className="ml-0.5 text-[10px] text-ink-soft2/50">✕</span>}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </motion.div>
-                  )
-                })}
-              </motion.div>
-            </div>
-
-            {/* Mentés */}
-            <div className="flex items-center gap-2 border-t border-line pt-4">
-              <button
-                onClick={save}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 rounded-dav-pill bg-ink-dark px-5 py-2.5 text-[13px] font-semibold text-white shadow-sm transition-opacity disabled:opacity-60"
-              >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4 text-gold" strokeWidth={2.5} />}
-                {saving ? 'Mentés…' : 'Mentés'}
-              </button>
-              <button
-                onClick={() => setEditing(null)}
-                className="inline-flex items-center gap-1.5 rounded-dav-pill border border-line-strong bg-white px-5 py-2.5 text-[13px] font-semibold text-ink transition-colors hover:bg-[#f8f7f4]"
-              >
-                <X className="h-4 w-4" />
-                Mégse
-              </button>
-            </div>
-          </motion.div>
-        )}
-
-      </AnimatePresence>
-    </div>
+    <>
+      <RolesEditor header={header} roles={list} selectedId={selected} onSelect={(id) => (id === 'new' ? undefined : select(id))}
+        templates={isOwner ? templates.map((t) => t.name) : []} onTemplate={isOwner ? fromTemplate : undefined} onNew={isOwner ? newRole : undefined}
+        name={ownerSel ? 'Tulajdonos' : draft?.name ?? ''} desc={ownerSel ? 'Minden jog, nem szerkeszthető' : draft?.desc ?? ''}
+        onName={readOnly ? undefined : (v) => setDraft((d) => (d ? { ...d, name: v } : d))} onDesc={readOnly ? undefined : (v) => setDraft((d) => (d ? { ...d, desc: v } : d))}
+        members={roleMembers.map((m) => ({ name: m.name, img: m.img }))}
+        groups={groups} onToggle={toggle} onToggleAll={toggleAll} readOnly={readOnly} extra={notifyCard}
+        onDelete={!readOnly && base ? () => setConfirmDel(true) : undefined}
+        save={!readOnly && dirty ? { label: `${draft?.name.trim() || 'Új szerep'} · ${changes} módosítás`, onSave: () => void save(), onDiscard: () => (base ? select(base.id) : select(roles[0]?.id ?? 'owner')), busy: saving } : undefined} />
+      <ConfirmDialog open={confirmDel} title={`„${base?.name ?? ''}” szerep törlése`} description="A szerephez rendelt tagok szerep nélkül maradnak (csak az alap belépőt kapják), amíg újat nem adsz nekik." confirmLabel="Törlés"
+        onConfirm={() => void remove()} onCancel={() => setConfirmDel(false)} zIndexClass="z-[100]" />
+    </>
   )
 }

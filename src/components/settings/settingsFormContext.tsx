@@ -32,6 +32,23 @@ export type SettingsFormCtx = {
   reportDirty?: (dirty: boolean) => void
   /** a form ezen regisztrálja a mentés/elvetés műveletet (a hub sávja ezt hívja) */
   registerApi?: (api: SettingsFormApi) => void
+  /** Vendég e-mailek (16.6): a levelek be / ki kapcsolói és az emlékeztető beállításai — a hub tartja, a közös mentés menti */
+  guestEmail?: GuestEmailCtl
+}
+
+/** A vendég-levelek küldési beállításai (a hubban; a form e-mail fülének szerkesztője kapcsolgatja). */
+export type GuestEmailCtl = {
+  on: Record<'confirm' | 'reminder' | 'cancel' | 'feedback' | 'modification', boolean>
+  setOn: (key: 'confirm' | 'reminder' | 'cancel' | 'feedback' | 'modification', on: boolean) => void
+  /** emlékeztető-időzítés (több is lehet) és csatornák */
+  reminder: { t48: boolean; t24: boolean; t3: boolean; t1: boolean; email: boolean; push: boolean }
+  setReminder: (patch: Partial<GuestEmailCtl['reminder']>) => void
+  /** a visszajelzés-kérés késleltetése (óra) a felirathoz */
+  feedbackDelayHours: number | null
+  /** a lap mentése / mentés alatt / van-e mit menteni */
+  save: () => void
+  saving: boolean
+  dirty: boolean
 }
 
 export const SettingsFormContext = createContext<SettingsFormCtx | null>(null)

@@ -1,13 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Upload, FileText, X, Check, AlertCircle, Loader2, ChevronDown } from 'lucide-react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
-import { read, utils } from 'xlsx'
-import { ALIASES_BY_TYPE, FIELD_OPTIONS_BY_TYPE, type ImportType } from '@/lib/importSchema'
+import { Button, Meta } from '@/components/ui-kit'
+import { ImportDrop, ImportFileBar, ImportMapping, ImportMatch, ImportPreview, ImportResult, ImportSheets, ImportSteps } from '@/components/blocks/importer'
+import { ALIASES_BY_TYPE, FIELD_OPTIONS_BY_TYPE, detectTypeFromHeaders, guessTypeFromSheet, type ImportType } from '@/lib/importSchema'
 import type { EntityKind, EntityMap } from '@/lib/importMatching'
-import { ImportMatchStep, initialDecisions, type MatchReport } from './ImportMatchStep'
+import { buildMatchGroups, initialDecisions, setMatchChoice, type MatchReport } from './ImportMatchStep'
 
 // ── CSV parser ────────────────────────────────────────────────────────────
 
@@ -43,7 +42,14 @@ function parseCSV(text: string): { headers: string[]; rows: string[][] } {
 
 // ── XLSX parser ──────────────────────────────────────────────────────────
 
+// Az Excel-olvasó (xlsx) nagy — csak akkor töltődik be, amikor valaki Excel-fájlt választ (sebesség,
+// docs/audit/2026-11-05_1921). A parseXLSX ezután szinkron használható (a modul már bent van).
+let XLSX: typeof import('xlsx') | null = null
+const loadXlsx = async () => (XLSX ??= await import('xlsx'))
+
 function parseXLSX(buffer: ArrayBuffer, sheetName?: string): { headers: string[]; rows: string[][]; sheetNames: string[] } {
+  if (!XLSX) return { headers: [], rows: [], sheetNames: [] }
+  const { read, utils } = XLSX
   const wb = read(buffer, { type: 'array', dateNF: 'yyyy-mm-dd' })
   const sheetNames = wb.SheetNames
   const ws = wb.Sheets[sheetName ?? sheetNames[0]]
@@ -121,50 +127,23 @@ const RESULT_LABELS: Record<ImportType, { key: keyof ImportResult['imported']; l
   billing_info:      [{ key: 'billing_info', label: 'Rekord frissítve' }],
 }
 
+// Mi lesz egy sorból (a „20 sor → 20 vendég” sorhoz) és minek látszik a fájl (az eltérő típus figyelmeztetéséhez)
+const UNIT: Record<ImportType, string> = { bookings: 'foglalás', customers: 'vendég', staff: 'munkatárs', services: 'szolgáltatás', service_categories: 'kategória', tables: 'asztal', rooms: 'terem / zóna', opening_hours: 'nap', billing_info: 'cégadat' }
+const LOOKS_LIKE: Record<ImportType, string> = { bookings: 'foglalás-listának', customers: 'vendéglistának', staff: 'munkatárs-listának', services: 'szolgáltatás-listának', service_categories: 'kategória-listának', tables: 'asztal-listának', rooms: 'terem-listának', opening_hours: 'nyitvatartásnak', billing_info: 'cégadatoknak' }
+// melyik típus melyik vállalkozásnál értelmes (szalonnál nincs asztal, étteremnél nincs szolgáltatás-katalógus)
+const FOR_KIND: Record<'salon' | 'restaurant', ImportType[]> = {
+  salon: ['bookings', 'customers', 'staff', 'services', 'service_categories', 'billing_info'],
+  restaurant: ['bookings', 'customers', 'tables', 'rooms', 'opening_hours', 'billing_info'],
+}
+
 // ── Component ────────────────────────────────────────────────────────────
 
-// Sheet name → import type auto-suggestion
-const SHEET_NAME_MAP: Record<string, ImportType> = {
-  'munkatársak': 'staff', 'munkatarsak': 'staff', 'staff': 'staff', 'employees': 'staff', 'team': 'staff',
-  'szolgáltatások': 'services', 'szolgaltatasok': 'services', 'services': 'services', 'treatments': 'services',
-  'asztalok': 'tables', 'tables': 'tables',
-  'vendégek': 'customers', 'vendegek': 'customers', 'customers': 'customers', 'guests': 'customers', 'ügyfelek': 'customers', 'ugyfelek': 'customers',
-  'foglalások': 'bookings', 'foglalasok': 'bookings', 'bookings': 'bookings', 'reservations': 'bookings', 'appointments': 'bookings',
-  'nyitvatartás': 'opening_hours', 'nyitvatartas': 'opening_hours', 'opening hours': 'opening_hours', 'hours': 'opening_hours', 'órarend': 'opening_hours',
-  'termek': 'rooms', 'szobák': 'rooms', 'szobak': 'rooms', 'rooms': 'rooms', 'sections': 'rooms', 'zónák': 'rooms', 'zones': 'rooms',
-  'kategóriák': 'service_categories', 'kategoriak': 'service_categories', 'categories': 'service_categories', 'kategoriák': 'service_categories',
-  'számlázás': 'billing_info', 'szamlazas': 'billing_info', 'billing': 'billing_info', 'cégadatok': 'billing_info', 'cegadatok': 'billing_info', 'company': 'billing_info',
-}
-
-function guessTypeFromSheet(name: string): ImportType | null {
-  return SHEET_NAME_MAP[name.toLowerCase().trim()] ?? null
-}
-
-function detectTypeFromHeaders(headers: string[]): ImportType | null {
-  const norm = headers.map((h) => h.toLowerCase().trim())
-  const types = Object.keys(ALIASES_BY_TYPE) as ImportType[]
-  let best: ImportType | null = null
-  let bestScore = 0
-  for (const type of types) {
-    const aliases = ALIASES_BY_TYPE[type]
-    let score = 0
-    for (const h of norm) {
-      if (!(h in aliases)) continue
-      // Egy oszlopnév, ami TÖBB típus szótárában is szerepel (pl. "név"/"email"/"telefon",
-      // ami csapatnál ÉS vendégnél is ott van), kevésbé megkülönböztető — csak az egyedi
-      // (csak ennél a típusnál szereplő) nevek adjanak teljes pontot. Enélkül egy bővebb
-      // szótár (több célmező = több alias) szisztematikusan "elnyerte" a felismerést egy
-      // olyan fájltól is, ami valójában egy másik típushoz tartozott (pl. egy vendéglista
-      // "munkatársak"-ként detektálódott, mert a staff-szótárban volt "születésnap" alias).
-      const sharedWithOthers = types.filter((t) => t !== type && h in ALIASES_BY_TYPE[t]).length
-      score += 1 / (1 + sharedWithOthers)
-    }
-    if (score > bestScore) { bestScore = score; best = type }
-  }
-  return bestScore >= 1.5 ? best : null
-}
-
-export function ImportPanel() {
+/**
+ * Adatok importálása (design 23.1–23.5) — Beállítások › Integrációk popupjának belseje. Lépések: Fájl (ledobó; a fájl
+ * sora, hogy egy sor mi legyen, és mi lesz belőle; eltérő típusnál figyelmeztetés) → Oszlopok (párosítás + előnézet)
+ * → Párosítás (a fájlbeli nevek a meglévőkhöz) → Kész. Több munkalapnál a lapok listája, egy gombbal mind.
+ */
+export function ImportPanel({ kind = 'salon', sampleHref }: { kind?: 'salon' | 'restaurant'; sampleHref?: string }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [importType, setImportType] = useState<ImportType>('bookings')
   const [dragging, setDragging] = useState(false)
@@ -172,6 +151,8 @@ export function ImportPanel() {
   const [xlsxBuffer, setXlsxBuffer] = useState<ArrayBuffer | null>(null)
   const [sheetNames, setSheetNames] = useState<string[]>([])
   const [activeSheet, setActiveSheet] = useState<string | null>(null)
+  // több munkalapnál: kiválasztott-e egy lapot átnézésre (addig csak a lapok listája látszik)
+  const [sheetPicked, setSheetPicked] = useState(false)
   const [headers, setHeaders] = useState<string[]>([])
   const [rows, setRows] = useState<string[][]>([])
   const [mapping, setMapping] = useState<Record<number, string>>({})
@@ -179,17 +160,15 @@ export function ImportPanel() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [allSheetsResult, setAllSheetsResult] = useState<{ sheet: string; count: number; label: string }[] | null>(null)
-  const [showTypeOverride, setShowTypeOverride] = useState(false)
+  // eltérő típus megerősítve (a figyelmeztetés eltűnik)
+  const [mismatchOk, setMismatchOk] = useState(false)
   // Párosító lépés (munkatárs/szolgáltatás/kategória/asztal/terem) — az import előtt
   const [matchReport, setMatchReport] = useState<MatchReport | null>(null)
   const [decisions, setDecisions] = useState<EntityMap>({})
   const [matchLoading, setMatchLoading] = useState(false)
 
-  // Ha a fájl, a típus vagy az oszlop-megfeleltetés változik, a párosítás újra kell
-  useEffect(() => {
-    setMatchReport(null)
-    setDecisions({})
-  }, [headers, rows, mapping, importType])
+  const types = IMPORT_TYPES.filter((t) => FOR_KIND[kind].includes(t.value))
+  const labelOf = (t: ImportType) => IMPORT_TYPES.find((x) => x.value === t)?.label ?? t
 
   const applySheet = useCallback((buffer: ArrayBuffer, sheet: string, type: ImportType) => {
     const parsed = parseXLSX(buffer, sheet)
@@ -201,13 +180,16 @@ export function ImportPanel() {
   const loadFile = useCallback((file: File) => {
     setResult(null)
     setAllSheetsResult(null)
-    setShowTypeOverride(false)
+    setMatchReport(null)
+    setMismatchOk(false)
+    setSheetPicked(false)
     setFileName(file.name)
     const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls')
     const reader = new FileReader()
     if (isExcel) {
-      reader.onload = (e) => {
+      reader.onload = async (e) => {
         const buffer = e.target?.result as ArrayBuffer
+        await loadXlsx()
         const parsed = parseXLSX(buffer)
         setXlsxBuffer(buffer)
         setSheetNames(parsed.sheetNames)
@@ -226,7 +208,7 @@ export function ImportPanel() {
       setActiveSheet(null)
       reader.onload = (e) => {
         const raw = (e.target?.result as string)
-        const clean = raw.replace(/^﻿/, '')
+        const clean = raw.replace(/^\uFEFF/, '')
         if (/(?:^|\n)# /.test(clean)) {
           const sections = clean.split(/\r?\n(?=# )/)
           const sectionMap: Record<string, { headers: string[]; rows: string[][] }> = {}
@@ -268,7 +250,10 @@ export function ImportPanel() {
 
   const switchSheet = (sheet: string) => {
     setActiveSheet(sheet)
+    setSheetPicked(true)
     setResult(null)
+    setMatchReport(null)
+    setMismatchOk(false)
     if (xlsxBuffer) {
       const guessed = guessTypeFromSheet(sheet) ?? detectTypeFromHeaders(parseXLSX(xlsxBuffer, sheet).headers)
       const resolvedType = guessed ?? importType
@@ -284,20 +269,11 @@ export function ImportPanel() {
     }
   }
 
-  const onDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragging(false)
-    const file = e.dataTransfer.files[0]
+  const pickFile = (file: File | undefined) => {
     const ok = file && (file.name.endsWith('.csv') || file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))
     if (!ok) { toast.error('Csak .csv vagy .xlsx fájl fogadható el'); return }
     if (file.size > 5 * 1024 * 1024) { toast.error('A fájl mérete maximum 5 MB lehet'); return }
     loadFile(file)
-  }, [loadFile])
-
-  const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) loadFile(file)
-    e.target.value = ''
   }
 
   const reset = () => {
@@ -306,22 +282,34 @@ export function ImportPanel() {
     setCsvSections(null)
     setSheetNames([])
     setActiveSheet(null)
+    setSheetPicked(false)
     setHeaders([])
     setRows([])
     setMapping({})
     setResult(null)
     setAllSheetsResult(null)
-    setShowTypeOverride(false)
+    setMatchReport(null)
+    setMismatchOk(false)
   }
 
   const handleTypeChange = (t: ImportType) => {
     setImportType(t)
+    setMatchReport(null)
+    setMismatchOk(false)
     if (xlsxBuffer && activeSheet) {
       applySheet(xlsxBuffer, activeSheet, t)
     } else if (headers.length) {
       setMapping(autoDetect(headers, t))
     }
   }
+
+  // több munkalap: lapok a felismert típussal és a sorok számával (a listához)
+  const sheetInfo = useMemo(() => sheetNames.map((name) => {
+    const parsed = xlsxBuffer ? parseXLSX(xlsxBuffer, name) : csvSections?.[name] ?? { headers: [], rows: [] }
+    const t = guessTypeFromSheet(name) ?? detectTypeFromHeaders(parsed.headers) ?? 'bookings'
+    return { name, type: labelOf(t), rows: parsed.rows.length }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [sheetNames, xlsxBuffer, csvSections])
 
   const importAllSheets = async () => {
     if (!sheetNames.length) return
@@ -351,7 +339,7 @@ export function ImportPanel() {
         const data = await res.json().catch(() => null)
         if (data?.imported) {
           const total = (Object.values(data.imported) as number[]).reduce((a, b) => a + b, 0)
-          results.push({ sheet, count: total, label: IMPORT_TYPES.find((t) => t.value === guessed)?.label ?? guessed })
+          results.push({ sheet, count: total, label: labelOf(guessed) })
         }
       } catch { /* non-blocking */ }
     }
@@ -374,9 +362,8 @@ export function ImportPanel() {
       const data = await res.json().catch(() => null)
       if (!res.ok) throw new Error(data?.error ?? 'Import sikertelen')
       setResult(data)
-      const typeLabel = IMPORT_TYPES.find((t) => t.value === importType)?.label ?? ''
       const counts = RESULT_LABELS[importType].map((r) => `${data.imported[r.key]} ${r.label}`).join(', ')
-      toast.success(`${typeLabel} importálás kész — ${counts}`)
+      toast.success(`${labelOf(importType)} importálás kész — ${counts}`)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Ismeretlen hiba')
     } finally {
@@ -384,8 +371,7 @@ export function ImportPanel() {
     }
   }
 
-  // 1. lépés: a fájlbeli nevek párosítása a meglévő elemekkel. Ha nincs mit párosítani, az import
-  // egyből indul.
+  // a fájlbeli nevek párosítása a meglévő elemekkel. Ha nincs mit párosítani, az import egyből indul.
   const checkMatches = async () => {
     if (!headers.length || !rows.length) return
     setMatchLoading(true)
@@ -412,329 +398,100 @@ export function ImportPanel() {
   }
 
   const catalogImport = ['staff', 'services', 'service_categories', 'tables', 'rooms'].includes(importType)
-
   const fieldOptions = FIELD_OPTIONS_BY_TYPE[importType]
-  const currentTypeInfo = IMPORT_TYPES.find((t) => t.value === importType)!
-  const PREVIEW_ROWS = 5
+  const multi = sheetNames.length > 1
+  // eltérő típus: a fájl oszlopai alapján mást ismerünk fel, mint ami ki van választva
+  const detected = headers.length ? detectTypeFromHeaders(headers) : null
+  const mismatch = !!detected && detected !== importType && FOR_KIND[kind].includes(detected)
+  const blocked = mismatch && !mismatchOk
+  const step = result || allSheetsResult ? 3 : matchReport ? 2 : fileName ? 1 : 0
+  const base = kind === 'restaurant' ? '/restaurant' : '/dashboard'
+  const HREF: Partial<Record<ImportType, [string, string]>> = {
+    bookings: [`${base}/bookings`, 'Foglalások megnyitása'], customers: [`${base}/guests`, 'Vendégek megnyitása'], staff: [`${base}/staff`, 'Munkatársak megnyitása'],
+    services: ['/dashboard/services', 'Szolgáltatások megnyitása'], service_categories: ['/dashboard/services', 'Szolgáltatások megnyitása'],
+    tables: ['/restaurant/settings?tab=tables', 'Asztalok megnyitása'], rooms: ['/restaurant/settings?tab=tables', 'Asztalok megnyitása'],
+  }
+
+  // a párosított oszlopok előnézete a nálunk használt címekkel
+  const mappedCols = headers.map((_, i) => i).filter((i) => mapping[i])
+  const fieldLabel = (v: string) => fieldOptions.find((o) => o.value === v)?.label ?? v
 
   return (
-    <div className="space-y-5">
-      <p className="text-sm text-ink-soft">
-        Importálj adatokat más foglalórendszerből (Salonic, Fresha, SimplyBook, Vagaro stb.) vagy töltsd fel vállalkozásod
-        összes alap-adatát — CSV vagy Excel formátumban. A rendszer automatikusan felismeri az oszlopokat és az adattípust.
-      </p>
+    <div>
+      <ImportSteps active={step} />
+      <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={(e) => { pickFile(e.target.files?.[0]); e.target.value = '' }} />
 
-      {/* Drop zone */}
+      {/* 1. a fájl */}
       {!fileName && (
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          className={cn(
-            'w-full rounded-[22px] border-2 border-dashed transition-colors p-10 flex flex-col items-center gap-3 text-center',
-            dragging ? 'border-gold bg-gold/[0.06]' : 'border-line-strong hover:border-ink-soft2/60 hover:bg-paper',
-          )}
-        >
-          <Upload className="h-8 w-8 text-ink-soft2" />
-          <div>
-            <p className="font-medium text-ink">CSV vagy Excel fájl feltöltése</p>
-            <p className="text-sm text-ink-soft mt-0.5">Húzd ide vagy kattints — a rendszer automatikusan felismeri az adattípust</p>
-            <p className="text-xs text-ink-soft2 mt-2">.csv · .xlsx · .xls — Salonic · Fresha · SimplyBook · saját export</p>
-          </div>
-          <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={onFileChange} />
-        </button>
+        <div onDragOver={(e) => { e.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={(e) => { e.preventDefault(); setDragging(false); pickFile(e.dataTransfer.files[0]) }}>
+          <ImportDrop dragging={dragging} onPick={() => fileRef.current?.click()} sampleHref={sampleHref} />
+        </div>
       )}
 
-      {/* File loaded */}
-      {fileName && (
-        <div className="space-y-5">
+      {fileName && !result && (
+        <ImportFileBar name={fileName} rows={multi ? null : rows.length}
+          types={multi && !sheetPicked ? [] : types} type={importType} onType={(v) => handleTypeChange(v as ImportType)} onRemove={reset}
+          willCreate={multi && !sheetPicked ? null : `${rows.length.toLocaleString('hu-HU')} sor → ${rows.length.toLocaleString('hu-HU')} ${UNIT[importType]}`}
+          warn={mismatch && detected && (!multi || sheetPicked) ? {
+            text: `A fájl oszlopai alapján ez ${LOOKS_LIKE[detected]} látszik. ${labelOf(importType)}ként minden sorból egy ${UNIT[importType]} lenne — biztosan így olvassuk be?`,
+            detectedLabel: labelOf(detected), confirmed: mismatchOk, onConfirm: () => setMismatchOk(true), onRevert: () => handleTypeChange(detected),
+          } : null} />
+      )}
 
-          {/* File info + detected type + reset */}
-          <div className="rounded-2xl border border-line bg-white px-4 py-3 space-y-2.5">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <FileText className="h-4 w-4 shrink-0 text-ink-soft" />
-                <span className="text-sm font-medium text-ink truncate">{fileName}</span>
-                {sheetNames.length <= 1 && <span className="text-xs text-ink-soft2 shrink-0">{rows.length} sor</span>}
-              </div>
-              <button type="button" onClick={reset} className="shrink-0 text-ink-soft hover:text-ink transition-colors" aria-label="Fájl eltávolítása">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
+      {/* több munkalap: a lapok, egy gombbal mind; vagy egy lap átnézése */}
+      {multi && !result && (
+        <ImportSheets className="mt-4" active={sheetPicked ? activeSheet : null} busy={loading} onAll={importAllSheets} onSheet={switchSheet}
+          sheets={sheetInfo.map((s) => ({ ...s, done: allSheetsResult ? allSheetsResult.find((r) => r.sheet === s.name)?.count ?? 0 : null }))} />
+      )}
+      {allSheetsResult && <Button variant="cell" className="mt-4 w-full" onClick={reset}>Új import</Button>}
 
-            {/* Detected type badge + override */}
-            {sheetNames.length <= 1 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-ink-soft2">Felismert típus:</span>
-                <span className="text-xs font-semibold text-gold">{currentTypeInfo.label}</span>
-                <button
-                  type="button"
-                  onClick={() => setShowTypeOverride((v) => !v)}
-                  className="text-xs text-ink-soft2 underline underline-offset-2 hover:text-ink transition-colors"
-                >
-                  {showTypeOverride ? 'Bezárás' : 'Módosítás'}
-                </button>
-              </div>
-            )}
-
-            {/* Type override (inline, compact) */}
-            {showTypeOverride && sheetNames.length <= 1 && (
-              <div className="flex flex-wrap gap-1.5 pt-1">
-                {IMPORT_TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    type="button"
-                    onClick={() => { handleTypeChange(t.value); setShowTypeOverride(false) }}
-                    className={cn(
-                      'rounded-lg px-2.5 py-1 text-xs font-medium transition-all border',
-                      importType === t.value
-                        ? 'bg-ink-dark text-white border-ink-dark'
-                        : 'bg-white text-ink border-line-strong hover:bg-paper',
-                    )}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            )}
+      {/* 2. oszlopok */}
+      {fileName && !result && !matchReport && !allSheetsResult && headers.length > 0 && (!multi || sheetPicked) && (
+        <>
+          <ImportMapping className="mt-6" fields={fieldOptions} onField={(k, v) => setMapping((prev) => ({ ...prev, [Number(k)]: v }))}
+            rows={headers.map((h, i) => ({ key: i, header: h, field: mapping[i] ?? '', sample: rows[0]?.[i] }))} />
+          {mappedCols.length > 0 && rows.length > 0 && (
+            <ImportPreview className="mt-6" total={rows.length} head={mappedCols.map((i) => fieldLabel(mapping[i]))} rows={rows.slice(0, 5).map((r) => mappedCols.map((i) => r[i] ?? ''))} />
+          )}
+          <div className="mt-6 flex flex-wrap justify-end gap-1.5">
+            <Button variant="cell" onClick={reset}>Mégse</Button>
+            <Button loading={matchLoading || loading} disabled={blocked || !rows.length || !mappedCols.length} onClick={checkMatches}>Tovább: párosítás</Button>
           </div>
+          {blocked && <Meta className="mt-2 text-right">Előbb döntsd el fent, milyen adatként olvassuk be.</Meta>}
+        </>
+      )}
 
-          {/* Multi-sheet XLSX: import all + sheet tabs */}
-          {sheetNames.length > 1 && (
-            <div className="space-y-3">
-              {/* "Import all sheets" — primary action */}
-              {!allSheetsResult && (
-                <button
-                  type="button"
-                  onClick={importAllSheets}
-                  disabled={loading}
-                  className={cn(
-                    'w-full rounded-2xl py-3.5 text-sm font-semibold transition-all flex items-center justify-center gap-2',
-                    'bg-ink-dark text-white hover:bg-ink disabled:opacity-40 disabled:cursor-not-allowed',
-                  )}
-                >
-                  {loading
-                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Importálás folyamatban…</>
-                    : <><Upload className="h-4 w-4" /> Összes munkalap importálása ({sheetNames.length} lap)</>
-                  }
-                </button>
-              )}
+      {/* 3. párosítás */}
+      {matchReport && !result && (
+        <>
+          <ImportMatch className="mt-6" groups={buildMatchGroups(matchReport, decisions, catalogImport)} onChoice={(k, v, c) => setDecisions((d) => setMatchChoice(d, k, v, c))}
+            note={catalogImport ? 'Az újak aktívan jönnek létre; a meglévők nem változnak.' : 'Amit újként hozunk létre, az inaktív marad (a szolgáltatások az „Importált” kategóriában), amíg be nem kapcsolod — a foglalóoldalon nem jelenik meg.'} />
+          <div className="mt-6 flex flex-wrap justify-end gap-1.5">
+            <Button variant="cell" onClick={() => setMatchReport(null)}>Vissza</Button>
+            <Button loading={loading} onClick={() => runImport()}>{rows.length.toLocaleString('hu-HU')} sor importálása</Button>
+          </div>
+        </>
+      )}
 
-              {/* All-sheets result */}
-              {allSheetsResult && (
-                <div className="rounded-[22px] border border-line bg-white p-5 space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Check className="h-5 w-5 text-ok" />
-                    <p className="font-semibold text-ink">Összes munkalap importálva</p>
-                  </div>
-                  <div className="space-y-2">
-                    {allSheetsResult.map((r) => (
-                      <div key={r.sheet} className="flex items-center justify-between rounded-xl bg-paper px-4 py-2.5">
-                        <div>
-                          <span className="text-sm font-medium text-ink">{r.sheet}</span>
-                          <span className="ml-2 text-xs text-ink-soft2">{r.label}</span>
-                        </div>
-                        <span className="text-sm font-semibold text-ink">{r.count} db</span>
-                      </div>
-                    ))}
-                  </div>
-                  <button type="button" onClick={reset} className="w-full rounded-2xl border border-line-strong bg-white py-2.5 text-sm font-medium text-ink hover:bg-paper transition-colors">
-                    Új importálás
-                  </button>
-                </div>
-              )}
-
-              {/* Divider + sheet tabs (for importing one at a time if needed) */}
-              {!allSheetsResult && (
-                <div>
-                  <div className="flex items-center gap-3 my-1">
-                    <span className="h-px flex-1 bg-line" />
-                    <span className="text-[11px] text-ink-soft2">vagy munkalaponként</span>
-                    <span className="h-px flex-1 bg-line" />
-                  </div>
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {sheetNames.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => switchSheet(s)}
-                        className={cn(
-                          'rounded-lg px-3 py-1.5 text-xs font-medium transition-all border',
-                          activeSheet === s
-                            ? 'bg-ink-dark text-white border-ink-dark'
-                            : 'bg-white text-ink border-line-strong hover:bg-paper',
-                        )}
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
+      {/* 4. kész */}
+      {result && (
+        <ImportResult className="mt-2" onAgain={reset} errors={result.errors} href={HREF[importType]?.[0]} hrefLabel={HREF[importType]?.[1]}
+          stats={[
+            ...RESULT_LABELS[importType].map((r) => ({ label: r.label, value: result.imported[r.key] })),
+            ...(result.updated ? [{ label: 'Frissítve', value: result.updated }] : []),
+            ...(result.duplicates ? [{ label: 'Már megvolt', value: result.duplicates }] : []),
+            { label: 'Kihagyva', value: result.skipped },
+          ]}>
+          {result.created && Object.values(result.created).some((l) => l?.length) && (
+            <div className="mt-3 rounded-ui-inner bg-ui-cell px-3 py-2.5">
+              <div className="text-ui-meta text-ui-text">Újonnan létrehozva — nézd át</div>
+              {(['services', 'staff', 'categories', 'tables', 'rooms'] as EntityKind[]).map((k) => result.created?.[k]?.length ? (
+                <Meta key={k} className="mt-1"><span className="text-ui-text">{({ services: 'Szolgáltatások', staff: 'Munkatársak', categories: 'Kategóriák', tables: 'Asztalok', rooms: 'Termek' } as const)[k]}:</span> {result.created[k]!.join(', ')}</Meta>
+              ) : null)}
+              {!catalogImport && <Meta className="mt-1">Ezek inaktívak, így nem jelennek meg a foglalóoldalon — a Szolgáltatások / Munkatársak oldalon kapcsolhatod be vagy nevezheted át őket.</Meta>}
             </div>
           )}
-
-          {/* Column mapping + preview + import (single sheet or active sheet) */}
-          {!allSheetsResult && headers.length > 0 && (
-            <>
-              <div className="rounded-[22px] border border-line bg-white p-5 space-y-3">
-                <p className="text-sm font-semibold text-ink">Oszlopleképezés</p>
-                <p className="text-xs text-ink-soft">A felismert oszlopokat manuálisan is átírhatod.</p>
-                <div className="space-y-2">
-                  {headers.map((h, i) => (
-                    <div key={i} className="flex items-center gap-3">
-                      <span className="text-xs text-ink-soft2 w-40 truncate shrink-0 font-mono bg-paper rounded-lg px-2 py-1">{h}</span>
-                      <ChevronDown className="h-3.5 w-3.5 text-ink-soft2 shrink-0" />
-                      <div className="relative flex-1">
-                        <select
-                          value={mapping[i] ?? ''}
-                          onChange={(e) => setMapping((prev) => ({ ...prev, [i]: e.target.value }))}
-                          className="w-full text-xs rounded-xl border border-line-strong bg-white px-3 py-2 pr-7 text-ink appearance-none focus:outline-none focus:ring-2 focus:ring-gold/50"
-                        >
-                          {fieldOptions.map((o) => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                          ))}
-                        </select>
-                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 h-3 w-3 text-ink-soft2 pointer-events-none" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {rows.length > 0 && (
-                <div className="rounded-[22px] border border-line bg-white p-5 space-y-3 overflow-hidden">
-                  <p className="text-sm font-semibold text-ink">Előnézet — első {Math.min(PREVIEW_ROWS, rows.length)} sor</p>
-                  <div className="overflow-x-auto -mx-1">
-                    <table className="w-full text-xs text-left border-collapse">
-                      <thead>
-                        <tr>
-                          {headers.map((h, i) => (
-                            <th key={i} className="pb-2 pr-4 text-ink-soft font-medium whitespace-nowrap">
-                              {h}
-                              {mapping[i] && (
-                                <span className="ml-1 text-gold font-normal">→ {fieldOptions.find(o => o.value === mapping[i])?.label.split(' ')[0]}</span>
-                              )}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {rows.slice(0, PREVIEW_ROWS).map((row, ri) => (
-                          <tr key={ri} className="border-t border-line/50">
-                            {headers.map((_, ci) => (
-                              <td key={ci} className="py-1.5 pr-4 text-ink-soft2 whitespace-nowrap max-w-[140px] truncate">
-                                {row[ci] ?? ''}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {!result && matchReport && (
-                <ImportMatchStep report={matchReport} decisions={decisions} onChange={setDecisions} catalogImport={catalogImport} />
-              )}
-
-              {!result && (
-                <button
-                  type="button"
-                  onClick={() => (matchReport ? runImport() : checkMatches())}
-                  disabled={loading || matchLoading || !rows.length}
-                  className={cn(
-                    'w-full rounded-2xl py-3.5 text-sm font-semibold transition-all flex items-center justify-center gap-2',
-                    'bg-ink-dark text-white hover:bg-ink disabled:opacity-40 disabled:cursor-not-allowed',
-                  )}
-                >
-                  {loading
-                    ? <><Loader2 className="h-4 w-4 animate-spin" /> Importálás folyamatban…</>
-                    : matchLoading
-                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Párosítás ellenőrzése…</>
-                      : matchReport
-                        ? <><Upload className="h-4 w-4" /> {rows.length} sor importálása a párosítással ({currentTypeInfo.label})</>
-                        : <><Check className="h-4 w-4" /> Tovább: párosítás ellenőrzése</>
-                  }
-                </button>
-              )}
-
-              {result && (
-                <div className="rounded-[22px] border border-line bg-white p-5 space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Check className="h-5 w-5 text-ok" />
-                    <p className="font-semibold text-ink">Importálás kész</p>
-                  </div>
-                  <div className={cn('grid gap-3', RESULT_LABELS[importType].length === 1 ? 'grid-cols-2' : 'grid-cols-3')}>
-                    {RESULT_LABELS[importType].map((r) => (
-                      <div key={r.key} className="rounded-2xl bg-paper px-4 py-3 text-center">
-                        <p className="text-2xl font-light text-ink">{result.imported[r.key]}</p>
-                        <p className="text-xs text-ink-soft mt-0.5">{r.label}</p>
-                      </div>
-                    ))}
-                    {!!result.updated && (
-                      <div className="rounded-2xl bg-paper px-4 py-3 text-center">
-                        <p className="text-2xl font-light text-ink">{result.updated}</p>
-                        <p className="text-xs text-ink-soft mt-0.5">Frissítve</p>
-                      </div>
-                    )}
-                    {!!result.duplicates && (
-                      <div className="rounded-2xl bg-paper px-4 py-3 text-center">
-                        <p className="text-2xl font-light text-ink">{result.duplicates}</p>
-                        <p className="text-xs text-ink-soft mt-0.5">Már létező foglalás</p>
-                      </div>
-                    )}
-                    <div className="rounded-2xl bg-paper px-4 py-3 text-center">
-                      <p className="text-2xl font-light text-ink">{result.skipped}</p>
-                      <p className="text-xs text-ink-soft mt-0.5">Kihagyva</p>
-                    </div>
-                  </div>
-                  {result.created && Object.values(result.created).some((l) => l?.length) && (
-                    <div className="rounded-xl bg-paper px-4 py-3 space-y-1.5">
-                      <p className="text-xs font-semibold text-ink">Újonnan létrehozott elemek — nézd át</p>
-                      {(['services', 'staff', 'categories', 'tables', 'rooms'] as EntityKind[]).map((k) =>
-                        result.created?.[k]?.length ? (
-                          <p key={k} className="text-xs text-ink-soft">
-                            <span className="text-ink">{({ services: 'Szolgáltatások', staff: 'Munkatársak', categories: 'Kategóriák', tables: 'Asztalok', rooms: 'Termek' } as const)[k]}:</span>{' '}
-                            {result.created[k]!.join(', ')}
-                          </p>
-                        ) : null,
-                      )}
-                      {!catalogImport && (
-                        <p className="text-[11px] text-ink-soft2">
-                          Ezek inaktívak (a szolgáltatások az „Importált” kategóriában), így nem jelennek meg a foglalóoldalon. Aktiváld vagy nevezd át őket a Szolgáltatások / Munkatársak oldalon.
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  <p className="text-xs text-ink-soft">
-                    Az importált adatokról nem megy ki értesítés, push-üzenet vagy email a vendégeknek.
-                  </p>
-                  {result.errors.length > 0 && (
-                    <div className="rounded-xl bg-bad/[0.06] border border-bad/20 p-3 space-y-1">
-                      <div className="flex items-center gap-1.5 text-bad">
-                        <AlertCircle className="h-3.5 w-3.5" />
-                        <p className="text-xs font-semibold">Figyelmeztetések ({result.errors.length})</p>
-                      </div>
-                      {result.errors.slice(0, 8).map((e, i) => (
-                        <p key={i} className="text-xs text-ink-soft ml-5">{e}</p>
-                      ))}
-                      {result.errors.length > 8 && (
-                        <p className="text-xs text-ink-soft2 ml-5">+ {result.errors.length - 8} további…</p>
-                      )}
-                    </div>
-                  )}
-                  <button type="button" onClick={reset} className="w-full rounded-2xl border border-line-strong bg-white py-2.5 text-sm font-medium text-ink hover:bg-paper transition-colors">
-                    Új importálás
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
+        </ImportResult>
       )}
     </div>
   )

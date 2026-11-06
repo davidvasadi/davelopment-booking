@@ -12,7 +12,7 @@ export type GoodToKnowItem = { icon: string; title: string; body: string }
 
 /** Közös mező-stílus (Crextio/Apple: tiszta fehér, meleg hajszál-keret, gold fókusz). */
 const fieldBase =
-  'w-full rounded-[12px] bg-white border border-line-strong text-ink placeholder:text-ink-soft2/60 focus:outline-none focus:border-gold/60 focus:ring-2 focus:ring-gold/25 transition-colors'
+  'w-full rounded-[12px] bg-white border border-ui-divider text-ui-text focus:outline-none focus:ring-2 transition-colors'
 
 /**
  * „Jó tudni" pont-szerkesztő a foglaló oldalhoz (ikon + cím + szöveg). Kontrollált:
@@ -52,27 +52,27 @@ export function GoodToKnowEditor({
 
   if (isBlank) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-[18px] border border-dashed border-line-strong bg-white px-6 py-10 text-center">
-        <span className="flex h-11 w-11 items-center justify-center rounded-[14px] bg-ink-dark text-gold">
+      <div className="flex flex-col items-center gap-3 rounded-ui-inner border border-dashed border-ui-divider bg-white px-6 py-10 text-center">
+        <span className="flex h-11 w-11 items-center justify-center rounded-ui-control bg-ui-dark text-ui-yellow">
           <Info className="h-5 w-5" strokeWidth={1.7} />
         </span>
         <div>
-          <p className="text-sm font-semibold text-ink">{value.length === 0 ? 'Még nincs „Jó tudni" pont' : 'Erre a nyelvre még nincs lefordítva'}</p>
-          <p className="mt-0.5 text-xs text-ink-soft">Pl. parkolás, módosítás, kisállat-barát…</p>
+          <p className="text-sm font-medium text-ui-text">{value.length === 0 ? 'Még nincs „Jó tudni" pont' : 'Erre a nyelvre még nincs lefordítva'}</p>
+          <p className="mt-0.5 text-xs text-ui-muted">Pl. parkolás, módosítás, kisállat-barát…</p>
         </div>
         <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
           <button
             type="button"
             onClick={() => (onLoadTemplate ? onLoadTemplate() : onChange(goodToKnowTemplate(locale)))}
-            className="inline-flex items-center gap-1.5 rounded-[14px] bg-ink-dark px-4 py-2.5 text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+            className="inline-flex items-center gap-1.5 rounded-ui-control bg-ui-dark px-4 py-2.5 text-ui-meta font-medium text-white transition-opacity hover:opacity-90"
           >
-            <Sparkles className="h-4 w-4 text-gold" />
+            <Sparkles className="h-4 w-4 text-ui-yellow" />
             Sablon betöltése
           </button>
           <button
             type="button"
             onClick={add}
-            className="inline-flex items-center gap-1.5 rounded-[14px] border border-line bg-white px-4 py-2.5 text-[13px] font-semibold text-ink-soft transition-colors hover:text-ink"
+            className="inline-flex items-center gap-1.5 rounded-ui-control border border-ui-divider bg-white px-4 py-2.5 text-ui-meta font-medium text-ui-muted transition-colors hover:text-ui-text"
           >
             <Plus className="h-4 w-4" />
             Üres pont
@@ -98,7 +98,7 @@ export function GoodToKnowEditor({
       <button
         type="button"
         onClick={add}
-        className="inline-flex items-center gap-1.5 rounded-[14px] border border-line bg-white px-4 py-2.5 text-[13px] font-semibold text-ink-soft shadow-dav-card transition-colors hover:text-ink"
+        className="inline-flex items-center gap-1.5 rounded-ui-control border border-ui-divider bg-white px-4 py-2.5 text-ui-meta font-medium text-ui-muted transition-colors hover:text-ui-text"
       >
         <Plus className="h-4 w-4" />
         Új pont
@@ -138,7 +138,7 @@ function GoodToKnowRow({
       value={item}
       dragListener={false}
       dragControls={dragControls}
-      className="space-y-3 rounded-[18px] border border-line bg-white p-4 shadow-dav-card"
+      className="space-y-3 rounded-ui-inner border border-ui-divider bg-white p-4"
     >
       <div className="flex items-center gap-2.5">
         {/* Ikonválasztó popover */}
@@ -147,13 +147,13 @@ function GoodToKnowRow({
             type="button"
             onClick={() => setPickerOpen((o) => !o)}
             aria-label="Ikon választása"
-            className="flex h-11 items-center gap-1.5 rounded-[12px] border border-line-strong bg-white pl-3 pr-2 text-ink transition-colors hover:border-ink/25"
+            className="flex h-11 items-center gap-1.5 rounded-ui-control border border-ui-divider bg-white pl-3 pr-2 text-ui-text transition-colors"
           >
             <ActiveIcon className="h-4 w-4" strokeWidth={1.8} />
-            <Caret className="h-3.5 w-3.5 text-ink-soft2" />
+            <Caret className="h-3.5 w-3.5 text-ui-muted" />
           </button>
           {pickerOpen && (
-            <div className="absolute left-0 top-full z-50 mt-2 w-64 rounded-[16px] border border-line bg-white p-2 shadow-dav-card">
+            <div className="absolute left-0 top-full z-50 mt-2 w-64 rounded-ui-inner border border-ui-divider bg-white p-2">
               <div className="grid grid-cols-5 gap-1">
                 {GOOD_TO_KNOW_ICONS.map(({ key, label, icon: Icon }) => (
                   <button
@@ -167,8 +167,8 @@ function GoodToKnowRow({
                     className={cn(
                       'flex h-10 w-full items-center justify-center rounded-[10px] transition-colors',
                       item.icon === key
-                        ? 'bg-ink-dark text-gold'
-                        : 'text-ink-soft hover:bg-paper hover:text-ink',
+                        ? 'bg-ui-dark text-ui-yellow'
+                        : 'text-ui-muted hover:bg-ui-cell hover:text-ui-text',
                     )}
                   >
                     <Icon className="h-4 w-4" strokeWidth={1.8} />
@@ -189,12 +189,12 @@ function GoodToKnowRow({
         <div className="flex shrink-0 items-center">
           <div
             onPointerDown={(e) => dragControls.start(e)}
-            className="flex h-8 w-7 cursor-grab items-center justify-center text-ink-soft2 transition-colors hover:text-ink active:cursor-grabbing"
+            className="flex h-8 w-7 cursor-grab items-center justify-center text-ui-muted transition-colors hover:text-ui-text active:cursor-grabbing"
             title="Húzd az átrendezéshez"
           >
             <GripVertical className="h-4 w-4" />
           </div>
-          <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ink-soft2 transition-colors hover:text-red-500">
+          <button type="button" onClick={onRemove} title="Törlés" className="p-1.5 text-ui-muted transition-colors hover:text-red-500">
             <Trash2 className="h-4 w-4" />
           </button>
         </div>

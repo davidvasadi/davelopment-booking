@@ -173,6 +173,21 @@ export const settingsExtensionFields: Field[] = [
         defaultValue: 1,
         admin: { description: '1 = 1 órával kezelés után, 2 = 2 órával, 24 = másnap.' },
       },
+      // Hova küldjük az elégedett (4–5 csillagos) vendéget a saját értékelő-oldalról (design 16.15): nem mindenkinek a
+      // Google a fő hely — étteremnél gyakran a TripAdvisor. Ha a választott link üres, a Google-link a tartalék.
+      {
+        name: 'review_target',
+        type: 'select',
+        defaultValue: 'google',
+        label: 'Hol értékeljen még',
+        options: [
+          { label: 'Google', value: 'google' },
+          { label: 'TripAdvisor', value: 'tripadvisor' },
+          { label: 'Facebook', value: 'facebook' },
+        ],
+      },
+      { name: 'tripadvisor_review_url', type: 'text', label: 'TripAdvisor értékelés link' },
+      { name: 'facebook_review_url', type: 'text', label: 'Facebook értékelés link' },
       // A „Foglalj most” gomb beállítása a tulaj saját Google Cégem fiókjában történik, teljesen
       // a mi API-nkon KÍVÜL — ezt sosem tudjuk ténylegesen ellenőrizni/lekérdezni (nincs
       // webhook/API, amin keresztül a Google visszajelezné). Ez a mező ÖNBEVALLÁS: a tulaj maga
@@ -215,6 +230,24 @@ export const depositSettingsFields: Field[] = [
       { name: 'fixed_amount_huf', type: 'number', min: 0, label: 'Fix előleg (Ft)' },
       { name: 'percent_value', type: 'number', min: 1, max: 100, label: 'Előleg (%)' },
       { name: 'per_pax_amount_huf', type: 'number', min: 0, label: 'Előleg / fő (Ft)' },
+      // Mikor kérjünk előleget (design 16.1): mindig / X Ft feletti szolgáltatásnál (szalon) / X fő felett (étterem) /
+      // kiemelt napokon — a hét kiválasztott napjai és konkrét dátumok (`special_days`: { weekdays: 0–6 (0 = vasárnap), dates: 'YYYY-MM-DD'[] }).
+      // A döntés egy helyen van: `depositApplies` (src/lib/depositCalc.ts) — a foglalóoldal és a szerver is azt hívja.
+      {
+        name: 'apply_when',
+        type: 'select',
+        defaultValue: 'always',
+        label: 'Mely foglalásoknál',
+        options: [
+          { label: 'Mindig', value: 'always' },
+          { label: 'X Ft feletti szolgáltatásnál (szalon)', value: 'min_price' },
+          { label: 'X fő felett (étterem)', value: 'min_pax' },
+          { label: 'Kiemelt napokon', value: 'special_days' },
+        ],
+      },
+      { name: 'min_price_huf', type: 'number', min: 0, label: 'Ennyi Ft feletti szolgáltatásnál' },
+      { name: 'min_pax', type: 'number', min: 1, label: 'Ennyi fő felett' },
+      { name: 'special_days', type: 'json', label: 'Kiemelt napok' },
       {
         name: 'refund_hours_before',
         type: 'number',
@@ -427,6 +460,15 @@ export const invoiceSettingsFields: Field[] = [
         ],
       },
       {
+        // ki számláz (design 16.7): az üzlet (a csapat alkalmazott) vagy szakemberenként (vállalkozók — mindenki a saját
+        // számlázójával, adószámával és Stripe-fiókjával; a munkatárs mezői a Staff kollekcióban)
+        name: 'issuer',
+        type: 'select',
+        defaultValue: 'business',
+        label: 'Ki számláz',
+        options: [{ label: 'Az üzlet', value: 'business' }, { label: 'Szakemberenként', value: 'staff' }],
+      },
+      {
         name: 'szamlazz_agent_key_enc',
         type: 'text',
         label: 'Számlázz.hu Agent kulcs',
@@ -492,4 +534,51 @@ export const googlePlaceFields: Field[] = [
   { name: 'google_rating_count', type: 'number', label: 'Google-értékelések száma', admin: { position: 'sidebar', readOnly: true } },
   { name: 'google_reviews', type: 'json', label: 'Google-értékelések (gyorsítótár)', admin: { readOnly: true } },
   { name: 'google_reviews_updated_at', type: 'date', label: 'Google-értékelések frissítve', admin: { position: 'sidebar', readOnly: true } },
+]
+
+/**
+ * A foglalóoldal megjelenése (design 21.x, szerkesztő 21.6 / 16.9) — szalon és étterem közös:
+ *  - Arculat: márkaszín (minden kiemelés: fő gomb, kiválasztott sor, időpont), a foglaló kártya stílusa, a betűszín a
+ *    kártyán és a márkaszínű gombokon;
+ *  - Borítókép: sötétítés (a fókuszpont a meglévő `cover_focal_*` mezőkben);
+ *  - Galéria (`gallery`, külön mező): legfeljebb 12 kép felirattal — az első 3 a borítón;
+ *  - Értékelések, Közösségi: megjelenjenek-e a borítón;
+ *  - Foglalás gomb: saját felirat (nyelvenként), „Legközelebb szabad”, előleg-jelzés;
+ *  - Szolgáltatások (szalon): kategória-szűrő, képek, ár · időtartam, sorrend (melyik látszik: `services.online_visible`).
+ * Üresen / alapértéken az oldal ugyanúgy néz ki, mint eddig (sötét üveg kártya, a mi sárgánk).
+ */
+export const publicPageFields: Field[] = [
+  {
+    name: 'public_page',
+    type: 'group',
+    label: 'Foglalóoldal megjelenése',
+    fields: [
+      { name: 'accent_color', type: 'text', label: 'Márkaszín (hex)', admin: { description: 'Pl. #FFD85F — üresen a davelopment sárgája.' } },
+      { name: 'card_style', type: 'select', defaultValue: 'dark', label: 'Foglaló kártya', options: [{ label: 'Sötét üveg', value: 'dark' }, { label: 'Fekete', value: 'black' }, { label: 'Világos üveg', value: 'glass' }, { label: 'Fehér', value: 'white' }] },
+      { name: 'card_text', type: 'select', defaultValue: 'auto', label: 'Betűszín a kártyán', options: [{ label: 'A kártyához igazodik', value: 'auto' }, { label: 'Fehér', value: 'light' }, { label: 'Sötét', value: 'dark' }] },
+      { name: 'button_text', type: 'select', defaultValue: 'auto', label: 'Betűszín a gombokon', options: [{ label: 'A márkaszínhez igazodik', value: 'auto' }, { label: 'Fehér', value: 'light' }, { label: 'Sötét', value: 'dark' }] },
+      { name: 'cover_dim', type: 'select', defaultValue: 'soft', label: 'Borító sötétítése', options: [{ label: 'Nincs', value: 'none' }, { label: 'Enyhe', value: 'soft' }, { label: 'Erős', value: 'strong' }] },
+      { name: 'show_rating', type: 'checkbox', defaultValue: true, label: 'Értékelés a borítón' },
+      { name: 'rating_opens', type: 'checkbox', defaultValue: true, label: 'Az értékelésre kattintva megnyílnak a vélemények' },
+      { name: 'show_social', type: 'checkbox', defaultValue: true, label: 'Közösségi linkek a borítón' },
+      { name: 'cta_label', type: 'text', localized: true, maxLength: 24, label: 'Foglalás gomb felirata', admin: { description: 'Üresen: „Időpontot foglalok” / „Asztalt foglalok”.' } },
+      { name: 'cta_next_free', type: 'checkbox', defaultValue: true, label: '„Legközelebb szabad” a gomb mellett' },
+      { name: 'cta_deposit_badge', type: 'checkbox', defaultValue: false, label: 'Előleg jelzése a gombon' },
+      { name: 'services_filter', type: 'checkbox', defaultValue: true, label: 'Kategória-szűrő' },
+      { name: 'services_images', type: 'checkbox', defaultValue: true, label: 'Szolgáltatás-képek' },
+      { name: 'services_price', type: 'checkbox', defaultValue: true, label: 'Ár és időtartam' },
+      { name: 'services_order', type: 'select', defaultValue: 'manual', label: 'Szolgáltatások sorrendje', options: [{ label: 'Kézi', value: 'manual' }, { label: 'Népszerű elöl', value: 'popular' }] },
+    ],
+  },
+  {
+    name: 'gallery',
+    type: 'array',
+    maxRows: 12,
+    label: 'Galéria',
+    admin: { description: 'Legfeljebb 12 kép — az első 3 a borítón látszik. A felirat a kép alatt és az alt-szöveg is.' },
+    fields: [
+      { name: 'image', type: 'upload', relationTo: 'media', required: true, label: 'Kép' },
+      { name: 'caption', type: 'text', localized: true, maxLength: 120, label: 'Felirat' },
+    ],
+  },
 ]
