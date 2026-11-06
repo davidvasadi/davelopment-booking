@@ -77,3 +77,14 @@ export function socialIconDataUri(platform: SocialPlatform): string {
     `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36"><circle cx="18" cy="18" r="18" fill="#3B3B3B"/>${SOCIAL_GLYPH[platform]}</svg>`,
   )}`
 }
+
+/** A link rövid neve a nyomtatott laphoz: a profil-útvonal első része `@`-tal (instagram.com/fodraszat → @fodraszat),
+ *  weboldalnál a domain. */
+export function socialHandle(rawUrl: string): string {
+  try {
+    const u = new URL(rawUrl.includes('://') ? rawUrl : `https://${rawUrl}`)
+    const seg = u.pathname.split('/').filter(Boolean)[0]?.replace(/^@/, '')
+    if (detectPlatform(rawUrl) === 'website' || !seg) return u.hostname.replace(/^www\./, '')
+    return `@${decodeURIComponent(seg)}`
+  } catch { return rawUrl }
+}

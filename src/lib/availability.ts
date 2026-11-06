@@ -12,6 +12,8 @@ interface SlotParams {
    *  bejelentkezett foglalás-felületén használjuk (utólagos/telefonos rögzítéshez), a
    *  publikus foglaló widgetben SOSE (ott a vendég nem foglalhat múltbeli időpontra). */
   includePast?: boolean
+  /** szerkesztésnél a saját foglalás nem foglalja a saját idejét */
+  excludeBookingId?: string
 }
 
 export interface TimeSlot {
@@ -118,21 +120,30 @@ export async function resolveStaffWorkHours(
 }
 
 export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]> {
-  const { salonId, staffId, serviceId, date, includePast = false } = params
+  return (await getSlotGrid(params)).slots
+}
+
+/** A szabad időpontok ÉS a nap összes jelölt kezdése (a tulaj szerkesztőjének rácsához: ami nem szabad, az foglalt —
+ *  design 6.9). Zárt / távollétes napon mindkettő üres. */
+export async function getSlotGrid(params: SlotParams): Promise<{ slots: TimeSlot[]; candidates: string[] }> {
+  const { salonId, staffId, serviceId, date, includePast = false, excludeBookingId } = params
   const payload = await getPayloadClient()
 
   // 1. Fetch service to get duration
-  const service = await payload.findByID({ collection: 'services', id: serviceId })
+  // depth: 0 — csak a saját mezői kellenek (a kapcsolatok kifejtése minden slot-számításnál drága volt)
+  const service = await payload.findByID({ collection: 'services', id: serviceId, depth: 0, overrideAccess: true })
   const durationMinutes = service.duration_minutes
 
   // 2. Szünet a foglalások között: a munkatárs SAJÁT beállítása, ha van; különben a szalon-szintű.
   //    Ugyanígy a minimum foglalási idő előre: munkatárs → üzlet-szintű alap → nincs korlát.
-  const salon = await payload.findByID({ collection: 'salons', id: salonId })
+  const salon = await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })
   const staffDoc = staffId
     ? await payload.findByID({ collection: 'staff', id: staffId, depth: 0, overrideAccess: true }).catch(() => null)
     : null
   const bufferMinutes = staffDoc?.booking_buffer_minutes ?? salon.booking_buffer_minutes ?? 15
   const minLeadMs = Math.max(0, Number(staffDoc?.min_lead_hours ?? salon.booking_rules?.min_lead_hours) || 0) * 3600_000
+  // az utolsó kezdés ennyivel a zárás előtt (0 = amíg a szolgáltatás belefér)
+  const lastBookingBuffer = Math.max(0, salon.last_booking_buffer_minutes ?? 0)
 
   // 3b. Ha a munkatársnak van erre a napra "szabadság/beteg/fizetett szabadság" beosztás-
   // rekordja (Shifts), aznap egyáltalán nem foglalható — üres slot-listát adunk vissza, ami
@@ -157,7 +168,7 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
       limit: 1,
     })
     const todayShift = leaveShift.docs[0]
-    if (todayShift && ['sick', 'vacation', 'leave'].includes(todayShift.type)) return []
+    if (todayShift && ['sick', 'vacation', 'leave'].includes(todayShift.type)) return { slots: [], candidates: [] }
     for (const w of todayShift?.breaks ?? []) {
       if (w.start_time && w.end_time) dayBreaks.push({ start: hhmmToMinutes(w.start_time), end: hhmmToMinutes(w.end_time) })
     }
@@ -165,7 +176,7 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
 
   // 4. Nyitvatartás ma erre a munkatársra (kivétel > saját minta > szalon-fallback)
   const hours = await resolveStaffWorkHours(salonId, staffId, date)
-  if (!hours) return []
+  if (!hours) return { slots: [], candidates: [] }
   const workStart = hours.start
   const workEnd = hours.end
 
@@ -181,7 +192,7 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
   const STEP_MIN = Math.max(bufferMinutes, 5)
   const candidates: number[] = []
   let cursor = openMin
-  while (cursor + durationMinutes <= closeMin) {
+  while (cursor + durationMinutes <= closeMin && cursor <= closeMin - lastBookingBuffer) {
     candidates.push(cursor)
     cursor += STEP_MIN
   }
@@ -192,10 +203,12 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
     : { and: [{ salon: { equals: salonId } }, { date: { equals: date } }, { status: { not_equals: 'cancelled' } }] }
   // overrideAccess: a slot-számítás publikus (bejelentkezetlen vendég) — a szigorított
   // Bookings.read máskülönben üres listát adna, és minden időpont szabadnak látszana.
-  const existing = await payload.find({ collection: 'bookings', where: bookingWhere, overrideAccess: true })
+  // HIBA VOLT: a Payload alap-limitje 10 — egy zsúfolt napon (vagy „bárki” esetén a szalon összes foglalásánál) a 10.
+  // utáni foglalások kimaradtak, és foglalt időpont szabadnak látszhatott. Most az összes, és csak a kezdés / vég.
+  const existing = await payload.find({ collection: 'bookings', where: bookingWhere, depth: 0, pagination: false, overrideAccess: true })
 
   // 7. Filter out conflicting slots + past slots for today
-  const occupied = existing.docs.map((b) => ({
+  const occupied = existing.docs.filter((b) => !excludeBookingId || String(b.id) !== excludeBookingId).map((b) => ({
     start: hhmmToMinutes(b.start_time),
     end: hhmmToMinutes(b.end_time) + bufferMinutes,
   }))
@@ -218,10 +231,10 @@ export async function getAvailableSlots(params: SlotParams): Promise<TimeSlot[]>
     return !occupied.some((o) => slotStart < o.end && slotEnd > o.start)
   })
 
-  return free.map((start) => ({
-    start: minutesToHHMM(start),
-    end: minutesToHHMM(start + durationMinutes),
-  }))
+  return {
+    slots: free.map((start) => ({ start: minutesToHHMM(start), end: minutesToHHMM(start + durationMinutes) })),
+    candidates: candidates.map(minutesToHHMM),
+  }
 }
 
 /**

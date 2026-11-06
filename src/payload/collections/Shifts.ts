@@ -3,6 +3,7 @@ import { capabilityScoped, capabilityCreate } from '../access/capabilityAccess'
 import { capabilitiesForBusiness } from '@/lib/apiCapability'
 import { can } from '@/lib/permissions'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
+import { sseAfterChangeAny, sseAfterDeleteAny } from '../hooks/emitSseEvent'
 
 /** Van-e a usernek `schedule.manage` capability-je a rekord üzletében (szalon VAGY étterem)? */
 async function canManageShiftBusiness(
@@ -29,8 +30,10 @@ export const Shifts: CollectionConfig = {
   slug: 'shifts',
   labels: { singular: 'Beosztás', plural: 'Beosztások' },
   hooks: {
-    afterChange: [auditAfterChange('Beosztás', 'auto')],
-    afterDelete: [auditAfterDelete('Beosztás', 'auto')],
+    // élő frissítés: a beosztás változása (bárki menti — tulaj vagy a munkatárs a saját oldalán) azonnal frissíti az üzlet
+    // nyitott oldalait (Naptár, Új beosztás előnézete, Munkatársak)
+    afterChange: [auditAfterChange('Beosztás', 'auto'), sseAfterChangeAny()],
+    afterDelete: [auditAfterDelete('Beosztás', 'auto'), sseAfterDeleteAny()],
   },
   admin: {
     group: 'Közös',
@@ -108,6 +111,7 @@ export const Shifts: CollectionConfig = {
     },
     {
       name: 'date',
+      index: true, // gyakori szűrő (sebesség — docs/audit/2026-11-05_1921)
       type: 'date',
       required: true,
       label: 'Nap',
@@ -156,6 +160,21 @@ export const Shifts: CollectionConfig = {
       name: 'note',
       type: 'text',
       label: 'Megjegyzés',
+    },
+    {
+      // Beteg / szabadság: fizetett-e (táppénz, fizetett szabadság) — a havi bér-exporthoz (design 11.5).
+      name: 'paid',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Fizetett',
+    },
+    {
+      // Betegnél a táppénzes papír (orvosi igazolás) — nem nyilvános tárolóban (SickNotes).
+      name: 'sick_note',
+      type: 'relationship',
+      relationTo: 'sick-notes',
+      hasMany: false,
+      label: 'Táppénzes papír',
     },
     {
       // STÁTUSZVÁLTÁS a napon belül: a dolgozó a műszak vége előtt hazament (pl. délben beteg lett).

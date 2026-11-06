@@ -1,4 +1,5 @@
 import type { CollectionConfig, Access, Where } from 'payload'
+import { webhookOnReview } from '../hooks/webhookOnBooking'
 
 /**
  * Értékelések (reviews). A vendég a foglalás után egy publikus, token-alapú oldalon
@@ -31,7 +32,7 @@ import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 export const Reviews: CollectionConfig = {
   slug: 'reviews',
   hooks: {
-    afterChange: [auditAfterChange('Értékelés', 'auto')],
+    afterChange: [webhookOnReview, auditAfterChange('Értékelés', 'auto')],
     afterDelete: [auditAfterDelete('Értékelés', 'auto')],
   },
   labels: { singular: 'Értékelés', plural: 'Értékelések' },

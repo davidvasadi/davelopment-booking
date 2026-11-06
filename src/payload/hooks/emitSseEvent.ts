@@ -29,3 +29,25 @@ export function sseAfterDelete(kind: 'salon' | 'restaurant'): CollectionAfterDel
     return doc
   }
 }
+
+/** Olyan rekordnál, ami szalonhoz VAGY étteremhez tartozik (pl. beosztás: salon+staff vagy restaurant+member) — amelyik
+ *  ki van töltve, annak az üzletnek a nyitott oldalai frissülnek élőben (pl. a munkatárs a saját oldalán szabadságot
+ *  rögzít → a tulaj Naptára és az Új beosztás előnézete azonnal mutatja). */
+export function sseAfterChangeAny(): CollectionAfterChangeHook {
+  return ({ req, doc, operation }) => {
+    if (isSilentImport(req)) return doc
+    const kind = doc.restaurant ? 'restaurant' : 'salon'
+    const businessId = relId(doc[kind])
+    if (businessId) emitBookingChange({ kind, businessId, op: operation === 'create' ? 'create' : 'update' })
+    return doc
+  }
+}
+
+export function sseAfterDeleteAny(): CollectionAfterDeleteHook {
+  return ({ doc }) => {
+    const kind = doc.restaurant ? 'restaurant' : 'salon'
+    const businessId = relId(doc[kind])
+    if (businessId) emitBookingChange({ kind, businessId, op: 'delete' })
+    return doc
+  }
+}

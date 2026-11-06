@@ -39,6 +39,9 @@ export const Rooms: CollectionConfig = {
       admin: { description: 'Ha be van pipálva, ez egy kültéri terem (pl. terasz).' },
     },
     { name: 'is_active', type: 'checkbox', defaultValue: true, label: 'Aktív', admin: { position: 'sidebar' } },
+    // Beállítások › Asztalok & termek (design 16.22): ha ki van kapcsolva, a terem asztalait a vendég online nem
+    // foglalhatja (pl. különterem „csak telefonon”) — a tulaj kézzel továbbra is rögzíthet bele.
+    { name: 'online_bookable', type: 'checkbox', defaultValue: true, label: 'Online foglalható' },
     {
       name: 'seasonal',
       type: 'checkbox',

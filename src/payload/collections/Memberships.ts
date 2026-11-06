@@ -149,6 +149,8 @@ export const Memberships: CollectionConfig = {
       admin: { date: { pickerAppearance: 'dayOnly', displayFormat: 'yyyy. MM. dd.' } },
     },
     { name: 'weekly_hours', type: 'number', label: 'Heti óraszám' },
+    // Éves szabadság-keret (nap) — a Naptár nap-szerkesztője mutatja, mennyi marad (design 11.5).
+    { name: 'annual_leave_days', type: 'number', label: 'Éves szabadság (nap)' },
     // BÉR: csak a Tulajdonos látja/szerkeszti. A fizetés a NAPTÁRBÓL számolódik:
     // napidíj → (ledolgozott + fizetett szabadság napok) × rate; órabér → (órák + szabadság×8) × rate.
     {

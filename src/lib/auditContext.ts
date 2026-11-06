@@ -1,5 +1,6 @@
 import type { Where } from 'payload'
 import { getPayloadClient } from './payload'
+import { fixMediaUrl } from './utils'
 import type { AuditLogEntry, AuditChangeEntry } from '@/payload/payload-types'
 import type { AuditEntry } from '@/components/settings/SettingsHub'
 
@@ -51,8 +52,17 @@ export async function getAuditLogForBusiness(opts: {
       overrideAccess: true,
       sort: '-createdAt',
     })
-    return (res.docs as AuditLogEntry[]).map((e) => ({
+    const docs = res.docs as AuditLogEntry[]
+    // a végrehajtók profilképe (Users.avatar_url) — egy lekérdezéssel
+    const ids = [...new Set(docs.map((e) => (typeof e.actor === 'object' ? e.actor?.id : e.actor)).filter((x) => x != null).map(Number))]
+    const imgs = new Map<number, string | null>()
+    if (ids.length) {
+      const us = await payload.find({ collection: 'users', where: { id: { in: ids } }, depth: 0, limit: ids.length, overrideAccess: true, select: { avatar_url: true } as never })
+      for (const u of us.docs as unknown as { id: number; avatar_url?: string | null }[]) imgs.set(u.id, fixMediaUrl(u.avatar_url) ?? null)
+    }
+    return docs.map((e) => ({
       id: String(e.id),
+      actorImg: imgs.get(Number(typeof e.actor === 'object' ? e.actor?.id : e.actor)) ?? null,
       actor: e.actor_label || 'Rendszer',
       actorEmail: e.actor_email || undefined,
       action: e.action,

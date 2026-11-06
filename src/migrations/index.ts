@@ -59,6 +59,28 @@ import * as migration_20261020_110000_customer_external_id from './20261020_1100
 import * as migration_20261025_100000_staff_import_review from './20261025_100000_staff_import_review';
 import * as migration_20261025_110000_service_import_review from './20261025_110000_service_import_review';
 import * as migration_20261027_100000_voucher_issued_by from './20261027_100000_voucher_issued_by';
+import * as migration_20261030_100000_booking_source from './20261030_100000_booking_source';
+import * as migration_20261103_100000_calendar_editor from './20261103_100000_calendar_editor';
+import * as migration_20261104_100000_marketing_schedule_clicks from './20261104_100000_marketing_schedule_clicks';
+import * as migration_20261104_110000_marketing_audience from './20261104_110000_marketing_audience';
+import * as migration_20261104_120000_marketing_translations from './20261104_120000_marketing_translations';
+import * as migration_20261104_130000_user_last_login from './20261104_130000_user_last_login';
+import * as migration_20261104_140000_role_description from './20261104_140000_role_description';
+import * as migration_20261104_150000_deposit_apply_when from './20261104_150000_deposit_apply_when';
+import * as migration_20261104_160000_review_target from './20261104_160000_review_target';
+import * as migration_20261104_170000_online_capacity from './20261104_170000_online_capacity';
+import * as migration_20261104_180000_public_page from './20261104_180000_public_page';
+import * as migration_20261105_100000_holidays_last_booking from './20261105_100000_holidays_last_booking';
+import * as migration_20261105_200000_auth_codes_sessions from './20261105_200000_auth_codes_sessions';
+import * as migration_20261105_210000_invoice_storno from './20261105_210000_invoice_storno';
+import * as migration_20261105_220000_referrals from './20261105_220000_referrals';
+import * as migration_20261105_230000_trial_notices from './20261105_230000_trial_notices';
+import * as migration_20261106_100000_staff_invoicing from './20261106_100000_staff_invoicing';
+import * as migration_20261106_110000_onsite_payment from './20261106_110000_onsite_payment';
+import * as migration_20261106_120000_attention_prefs from './20261106_120000_attention_prefs';
+import * as migration_20261106_130000_booking_paylink from './20261106_130000_booking_paylink';
+import * as migration_20261106_140000_perf_indexes from './20261106_140000_perf_indexes';
+import * as migration_20261106_150000_privacy_url from './20261106_150000_privacy_url';
 
 export const migrations = [
   {
@@ -365,5 +387,115 @@ export const migrations = [
     up: migration_20261027_100000_voucher_issued_by.up,
     down: migration_20261027_100000_voucher_issued_by.down,
     name: '20261027_100000_voucher_issued_by',
+  },
+  {
+    up: migration_20261030_100000_booking_source.up,
+    down: migration_20261030_100000_booking_source.down,
+    name: '20261030_100000_booking_source',
+  },
+  {
+    up: migration_20261103_100000_calendar_editor.up,
+    down: migration_20261103_100000_calendar_editor.down,
+    name: '20261103_100000_calendar_editor',
+  },
+  {
+    up: migration_20261104_100000_marketing_schedule_clicks.up,
+    down: migration_20261104_100000_marketing_schedule_clicks.down,
+    name: '20261104_100000_marketing_schedule_clicks',
+  },
+  {
+    up: migration_20261104_110000_marketing_audience.up,
+    down: migration_20261104_110000_marketing_audience.down,
+    name: '20261104_110000_marketing_audience',
+  },
+  {
+    up: migration_20261104_120000_marketing_translations.up,
+    down: migration_20261104_120000_marketing_translations.down,
+    name: '20261104_120000_marketing_translations',
+  },
+  {
+    up: migration_20261104_130000_user_last_login.up,
+    down: migration_20261104_130000_user_last_login.down,
+    name: '20261104_130000_user_last_login',
+  },
+  {
+    up: migration_20261104_140000_role_description.up,
+    down: migration_20261104_140000_role_description.down,
+    name: '20261104_140000_role_description',
+  },
+  {
+    up: migration_20261104_150000_deposit_apply_when.up,
+    down: migration_20261104_150000_deposit_apply_when.down,
+    name: '20261104_150000_deposit_apply_when',
+  },
+  {
+    up: migration_20261104_160000_review_target.up,
+    down: migration_20261104_160000_review_target.down,
+    name: '20261104_160000_review_target',
+  },
+  {
+    up: migration_20261104_170000_online_capacity.up,
+    down: migration_20261104_170000_online_capacity.down,
+    name: '20261104_170000_online_capacity',
+  },
+  {
+    up: migration_20261104_180000_public_page.up,
+    down: migration_20261104_180000_public_page.down,
+    name: '20261104_180000_public_page',
+  },
+  {
+    up: migration_20261105_100000_holidays_last_booking.up,
+    down: migration_20261105_100000_holidays_last_booking.down,
+    name: '20261105_100000_holidays_last_booking',
+  },
+  {
+    up: migration_20261105_200000_auth_codes_sessions.up,
+    down: migration_20261105_200000_auth_codes_sessions.down,
+    name: '20261105_200000_auth_codes_sessions',
+  },
+  {
+    up: migration_20261105_210000_invoice_storno.up,
+    down: migration_20261105_210000_invoice_storno.down,
+    name: '20261105_210000_invoice_storno',
+  },
+  {
+    up: migration_20261105_220000_referrals.up,
+    down: migration_20261105_220000_referrals.down,
+    name: '20261105_220000_referrals',
+  },
+  {
+    up: migration_20261105_230000_trial_notices.up,
+    down: migration_20261105_230000_trial_notices.down,
+    name: '20261105_230000_trial_notices',
+  },
+  {
+    up: migration_20261106_100000_staff_invoicing.up,
+    down: migration_20261106_100000_staff_invoicing.down,
+    name: '20261106_100000_staff_invoicing',
+  },
+  {
+    up: migration_20261106_110000_onsite_payment.up,
+    down: migration_20261106_110000_onsite_payment.down,
+    name: '20261106_110000_onsite_payment',
+  },
+  {
+    up: migration_20261106_120000_attention_prefs.up,
+    down: migration_20261106_120000_attention_prefs.down,
+    name: '20261106_120000_attention_prefs',
+  },
+  {
+    up: migration_20261106_130000_booking_paylink.up,
+    down: migration_20261106_130000_booking_paylink.down,
+    name: '20261106_130000_booking_paylink',
+  },
+  {
+    up: migration_20261106_140000_perf_indexes.up,
+    down: migration_20261106_140000_perf_indexes.down,
+    name: '20261106_140000_perf_indexes',
+  },
+  {
+    up: migration_20261106_150000_privacy_url.up,
+    down: migration_20261106_150000_privacy_url.down,
+    name: '20261106_150000_privacy_url',
   },
 ];

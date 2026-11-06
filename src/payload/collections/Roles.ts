@@ -43,6 +43,7 @@ export const Roles: CollectionConfig = {
   },
   fields: [
     { name: 'name', type: 'text', required: true, label: 'Szerep neve' },
+    { name: 'description', type: 'text', label: 'Rövid leírás' },
     { name: 'salon', type: 'relationship', relationTo: 'salons', hasMany: false, label: 'Szalon' },
     { name: 'restaurant', type: 'relationship', relationTo: 'restaurants', hasMany: false, label: 'Étterem' },
     {

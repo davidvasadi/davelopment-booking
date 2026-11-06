@@ -1,6 +1,14 @@
 import type { TextFieldSingleValidation } from 'payload'
 import { RESERVED_INDUSTRY_SLUGS } from '@/lib/industryLandings'
 
+// A `/[slug]` mellett álló statikus útvonalak — ha egy üzlet ezt választaná, az oldala sosem
+// látszana (a statikus route elfedi).
+const RESERVED_ROUTE_SLUGS = [
+  'admin', 'api', 'arak', 'backstage', 'booking', 'business', 'cookies', 'dashboard', 'forgot-password',
+  'funkciok', 'kapcsolat', 'login', 'marketing', 'privacy', 'register', 'register-restaurant', 'reset-password',
+  'restaurant', 'review', 'team', 'terms', 'tips', 'verify-email',
+]
+
 /**
  * Salons and restaurants share a single public URL namespace (domain.com/[slug]),
  * so a slug must be unique across BOTH collections — not just within one.
@@ -19,7 +27,7 @@ export function uniqueSlugAcrossTenants(
     // A `/[slug]` route ezekre a nevekre egy fix SEO landinget renderel (ld. industryLandings.ts)
     // egy üzlet-lookup HELYETT — ha egy üzlet ezt választaná slugnak, örökre elfedné a saját
     // oldalát a landing mögött.
-    if (RESERVED_INDUSTRY_SLUGS.includes(value)) {
+    if (RESERVED_INDUSTRY_SLUGS.includes(value) || RESERVED_ROUTE_SLUGS.includes(value)) {
       return 'Ez a slug foglalt (rendszer által fenntartott). Válassz másikat.'
     }
 

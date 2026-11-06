@@ -14,7 +14,8 @@
 import { t, type Locale } from './i18n'
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
-const DAVELOPMENT_URL = 'https://davelopment.hu'
+/** a levél alján a davelopment booking logója ide visz — a foglalási rendszer oldalára */
+const BOOKING_SITE_URL = `${APP_URL.replace(/\/$/, '')}/`
 
 const BOOKING_LOCKUP = `${APP_URL}/email/davelopment-booking-wordmark.png`
 
@@ -463,7 +464,7 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
         <!-- davelopment Booking footer -->
         <tr>
           <td style="background:${COLORS.ink};padding:28px 32px;text-align:center;border-top:1px solid rgba(255,255,255,0.05)">
-            <a href="${DAVELOPMENT_URL}" style="text-decoration:none;display:inline-block">
+            <a href="${BOOKING_SITE_URL}" target="_blank" title="davelopment booking — online foglalási rendszer" style="text-decoration:none;display:inline-block">
               <img src="${BOOKING_LOCKUP}" alt="davelopment Booking" width="120" height="44" style="width:120px;height:44px;display:block;border:0" />
             </a>
             <p style="margin:16px 0 0;color:${COLORS.footerText};font-size:11px">© ${new Date().getFullYear()} davelopment booking · Minden jog fenntartva</p>

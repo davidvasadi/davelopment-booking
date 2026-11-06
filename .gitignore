@@ -171,3 +171,9 @@ next-env.d.ts
 playwright-report/
 test-results/
 e2e/.auth/
+
+# Naptár: táppénzes papírok (egészségügyi adat) — nem nyilvános feltöltés, sosem kerül gitbe
+/uploads-private/
+
+# Design-mintaoldal (/design) — csak helyben, a szerverre nem kerül fel
+/src/app/(app)/design/

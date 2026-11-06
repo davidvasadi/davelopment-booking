@@ -4,6 +4,7 @@ import { resolveTier, type Tier } from './tier'
 import { fixMediaUrl } from './utils'
 import { effectiveCapabilities, ALL_CAPABILITIES, type TeamRole, type Capability } from './permissions'
 import type { User, Salon, Restaurant, Media, Membership, Role } from '@/payload/payload-types'
+import { cache } from 'react'
 
 /**
  * Több-üzlet (multi-tenant) aktív-üzlet feloldás.
@@ -46,7 +47,10 @@ const logoUrlOf = (logo: string | Media | null | undefined): string | null =>
   typeof logo === 'object' && logo?.url ? fixMediaUrl(logo.url) : null
 
 /** A felhasználó összes üzlete (étterem + szalon), createdAt szerint növekvőn. */
-export async function getUserBusinesses(userId: string | number): Promise<Business[]> {
+/** Egy kérésen belül egyszer (React `cache`) — a keret és az oldal is kéri. */
+export const getUserBusinesses = cache(async (userId: string | number): Promise<Business[]> => getUserBusinessesUncached(userId))
+
+async function getUserBusinessesUncached(userId: string | number): Promise<Business[]> {
   const payload = await getPayloadClient()
 
   const [salons, restaurants, memberships] = await Promise.all([
@@ -55,6 +59,8 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       where: { owner: { equals: userId } },
       limit: 100,
       depth: 1,
+      // csak a váltóhoz kellő mezők — a teljes adatlap 14–20 al-tábla lenne üzletenként (sebesség, docs/audit/2026-11-05_1921)
+      select: { name: true, slug: true, logo: true, tier: true, custom_monthly_fee_huf: true, createdAt: true },
       overrideAccess: true,
     }),
     payload.find({
@@ -62,6 +68,8 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       where: { owner: { equals: userId } },
       limit: 100,
       depth: 1,
+      // csak a váltóhoz kellő mezők — a teljes adatlap 14–20 al-tábla lenne üzletenként (sebesség, docs/audit/2026-11-05_1921)
+      select: { name: true, slug: true, logo: true, tier: true, custom_monthly_fee_huf: true, createdAt: true },
       overrideAccess: true,
     }),
     // Tagként (membership) elért üzletek — hogy a MEGHÍVOTT+elfogadott tag is lássa a dashboardot,
@@ -73,6 +81,8 @@ export async function getUserBusinesses(userId: string | number): Promise<Busine
       where: { and: [{ user: { equals: userId } }, { status: { equals: 'active' } }] },
       limit: 100,
       depth: 2,
+      // a beágyazott üzletből is csak ennyi (a logó-kép a depth: 2 miatt kifejtve jön)
+      populate: { salons: { name: true, slug: true, logo: true, tier: true, custom_monthly_fee_huf: true, createdAt: true }, restaurants: { name: true, slug: true, logo: true, tier: true, custom_monthly_fee_huf: true, createdAt: true } },
       overrideAccess: true,
     }),
   ])

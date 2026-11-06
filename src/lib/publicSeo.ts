@@ -225,3 +225,59 @@ export function placeBreadcrumbJsonLd(place: PlaceLike): Record<string, unknown>
     })),
   }
 }
+
+/** Funkció-csoport oldal (/funkciok/<slug>): a közös szervezet-blokk + a szoftver ennek a
+ *  csoportnak a funkcióival + BreadcrumbList (Főoldal › Funkciók › Csoport). */
+export function featurePageJsonLd(group: { slug: string; label: string; h1: string; seoDescription: string; items: { title: string; desc: string }[]; extra?: { faq: { q: string; a: string }[] } }): Record<string, unknown> {
+  const url = `${SITE_URL}/funkciok/${group.slug}`
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'Organization',
+        '@id': `${SITE_URL}/#organization`,
+        name: 'davelopment booking',
+        url: SITE_URL,
+        logo: `${SITE_URL}/icons/favico_dark.svg`,
+        sameAs: [
+          'https://davelopment.hu',
+          'https://csomad.cylex.hu/ceg-info/davelopment-1317774.html',
+          'https://firmania.hu/csom%C3%A1d/davelopment-532512',
+        ],
+      },
+      {
+        '@type': 'WebPage',
+        '@id': `${url}#webpage`,
+        url,
+        name: group.h1,
+        description: group.seoDescription,
+        about: { '@id': `${SITE_URL}/#software` },
+      },
+      {
+        '@type': 'SoftwareApplication',
+        '@id': `${SITE_URL}/#software`,
+        name: 'davelopment booking',
+        url: SITE_URL,
+        applicationCategory: 'BusinessApplication',
+        operatingSystem: 'Web',
+        featureList: group.items.map((i) => `${i.title}: ${i.desc}`),
+        publisher: { '@id': `${SITE_URL}/#organization` },
+      },
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Főoldal', item: SITE_URL },
+          { '@type': 'ListItem', position: 2, name: 'Funkciók', item: `${SITE_URL}/funkciok` },
+          { '@type': 'ListItem', position: 3, name: group.label, item: url },
+        ],
+      },
+      // a látható GYIK-blokkal azonos forrásból — sosem csúszhat szét
+      ...(group.extra?.faq.length
+        ? [{
+            '@type': 'FAQPage',
+            mainEntity: group.extra.faq.map(({ q, a }) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } })),
+          }]
+        : []),
+    ],
+  }
+}

@@ -92,3 +92,7 @@ export function applyCycle(listMonthlyHuf: number, cycle: BillingCycle, discount
 export function cyclePeriodDays(cycle: BillingCycle): number {
   return cycle === 'annual' ? 365 : 30
 }
+
+/** Az éves számlázás VÁLASZTÓJA (nem maga a funkció) egyelőre rejtve — élesítés előtt még nincs letesztelve valódi
+ *  Stripe-fizetéssel; a logika (applyCycle, a backend ciklus-kezelése) megmarad, csak a felület nem kínálja. */
+export const ANNUAL_BILLING_UI_ENABLED = false

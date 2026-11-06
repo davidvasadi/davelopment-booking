@@ -40,6 +40,8 @@ import { TrialLedger } from './src/payload/collections/TrialLedger'
 import { ContactMessages } from './src/payload/collections/ContactMessages'
 import { BroadcastLog } from './src/payload/collections/BroadcastLog'
 import { GoogleApiLog } from './src/payload/collections/GoogleApiLog'
+import { SickNotes } from './src/payload/collections/SickNotes'
+import { ShiftTemplates } from './src/payload/collections/ShiftTemplates'
 
 // Globals
 import { PricingSettings } from './src/payload/globals/PricingSettings'
@@ -51,13 +53,17 @@ import { BRAND_NAME } from './src/lib/brand'
 // különben az nginx-proxy mögött a böngésző-eredetű login CSRF-blokkolt → 401
 // (a curl átmegy, mert nincs Origin headere). Lokálban a localhost a fallback.
 const SERVER_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3001'
+// Helyi fejlesztéshez: ha a .env az éles URL-t használja (NEXT_PUBLIC_APP_URL=https://booking…), a localhost-ról
+// jövő admin-belépést a CSRF-szabály csendben eldobja (nincs hiba, csak nem enged be). A PAYLOAD_EXTRA_ORIGINS-ben
+// (vesszővel) felsorolt originek is engedélyezettek — élesen ez nincs beállítva, ott nem változik semmi.
+const EXTRA_ORIGINS = (process.env.PAYLOAD_EXTRA_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 
 export default buildConfig({
   serverURL: SERVER_URL,
   // CSRF: mely origin-ekről fogadunk el auth-kéréseket (cookie-set). A proxy mögött
   // a publikus domaint kell engedni, különben a böngésző-login 401-et kap.
-  csrf: [SERVER_URL],
-  cors: [SERVER_URL],
+  csrf: [SERVER_URL, ...EXTRA_ORIGINS],
+  cors: [SERVER_URL, ...EXTRA_ORIGINS],
   admin: {
     user: Users.slug,
     meta: {
@@ -105,6 +111,8 @@ export default buildConfig({
     ContactMessages,
     BroadcastLog,
     GoogleApiLog,
+    SickNotes,
+    ShiftTemplates,
   ],
   globals: [PricingSettings],
   // Többnyelvű publikus foglaló: a tulaj-content (szolgáltatás/kategória nevek, leírások, „jó tudni",

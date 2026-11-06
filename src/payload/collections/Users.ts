@@ -109,6 +109,13 @@ export const Users: CollectionConfig = {
       label: 'Teljes név',
     },
     {
+      // a legutóbbi sikeres bejelentkezés (a /api/auth/finalize írja) — Beállítások › Csapat „Utolsó belépés”
+      name: 'last_login_at',
+      type: 'date',
+      label: 'Utolsó belépés',
+      admin: { readOnly: true },
+    },
+    {
       // A felhasználó profilképének URL-je. Google-belépéskor a Google `picture`
       // töltődik ide (a finalize route), e-mailes regisztrálók a Beállításokban
       // adhatják meg. Üresnél a felületen monogramos fallback jelenik meg.
@@ -156,6 +163,9 @@ export const Users: CollectionConfig = {
         { name: 'schedule',  type: 'checkbox', defaultValue: true,  label: 'Beosztás értesítések (app/push)' },
         { name: 'digest',    type: 'checkbox', defaultValue: true,  label: 'Napi összefoglaló értesítés' },
         { name: 'email_not_opened', type: 'checkbox', defaultValue: true, label: 'Meg nem nyitott visszaigazoló email riasztás' },
+        // „Ami figyelmet kér” (design 6.8.1): új függő foglalásnál popup (különben sáv), és a „Fizetésre vár” sáv
+        { name: 'pending_popup', type: 'checkbox', defaultValue: false, label: 'Új függő foglalás — azonnal popup' },
+        { name: 'payment_bar', type: 'checkbox', defaultValue: false, label: 'Fizetésre vár — sáv is' },
         {
           name: 'bookings_email', type: 'checkbox', defaultValue: false,
           label: 'Új foglalás — email is',

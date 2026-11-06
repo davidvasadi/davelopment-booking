@@ -53,7 +53,7 @@ export const MarketingCampaigns: CollectionConfig = {
     {
       name: 'status',
       type: 'select',
-      options: [{ label: 'Kiküldve', value: 'sent' }, { label: 'Piszkozat', value: 'draft' }],
+      options: [{ label: 'Kiküldve', value: 'sent' }, { label: 'Ütemezve', value: 'scheduled' }, { label: 'Piszkozat', value: 'draft' }],
       defaultValue: 'sent',
       required: true,
       label: 'Állapot',
@@ -62,6 +62,12 @@ export const MarketingCampaigns: CollectionConfig = {
     // visszatöltéskor a szerkesztő pontosan onnan folytatódjon, ahol abbamaradt (a `body_text`
     // csak egy egyirányú, kilapított szöveg-változat, abból nem lehet visszaépíteni a blokkokat).
     { name: 'blocks_json', type: 'json', label: 'Blokkok (piszkozathoz)' },
+    // ütemezett küldés (design 13.4 „Ütemezve”): mikor menjen ki; a cron ekkor küldi a kész HTML-t a célzott vendégeknek
+    { name: 'scheduled_at', type: 'date', label: 'Ütemezett küldés', admin: { date: { pickerAppearance: 'dayAndTime' } } },
+    { name: 'body_html', type: 'textarea', label: 'A levél HTML-je (ütemezett küldéshez)' },
+    { name: 'audience', type: 'text', label: 'Célközönség (szegmensek, vesszővel)' },
+    // a többi nyelv változata: { en: { subject, blocks }, … } — a magyar a fő mezőkben
+    { name: 'translations', type: 'json', label: 'Fordítások (nyelvenként tárgy + blokkok)' },
     // Ha a piszkozat mentésekor konkrét feliratkozók voltak kiválasztva (nem "mindenki"),
     // visszatöltéskor ez adja vissza a kijelölést.
     { name: 'target_customer_ids', type: 'json', label: 'Kiválasztott címzettek (piszkozathoz)' },

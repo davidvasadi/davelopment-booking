@@ -1,6 +1,6 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
-import { settingsExtensionFields, businessTierField, customMonthlyFeeField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields, marketingTrackingFields, googlePlaceFields } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, customMonthlyFeeField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields, marketingTrackingFields, googlePlaceFields, publicPageFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
@@ -240,6 +240,12 @@ export const Salons: CollectionConfig = {
               label: 'Weboldal',
             },
             {
+              // a vállalkozó SAJÁT adatkezelési tájékoztatója (a vendégadatok adatkezelője ő) — a foglalóoldalon linkként
+              name: 'privacy_url',
+              type: 'text',
+              label: 'Adatkezelési tájékoztató (link)',
+            },
+            {
               name: 'social_links',
               type: 'array',
               label: 'Közösségi linkek',
@@ -304,6 +310,8 @@ export const Salons: CollectionConfig = {
               label: 'Értesítés új foglalásokról',
               admin: { description: 'Ha be van kapcsolva, a tulajdonos értesítést kap új foglalásról és lemondásról az alkalmazáson belül.' },
             },
+            // Beállítások › Nyitvatartás (design 16.8): az utolsó kezdés ennyivel a zárás előtt (0 = amíg a szolgáltatás belefér)
+            { name: 'last_booking_buffer_minutes', type: 'number', min: 0, defaultValue: 0, label: 'Utolsó foglalható időpont zárás előtt (perc)' },
             businessTierField,
             customMonthlyFeeField,
             ...settingsExtensionFields,
@@ -313,8 +321,19 @@ export const Salons: CollectionConfig = {
             ...consentSettingsFields,
             ...marketingTrackingFields,
             ...googlePlaceFields,
+            ...publicPageFields,
             ...stripeConnectFields,
             ...invoiceSettingsFields,
+            // helyszíni fizetés (design 16.7 / 6.7.1): a foglalás lezárásakor a fizetés rögzítése és a bizonylat
+            {
+              name: 'onsite_payment', type: 'group', label: 'Fizetés a helyszínen',
+              fields: [
+                { name: 'enabled', type: 'checkbox', defaultValue: false, label: 'Fizetés a lezáráskor' },
+                { name: 'mode', type: 'select', defaultValue: 'register', label: 'Bizonylat', options: [{ label: 'Pénztárgépen adok nyugtát', value: 'register' }, { label: 'A rendszer állítja ki a számlát', value: 'invoice' }] },
+                { name: 'methods', type: 'text', defaultValue: 'cash,card,transfer', label: 'Fizetési módok (vesszővel)' },
+                { name: 'invoice_default', type: 'select', defaultValue: 'ask', label: 'Számla', options: [{ label: 'Ha a vendég kéri', value: 'ask' }, { label: 'Mindig', value: 'always' }] },
+              ],
+            },
             {
               name: 'booking_email_subject',
               type: 'text',

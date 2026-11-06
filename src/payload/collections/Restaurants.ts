@@ -1,7 +1,7 @@
 import type { Access, CollectionConfig } from 'payload'
 import { uniqueSlugAcrossTenants } from '../lib/uniqueSlugAcrossTenants'
 import { slugify } from '../lib/slugify'
-import { settingsExtensionFields, businessTierField, customMonthlyFeeField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields, marketingTrackingFields, googlePlaceFields } from '../settingsFields'
+import { settingsExtensionFields, businessTierField, customMonthlyFeeField, emailTemplateFields, depositSettingsFields, stripeConnectFields, invoiceSettingsFields, voucherSettingsFields, newsletterSettingsFields, consentSettingsFields, marketingTrackingFields, googlePlaceFields, publicPageFields } from '../settingsFields'
 import { revalidatePlaceOnChange, revalidatePlaceOnDelete } from '../hooks/revalidatePublicPlace'
 import { cleanupPlaceMedia } from '../hooks/cleanupPlaceMedia'
 import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
@@ -115,6 +115,8 @@ export const Restaurants: CollectionConfig = {
     { name: 'phone', type: 'text', label: 'Telefon' },
     { name: 'email', type: 'email', label: 'Email' },
     { name: 'website', type: 'text', label: 'Weboldal' },
+    // a vállalkozó SAJÁT adatkezelési tájékoztatója (a vendégadatok adatkezelője ő) — a foglalóoldalon linkként
+    { name: 'privacy_url', type: 'text', label: 'Adatkezelési tájékoztató (link)' },
     {
       name: 'social_links',
       type: 'array',
@@ -179,9 +181,15 @@ export const Restaurants: CollectionConfig = {
       name: 'turn_duration_minutes',
       type: 'number',
       defaultValue: 120,
-      label: 'Foglalás hossza (perc)',
-      admin: { description: 'Egy foglalás mennyi ideig tartja az asztalt (pl. 120 perc)' },
+      label: 'Maximum foglalási idő (perc)',
+      admin: { description: 'Egy foglalás legfeljebb ennyi ideig tartja az asztalt (30 perctől, pl. 120 perc)' },
     },
+    // Beállítások › Asztalok & termek / Foglalási szabályok (design 16.22, 16.21) — csak a vendég ONLINE foglalására:
+    // a férőhely hány %-át adjuk ki online (a többit a betérőknek tartjuk), és a legkisebb / legnagyobb online létszám
+    // (felette a vendég üzenetet küld). A kiosztás: lib/restaurantBooking.ts (`online: true`).
+    { name: 'online_capacity_pct', type: 'number', min: 10, max: 100, defaultValue: 100, label: 'Online kiadható férőhely (%)' },
+    { name: 'min_online_pax', type: 'number', min: 1, defaultValue: 1, label: 'Legkisebb online foglalás (fő)' },
+    { name: 'max_online_pax', type: 'number', min: 1, label: 'Legnagyobb online foglalás (fő)', admin: { description: 'Üresen: amekkora társaságot az asztalok kiszolgálnak.' } },
     {
       name: 'slot_step_minutes',
       type: 'number',
@@ -264,6 +272,7 @@ export const Restaurants: CollectionConfig = {
     ...consentSettingsFields,
     ...marketingTrackingFields,
     ...googlePlaceFields,
+    ...publicPageFields,
     ...stripeConnectFields,
     ...invoiceSettingsFields,
     {

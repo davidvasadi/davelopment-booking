@@ -155,7 +155,8 @@ export const SHIMMER_CLASS = 'animate-shimmer'
  */
 export const SHEET_SPRING: Transition = { type: 'spring', stiffness: 520, damping: 26, mass: 0.9 }
 export const SHEET_MOBILE: Variants = {
-  hidden: { opacity: 0, y: 40, scale: 0.97 },
+  // nagyobb kiinduló ugrás → a spring túllövése (bounce) mobilon is látszik, mint desktopon a genie
+  hidden: { opacity: 0, y: 70, scale: 0.86 },
   show: { opacity: 1, y: 0, scale: 1, transition: { ...SHEET_SPRING, staggerChildren: 0.03 } },
   exit: { opacity: 0, y: 40, scale: 0.97, transition: { duration: 0.14, ease: 'easeIn' } },
 }

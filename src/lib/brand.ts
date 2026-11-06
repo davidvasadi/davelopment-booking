@@ -30,3 +30,15 @@ export const BRAND_YEAR = 2026
 
 /** Kész copyright-string, pl. „©2026 davelopment booking". */
 export const BRAND_COPYRIGHT = `©${BRAND_YEAR} ${BRAND_NAME}`
+
+/** Ügyfélszolgálati telefonszám (megjelenítés + tel: link) — a /kapcsolat, a főoldali
+ *  kapcsolat-szekció és a strukturált adat (contactPoint) is innen olvassa. */
+export const CONTACT_PHONE = '+36 30 362 8377'
+export const CONTACT_PHONE_TEL = '+36303628377'
+
+/** Ügyfélszolgálati idő — szövegként és schema.org-formában (hétfő–péntek). */
+export const SUPPORT_HOURS_TEXT = 'Hétfőtől péntekig, 10:00–15:00'
+export const SUPPORT_HOURS = { days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], opens: '10:00', closes: '15:00' }
+
+/** A válaszidő, ahogy kommunikáljuk. */
+export const SUPPORT_RESPONSE_TEXT = 'Munkaidőben jellemzően néhány órán belül válaszolunk.'

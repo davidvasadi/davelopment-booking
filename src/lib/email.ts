@@ -15,7 +15,7 @@ import {
   escapeHtml,
   COLORS,
 } from './emailLayout'
-import { introBlockFromJson } from './emailBlocks'
+import { hasBookingBlock, introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
@@ -74,13 +74,32 @@ function mediaUrl(field: Salon['logo']): string | null {
   return url.startsWith('http') ? url : `${APP_URL}${url}`
 }
 
+/** A vendég-levelek változói (`{{név}}`): a szövegben és a blokkok linkjeiben is — a sablon gombjai (naptár, útvonal,
+ *  értékelés, új időpont) és a lemondás-sor linkje ezekre mutat, a „foglalás adatai” blokk ezekből áll. */
 function emailVars(data: BookingEmailData): Record<string, string> {
-  const { booking, service } = data
+  const { booking, service, salon, staff } = data
+  const locale = normalizeLocale((booking as { locale?: string }).locale)
+  const token = (booking as { cancellation_token?: string }).cancellation_token
+  const address = salonAddress(salon)
+  const dir = salon.email_directions_address?.trim() || address
   return {
     name: booking.customer_name,
+    business: salon.name,
+    staff: staff?.name ?? '',
     date: booking.date,
+    date_label: formatBookingDate(booking.date, locale),
     time: `${booking.start_time} – ${booking.end_time}`,
     service: service.name,
+    details: [service.name, staff?.name].filter(Boolean).join(' · '),
+    calendar_url: token ? `${APP_URL}/api/ics/booking/${token}` : '',
+    directions_url: dir ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dir)}` : '',
+    cancel_url: token ? `${APP_URL}/booking/confirm-cancel/${token}` : '',
+    review_url: token ? `${APP_URL}/review/${token}` : '',
+    booking_url: `${APP_URL}/${salon.slug}`,
+    terms_url: `${APP_URL}/${salon.slug}/terms`,
+    phone: salon.email_contact_phone?.trim() || salon.phone || '',
+    email: salon.email ?? '',
+    address: address ?? '',
   }
 }
 
@@ -598,7 +617,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
     }),
     content: `
       ${introBlockFromJson(salon.booking_email_intro, emailVars(data))}
-      ${detailsCard(bookingRows(data))}
+      ${hasBookingBlock(salon.booking_email_intro) ? '' : `${detailsCard(bookingRows(data))}
       ${calendarBlock({
         title: `${data.service.name} – ${salon.name}`,
         date: booking.date,
@@ -621,7 +640,7 @@ function confirmationHtml(data: BookingEmailData, cancelUrl: string | null): str
         directionsAddress: null,
         locale,
       })}
-      ${cancelBlock(cancelUrl, locale)}
+      ${cancelBlock(cancelUrl, locale)}`}
       ${bottomSpacer()}
     `,
   })
@@ -661,7 +680,7 @@ function reminderHtml(data: BookingEmailData, cancelUrl: string | null): string 
       subtitle: `Kedves ${booking.customer_name}, csak hogy emlékeztessünk: hamarosan találkozunk!`,
     })}
     ${introBlockFromJson(salon.reminder_email_intro, emailVars(data))}
-    ${detailsCard(bookingRows(data))}
+    ${hasBookingBlock(salon.reminder_email_intro) ? '' : `${detailsCard(bookingRows(data))}
     ${calendarBlock({
       title: `${data.service.name} – ${salon.name}`,
       date: booking.date,
@@ -672,7 +691,7 @@ function reminderHtml(data: BookingEmailData, cancelUrl: string | null): string 
       locale,
       directionsAddress: salon.email_show_directions ? (salon.email_directions_address?.trim() || salonAddress(salon)) : null,
     })}
-    ${cancelBlock(cancelUrl, locale)}
+    ${cancelBlock(cancelUrl, locale)}`}
     ${bottomSpacer()}
   `)
 }
@@ -689,11 +708,11 @@ function feedbackHtml(data: BookingEmailData): string {
       subtitle: `Kedves ${booking.customer_name}, reméljük elégedett voltál a látogatásoddal. Mondd el a véleményed!`,
     })}
     ${introBlockFromJson(salon.feedback_email_intro, emailVars(data))}
-    <tr>
+    ${hasBookingBlock(salon.feedback_email_intro) ? '' : `<tr>
       <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
         <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
       </td>
-    </tr>
+    </tr>`}
     ${bottomSpacer()}
   `)
 }
@@ -715,10 +734,10 @@ function cancellationHtml(data: BookingEmailData): string {
       subtitle: t(locale, 'email.cancel.body'),
     })}
     ${introBlockFromJson(salon.cancel_email_intro, emailVars(data))}
-    ${detailsCard(rows)}
+    ${hasBookingBlock(salon.cancel_email_intro) ? '' : `${detailsCard(rows)}
     <tr><td style="background:${COLORS.surface};padding:16px 32px 0;text-align:center">
       <p style="margin:0;color:${COLORS.textFaint};font-size:12px">${t(locale, 'email.cancel.hint')}</p>
-    </td></tr>
+    </td></tr>`}
     ${bottomSpacer()}
   `)
 }

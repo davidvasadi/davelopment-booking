@@ -27,6 +27,9 @@ export async function autoCompleteBookings(salonId: string | number) {
       ],
     },
     limit: 200,
+    depth: 0,
+    select: { date: true, end_time: true, updatedAt: true },
+    overrideAccess: true,
   })
 
   if (result.docs.length === 0) return
@@ -38,7 +41,7 @@ export async function autoCompleteBookings(salonId: string | number) {
   // a függvényt, ami rögtön visszaállította).
   const toComplete = result.docs.filter((b) => {
     const endAt = new Date(`${b.date}T${b.end_time}:00`)
-    const updatedAt = new Date(b.updatedAt)
+    const updatedAt = new Date(b.updatedAt as string)
     return updatedAt <= endAt
   })
   if (toComplete.length === 0) return

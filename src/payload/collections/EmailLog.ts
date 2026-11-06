@@ -84,6 +84,9 @@ export const EmailLog: CollectionConfig = {
     { name: 'restaurant', type: 'relationship', relationTo: 'restaurants', label: 'Étterem' },
     // Csak `marketing_broadcast`-nál — melyik kampányhoz tartozik (nyitási-arány számításhoz).
     { name: 'campaign', type: 'relationship', relationTo: 'marketing-campaigns', label: 'Kampány' },
+    // linkenkénti kattintás (Resend „email.clicked” webhook) — [{ url, at }]; a kampány „Mire kattintottak” része ebből
+    { name: 'clicked_links', type: 'json', label: 'Kattintott linkek' },
+    { name: 'clicked_at', type: 'date', label: 'Első kattintás' },
   ],
   timestamps: true,
 }

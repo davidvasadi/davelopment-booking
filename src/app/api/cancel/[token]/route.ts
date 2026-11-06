@@ -3,6 +3,7 @@ import { getPayloadClient } from '@/lib/payload'
 import { sendCancellationEmail } from '@/lib/email'
 import { promoteWaitlistOnCancel } from '@/lib/waitlistPromote'
 import { refundDepositIfEligible } from '@/lib/depositRefund'
+import { salonPayee } from '@/lib/payee'
 import type { Salon, Service, StaffMember, Booking } from '@/payload/payload-types'
 
 // A lemondás CSAK POST-ra fut (a megerősítő oldal űrlapja küldi). GET-re soha nem módosítunk:
@@ -80,7 +81,7 @@ export async function POST(
     void refundDepositIfEligible({
       collection: 'bookings',
       doc: { id: booking.id, date: booking.date, start_time: booking.start_time },
-      connectAccountId: salon.stripe_connect_account_id,
+      connectAccountId: salonPayee(salon, staff).accountId, // az üzleté, vagy szakemberenkénti számlázásnál a szakemberé
       refundHoursBefore: salon.deposit_settings?.refund_hours_before ?? 24,
     })
 
@@ -112,7 +113,7 @@ export async function POST(
         void refundDepositIfEligible({
           collection: 'bookings',
           doc: { id: sib.id, date: sib.date, start_time: sib.start_time },
-          connectAccountId: salon.stripe_connect_account_id,
+          connectAccountId: salonPayee(salon, staff).accountId, // az üzleté, vagy szakemberenkénti számlázásnál a szakemberé
           refundHoursBefore: salon.deposit_settings?.refund_hours_before ?? 24,
         })
       }
@@ -120,7 +121,7 @@ export async function POST(
 
     const salonName = encodeURIComponent(salon.name)
     const serviceName = encodeURIComponent(service.name)
-    return redirect(`/booking/cancelled?salon=${salonName}&service=${serviceName}&date=${booking.date}&time=${booking.start_time}`, appUrl)
+    return redirect(`/booking/cancelled?salon=${salonName}&slug=${encodeURIComponent(salon.slug ?? '')}&service=${serviceName}&date=${String(booking.date).slice(0, 10)}&time=${booking.start_time}`, appUrl)
   } catch (err) {
     console.error('[Cancel] Error:', err)
     return redirect('/booking/cancelled?error=server', appUrl)

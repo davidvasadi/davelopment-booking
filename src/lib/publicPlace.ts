@@ -66,7 +66,8 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
   const [servicesResult, staffResult, categoriesResult, voucherTypesResult, availabilityResult] = await Promise.all([
     payload.find({
       collection: 'services',
-      where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }] },
+      // a foglalóoldalon csak az aktív ÉS online látható szolgáltatások (Beállítások › Foglalóoldal › Szolgáltatások)
+      where: { and: [{ salon: { equals: salon.id } }, { is_active: { equals: true } }, { online_visible: { not_equals: false } }] },
       sort: ['sort_order', 'name'],
       depth: 1,
       limit: 100,
@@ -145,11 +146,26 @@ async function fetchPublicSalon(slug: string, locale: Locale): Promise<PublicSal
   return {
     salon,
     services: servicesResult.docs as Service[],
-    staff: staffWithFallback,
+    staff: staffWithFallback.map(publicStaff),
     serviceCategories: categoriesResult.docs as ServiceCategory[],
     voucherTypes: voucherTypesResult.docs as GiftVoucherType[],
     availability: availabilityResult.docs as Availability[],
   }
+}
+
+/**
+ * A foglalóoldalnak (és így a vendég böngészőjének) csak a nyilvános munkatárs-mezők mennek ki. Korábban a teljes
+ * adatlap ment (bér, adóazonosító, lakcím, születésnap, telefon, e-mail, dokumentumok) — most fehérlistás. A saját
+ * Stripe-fiókból csak annyi, hogy tud-e online fizetést fogadni (szakemberenkénti számlázásnál az előleghez).
+ */
+function publicStaff(s: StaffMember): StaffMember {
+  return {
+    id: s.id, name: s.name, bio: s.bio, social_links: s.social_links, salon: typeof s.salon === 'object' && s.salon ? s.salon.id : s.salon,
+    avatar: s.avatar, is_active: s.is_active, role_title: s.role_title, department: s.department,
+    booking_buffer_minutes: s.booking_buffer_minutes, min_lead_hours: s.min_lead_hours, default_breaks: s.default_breaks,
+    stripe_connect_onboarded: !!s.stripe_connect_onboarded && !!s.stripe_connect_account_id,
+    updatedAt: s.updatedAt, createdAt: s.createdAt,
+  } as StaffMember
 }
 
 async function fetchPublicRestaurant(slug: string, locale: Locale): Promise<PublicRestaurantData> {

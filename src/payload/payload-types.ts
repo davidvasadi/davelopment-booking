@@ -42,6 +42,8 @@ export interface Config {
     'contact-messages': ContactMessage
     'broadcast-log': BroadcastLogEntry
     'google-api-log': GoogleApiLogEntry
+    'sick-notes': SickNote
+    'shift-templates': ShiftTemplate
     'payload-preferences': PayloadPreference
     'payload-migrations': PayloadMigration
   }
@@ -109,6 +111,7 @@ export interface Restaurant {
   phone?: string | null
   email?: string | null
   website?: string | null
+  privacy_url?: string | null
   social_links?: { url: string; id?: string | null }[] | null
   positions?: { label: string; level?: ('lead' | 'staff') | null; id?: string | null }[] | null
   daily_tips?: { date: string; amount: number; id?: string | null }[] | null
@@ -120,6 +123,9 @@ export interface Restaurant {
   cover_focal_mobile_y?: number | null
   logo?: string | Media | null
   turn_duration_minutes?: number | null
+  online_capacity_pct?: number | null
+  min_online_pax?: number | null
+  max_online_pax?: number | null
   slot_step_minutes?: number | null
   last_seating_buffer_minutes?: number | null
   lead_time_hours?: number | null
@@ -177,6 +183,9 @@ export interface Restaurant {
     reviews_on?: boolean | null
     google_review_url?: string | null
     review_delay_hours?: number | null
+    review_target?: ('google' | 'tripadvisor' | 'facebook') | null
+    tripadvisor_review_url?: string | null
+    facebook_review_url?: string | null
     google_booking_confirmed?: boolean | null
     facebook_booking_confirmed?: boolean | null
   } | null
@@ -186,6 +195,10 @@ export interface Restaurant {
     fixed_amount_huf?: number | null
     percent_value?: number | null
     per_pax_amount_huf?: number | null
+    apply_when?: ('always' | 'min_price' | 'min_pax' | 'special_days') | null
+    min_price_huf?: number | null
+    min_pax?: number | null
+    special_days?: { weekdays?: number[]; dates?: string[] } | null
     refund_hours_before?: number | null
     payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
   } | null
@@ -214,6 +227,7 @@ export interface Restaurant {
   stripe_connect_onboarded?: boolean | null
   invoice_settings?: {
     invoice_provider?: ('szamlazz' | 'billingo' | 'none') | null
+    issuer?: ('business' | 'staff') | null
     szamlazz_agent_key_enc?: string | null
     billingo_api_key_enc?: string | null
   } | null
@@ -256,6 +270,30 @@ export interface Restaurant {
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string
+  public_page?: {
+    accent_color?: string | null
+    card_style?: ('dark' | 'black' | 'glass' | 'white') | null
+    card_text?: ('auto' | 'light' | 'dark') | null
+    button_text?: ('auto' | 'light' | 'dark') | null
+    cover_dim?: ('none' | 'soft' | 'strong') | null
+    show_rating?: boolean | null
+    rating_opens?: boolean | null
+    show_social?: boolean | null
+    cta_label?: string | null
+    cta_next_free?: boolean | null
+    cta_deposit_badge?: boolean | null
+    services_filter?: boolean | null
+    services_images?: boolean | null
+    services_price?: boolean | null
+    services_order?: ('manual' | 'popular') | null
+  }
+  gallery?:
+    | {
+        image: number | Media
+        caption?: string | null
+        id?: string | null
+      }[]
+    | null
   google_place_id?: string | null
   google_place_name?: string | null
   google_maps_url?: string | null
@@ -272,6 +310,7 @@ export interface Room {
   name: string
   is_outdoor?: boolean | null
   is_active?: boolean | null
+  online_bookable?: boolean | null
   seasonal?: boolean | null
   season_start?: string | null
   season_end?: string | null
@@ -355,7 +394,8 @@ export interface Reservation {
   payment_intent_id?: string | null
   invoice_number?: string | null
   invoice_pdf_url?: string | null
-  invoice_status?: ('none' | 'issued' | 'failed') | null
+  invoice_status?: ('none' | 'issued' | 'failed' | 'storno') | null
+  invoice_storno_number?: string | null
   voucher_code?: string | null
   voucher_discount_huf?: number | null
   consent_accepted?: boolean | null
@@ -422,7 +462,8 @@ export interface GiftVoucher {
   redeemed_reservation?: string | Reservation | null
   invoice_number?: string | null
   invoice_pdf_url?: string | null
-  invoice_status?: 'none' | 'issued' | 'failed' | 'skipped' | null
+  invoice_status?: 'none' | 'issued' | 'failed' | 'skipped' | 'storno' | null
+  invoice_storno_number?: string | null
   issued_by?: string | User | null
   locale?: 'hu' | 'en' | 'de' | 'es' | 'it' | 'fr' | null
   createdAt: string
@@ -460,6 +501,7 @@ export interface Customer {
   blocked_at?: string | null
   marketing_consent?: boolean | null
   marketing_consent_at?: string | null
+  marketing_unsubscribed_at?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -472,9 +514,13 @@ export interface MarketingCampaign {
   body_text?: string | null
   recipient_count?: number | null
   package?: string | null
-  status: 'sent' | 'draft'
+  status: 'sent' | 'scheduled' | 'draft'
   blocks_json?: unknown
   target_customer_ids?: unknown
+  scheduled_at?: string | null
+  body_html?: string | null
+  audience?: string | null
+  translations?: unknown
   createdAt: string
   updatedAt: string
 }
@@ -495,6 +541,7 @@ export interface Review {
 export interface Role {
   id: string
   name: string
+  description?: string | null
   salon?: string | Salon | null
   restaurant?: string | Restaurant | null
   capabilities?:
@@ -596,6 +643,8 @@ export interface Membership {
   tax_number?: string | null
   join_date?: string | null
   weekly_hours?: number | null
+  /** Éves szabadság-keret (nap). */
+  annual_leave_days?: number | null
   pay_type?: ('daily' | 'hourly') | null
   pay_rate?: number | null
   tip_eligible?: boolean | null
@@ -634,6 +683,39 @@ export interface Invoice {
   invoice_pdf_base64?: string | null
   issued_at?: string | null
   test?: boolean | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** Táppénzes papír (Naptár „Beteg”) — nem nyilvános feltöltés, csak a /api/shifts/[id]/sick-note végponton. */
+export interface SickNote {
+  id: string
+  salon?: (string | null) | Salon
+  restaurant?: (string | null) | Restaurant
+  url?: string | null
+  thumbnailURL?: string | null
+  filename?: string | null
+  mimeType?: string | null
+  filesize?: number | null
+  width?: number | null
+  height?: number | null
+  createdAt: string
+  updatedAt: string
+}
+
+/** Mentett beosztás-sablon (Naptár „+ Beosztás”). */
+export interface ShiftTemplate {
+  id: string
+  name: string
+  salon?: (string | null) | Salon
+  restaurant?: (string | null) | Restaurant
+  start_time?: string | null
+  end_time?: string | null
+  breaks?: BreakWindow[] | null
+  /** a hét napjai: 0 = vasárnap … 6 = szombat */
+  days?: number[] | null
+  /** munkatárs- vagy tag-azonosítók */
+  people?: string[] | null
   createdAt: string
   updatedAt: string
 }
@@ -680,6 +762,8 @@ export interface EmailLogEntry {
   salon?: (string | null) | Salon
   restaurant?: (string | null) | Restaurant
   campaign?: (string | null) | MarketingCampaign
+  clicked_links?: { url: string; at: string }[] | null
+  clicked_at?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -726,6 +810,7 @@ export interface User {
   name: string
   email: string
   avatar_url?: string | null
+  last_login_at?: string | null
   /** Tulajdonos fiók-szintű adatlapja (nincs membershipje) — a HiringView szerkeszti /api/user/profile-on. */
   phone?: string | null
   birthday?: string | null
@@ -754,6 +839,8 @@ export interface User {
     email_not_opened?: boolean | null
     bookings_email?: boolean | null
     schedule_email?: boolean | null
+    pending_popup?: boolean | null
+    payment_bar?: boolean | null
   } | null
   createdAt: string
   updatedAt: string
@@ -778,6 +865,7 @@ export interface Salon {
   phone?: string | null
   email?: string | null
   website?: string | null
+  privacy_url?: string | null
   social_links?: { url: string; id?: string | null }[] | null
   booking_buffer_minutes?: number | null
   services_uncategorized_sort_order?: number | null
@@ -835,6 +923,9 @@ export interface Salon {
     reviews_on?: boolean | null
     google_review_url?: string | null
     review_delay_hours?: number | null
+    review_target?: ('google' | 'tripadvisor' | 'facebook') | null
+    tripadvisor_review_url?: string | null
+    facebook_review_url?: string | null
     google_booking_confirmed?: boolean | null
     facebook_booking_confirmed?: boolean | null
   } | null
@@ -844,6 +935,10 @@ export interface Salon {
     fixed_amount_huf?: number | null
     percent_value?: number | null
     per_pax_amount_huf?: number | null
+    apply_when?: ('always' | 'min_price' | 'min_pax' | 'special_days') | null
+    min_price_huf?: number | null
+    min_pax?: number | null
+    special_days?: { weekdays?: number[]; dates?: string[] } | null
     refund_hours_before?: number | null
     payment_gateway?: ('stripe' | 'simplepay' | 'none') | null
   } | null
@@ -870,8 +965,15 @@ export interface Salon {
   } | null
   stripe_connect_account_id?: string | null
   stripe_connect_onboarded?: boolean | null
+  onsite_payment?: {
+    enabled?: boolean | null
+    mode?: ('register' | 'invoice') | null
+    methods?: string | null
+    invoice_default?: ('ask' | 'always') | null
+  }
   invoice_settings?: {
     invoice_provider?: ('szamlazz' | 'billingo' | 'none') | null
+    issuer?: ('business' | 'staff') | null
     szamlazz_agent_key_enc?: string | null
     billingo_api_key_enc?: string | null
   } | null
@@ -913,6 +1015,31 @@ export interface Salon {
   is_active?: boolean | null
   admin_notes?: string | null
   createdAt: string
+  last_booking_buffer_minutes?: number | null
+  public_page?: {
+    accent_color?: string | null
+    card_style?: ('dark' | 'black' | 'glass' | 'white') | null
+    card_text?: ('auto' | 'light' | 'dark') | null
+    button_text?: ('auto' | 'light' | 'dark') | null
+    cover_dim?: ('none' | 'soft' | 'strong') | null
+    show_rating?: boolean | null
+    rating_opens?: boolean | null
+    show_social?: boolean | null
+    cta_label?: string | null
+    cta_next_free?: boolean | null
+    cta_deposit_badge?: boolean | null
+    services_filter?: boolean | null
+    services_images?: boolean | null
+    services_price?: boolean | null
+    services_order?: ('manual' | 'popular') | null
+  }
+  gallery?:
+    | {
+        image: number | Media
+        caption?: string | null
+        id?: string | null
+      }[]
+    | null
   google_place_id?: string | null
   google_place_name?: string | null
   google_maps_url?: string | null
@@ -941,6 +1068,8 @@ export interface StaffMember {
   birthday?: string | null
   join_date?: string | null
   weekly_hours?: number | null
+  /** Éves szabadság-keret (nap). */
+  annual_leave_days?: number | null
   booking_buffer_minutes?: number | null
   min_lead_hours?: number | null
   default_breaks?: BreakWindow[] | null
@@ -949,6 +1078,11 @@ export interface StaffMember {
   address?: string | null
   tax_id?: string | null
   tax_number?: string | null
+  invoice_provider?: ('szamlazz' | 'billingo' | 'none') | null
+  szamlazz_agent_key_enc?: string | null
+  billingo_api_key_enc?: string | null
+  stripe_connect_account_id?: string | null
+  stripe_connect_onboarded?: boolean | null
   documents?: { label?: string | null; file?: string | Media | null; id?: string | null }[] | null
   createdAt: string
   updatedAt: string
@@ -967,6 +1101,10 @@ export interface Shift {
   hours?: number | null
   breaks?: BreakWindow[] | null
   note?: string | null
+  /** Beteg / szabadság: fizetett-e. */
+  paid?: boolean | null
+  /** Betegnél a táppénzes papír. */
+  sick_note?: string | SickNote | null
   owner_shift?: boolean | null
   /** Státuszváltás: a dolgozó a műszak vége előtt hazament (pl. délben beteg lett). */
   left_early_at?: string | null
@@ -988,6 +1126,7 @@ export interface Service {
   price: number
   currency?: 'HUF' | 'EUR'
   is_active?: boolean | null
+  online_visible?: boolean | null
   /** Import hozta létre, a tulaj még nem nézte át (az első szerkesztés törli). */
   import_review?: boolean | null
   sort_order?: number | null
@@ -1024,6 +1163,7 @@ export interface Booking {
   start_time: string
   end_time: string
   status: 'pending' | 'confirmed' | 'cancelled' | 'completed' | 'no_show'
+  source: 'online' | 'walk_in' | 'phone'
   notes?: string | null
   reminder_sent?: boolean | null
   reminder_last_offset?: number | null
@@ -1042,9 +1182,18 @@ export interface Booking {
   payment_intent_id?: string | null
   invoice_number?: string | null
   invoice_pdf_url?: string | null
-  invoice_status?: ('none' | 'issued' | 'failed') | null
+  invoice_status?: ('none' | 'issued' | 'failed' | 'storno') | null
+  invoice_storno_number?: string | null
   voucher_code?: string | null
   voucher_discount_huf?: number | null
+  paid_amount_huf?: number | null
+  pay_method?: ('cash' | 'card' | 'transfer' | 'link') | null
+  pay_receipt?: ('invoice' | 'register' | 'none' | 'manual') | null
+  paid_lines?: unknown
+  paid_at?: string | null
+  pay_link_url?: string | null
+  pay_link_session?: string | null
+  pay_pending?: unknown
   consent_accepted?: boolean | null
   consent_accepted_at?: string | null
   consent_accepted_via?: ('online' | 'onsite') | null

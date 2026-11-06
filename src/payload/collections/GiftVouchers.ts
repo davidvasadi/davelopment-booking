@@ -1,4 +1,5 @@
 import type { CollectionConfig, Access, Where } from 'payload'
+import { webhookOnVoucher } from '../hooks/webhookOnBooking'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 import { notifyOnVoucher } from '../hooks/notifyOnVoucher'
 import { cleanupMediaOnChange } from '../hooks/cleanupMediaOnChange'
@@ -46,7 +47,7 @@ const isGiftVoucherOwnerOrAdmin: Access = async ({ req }) => {
 export const GiftVouchers: CollectionConfig = {
   slug: 'gift-vouchers',
   hooks: {
-    afterChange: [notifyOnVoucher, cleanupMediaOnChange(['image']), auditAfterChange('Ajándékutalvány', 'auto')],
+    afterChange: [webhookOnVoucher, notifyOnVoucher, cleanupMediaOnChange(['image']), auditAfterChange('Ajándékutalvány', 'auto')],
     afterDelete: [auditAfterDelete('Ajándékutalvány', 'auto')],
   },
   labels: { singular: 'Ajándékutalvány', plural: 'Ajándékutalványok' },
@@ -119,6 +120,7 @@ export const GiftVouchers: CollectionConfig = {
     },
     { name: 'invoice_number', type: 'text', label: 'Számlaszám', admin: { position: 'sidebar', readOnly: true } },
     { name: 'invoice_pdf_url', type: 'text', label: 'Számla PDF', admin: { position: 'sidebar', readOnly: true } },
+    { name: 'invoice_storno_number', type: 'text', label: 'Sztornó számla száma', admin: { position: 'sidebar', readOnly: true } },
     {
       name: 'invoice_status',
       type: 'select',
@@ -128,6 +130,7 @@ export const GiftVouchers: CollectionConfig = {
         { label: 'Nincs', value: 'none' },
         { label: 'Kiállítva', value: 'issued' },
         { label: 'Sikertelen', value: 'failed' },
+        { label: 'Sztornózva', value: 'storno' },
         // a kiállító szándékosan nem kért számlát (pl. pénztárgépből számláz — duplikáció ellen)
         { label: 'Nem kért', value: 'skipped' },
       ],

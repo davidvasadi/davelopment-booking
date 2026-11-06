@@ -11,6 +11,11 @@ const twMerge = extendTailwindMerge({
       'bg-color': [
         { bg: ['background', 'foreground', 'card', 'card-foreground', 'popover', 'popover-foreground', 'primary', 'primary-foreground', 'secondary', 'secondary-foreground', 'muted', 'muted-foreground', 'accent', 'accent-foreground', 'destructive', 'destructive-foreground', 'border', 'input', 'ring'] },
       ],
+      // A saját betűméret-skálák (tailwind.config fontSize) — nélküle a tailwind-merge szövegszínnek
+      // nézi őket, és a `text-ui-body` kiütné a `text-white`-ot (sötét gombon sötét szöveg).
+      'font-size': [
+        { text: ['ui-label', 'ui-meta', 'ui-body', 'ui-row', 'ui-title', 'ui-sub', 'ui-num', 'ui-page', 'dav-2xs', 'dav-xs', 'dav-sm', 'dav-base', 'dav-md', 'dav-lg', 'dav-xl', 'dav-2xl', 'dav-display-sm', 'dav-display', 'dav-display-lg'] },
+      ],
     },
   },
 })
@@ -114,3 +119,6 @@ export function nextImageSrc(url: string): string {
 export function isTouchDevice(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
 }
+
+/** Dátum-felirat minden szava nagy kezdőbetűvel (Dave kérése, az egész adminban): „kedd, nov. 3.” → „Kedd, Nov. 3.”. */
+export const capsWords = (t: string) => t.replace(/(^|[\s,–-])(\p{Ll})/gu, (_, p: string, c: string) => p + c.toUpperCase())

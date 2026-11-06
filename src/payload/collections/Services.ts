@@ -113,6 +113,9 @@ export const Services: CollectionConfig = {
       defaultValue: true,
       label: 'Aktív',
     },
+    // Beállítások › Foglalóoldal › Szolgáltatások (design 21.6): a foglalóoldalon látszik-e (online foglalható-e) —
+    // kikapcsolva a szolgáltatás él, a tulaj kézzel foglalhatja, de a vendég online nem látja.
+    { name: 'online_visible', type: 'checkbox', defaultValue: true, label: 'Látszik a foglalóoldalon' },
     {
       name: 'import_review',
       type: 'checkbox',

@@ -1,4 +1,5 @@
 import type { CollectionConfig, Access, Where } from 'payload'
+import { webhookOnCustomer } from '../hooks/webhookOnBooking'
 import { auditAfterChange, auditAfterDelete } from '../hooks/auditLog'
 
 /**
@@ -34,7 +35,7 @@ const isCustomerOwnerOrAdmin: Access = async ({ req }) => {
 export const Customers: CollectionConfig = {
   slug: 'customers',
   hooks: {
-    afterChange: [auditAfterChange('Vendég-rekord', 'auto')],
+    afterChange: [webhookOnCustomer, auditAfterChange('Vendég-rekord', 'auto')],
     afterDelete: [auditAfterDelete('Vendég-rekord', 'auto')],
   },
   labels: { singular: 'Vendég-rekord', plural: 'Vendég-rekordok' },
@@ -121,6 +122,8 @@ export const Customers: CollectionConfig = {
     // gyűlik (GDPR opt-in, sose retroaktív). A leiratkozó link false-ra állítja vissza.
     { name: 'marketing_consent', type: 'checkbox', defaultValue: false, label: 'Feliratkozott hírlevélre', admin: { position: 'sidebar' } },
     { name: 'marketing_consent_at', type: 'date', label: 'Hozzájárulás időpontja', admin: { position: 'sidebar', readOnly: true } },
+    // a leiratkozás időpontja — a kampány „Leiratkozott” száma ebből (design 13.1)
+    { name: 'marketing_unsubscribed_at', type: 'date', label: 'Leiratkozás időpontja', admin: { position: 'sidebar', readOnly: true } },
   ],
   timestamps: true,
 }

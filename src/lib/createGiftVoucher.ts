@@ -34,7 +34,7 @@ export async function createGiftVoucher(params: {
   issuedBy?: string | number | null
   /** false = a kiállító nem kért számlát (pl. pénztárgépből számláz) → 'skipped', nincs hívás */
   issueInvoice?: boolean
-}): Promise<{ code: string; amountHuf: number; qrCodeDataUrl: string }> {
+}): Promise<{ code: string; amountHuf: number; qrCodeDataUrl: string; expiresAt: string }> {
   const { kind, business, amountHuf, voucherTypeId, paymentIntentId, paymentMethod, buyer, recipient, locale, issuedBy, issueInvoice = true } = params
   const payload = await getPayloadClient()
 
@@ -79,6 +79,7 @@ export async function createGiftVoucher(params: {
     collection: 'gift-vouchers',
     id: voucher.id,
     invoiceSettings: business.invoice_settings,
+    sellerTaxNumber: business.tax_number,
     buyer: { name: buyer.name, email: buyer.email, city: buyer.city, address: buyer.address, taxNumber: buyer.taxNumber },
     label: `Ajándékutalvány – ${business.name}`,
     grossHuf: amountHuf,
@@ -101,5 +102,5 @@ export async function createGiftVoucher(params: {
     if (recipient?.email) void sendRestaurantVoucherGiftEmail({ restaurant: business as Restaurant, ...emailData })
   }
 
-  return { code, amountHuf, qrCodeDataUrl }
+  return { code, amountHuf, qrCodeDataUrl, expiresAt: expiresAt.toISOString() }
 }

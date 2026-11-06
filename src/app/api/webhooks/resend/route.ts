@@ -81,6 +81,18 @@ export async function POST(req: Request) {
     if (nextRank >= currentRank) data.status = status
     if (status === 'delivered' && !doc.delivered_at) data.delivered_at = event.created_at
     if (status === 'opened' && !doc.opened_at) data.opened_at = event.created_at
+    // linkenkénti kattintás (Resend click tracking: data.click.link) — a kampány „Mire kattintottak” része ebből
+    if (status === 'clicked') {
+      const link = (event.data.click as { link?: string } | undefined)?.link
+      if (!doc.clicked_at) data.clicked_at = event.created_at
+      // a kattintás egyben megnyitás is (képek letiltásakor a megnyitás-pixel nem jön meg)
+      if (!doc.opened_at) data.opened_at = event.created_at
+      if (link) {
+        const prev = Array.isArray(doc.clicked_links) ? doc.clicked_links : []
+        // ugyanaz a link egyszer számít egy címzettnél
+        if (!prev.some((c) => c.url === link)) data.clicked_links = [...prev, { url: link, at: event.created_at }]
+      }
+    }
 
     if (Object.keys(data).length > 0) {
       await payload.update({ collection: 'email-log', id: doc.id, overrideAccess: true, data })

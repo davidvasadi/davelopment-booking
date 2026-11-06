@@ -15,7 +15,7 @@ import {
   escapeHtml,
   COLORS,
 } from './emailLayout'
-import { introBlockFromJson } from './emailBlocks'
+import { hasBookingBlock, introBlockFromJson } from './emailBlocks'
 import { t, normalizeLocale } from './i18n'
 import { logEmail } from './emailLog'
 import { formatPrice } from './utils'
@@ -72,13 +72,31 @@ function mediaUrl(field: Restaurant['logo']): string | null {
   return url.startsWith('http') ? url : `${APP_URL}${url}`
 }
 
+/** A vendég-levelek változói (`{{név}}`): a szövegben és a blokkok linkjeiben is — a sablon gombjai (naptár, útvonal,
+ *  értékelés, új foglalás) és a lemondás-sor linkje ezekre mutat, a „foglalás adatai” blokk ezekből áll. */
 function emailVars(data: ReservationEmailData): Record<string, string> {
-  const { reservation } = data
+  const { reservation, restaurant } = data
+  const locale = normalizeLocale((reservation as { locale?: string }).locale)
+  const token = (reservation as { cancel_token?: string }).cancel_token
+  const address = contactAddress(restaurant)
+  const dir = restaurant.email_directions_address?.trim() || address
   return {
     name: reservation.customer_name,
+    business: restaurant.name,
     date: reservation.date,
+    date_label: formatBookingDate(reservation.date, locale),
     time: `${reservation.start_time} – ${reservation.end_time}`,
     pax: String(reservation.pax),
+    details: [`${reservation.pax} ${t(locale, 'email.label.guests').toLowerCase()}`, reservation.occasion].filter(Boolean).join(' · '),
+    calendar_url: token ? `${APP_URL}/api/ics/reservation/${token}` : '',
+    directions_url: dir ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dir)}` : '',
+    cancel_url: token ? `${APP_URL}/${restaurant.slug}/cancel/${token}` : '',
+    review_url: token ? `${APP_URL}/review/${token}` : '',
+    booking_url: `${APP_URL}/${restaurant.slug}`,
+    terms_url: `${APP_URL}/${restaurant.slug}/terms`,
+    phone: restaurant.email_contact_phone?.trim() || restaurant.phone || '',
+    email: restaurant.email ?? '',
+    address: address ?? '',
   }
 }
 
@@ -514,11 +532,11 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
     }),
     content: `
       ${introBlockFromJson(restaurant.booking_email_intro, emailVars(data))}
-      ${detailsCard(detailRows(data))}
+      ${hasBookingBlock(restaurant.booking_email_intro) ? '' : detailsCard(detailRows(data))}
       ${reservation.notes ? `<tr><td style="background:${COLORS.surface};padding:16px 28px 0">
         <p style="margin:0;color:${COLORS.textSoft};font-size:13px"><strong>${t(locale, 'email.label.notes')}:</strong> ${reservation.notes}</p>
       </td></tr>` : ''}
-      ${calendarBlock({
+      ${hasBookingBlock(restaurant.booking_email_intro) ? '' : `${calendarBlock({
         title: `${t(locale, 'rbooking.header')} – ${restaurant.name}`,
         date: reservation.date,
         startTime: reservation.start_time,
@@ -540,7 +558,7 @@ function confirmationHtml(data: ReservationEmailData, cancelUrl: string | null):
         directionsAddress: null,
         locale,
       })}
-      ${cancelBlock(cancelUrl, locale)}
+      ${cancelBlock(cancelUrl, locale)}`}
       ${bottomSpacer()}
     `,
   })
@@ -580,7 +598,7 @@ function reminderHtml(data: ReservationEmailData, cancelUrl: string | null): str
       subtitle: `Kedves ${reservation.customer_name}, csak hogy emlékeztessünk: hamarosan várunk!`,
     })}
     ${introBlockFromJson(restaurant.reminder_email_intro, emailVars(data))}
-    ${detailsCard(detailRows(data))}
+    ${hasBookingBlock(restaurant.reminder_email_intro) ? '' : `${detailsCard(detailRows(data))}
     ${calendarBlock({
       title: `${t(locale, 'rbooking.header')} – ${restaurant.name}`,
       date: reservation.date,
@@ -594,7 +612,7 @@ function reminderHtml(data: ReservationEmailData, cancelUrl: string | null): str
         : null,
       directionsAddress: restaurant.email_show_directions ? (restaurant.email_directions_address?.trim() || contactAddress(restaurant)) : null,
     })}
-    ${cancelBlock(cancelUrl, locale)}
+    ${cancelBlock(cancelUrl, locale)}`}
     ${bottomSpacer()}
   `)
 }
@@ -611,11 +629,11 @@ function feedbackHtml(data: ReservationEmailData): string {
       subtitle: `Kedves ${reservation.customer_name}, reméljük jól érezted magad. Mondd el a véleményed!`,
     })}
     ${introBlockFromJson(restaurant.feedback_email_intro, emailVars(data))}
-    <tr>
+    ${hasBookingBlock(restaurant.feedback_email_intro) ? '' : `<tr>
       <td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
         <a href="${reviewUrl}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${reviewCta}</a>
       </td>
-    </tr>
+    </tr>`}
     ${bottomSpacer()}
   `)
 }
@@ -630,7 +648,7 @@ function cancellationHtml(data: ReservationEmailData): string {
       subtitle: t(locale, 'email.cancel.body'),
     })}
     ${introBlockFromJson(restaurant.cancel_email_intro, emailVars(data))}
-    ${detailsCard(detailRows(data))}
+    ${hasBookingBlock(restaurant.cancel_email_intro) ? '' : detailsCard(detailRows(data))}
     ${bottomSpacer()}
   `)
 }

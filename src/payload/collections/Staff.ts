@@ -147,6 +147,12 @@ export const Staff: CollectionConfig = {
       label: 'Heti óraszám',
     },
     {
+      // Éves szabadság-keret (nap) — a Naptár nap-szerkesztője mutatja, mennyi marad (design 11.5).
+      name: 'annual_leave_days',
+      type: 'number',
+      label: 'Éves szabadság (nap)',
+    },
+    {
       // Személyenkénti szünet két foglalás között (perc). Üres → a szalon „Foglalási időköz"
       // beállítása (`booking_buffer_minutes`) érvényes.
       name: 'booking_buffer_minutes',
@@ -183,6 +189,13 @@ export const Staff: CollectionConfig = {
     { name: 'address', type: 'text', label: 'Cím' },
     { name: 'tax_id', type: 'text', label: 'TAJ / adóazonosító' },
     { name: 'tax_number', type: 'text', label: 'Adószám' },
+    // Saját számlázás (vállalkozó szakember, ha az üzletben „Szakemberenként” számláznak — design 16.7 / 10.4): a saját
+    // számlázója (titkosított kulcs, sosem megy ki a kliensre) és a saját Stripe Connect fiókja (a webhook állítja)
+    { name: 'invoice_provider', type: 'select', defaultValue: 'none', label: 'Saját számlázó', options: [{ label: 'Számlázz.hu', value: 'szamlazz' }, { label: 'Billingo', value: 'billingo' }, { label: 'Nincs', value: 'none' }] },
+    { name: 'szamlazz_agent_key_enc', type: 'text', label: 'Számlázz.hu Agent kulcs', access: { read: () => false } },
+    { name: 'billingo_api_key_enc', type: 'text', label: 'Billingo API kulcs', access: { read: () => false } },
+    { name: 'stripe_connect_account_id', type: 'text', label: 'Stripe Connect fiók', access: { update: ({ req }) => req.user?.role === 'admin' } },
+    { name: 'stripe_connect_onboarded', type: 'checkbox', defaultValue: false, label: 'Stripe onboarding kész', access: { update: ({ req }) => req.user?.role === 'admin' } },
     {
       name: 'documents',
       type: 'array',

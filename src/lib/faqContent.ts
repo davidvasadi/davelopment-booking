@@ -1,3 +1,4 @@
+import { priceSummary } from '@/lib/pricingContent'
 import { ftFmt, type LandingPricing } from '@/components/landing/types'
 
 /**
@@ -23,7 +24,8 @@ export function buildFaqItems(
     },
     {
       q: 'Mennyibe kerül a davelopment booking?',
-      a: `Szakembereknek Starter csomag ${ftFmt(pricing.salon_starter_huf)}/hó-tól, Pro csomag ${ftFmt(pricing.salon_pro_huf)}/hó. Éttermeknek Starter ${ftFmt(pricing.restaurant_starter_huf)}/hó-tól, Pro ${ftFmt(pricing.restaurant_pro_huf)}/hó (asztalfoglalással). Nagyobb vagy egyedi igényekhez Egyedi csomagot is kínálunk, egyeztetett árral. Minden csomag ${pricing.trial_days} napig ingyenesen kipróbálható, bankkártya nélkül.`,
+      // ugyanaz az ár-összefoglaló, mint az /arak oldalon és az llms.txt-ben
+      a: priceSummary(pricing),
     },
     {
       q: 'Kell bankkártyaadatokat megadni a próbaidőhöz?',
