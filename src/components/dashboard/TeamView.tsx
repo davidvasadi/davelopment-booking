@@ -113,6 +113,13 @@ export function TeamView({ restaurant = false, businessId, members, services = [
 
   // ── szűrés ──
   const [query, setQuery] = useState('')
+  // mobil: a fejléc kereső-ikonja nyitja a keresőmezőt (nem áll állandóan a lista fölött)
+  const [mobileSearch, setMobileSearch] = useState(false)
+  useEffect(() => {
+    const on = () => setMobileSearch(true)
+    window.addEventListener('davelopment:open-staff-search', on)
+    return () => window.removeEventListener('davelopment:open-staff-search', on)
+  }, [])
   const [pos, setPos] = useState('all')
   const [status, setStatus] = useState<'all' | TeamStatus | 'review'>('all')
   const [role, setRole] = useState('all')
@@ -470,7 +477,7 @@ export function TeamView({ restaurant = false, businessId, members, services = [
 
   // ── fejléc ──
   const total = list.length || 1
-  const bar = (mobile = false) => <SegmentBar size="md" className={mobile ? 'mt-4' : undefined} segments={[
+  const bar = (mobile = false) => <SegmentBar className={mobile ? 'mt-4' : undefined} segments={[
     { label: 'Aktív', value: mobile ? String(count('active')) : `${count('active')} fő`, weight: (count('active') / total) * 100 || 4, tone: 'dark' },
     { label: 'Meghívott', value: mobile ? String(count('invited')) : `${count('invited')} fő`, weight: (count('invited') / total) * 100 || 4, tone: 'yellow' },
     { label: mobile ? 'Felf.' : 'Felfüggesztett', value: mobile ? String(count('suspended')) : `${count('suspended')} fő`, weight: (count('suspended') / total) * 100 || 4, tone: 'hatch' },
@@ -674,7 +681,12 @@ export function TeamView({ restaurant = false, businessId, members, services = [
           <>
             <PageHead title="Munkatársak" className="mb-0" />
             {bar(true)}
-            <SearchField className="mt-4 w-full" value={query} onChange={setQuery}>Munkatárs keresése</SearchField>
+            {mobileSearch && (
+              <div className="mt-4 flex items-center gap-1.5">
+                <SearchField autoFocus className="min-w-0 flex-1" value={query} onChange={setQuery}>Munkatárs keresése</SearchField>
+                <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={() => { setQuery(''); setMobileSearch(false) }} />
+              </div>
+            )}
             <MobileStaffList className="mt-[5px]" onOpen={(k) => open(k)} rows={filtered.map((m) => ({
               key: m.id, name: m.name, img: m.img,
               meta: restaurant ? `${m.position || m.role} · nem foglalható` : [m.position || (m.owner ? 'Tulajdonos' : ''), m.status === 'active' && m.weekUtil != null ? `${m.weekUtil}% foglalt a héten` : ''].filter(Boolean).join(' · '),

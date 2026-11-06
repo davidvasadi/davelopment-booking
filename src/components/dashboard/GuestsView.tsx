@@ -294,7 +294,7 @@ export function GuestsView({ restaurant = false, counts, total, domestic, foreig
 
       {/* ── mobil (7.7): elöl a térkép és a visszatérő arány, alatta a lista; koppintásra alulról az adatlap ── */}
       <div className="lg:hidden">
-        {desktop === false && <GuestMapCard buckets={buckets} focusIso={focusIso} label={`${thousands(total)} vendég${countries ? ` · ${countries} ország` : ''}`} className="min-h-[320px]" />}
+        {desktop === false && <GuestMapCard buckets={buckets} focusIso={focusIso} label={`${thousands(total)} vendég${countries ? ` · ${countries} ország` : ''}`} className="min-h-[440px]" />}
         <ReturningCard pct={returningPct} returning={returningNum} fresh={newNum} className="mt-[5px]" />
         <MobileGuestList
           meta={`${thousands(total)} vendég · ${String(returningPct).replace('.', ',')}% visszatérő`}

@@ -858,7 +858,8 @@ export function BookingPageEditor({
                 src={src}
                 title="Foglalóoldal előnézet"
                 className="w-full rounded-ui-container border-0"
-                style={{ width: canvasW, height: frame.h }}
+                // telefonon az élő kép legfeljebb a képernyő ~78%-a — alatta is látszik a szerkesztés (az oldal benne görgethető)
+                style={{ width: canvasW, height: `min(${frame.h}px, 78dvh)` }}
               />
             )
           ) : (
@@ -1076,7 +1077,7 @@ export function BookingPageEditor({
                           <button type="button" onClick={() => setSel(selId)} className={cn('min-w-0 flex-1 truncate text-left text-ui-body font-medium', hiddenByChoice ? 'text-ui-muted' : 'text-ui-text')}>
                             {ELEMENT_TITLES[selId]}
                           </button>
-                          <span className={cn('shrink-0 rounded-ui-control px-2.5 py-1 text-ui-label font-medium', badge === 'Kötelező' ? 'bg-ui-dark text-ui-yellow' : 'bg-black/[0.05] text-ui-muted')}>{badge}</span>
+                          <Pill tone={badge === 'Kötelező' ? 'dark' : 'cell'} size="sm" className="shrink-0">{badge}</Pill>
                         </GripReorderItem>
                       )
                     })}

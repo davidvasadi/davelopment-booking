@@ -1,4 +1,5 @@
 import { AV } from './assets'
+import { GuestTierPill } from './guest-tier'
 import { Ban, CalendarDays, Clock, Download, FileText, Mail, MessageSquare, MoreHorizontal, Pencil, Phone, Star, Trash2, UserRound } from 'lucide-react'
 import { Avatar, Button, Card, CardTitle, Checkbox, Field, FieldRow, IconButton, Input, ListRow, Meta, Modal, Note, OptionCard, Pagination, Panel, Pill, RowCheck, SearchField, Segmented, Select, StatusPill, Table, TaskRow, Td, Textarea, Th, Tr } from '@/components/ui-kit'
 import GuestMapClient from '@/components/dashboard/GuestMapClient'
@@ -195,7 +196,7 @@ export function GuestTable({ rows = SAMPLE_GUESTS, toolbar, restaurant = false, 
                 <Tr key={g.key} state={open ? 'open' : selected.includes(g.key) ? 'selected' : g.blocked ? 'muted' : 'default'} onClick={onOpen ? () => onOpen(g.key) : undefined}>
                   <Td><RowCheck checked={selected.includes(g.key)} onToggle={onToggle ? () => onToggle(g.key) : undefined} /></Td>
                   <Td><span className="flex items-center gap-2.5">{g.name}{g.blocked && <StatusPill status="bad">Tiltott</StatusPill>}</span></Td>
-                  <Td><Pill size="sm" tone={TIER[g.tier].tone}>{TIER[g.tier].label}</Pill></Td>
+                  <Td><GuestTierPill tier={g.tier} /></Td>
                   <Td>{g.visits}</Td><Td>{g.last}</Td><Td>{g.spend}</Td>
                   <Td>{g.next ? <Pill size="sm" tone={open ? 'white' : 'cell'} icon={CalendarDays}>{g.next}</Pill> : <span className="text-ui-muted">—</span>}</Td>
                 </Tr>
@@ -238,7 +239,7 @@ export function GuestProfilePanel({ guest, restaurant = false, bare = false, act
   return (
     <Box className={className}>
       <div className="flex items-start justify-between gap-2">
-        <span className="min-w-0"><CardTitle className="truncate">{g.name}</CardTitle><span className="mt-1 flex flex-wrap gap-1"><Pill size="sm" tone={TIER[g.tier].tone}>{TIER[g.tier].label}</Pill>{g.blocked && <StatusPill status="bad">Tiltott</StatusPill>}</span></span>
+        <span className="min-w-0"><CardTitle className="truncate">{g.name}</CardTitle><span className="mt-1 flex flex-wrap gap-1"><GuestTierPill tier={g.tier} />{g.blocked && <StatusPill status="bad">Tiltott</StatusPill>}</span></span>
         {actions ?? <span className="flex gap-1"><IconButton icon={Pencil} label="Szerkesztés" variant="ghost" size="sm" /><IconButton icon={MoreHorizontal} label="Továbbiak" variant="ghost" size="sm" /></span>}
       </div>
       {g.blocked && <Note warn className="mt-3">Tiltólistán{g.blockReason ? ` — ${g.blockReason}` : ''}. Nem tud online foglalni.</Note>}
@@ -346,7 +347,7 @@ export function GuestEditModal({ stacked = false, guest, value, onChange, dateIn
           <Meta className="mb-1">A vendég</Meta>
           <Card tone="cell" inner className="flex items-center gap-3">
             <Avatar size="lg" src={g.avatarUrl} name={g.name} />
-            <span className="min-w-0"><span className="block truncate text-ui-row text-ui-text">{g.name}</span><Pill size="sm" tone={TIER[g.tier].tone} className="mt-1">{TIER[g.tier].label}</Pill></span>
+            <span className="min-w-0"><span className="block truncate text-ui-row text-ui-text">{g.name}</span><GuestTierPill tier={g.tier} className="mt-1" /></span>
           </Card>
           <Card tone="dark" inner>
             <div className="grid grid-cols-3 gap-2">
@@ -460,7 +461,7 @@ export function MobileGuestList({ meta = '1 284 vendég · 46% visszatérő', qu
       <Card className="mt-3" pad="xs">
         {list.length === 0 && <Meta className="px-3 py-4">Nincs a szűrésnek megfelelő vendég.</Meta>}
         {list.map((g) => {
-          const row = <ListRow title={g.name} meta={g.blocked ? 'tiltva' : `${g.visits} látogatás · ${g.last}`} trailing={g.blocked ? <StatusPill status="bad">Tiltott</StatusPill> : <Pill size="sm" tone={TIER[g.tier].tone}>{TIER[g.tier].label}</Pill>} />
+          const row = <ListRow title={g.name} meta={g.blocked ? 'tiltva' : `${g.visits} látogatás · ${g.last}`} trailing={g.blocked ? <StatusPill status="bad">Tiltott</StatusPill> : <GuestTierPill tier={g.tier} />} />
           return onOpen
             ? <button key={g.key} type="button" onClick={() => onOpen(g.key)} className="block w-full text-left outline-none">{row}</button>
             : <div key={g.key}>{row}</div>

@@ -91,7 +91,7 @@ export function StatsView({ vm, preset, base, bizName, scope, canGuests = true, 
 
   // ── fejléc ──
   const st = vm.status
-  const bar = (mobile = false) => <SegmentBar size={mobile ? 'md' : undefined} className={mobile ? 'mt-4' : undefined} segments={vm.empty
+  const bar = (mobile = false) => <SegmentBar className={mobile ? 'mt-4' : undefined} segments={vm.empty
     ? [{ label: r ? 'Megjelent' : 'Teljesített', value: '0%', weight: 25, tone: 'dark' }, { label: 'Függő', value: '0%', weight: 25, tone: 'yellow' }, { label: 'Lemondva', value: '0%', weight: 25, tone: 'hatch' }, { label: 'No-show', value: '0%', weight: 25, tone: 'outline' }]
     : [
       { label: r ? 'Megjelent' : 'Teljesített', value: `${st.done}%`, weight: st.done || 2, tone: 'dark' },

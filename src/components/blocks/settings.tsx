@@ -1,6 +1,6 @@
 import { SHEET_ROW } from './assets'
 import { ArrowRight, ArrowUpRight, BarChart3, Bell, Building2, Download, Pencil, Briefcase, CalendarDays, Check, ChevronDown, Lock, Clock, CreditCard, FileText, Gift, Globe as Globe2, Link2, Mail, Megaphone, Monitor, MoreHorizontal, Plus, QrCode, Send, Settings, ShieldCheck, Smartphone, Star, UserRound, Users, X, Undo2, Trash2 } from 'lucide-react'
-import { Avatar, BigNumber, Button, Card, CardTitle, NavItem, SearchField, Field, FieldRow, IconButton, IconCircle, Input, ListRow, Marquee, Meta, Meter, Modal, OptionCard, Pill, RowCheck, SegmentBar, StatusPill, Segmented, Note, Table, Td, Th, Tr, UploadBox } from '@/components/ui-kit'
+import { Avatar, BigNumber, Button, Card, CardTitle, NavItem, SearchField, Field, FieldRow, IconButton, IconCircle, Input, ListRow, Marquee, MarqueeText, Meta, Meter, Modal, OptionCard, Pill, RowCheck, SegmentBar, StatusPill, Segmented, Note, Table, Td, Th, Tr, UploadBox } from '@/components/ui-kit'
 import { MockSwitch as DesignSwitch } from './MockSwitch'
 import { DarkLineChart } from './charts'
 import { Switch } from '@/components/ui/toggle-switch'
@@ -17,12 +17,12 @@ export function SettingsPage({ group, title, status, save = true, aside, footer,
   const page = (
     <div className="relative flex min-w-0 flex-col overflow-hidden rounded-ui-card bg-white">
       {/* mobilon a cím a felcsúszó lap fejlécében van (16.20) — itt csak az állapot marad */}
-      <div className={`flex items-start justify-between gap-3 px-6 pb-1 pt-6 ${status ? '' : 'max-lg:hidden'}`}>
+      <div className={`flex items-start justify-between gap-3 px-6 pb-1 pt-6 max-lg:px-0 ${status ? '' : 'max-lg:hidden'}`}>
         <div className="max-lg:hidden"><Meta className="text-ui-label">{group}</Meta><div className="mt-0.5 text-ui-sub font-light text-ui-text">{title}</div></div>
         {status}
       </div>
       <div className={save ? 'pb-20' : 'pb-6'}>{children}</div>
-      {footer && <div className="mt-auto flex flex-wrap gap-1.5 px-6 pb-6">{footer}</div>}
+      {footer && <div className="mt-auto flex flex-wrap gap-1.5 px-6 pb-6 max-lg:px-0">{footer}</div>}
       {save && (
         <SaveBar />
       )}
@@ -33,7 +33,8 @@ export function SettingsPage({ group, title, status, save = true, aside, footer,
   return (
     <div className="grid grid-cols-1 gap-[5px] xl:grid-cols-[minmax(0,1fr)_300px] [&>*]:min-w-0">
       {page}
-      <div className="flex flex-col gap-[5px] [&>*:last-child]:flex-1">{aside}</div>
+      {/* mobilon (a fehér lapon) a világos oldalsó kártyák belső margó nélkül — a sötétek megtartják (ott látszik a háttér) */}
+      <div className="flex flex-col gap-[5px] [&>*:last-child]:flex-1 max-lg:[&>*:not(.bg-ui-dark)]:!px-0">{aside}</div>
     </div>
   )
 }
@@ -41,7 +42,8 @@ export function SettingsPage({ group, title, status, save = true, aside, footer,
 /** Csoport a lapon: ikonos alcím, alatta a sorai. */
 export function SettingsGroup({ icon: Icon, title, children }: { icon: typeof Users; title: string; children: React.ReactNode }) {
   return (
-    <div className="px-6 pt-5">
+    // mobilon a lap (felcsúszó ablak) már ad szélt — ott nincs külön oldalsó margó, a tartalom a lap szélességét kapja
+    <div className="px-6 pt-5 max-lg:px-0">
       <div className="mb-1 flex items-center gap-2 text-ui-meta font-medium text-ui-muted"><Icon className="h-4 w-4" /> {title}</div>
       {children}
     </div>
@@ -408,7 +410,7 @@ export function ReminderSettingsCard({ title = 'Emlékeztető', on = true, onTog
 /** A Vendég e-mailek lapja (16.6) — ugyanaz a felépítés, mint a Marketing kampány-szerkesztője: bal a levelek kártyákon (mikor
  *  mennek ki, Be / Ki; a megnyitott sárga), közép maga a levél (tárgy, Desktop / Mobil, a levélben szerkesztesz, alatta a
  *  foglalás adatai és a gombok), jobb a beállítások (`settings`). `letter`: élőben a szerkeszthető levél-tartalom. */
-export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder', onSelect, subject, letter, details = { line: 'Hétfő, Nov. 10. · 13:30', meta: 'Viktória · 60 perc' }, buttons = ['Naptárba', 'Útvonalterv'], biz = { name: 'Fodrászat Budapest', initials: 'FB', footer: 'Fodrászat Budapest · Andrássy út 12' }, device = 0, onDevice, settings, side, palette, cancelLink = true, className = '' }: {
+export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder', onSelect, subject, letter, details = { line: 'Hétfő, Nov. 10. · 13:30', meta: 'Viktória · 60 perc' }, buttons = ['Naptárba', 'Útvonalterv'], biz = { name: 'Fodrászat Budapest', initials: 'FB', footer: 'Fodrászat Budapest · Andrássy út 12' }, device = 0, onDevice, settings, side, palette, paletteRow, cancelLink = true, className = '' }: {
   letters?: GuestLetter[]; selected?: string; onSelect?: (key: string) => void
   /** a tárgy (élőben szerkeszthető mező) */
   subject?: React.ReactNode
@@ -424,6 +426,8 @@ export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder
   cancelLink?: boolean
   /** élőben: a blokk-paletta a levél bal oldalán — a levél minden része (fejléc, szöveg, adatok, gombok) mellette, bentebb */
   palette?: React.ReactNode
+  /** mobilon a blokk-paletta vízszintes sávként, a levél fölött (a függőleges, ragadós sáv a lap címére csúszna) */
+  paletteRow?: React.ReactNode
   className?: string
 }) {
   return (
@@ -451,14 +455,15 @@ export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder
       {/* mobil nézetben a paletta a „kijelzőn” kívül, bal oldalt áll — a keskeny levél teljes szélessége a tartalomé */}
       <div className="flex min-w-0 items-start justify-center gap-3">
       {device === 1 && palette && <div className="sticky top-3 z-10 shrink-0 pt-16">{palette}</div>}
-      <Card tone="white" pad="none" className={`flex flex-col self-stretch overflow-hidden ${device === 1 ? 'w-full max-w-[390px]' : 'min-w-0 flex-1'}`}>
+      {/* mobilon nincs overflow-hidden: a lenti blokk-sáv így tud a lap aljához ragadni (sticky) */}
+      <Card tone="white" pad="none" className={`flex flex-col self-stretch lg:overflow-hidden ${device === 1 ? 'w-full max-w-[390px]' : 'min-w-0 flex-1'}`}>
         <div className="flex items-center gap-2 border-b border-dashed border-ui-divider px-6 py-3.5">
           <Meta className="shrink-0">Tárgy:</Meta>
           <span className="min-w-0 flex-1 truncate text-ui-body text-ui-text">{subject ?? <>Holnap találkozunk — <MergeTag>idő</MergeTag></>}</span>
           <Segmented options={['Desktop', 'Mobil']} active={device} onSelect={onDevice} className="max-lg:hidden" />
         </div>
         <div className="flex items-start">
-        {palette && device !== 1 && <div className="sticky top-3 z-10 shrink-0 pl-4 pt-5">{palette}</div>}
+        {palette && device !== 1 && <div className={`sticky top-3 z-10 shrink-0 pl-4 pt-5 ${paletteRow ? 'max-lg:hidden' : ''}`}>{palette}</div>}
         <div className={`min-w-0 flex-1 ${palette ? 'pb-5' : ''}`}>
         <div className="flex items-center gap-2 px-6 pt-5">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -477,6 +482,8 @@ export function GuestEmailsPage({ letters = SAMPLE_LETTERS, selected = 'reminder
         {cancelLink && <Meta className="px-6 pb-5 text-ui-label">Mégsem tudsz jönni? <span className="underline underline-offset-2">Foglalás lemondása</span></Meta>}
         </div>
         </div>
+        {/* mobil: a blokk-sáv a levél alján — amíg a levelet görgeted, a képernyő aljához ragad, a végén itt marad */}
+        {paletteRow && <div className="sticky bottom-3 z-10 px-3 pb-3 lg:hidden">{paletteRow}</div>}
         <Meta className="mt-auto border-t border-dashed border-ui-divider px-6 py-3 text-ui-label">{biz.footer ?? biz.name} · Kattints a levélbe a szerkesztéshez — a szürke mezők helyére a valós adat kerül.</Meta>
       </Card>
       </div>
@@ -536,9 +543,10 @@ export function OpeningHoursCard({ rows = SAMPLE_HOURS, onDay, footer, scope = t
         </div>
         <div className="mt-auto pt-4">
           {(footer ? foot : foot).map(([k, v]) => (
-            <div key={k} className={SHEET_ROW}>
+            // keskenyen (mobil lap) a vezérlő a felirat alá törik, és ha még így is széles, vízszintesen görgethető
+            <div key={k} className={`${SHEET_ROW} flex-wrap`}>
               <span className="text-ui-body text-ui-muted">{k}{k === 'Munkaszüneti napokon' && <span className="block text-ui-label">magától zárva, a kivételek közé kerül</span>}</span>
-              {k === 'Heti összesen' && footer ? <span className="text-ui-body text-ui-text">{String(Math.round(total * 10) / 10).replace('.', ',')} óra</span> : v}
+              <span className="min-w-0 max-w-full overflow-x-auto">{k === 'Heti összesen' && footer ? <span className="text-ui-body text-ui-text">{String(Math.round(total * 10) / 10).replace('.', ',')} óra</span> : v}</span>
             </div>
           ))}
         </div>
@@ -831,14 +839,20 @@ export function SubscriptionPage({
 }) {
   return (
     <div className={`flex flex-col gap-[5px] [&>*:last-child]:flex-1 ${className}`}>
-      <Card tone="dark" pad="lg" className="flex flex-wrap items-center justify-between gap-5">
+      <Card tone="dark" pad="lg" className="relative flex flex-wrap items-center justify-between gap-5">
+        {/* a fizetést a Stripe-nál kezeli — kicsiben a kártya jobb felső sarkában */}
+        {primary && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src="/brands/stripe.svg" alt="Stripe" title="A fizetés a Stripe-nál kezelhető" className="absolute right-6 top-6 h-7 w-7 rounded-ui-control" />
+        )}
         <div>
           <Meta dark>Jelenlegi csomag</Meta>
           <div className="mt-1 flex items-center gap-3"><BigNumber dark>{plan}</BigNumber>{statusPill && <Pill tone="yellow" size="sm">{statusPill}</Pill>}</div>
           {statusLine && <Meta dark className="mt-2">{statusLine}</Meta>}
         </div>
         {primary && (
-          <div className="flex flex-col items-end gap-2">
+          // mobilon (a gomb a szöveg alá törik): balra igazítva, a kártyaszám a gomb FÖLÖTT; desktopon jobbra, a gomb alatt
+          <div className="flex flex-col-reverse items-start gap-2 lg:flex-col lg:items-end">
             <Button variant="yellow" onClick={primary.onClick} loading={primary.busy}>{primary.label}</Button>
             <Meta dark>{cardLine}</Meta>
           </div>
@@ -847,14 +861,14 @@ export function SubscriptionPage({
       {notice}
 
       <div className="grid gap-[5px] lg:grid-cols-2">
-        <Card tone="white" pad="lg">
+        <Card tone="white" pad="lg" className="max-lg:px-0">
           <CardTitle>{usageTitle}</CardTitle>
           <div className="mt-4 space-y-4">
             {usage.map((u) => <Meter key={u.label} label={u.label} value={u.value} max={u.max} unit={u.unit} tone={u.yellow ? 'yellow' : undefined} />)}
           </div>
           {usageNote && <Meta className="mt-4">{usageNote}</Meta>}
         </Card>
-        <Card tone="white" pad="lg">
+        <Card tone="white" pad="lg" className="max-lg:px-0">
           <div className="flex items-center justify-between"><CardTitle>Fizetési mód</CardTitle><Button size="sm" variant="cell" icon={card ? undefined : Plus} onClick={onCard}>{card ? 'Csere' : 'Kártya'}</Button></div>
           <Card tone="cell" inner pad="sm" className="mt-4 flex items-center gap-3">
             <span className="flex h-10 w-14 items-center justify-center rounded-ui-control bg-ui-dark text-white"><CreditCard className="h-4 w-4" /></span>
@@ -868,7 +882,7 @@ export function SubscriptionPage({
         </Card>
       </div>
 
-      <Card tone="white" pad="lg">
+      <Card tone="white" pad="lg" className="max-lg:px-0">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <CardTitle>Csomagok</CardTitle>
           {showCycle && <span className="flex items-center gap-2"><Segmented options={['Havi', 'Éves']} active={cycle} onSelect={onCycle} /><Pill tone="yellow" size="sm">éves −{annualPct}%</Pill></span>}
@@ -880,13 +894,14 @@ export function SubscriptionPage({
               <div className="mt-3 flex items-baseline gap-1.5"><BigNumber dark={c.current}>{c.price}</BigNumber>{c.perMonth && <Meta dark={c.current}>Ft / hó</Meta>}</div>
               <Meta dark={c.current} className="mt-2">{c.cap}</Meta>
               <Meta dark={c.current}>{c.extra}</Meta>
-              <Button variant={c.current ? 'yellow' : 'glass'} size="sm" className="mt-auto" onClick={c.onClick} loading={c.busy} disabled={c.disabled}>{c.btn}</Button>
+              <div className="mt-auto pt-5" />
+              <Button variant={c.current ? 'yellow' : 'glass'} size="sm" onClick={c.onClick} loading={c.busy} disabled={c.disabled}>{c.btn}</Button>
             </Card>
           ))}
         </div>
       </Card>
 
-      <Card tone="white" pad="lg">
+      <Card tone="white" pad="lg" className="max-lg:px-0">
         <CardTitle>Számlák</CardTitle>
         {invoices.length ? (
           <div className="overflow-x-auto">
@@ -904,7 +919,7 @@ export function SubscriptionPage({
       </Card>
 
       {(onPause || showPause || cancel) && (
-        <Card tone="white" pad="lg" className="flex flex-wrap items-center justify-between gap-3">
+        <Card tone="white" pad="lg" className="max-lg:px-0 flex flex-wrap items-center justify-between gap-3">
           <span><CardTitle>Szüneteltetés vagy lemondás</CardTitle><Meta className="mt-1">{cancel?.note ?? 'Az adataid megmaradnak; a foglalóoldal a szünet alatt nem fogad foglalást.'}</Meta></span>
           <span className="flex gap-2">{(onPause || showPause) && <Button variant="cell" onClick={onPause}>Szüneteltetés</Button>}{cancel && <Button variant={cancel.label === 'Lemondás' ? 'danger' : 'cell'} onClick={cancel.onClick} loading={cancel.busy}>{cancel.label}</Button>}</span>
         </Card>
@@ -942,7 +957,7 @@ export function SitesPage({ rows = SAMPLE_SITES, count = '2 / 3', countLabel = '
         </Card>
       </div>
     </>}>
-      <div className="px-6 pt-4">
+      <div className="px-6 pt-4 max-lg:px-0">
         <Table minWidth={480}>
           <thead><tr><Th>Üzlet</Th><Th>Típus</Th><Th>Szerepem</Th><Th>Csapat</Th><Th>Foglalás / hó</Th><Th /></tr></thead>
           <tbody>
@@ -1071,7 +1086,7 @@ export function NotificationsSettings({ rows = SAMPLE_NOTIF, push, onTest, testB
       </Card>
       <Card className="flex flex-col"><CardTitle>Kipróbálod?</CardTitle><Meta className="mt-2">Küldünk egy próba-értesítést erre az eszközre.</Meta><Button variant="cell" size="sm" icon={Bell} loading={testBusy} onClick={onTest} className="mt-auto self-start">Teszt értesítés</Button></Card>
     </>}>
-      <div className="px-6 pt-4">
+      <div className="px-6 pt-4 max-lg:px-0">
         <Table minWidth={460}>
           <thead><tr><Th>Esemény</Th><Th className="w-20 text-center">App</Th><Th className="w-20 text-center">E-mail</Th></tr></thead>
           <tbody>
@@ -1236,7 +1251,30 @@ export type AuditTableRow = {
   event: string; tone: 'ok' | 'bad' | 'neutral'; title: string; lines: { label: string; from?: string; to?: string; text?: string }[]
 }
 export function AuditTable({ rows }: { rows: AuditTableRow[] }) {
+  const line = (l: AuditTableRow['lines'][number], i: number) => (
+    <span key={i} className="mt-0.5 block text-ui-label text-ui-muted">
+      {l.label}: {l.text != null ? <span className="text-ui-text">{l.text}</span> : <><span className="line-through">{l.from}</span> → <span className="text-ui-text">{l.to}</span></>}
+    </span>
+  )
   return (
+    <>
+    {/* mobil (sm alatt): lista — avatar, a név és mi történt, jobbra az időpont; alatta a részlet */}
+    <div className="sm:hidden">
+      {rows.map((r) => (
+        <div key={r.key} className="border-t border-dashed border-ui-divider py-3 first:border-t-0">
+          <div className="flex items-start gap-3">
+            <Avatar size="sm" src={r.actor.img} name={r.actor.name} />
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline gap-2"><MarqueeText className="flex-1 text-ui-body text-ui-text">{r.actor.name}</MarqueeText><span className="shrink-0 text-ui-label text-ui-muted">{r.time}</span></span>
+              <span className="mt-1 block"><StatusPill status={r.tone}>{r.event}</StatusPill></span>
+              {r.title && <span className="mt-1.5 block text-ui-meta text-ui-text">{r.title}</span>}
+              {r.lines.map(line)}
+            </span>
+          </div>
+        </div>
+      ))}
+    </div>
+    <div className="max-sm:hidden">
     <Table minWidth={680}>
       <thead><tr><Th>Mikor</Th><Th>Ki</Th><Th>Mi történt</Th><Th>Részlet</Th></tr></thead>
       <tbody>
@@ -1252,16 +1290,14 @@ export function AuditTable({ rows }: { rows: AuditTableRow[] }) {
             <Td><StatusPill status={r.tone}>{r.event}</StatusPill></Td>
             <Td className="whitespace-normal">
               <span className="block">{r.title}</span>
-              {r.lines.map((l, i) => (
-                <span key={i} className="mt-0.5 block text-ui-label text-ui-muted">
-                  {l.label}: {l.text != null ? <span className="text-ui-text">{l.text}</span> : <><span className="line-through">{l.from}</span> → <span className="text-ui-text">{l.to}</span></>}
-                </span>
-              ))}
+              {r.lines.map(line)}
             </Td>
           </Tr>
         ))}
       </tbody>
     </Table>
+    </div>
+    </>
   )
 }
 
@@ -1358,7 +1394,7 @@ const SAMPLE_TRIAL_STEPS: TrialStep[] = [
 export function TrialChecklist({ daysLeft = 3, endLabel = 'Nov. 16.', steps = SAMPLE_TRIAL_STEPS, className = '' }: { daysLeft?: number; endLabel?: string; steps?: TrialStep[]; className?: string }) {
   const left = steps.filter((s) => !s.done).length
   return (
-    <Card tone="white" pad="lg" className={className}>
+    <Card tone="white" pad="lg" className={`max-lg:px-0 ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>Mielőtt lejár a próbaidő</CardTitle>
         <StatusPill status={left ? (daysLeft <= 3 ? 'bad' : 'pending') : 'ok'}>{left ? `még ${daysLeft} nap · ${left} teendő` : 'Minden kész'}</StatusPill>
@@ -1413,7 +1449,7 @@ export function DeleteBusinessPage({ kind = 'salon', name = 'Anna Fodrászat', l
   const label = last ? 'Fiók törlése' : kind === 'salon' ? 'Szalon törlése' : 'Étterem törlése'
   return (
     <SettingsPage group="Veszélyzóna" title={label} save={false}>
-      <div className="px-6 pb-6 pt-5">
+      <div className="px-6 pb-6 pt-5 max-lg:px-0">
         <div className="flex items-start gap-4 rounded-ui-inner bg-ui-bad-bg p-4">
           <IconCircle tone="white" size="lg" icon={Trash2} className="text-ui-bad" />
           <span className="min-w-0">

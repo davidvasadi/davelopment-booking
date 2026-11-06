@@ -31,7 +31,7 @@ import { EASE } from '@/lib/motion'
 import { toast } from 'sonner'
 import { SettingsFormContext, type GuestEmailCtl, type SettingsFormApi } from './settingsFormContext'
 import {
-  Clock, Bell, Users, CreditCard, MoreHorizontal, ArrowLeft,
+  Clock, Bell, Users, CreditCard, MoreHorizontal, ArrowLeft, Search, SlidersHorizontal,
   Building2, Mail, Check, FileText,
   Trash2, ShieldCheck, Star, Globe as Globe2, Link2, Landmark, ChevronDown, UserRound, Wallet, PanelsTopLeft, Send, Gift, HandCoins, PanelLeftClose, PanelLeftOpen, type LucideIcon,
 } from 'lucide-react'
@@ -1040,6 +1040,8 @@ export function SettingsHub({
 
   // a téma-lista (desktop kártya és mobil lap ugyanaz): csoportonként, a keresés szűri, zárolt előfizetésnél lakat
   const navNorm = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  // mobilon teljes oldalként nyíló témák (a sok soros listák — kereső és szűrők a fejlécben)
+  const pageTopic = active === 'invoices'
   const openTopic = (id: RailId) => { setActive(id); setMobileSheet(true) }
   // a téma-lista adatai (desktop SettingsNav és mobil SettingsMobileList ugyanebből): a keresés szűri, teendőnél pötty,
   // lejárt előfizetésnél lakat (az Előfizetés kivétel)
@@ -1081,8 +1083,17 @@ export function SettingsHub({
         {mobileSheet && <span className="fixed inset-0 z-[94] bg-ui-dark/25 backdrop-blur-sm lg:hidden" onClick={() => setMobileSheet(false)} aria-hidden />}
 
         {/* PANEL — az Értesítéseknél a profil-form (Értesítő sablon) a kapcsolók ALÁ kerül (order-last). */}
-        <div ref={panelRef} className={`min-w-0 ${mobileSheet ? 'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[95] max-lg:max-h-[85dvh] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:rounded-t-ui-card max-lg:bg-white max-lg:px-3 max-lg:pb-28 max-lg:shadow-ui-popup' : 'max-lg:hidden'}`} data-lenis-prevent>
-          <div className="sticky top-0 z-10 -mx-3 mb-1 bg-white px-6 pb-3 lg:hidden">
+        {/* a Számlák mobilon teljes oldal (jobbról becsúszva), nem felcsúszó lap — fent a kereső és a szűrők ikonja */}
+        <div ref={panelRef} className={`min-w-0 ${mobileSheet ? (pageTopic ? 'max-lg:[animation:ui-slide-in_.45s_cubic-bezier(.34,1.2,.64,1)_both] max-lg:fixed max-lg:inset-0 max-lg:z-[95] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:bg-white max-lg:px-4 max-lg:pb-28' : 'max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[95] max-lg:max-h-[85dvh] max-lg:overflow-y-auto max-lg:overflow-x-hidden max-lg:rounded-t-ui-card max-lg:bg-white max-lg:px-3 max-lg:pb-28 max-lg:shadow-ui-popup') : 'max-lg:hidden'}`} style={mobileSheet && pageTopic ? { ['--dx' as string]: '100%' } : undefined} data-lenis-prevent>
+          {mobileSheet && pageTopic && (
+            <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center gap-2 bg-white px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] lg:hidden">
+              <IconButton icon={ArrowLeft} label="Vissza a Beállításokhoz" variant="cell" onClick={() => setMobileSheet(false)} />
+              <span className="min-w-0 flex-1 truncate text-ui-title text-ui-text">{RAIL_LABELS[active]}</span>
+              <IconButton icon={Search} label="Keresés" variant="cell" onClick={() => window.dispatchEvent(new Event('davelopment:invoices-search'))} />
+              <IconButton icon={SlidersHorizontal} label="Szűrők" variant="cell" onClick={() => window.dispatchEvent(new Event('davelopment:invoices-filter'))} />
+            </div>
+          )}
+          <div className={`sticky top-0 z-10 -mx-3 mb-1 bg-white px-6 pb-3 lg:hidden ${pageTopic ? 'hidden' : ''}`}>
             <button type="button" aria-label="Vissza a témákhoz" onClick={() => setMobileSheet(false)} className="w-full pt-2.5"><SheetHandle /></button>
             <div className="truncate pt-4 text-ui-sub font-light text-ui-text">{RAIL_LABELS[active]}</div>
           </div>
@@ -1093,7 +1104,7 @@ export function SettingsHub({
               <span className="text-ui-title font-normal text-ui-text">{RAIL_LABELS[active]}</span>
             </div>
           )}
-          {setupMissing.length > 0 && active !== 'site' && !fullWidth && <SetupProgressCard className="mb-[5px]" pct={setupPct} done={setupSteps.length - setupMissing.length} missing={setupMissing.map((x) => ({ label: x.label, onClick: () => openTopic(x.tab) }))} />}
+          {setupMissing.length > 0 && active !== 'site' && !fullWidth && <SetupProgressCard className={`mb-[5px] ${mobileSheet && pageTopic ? 'max-lg:hidden' : ''}`} pct={setupPct} done={setupSteps.length - setupMissing.length} missing={setupMissing.map((x) => ({ label: x.label, onClick: () => openTopic(x.tab) }))} />}
           {/* a téma címe (desktop) — mobilon a lap fejlécében */}
           <div className={`mb-[5px] items-center justify-between gap-2 px-1 pt-1 ${PAGE_TABS.has(active) ? 'hidden' : 'hidden lg:flex'}`}>
             <span className="text-ui-sub font-light text-ui-text">{RAIL_LABELS[active]}</span>
@@ -1481,9 +1492,9 @@ export function SettingsHub({
                   </KitCard>
                 )}
               </>}>
-                <div className="px-6 pt-4">
+                <div className="px-6 pt-4 max-lg:px-0">
                   <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                    <SearchField className="w-[220px]" value={auditQuery} onChange={(v) => { setAuditQuery(v); setAuditPage(1) }}>Esemény vagy név</SearchField>
+                    <SearchField className="w-[220px] max-sm:w-full" value={auditQuery} onChange={(v) => { setAuditQuery(v); setAuditPage(1) }}>Esemény vagy név</SearchField>
                     <Select toolbar value={auditFilter} onChange={(e) => { setAuditFilter(e.target.value as typeof auditFilter); setAuditPage(1) }} className="w-[170px]">{AUDIT_FILTERS.map((f) => <option key={f.id} value={f.id}>{f.id === 'all' ? 'Minden esemény' : f.label}</option>)}</Select>
                     <Select toolbar value={String(auditDays)} onChange={(e) => { setAuditDays(Number(e.target.value) as typeof auditDays); setAuditPage(1) }} className="w-[150px]">{AUDIT_DAY_WINDOWS.map((d) => <option key={d} value={d}>Utolsó {d} nap</option>)}</Select>
                   </div>

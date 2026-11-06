@@ -8,7 +8,7 @@ import { BulkDock, GuestSees, StaffBulkBar } from './team'
 import { SaveBar, SettingsGroup, SettingsPage } from './settings'
 import { Switch } from '@/components/ui/toggle-switch'
 import { ArrowUpRight, Banknote, CalendarDays, Check, CreditCard, Download, ExternalLink, FileText, Gift, HandCoins, Landmark, Link2, Mail, Plus, Receipt, Send, Wallet, Copy } from 'lucide-react'
-import { Button, Card, CardTitle, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Modal, OptionCard, Pill, Note, SearchField, RowCheck, Segmented, Select, StatusPill, Table, Td, Th, Tr } from '@/components/ui-kit'
+import { Button, Card, CardTitle, FieldRow, IconButton, IconCircle, Input, ListRow, Meta, Modal, OptionCard, Pill, Note, SearchField, RowCheck, Segmented, Select, StatusPill, Table, Td, Th, Tr, MarqueeText } from '@/components/ui-kit'
 
 /* Az élő rendszer három része a design kit nyelvén (a /design 16.7.1, 16.7.2, 16.11 és 7.5 ezeket mutatja,
  * a landing is innen veszi): Kiállított számlák (IssuedInvoicesTable), a számla popupja, a foglalóoldal QR-kódja
@@ -38,7 +38,7 @@ const SAMPLE_ROWS: IssuedInvoiceRow[] = INVOICES.map((r) => ({ key: r.no + r.who
 /** Kiállított számlák (16.7.1): kereső, típus- és állapot-szűrő (a sikertelenek száma zárójelben), táblázat, PDF-letöltés;
  *  sorra kattintva a számla (16.7.2). Élőben az adatok, a szűrők és a lapozó a hívótól; nélkülük a minta. */
 export type InvoiceSortKey = 'no' | 'item' | 'who' | 'date' | 'sum' | 'st' | 'pay'
-export function IssuedInvoices({ rows = 6, data, compact = false, query, onQuery, type = 'all', onType, status = 'all', onStatus, failed = 1, openKey = SAMPLE_ROWS[0]?.key, onOpen, pdfHref, message, pagination, th, selected, onToggle, onToggleAll, onDownloadSelected, downloading = false, onStornoSelected, className = '' }: {
+export function IssuedInvoices({ rows = 6, data, compact = false, query, onQuery, type = 'all', onType, status = 'all', onStatus, failed = 1, openKey = SAMPLE_ROWS[0]?.key, onOpen, pdfHref, message, pagination, th, selected, onToggle, onToggleAll, onDownloadSelected, downloading = false, mobileTools, onStornoSelected, className = '' }: {
   /** a minta sorainak száma (landing / design); élőben `data` */
   rows?: number; data?: IssuedInvoiceRow[]; compact?: boolean
   query?: string; onQuery?: (q: string) => void
@@ -55,6 +55,8 @@ export function IssuedInvoices({ rows = 6, data, compact = false, query, onQuery
   selected?: string[]; onToggle?: (key: string) => void; onToggleAll?: () => void; onDownloadSelected?: () => void; downloading?: boolean
   /** a kijelöltek sztornózása a számlázóban (a hívó megerősítést kér) */
   onStornoSelected?: () => void
+  /** mobil (teljes oldal): a kereső és a szűrők csak a fejléc ikonjaira jelennek meg */
+  mobileTools?: { search: boolean; filters: boolean }
   className?: string
 }) {
   const list = data ?? SAMPLE_ROWS.slice(0, rows)
@@ -64,18 +66,35 @@ export function IssuedInvoices({ rows = 6, data, compact = false, query, onQuery
   const allOn = selectable.length > 0 && selectable.every((r) => sel.includes(r.key))
   const h = (k: InvoiceSortKey, label: string) => <Th key={k} {...(th?.(k) ?? {})}>{label}</Th>
   return (
-    <Card tone="white" pad="lg" className={className}>
+    <Card tone="white" pad="lg" className={`max-lg:px-0 ${className}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <CardTitle>Számlák és fizetések</CardTitle>
-        <span className="flex flex-wrap gap-1.5">
+        <span className={`flex flex-wrap gap-1.5 ${mobileTools ? 'max-lg:hidden' : ''}`}>
           <SearchField className="w-[190px]" value={query} onChange={onQuery}>Vevő, számlaszám…</SearchField>
           {!compact && <Select toolbar size="sm" value={onType ? type : undefined} defaultValue={onType ? undefined : type} onChange={onType ? (e) => onType(e.target.value) : undefined} className="w-[150px]"><option value="all">Minden típus</option><option value="deposit">Előleg</option><option value="voucher">Ajándékutalvány</option><option value="service">Szolgáltatás</option></Select>}
           {!compact && <Select toolbar size="sm" value={onStatus ? status : undefined} defaultValue={onStatus ? undefined : status} onChange={onStatus ? (e) => onStatus(e.target.value) : undefined} className="w-[170px]"><option value="all">Minden állapot</option><option value="issued">Kiállítva</option><option value="failed">Sikertelen{failed ? ` (${failed})` : ''}</option><option value="skipped">Nem kért</option><option value="register">Pénztárgépen</option><option value="manual">Kézzel kell kiállítani</option><option value="storno">Sztornózva</option></Select>}
         </span>
       </div>
+      {/* mobil: a fejléc ikonjaira — kereső (teljes szélességben), szűrők (típus, állapot) */}
+      {mobileTools?.search && <SearchField autoFocus className="mt-3 w-full lg:hidden" value={query} onChange={onQuery}>Vevő, számlaszám…</SearchField>}
+      {mobileTools?.filters && <div className="mt-3 flex flex-wrap gap-1.5 lg:hidden">{!compact && <Select toolbar size="sm" value={onType ? type : undefined} defaultValue={onType ? undefined : type} onChange={onType ? (e) => onType(e.target.value) : undefined} className="w-[150px]"><option value="all">Minden típus</option><option value="deposit">Előleg</option><option value="voucher">Ajándékutalvány</option><option value="service">Szolgáltatás</option></Select>}
+          {!compact && <Select toolbar size="sm" value={onStatus ? status : undefined} defaultValue={onStatus ? undefined : status} onChange={onStatus ? (e) => onStatus(e.target.value) : undefined} className="w-[170px]"><option value="all">Minden állapot</option><option value="issued">Kiállítva</option><option value="failed">Sikertelen{failed ? ` (${failed})` : ''}</option><option value="skipped">Nem kért</option><option value="register">Pénztárgépen</option><option value="manual">Kézzel kell kiállítani</option><option value="storno">Sztornózva</option></Select>}</div>}
       <Meta className="mt-2">Minden vendég-fizetés és a bizonylata: előleg, ajándékutalvány és a helyszíni fizetés. Ami a számlázódból ment, letölthető; a pénztárgépes és a „nem kért” sor csak rögzítés.</Meta>
       {message ? <Meta className="py-10 text-center">{message}</Meta> : (
-        <div className="overflow-x-auto">
+        <>
+        {/* mobil (teljes oldal): lista — számlaszám + állapot, a vevő és a dátum, a tétel, jobbra az összeg */}
+        {mobileTools && (
+          <div className="mt-3 lg:hidden">
+            {list.map((r) => (
+              <button key={r.key} type="button" onClick={onOpen ? () => onOpen(r.key) : undefined} className={`block w-full border-t border-dashed border-ui-divider py-3 text-left outline-none first:border-t-0 ${r.key === openKey ? 'bg-ui-yellow/30' : ''}`}>
+                <span className="flex items-center justify-between gap-2"><span className="text-ui-body font-medium text-ui-text">{r.no}</span><StatusPill status={ST[r.st].s}>{ST[r.st].l}</StatusPill></span>
+                <span className="mt-1 flex items-baseline justify-between gap-2"><MarqueeText className="flex-1 text-ui-meta text-ui-text">{r.who}</MarqueeText><span className="shrink-0 text-ui-body text-ui-text">{r.sum}</span></span>
+                <MarqueeText className="mt-0.5 text-ui-label text-ui-muted">{`${r.date} · ${r.item}`}</MarqueeText>
+              </button>
+            ))}
+          </div>
+        )}
+        <div className={`overflow-x-auto ${mobileTools ? 'max-lg:hidden' : ''}`}>
           <Table className="mt-3" minWidth={compact ? 0 : 860}>
             <thead><Tr>{onToggle && <Th className="w-10"><RowCheck checked={allOn} onToggle={onToggleAll} label="Az összes kijelölése" /></Th>}{h('no', 'Számlaszám')}{!compact && h('item', 'Tétel')}{h('who', 'Vevő')}{!compact && h('date', 'Dátum')}{h('sum', 'Összeg')}{byIssuer && <Th>Kiállító</Th>}{!compact && h('pay', 'Fizetés')}{h('st', 'Bizonylat')}<Th /></Tr></thead>
             <tbody>
@@ -93,6 +112,7 @@ export function IssuedInvoices({ rows = 6, data, compact = false, query, onQuery
             </tbody>
           </Table>
         </div>
+        </>
       )}
       {pagination}
       {/* kijelöléskor a közös sötét sáv alul (mint minden listán): a kijelöltek letöltése egy ZIP-ben */}
@@ -234,7 +254,7 @@ export function DepositSettingsCard({ className = '', value, onChange, restauran
   const p = prereqs ?? { terms: { state: 'ok', okLabel: 'Kitöltve' }, stripe: { state: 'ok', okLabel: 'Bekötve' }, invoicing: { state: 'optional', action: 'Beállítom' } }
   return (
     <div className={`relative overflow-hidden rounded-ui-card bg-white ${className}`}>
-      <div className="flex items-start justify-between px-6 pb-1 pt-6">
+      <div className="flex items-start justify-between px-6 pb-1 pt-6 max-lg:px-0">
         <div>
           <div className="text-ui-label text-ui-muted">Pénzügy</div>
           <div className="mt-0.5 text-ui-sub font-light text-ui-text">Előleg</div>
@@ -242,12 +262,12 @@ export function DepositSettingsCard({ className = '', value, onChange, restauran
         {!v || v.enabled ? <StatusPill status="ok">Bekapcsolva</StatusPill> : <StatusPill status="neutral">Kikapcsolva</StatusPill>}
       </div>
       {manualApproval && (
-        <div className="px-6 pt-4">
+        <div className="px-6 pt-4 max-lg:px-0">
           <Note warn>Kézi jóváhagyás mellett nem kérhető előleg — a már kifizetett foglalást elutasításkor vissza kellene utalni. Ha előleget kérnél, kapcsold be az automatikus megerősítést.{rulesHref && <> <a href={rulesHref} className="underline">Foglalási szabályok</a></>}</Note>
         </div>
       )}
       {sections.map((sec) => (
-        <div key={sec.title} className="px-6 pt-5">
+        <div key={sec.title} className="px-6 pt-5 max-lg:px-0">
           <div className="mb-1 flex items-center gap-2 text-ui-meta font-medium text-ui-muted"><sec.icon className="h-4 w-4" /> {sec.title}</div>
           {sec.rows.map(([k, node], i) => (
             <div key={k} className={rowCls(i)}>
@@ -257,7 +277,7 @@ export function DepositSettingsCard({ className = '', value, onChange, restauran
           ))}
         </div>
       ))}
-      <div className="px-6 pt-5">
+      <div className="px-6 pt-5 max-lg:px-0">
         <div className="mb-1 flex items-center gap-2 text-ui-meta font-medium text-ui-muted"><Check className="h-4 w-4" /> Előfeltételek</div>
         <FieldRow label="Foglalási feltételek" hint="ebben rögzíted a visszatérítés szabályait">{pre(p.terms)}</FieldRow>
         <FieldRow label="Online fizetés (Stripe)" hint="ide érkezik a vendég előlege">{pre(p.stripe)}</FieldRow>
@@ -791,7 +811,7 @@ export function StaffBillingCard({ name = 'Viktória', provider = 'szamlazz', ke
           status={provider === 'none' ? { tone: 'neutral', label: 'Nincs összekötve' } : keyOk ? { tone: 'ok', label: 'Összekötve' } : { tone: 'bad', label: 'Hibás kulcs' }}
           btn={{ label: provider === 'none' ? 'Összekötés' : 'Kezelés', primary: provider === 'none', onClick: onManageInvoicing }} />
       </div>
-      <Card tone="white" pad="lg">
+      <Card tone="white" pad="lg" className="max-lg:px-0">
         <div className="mb-1 flex items-center gap-2 text-ui-meta font-medium text-ui-muted"><FileText className="h-4 w-4" />Saját számlázás</div>
         <FieldRow label="Számlázó">
           <Segmented tone="cell" size="sm" options={['Számlázz.hu', 'Billingo']} active={provider === 'billingo' ? 1 : 0} onSelect={onProvider ? (i) => onProvider(i ? 'billingo' : 'szamlazz') : undefined} />

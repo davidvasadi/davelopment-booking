@@ -431,7 +431,7 @@ export function VouchersView({ restaurant = false, businessId, vouchers: initial
   const active = cnt('active'), redeemed = cnt('redeemed'), lapsed = cnt('expired') + cnt('refunded')
   const sum = vouchers.length || 1
   const revenue = vouchers.reduce((n, v) => n + (v.status !== 'refunded' ? v.amount_huf : 0), 0)
-  const bar = (mobile = false) => <SegmentBar size="md" className={mobile ? 'mt-4' : undefined} segments={vouchers.length ? [
+  const bar = (mobile = false) => <SegmentBar className={mobile ? 'mt-4' : undefined} segments={vouchers.length ? [
     { label: 'Aktív', value: mobile ? String(active) : `${active} db`, weight: (active / sum) * 100 || 3, tone: 'dark' },
     { label: 'Beváltva', value: mobile ? String(redeemed) : `${redeemed} db`, weight: (redeemed / sum) * 100 || 3, tone: 'yellow' },
     { label: 'Lejárt', value: mobile ? String(lapsed) : `${lapsed} db`, weight: (lapsed / sum) * 100 || 3, tone: 'hatch' },

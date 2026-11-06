@@ -107,7 +107,8 @@ export function OpeningHoursView({ vm, canManage = false }: { vm: OpeningHoursVM
   )
 
   return (
-    <div className="grid gap-[5px] lg:grid-cols-[minmax(0,1fr)_300px]">
+    // [&>*]:min-w-0: a rács elemei ne nőjenek a tartalmuknál szélesebbre — mobilon különben a lap jobbra kilógott
+    <div className="grid gap-[5px] lg:grid-cols-[minmax(0,1fr)_300px] [&>*]:min-w-0">
       <OpeningHoursCard rows={rows} scope={false} onDay={canManage ? (i) => setEdit({ i, d: { ...days[i] } }) : undefined}
         footer={[
           ['Utolsó foglalható időpont', <Segmented key="l" tone="cell" size="sm" options={LAST.map((m) => (m ? `${m} p` : 'Zárásig'))} active={LAST.indexOf(lastBuffer)}

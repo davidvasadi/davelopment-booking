@@ -404,7 +404,7 @@ export function MarketingView({ restaurant = false, businessId, vm, biz, canMana
   const free = Math.max(0, cap - used)
   const sentList = campaigns.filter((c) => c.status === 'sent' && c.stats)
   const openRate = pct(sentList.reduce((n, c) => n + (c.stats?.opened ?? 0), 0), sentList.reduce((n, c) => n + c.recipients, 0))
-  const bar = (mobile = false) => <SegmentBar size="md" className={mobile ? 'mt-4' : undefined} segments={[
+  const bar = (mobile = false) => <SegmentBar className={mobile ? 'mt-4' : undefined} segments={[
     { label: 'Megnyitották', value: nf(opened), weight: Math.max(used ? 3 : 10, (opened / Math.max(1, cap)) * 100), tone: 'yellow' },
     { label: mobile ? 'Nem' : 'Nem nyitották meg', value: nf(Math.max(0, used - opened)), weight: Math.max(used ? 3 : 10, ((used - opened) / Math.max(1, cap)) * 100), tone: 'dark' },
     { label: mobile ? 'Szabad' : 'Szabad keret', value: nf(free), weight: Math.max(10, (free / Math.max(1, cap)) * 100), tone: 'hatch' },

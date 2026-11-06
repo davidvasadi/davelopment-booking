@@ -26,6 +26,14 @@ export function IssuedInvoicesTable({ variant, businessId }: { variant: 'salon' 
   const [status, setStatus] = useState('all')
   const [page, setPage] = useState(1)
   const [openId, setOpenId] = useState<string | null>(null)
+  // mobil (teljes oldal): a fejléc ikonjai nyitják / csukják a keresőt és a szűrőket
+  const [mSearch, setMSearch] = useState(false)
+  const [mFilters, setMFilters] = useState(false)
+  useEffect(() => {
+    const a = () => setMSearch((v) => !v), b = () => setMFilters((v) => !v)
+    window.addEventListener('davelopment:invoices-search', a); window.addEventListener('davelopment:invoices-filter', b)
+    return () => { window.removeEventListener('davelopment:invoices-search', a); window.removeEventListener('davelopment:invoices-filter', b) }
+  }, [])
   // rendezés (az oszlopcímre kattintva) — alapból a legújabb elöl; kijelölés a csoportos letöltéshez
   const { sort, th } = useTableSort<InvoiceSortKey>({ key: 'date', dir: 'desc' })
   const [selected, setSelected] = useState<string[]>([])
@@ -78,7 +86,7 @@ export function IssuedInvoicesTable({ variant, businessId }: { variant: 'salon' 
 
   return (
     <>
-      <IssuedInvoices data={sorted.slice((page - 1) * PAGE, page * PAGE).map(toRow)} th={th}
+      <IssuedInvoices mobileTools={{ search: mSearch || !!q, filters: mFilters || type !== 'all' || status !== 'all' }} data={sorted.slice((page - 1) * PAGE, page * PAGE).map(toRow)} th={th}
         selected={selected} onToggle={toggle} onToggleAll={toggleAll} onDownloadSelected={downloadSelected} onStornoSelected={() => setStornoAsk(true)} query={q} onQuery={setQ} type={type} onType={setType} status={status} onStatus={setStatus}
         failed={(rows ?? []).filter((r) => r.status === 'failed').length} openKey={openId} onOpen={setOpenId}
         pdfHref={(id) => { const r = rows?.find((x) => x.id === id); return r?.number ? pdfUrl(id, true) : null }}

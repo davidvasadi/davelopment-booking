@@ -342,7 +342,8 @@ export function MobileServiceList({ popular, groups }: { popular?: React.ReactNo
   const list = groups ?? [{ h: 'Festés', rows: [<ServiceRow key="b" s={SAMPLE_CARDS[0]} deposit="Előleg 10 000 Ft" />] }, { h: 'Férfi', rows: SAMPLE_CARDS.slice(1).map((c) => <ServiceRow key={c.id} s={c} />) }]
   return (
     <>
-      {popular ?? <ServiceRow s={{ id: 'n', name: 'Női hajvágás + szárítás', price: 11900, duration: 60, staff: [], online: true, img: '/design/szolgaltatas-hajvagas.webp' }} popular={{ count: 86, month: 'októberben', trend: [40, 52, 47, 60, 66, 74, 86] }} />}
+      {/* a minta-sor CSAK a design-oldalon (nincs `groups`); élőben, ha nincs legnépszerűbb (null), nincs semmi */}
+      {popular ?? (groups ? null : <ServiceRow s={{ id: 'n', name: 'Női hajvágás + szárítás', price: 11900, duration: 60, staff: [], online: true, img: '/design/szolgaltatas-hajvagas.webp' }} popular={{ count: 86, month: 'októberben', trend: [40, 52, 47, 60, 66, 74, 86] }} />)}
       {list.map((g) => (
         <div key={g.h} className="mt-4">
           <div className="mb-1.5 flex items-center gap-2 text-ui-label text-ui-muted">{g.h}<span className="h-px flex-1 border-t border-dashed border-ui-divider" />{g.rows.length}</div>

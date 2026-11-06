@@ -134,7 +134,7 @@ export function StaffTable({ rows = SAMPLE_ROWS, openKey = 'viktoria', selected 
               return (
                 <Tr key={r.key} onClick={onOpen ? () => onOpen(r.key) : undefined} className={`${on ? '[&>td]:bg-ui-yellow [&:hover>td]:bg-ui-yellow/80' : '[&>td]:bg-white [&:hover>td]:bg-white/60'} ${r.muted && !on ? '[&>td:not(:last-child)>*]:opacity-55' : ''}`}>
                   <Td>{r.owner ? <span className="block h-6 w-6" /> : <RowCheck checked={selected.includes(r.key)} onToggle={onToggle ? () => onToggle(r.key) : undefined} />}</Td>
-                  <Td><span className="flex items-center gap-2.5"><Avatar src={r.img} name={r.name} /><span>{r.name}</span>{r.owner && <Pill tone="dark" size="sm">Tulaj</Pill>}{r.review && <StatusPill status="warn">Nézd át</StatusPill>}</span></Td>
+                  <Td><span className="flex items-center gap-2.5"><Avatar src={r.img} name={r.name} /><span className={r.muted ? 'line-through' : ''}>{r.name}</span>{r.owner && <Pill tone="dark" size="sm">Tulaj</Pill>}{r.review && <StatusPill status="warn">Nézd át</StatusPill>}</span></Td>
                   <Td>{r.position || <span className="text-ui-muted">—</span>}</Td>
                   <Td><Meta>{r.email || '—'}</Meta></Td>
                   <Td>{r.join}</Td>
@@ -594,16 +594,20 @@ export function StaffEditSections({ only = ['Alapadatok', 'Foglalás', 'Bér és
         {v.hours && <span className="flex items-center gap-2 text-ui-meta text-ui-muted">A szalon nyitvatartását követi {sw(!v.hours.custom, (on) => set({ hours: { ...v.hours!, custom: !on } }), 'A szalon nyitvatartását követi')}</span>}
       </div>
       <div className="mt-1 text-ui-meta text-ui-muted">Egy hely: ebből látják a vendégek, mikor foglalhatnak hozzá, és ebből készül a Naptárban a beosztása.</div>
-      {!v.hours ? <Meta className="mt-3">Betöltés…</Meta> : (
+      {!v.hours ? <Meta className="mt-3">Betöltés…</Meta> : live && !v.hours.custom ? (
+        // az üzlet nyitvatartását követi: nincs mit egyedileg állítani — a napok nem jelennek meg
+        <Note className="mt-3">A szalon nyitvatartása szerint dolgozik. Egyedi munkaidőhöz kapcsold ki fent a „A szalon nyitvatartását követi” kapcsolót.</Note>
+      ) : (
         <div className={`mt-3 grid gap-x-6 ${stacked ? '' : 'sm:grid-cols-2'} ${v.hours.custom ? '' : 'opacity-55'}`}>
           {v.hours.days.map((d, i) => {
             const dis = live && !v.hours!.custom
             const setDay = (p: Partial<StaffDay>) => set({ hours: { ...v.hours!, days: v.hours!.days.map((x, j) => (j === i ? { ...x, ...p } : x)) } })
             return (
-              <div key={DAYS[i]} className={`flex min-h-[60px] items-center justify-between gap-3 border-t border-dashed border-ui-divider py-3 ${i < 2 && !stacked ? 'sm:border-t-0' : ''} ${i === 0 ? 'border-t-0' : ''}`}>
+              <div key={DAYS[i]} className={`flex min-h-[60px] ${stacked ? 'flex-wrap' : ''} items-center justify-between gap-3 border-t border-dashed border-ui-divider py-3 ${i < 2 && !stacked ? 'sm:border-t-0' : ''} ${i === 0 ? 'border-t-0' : ''}`}>
                 <span className={`w-20 shrink-0 text-ui-body ${d.on ? 'text-ui-text' : 'text-ui-muted'}`}>{DAYS[i]}</span>
                 {d.on ? (
-                  <span className="flex flex-1 flex-wrap items-center gap-2">
+                  // mobilon (egy hasábban) az idők külön sorba kerülnek — különben a sor kilóg a lapból
+                  <span className={`flex flex-1 flex-wrap items-center gap-2 ${stacked ? 'order-last basis-full' : ''}`}>
                     {live
                       ? <span className="flex items-center gap-1"><Input size="sm" type="time" value={d.start} disabled={dis} onChange={(e) => setDay({ start: e.target.value })} className="w-[92px] px-2" /><span className="text-ui-muted">–</span><Input size="sm" type="time" value={d.end} disabled={dis} onChange={(e) => setDay({ end: e.target.value })} className="w-[92px] px-2" /></span>
                       : <Input size="sm" value={`${d.start} – ${d.end}`} readOnly className="w-[130px]" />}
@@ -644,7 +648,7 @@ export function StaffEditSections({ only = ['Alapadatok', 'Foglalás', 'Bér és
   if (show('Dokumentumok')) cards.push(
     <Box key="Dokumentumok" bare={bare} wide={!stacked}>
       <div className="mb-1 flex items-center gap-2 text-ui-meta font-medium text-ui-muted"><FileText className="h-4 w-4" /> Dokumentumok</div>
-      <Meta className="mb-3">Fotóként (telefonnal lefényképezve is jó) — a képre kattintva letölthető.</Meta>
+      <Meta className="mb-3 leading-relaxed">A munkatárs papírjai egy helyen: munkaszerződés, bizonyítványok és végzettséget igazoló iratok, egészségügyi alkalmassági, személyes okmányok másolata. Fotóként is jó (telefonnal lefényképezve) — a képre kattintva letölthető.</Meta>
       {/* képrács, mint a foglalóoldal galériája (21.6.2): a végén a feltöltés, feltöltés közben a töltődő kép */}
       <div className={`grid gap-3 ${stacked ? 'grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 2xl:grid-cols-4'}`}>
         {v.documents.map((d, i) => (
@@ -735,7 +739,8 @@ export function MobileStaffList({ rows = SAMPLE_MOBILE, onOpen, className = '' }
   return (
     <Card pad="xs" className={className}>
       {rows.map((r) => {
-        const row = <ListRow leading={<Avatar size="sm" src={r.img} name={r.name} />} title={r.name} meta={r.meta}
+        // a felfüggesztett munkatárs neve áthúzva
+        const row = <ListRow leading={<Avatar size="sm" src={r.img} name={r.name} />} title={r.status === 'neutral' ? <span className="line-through">{r.name}</span> : r.name} meta={r.meta}
           trailing={r.trailing ?? (r.status ? <StatusPill status={r.status}>{r.status === 'pending' ? 'Meghívott' : 'Felfüggesztett'}</StatusPill> : <IconCircle icon={ArrowUpRight} tone="cell" size="md" />)} />
         // a gomb viszi a sorok közti szaggatott vonalat (a ListRow benne mindig első, ezért vonal nélküli)
         return onOpen ? <button key={r.key} type="button" onClick={() => onOpen(r.key)} className="block w-full border-t border-dashed border-ui-divider text-left outline-none first:border-t-0 focus-visible:ring-2 focus-visible:ring-ui-dark/20">{row}</button> : <div key={r.key} className="border-t border-dashed border-ui-divider first:border-t-0">{row}</div>

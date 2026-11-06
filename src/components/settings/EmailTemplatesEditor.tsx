@@ -164,7 +164,7 @@ function GuestEmails({ variant, loc, onPreview, sender, logo }: { variant: 'rest
       {intro.length > 0 && !full && <Note className="mx-5 mt-2">Az alábbi adatokat és gombokat a rendszer teszi a levélbe. Töltsd be a sablont, hogy ezek is szerkeszthetők legyenek.</Note>}
     </div>
   ) : (
-    <p className="px-6 pt-4 text-ui-meta text-ui-muted">Ennek a levélnek a szövege a rendszeré (a módosítás adataival) — itt csak ki- és bekapcsolod.</p>
+    <p className="px-6 pt-4 text-ui-meta text-ui-muted max-lg:px-0">Ennek a levélnek a szövege a rendszeré (a módosítás adataival) — itt csak ki- és bekapcsolod.</p>
   )
 
   return (
@@ -176,6 +176,7 @@ function GuestEmails({ variant, loc, onPreview, sender, logo }: { variant: 'rest
       subject={et ? <KitInput size="sm" value={loc.current[et.subjectField] ?? ''} onChange={(e) => loc.setField(et.subjectField, e.target.value)} placeholder={subjectPh} aria-label="Tárgy" /> : title[sel]}
       letter={letter}
       palette={et ? <BlockPalette onAdd={add} /> : undefined}
+      paletteRow={et ? <BlockPalette row onAdd={add} /> : undefined}
       // saját blokkos levélnél (a sablonból: van „foglalás adatai” blokk) a régi fix részek nem kellenek — ott vannak a levélben
       details={full || !intro.length ? null : variant === 'salon' ? { line: 'Hétfő, Nov. 10. · 13:30', meta: 'Viktória · 60 perc · minta' } : { line: 'Péntek, Nov. 14. · 19:00', meta: '4 fő · terasz · minta' }}
       buttons={full || !intro.length ? [] : BUTTONS[sel]} cancelLink={!full && intro.length > 0 && CANCEL_LINK[sel]}
