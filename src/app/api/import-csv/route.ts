@@ -434,6 +434,32 @@ export async function POST(req: NextRequest) {
         } catch (e) { console.error('[import-csv] synthetic booking create failed', e); return false }
       }
 
+      // Étterem: ugyanígy az első / utolsó látogatás valódi asztalfoglalásként (lezárt, csendben — se visszaigazolás, se
+      // emlékeztető, se értékeléskérés). A létszám az exportban nincs → 2 fő; asztal nélkül (a múltbeli foglalás nem foglal
+      // asztalt). Így a statisztika, a Vendégek és a marketing-célcsoportok („90 napja nem járt”) is látják.
+      const createSyntheticReservation = async (opts: { date: string; time: string; customerName: string; customerEmail: string; customerPhone: string; note?: string }): Promise<boolean> => {
+        try {
+          if (await visitAlreadyImported('reservations', opts.date, opts.time, opts.customerName, opts.customerEmail)) {
+            result.duplicates++
+            return false
+          }
+          await payload.create({
+            collection: 'reservations',
+            data: {
+              reminder_sent: true, feedback_sent: true,
+              restaurant: businessId,
+              date: opts.date, start_time: opts.time, end_time: addMinutes(opts.time, 120), pax: 2,
+              customer_name: opts.customerName || 'Importált vendég',
+              customer_email: opts.customerEmail || undefined,
+              customer_phone: opts.customerPhone || undefined,
+              status: 'completed', source: 'online',
+              notes: `Import — korábbi rendszerből (összesítő exportból rekonstruált látogatás)${opts.note ? ` · ${opts.note}` : ''}`,
+            },
+            overrideAccess: true, context: SILENT_IMPORT })
+          return true
+        } catch (e) { console.error('[import-csv] synthetic reservation create failed', e); return false }
+      }
+
       for (let ri = 0; ri < rows.length; ri++) {
         const row = rows[ri]
         if (!row.some((c) => c.trim())) continue
@@ -544,10 +570,15 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          // Első + utolsó látogatás — ha van hozzá dátum+szolgáltatás, valódi `bookings` sor (csak
-          // szalonnál; az étteremi "Reservations" más oszlop-sémát igényelne, ezt a konkrét
-          // guest-summary export-formátumot nem támogatja).
-          if (!isRestaurant) {
+          // Első + utolsó látogatás — ha van hozzá dátum (+ szalonnál szolgáltatás), valódi foglalás: szalonnál
+          // `bookings`, étteremnél `reservations` (lent). Csendben — a vendég nem kap semmit.
+          if (isRestaurant) {
+            const first = splitDateTime(getField(row, 'first_service_at'))
+            const last = splitDateTime(getField(row, 'last_service_at'))
+            const isSameVisit = first.date === last.date && first.time === last.time
+            if (first.date && first.time && await createSyntheticReservation({ date: first.date, time: first.time, customerName, customerEmail, customerPhone, note: getField(row, 'first_service_name') || undefined })) result.imported.bookings++
+            if (last.date && last.time && !isSameVisit && await createSyntheticReservation({ date: last.date, time: last.time, customerName, customerEmail, customerPhone, note: getField(row, 'last_service_name') || undefined })) result.imported.bookings++
+          } else {
             // a feloldó szétbontja a több nevet és levágja a zárójeles beosztást ("Csonka Bence(alapító)")
             const staffHint = getField(row, 'staff_name_hint')
             const firstName = getField(row, 'first_service_name')

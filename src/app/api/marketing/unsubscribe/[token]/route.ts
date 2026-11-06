@@ -25,7 +25,7 @@ export async function GET(
     await payload.update({
       collection: 'customers',
       id: customerId,
-      data: { marketing_consent: false },
+      data: { marketing_consent: false, marketing_unsubscribed_at: new Date().toISOString() },
       overrideAccess: true,
     })
     return NextResponse.redirect(new URL('/marketing/unsubscribed', appUrl))

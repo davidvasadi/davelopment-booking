@@ -361,3 +361,7 @@ export function monogram(name: string): string {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
 }
+
+/** Vendégszint-címke színei (háttér / szöveg) — a dashboard vendégprofilja és a landing is innen. */
+export const TIER_BG: Record<GuestTier, string> = { 1: '#F0EAD8', 2: '#E4F2E9', 3: '#1D1C19' }
+export const TIER_FG: Record<GuestTier, string> = { 1: '#86826F', 2: '#1D9D63', 3: '#F1CE45' }

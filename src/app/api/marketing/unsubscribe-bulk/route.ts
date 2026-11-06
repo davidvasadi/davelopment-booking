@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
           kind === 'salon' ? { salon: { equals: businessId } } : { restaurant: { equals: businessId } },
         ],
       },
-      data: { marketing_consent: false },
+      data: { marketing_consent: false, marketing_unsubscribed_at: new Date().toISOString() },
       overrideAccess: true,
     })
     return NextResponse.json({ ok: true, count: result.docs?.length ?? 0 })

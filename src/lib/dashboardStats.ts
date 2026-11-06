@@ -1,6 +1,7 @@
 import { format, subDays, addDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { getPayloadClient } from './payload'
+import { authQuery as rawQuery, sql } from './authDb'
 import type { Booking, Service, StaffMember } from '@/payload/payload-types'
 
 export interface DayData {
@@ -147,38 +148,46 @@ export async function getDashboardStats(
 
   const staffFilter = staffId != null ? [{ staff: { equals: staffId } }] : []
 
-  const [revenueBookings, allBookingsPeriod] = await Promise.all([
-    payload.find({
-      collection: 'bookings',
-      where: {
-        and: [
-          { salon: { equals: salonId } },
-          { date: { greater_than_equal: queryFrom } },
-          { status: { not_equals: 'cancelled' } },
-          ...staffFilter,
-        ],
-      },
-      depth: 2,
-      limit: 5000,
-    }),
-    payload.find({
-      collection: 'bookings',
-      where: {
-        and: [
-          { salon: { equals: salonId } },
-          // Az előző időszakot is lefedi, hogy a lemondás-diff is számolható legyen.
-          { date: { greater_than_equal: prevPeriodStartStr } },
-          ...staffFilter,
-        ],
-      },
-      depth: 0,
-      limit: 5000,
-    }),
+  // Sebesség (docs/audit/2026-11-05_1921): a foglalások KÖZVETLEN SQL-lel, csak a statisztikához kellő oszlopok. A Payload
+  // find soronként ~2 ms-ot tölt az olvasási feldolgozással (752 sor: 1,4 mp, SQL-lel 4 ms) — az Áttekintésen ez ~4–5 mp
+  // volt, és amíg futott, az oldal többi lekérdezése is rá várt. A szolgáltatás (név, ár) és a munkatárs (név) egyszer,
+  // egy kis listából; a sorok ugyanolyan alakúak, mint a Payload-dokumentumok, a lenti számítás változatlan.
+  type StatRow = { id: number; date: string; status: string; customer_email: string | null; price_snapshot: string | null; service_id: number | null; staff_id: number | null; start_time: string | null; created_at: string | Date | null; payment_status: string | null; deposit_amount_huf: string | null }
+  const sid = Number(salonId)
+  const staffSql = staffId != null ? sql` AND staff_id = ${Number(staffId)}` : sql``
+  const statRows = (from: string, withCancelled: boolean) => rawQuery<StatRow>(sql`
+    SELECT id, date, status, customer_email, price_snapshot, service_id, staff_id, start_time, created_at, payment_status, deposit_amount_huf
+    FROM bookings WHERE salon_id = ${sid} AND date >= ${from}${withCancelled ? sql`` : sql` AND status <> 'cancelled'`}${staffSql}
+    ORDER BY date, start_time LIMIT 5000`)
+  const toBooking = (r: StatRow) => ({
+    id: r.id, date: r.date, status: r.status, customer_email: r.customer_email,
+    price_snapshot: r.price_snapshot == null ? null : Number(r.price_snapshot),
+    service: r.service_id, staff: r.staff_id, start_time: r.start_time,
+    createdAt: r.created_at == null ? null : new Date(r.created_at).toISOString(),
+    payment_status: r.payment_status, deposit_amount_huf: r.deposit_amount_huf == null ? null : Number(r.deposit_amount_huf),
+  }) as unknown as Booking
+  const [revRows, allRows, svcRes, staffRes] = await Promise.all([
+    statRows(queryFrom, false),
+    // Az előző időszakot is lefedi, hogy a lemondás-diff is számolható legyen.
+    statRows(prevPeriodStartStr, true),
+    payload.find({ collection: 'services', where: { salon: { equals: salonId } }, depth: 0, pagination: false, select: { name: true, price: true }, overrideAccess: true }),
+    payload.find({ collection: 'staff', where: { salon: { equals: salonId } }, depth: 0, pagination: false, select: { name: true }, overrideAccess: true }),
   ])
+  const revenueBookings = { docs: revRows.map(toBooking) }
+  const allBookingsPeriod = { docs: allRows.map(toBooking) }
+  const svcById = new Map(svcRes.docs.map((x) => [String(x.id), x]))
+  const staffById = new Map(staffRes.docs.map((x) => [String(x.id), x]))
+  const idOf = (v: unknown) => (v == null ? null : typeof v === 'object' ? String((v as { id: unknown }).id) : String(v))
+  // a régi kód kifejtett kapcsolatot várt (b.service.price / .name, b.staff.name) — ugyanúgy rakjuk össze
+  for (const b of revenueBookings.docs as Booking[]) {
+    const sv = idOf(b.service), st = idOf(b.staff)
+    if (sv && svcById.has(sv)) b.service = svcById.get(sv) as unknown as Service
+    if (st && staffById.has(st)) b.staff = staffById.get(st) as unknown as StaffMember
+  }
 
   // A teljes (lemondottakat is tartalmazó) halmaz az aktuális, ill. előző időszakra.
-  const allPeriodDocs = allBookingsPeriod.docs.filter(b => b.date >= periodStartStr && b.date <= periodEndStr)
-  const allPrevDocs = allBookingsPeriod.docs.filter(b => b.date >= prevPeriodStartStr && b.date <= prevPeriodEndStr)
+  const allPeriodDocs = (allBookingsPeriod.docs as unknown as Booking[]).filter(b => b.date >= periodStartStr && b.date <= periodEndStr)
+  const allPrevDocs = (allBookingsPeriod.docs as unknown as Booking[]).filter(b => b.date >= prevPeriodStartStr && b.date <= prevPeriodEndStr)
 
   const docs = revenueBookings.docs as Booking[]
 
@@ -334,14 +343,10 @@ export async function getDashboardStats(
   // kerültek át foglalásként. Enélkül egy import után szinte mindenki „új” lenne.
   const importedHistory = new Set<string>()
   if (allGuestEmails.length > 0 && staffFilter.length === 0) {
-    const custRes = await payload.find({
-      collection: 'customers',
-      where: { and: [{ salon: { equals: salonId } }, { customer_email: { in: allGuestEmails as string[] } }, { visit_count: { greater_than: 0 } }] },
-      depth: 0,
-      pagination: false,
-      select: { customer_email: true },
-      overrideAccess: true,
-    })
+    // közvetlen SQL (sebesség — lásd fent)
+    const custRows = await rawQuery<{ customer_email: string | null }>(sql`
+      SELECT customer_email FROM customers WHERE salon_id = ${sid} AND visit_count > 0 AND customer_email IN (${sql.join((allGuestEmails as string[]).map((e) => sql`${e}`), sql`, `)})`)
+    const custRes = { docs: custRows }
     for (const c of custRes.docs as { customer_email?: string | null }[]) if (c.customer_email) importedHistory.add(c.customer_email)
   }
   const hadPriorBefore = (email: string | undefined | null, cutoff: string) =>

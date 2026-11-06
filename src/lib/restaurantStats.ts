@@ -1,6 +1,7 @@
 import { format, subDays, addDays, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { hu } from 'date-fns/locale'
 import { getPayloadClient } from './payload'
+import { rawQuery, reservationsFor, sql } from '@/lib/fastRead'
 import { hhmmToMinutes, getDayName } from './utils'
 import type { DayData, DowStat, HourStat } from './dashboardStats'
 import type { Reservation, Restaurant, Table, OpeningHour } from '@/payload/payload-types'
@@ -155,9 +156,12 @@ export async function getRestaurantStats(
 ): Promise<RestaurantStats> {
   const payload = await getPayloadClient()
 
+  // csak a fordulóidő kell (a kapacitáshoz) — korábban a teljes adatlap 2-es mélységgel (sebesség, docs/sebesseg)
   const restaurant = await payload.findByID({
     collection: 'restaurants',
     id: restaurantId,
+    depth: 0,
+    select: { turn_duration_minutes: true },
     overrideAccess: true,
   })
 
@@ -178,20 +182,9 @@ export async function getRestaurantStats(
   const queryFrom = [prevPeriodStartStr, lastMonthStartStr].sort()[0]
 
   const [reservationsRes, tablesRes, openingHoursRes] = await Promise.all([
-    payload.find({
-      collection: 'reservations',
-      where: {
-        and: [
-          { restaurant: { equals: restaurantId } },
-          { date: { greater_than_equal: queryFrom } },
-        ],
-      },
-      depth: 0,
-      limit: 5000,
-      // Csak a számításhoz használt mezők – kevesebb adat a DB-ből és a hidratálásból.
-      select: { date: true, status: true, source: true, pax: true, start_time: true, end_time: true, country: true, customer_email: true, createdAt: true, payment_status: true, deposit_amount_huf: true },
-      overrideAccess: true,
-    }),
+    // Sebesség: a foglalások KÖZVETLEN SQL-lel (lib/fastRead, docs/sebesseg) — a Payload soronként ~2 ms; a sorrend
+    // (-createdAt) és az alak ugyanaz, mint a Payloadé volt
+    reservationsFor(restaurantId, { from: queryFrom }).then((docs) => ({ docs })),
     payload.find({
       collection: 'tables',
       where: { and: [{ restaurant: { equals: restaurantId } }, { is_active: { equals: true } }] },
@@ -208,7 +201,7 @@ export async function getRestaurantStats(
     }),
   ])
 
-  const all = reservationsRes.docs as Reservation[]
+  const all = reservationsRes.docs as unknown as Reservation[]
   const active = all.filter(r => ACTIVE_STATUSES.includes(r.status))
 
   const seats = (tablesRes.docs as Table[]).reduce((s, t) => s + (t.capacity ?? 0), 0)
@@ -432,20 +425,10 @@ export async function getRestaurantStats(
   const allGuestEmails = [...new Set([...periodEmails, ...prevPeriodEmailsArr])]
   const priorDatesByEmail: Record<string, string[]> = {}
   if (allGuestEmails.length > 0) {
-    const priorRes = await payload.find({
-      collection: 'reservations',
-      where: {
-        and: [
-          { restaurant: { equals: restaurantId } },
-          { customer_email: { in: allGuestEmails } },
-          { date: { less_than: periodStartStr } },
-        ],
-      },
-      depth: 0,
-      limit: 5000,
-      select: { customer_email: true, date: true },
-      overrideAccess: true,
-    })
+    // közvetlen SQL (sebesség — lásd fent)
+    const priorRes = { docs: await rawQuery<{ customer_email: string; date: string }>(sql`
+      SELECT customer_email, date FROM reservations
+      WHERE restaurant_id = ${Number(restaurantId)} AND date < ${periodStartStr} AND customer_email IN (${sql.join((allGuestEmails as string[]).map((e) => sql`${e}`), sql`, `)})`) }
     for (const d of priorRes.docs as { customer_email?: string; date?: string }[]) {
       if (!d.customer_email || !d.date) continue
       ;(priorDatesByEmail[d.customer_email] ??= []).push(d.date)
@@ -456,14 +439,9 @@ export async function getRestaurantStats(
   // kerültek át foglalásként. Enélkül egy import után szinte mindenki „új” lenne.
   const importedHistory = new Set<string>()
   if (allGuestEmails.length > 0) {
-    const custRes = await payload.find({
-      collection: 'customers',
-      where: { and: [{ restaurant: { equals: restaurantId } }, { customer_email: { in: allGuestEmails as string[] } }, { visit_count: { greater_than: 0 } }] },
-      depth: 0,
-      pagination: false,
-      select: { customer_email: true },
-      overrideAccess: true,
-    })
+    const custRes = { docs: await rawQuery<{ customer_email: string | null }>(sql`
+      SELECT customer_email FROM customers
+      WHERE restaurant_id = ${Number(restaurantId)} AND visit_count > 0 AND customer_email IN (${sql.join((allGuestEmails as string[]).map((e) => sql`${e}`), sql`, `)})`) }
     for (const c of custRes.docs as { customer_email?: string | null }[]) if (c.customer_email) importedHistory.add(c.customer_email)
   }
   const hadPriorBefore = (email: string | undefined | null, cutoff: string) =>

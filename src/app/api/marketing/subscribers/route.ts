@@ -4,6 +4,7 @@ import { authOrUnauthorized } from '@/lib/salonRouteAuth'
 import { assertAnyCapability } from '@/lib/apiCapability'
 import type { Where } from 'payload'
 import type { Customer } from '@/payload/payload-types'
+import { subscriberRows, type SubscriberVM } from '@/lib/marketingView'
 
 /** Ékezet-független összehasonlításhoz — a sima Postgres `contains` (ILIKE) kis/nagybetűt nem
  *  néz, de ékezetet IGEN (pl. "i" nem talál rá az "í"-re). Az `unaccent` Postgres-kiterjesztés
@@ -37,6 +38,20 @@ export async function GET(request: NextRequest) {
   // kap hírlevelet. Ez a szűrő teszi visszakereshetővé/láthatóvá ezeket a tulajnak.
   const status = searchParams.get('status') === 'unsubscribed' ? 'unsubscribed' : 'subscribed'
   const sortDir = searchParams.get('sort') === 'asc' ? 'asc' : 'desc'
+  // rendezés oszlop szerint (az oszlopcímre kattintva): alapból a feliratkozás ideje; a többi a Node-oldalon, a teljes
+  // szűrt halmazon (a foglalás-szám, a látogatás és a levél-adatok a `subscriberRows`-ból)
+  const orderBy = (['name', 'country', 'bookings', 'last', 'opened', 'lastOpen'] as const).find((v) => v === searchParams.get('order')) ?? null
+  // szűrés az oszlopokra: mióta feliratkozott (`since` = napok száma), hány foglalása van (`bookings`: none / some / regular)
+  const sinceDays = Math.max(0, Number(searchParams.get('since')) || 0)
+  const bookingsF = (['none', 'some', 'regular'] as const).find((v) => v === searchParams.get('bookings')) ?? null
+  // marketing-szűrők: utolsó látogatás (`visit`: recent = 30 napon belül járt, lapsed = 90+ napja nem), levél-aktivitás
+  // (`engage`: opens = megnyitja a leveleket, never = kapott, de egyet sem nyitott meg)
+  const visitF = (['recent', 'lapsed'] as const).find((v) => v === searchParams.get('visit')) ?? null
+  const engageF = (['opens', 'never'] as const).find((v) => v === searchParams.get('engage')) ?? null
+  // „Foglalta már”: szalonnál a szolgáltatás (`service` = azonosító), étteremnél az alkalom (`service` = a neve)
+  const serviceF = searchParams.get('service')?.trim() || null
+  const nodeF = !!(bookingsF || visitF || engageF || serviceF)
+  const nodeSort = !!orderBy
   const page = Math.max(1, Number(searchParams.get('page')) || 1)
   // `idsOnly` az "Mind kijelölése" funkcióhoz kell — a szűrésnek/keresésnek megfelelő ÖSSZES
   // feliratkozó ID-ja, nem csak a kliensen épp betöltött (lapozott) 15-20 sor. Nagyobb, de még
@@ -62,12 +77,13 @@ export async function GET(request: NextRequest) {
         ? [{ marketing_consent: { equals: false } }, { marketing_consent_at: { exists: true } }]
         : [{ marketing_consent: { equals: true } }]),
       ...(country ? [{ customer_country: { equals: country } }] : []),
+      ...(sinceDays ? [{ marketing_consent_at: { greater_than_equal: new Date(Date.now() - sinceDays * 86_400_000).toISOString() } }] : []),
     ],
   }
 
   const sort = sortDir === 'asc' ? 'marketing_consent_at' : '-marketing_consent_at'
 
-  if (!search) {
+  if (!search && !nodeF && !nodeSort) {
     const result = await payload.find({
       collection: 'customers',
       where: baseWhere,
@@ -79,15 +95,17 @@ export async function GET(request: NextRequest) {
       ...(idsOnly ? { select: { id: true } as never } : {}),
     })
     if (idsOnly) return NextResponse.json({ ids: (result.docs as Customer[]).map((c) => String(c.id)) })
+    // a sorokhoz a foglalás-szám és az utolsó megnyitott levél (design 13.2)
+    const extra = new Map((await subscriberRows(kind as 'salon' | 'restaurant', businessId, result.docs as Customer[])).map((r) => [r.id, r]))
     return NextResponse.json({
-      docs: (result.docs as Customer[]).map((c) => toRow(c, status)),
+      docs: (result.docs as Customer[]).map((c) => ({ ...toRow(c, status), ...stats(extra.get(String(c.id))) })),
       totalDocs: result.totalDocs,
       hasNextPage: result.hasNextPage,
       page: result.page,
     })
   }
 
-  // Van keresőszó: DB-szinten csak üzlet/consent/ország szerint szűrünk, a szöveges egyezést
+  // Van keresőszó vagy foglalás-szűrő: DB-szinten csak üzlet/consent/ország/dátum szerint szűrünk, a szöveges egyezést
   // Node-oldalon, ékezet-függetlenül végezzük egy elég nagy jelölt-halmazon (5000 — ugyanaz a
   // korlát, mint az `idsOnly`-nál).
   const candidates = await payload.find({
@@ -99,21 +117,68 @@ export async function GET(request: NextRequest) {
     overrideAccess: true,
   })
   const needle = foldAccents(search)
-  const matched = (candidates.docs as Customer[]).filter((c) => {
+  let matched = (candidates.docs as Customer[]).filter((c) => {
+    if (!needle) return true
     const haystack = foldAccents(`${c.customer_name ?? ''} ${c.customer_email ?? ''} ${c.customer_city ?? ''} ${c.customer_country ?? ''}`)
     return haystack.includes(needle)
   })
+  // foglalás-szám szerinti szűrés (a törzsvendég-határ 4, mint a Vendégek oldalon és a szegmenseknél)
+  if (nodeF) {
+    const info = new Map((await subscriberRows(kind as 'salon' | 'restaurant', businessId, matched)).map((r) => [r.id, r]))
+    const day = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10)
+    const bookedService = serviceF ? new Set(((await payload.find({
+      collection: kind === 'salon' ? 'bookings' : 'reservations',
+      where: { and: [{ [kind]: { equals: businessId } }, kind === 'salon' ? { service: { equals: serviceF } } : { occasion: { equals: serviceF } }, { status: { not_in: ['cancelled', 'no_show'] } }] },
+      limit: 20000, depth: 0, overrideAccess: true, select: { customer_email: true } as never,
+    })).docs as { customer_email?: string | null }[]).map((b) => (b.customer_email ?? '').toLowerCase())) : null
+    matched = matched.filter((c) => {
+      const r = info.get(String(c.id)); const n = r?.bookings ?? 0
+      if (bookingsF && !(bookingsF === 'none' ? n === 0 : bookingsF === 'some' ? n >= 1 && n <= 3 : n >= 4)) return false
+      if (visitF === 'recent' && !(r?.lastVisit && r.lastVisit >= day(30))) return false
+      if (visitF === 'lapsed' && !(r?.lastVisit && r.lastVisit < day(90))) return false
+      if (engageF === 'opens' && !(r && r.opened > 0)) return false
+      if (engageF === 'never' && !(r && r.received > 0 && r.opened === 0)) return false
+      if (bookedService && !bookedService.has((c.customer_email ?? '').toLowerCase())) return false
+      return true
+    })
+  }
+
+  if (orderBy && !idsOnly) {
+    const info = new Map((await subscriberRows(kind as 'salon' | 'restaurant', businessId, matched)).map((r) => [r.id, r]))
+    const m = sortDir === 'asc' ? 1 : -1
+    const col = new Intl.Collator('hu', { sensitivity: 'base' })
+    const val = (c: Customer): string | number | null => {
+      const r = info.get(String(c.id))
+      if (orderBy === 'name') return c.customer_name ?? null
+      if (orderBy === 'country') return c.customer_country ?? null
+      if (orderBy === 'bookings') return r?.bookings ?? 0
+      if (orderBy === 'last') return r?.lastVisit ?? null
+      if (orderBy === 'opened') return r?.opened ?? 0
+      return r?.lastOpen?.at ?? null
+    }
+    matched = [...matched].sort((a, b) => {
+      const x = val(a), y = val(b)
+      if (x == null || y == null) return x == null && y == null ? 0 : x == null ? 1 : -1
+      return (typeof x === 'number' && typeof y === 'number' ? x - y : col.compare(String(x), String(y))) * m
+    })
+  }
 
   if (idsOnly) return NextResponse.json({ ids: matched.map((c) => String(c.id)) })
 
   const start = (page - 1) * limit
   const pageDocs = matched.slice(start, start + limit)
+  const extra = new Map((await subscriberRows(kind as 'salon' | 'restaurant', businessId, pageDocs)).map((r) => [r.id, r]))
   return NextResponse.json({
-    docs: pageDocs.map((c) => toRow(c, status)),
+    docs: pageDocs.map((c) => ({ ...toRow(c, status), ...stats(extra.get(String(c.id))) })),
     totalDocs: matched.length,
     hasNextPage: start + limit < matched.length,
     page,
   })
+}
+
+/** a sor marketing-adatai: foglalás-szám, utolsó látogatás, kapott / megnyitott levelek, utolsó megnyitott levél */
+function stats(r?: SubscriberVM) {
+  return { bookings: r?.bookings ?? 0, lastVisit: r?.lastVisit ?? null, received: r?.received ?? 0, opened: r?.opened ?? 0, lastOpen: r?.lastOpen ?? null }
 }
 
 function toRow(c: Customer, status: 'subscribed' | 'unsubscribed') {

@@ -246,3 +246,49 @@ export const FIELD_OPTIONS_BY_TYPE: Record<ImportType, { value: string; label: s
     { value: 'billing_street', label: 'Utca / számlázási cím' },
   ],
 }
+
+// ── Típus-felismerés (közös: Beállítások › Import és a regisztráció / új üzlet import-lépése) ──
+
+// ── Típus-felismerés (közös: Beállítások › Import és a regisztráció / új üzlet import-lépése) ──
+
+// Sheet name → import type auto-suggestion
+export const SHEET_NAME_MAP: Record<string, ImportType> = {
+  'munkatársak': 'staff', 'munkatarsak': 'staff', 'staff': 'staff', 'employees': 'staff', 'team': 'staff',
+  'szolgáltatások': 'services', 'szolgaltatasok': 'services', 'services': 'services', 'treatments': 'services',
+  'asztalok': 'tables', 'tables': 'tables',
+  'vendégek': 'customers', 'vendegek': 'customers', 'customers': 'customers', 'guests': 'customers', 'ügyfelek': 'customers', 'ugyfelek': 'customers',
+  'foglalások': 'bookings', 'foglalasok': 'bookings', 'bookings': 'bookings', 'reservations': 'bookings', 'appointments': 'bookings',
+  'nyitvatartás': 'opening_hours', 'nyitvatartas': 'opening_hours', 'opening hours': 'opening_hours', 'hours': 'opening_hours', 'órarend': 'opening_hours',
+  'termek': 'rooms', 'szobák': 'rooms', 'szobak': 'rooms', 'rooms': 'rooms', 'sections': 'rooms', 'zónák': 'rooms', 'zones': 'rooms',
+  'kategóriák': 'service_categories', 'kategoriak': 'service_categories', 'categories': 'service_categories', 'kategoriák': 'service_categories',
+  'számlázás': 'billing_info', 'szamlazas': 'billing_info', 'billing': 'billing_info', 'cégadatok': 'billing_info', 'cegadatok': 'billing_info', 'company': 'billing_info',
+}
+
+export function guessTypeFromSheet(name: string): ImportType | null {
+  return SHEET_NAME_MAP[name.toLowerCase().trim()] ?? null
+}
+
+/** A fejlécből a legvalószínűbb adattípus (pontozás: a több típusnál is előforduló oszlopnév kevesebbet ér). */
+export function detectTypeFromHeaders(headers: string[]): ImportType | null {
+  const norm = headers.map((h) => h.toLowerCase().trim())
+  const types = Object.keys(ALIASES_BY_TYPE) as ImportType[]
+  let best: ImportType | null = null
+  let bestScore = 0
+  for (const type of types) {
+    const aliases = ALIASES_BY_TYPE[type]
+    let score = 0
+    for (const h of norm) {
+      if (!(h in aliases)) continue
+      // Egy oszlopnév, ami TÖBB típus szótárában is szerepel (pl. "név"/"email"/"telefon",
+      // ami csapatnál ÉS vendégnél is ott van), kevésbé megkülönböztető — csak az egyedi
+      // (csak ennél a típusnál szereplő) nevek adjanak teljes pontot. Enélkül egy bővebb
+      // szótár (több célmező = több alias) szisztematikusan "elnyerte" a felismerést egy
+      // olyan fájltól is, ami valójában egy másik típushoz tartozott (pl. egy vendéglista
+      // "munkatársak"-ként detektálódott, mert a staff-szótárban volt "születésnap" alias).
+      const sharedWithOthers = types.filter((t) => t !== type && h in ALIASES_BY_TYPE[t]).length
+      score += 1 / (1 + sharedWithOthers)
+    }
+    if (score > bestScore) { bestScore = score; best = type }
+  }
+  return bestScore >= 1.5 ? best : null
+}

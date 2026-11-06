@@ -7,24 +7,14 @@
 //  - a lista 20-as, könnyű sorokból áll (`listGuests`), szűrve/rendezve a szerveren,
 //  - egy vendég teljes profilja csak igény szerint épül fel (`ctx.toVM`).
 import { getPayloadClient } from '@/lib/payload'
-import { aggregateGuests, withManualGuests, bucketByCountry, guestKeyOf, type Guest, type GuestSource, type CountryBucket } from '@/lib/guests'
-import { buildGuestVMs, buildArrivals, returningPct, tierSegments, originSplit, reviewRowValue } from '@/lib/guestsView'
+import { customersOf, num, rawQuery, sql } from '@/lib/fastRead'
+import { aggregateGuests, withManualGuests, bucketByCountry, guestKeyOf, countryName, type Guest, type GuestSource, type CountryBucket } from '@/lib/guests'
+import { buildGuestVM, buildArrivals, returningPct, tierCounts, originSplit, todayYmd, gravatarUrl, type BuildOptions } from '@/lib/guestsView'
 import { getGuestReviewMap } from '@/lib/reviews'
-import type { GuestVM, ArrivalVM } from '@/components/dashboard/guests-view'
+import type { ArrivalVM, GuestListRow, GuestVM } from '@/lib/guestsTypes'
 import type { Customer, Reservation, Booking } from '@/payload/payload-types'
 
 export type GuestsKind = 'salon' | 'restaurant'
-
-/** Egy lista-sor — csak ami a listához kell (a profil külön töltődik). */
-export interface GuestListItem {
-  key: string
-  name: string
-  country: string | null
-  tier: Guest['tier']
-  blocked: boolean
-  visits: number
-  lastVisit: string | null
-}
 
 export interface GuestsQuery {
   page?: number
@@ -34,19 +24,29 @@ export interface GuestsQuery {
   day?: string // YYYY-MM-DD
   status?: 'all' | 'active' | 'blocked'
   tier?: 'all' | '1' | '2' | '3'
-  sort?: 'last' | 'name' | 'visits' | 'spend'
+  sort?: 'last' | 'name' | 'visits' | 'spend' | 'tier' | 'pax'
+  /** az irány (oszlopcímre kattintva fordítható); nélküle a rendezés természetes iránya (név A–Z, a többi csökkenő) */
+  dir?: 'asc' | 'desc'
 }
 
-export const GUESTS_PAGE_SIZE = 20
+export const GUESTS_PAGE_SIZE = 10
 
 export interface GuestsContext {
+  kind: GuestsKind
   guests: Guest[]
   toVM: (g: Guest) => GuestVM
   blockedOf: (g: Guest) => boolean
+  /** szalon: költés (Ft); étterem: összes létszám — a rendezéshez */
   spendOf: (g: Guest) => number
   datesByKey: Map<string, string[]>
+  /** a következő foglalás napja vendégenként */
+  nextByKey: Map<string, string>
+  /** a vendég Customers-rekordja (export: megjegyzés, hírlevél, címke) */
+  customerOf: (g: Guest) => Customer | null
+  /** a foglalások exporthoz (7.6 „Foglalások”): nap, idő, vendég, mi, állapot */
+  bookingRows: () => { date: string; time: string; key: string; name: string; email: string | null; phone: string | null; what: string; status: string; note: string }[]
   // összesítők a fejléchez / térképhez / donuthoz — ezek NEM a teljes listát küldik le
-  pills: ReturnType<typeof tierSegments>
+  counts: ReturnType<typeof tierCounts>
   arrivals: ArrivalVM[]
   buckets: CountryBucket[]
   total: number
@@ -86,45 +86,48 @@ function applyOverrides(sources: GuestSource[], custFor: ReturnType<typeof custo
   }
 }
 
-/** Egyedi kérdések története: kérdés-AZONOSÍTÓNKÉNT a legfrissebb válasz (átfogalmazásnál sem szakad ketté). */
-function latestCustomAnswers(own: GuestSource[]): { label: string; value: string }[] {
-  const byQuestionId = new Map<string, { label: string; value: string }>()
-  for (const s of [...own].sort((a, b) => (a.date ?? '').localeCompare(b.date ?? ''))) {
-    const answers = (s as { customAnswers?: Record<string, { question: string; answer: string }> | null }).customAnswers
-    if (!answers) continue
-    for (const [qid, qa] of Object.entries(answers)) byQuestionId.set(qid, { label: qa.question, value: qa.answer })
-  }
-  return Array.from(byQuestionId.values())
+/** A leggyakoribb érték (pl. kedvenc asztal). */
+function mostFrequent(values: string[]): string | null {
+  const counts = new Map<string, number>()
+  for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1)
+  let best: string | null = null; let bestN = 0
+  for (const [v, n] of counts) if (n > bestN) ((bestN = n), (best = v))
+  return best
 }
 
-function finish(
-  guests: Guest[],
-  sources: GuestSource[],
-  toVM: (g: Guest) => GuestVM,
-  blockedOf: (g: Guest) => boolean,
-  spendOf: (g: Guest) => number,
-  arrivals: ArrivalVM[],
-): GuestsContext {
+function finish(kind: GuestsKind, guests: Guest[], sources: GuestSource[], opts: BuildOptions, spendOf: (g: Guest) => number): GuestsContext {
   const datesByKey = new Map<string, string[]>()
+  const nextByKey = new Map<string, string>()
+  const today = todayYmd()
   for (const s of sources) {
     if (!realVisit(s) || !s.date) continue
     const k = guestKeyOf(s)
     if (!k) continue
+    const d = s.date.slice(0, 10)
     const list = datesByKey.get(k) ?? []
-    list.push(s.date.slice(0, 10))
+    list.push(d)
     datesByKey.set(k, list)
+    if (d >= today && (!nextByKey.has(k) || d < nextByKey.get(k)!)) nextByKey.set(k, d)
   }
   const buckets = bucketByCountry(sources)
   const { domestic, foreign } = originSplit(buckets)
   const returningNum = guests.filter((g) => g.tier >= 2).length
+  const blockedOf = (g: Guest) => !!opts.customerFor(g)?.blocked
   return {
+    kind,
     guests,
-    toVM,
+    toVM: (g) => buildGuestVM(g, sources, opts),
     blockedOf,
     spendOf,
     datesByKey,
-    pills: tierSegments(guests),
-    arrivals,
+    nextByKey,
+    customerOf: opts.customerFor,
+    // minden foglalás (a beeső / névtelen is) — a Foglalások exportjához
+    bookingRows: () => sources.filter((s) => s.date).map((s) => ({
+      date: (s.date ?? '').slice(0, 10), time: opts.timeFor(s)?.slice(0, 5) ?? '', key: guestKeyOf(s) ?? '', name: s.name, email: s.email ?? null, phone: s.phone ?? null, what: opts.whatFor(s), status: s.status ?? '', note: opts.noteOf?.(s)?.trim() ?? '',
+    })),
+    counts: tierCounts(guests, blockedOf),
+    arrivals: buildArrivals(guests, sources, opts),
     buckets,
     total: guests.length,
     returningPct: returningPct(guests),
@@ -139,31 +142,26 @@ function finish(
 
 export async function loadSalonGuests(salonId: number | string): Promise<GuestsContext> {
   const payload = await getPayloadClient()
-  const [res, svcRes, staffRes, custRes, reviewMap] = await Promise.all([
-    payload.find({
-      collection: 'bookings',
-      where: { salon: { equals: salonId } },
-      sort: '-date',
-      depth: 0,
-      pagination: false, // MIND (korábban 2000 → forgalmas helyen kiestek a régi látogatások)
-      select: {
-        customer_name: true, customer_email: true, customer_phone: true, customer_city: true,
-        date: true, start_time: true, status: true, service: true, staff: true,
-        price_snapshot: true, notes: true, custom_answers: true,
-      },
-      overrideAccess: true,
-    }),
+  // Sebesség: a foglalások és a vendég-rekordok KÖZVETLEN SQL-lel (lib/fastRead, docs/sebesseg) — a Payload soronként
+  // ~2 ms-ot tölt, itt az összes foglalás + az összes vendég ment rajta (3,5–4 mp). A kicsi listák maradnak Payloadon.
+  const sid = Number(salonId)
+  const [bookingRows, svcRes, staffRes, custDocs, reviewMap] = await Promise.all([
+    rawQuery<{ customer_name: string; customer_email: string | null; customer_phone: string | null; customer_city: string | null; date: string; start_time: string | null; status: string; service_id: number | null; staff_id: number | null; price_snapshot: string | null; notes: string | null; custom_answers: unknown }>(sql`
+      SELECT customer_name, customer_email, customer_phone, customer_city, date, start_time, status, service_id, staff_id, price_snapshot, notes, custom_answers
+      FROM bookings WHERE salon_id = ${sid} ORDER BY date DESC, created_at DESC`),
     payload.find({ collection: 'services', where: { salon: { equals: salonId } }, depth: 0, pagination: false, select: { name: true, price: true }, overrideAccess: true }),
     payload.find({ collection: 'staff', where: { salon: { equals: salonId } }, depth: 0, pagination: false, select: { name: true }, overrideAccess: true }),
-    payload.find({ collection: 'customers', where: { salon: { equals: salonId } }, depth: 0, pagination: false, overrideAccess: true }),
+    customersOf({ salon: sid }),
     getGuestReviewMap('salon', salonId),
   ])
+  const res = { docs: bookingRows.map((b) => ({ ...b, service: b.service_id, staff: b.staff_id, price_snapshot: num(b.price_snapshot) })) as unknown as Booking[] }
+  const custRes = { docs: custDocs }
 
   const svcById = new Map((svcRes.docs as { id: number | string; name?: string; price?: number | null }[]).map((s) => [String(s.id), s]))
   const staffById = new Map((staffRes.docs as { id: number | string; name?: string }[]).map((s) => [String(s.id), s.name ?? '']))
   const relId = (v: unknown) => (v && typeof v === 'object' ? String((v as { id: unknown }).id) : v != null ? String(v) : '')
 
-  type Src = GuestSource & { time?: string; svcName?: string; staffName?: string; price?: number | null; note?: string | null; customAnswers?: Record<string, { question: string; answer: string }> | null }
+  type Src = GuestSource & { time?: string; svcName?: string; staffName?: string; price?: number | null; note?: string | null; answers?: Record<string, { question: string; answer: string }> | null }
   const sources: Src[] = (res.docs as Booking[]).map((b) => {
     const svc = svcById.get(relId(b.service))
     // a foglaláskori ár (price_snapshot) elsőbbséget kap a szolgáltatás mindenkori áránál
@@ -171,116 +169,60 @@ export async function loadSalonGuests(salonId: number | string): Promise<GuestsC
     return {
       name: b.customer_name, email: b.customer_email, phone: b.customer_phone, date: b.date, city: b.customer_city,
       status: b.status, time: b.start_time, svcName: svc?.name ?? '', staffName: staffById.get(relId(b.staff)) ?? '',
-      price, note: (b as { notes?: string | null }).notes ?? null, customAnswers: b.custom_answers ?? null,
+      price, note: (b as { notes?: string | null }).notes ?? null, answers: (b.custom_answers ?? null) as Src['answers'],
     }
   })
 
   const custFor = customerIndex(custRes.docs as Customer[])
   applyOverrides(sources, custFor)
   const guests = withManualGuests(aggregateGuests(sources), custRes.docs as Customer[])
-
-  const latestNote = (own: GuestSource[]): string | null =>
-    [...own].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map((s) => (s as Src).note?.trim()).find((v) => v) || null
   const priceOf = (s: GuestSource) => (s as Src).price ?? 0
-  const mostFrequent = (own: GuestSource[], pick: (s: Src) => string | undefined) => {
-    const counts = new Map<string, number>()
-    for (const s of own) { const n = pick(s as Src); if (n) counts.set(n, (counts.get(n) ?? 0) + 1) }
-    let best = ''; let bestN = 0
-    for (const [n, c] of counts) if (c > bestN) ((bestN = c), (best = n))
-    return best || '—'
-  }
-  const byDate = (own: GuestSource[], dir: 1 | -1) => [...own.filter(realVisit)].sort((a, b) => dir * (a.date ?? '').localeCompare(b.date ?? ''))
 
-  const opts: Parameters<typeof buildGuestVMs>[2] = {
-    salon: true,
-    labelFor: (s) => (s as Src).svcName || 'Foglalás',
-    amountFor: (s) => (typeof (s as Src).price === 'number' ? fmtHuf((s as Src).price as number) : null),
-    favFor: (_g, own) => mostFrequent(own, (s) => s.svcName),
-    rowsFor: (g, { past, upcoming }) => {
-      const allOwn = [...past, ...upcoming]
-      const pastSpend = past.reduce((a, s) => a + priceOf(s), 0)
-      const note = latestNote(allOwn)
-      const review = reviewMap.get(g.key)
-      // import-összesítő (pl. Salonic) — ahol kitöltve, elsőbbséget kap a számolt értékkel szemben
-      const cust = custFor(g)
-      const visitCount = cust?.visit_count ?? past.length
-      const cancelN = cust?.cancellation_count ?? allOwn.filter((s) => s.status === 'cancelled').length
-      const noShowN = cust?.no_show_count ?? allOwn.filter((s) => s.status === 'no_show').length
-      const totalSpend = cust?.total_revenue_huf || (pastSpend > 0 ? pastSpend : null)
-      return [
-        { label: 'Látogatás', value: String(visitCount) },
-        { label: 'Összes költés eddig', value: totalSpend ? fmtHuf(totalSpend) : '—' },
-        { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} foglalás` : '—' },
-        { label: 'Kedvenc', value: mostFrequent(allOwn, (s) => s.svcName) },
-        { label: 'Első szolgáltatás', value: (byDate(allOwn, 1)[0] as Src | undefined)?.svcName || '—' },
-        { label: 'Utolsó szolgáltatás', value: (byDate(allOwn, -1)[0] as Src | undefined)?.svcName || '—' },
-        { label: 'Kedvenc munkatárs', value: mostFrequent(allOwn.filter(realVisit), (s) => s.staffName) },
-        ...(cancelN > 0 ? [{ label: 'Lemondások száma', value: String(cancelN) }] : []),
-        ...(noShowN > 0 ? [{ label: 'Nem jött el', value: String(noShowN) }] : []),
-        ...(cust?.last_cancellation_reason ? [{ label: 'Utolsó lemondás oka', value: cust.last_cancellation_reason }] : []),
-        ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
-        ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
-        ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),
-        ...latestCustomAnswers(allOwn),
-      ]
-    },
-    noteFor: (own) => ({ guest: latestNote(own), internal: null }),
-    historyDetailFor: (s) => {
-      const src = s as Src
-      const rows: Array<{ label: string; value: string }> = []
-      if (src.time) rows.push({ label: 'Időpont', value: src.time.slice(0, 5) })
-      if (src.svcName) rows.push({ label: 'Szolgáltatás', value: src.svcName })
-      if (src.staffName) rows.push({ label: 'Munkatárs', value: src.staffName })
-      if (typeof src.price === 'number') rows.push({ label: 'Ár', value: fmtHuf(src.price) })
-      return { rows, note: src.note?.trim() || null }
-    },
-    blockedFor: (g) => !!custFor(g)?.blocked,
-    blockReasonFor: (g) => custFor(g)?.block_reason ?? null,
-  }
-
-  // költés vendégenként (rendezéshez) — egy menetben
+  // költés vendégenként (rendezéshez és a listához) — egy menetben, csak a múltbeli látogatások
   const spendByKey = new Map<string, number>()
+  const today = todayYmd()
   for (const s of sources) {
-    if (!realVisit(s) || (s.date ?? '') > new Date().toISOString().slice(0, 10)) continue
+    if (!realVisit(s) || (s.date ?? '') >= today) continue
     const k = guestKeyOf(s)
     if (k) spendByKey.set(k, (spendByKey.get(k) ?? 0) + priceOf(s))
   }
+  const spendOf = (g: Guest) => custFor(g)?.total_revenue_huf || spendByKey.get(g.key) || 0
 
-  const arrivals = buildArrivals(guests, sources, { salon: true, timeFor: (s) => (s as Src).time ?? null })
-  return finish(
-    guests,
-    sources,
-    (g) => buildGuestVMs([g], sources, opts)[0],
-    (g) => !!custFor(g)?.blocked,
-    (g) => custFor(g)?.total_revenue_huf || spendByKey.get(g.key) || 0,
-    arrivals,
-  )
+  const opts: BuildOptions = {
+    whatFor: (s) => [(s as Src).svcName || 'Foglalás', (s as Src).staffName].filter(Boolean).join(' · '),
+    amountFor: (s) => (typeof (s as Src).price === 'number' ? fmtHuf((s as Src).price as number) : null),
+    timeFor: (s) => (s as Src).time ?? null,
+    spendFor: (g) => { const v = spendOf(g); return v ? fmtHuf(v) : null },
+    noteFor: (own) => ({ guest: [...own].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map((s) => (s as Src).note?.trim()).find((v) => v) || null, internal: null }),
+    noteOf: (s) => (s as Src).note ?? null,
+    answersOf: (s) => (s as Src).answers ?? null,
+    customerFor: custFor,
+    rating: (g) => reviewMap.get(g.key) ?? null,
+  }
+  return finish('salon', guests, sources, opts, spendOf)
 }
 
 // ── ÉTTEREM ─────────────────────────────────────────────────────────────────────
 
-const DAYS = ['Vasárnap', 'Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat']
-
 export async function loadRestaurantGuests(restaurantId: number | string): Promise<GuestsContext> {
   const payload = await getPayloadClient()
-  const [res, tablesRes, custRes, reviewMap] = await Promise.all([
-    payload.find({
-      collection: 'reservations',
-      where: { restaurant: { equals: restaurantId } },
-      sort: '-date',
-      depth: 0,
-      pagination: false, // MIND (korábban 2000)
-      select: {
-        customer_name: true, customer_email: true, customer_phone: true, customer_city: true, country: true,
-        date: true, start_time: true, status: true, pax: true, occasion: true, occasion_icon: true,
-        notes: true, internal_notes: true, tables: true, custom_answers: true,
-      },
-      overrideAccess: true,
-    }),
+  // Sebesség: a foglalások (asztalokkal) és a vendég-rekordok KÖZVETLEN SQL-lel (lib/fastRead, docs/sebesseg).
+  const rid = Number(restaurantId)
+  const [resRows, relRows, tablesRes, custDocs, reviewMap] = await Promise.all([
+    rawQuery<{ id: number; customer_name: string; customer_email: string | null; customer_phone: string | null; customer_city: string | null; country: string | null; date: string; start_time: string | null; status: string; pax: string | null; occasion: string | null; occasion_icon: string | null; notes: string | null; internal_notes: string | null; custom_answers: unknown }>(sql`
+      SELECT id, customer_name, customer_email, customer_phone, customer_city, country, date, start_time, status, pax, occasion, occasion_icon, notes, internal_notes, custom_answers
+      FROM reservations WHERE restaurant_id = ${rid} ORDER BY date DESC, created_at DESC`),
+    rawQuery<{ parent_id: number; tables_id: number }>(sql`
+      SELECT rr.parent_id, rr.tables_id FROM reservations_rels rr JOIN reservations r ON r.id = rr.parent_id
+      WHERE r.restaurant_id = ${rid} AND rr.path = 'tables' AND rr.tables_id IS NOT NULL ORDER BY rr.parent_id, rr."order"`),
     payload.find({ collection: 'tables', where: { restaurant: { equals: restaurantId } }, depth: 0, limit: 500, select: { name: true }, overrideAccess: true }),
-    payload.find({ collection: 'customers', where: { restaurant: { equals: restaurantId } }, depth: 0, pagination: false, overrideAccess: true }),
+    customersOf({ restaurant: rid }),
     getGuestReviewMap('restaurant', restaurantId),
   ])
+  const tablesByRes = new Map<number, number[]>()
+  for (const r of relRows) tablesByRes.set(r.parent_id, [...(tablesByRes.get(r.parent_id) ?? []), r.tables_id])
+  const res = { docs: resRows.map((r) => ({ ...r, pax: num(r.pax), tables: tablesByRes.get(r.id) ?? [] })) as unknown as Reservation[] }
+  const custRes = { docs: custDocs }
 
   const tableName = new Map<number, string>()
   for (const t of tablesRes.docs as Array<{ id: number; name?: string | null }>) if (t.name) tableName.set(t.id, t.name)
@@ -289,83 +231,37 @@ export async function loadRestaurantGuests(restaurantId: number | string): Promi
       .map((t) => (typeof t === 'object' && t ? (t as { name?: string | null }).name ?? null : tableName.get(Number(t)) ?? null))
       .filter((v): v is string => !!v)
 
-  type Src = GuestSource & { time?: string; occasion?: string | null; occasionIcon?: string | null; note?: string | null; internal?: string | null; tables?: string[]; customAnswers?: Record<string, { question: string; answer: string }> | null }
+  type Src = GuestSource & { time?: string; occasion?: string | null; occasionIcon?: string | null; note?: string | null; internal?: string | null; tables?: string[]; answers?: Record<string, { question: string; answer: string }> | null }
   const sources: Src[] = (res.docs as Reservation[]).map((r) => ({
     name: r.customer_name, email: r.customer_email, phone: r.customer_phone, date: r.date, pax: r.pax, country: r.country,
     city: r.customer_city, status: r.status, time: r.start_time, occasion: r.occasion ?? null, occasionIcon: r.occasion_icon ?? null,
-    note: r.notes, internal: r.internal_notes, tables: tablesOf(r.tables), customAnswers: r.custom_answers ?? null,
+    note: r.notes, internal: r.internal_notes, tables: tablesOf(r.tables), answers: (r.custom_answers ?? null) as Src['answers'],
   }))
 
   const custFor = customerIndex(custRes.docs as Customer[])
   applyOverrides(sources, custFor)
   const guests = withManualGuests(aggregateGuests(sources), custRes.docs as Customer[])
-
-  const latestNote = (own: GuestSource[], pick: (s: Src) => string | null | undefined): string | null =>
+  const latest = (own: GuestSource[], pick: (s: Src) => string | null | undefined): string | null =>
     [...own].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).map((s) => pick(s as Src)?.trim()).find((v) => v) || null
-  const favDay = (own: GuestSource[]): string => {
-    const counts = new Map<number, number>()
-    for (const s of own) { if (!s.date) continue; const d = new Date(s.date).getDay(); counts.set(d, (counts.get(d) ?? 0) + 1) }
-    let best = -1; let bestN = 0
-    for (const [d, n] of counts) if (n > bestN) ((bestN = n), (best = d))
-    return best >= 0 ? DAYS[best] : '—'
-  }
 
-  const opts: Parameters<typeof buildGuestVMs>[2] = {
-    labelFor: (s) => `${s.pax ?? 0} fő foglalás`,
+  const opts: BuildOptions = {
+    whatFor: (s) => [((s as Src).tables ?? []).join(' + '), `${s.pax ?? 0} fő`].filter(Boolean).join(' · '),
     amountFor: () => null,
-    favFor: (_g, own) => favDay(own),
-    rowsFor: (g, { past, upcoming }) => {
-      const upPax = upcoming.reduce((a, s) => a + (s.pax ?? 0), 0)
-      const allOwn = [...past, ...upcoming]
-      const tables = Array.from(new Set(allOwn.flatMap((s) => (s as Src).tables ?? [])))
-      const note = latestNote(allOwn, (s) => s.note)
-      const review = reviewMap.get(g.key)
-      const cust = custFor(g)
-      const cancelCount = cust?.cancellation_count ?? allOwn.filter((s) => s.status === 'cancelled').length
-      const noShowCount = cust?.no_show_count ?? allOwn.filter((s) => s.status === 'no_show').length
-      const visitCount = cust?.visit_count ?? past.length
-      return [
-        { label: 'Látogatás', value: String(visitCount) },
-        { label: 'Összes létszám', value: `${g.totalPax} fő` },
-        { label: 'Közelgő foglalás', value: upcoming.length > 0 ? `${upcoming.length} · ${upPax} fő` : '—' },
-        { label: 'Asztalok', value: tables.length > 0 ? tables.join(', ') : '—' },
-        { label: 'Kedvenc nap', value: favDay(allOwn) },
-        ...(cancelCount > 0 ? [{ label: 'Lemondások száma', value: String(cancelCount) }] : []),
-        ...(noShowCount > 0 ? [{ label: 'Nem jött el', value: String(noShowCount) }] : []),
-        ...(cust?.last_cancellation_reason ? [{ label: 'Utolsó lemondás oka', value: cust.last_cancellation_reason }] : []),
-        ...(review ? [{ label: 'Értékelés', value: reviewRowValue(review.average, review.count) }] : []),
-        ...(note ? [{ label: 'Megjegyzés', value: note }] : []),
-        ...(review?.latestComment ? [{ label: 'Vendég értékelése', value: review.latestComment }] : []),
-        ...latestCustomAnswers(allOwn),
-      ]
+    timeFor: (s) => (s as Src).time ?? null,
+    avgPaxFor: (_g, past) => {
+      if (!past.length) return null
+      const v = past.reduce((a, s) => a + (s.pax ?? 0), 0) / past.length
+      return `${String(Math.round(v * 10) / 10).replace('.', ',')} fő`
     },
-    birthdayDateFor: (own) => {
-      const bd = [...own].filter((s) => (s as Src).occasion && s.date).sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''))[0]
-      return bd?.date ?? null
-    },
-    noteFor: (own) => ({ guest: latestNote(own, (s) => s.note), internal: latestNote(own, (s) => s.internal) }),
-    historyDetailFor: (s) => {
-      const src = s as Src
-      const rows: Array<{ label: string; value: string }> = []
-      if (src.time) rows.push({ label: 'Időpont', value: src.time.slice(0, 5) })
-      rows.push({ label: 'Létszám', value: `${src.pax ?? 0} fő` })
-      if (src.tables && src.tables.length > 0) rows.push({ label: 'Asztal', value: src.tables.join(', ') })
-      if (src.occasion) rows.push({ label: 'Alkalom', value: src.occasion })
-      return { rows, note: src.note?.trim() || null }
-    },
-    blockedFor: (g) => !!custFor(g)?.blocked,
-    blockReasonFor: (g) => custFor(g)?.block_reason ?? null,
+    favTableFor: (own) => mostFrequent(own.flatMap((s) => (s as Src).tables ?? [])),
+    occasionOf: (s) => ((s as Src).occasion ? { label: (s as Src).occasion as string, icon: (s as Src).occasionIcon ?? null } : null),
+    noteFor: (own) => ({ guest: latest(own, (s) => s.note), internal: latest(own, (s) => s.internal) }),
+    noteOf: (s) => (s as Src).note ?? null,
+    answersOf: (s) => (s as Src).answers ?? null,
+    customerFor: custFor,
+    rating: (g) => reviewMap.get(g.key) ?? null,
   }
-
-  const arrivals = buildArrivals(guests, sources, { timeFor: (s) => (s as Src).time ?? null })
-  return finish(
-    guests,
-    sources,
-    (g) => buildGuestVMs([g], sources, opts)[0],
-    (g) => !!custFor(g)?.blocked,
-    (g) => g.totalPax,
-    arrivals,
-  )
+  return finish('restaurant', guests, sources, opts, (g) => g.totalPax)
 }
 
 export function loadGuests(kind: GuestsKind, businessId: number | string): Promise<GuestsContext> {
@@ -374,7 +270,7 @@ export function loadGuests(kind: GuestsKind, businessId: number | string): Promi
 
 // ── LISTA: szűrés · rendezés · lapozás (a szerveren) ─────────────────────────────
 
-export function listGuests(ctx: GuestsContext, query: GuestsQuery): { total: number; page: number; pageCount: number; items: GuestListItem[] } {
+export function listGuests(ctx: GuestsContext, query: GuestsQuery): { total: number; page: number; pageCount: number; items: GuestListRow[] } {
   const q = (query.q ?? '').trim().toLowerCase()
   const period = query.period ?? 'all'
   let list = ctx.guests
@@ -383,24 +279,41 @@ export function listGuests(ctx: GuestsContext, query: GuestsQuery): { total: num
   if (query.status === 'blocked') list = list.filter((g) => ctx.blockedOf(g))
   else if (query.status === 'active') list = list.filter((g) => !ctx.blockedOf(g))
   if (query.tier && query.tier !== 'all') list = list.filter((g) => String(g.tier) === query.tier)
-  if (q) list = list.filter((g) => g.name.toLowerCase().includes(q) || (g.email ?? '').toLowerCase().includes(q) || (g.phone ?? '').includes(q))
+  // a kereső az ország nevére (pl. „Ausztria”, „magyar”) és 2 betűs kódjára („AT”) is szűr
+  const countryHit = (g: Guest) => {
+    const iso = g.country?.trim().toUpperCase()
+    if (!iso) return false
+    if (q.length === 2 && iso.toLowerCase() === q) return true
+    return (countryName(iso) ?? '').toLowerCase().includes(q)
+  }
+  if (q) list = list.filter((g) => g.name.toLowerCase().includes(q) || (g.email ?? '').toLowerCase().includes(q) || (g.phone ?? '').includes(q) || countryHit(g))
 
   const sorted = [...list]
   if (query.sort === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name, 'hu'))
   else if (query.sort === 'visits') sorted.sort((a, b) => b.visits - a.visits)
   else if (query.sort === 'spend') sorted.sort((a, b) => ctx.spendOf(b) - ctx.spendOf(a))
+  else if (query.sort === 'tier') sorted.sort((a, b) => b.tier - a.tier || b.visits - a.visits)
+  // étterem: átlagos létszám (az összes létszám / látogatás)
+  else if (query.sort === 'pax') sorted.sort((a, b) => ctx.spendOf(b) / Math.max(1, b.visits) - ctx.spendOf(a) / Math.max(1, a.visits))
   else sorted.sort((a, b) => (b.lastVisit ?? '').localeCompare(a.lastVisit ?? ''))
+  // a kért irány, ha eltér a természetestől (név: A–Z, a többi: csökkenő)
+  const natural = query.sort === 'name' ? 'asc' : 'desc'
+  if (query.dir && query.dir !== natural) sorted.reverse()
 
   const pageCount = Math.max(1, Math.ceil(sorted.length / GUESTS_PAGE_SIZE))
   const page = Math.min(Math.max(1, query.page ?? 1), pageCount)
-  const items = sorted.slice((page - 1) * GUESTS_PAGE_SIZE, page * GUESTS_PAGE_SIZE).map((g) => ({
+  const items: GuestListRow[] = sorted.slice((page - 1) * GUESTS_PAGE_SIZE, page * GUESTS_PAGE_SIZE).map((g) => ({
     key: g.key,
     name: g.name,
+    avatarUrl: gravatarUrl(g.email),
     country: g.country?.trim().toUpperCase() || null,
     tier: g.tier,
     blocked: ctx.blockedOf(g),
     visits: g.visits,
     lastVisit: g.lastVisit,
+    spend: ctx.kind === 'salon' ? ctx.spendOf(g) || null : null,
+    avgPax: ctx.kind === 'restaurant' && g.visits ? Math.round((g.totalPax / g.visits) * 10) / 10 : null,
+    next: ctx.nextByKey.get(g.key) ?? null,
   }))
   return { total: sorted.length, page, pageCount, items }
 }
@@ -416,6 +329,7 @@ export function parseGuestsQuery(sp: URLSearchParams): GuestsQuery {
     day: sp.get('day') ?? undefined,
     status: pick(sp.get('status'), ['all', 'active', 'blocked'] as const, 'all'),
     tier: pick(sp.get('tier'), ['all', '1', '2', '3'] as const, 'all'),
-    sort: pick(sp.get('sort'), ['last', 'name', 'visits', 'spend'] as const, 'last'),
+    sort: pick(sp.get('sort'), ['last', 'name', 'visits', 'spend', 'tier', 'pax'] as const, 'last'),
+    dir: sp.get('dir') === 'asc' ? 'asc' : sp.get('dir') === 'desc' ? 'desc' : undefined,
   }
 }

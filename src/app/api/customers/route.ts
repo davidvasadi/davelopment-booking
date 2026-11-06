@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { getActiveBusiness } from '@/lib/activeBusiness'
+import { assertCapability } from '@/lib/apiCapability'
 import type { Where } from 'payload'
 import type { Customer } from '@/payload/payload-types'
 
@@ -20,6 +21,11 @@ interface Body {
   newEmail?: string | null
   newPhone?: string | null
   notes?: string | null
+  /** a szerkesztő (design 7.4) mezői */
+  birthday?: string | null
+  gender?: 'female' | 'male' | 'other' | null
+  group_tag?: string | null
+  billing?: { name?: string; taxNumber?: string; email?: string; postalCode?: string; city?: string; street?: string } | null
   blocked?: boolean
   block_reason?: string | null
 }
@@ -32,6 +38,9 @@ export async function POST(req: NextRequest) {
   // fiók (alkalmazott máshol + tulaj itt) is működik. Minden lekérdezés az aktív üzletre szűr.
   const { active } = await getActiveBusiness(user)
   if (!active) return NextResponse.json({ error: 'Nincs aktív üzlet' }, { status: 404 })
+  // vendég szerkesztése / tiltása / törlése csak `guests.manage` joggal (a megtekintő nem)
+  const denied = await assertCapability(user.id, active.type, active.id, 'guests.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const body = (await req.json().catch(() => null)) as Body | null
   if (!body) return NextResponse.json({ error: 'Érvénytelen adat' }, { status: 400 })
@@ -79,6 +88,18 @@ export async function POST(req: NextRequest) {
   if (body.newEmail !== undefined) data.customer_email = newEmail
   if (body.newPhone !== undefined) data.customer_phone = newPhone
   if (body.notes !== undefined) data.notes = body.notes?.trim() || null
+  if (body.birthday !== undefined) data.birthday = body.birthday && /^\d{4}-\d{2}-\d{2}$/.test(body.birthday) ? `${body.birthday}T12:00:00.000Z` : null
+  if (body.gender !== undefined) data.gender = body.gender === 'female' || body.gender === 'male' || body.gender === 'other' ? body.gender : null
+  if (body.group_tag !== undefined) data.group_tag = body.group_tag?.trim() || null
+  if (body.billing !== undefined) {
+    const b = body.billing ?? {}
+    data.billing_name = b.name?.trim() || null
+    data.billing_tax_number = b.taxNumber?.trim() || null
+    data.billing_email = b.email?.trim() || null
+    data.billing_postal_code = b.postalCode?.trim() || null
+    data.billing_city = b.city?.trim() || null
+    data.billing_street = b.street?.trim() || null
+  }
   if (body.blocked !== undefined) {
     data.blocked = body.blocked
     data.block_reason = body.blocked ? body.block_reason?.trim() || null : null
@@ -105,6 +126,15 @@ export async function POST(req: NextRequest) {
         customer_phone: data.customer_phone ?? phone,
         customer_name: data.customer_name ?? body.name?.trim() ?? null,
         notes: data.notes ?? null,
+        birthday: data.birthday ?? null,
+        gender: data.gender ?? null,
+        group_tag: data.group_tag ?? null,
+        billing_name: data.billing_name ?? null,
+        billing_tax_number: data.billing_tax_number ?? null,
+        billing_email: data.billing_email ?? null,
+        billing_postal_code: data.billing_postal_code ?? null,
+        billing_city: data.billing_city ?? null,
+        billing_street: data.billing_street ?? null,
         match_index: matchIndex,
         blocked: data.blocked ?? false,
         block_reason: data.block_reason ?? null,
@@ -131,6 +161,9 @@ export async function DELETE(req: NextRequest) {
   // A jogosultságot az aktív üzlet adja (nem a user.role) — vegyes fiók is működik.
   const { active } = await getActiveBusiness(user)
   if (!active) return NextResponse.json({ error: 'Nincs aktív üzlet' }, { status: 404 })
+  // vendég szerkesztése / tiltása / törlése csak `guests.manage` joggal (a megtekintő nem)
+  const denied = await assertCapability(user.id, active.type, active.id, 'guests.manage')
+  if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const body = (await req.json().catch(() => null)) as { email?: string | null; phone?: string | null } | null
   const email = body?.email?.trim().toLowerCase() || null

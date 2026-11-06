@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getPayloadClient } from '@/lib/payload'
 import { authOrUnauthorized } from '@/lib/salonRouteAuth'
 import { assertCapability } from '@/lib/apiCapability'
+import { parseSegments, parseTranslations } from '@/lib/marketingSegments'
 
 /**
  * Hírlevél-piszkozat mentése/frissítése — a `marketing-campaigns` collectionba ír, `status:
@@ -21,6 +22,8 @@ export async function POST(request: NextRequest) {
     blocks?: unknown
     customerIds?: string[]
     draftId?: string | number
+    segments?: string[]
+    translations?: unknown
   }
   try {
     body = await request.json()
@@ -45,6 +48,8 @@ export async function POST(request: NextRequest) {
     status: 'draft' as const,
     blocks_json: blocks ?? [],
     target_customer_ids: customerIds && customerIds.length > 0 ? customerIds : null,
+    audience: customerIds && customerIds.length > 0 ? null : parseSegments(body.segments).join(','),
+    translations: parseTranslations(body.translations),
   }
 
   try {
@@ -54,7 +59,7 @@ export async function POST(request: NextRequest) {
       const existing = await payload.findByID({ collection: 'marketing-campaigns', id: draftId, depth: 0, overrideAccess: true }).catch(() => null)
       const existingBusinessId = kind === 'salon' ? existing?.salon : existing?.restaurant
       const existingBusinessIdNum = typeof existingBusinessId === 'object' && existingBusinessId ? existingBusinessId.id : existingBusinessId
-      if (!existing || existing.status !== 'draft' || existingBusinessIdNum !== businessId) {
+      if (!existing || existing.status === 'sent' || existingBusinessIdNum !== businessId) {
         return NextResponse.json({ error: 'A piszkozat nem található' }, { status: 404 })
       }
       const updated = await payload.update({ collection: 'marketing-campaigns', id: draftId, data, overrideAccess: true })
@@ -92,7 +97,9 @@ export async function DELETE(request: NextRequest) {
 
   try {
     const existing = await payload.findByID({ collection: 'marketing-campaigns', id: draftId, depth: 0, overrideAccess: true }).catch(() => null)
-    if (!existing || existing.status !== 'draft') {
+    const owner = existing ? (kind === 'salon' ? existing.salon : existing.restaurant) : null
+    const ownerId = owner && typeof owner === 'object' ? owner.id : owner
+    if (!existing || existing.status === 'sent' || String(ownerId) !== String(businessId)) {
       return NextResponse.json({ error: 'A piszkozat nem található' }, { status: 404 })
     }
     await payload.delete({ collection: 'marketing-campaigns', id: draftId, overrideAccess: true })
