@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isLocalRequest } from '@/lib/localRequest'
 import { z } from 'zod'
 import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
@@ -78,8 +79,7 @@ export async function POST(req: NextRequest) {
 
   let sent = false
   if (b.send && email && session.url) {
-    const host = req.nextUrl.hostname
-    if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+    if (isLocalRequest(req.headers)) {
       console.log(`\n[booking-paylink] HELYI — nem küldünk levelet (${email}): ${session.url}\n`)
     } else {
       const content = `<tr><td style="background:${COLORS.surface};padding:34px 32px 30px">

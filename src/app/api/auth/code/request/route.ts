@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { isLocalRequest } from '@/lib/localRequest'
 import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { issueCode } from '@/lib/authCodes'
@@ -48,9 +49,8 @@ export async function POST(req: NextRequest) {
   const code = await issueCode(email, purpose, purpose === 'register' ? { ...parsed.data.account, email } : undefined)
   const mail = loginCodeEmail(code, purpose)
   // Helyi fejlesztés (a kérés a localhost-ról jön): nem küldünk levelet — a helyi .env élő Resend-kulccsal fut, és a
-  // domain ott nincs is hitelesítve —, a kód a szerver termináljába kerül. Élesen a host sosem localhost.
-  const host = req.nextUrl.hostname
-  if (host === 'localhost' || host === '127.0.0.1' || host === '::1') {
+  // domain ott nincs is hitelesítve —, a kód a szerver termináljába kerül. (A Host fejlécből — lásd lib/localRequest.)
+  if (isLocalRequest(req.headers)) {
     console.log(`\n[auth/code/request] HELYI BELÉPÉS — ${email}: ${code}\n`)
     return NextResponse.json({ ok: true })
   }
