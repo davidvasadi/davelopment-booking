@@ -141,7 +141,15 @@ async function renderPreview(p: URLSearchParams) {
   // A nem-visszaigazoló emaileknél (lemondás/emlékeztető/visszajelzés) a bevezető nyersen jelenik
   // meg (üresen semmi, ahogy a valódi emailben is); a változók behelyettesítéséhez ez a minta-készlet.
   const rawIntroHtml = p.get('intro') ?? ''
-  const introVars = { name, date: PREVIEW_DATE, time: `${previewStartTime} – ${previewEndTime}`, pax: '4', service: 'Hajvágás + szárítás' }
+  const introVars: Record<string, string> = {
+    name, business: brandName, staff: 'Nagy Eszter', date: PREVIEW_DATE, date_label: formatBookingDate(PREVIEW_DATE, locale),
+    time: `${previewStartTime} – ${previewEndTime}`, pax: '4', service: 'Hajvágás + szárítás',
+    details: type === 'salon' ? 'Hajvágás + szárítás · Nagy Eszter' : `4 ${t(locale, 'email.label.guests').toLowerCase()}`,
+    calendar_url: '#', directions_url: '#', cancel_url: '#', review_url: realGoogleReview || '#', booking_url: realSlug ? `${APP_URL}/${realSlug}` : '#', terms_url: bookingUrl,
+    phone: realPhone ?? '', email: realEmail ?? '', address: realAddress ?? '',
+  }
+  // saját blokkos levél (a sablonból: „foglalás adatai” blokk) — a régi fix részek (adatok, gombok, kapcsolat) nem kellenek
+  const full = (s: string) => s.includes('{{date_label}}')
 
   let header: string | undefined
   let content: string
@@ -150,22 +158,22 @@ async function renderPreview(p: URLSearchParams) {
     content = `
       ${heroBlock({ icon: 'cancel', title: t(locale, 'email.cancel.title'), subtitle: t(locale, 'email.cancel.body') })}
       ${introBlockFromHtml(rawIntroHtml, introVars)}
-      ${detailsCard(detailRows)}
+      ${full(rawIntroHtml) ? '' : detailsCard(detailRows)}
       ${bottomSpacer()}`
   } else if (state === 'reminder') {
     content = `
       ${heroBlock({ icon: 'bell', title: 'Közeleg a foglalásod', subtitle: `Kedves ${name}, csak hogy emlékeztessünk: hamarosan várunk!` })}
       ${introBlockFromHtml(rawIntroHtml, introVars)}
-      ${detailsCard(detailRows)}
-      ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}
+      ${full(rawIntroHtml) ? '' : `${detailsCard(detailRows)}
+      ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}`}
       ${bottomSpacer()}`
   } else if (state === 'feedback') {
     content = `
       ${heroBlock({ icon: 'bell', title: 'Milyen volt nálunk?', subtitle: `Kedves ${name}, reméljük jól érezted magad. Mondd el a véleményed!` })}
       ${introBlockFromHtml(rawIntroHtml, introVars)}
-      <tr><td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
+      ${full(rawIntroHtml) ? '' : `<tr><td style="background:${COLORS.surface};padding:22px 28px 0;text-align:center">
         <a href="${realGoogleReview || '#'}" style="display:inline-block;background:${COLORS.accent};color:#3B3B3B;font-size:13px;font-weight:700;text-decoration:none;padding:11px 22px;border-radius:999px;letter-spacing:-0.1px">${realGoogleReview ? 'Értékelj minket a Google-on' : 'Értékelem a látogatásom'}</a>
-      </td></tr>
+      </td></tr>`}
       ${bottomSpacer()}`
   } else if (state === 'notify') {
     content = `
@@ -185,7 +193,7 @@ async function renderPreview(p: URLSearchParams) {
     })
     content = `
       ${introBlockFromHtml(introHtml, introVars)}
-      ${detailsCard(detailRows)}
+      ${full(introHtml) ? '' : `${detailsCard(detailRows)}
       ${calendarBlock({ title: previewTitle, date: PREVIEW_DATE, startTime: previewStartTime, endTime: previewEndTime, location: realAddress, locale })}
       ${footerInfoBlock({
         hasTerms: p.get('terms') !== '0',
@@ -196,7 +204,7 @@ async function renderPreview(p: URLSearchParams) {
         directionsAddress: p.get('dir') === '1' ? (p.get('dirAddr')?.trim() || realAddress || '1051 Budapest, Példa u. 1.') : null,
         locale,
       })}
-      ${cancelBlock(cancelUrl, locale)}
+      ${cancelBlock(cancelUrl, locale)}`}
       ${bottomSpacer()}`
   }
 

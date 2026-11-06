@@ -1,13 +1,17 @@
 import { getPublicRestaurant } from '@/lib/publicPlace'
+import { safeHttpUrl } from '@/lib/safeUrl'
 import { depositSummary } from '@/lib/depositSummary'
 import { getReviewSummary } from '@/lib/reviews'
 import { storedGoogleReviews, refreshGoogleReviewsIfStale } from '@/lib/googleReviews'
 import { getPayloadClient } from '@/lib/payload'
+import { isBusinessLocked } from '@/lib/businessLock'
 import { after } from 'next/server'
 import { getMaxPax } from '@/lib/restaurantBooking'
 import { DEFAULT_EVENT_TYPES } from '@/components/settings/eventTypeIcons'
 import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
 import { PublicPlaceView, type PlaceViewData } from '@/components/booking/PublicPlaceView'
+import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
+import { galleryOf, pageStyleOf } from '@/lib/publicPageView'
 import { placeJsonLd, placeBreadcrumbJsonLd } from '@/lib/publicSeo'
 import type { Media, Restaurant } from '@/payload/payload-types'
 import { resolveAvailableLocales, type Locale } from '@/lib/i18n'
@@ -32,10 +36,13 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
 
   const [reviews, maxPax] = await Promise.all([
     getReviewSummary('restaurant', restaurant.id),
-    getMaxPax(restaurant.id),
+    getMaxPax(restaurant.id, { online: true }),
   ])
   // Google-értékelések: kérésre frissül (24 óránál régebbi tárolt adatnál), a válasz elküldése után.
   after(async () => refreshGoogleReviewsIfStale(await getPayloadClient(), 'restaurant', restaurant))
+  // a fejléc számlálói: aktív asztalok és férőhely
+  const tableDocs = (await (await getPayloadClient()).find({ collection: 'tables', where: { and: [{ restaurant: { equals: restaurant.id } }, { is_active: { not_equals: false } }] }, limit: 500, depth: 0, overrideAccess: true, select: { capacity: true } as never })).docs as { capacity?: number | null }[]
+  const tableStats = { tables: tableDocs.length, seats: tableDocs.reduce((n, x) => n + (x.capacity ?? 0), 0) }
 
   // Szerkesztő-előnézet (Beállítások → Foglalóoldal iframe-je): csak az étterem saját,
   // beállítás-joggal rendelkező tagja kapja meg; mindenki más a normál oldalt látja.
@@ -63,7 +70,10 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
     : DEFAULT_EVENT_TYPES.map((e) => ({ icon: e.icon, label: e.label }))
 
   // Ugyanaz a közös nézet, mint a szalonnál (PublicPlaceView) — csak a kártya más.
+  // lejárt / szünetelő előfizetés: a foglalóoldal marad, csak online nem foglalható (design 21.13)
+  const paused = await isBusinessLocked(await getPayloadClient(), restaurant.owner)
   const view: PlaceViewData = {
+    paused,
     kind: 'restaurant',
     slug, locale, available, embed,
     name: restaurant.name,
@@ -77,11 +87,17 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
     coverFocalMobileX: restaurant.cover_focal_mobile_x ?? null,
     coverFocalMobileY: restaurant.cover_focal_mobile_y ?? null,
     logoUrl,
-    // Étteremnél nincs szolgáltatás/munkatárs-katalógus → nincs számláló.
-    showServiceCount: false,
-    showStaffCount: false,
-    serviceCount: 0,
-    staffCount: 0,
+    page: pageStyleOf(restaurant),
+    gallery: galleryOf(restaurant),
+    socialLinks: (restaurant.social_links ?? []).map((s) => s.url),
+    goodToKnow: restaurant.good_to_know ?? [],
+    phone: restaurant.phone ?? null,
+    openingHours,
+    // Étteremnél a fejléc számlálói (design 21.10): asztalok és férőhely — ugyanazok a kapcsolók, mint a szalonnál
+    showServiceCount: restaurant.booking_rules?.show_service_count_on_public ?? restaurant.booking_rules?.show_catalog_counts_on_public !== false,
+    showStaffCount: restaurant.booking_rules?.show_staff_count_on_public ?? restaurant.booking_rules?.show_catalog_counts_on_public !== false,
+    serviceCount: tableStats.tables,
+    staffCount: tableStats.seats,
     rating: reviews.count > 0
       ? { average: reviews.average, count: reviews.count }
       : restaurant.google_rating != null ? { average: restaurant.google_rating, count: restaurant.google_rating_count ?? null, source: 'Google-értékelés' } : null,
@@ -95,6 +111,8 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
       reviews,
       requirePhone: restaurant.require_phone ?? true,
       maxPax: maxPax || 20,
+      minPax: restaurant.min_online_pax ?? 1,
+      largePartyNote: restaurant.max_online_pax != null,
       bookingWindowDays: bookableDayCount(restaurant),
       eventTypes,
       termsSections: restaurant.terms_sections,
@@ -106,6 +124,7 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
         registered_seat: restaurant.registered_seat,
         email: restaurant.email,
         phone: restaurant.phone,
+        privacy_url: safeHttpUrl(restaurant.privacy_url),
       },
       depositEnabled: !!restaurant.deposit_settings?.enabled && !!restaurant.stripe_connect_onboarded,
       depositInfo: depositSummary(restaurant),
@@ -149,10 +168,10 @@ export async function RestaurantPublicView({ slug, requested = 'hu', embed = fal
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(placeBreadcrumbJsonLd(restaurant)) }}
           />
-          <MarketingTrackingScripts ga4Id={restaurant.marketing_tracking?.ga4_measurement_id} facebookPixelId={restaurant.marketing_tracking?.facebook_pixel_id} />
+          <MarketingTrackingScripts business={restaurant.name} bizKey={`restaurant:${restaurant.id}`} privacyHref={safeHttpUrl(restaurant.privacy_url)} ga4Id={restaurant.marketing_tracking?.ga4_measurement_id} facebookPixelId={restaurant.marketing_tracking?.facebook_pixel_id} />
         </>
       )}
-      <PublicPlaceView data={view} editor={editor} />
+      <PublicPlaceView data={view} editor={editor} nextSlotNode={view.page.ctaNextFree ? <HeroNextSlot slug={slug} locale={locale} source={{ kind: 'restaurant', id: restaurant.id, pax: 2 }} /> : undefined} />
     </>
   )
 }

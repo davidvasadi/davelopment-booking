@@ -165,18 +165,31 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     })
 
     let googleReviewUrl: string | null = null
+    // Hova küldjük az elégedett vendéget (design 16.15 „Hol értékeljen még”): a választott hely linkje; ha az üres vagy
+    // hibás, a Google-link a tartalék.
+    let reviewUrl: string | null = null
+    let reviewPlace = 'Google'
+    // az értékelő oldal fejlécéhez: az üzlet neve és logója
+    let business: { name: string; logo: string | null } | null = null
     try {
+      let fm: { google_review_url?: string | null; review_target?: string | null; tripadvisor_review_url?: string | null; facebook_review_url?: string | null } | null | undefined
       if (reservation) {
         const restaurantId = typeof reservation.restaurant === 'object' ? reservation.restaurant.id : reservation.restaurant
-        const restaurant = await payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 0, overrideAccess: true })
-        googleReviewUrl = validGoogleUrl(restaurant?.feature_modules?.google_review_url)
+        const restaurant = await payload.findByID({ collection: 'restaurants', id: restaurantId, depth: 1, overrideAccess: true })
+        fm = restaurant?.feature_modules
+        if (restaurant) business = { name: restaurant.name, logo: restaurant.logo && typeof restaurant.logo === 'object' ? (restaurant.logo as { url?: string | null }).url ?? null : null }
       } else if (booking) {
         const salonId = typeof booking.salon === 'object' ? booking.salon.id : booking.salon
-        const salon = await payload.findByID({ collection: 'salons', id: salonId, depth: 0, overrideAccess: true })
-        googleReviewUrl = validGoogleUrl(salon?.feature_modules?.google_review_url)
+        const salon = await payload.findByID({ collection: 'salons', id: salonId, depth: 1, overrideAccess: true })
+        fm = salon?.feature_modules
+        if (salon) business = { name: salon.name, logo: salon.logo && typeof salon.logo === 'object' ? (salon.logo as { url?: string | null }).url ?? null : null }
       }
+      googleReviewUrl = validGoogleUrl(fm?.google_review_url)
+      const target = fm?.review_target === 'tripadvisor' ? validGoogleUrl(fm.tripadvisor_review_url) : fm?.review_target === 'facebook' ? validGoogleUrl(fm.facebook_review_url) : null
+      if (target) { reviewUrl = target; reviewPlace = fm?.review_target === 'tripadvisor' ? 'TripAdvisor' : 'Facebook' } else reviewUrl = googleReviewUrl
     } catch {
       googleReviewUrl = null
+      reviewUrl = null
     }
 
     return NextResponse.json({
@@ -184,6 +197,9 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       already: existing.docs.length > 0,
       customer_name: reservation?.customer_name ?? booking?.customer_name ?? null,
       google_review_url: googleReviewUrl,
+      review_url: reviewUrl,
+      review_place: reviewPlace,
+      business,
     })
   } catch (err) {
     console.error('[Review API GET]', err)

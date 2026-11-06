@@ -27,12 +27,12 @@ export default function PublicStaffSection({ staff, slug, locale = 'hu' }: Props
       transition={{ duration: DUR.base, ease: EASE }}
     >
       <div className="mb-5 flex items-center gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] bg-gold/15">
-          <Users className="h-5 w-5 text-ink" strokeWidth={1.7} />
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px]">
+          <Users className="h-5 w-5 text-ui-text" strokeWidth={1.7} />
         </span>
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ink-soft">{tt('public.staffEyebrow')}</p>
-          <h2 className="text-[24px] font-light leading-tight tracking-[-0.01em] text-ink">{tt('public.staff')}</h2>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-ui-muted">{tt('public.staffEyebrow')}</p>
+          <h2 className="text-[24px] font-light leading-tight tracking-[-0.01em] text-ui-text">{tt('public.staff')}</h2>
         </div>
       </div>
 

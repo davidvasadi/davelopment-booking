@@ -1,181 +1,78 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
-import Link from 'next/link'
-import { Star, Check, Loader2, AlertCircle } from 'lucide-react'
+import { useEffect, useState, use } from 'react'
+import { Loader2 } from 'lucide-react'
 import { makeT } from '@/lib/i18n'
 import { useClientLocale } from '@/lib/i18n/client'
+import { GuestResult, GuestShell, ReviewForm, type GuestBiz } from '@/components/blocks/guest-pages'
 
 type Phase = 'loading' | 'form' | 'submitting' | 'done' | 'redirecting' | 'already' | 'invalid' | 'error'
 
-export default function ReviewPage({
-  params,
-}: {
-  params: Promise<{ token: string }>
-}) {
+/**
+ * Értékelés a látogatás után (a visszajelzés-kérő levél linkje) — design 21.12: 5 csillag és szöveg. 4–5 csillagnál a
+ * vendég utána a választott helyre (Google / TripAdvisor / Facebook) megy, a többi csak nálunk marad.
+ */
+export default function ReviewPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params)
   const locale = useClientLocale()
   const tt = makeT(locale)
-
   const [phase, setPhase] = useState<Phase>('loading')
   const [name, setName] = useState<string | null>(null)
+  const [biz, setBiz] = useState<GuestBiz | null>(null)
   const [rating, setRating] = useState(0)
-  const [hover, setHover] = useState(0)
   const [comment, setComment] = useState('')
-  const [googleUrl, setGoogleUrl] = useState<string | null>(null)
+  const [targetUrl, setTargetUrl] = useState<string | null>(null)
+  const [place, setPlace] = useState('Google')
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     let alive = true
-    ;(async () => {
+    void (async () => {
       try {
         const res = await fetch(`/api/review/${token}`)
         const data = await res.json().catch(() => ({}))
         if (!alive) return
+        if (data.business) setBiz(data.business)
         if (!res.ok || data.found === false) return setPhase('invalid')
         if (data.already) return setPhase('already')
         setName(data.customer_name ?? null)
-        setGoogleUrl(data.google_review_url ?? null)
+        setTargetUrl(data.review_url ?? data.google_review_url ?? null)
+        setPlace(data.review_place ?? 'Google')
         setPhase('form')
-      } catch {
-        if (alive) setPhase('error')
-      }
+      } catch { if (alive) setPhase('error') }
     })()
-    return () => {
-      alive = false
-    }
+    return () => { alive = false }
   }, [token])
 
   const submit = async () => {
     if (rating < 1) return
-    setPhase('submitting')
+    setPhase('submitting'); setFailed(false)
     try {
-      const res = await fetch(`/api/review/${token}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rating, comment }),
-      })
+      const res = await fetch(`/api/review/${token}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating, comment }) })
       const data = await res.json().catch(() => ({}))
       if (res.status === 409 || data.already) return setPhase('already')
-      if (!res.ok) return setPhase('form')
-
-      if (rating >= 4 && googleUrl) {
+      if (!res.ok) { setFailed(true); return setPhase('form') }
+      if (rating >= 4 && targetUrl) {
         setPhase('redirecting')
-        setTimeout(() => {
-          window.location.href = googleUrl
-        }, 1200)
-      } else {
-        setPhase('done')
-      }
-    } catch {
-      setPhase('form')
-    }
+        setTimeout(() => { window.location.href = targetUrl }, 1200)
+      } else setPhase('done')
+    } catch { setFailed(true); setPhase('form') }
   }
 
-  const active = hover || rating
-
   return (
-    <main className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center px-6">
-      <div className="text-center max-w-md w-full">
-        {phase === 'loading' && (
-          <Loader2 className="h-8 w-8 animate-spin text-zinc-300 dark:text-white/30 mx-auto" />
-        )}
-
-        {phase === 'done' && (
-          <>
-            <div className="inline-flex h-16 w-16 rounded-full bg-[#00bb88]/10 items-center justify-center mb-6">
-              <Check className="h-8 w-8 text-[#00bb88]" />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">{tt('public.review.doneTitle')}</h1>
-            <p className="text-zinc-500 dark:text-white/50">{tt('public.review.done')}</p>
-          </>
-        )}
-
-        {phase === 'redirecting' && (
-          <>
-            <Loader2 className="h-8 w-8 animate-spin text-zinc-300 dark:text-white/30 mx-auto mb-6" />
-            <p className="text-zinc-500 dark:text-white/50">{tt('public.review.redirecting')}</p>
-          </>
-        )}
-
-        {phase === 'already' && (
-          <>
-            <div className="inline-flex h-16 w-16 rounded-full bg-[#00bb88]/10 items-center justify-center mb-6">
-              <Check className="h-8 w-8 text-[#00bb88]" />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">{tt('public.review.alreadyTitle')}</h1>
-            <p className="text-zinc-500 dark:text-white/50">{tt('public.review.already')}</p>
-          </>
-        )}
-
-        {(phase === 'invalid' || phase === 'error') && (
-          <>
-            <div className="inline-flex h-16 w-16 rounded-full bg-red-500/10 items-center justify-center mb-6">
-              <AlertCircle className="h-8 w-8 text-red-500" />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">{tt('public.review.invalidTitle')}</h1>
-            <p className="text-zinc-500 dark:text-white/50">{tt('public.review.invalid')}</p>
-          </>
-        )}
-
-        {(phase === 'form' || phase === 'submitting') && (
-          <>
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">{tt('public.review.title')}</h1>
-            <p className="text-zinc-500 dark:text-white/50 mb-8">
-              {name ? tt('public.review.subtitle', { name }) : tt('public.review.subtitleGeneric')}
-            </p>
-
-            <div className="flex justify-center gap-2 mb-8" onMouseLeave={() => setHover(0)}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <button
-                  key={n}
-                  type="button"
-                  aria-label={`${n}`}
-                  onMouseEnter={() => setHover(n)}
-                  onClick={() => setRating(n)}
-                  className="p-1 transition-transform hover:scale-110"
-                >
-                  <Star
-                    className={`h-9 w-9 transition-colors ${
-                      n <= active ? 'fill-[#ffc107] text-[#ffc107]' : 'text-zinc-300 dark:text-white/20'
-                    }`}
-                  />
-                </button>
-              ))}
-            </div>
-
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              rows={4}
-              placeholder={tt('public.review.commentPlaceholder')}
-              className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-white/5 px-4 py-3 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-white/30 outline-none focus:border-zinc-400 dark:focus:border-white/30 resize-none mb-6"
-            />
-
-            <button
-              onClick={submit}
-              disabled={rating < 1 || phase === 'submitting'}
-              className="inline-flex h-12 px-8 rounded-full bg-zinc-900 dark:bg-white hover:opacity-90 text-white dark:text-zinc-900 font-semibold text-sm transition disabled:opacity-40 items-center gap-2"
-            >
-              {phase === 'submitting' ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {tt('public.review.submitting')}
-                </>
-              ) : rating < 1 ? (
-                tt('public.review.pickRating')
-              ) : (
-                tt('public.review.submit')
-              )}
-            </button>
-          </>
-        )}
-
-        <div className="mt-8">
-          <Link href="/" className="text-sm text-zinc-400 hover:text-zinc-700 dark:hover:text-white/70 transition-colors">
-            {tt('public.back')}
-          </Link>
-        </div>
-      </div>
-    </main>
+    <GuestShell biz={biz}>
+      {phase === 'loading' && <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-ui-muted" /></div>}
+      {phase === 'done' && <GuestResult tone="ok" title={tt('public.review.doneTitle')} text={tt('public.review.done')} />}
+      {phase === 'redirecting' && <GuestResult tone="ok" title={tt('public.review.doneTitle')} text={tt('public.review.redirecting', { place })} />}
+      {phase === 'already' && <GuestResult tone="ok" title={tt('public.review.alreadyTitle')} text={tt('public.review.already')} />}
+      {(phase === 'invalid' || phase === 'error') && <GuestResult tone="bad" title={tt('public.review.invalidTitle')} text={tt('public.review.invalid')} />}
+      {(phase === 'form' || phase === 'submitting') && (
+        <>
+          <ReviewForm rating={rating} onRating={setRating} comment={comment} onComment={setComment} onSubmit={() => void submit()} busy={phase === 'submitting'}
+            l={{ title: tt('public.review.title'), subtitle: name ? tt('public.review.subtitle', { name }) : tt('public.review.subtitleGeneric'), placeholder: tt('public.review.commentPlaceholder'), submit: tt('public.review.submit'), pick: tt('public.review.pickRating') }} />
+          {failed && <div role="alert" className="mt-3 text-center text-ui-label text-ui-bad">{tt('public.review.failed')}</div>}
+        </>
+      )}
+    </GuestShell>
   )
 }

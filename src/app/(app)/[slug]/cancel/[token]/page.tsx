@@ -1,69 +1,36 @@
-'use client'
+import { getPayloadClient } from '@/lib/payload'
+import type { Media, Reservation, Restaurant } from '@/payload/payload-types'
+import { getLocale } from '@/lib/i18n/server'
+import { t } from '@/lib/i18n'
+import { formatBookingDate } from '@/lib/emailLayout'
+import { Button } from '@/components/ui-kit'
+import { GuestResult, GuestShell } from '@/components/blocks/guest-pages'
+import { GuestCancelActions } from '@/components/booking/GuestCancelActions'
 
-import { useState, use } from 'react'
-import Link from 'next/link'
-import { X, Check, Loader2 } from 'lucide-react'
-import { makeT } from '@/lib/i18n'
-import { useClientLocale } from '@/lib/i18n/client'
+/** Étterem: a foglalás lemondása a levél linkjéről (design 21.12) — az étterem logójával, a foglalás adataival. */
+export default async function RestaurantCancelPage({ params }: { params: Promise<{ slug: string; token: string }> }) {
+  const { slug, token } = await params
+  const locale = await getLocale()
+  const payload = await getPayloadClient()
+  const res = await payload.find({ collection: 'reservations', where: { cancel_token: { equals: token } }, depth: 1, limit: 1, overrideAccess: true })
+  const r = res.docs[0] as Reservation | undefined
+  const rest = r && typeof r.restaurant === 'object' ? (r.restaurant as Restaurant) : null
+  const biz = rest ? { name: rest.name, logo: rest.logo && typeof rest.logo === 'object' ? (rest.logo as Media).url ?? null : null } : null
+  const home = `/${rest?.slug ?? slug}`
 
-export default function RestaurantCancelPage({
-  params,
-}: {
-  params: Promise<{ slug: string; token: string }>
-}) {
-  const { slug, token } = use(params)
-  const locale = useClientLocale()
-  const tt = makeT(locale)
-  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle')
+  if (!r) return <GuestShell biz={null}><GuestResult tone="bad" title={t(locale, 'public.cancel.invalidTitle')} text={t(locale, 'public.cancel.invalidBody')} /></GuestShell>
+  if (r.status === 'cancelled') return <GuestShell biz={biz}><GuestResult tone="cell" title={t(locale, 'public.cancel.already')} text={t(locale, 'public.cancel.alreadyBody')}><Button variant="cell" href={home}>{t(locale, 'public.cancel.backToPlace')}</Button></GuestResult></GuestShell>
 
-  const cancel = async () => {
-    setState('loading')
-    try {
-      const res = await fetch(`/api/restaurant/reservations/cancel/${token}`, { method: 'POST' })
-      if (!res.ok) throw new Error()
-      setState('done')
-    } catch {
-      setState('error')
-    }
-  }
-
+  const rows: [string, string][] = [
+    [t(locale, 'public.cancel.when'), `${formatBookingDate(String(r.date).slice(0, 10), locale)} ${r.start_time}`],
+    [t(locale, 'email.label.guests'), String(r.pax)],
+  ]
   return (
-    <main className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex items-center justify-center px-6">
-      <div className="text-center max-w-md">
-        {state === 'done' ? (
-          <>
-            <div className="inline-flex h-16 w-16 rounded-full bg-[#00bb88]/10 items-center justify-center mb-6">
-              <Check className="h-8 w-8 text-[#00bb88]" />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">{tt('public.cancel.doneTitle')}</h1>
-            <p className="text-zinc-500 dark:text-white/50 mb-8">{tt('public.cancel.done')}</p>
-          </>
-        ) : (
-          <>
-            <div className="inline-flex h-16 w-16 rounded-full bg-red-500/10 items-center justify-center mb-6">
-              <X className="h-8 w-8 text-red-500" />
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-zinc-900 dark:text-white mb-2">{tt('public.cancel.title')}</h1>
-            <p className="text-zinc-500 dark:text-white/50 mb-8">
-              {state === 'error' ? tt('public.cancel.failed') : tt('public.cancel.confirm')}
-            </p>
-            {state !== 'error' && (
-              <button
-                onClick={cancel}
-                disabled={state === 'loading'}
-                className="inline-flex h-12 px-8 rounded-full bg-red-500 hover:bg-red-600 text-white font-semibold text-sm transition-colors disabled:opacity-40 items-center gap-2 mb-4"
-              >
-                {state === 'loading' ? <><Loader2 className="h-4 w-4 animate-spin" />{tt('public.cancel.cancelling')}</> : tt('public.cancel.yes')}
-              </button>
-            )}
-          </>
-        )}
-        <div>
-          <Link href={`/${slug}`} className="text-sm text-zinc-400 hover:text-zinc-700 dark:hover:text-white/70 transition-colors">
-            {tt('public.cancel.backToPlace')}
-          </Link>
-        </div>
-      </div>
-    </main>
+    <GuestShell biz={biz}>
+      <GuestCancelActions token={token} rows={rows} home={home} l={{
+        title: t(locale, 'public.cancel.title'), confirm: t(locale, 'public.cancel.confirmDetail'), yes: t(locale, 'public.cancel.yes'), no: t(locale, 'public.cancel.no'),
+        doneTitle: t(locale, 'public.cancel.doneTitle'), done: t(locale, 'public.cancel.done'), failed: t(locale, 'public.cancel.failed'), back: t(locale, 'public.cancel.backToPlace'),
+      }} />
+    </GuestShell>
   )
 }

@@ -1,4 +1,5 @@
 import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
+import { safeHttpUrl } from '@/lib/safeUrl'
 import { depositSummary } from '@/lib/depositSummary'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -7,6 +8,7 @@ import { placeMetadata, placeJsonLd, placeBreadcrumbJsonLd, siteJsonLd, SITE_URL
 import { getReviewSummary } from '@/lib/reviews'
 import { storedGoogleReviews, refreshGoogleReviewsIfStale } from '@/lib/googleReviews'
 import { getPayloadClient } from '@/lib/payload'
+import { isBusinessLocked } from '@/lib/businessLock'
 import { after } from 'next/server'
 import { getPricing } from '@/lib/pricing'
 import { INDUSTRY_LANDINGS } from '@/lib/industryLandings'
@@ -16,6 +18,7 @@ import { HeroNextSlot } from '@/components/booking/HeroNextSlot'
 import { RestaurantPublicView } from '@/components/restaurant/RestaurantPublicView'
 import { MarketingTrackingScripts } from '@/components/booking/MarketingTrackingScripts'
 import { PublicPlaceView, type PlaceViewData } from '@/components/booking/PublicPlaceView'
+import { galleryOf, pageStyleOf } from '@/lib/publicPageView'
 import { canEditPlace } from '@/lib/canEditPlace'
 import { getLocale } from '@/lib/i18n/server'
 import { hasActivePackage } from '@/lib/newsletterLimits'
@@ -138,7 +141,10 @@ export default async function SalonPublicPage({
     ? <HeroNextSlot slug={slug} locale={locale} source={{ kind: 'salon', id: salon.id, serviceId: services[0].id }} />
     : null
 
+  // lejárt / szünetelő előfizetés: a foglalóoldal marad, csak online nem foglalható (design 21.13)
+  const paused = await isBusinessLocked(await getPayloadClient(), salon.owner)
   const view: PlaceViewData = {
+    paused,
     kind: 'salon',
     slug, locale, available, embed,
     name: salon.name,
@@ -154,6 +160,12 @@ export default async function SalonPublicPage({
     coverFocalMobileX: salon.cover_focal_mobile_x ?? null,
     coverFocalMobileY: salon.cover_focal_mobile_y ?? null,
     logoUrl,
+    page: pageStyleOf(salon),
+    gallery: galleryOf(salon),
+    socialLinks: (salon.social_links ?? []).map((s) => s.url),
+    goodToKnow: salon.good_to_know ?? [],
+    phone: salon.phone ?? null,
+    openingHours,
     // A két külön kapcsoló; ha még nincs kitöltve, a régi közös `show_catalog_counts_on_public`
     // dönt (alapértelmezett true — nincs érték = mutassuk).
     showServiceCount: salon.booking_rules?.show_service_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public !== false,
@@ -176,7 +188,9 @@ export default async function SalonPublicPage({
       bookingWindowDays: bookableDayCount(salon),
       termsSections: salon.terms_sections,
       goodToKnow: salon.good_to_know,
-      depositEnabled: !!salon.deposit_settings?.enabled && !!salon.stripe_connect_onboarded,
+      // szakemberenkénti számlázásnál (lib/payee) az előleg csak annál a szakembernél él, akinek kész a saját Stripe-ja
+      depositEnabled: !!salon.deposit_settings?.enabled && (salon.invoice_settings?.issuer === 'staff' ? staff.some((m) => m.stripe_connect_onboarded) : !!salon.stripe_connect_onboarded),
+      depositStaffIds: salon.invoice_settings?.issuer === 'staff' ? staff.filter((m) => m.stripe_connect_onboarded).map((m) => String(m.id)) : null,
       depositInfo: depositSummary(salon),
       invoicingEnabled: !!salon.invoice_settings?.invoice_provider && salon.invoice_settings.invoice_provider !== 'none',
       voucherCompanyEnabled: salon.voucher_settings?.allow_company !== false,
@@ -210,6 +224,7 @@ export default async function SalonPublicPage({
         registered_seat: salon.registered_seat,
         email: salon.email,
         phone: salon.phone,
+        privacy_url: safeHttpUrl(salon.privacy_url),
       },
     },
   }
@@ -227,7 +242,7 @@ export default async function SalonPublicPage({
             type="application/ld+json"
             dangerouslySetInnerHTML={{ __html: JSON.stringify(placeBreadcrumbJsonLd(salon)) }}
           />
-          <MarketingTrackingScripts ga4Id={salon.marketing_tracking?.ga4_measurement_id} facebookPixelId={salon.marketing_tracking?.facebook_pixel_id} />
+          <MarketingTrackingScripts business={salon.name} bizKey={`salon:${salon.id}`} privacyHref={safeHttpUrl(salon.privacy_url)} ga4Id={salon.marketing_tracking?.ga4_measurement_id} facebookPixelId={salon.marketing_tracking?.facebook_pixel_id} />
         </>
       )}
       <PublicPlaceView data={view} nextSlotNode={nextSlotNode} editor={editor} />
