@@ -1,9 +1,9 @@
 /**
  * Közös email-vázlat (davelopment booking arculat) — v3 (Crextio).
  *
- * Dizájnfilozófia: meleg krém külső háttér, fehér floating kártya lágy sarokkal,
- * belül ink-sötét brand-sáv (logó) + fehér hero (státusz-ikon + arany dátum-pill),
- * majd tiszta fehér body, végül ink-sötét footer a wordmarkokkal.
+ * Dizájn (design 18.2/18.3): fehér, teljes szélességű levél — nincs külső keret és háttér-szín. A borító (a szalon
+ * fotója) és a sötét lábléc széltől szélig; a tartalom középen, max. 600px-es oszlopban. Rendszer-levélnél a fejlécben
+ * a favicon, alatta a levél címe.
  * Minden tranzakciós email (salon + restaurant) ezt használja.
  *
  * Email-kliens kompat.: csak inline style, table-layout, rgba() bg → Gmail, Apple Mail,
@@ -18,13 +18,17 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3001'
 const BOOKING_SITE_URL = `${APP_URL.replace(/\/$/, '')}/`
 
 const BOOKING_LOCKUP = `${APP_URL}/email/davelopment-booking-wordmark.png`
+/** a rendszer-levelek (belépés, próbaidő…) fejlécében a favicon — PNG, mert az SVG-t sok kliens nem mutatja */
+const BOOKING_ICON = `${APP_URL}/icons/icon-192.png`
+const SYSTEM_SENDER = 'davelopment booking'
 
 // Crextio/davelopment email-paletta: meleg krém háttér, fehér kártyák, ink-sötét sáv, arany accent.
 const COLORS = {
   // Üveges fehér kártya — a háttér-gradiens (+ arany glow) átdereng rajta.
   // bgcolor-fallback (Outlook) minden blokknál külön: #FFFFFF.
-  surface:      'rgba(255,255,255,0.58)',
-  muted:        'rgba(255,255,255,0.34)',   // beágyazott üveg-panel (detail-doboz)
+  // Fehér, teljes szélességű levél (design 18.2/18.3) — nincs üveg, nincs háttér-szín
+  surface:      '#FFFFFF',
+  muted:        '#EEEEEE',                  // beágyazott doboz (detail-doboz) — a ui-cell
   border:       'rgba(59,59,59,0.12)',      // semleges hajszál-vonal (üvegen is látszik)
   text:         '#3B3B3B',                  // márka sötét
   textSoft:     '#6E6E6E',                  // semleges szürke
@@ -158,17 +162,20 @@ function brandTopRow(
     const logoLight = brandLogoUrl
       ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:170px;object-fit:contain;border:0;display:inline-block" />`
       : `<span style="font-size:15px;font-weight:700;letter-spacing:-0.2px;color:#ffffff;text-shadow:0 1px 5px rgba(0,0,0,.55)">${alt}</span>`
-    return `<tr><td style="padding:0;position:relative;font-size:0;line-height:0">
+    return `<!--cover--><tr><td style="padding:0;position:relative;font-size:0;line-height:0">
       <img src="${brandCoverUrl}" alt="" width="560" style="width:100%;height:190px;object-fit:cover;display:block;border:0" />
       <div style="position:absolute;left:0;right:0;bottom:0;height:96px;background:rgba(255,255,255,0);-webkit-backdrop-filter:blur(10px) saturate(0.6);backdrop-filter:blur(10px) saturate(0.6);-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 52px);mask-image:linear-gradient(to bottom,transparent 0,#000 52px)"></div>
       <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 32px;text-align:center;line-height:normal">${logoLight}</div>
-    </td></tr>`
+    </td></tr><!--/cover-->`
   }
-  // Borító nélkül: nincs sáv/szín — a logó/név sötéten, közvetlenül az üveges kártyán.
+  // Borító nélkül: a levél tetején balra a logó / név. A rendszer-leveleknél (feladó: davelopment booking, saját logó
+  // nélkül) a név helyett a favicon — a levél címe alatta a tartalom első sora.
   const logoDark = brandLogoUrl
     ? `<img src="${brandLogoUrl}" alt="${alt}" height="26" style="height:26px;max-width:170px;object-fit:contain;border:0;display:inline-block" />`
-    : `<span style="font-size:15px;font-weight:700;letter-spacing:-0.2px;color:#3B3B3B">${alt}</span>`
-  return `<tr><td style="padding:22px 32px 2px;text-align:center;background:${COLORS.surface}">${logoDark}</td></tr>`
+    : alt === SYSTEM_SENDER
+      ? `<img src="${BOOKING_ICON}" alt="${alt}" width="40" height="40" style="width:40px;height:40px;border-radius:12px;border:0;display:block" />`
+      : `<span style="font-size:15px;font-weight:500;letter-spacing:-0.2px;color:#3B3B3B">${alt}</span>`
+  return `<tr><td style="padding:28px 32px 2px;text-align:left;background:${COLORS.surface}">${logoDark}</td></tr>`
 }
 
 export function brandHeroBlock(opts: {
@@ -444,6 +451,11 @@ export interface EmailLayoutOptions {
 
 export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, content }: EmailLayoutOptions): string {
   const headerHtml = header ?? brandHeader({ brandName, brandLogoUrl, brandCoverUrl })
+  // A borító széltől szélig fut (a fejléc elején, <!--cover--> jelöléssel); minden más — a fejléc többi része és a
+  // tartalom — középen, max. 600px-es oszlopban (design 18.3: „fehér, teljes szélességű levél”).
+  const m = headerHtml.match(/^\s*<!--cover-->([\s\S]*?)<!--\/cover-->/)
+  const cover = m ? m[1] : ''
+  const rest = m ? headerHtml.slice(m[0].length) : headerHtml
   return `<!DOCTYPE html>
 <html lang="hu">
 <head>
@@ -452,27 +464,28 @@ export function emailLayout({ brandName, brandLogoUrl, brandCoverUrl, header, co
   <meta name="color-scheme" content="light">
   <meta name="supported-color-schemes" content="light">
 </head>
-<body style="margin:0;padding:0;background:#EFEFEF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#EFEFEF" style="background:#EFEFEF;background-image:radial-gradient(130% 90% at 96% -6%, rgba(255,216,95,0.52) 0%, rgba(255,216,95,0) 50%),linear-gradient(160deg,#FBFBFB 0%,#EDEDED 55%,#E0E0E0 100%);min-height:100vh">
-    <tr><td align="center" style="padding:44px 12px">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;table-layout:fixed;border-radius:30px;overflow:hidden;border:1px solid rgba(255,255,255,0.6);box-shadow:0 30px 60px -30px rgba(40,40,40,0.30),0 2px 8px rgba(40,40,40,0.06)">
+<body style="margin:0;padding:0;background:#FFFFFF;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#FFFFFF" style="background:#FFFFFF">
+    ${cover ? `<tr><td style="padding:0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="table-layout:fixed">${cover}</table></td></tr>` : ''}
+    <tr><td align="center" style="padding:0 0 36px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;table-layout:fixed">
 
-        ${headerHtml}
+        ${rest}
 
         ${content}
 
-        <!-- davelopment Booking footer -->
-        <tr>
-          <td style="background:${COLORS.ink};padding:28px 32px;text-align:center;border-top:1px solid rgba(255,255,255,0.05)">
-            <a href="${BOOKING_SITE_URL}" target="_blank" title="davelopment booking — online foglalási rendszer" style="text-decoration:none;display:inline-block">
-              <img src="${BOOKING_LOCKUP}" alt="davelopment Booking" width="120" height="44" style="width:120px;height:44px;display:block;border:0" />
-            </a>
-            <p style="margin:16px 0 0;color:${COLORS.footerText};font-size:11px">© ${new Date().getFullYear()} davelopment booking · Minden jog fenntartva</p>
-          </td>
-        </tr>
-
       </table>
     </td></tr>
+
+    <!-- davelopment booking footer — széltől szélig -->
+    <tr>
+      <td style="background:${COLORS.ink};padding:28px 32px;text-align:center">
+        <a href="${BOOKING_SITE_URL}" target="_blank" title="davelopment booking — online foglalási rendszer" style="text-decoration:none;display:inline-block">
+          <img src="${BOOKING_LOCKUP}" alt="davelopment Booking" width="120" height="44" style="width:120px;height:44px;display:block;border:0" />
+        </a>
+        <p style="margin:16px 0 0;color:${COLORS.footerText};font-size:11px">© ${new Date().getFullYear()} davelopment booking · Minden jog fenntartva</p>
+      </td>
+    </tr>
   </table>
 </body>
 </html>`

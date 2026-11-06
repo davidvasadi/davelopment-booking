@@ -162,7 +162,7 @@ const [moreOpen, setMoreOpen] = useState(false)
         <>
           <motion.div
             key="mob-backdrop"
-            className="lg:hidden fixed inset-0 z-50 bg-ui-dark/25 backdrop-blur-sm"
+            className="ui-blur-only lg:hidden fixed inset-0 z-50 backdrop-blur-sm"
             onClick={() => setMoreOpen(false)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

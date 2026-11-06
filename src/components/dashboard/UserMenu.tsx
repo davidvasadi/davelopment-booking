@@ -35,6 +35,7 @@ export function UserMenu({
   subscriptionHref,
   settingsHref,
   showPartner = false,
+  hideAvatar = false,
   publicUrl,
   businesses = [],
   activeBusinessKey = null,
@@ -50,6 +51,8 @@ export function UserMenu({
   settingsHref?: string
   /** a sárga „Partnerprogram” sor — csak a tulajnak */
   showPartner?: boolean
+  /** a fiók-avatar elrejtése (a csengő marad) — ahol a fejlécben az oldal eszközeinek kell a hely */
+  hideAvatar?: boolean
   /** Nyilvános oldal URL — a fiók-menübe (davelopment-design: a top-navból ide került). */
   publicUrl?: string
   /** Összes fiók-üzlet (üzletváltóhoz) — csak ha 2+ üzlet van. */
@@ -142,9 +145,9 @@ export function UserMenu({
           {/* Csengő — a kit 48px üveg ikon-gombja, sárga pöttyel, ha van olvasatlan értesítés */}
           <IconButton icon={Bell} label="Értesítések" size="lg" dot={unread > 0} aria-expanded={open} onClick={() => openMenu('notifications')} className="hover:bg-white" />
           {/* Avatar — kattintásra nyílik a fiók-menü */}
-          <motion.button type="button" onClick={() => openMenu('account')} aria-label="Fiók" aria-expanded={open} whileTap={{ scale: 0.86 }} transition={{ type: 'spring', stiffness: 520, damping: 14 }} className="shrink-0 rounded-full outline-none">
+          {!hideAvatar && <motion.button type="button" onClick={() => openMenu('account')} aria-label="Fiók" aria-expanded={open} whileTap={{ scale: 0.86 }} transition={{ type: 'spring', stiffness: 520, damping: 14 }} className="shrink-0 rounded-full outline-none">
             <UserAvatar name={name} src={avatarUrl} size={48} />
-          </motion.button>
+          </motion.button>}
         </>
 
       {mounted && typeof document !== 'undefined' && createPortal(
@@ -154,7 +157,7 @@ export function UserMenu({
               {/* Háttér: desktopon átlátszó (csak a kattintásra zárást fogja meg, a design szerint nincs elmosás); mobilon a lap mögött sötétít, mint a kit Overlay-e. */}
               <motion.div
                 key="um-backdrop"
-                className={cn('fixed inset-0 z-[99]', pos.sheet && 'bg-ui-dark/25 backdrop-blur-sm')}
+                className={cn('fixed inset-0 z-[99]', pos.sheet && 'ui-blur-only backdrop-blur-sm')}
                 onClick={() => setOpen(false)}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -288,11 +291,9 @@ export function UserMenu({
                         disabled={isBusy || isActive}
                         className={cn('flex w-full items-center gap-2.5 rounded-ui-control px-3 py-2 text-left transition-colors', isActive ? 'cursor-default bg-ui-cell' : 'hover:bg-ui-cell')}
                       >
-                        {/* az üzlet logója (ha van), különben a kezdőbetűje */}
-                        {b.logoUrl
-                          // eslint-disable-next-line @next/next/no-img-element
-                          ? <img src={b.logoUrl} alt="" className="h-7 w-7 shrink-0 rounded-full bg-white object-contain" />
-                          : <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-ui-label', isActive ? 'bg-ui-dark text-white' : 'bg-ui-cell text-ui-text')}>{mono}</span>}
+                        {/* a design (17.1) szerint a kezdőbetű körben — a feltöltött logó (fekvő felirat, sötét négyzet) 28px-es
+                            körben olvashatatlan volt */}
+                        <IconCircle size="sm" tone={isActive ? 'dark' : 'cell'}>{mono}</IconCircle>
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-ui-body text-ui-text">{b.name}</span>
                           <span className="block text-ui-label text-ui-muted">{b.type === 'restaurant' ? 'Étterem' : 'Szalon'}</span>

@@ -96,6 +96,8 @@ export function DashboardNav({
   if (at('/guests')) pageTools.push({ icon: Download, label: 'Export', onClick: fire('davelopment:open-guests-export') })
   if (at('/schedule')) pageTools.push(
     { icon: SlidersHorizontal, label: 'Szűrők', onClick: fire('davelopment:open-schedule-filter') },
+    { icon: Search, label: 'Munkatárs keresése', onClick: fire('davelopment:open-schedule-search') },
+    { icon: Download, label: 'Export (a hónap, CSV)', onClick: fire('davelopment:export-schedule') },
     { icon: Pencil, label: 'Szerkesztés', onClick: fire('davelopment:open-schedule-edit') },
     { icon: Plus, label: 'Beosztás', onClick: fire('davelopment:open-schedule-add'), dark: true },
   )
@@ -104,6 +106,7 @@ export function DashboardNav({
   if (at('/help')) pageTools.push({ icon: Sparkles, label: 'Bevezető indítása', onClick: fire('davelopment:open-onboarding'), dark: true, yellow: true })
   if (at('/bookings')) pageTools.push(
     { icon: SlidersHorizontal, label: 'Nézet és szűrők', onClick: fire('davelopment:open-bookings-view') },
+    { icon: Search, label: 'Keresés (vendég, telefon)', onClick: fire('davelopment:open-bookings-search') },
     { icon: Download, label: 'Foglalások letöltése (CSV)', onClick: fire('davelopment:export-bookings-day') },
     { icon: Plus, label: 'Új foglalás', onClick: fire('davelopment:open-bookings-create'), dark: true },
   )
@@ -127,6 +130,7 @@ export function DashboardNav({
   // Asztalok (design 9.5): új asztal a fejléc „+” gombjával
   if (at('/services') && can(capabilities, 'catalog.manage')) pageTools.push({ icon: Plus, label: 'Új szolgáltatás', onClick: fire('davelopment:open-services-add'), dark: true })
   // Munkatársak (design 10.5): a fejléc „+” gombja a meghívót nyitja
+  if (at('/staff')) pageTools.push({ icon: Search, label: 'Munkatárs keresése', onClick: fire('davelopment:open-staff-search') })
   if (at('/staff') && can(capabilities, 'staff.manage')) pageTools.push({ icon: Plus, label: 'Munkatárs meghívása', onClick: fire('davelopment:open-staff-add'), dark: true })
   // Utalványok (design 12.8): a szűrő-ikon az állapot / fizetési mód lapját nyitja, mellette a beváltás (QR), a „+” az új utalvány
   if (at('/vouchers')) pageTools.push({ icon: SlidersHorizontal, label: 'Szűrés', onClick: fire('davelopment:open-vouchers-filter') })
@@ -170,6 +174,8 @@ export function DashboardNav({
               (csengő = értesítések, avatar = fiók-menü → üzletváltó + Saját profil). */}
           {!isBackstage && (
             <UserMenu
+              // a Foglalások és a Naptár fejlécében az eszközöknek (kereső, export) kell a hely — ott a fiók-avatar nem látszik
+              hideAvatar={at('/bookings') || at('/schedule')}
               showPartner={!hiddenHrefs.some((h) => h.endsWith('/partnerprogram'))}
               name={userName}
               email={userEmail}

@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Settings, ChevronDown, Lock } from 'lucide-react'
+import { Settings, ChevronDown, Lock, Building2, FileText, Mail, PanelsTopLeft, CreditCard, type LucideIcon } from 'lucide-react'
+import { can } from '@/lib/permissions'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui-kit'
 import { BrandLogo } from '@/components/BrandLogo'
@@ -96,7 +97,18 @@ export function AppNavbar({
   // a „Több" panel csoportjai (a design szerint); ami nincs benne, az „Egyéb"
   const GROUPS: [string, string[]][] = [['Üzlet', ['/services', '/staff', '/schedule', '/availability']], ['Bevétel és marketing', ['/vouchers', '/marketing']], ['Segítség', ['/tips', '/help']]]
   const groupOf = (href: string) => GROUPS.find(([, sfx]) => sfx.some((x) => href === base + x))?.[0] ?? 'Egyéb'
-  const overflowGroups = [...GROUPS.map(([g]) => g), 'Egyéb'].map((g) => [g, overflowItems.filter((it) => groupOf(it.href) === g)] as const).filter(([, list]) => list.length > 0)
+  // a „Több” panel kiegészítő linkjei (Beállítások-témák és a kapcsolat), hogy minden csoport kitöltse a helyét —
+  // csak annak, akinek joga van hozzá; nem jelölődnek aktívnak (a Beállítások pill az)
+  const allowed = (cap?: Capability) => !cap || !capabilities || can(capabilities, cap)
+  const EXTRA: Record<string, { href: string; label: string; icon: LucideIcon; cap?: Capability }[]> = variant === 'backstage' ? {} : {
+    'Üzlet': variant === 'restaurant' ? [{ href: `${settingsHref}?tab=tables`, label: 'Asztalok & termek', icon: Building2, cap: 'settings.profile' }] : [],
+    'Bevétel és marketing': [{ href: `${settingsHref}?tab=invoices`, label: 'Számlák', icon: FileText, cap: 'payments.manage' }],
+    'Segítség': [{ href: '/kapcsolat', label: 'Kapcsolat', icon: Mail }],
+    'Egyéb': [{ href: `${settingsHref}?tab=site`, label: 'Foglalóoldal', icon: PanelsTopLeft, cap: 'settings.profile' }, { href: `${settingsHref}?tab=billing`, label: 'Előfizetés', icon: CreditCard, cap: 'billing.manage' }],
+  }
+  const overflowGroups = [...GROUPS.map(([g]) => g), 'Egyéb']
+    .map((g) => [g, [...overflowItems.filter((it) => groupOf(it.href) === g), ...(EXTRA[g] ?? []).filter((x) => allowed(x.cap)).map((x) => ({ ...x, exact: false, extra: true }))]] as const)
+    .filter(([, list]) => list.length > 0)
 
   const publicUrl = variant === 'backstage' ? undefined : `/${publicUrlPrefix}${businessSlug}`
   const settingsActive = isActive(settingsHref)
@@ -160,8 +172,9 @@ export function AppNavbar({
                   {overflowGroups.map(([group, list]) => (
                   <motion.div key={group} variants={POP_ITEM} className="p-1">
                   <div className="px-2.5 pb-1 pt-1.5 text-ui-label text-ui-muted">{group}</div>
-                  {list.map(({ href, label, exact, icon: Icon }) => {
-                    const active = isActive(href, exact)
+                  {list.map((item) => {
+                    const { href, label, exact, icon: Icon } = item
+                    const active = 'extra' in item ? false : isActive(href, exact)
                     if (isLocked) {
                       return (
                         <motion.div key={href} variants={POP_ITEM}>

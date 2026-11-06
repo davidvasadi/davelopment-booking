@@ -507,24 +507,31 @@ export function CodeInput({ length = 6, value = '', error = false, onChange, onC
   const put = (target: HTMLInputElement, i: number, digits: string) => {
     if (!onChange) return
     const next = (value.slice(0, i) + digits).replace(/\D/g, '').slice(0, length)
+    // a beírt hossz a dobozok során is (data-len): a következő négyzet onFocus-a még a régi `value`-t látná („üres”),
+    // és visszadobná a fókuszt az elsőre — így minden új szám felülírta az előzőt
+    if (target.parentElement) target.parentElement.dataset.len = String(next.length)
     onChange(next)
     box(target, next.length)?.focus()
     if (next.length === length) onComplete?.(next)
   }
   return (
-    <div className={cn('flex gap-1.5', className)}>
+    <div className={cn('flex gap-1.5', className)} data-len={onChange ? value.length : undefined}>
       {Array.from({ length }, (_, i) => (
         <input key={i} inputMode="numeric" autoComplete={i === 0 ? 'one-time-code' : 'off'} aria-label={`${i + 1}. számjegy`} autoFocus={autoFocus && i === 0}
           {...(onChange ? {
             value: value[i] ?? '',
             maxLength: length,
-            onFocus: (e: React.FocusEvent<HTMLInputElement>) => { if (i > value.length) box(e.currentTarget, value.length)?.focus(); else e.currentTarget.select() },
+            onFocus: (e: React.FocusEvent<HTMLInputElement>) => {
+              const len = Number(e.currentTarget.parentElement?.dataset.len ?? value.length)
+              if (i > len) box(e.currentTarget, len)?.focus(); else e.currentTarget.select()
+            },
             onChange: (e: React.ChangeEvent<HTMLInputElement>) => { const d = e.target.value.replace(/\D/g, ''); if (d) put(e.target, i, d.length > 1 && value[i] && d.startsWith(value[i]) ? d.slice(1) : d) },
             onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => {
               if (e.key !== 'Backspace') return
               e.preventDefault()
               const at = value[i] ? i : i - 1
               if (at < 0) return
+              if (e.currentTarget.parentElement) e.currentTarget.parentElement.dataset.len = String(at)
               onChange(value.slice(0, at))
               box(e.currentTarget, at)?.focus()
             },
@@ -554,6 +561,18 @@ export function Marquee({ children, className }: Children) {
   return (
     <span className={cn('block overflow-hidden whitespace-nowrap [container-type:inline-size]', className)}>
       <span className="inline-block animate-ui-marquee motion-reduce:animate-none">{children}</span>
+    </span>
+  )
+}
+
+/** A `truncate` helyett mindenhol ez: egysoros szöveg, ami ha nem fér ki, elúszik (szalagcím), ha kifér, áll. Bármilyen
+ *  rugalmas sorban működik — a láthatatlan példány adja a természetes szélességét (a sima Marquee egy tartalom-szélességű
+ *  dobozban 0 szélesre esne), `min-w-0`-val annyira megy össze, amennyi hely van. A szöveg-osztályok a `className`-be. */
+export function MarqueeText({ children, className }: Children) {
+  return (
+    <span className={cn('relative block min-w-0 overflow-hidden', className)}>
+      <span aria-hidden className="invisible block whitespace-nowrap">{children}</span>
+      <Marquee className="absolute inset-0">{children}</Marquee>
     </span>
   )
 }
