@@ -13,7 +13,7 @@
  *     - Idempotens: ha az adott típus ma már ment, nem küldi újra.
  *  4) Időszakos foglalási megnyitás: „hamarosan lejár” értesítés + automatikus megújítás
  *     (lib/bookingWindowNotices.ts).
- *  5) Takarítás: 90 napnál régebbi in-app értesítések + 30+ napja elhagyott (0 üzlet/sub/
+ *  5) Takarítás: az olvasott in-app értesítések 30, a többi 60 nap után (óránként egyszer); az audit- és e-mail-napló 12 hónap után (naponta, 03:07) + 30+ napja elhagyott (0 üzlet/sub/
  *     tagság) regisztrációk törlése — lásd lib/accountCleanup.ts.
  */
 import { NextRequest, NextResponse } from 'next/server'
@@ -26,6 +26,9 @@ import { getDashboardStats } from '@/lib/dashboardStats'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { purgeAbandonedAccounts } from '@/lib/accountCleanup'
 import { processBookingWindows } from '@/lib/bookingWindowNotices'
+import { processTrialNotices } from '@/lib/trialNotices'
+import { authQuery, sql } from '@/lib/authDb'
+import { buildSalonDigest, buildRestaurantDigest } from '@/lib/digestData'
 import { reminderEnabled, reminderOffsets } from '@/lib/reminders'
 import { ALL_CAPABILITIES } from '@/lib/permissions'
 import type { Salon, Service, StaffMember, Booking, Restaurant, Reservation, User, Membership } from '@/payload/payload-types'
@@ -161,7 +164,7 @@ async function handle(request: NextRequest) {
   const forceTip = process.env.NODE_ENV !== 'production' && request.nextUrl.searchParams.get('forceTip') === '1'
 
   const now = Date.now()
-  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, weeklyTips: 0, bookingWindows: 0, notificationsCleaned: 0, accountsPurged: 0, errors: 0 }
+  const summary = { reminders: 0, feedback: 0, digest: 0, emailOpenAlerts: 0, weeklyTips: 0, bookingWindows: 0, notificationsCleaned: 0, logsCleaned: 0, accountsPurged: 0, trialNotices: 0, errors: 0 }
 
   try {
     const payload = await getPayloadClient()
@@ -685,6 +688,8 @@ async function handle(request: NextRequest) {
               top_services: topServices.length > 0 ? topServices : undefined,
               new_guests: newGuestCount,
               returning_guests: returningGuestCount,
+              // a teljes összefoglaló (design 22.x) — ugyanaz, amit az Áttekintés kártyája is mutat
+              digest: await buildSalonDigest(payload, salon, dateStr, isEvening ? 'evening' : 'morning').catch((e) => { console.error('[Cron] salon digest build failed', e); return undefined }),
             },
           },
         })
@@ -725,7 +730,10 @@ async function handle(request: NextRequest) {
 
         const np = salon.notification_prefs as { digest_morning_email?: boolean | null; digest_evening_email?: boolean | null } | null
         // Explicit true kell — null/undefined = nincs bekapcsolva (korábban !==false volt, ami null-ra is küldött)
-        const emailEnabled = isEvening ? np?.digest_evening_email === true : np?.digest_morning_email === true
+        // A napi összefoglaló e-mailben NEM megy (2026-11-06, Dave döntése) — csak az appban (értesítés + popup + Áttekintés).
+        // A régi beállítás (digest_*_email) a DB-ben maradhat, de már nem küld.
+        void np
+        const emailEnabled = false as boolean
         if (emailEnabled && ownerId) {
           const owner = (await payload.findByID({ collection: 'users', id: ownerId, overrideAccess: true })) as User
           if (owner?.email) {
@@ -977,6 +985,7 @@ async function handle(request: NextRequest) {
               countries: Object.keys(countries).length > 0 ? countries : undefined,
               new_guests: newGuestCount,
               returning_guests: returningGuestCount,
+              digest: await buildRestaurantDigest(payload, restaurant, dateStr, isEvening ? 'evening' : 'morning').catch((e) => { console.error('[Cron] restaurant digest build failed', e); return undefined }),
             },
           },
         })
@@ -1145,20 +1154,27 @@ async function handle(request: NextRequest) {
       }
     }
 
-    // ── Takarítás: az app-on belüli értesítések (harang-ikon) 90 napnál régebbi
-    //    példányai törlődnek — ez CSAK a `notifications` kollekciót érinti, a foglalás/
-    //    vendég-adatokat (bookings/reservations) és a számlázási bizonylatokat soha.
-    //    Best-effort: nem szabad emiatt elszállnia a cronnak.
-    try {
-      const cutoff = new Date(now - 90 * 24 * 3600_000).toISOString()
-      const deleted = await payload.delete({
-        collection: 'notifications',
-        where: { createdAt: { less_than: cutoff } },
-        overrideAccess: true,
-      })
-      summary.notificationsCleaned = Array.isArray(deleted.docs) ? deleted.docs.length : 0
-    } catch (err) {
-      console.error('[Cron] Notifications cleanup failed', err)
+    // ── Takarítás: az app-on belüli értesítések (harang-ikon) — az olvasottak 30, a többi 60 nap után törlődik (a lista
+    //    és a számláló gyors maradjon). CSAK a `notifications` táblát érinti — foglalás / vendég / számla adat soha.
+    //    Óránként egyszer fut (nem percenként), egyetlen SQL-lel (nem töltjük be a sorokat). Best-effort.
+    if (new Date(now).getMinutes() === 7) {
+      try {
+        const rows = await authQuery<{ id: number }>(sql`DELETE FROM notifications WHERE (read = true AND created_at < now() - interval '30 days') OR created_at < now() - interval '60 days' RETURNING id`)
+        summary.notificationsCleaned = rows.length
+      } catch (err) {
+        console.error('[Cron] Notifications cleanup failed', err)
+      }
+      // ── Naplók megőrzése (Adatkezelési tájékoztató 6. pont): az audit- és az e-mail-napló 12 hónapnál régebbi
+      //    bejegyzései törlődnek. Naponta egyszer (03:07), egy-egy SQL-lel. Best-effort.
+      if (new Date(now).getHours() === 3) {
+        try {
+          const audit = await authQuery<{ id: number }>(sql`DELETE FROM audit_log WHERE created_at < now() - interval '12 months' RETURNING id`)
+          const mail = await authQuery<{ id: number }>(sql`DELETE FROM email_log WHERE created_at < now() - interval '12 months' RETURNING id`)
+          summary.logsCleaned = audit.length + mail.length
+        } catch (err) {
+          console.error('[Cron] Log retention cleanup failed', err)
+        }
+      }
     }
 
     // ── Időszakos foglalási megnyitás: lejárat előtti értesítés + automatikus megújítás ──
@@ -1169,6 +1185,15 @@ async function handle(request: NextRequest) {
       summary.errors += bw.errors
     } catch (err) {
       console.error('[Cron] Booking window processing failed', err)
+    }
+
+    // ── A próbaidő levelei (7 / 3 / 1 nap, kész, lejárt — design 18.4) — idempotens (trial_notices tábla) ──
+    try {
+      const tn = await processTrialNotices(payload)
+      summary.trialNotices = tn.sent
+      summary.errors += tn.errors
+    } catch (err) {
+      console.error('[Cron] Trial notices failed', err)
     }
 
     // ── Elhagyott regisztrációk törlése (0 üzlet, 0 sub, 0 tagság, 30+ napja regisztrált) ──

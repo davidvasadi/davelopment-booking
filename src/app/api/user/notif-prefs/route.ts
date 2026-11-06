@@ -15,8 +15,9 @@ type PushCategoryKey = 'bookings' | 'schedule' | 'digest' | 'email_not_opened'
 const PUSH_CATS: PushCategoryKey[] = ['bookings', 'schedule', 'digest', 'email_not_opened']
 
 /** Belső EMAIL-kategóriák — alapból KIKAPCSOLVA (`=== true`), csak opt-in a push mellé. */
-type EmailCategoryKey = 'bookings_email' | 'schedule_email'
-const EMAIL_CATS: EmailCategoryKey[] = ['bookings_email', 'schedule_email']
+type EmailCategoryKey = 'bookings_email' | 'schedule_email' | 'pending_popup' | 'payment_bar'
+/** (a `pending_popup` / `payment_bar` is opt-in: a „Mi kér figyelmet” — design 6.8.1 — sáv helyett popup, ill. fizetés-sáv) */
+const EMAIL_CATS: EmailCategoryKey[] = ['bookings_email', 'schedule_email', 'pending_popup', 'payment_bar']
 
 type CategoryKey = PushCategoryKey | EmailCategoryKey
 const CATS: CategoryKey[] = [...PUSH_CATS, ...EMAIL_CATS]
@@ -37,6 +38,8 @@ export async function GET() {
     email_not_opened: prefs.email_not_opened !== false,
     bookings_email: prefs.bookings_email === true,
     schedule_email: prefs.schedule_email === true,
+    pending_popup: prefs.pending_popup === true,
+    payment_bar: prefs.payment_bar === true,
   }
 
   // Engedélyezett kategóriák: tulaj = minden. Tagnál a `bookings` a szerepe
@@ -72,6 +75,8 @@ export async function GET() {
     ...allowedPush,
     bookings_email: allowedPush.bookings,
     schedule_email: allowedPush.schedule,
+    pending_popup: true,
+    payment_bar: true,
   }
 
   return NextResponse.json({ prefs: currentPrefs, allowed })
@@ -101,6 +106,8 @@ export async function PATCH(req: NextRequest) {
       email_not_opened: existing.email_not_opened !== false,
       bookings_email: existing.bookings_email === true,
       schedule_email: existing.schedule_email === true,
+      pending_popup: existing.pending_popup === true,
+      payment_bar: existing.payment_bar === true,
     }
     for (const cat of CATS) {
       if (cat in body) merged[cat] = Boolean(body[cat])
