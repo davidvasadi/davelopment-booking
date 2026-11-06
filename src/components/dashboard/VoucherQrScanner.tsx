@@ -77,9 +77,9 @@ export function VoucherQrScanner({ onDetected }: { onDetected: (code: string) =>
 
   if (error) {
     return (
-      <div className="flex flex-col items-center gap-3 rounded-[16px] bg-paper px-4 py-8 text-center">
-        <CameraOff className="h-6 w-6 text-ink-soft2" />
-        <p className="text-[13px] text-ink-soft">{error}</p>
+      <div className="flex flex-col items-center gap-3 rounded-[16px] bg-ui-cell px-4 py-8 text-center">
+        <CameraOff className="h-6 w-6 text-ui-muted" />
+        <p className="text-[13px] text-ui-muted">{error}</p>
       </div>
     )
   }

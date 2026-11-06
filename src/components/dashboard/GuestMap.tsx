@@ -195,6 +195,9 @@ function FocusCountry({ buckets, focusIso }: { buckets: CountryBucket[]; focusIs
   const map = useMap()
   useEffect(() => {
     if (!focusIso) return
+    // a rejtett (nulla méretű) térképen a nagyítás hibát dobna
+    const size = map.getSize()
+    if (!size.x || !size.y) return
     const b = buckets.find((x) => x.iso.toUpperCase() === focusIso.toUpperCase())
     if (b) map.flyTo(b.centroid, Math.max(map.getZoom(), 8), { duration: 0.8 })
   }, [focusIso, buckets, map])
@@ -262,7 +265,7 @@ export default function GuestMap({ buckets, focusIso }: { buckets: CountryBucket
         onClick={() => mapObj && fitBucketsView(mapObj, buckets, true)}
         aria-label="Térkép visszaállítása"
         title="Alaphelyzet"
-        className="absolute right-4 top-4 z-[600] flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-white text-ink shadow-[0_2px_8px_rgba(80,70,30,.15)] transition-colors hover:bg-paper"
+        className="absolute right-4 top-4 z-[600] flex h-[38px] w-[38px] items-center justify-center rounded-[11px] bg-white text-ui-text shadow-[0_2px_8px_rgba(80,70,30,.15)] transition-colors hover:bg-ui-cell"
       >
         <Maximize className="h-[17px] w-[17px]" strokeWidth={1.8} />
       </button>

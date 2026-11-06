@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
+import { IconCircle } from '@/components/ui-kit'
 import { LogOut, MoreHorizontal, Lock, Plus, Loader2, CreditCard } from 'lucide-react'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
@@ -111,46 +112,35 @@ const [moreOpen, setMoreOpen] = useState(false)
 
   return (
     <>
-      <div className="lg:hidden print:hidden fixed bottom-5 left-1/2 -translate-x-1/2 z-40">
+      {/* a design mobil alsó menüje (/design 2.12): üveg pill a teljes szélességben, 4 fő elem + Több, az aktív sötét */}
+      <div className="lg:hidden print:hidden fixed inset-x-4 bottom-4 z-40">
       <motion.nav
         animate={{ y: navVisible ? 0 : 120 }}
         transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-        className="bg-[var(--dav-glass-strong)] backdrop-blur-xl rounded-2xl border border-white/50 shadow-[0_8px_24px_rgba(0,0,0,.10)] flex items-center px-4 py-3 gap-1.5"
+        className="flex items-center rounded-full bg-white/80 p-1.5 shadow-ui-float backdrop-blur-xl"
       >
         {primaryNav.map(({ href, label, icon: Icon, exact }) => {
           const active = isActive(href, exact)
           const dim = isLocked && !isAllowedWhenLocked(href)
           const inner = (
             <>
-              <div className={cn(
-                'h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-300 ease-out',
-                active
-                  ? 'bg-[#1d1c19] shadow-md shadow-black/20'
-                  : dim ? '' : 'hover:bg-black/[0.06]'
-              )}>
-                <Icon className={cn(
-                  'transition-all duration-300 ease-out',
-                  active
-                    ? 'h-6 w-6 text-white'
-                    : dim
-                      ? 'h-[22px] w-[22px] text-[#c8c4b8]'
-                      : 'h-[22px] w-[22px] text-[#3a352a]'
-                )} />
+              <div className={cn('flex h-11 w-full items-center justify-center rounded-full transition-colors duration-300', active && 'bg-ui-dark')}>
+                <Icon className={cn('h-5 w-5', active ? 'text-white' : dim ? 'text-ui-muted/40' : 'text-ui-muted')} strokeWidth={1.8} />
               </div>
               {dim && (
-                <Lock className="absolute -top-0.5 -right-0.5 h-3 w-3 text-zinc-400 dark:text-white/30 bg-white dark:bg-zinc-900 rounded-full p-0.5 box-content" />
+                <Lock className="absolute right-[30%] top-1 box-content h-3 w-3 rounded-full bg-white p-0.5 text-ui-muted" />
               )}
             </>
           )
           if (dim) {
             return (
-              <span key={href} aria-disabled aria-label={label} className="relative flex cursor-not-allowed items-center justify-center">
+              <span key={href} aria-disabled aria-label={label} className="relative flex flex-1 cursor-not-allowed items-center justify-center">
                 {inner}
               </span>
             )
           }
           return (
-            <Link key={href} href={href} aria-label={label} data-tour={href} className="relative flex items-center justify-center">
+            <Link key={href} href={href} aria-label={label} data-tour={href} className="relative flex flex-1 items-center justify-center">
               {inner}
             </Link>
           )
@@ -158,20 +148,10 @@ const [moreOpen, setMoreOpen] = useState(false)
         <button
           onClick={() => setMoreOpen(true)}
           aria-label="Több"
-          className="relative flex items-center justify-center"
+          className="relative flex flex-1 items-center justify-center"
         >
-          <div className={cn(
-            'h-12 w-12 rounded-xl flex items-center justify-center transition-all duration-300 ease-out',
-            hasSecondaryActive
-              ? 'bg-[#1d1c19] shadow-md shadow-black/20'
-              : 'hover:bg-black/[0.06]'
-          )}>
-            <MoreHorizontal className={cn(
-              'transition-all duration-300 ease-out',
-              hasSecondaryActive
-                ? 'h-[22px] w-[22px] text-white'
-                : 'h-5 w-5 text-[#3a352a]'
-            )} />
+          <div className={cn('flex h-11 w-full items-center justify-center rounded-full transition-colors duration-300', hasSecondaryActive && 'bg-ui-dark')}>
+            <MoreHorizontal className={cn('h-5 w-5', hasSecondaryActive ? 'text-white' : 'text-ui-muted')} strokeWidth={1.8} />
           </div>
         </button>
       </motion.nav>
@@ -182,7 +162,7 @@ const [moreOpen, setMoreOpen] = useState(false)
         <>
           <motion.div
             key="mob-backdrop"
-            className="lg:hidden fixed inset-0 z-50 bg-black/20 backdrop-blur-sm"
+            className="lg:hidden fixed inset-0 z-50 bg-ui-dark/25 backdrop-blur-sm"
             onClick={() => setMoreOpen(false)}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -195,7 +175,7 @@ const [moreOpen, setMoreOpen] = useState(false)
             // sheet a ténylegesen látható terület alá, a böngésző-sáv mögé is belógott — `dvh`
             // a TÉNYLEGES, aktuális viewportot nézi, és a kisebb érték eleve nem akarja majdnem
             // az egész képernyőt elfoglalni (a tartalom úgyis görgethető, ld. lent).
-            className="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex max-h-[70dvh] flex-col rounded-t-[26px] border-t border-x border-white/50 bg-white/75 backdrop-blur-2xl"
+            className="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex max-h-[70dvh] flex-col rounded-t-ui-card bg-white shadow-ui-popup"
             initial={{ opacity: 0, y: 40, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1, transition: { type: 'spring', stiffness: 520, damping: 26, mass: 0.9 } }}
             exit={{ opacity: 0, y: 40, scale: 0.97, transition: { duration: 0.14, ease: 'easeIn' } }}
@@ -207,7 +187,7 @@ const [moreOpen, setMoreOpen] = useState(false)
               onClick={() => setMoreOpen(false)}
               className="shrink-0 w-full py-3"
             >
-              <span className="block w-10 h-1 bg-[#e0ddd6] rounded-full mx-auto" />
+              <span className="mx-auto block h-1 w-10 rounded-full bg-ui-grey" />
             </button>
 
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain" data-lenis-prevent>
@@ -227,23 +207,23 @@ const [moreOpen, setMoreOpen] = useState(false)
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploadingAvatar}
-                className="flex w-full items-center gap-3 rounded-[14px] px-3 py-2.5 text-left transition-colors hover:bg-[#f4f1eb] disabled:opacity-60"
+                className="flex w-full items-center gap-3 rounded-ui-control px-3 py-2.5 text-left transition-colors hover:bg-ui-cell disabled:opacity-60"
               >
                 <span className="relative shrink-0">
                   <UserAvatar name={userName} src={userAvatarUrl} size={44} />
-                  <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#1d1c19] text-white ring-2 ring-white/80">
+                  <IconCircle tone="dark" size="xs" className="absolute -bottom-0.5 -right-0.5 ring-2 ring-white">
                     {uploadingAvatar ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" strokeWidth={3} />}
-                  </span>
+                  </IconCircle>
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] font-bold text-[#1d1c19]">{userName ?? 'Fiók'}</span>
-                  <span className="block truncate text-[13px] text-[#a8a496]">{uploadingAvatar ? 'Feltöltés…' : (userEmail ?? '')}</span>
+                  <span className="block truncate text-ui-row text-ui-text">{userName ?? 'Fiók'}</span>
+                  <span className="block truncate text-ui-meta text-ui-muted">{uploadingAvatar ? 'Feltöltés…' : (userEmail ?? '')}</span>
                 </span>
               </button>
 
             </div>
 
-            <div className="mx-4 h-px bg-black/[0.05]" />
+            <div className="mx-4 border-t border-dashed border-ui-divider" />
 
             <div className="px-3 py-2">
               {secondaryNav.map(({ href, label, icon: Icon, exact }) => {
@@ -253,7 +233,7 @@ const [moreOpen, setMoreOpen] = useState(false)
                     <span
                       key={href}
                       aria-disabled
-                      className="flex cursor-not-allowed items-center gap-3 rounded-[14px] px-3 py-3.5 text-[15px] font-medium text-[#c8c4b8]"
+                      className="flex cursor-not-allowed items-center gap-3 rounded-ui-control px-3 py-3 text-ui-row text-ui-muted/50"
                     >
                       <Icon className="h-5 w-5" />
                       <span className="flex-1">{label}</span>
@@ -267,8 +247,8 @@ const [moreOpen, setMoreOpen] = useState(false)
                     href={href}
                     onClick={() => setMoreOpen(false)}
                     className={cn(
-                      'flex items-center gap-3 px-3 py-3.5 rounded-[14px] text-[15px] font-medium transition-colors',
-                      isActive(href, exact) ? 'bg-[#1d1c19] text-white' : 'text-[#3a352a] hover:bg-[#f4f1eb]'
+                      'flex items-center gap-3 rounded-ui-control px-3 py-3 text-ui-row transition-colors',
+                      isActive(href, exact) ? 'bg-ui-dark text-white' : 'text-ui-text hover:bg-ui-cell'
                     )}
                   >
                     <Icon className="h-5 w-5" />
@@ -284,23 +264,23 @@ const [moreOpen, setMoreOpen] = useState(false)
                   href={subscriptionHref}
                   onClick={() => setMoreOpen(false)}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-3 rounded-[14px] text-sm font-medium transition-colors',
+                    'flex items-center gap-3 rounded-ui-control px-3 py-3 text-ui-row transition-colors',
                     pathname.startsWith(subscriptionHref)
-                      ? 'bg-[#1d1c19] text-white'
-                      : 'text-[#3a352a] hover:bg-[#f4f1eb]'
+                      ? 'bg-ui-dark text-white'
+                      : 'text-ui-text hover:bg-ui-cell'
                   )}
                 >
-                  <CreditCard className="h-[18px] w-[18px]" />
+                  <CreditCard className="h-5 w-5" />
                   <span className="flex-1">Előfizetés</span>
                 </Link>
               </div>
             )}
 
-            <div className="mx-4 h-px bg-black/[0.05]" />
+            <div className="mx-4 border-t border-dashed border-ui-divider" />
             <div className="px-3 py-2 pb-8">
               <button
                 onClick={() => { setMoreOpen(false); handleLogout() }}
-                className="flex items-center gap-3 px-3 py-3.5 rounded-[14px] w-full text-[15px] font-medium text-[#3a352a] hover:bg-[#f4f1eb] transition-colors"
+                className="flex w-full items-center gap-3 rounded-ui-control px-3 py-3 text-ui-row text-ui-bad transition-colors hover:bg-ui-cell"
               >
                 <LogOut className="h-5 w-5" />
                 Kijelentkezés

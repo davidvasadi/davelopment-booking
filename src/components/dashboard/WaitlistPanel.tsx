@@ -1,5 +1,6 @@
 import { getPayloadClient } from '@/lib/payload'
 import { Clock } from 'lucide-react'
+import { Card, CardTitle, ListRow, Meta, Pill } from '@/components/ui-kit'
 import type { Waitlist } from '@/payload/payload-types'
 
 /**
@@ -43,29 +44,22 @@ export default async function WaitlistPanel({
   if (entries.length === 0) return null
 
   return (
-    <div className="rounded-[22px] dav-card-glass overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-4 border-b border-line">
-        <Clock className="h-4 w-4 text-ink-soft" />
-        <h2 className="text-sm font-semibold text-ink">Várólista</h2>
-        <span className="ml-auto text-xs text-ink-soft">{entries.length} bejegyzés</span>
+    <Card>
+      <div className="flex items-center gap-2">
+        <Clock className="h-4 w-4 text-ui-muted" />
+        <CardTitle>Várólista</CardTitle>
+        <Meta className="ml-auto">{entries.length} bejegyzés</Meta>
       </div>
-      <ul className="divide-y divide-line">
+      <div className="mt-2">
         {entries.map((w) => (
-          <li key={w.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-ink">{w.customer_name}</p>
-              <p className="truncate text-xs text-ink-soft">
-                {w.date} · {w.time}
-                {w.pax != null ? ` · ${w.pax} fő` : ''}
-                {w.customer_phone ? ` · ${w.customer_phone}` : ''}
-              </p>
-            </div>
-            <span className="shrink-0 rounded-full bg-paper px-2.5 py-1 text-[11px] font-medium text-ink-soft">
-              {STATUS_LABEL[w.status] ?? w.status}
-            </span>
-          </li>
+          <ListRow
+            key={w.id}
+            title={w.customer_name}
+            meta={[`${w.date} · ${w.time}`, w.pax != null ? `${w.pax} fő` : null, w.customer_phone].filter(Boolean).join(' · ')}
+            trailing={<Pill tone="cell" size="sm">{STATUS_LABEL[w.status] ?? w.status}</Pill>}
+          />
         ))}
-      </ul>
-    </div>
+      </div>
+    </Card>
   )
 }

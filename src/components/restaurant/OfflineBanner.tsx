@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { WifiOff, Loader2, AlertTriangle, ChevronRight } from 'lucide-react'
+import { OfflineDraftsBar } from '@/components/shared/OfflineDraftsBar'
 import { useOnline } from '@/lib/useOnline'
 import { removeDraft, type ReservationDraft } from '@/lib/offlineDrafts'
 
@@ -28,7 +28,6 @@ export function OfflineBanner({
   const online = useOnline()
   const router = useRouter()
   const [busyId, setBusyId] = useState<string | null>(null)
-  const [open, setOpen] = useState(false)
 
   const finalizeOne = async (d: ReservationDraft): Promise<boolean> => {
     setBusyId(d.draftId)
@@ -77,72 +76,13 @@ export function OfflineBanner({
     }
   }
 
-  // Nincs mit mutatni
-  if (online && drafts.length === 0) return null
-
   return (
-    <div className="space-y-2">
-      {!online && (
-        <div className="flex items-center gap-2.5 rounded-[18px] border border-gold/60 bg-gold/[0.14] px-4 py-2.5 text-sm text-ink">
-          <WifiOff className="h-4 w-4 shrink-0 text-[#9A8B52]" />
-          <span className="font-medium">Nincs internetkapcsolat — vázlat módban dolgozol.</span>
-          <span className="hidden sm:inline text-ink-soft">
-            Az új foglalások az eszközön maradnak, amíg vissza nem jön a net.
-          </span>
-        </div>
-      )}
-
-      {drafts.length > 0 && (
-        <div className="rounded-[18px] border border-line bg-white shadow-dav-card">
-          <button
-            onClick={() => (drafts.length === 1 ? onReview(drafts[0]) : setOpen((o) => !o))}
-            className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-left"
-          >
-            <AlertTriangle className="h-4 w-4 shrink-0 text-[#9A8B52]" />
-            <span className="font-semibold text-ink">
-              {drafts.length} mentésre váró vázlat
-            </span>
-            {online && (
-              <span className="ml-auto inline-flex items-center gap-1.5 rounded-full bg-ink-dark text-white px-3 py-1 text-xs font-bold">
-                Átnézés
-              </span>
-            )}
-          </button>
-
-          {open && (
-            <div className="border-t border-line divide-y divide-line">
-              {drafts.map((d) => (
-                <button
-                  key={d.draftId}
-                  onClick={() => onReview(d)}
-                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-left hover:bg-[var(--dav-glass)] transition-colors"
-                >
-                  <span className="tabular-nums font-semibold text-ink w-12 shrink-0">
-                    {d.start_time}
-                  </span>
-                  <span className="flex-1 min-w-0 truncate text-ink-soft2">
-                    {d.customer_name} · {d.pax} fő
-                    {d.tableNames?.length ? ` · ${d.tableNames.join(' + ')}` : ''}
-                  </span>
-                  {busyId === d.draftId && <Loader2 className="h-3.5 w-3.5 animate-spin text-ink-soft shrink-0" />}
-                  <ChevronRight className="h-4 w-4 shrink-0 text-ink-soft2" />
-                </button>
-              ))}
-              {online && drafts.length > 1 && (
-                <div className="px-4 py-2.5">
-                  <button
-                    onClick={finalizeAll}
-                    disabled={!!busyId}
-                    className="w-full rounded-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold py-2 disabled:opacity-60"
-                  >
-                    {busyId ? 'Mentés…' : 'Összes véglegesítése'}
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
+    <OfflineDraftsBar
+      online={online}
+      drafts={drafts.map((d) => ({ id: d.draftId, time: d.start_time, label: [d.customer_name, `${d.pax} fő`, d.tableNames?.length ? d.tableNames.join(' + ') : null].filter(Boolean).join(' · ') }))}
+      busyId={busyId}
+      onReview={(id) => { const d = drafts.find((x) => x.draftId === id); if (d) onReview(d) }}
+      onFinalizeAll={finalizeAll}
+    />
   )
 }

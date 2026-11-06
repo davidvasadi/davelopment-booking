@@ -9,7 +9,7 @@ const GuestMap = dynamic(() => import('./GuestMap'), {
   ssr: false,
   // A töltő-háttér a Leaflet csempe-terület színe (#EDEDE9), hogy ne villanjon a krém.
   loading: () => (
-    <div className="flex h-full items-center justify-center bg-[#EDEDE9] text-[13px] text-ink-soft/70">
+    <div className="flex h-full items-center justify-center bg-[#EDEDE9] text-[13px]">
       <span className="animate-pulse">Térkép betöltése…</span>
     </div>
   ),

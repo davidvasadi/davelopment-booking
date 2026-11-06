@@ -1,5 +1,5 @@
 /** Asztal-piktogram (davelopment): sötét lap + világos székpöttyök, PONTOSAN a kapacitás szerint.
- *  KÖZÖS: az Asztalok menü (`TablesManager`) ÉS az élő terem-nézet (`DailyView`) is ezt használja,
+ *  KÖZÖS: az Asztalok menü (`TablesView`) ÉS az élő terem-nézet (`DailyView`) is ezt használja,
  *  hogy az asztalok mindenhol egyformán nézzenek ki.
  *
  *  A székek száma = a férőhelyek száma: felül ⌈n/2⌉, alul ⌊n/2⌋ (tehát 3 fő = 2 fönt + 1 lent).

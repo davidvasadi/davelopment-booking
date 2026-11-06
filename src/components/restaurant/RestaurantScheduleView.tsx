@@ -2,53 +2,24 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { AnimatePresence, motion } from 'framer-motion'
-import { CalendarDays, CalendarRange, CalendarClock, Plus, type LucideIcon } from 'lucide-react'
-import { hhmmToMinutes, ymdLocal } from '@/lib/utils'
+import { Cake, CalendarDays, Users } from 'lucide-react'
+import { ymdLocal } from '@/lib/utils'
 import { ReservationEditSheet, type EditTarget } from './ReservationEditSheet'
-import { ACTIVE, cellKey, draftToReservation, groupOverlaps, renderCellItem, tableNamesOf } from './DailyView'
-import { CLOSED_BORDER, CLOSED_FG, CLOSED_HATCH, extraStackHeightPx } from '@/components/dashboard/SalonDailyView'
-import { HoverButton } from '@/components/shared/HoverButton'
-import { MobileOptionSheet } from '@/components/ui/MobileOptionSheet'
-import type { BookingsRange } from '@/components/dashboard/DateFilter'
+import { ACTIVE, draftToReservation } from './DailyView'
+import { BookingsHead, EMPTY_FILTER, applyBookingFilter, type BookingFilter } from '@/components/shared/BookingsHead'
+import { segments } from '@/components/dashboard/OverviewLayout'
+import { IconCircle, Kpi } from '@/components/ui-kit'
+import { MonthGrid, RoomWeekCell, WeekGrid } from '@/components/shared/RangeGrids'
+import { idOf } from '@/components/dashboard/SalonDailyView'
+import type { BookingsRange } from '@/components/shared/BookingsDateNav'
 import { getDrafts, subscribeDrafts, type ReservationDraft } from '@/lib/offlineDrafts'
 import type { Reservation, Room, Table } from '@/payload/payload-types'
-
-const HU_WEEKDAYS_SHORT = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']
-
-function weekdayIndex(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return (new Date(y, m - 1, d).getDay() + 6) % 7 // hétfő = 0
-}
 
 /** JS natív `getDay()` (0=vasárnap..6=szombat) — ez a `closedWeekdays` kódolása, nem a
  *  hétfő-first `weekdayIndex`. */
 function jsDow(dateStr: string): number {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).getDay()
-}
-
-/** Ugyanaz a "Zárva" jelvény, mint a Naptár hónap-rácsán (ScheduleView.tsx). */
-function ClosedBadge() {
-  return (
-    <span className="mt-1 inline-block rounded-[5px] bg-[rgba(180,60,50,.12)] px-1 text-[7.5px] font-bold uppercase tracking-wide text-[#b43c32] sm:text-[8px]">
-      Zárva
-    </span>
-  )
-}
-
-/** Ugyanaz a "Zárva" sáv, mint a napi nézet üres/beosztatlan óráinál — a hatch-sávok (nem csak a
- *  nap-pill jelvény) is ezt kapják zárva napokon. */
-function ClosedBand() {
-  return (
-    <div
-      aria-hidden
-      className="flex h-[72px] items-center justify-center rounded-[18px] border"
-      style={{ background: CLOSED_HATCH, borderColor: CLOSED_BORDER }}
-    >
-      <span className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: CLOSED_FG }}>Zárva</span>
-    </div>
-  )
 }
 
 /** Egy foglalás terem-kulcsa: az első asztalához tartozó terem id-je, vagy `'none'`, ha nincs
@@ -70,12 +41,12 @@ export interface RestaurantScheduleViewProps {
   /** A DateFilter query-paraméterében szereplő aktuális dátum — a Nap/Hét/Hónap váltásnál ez
    *  marad a cél-dátum. */
   date: string
-  title: string
-  subtitle: string
   restaurantId: string
   /** A `days` tartományra eső foglalások (a page.tsx tartomány-lekérdezéséből). */
   reservations: Reservation[]
   rooms: Room[]
+  /** az aktív asztalok (a termek ülőhelyei — a telítettséghez) */
+  tables?: Table[]
   eventTypes?: { icon: string; label: string }[]
   openMin: number
   closeMin: number
@@ -98,28 +69,21 @@ export interface RestaurantScheduleViewProps {
  * egy-oszlopos, a napi mobil idővonallal (MobileTimeline/HourList) azonos mechanikájú lista fut.
  */
 export function RestaurantScheduleView({
-  days, range, date, title, subtitle, restaurantId, reservations, rooms, eventTypes = [], openMin, closeMin, turnMinutes, closedDates = [], closedWeekdays = [], dateFilter, printButton, canManage = false,
+  days, range, date, restaurantId, reservations: unfiltered, rooms, tables = [], eventTypes = [], openMin, closeMin, turnMinutes, closedDates = [], closedWeekdays = [], dateFilter, printButton, canManage = false,
 }: RestaurantScheduleViewProps) {
   const router = useRouter()
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<ReservationDraft[]>([])
-  const [expandedGridDays, setExpandedGridDays] = useState<Set<string>>(() => new Set())
-  const [expandedFlatDays, setExpandedFlatDays] = useState<Set<string>>(() => new Set())
-  const [mobileViewOpen, setMobileViewOpen] = useState(false)
 
-  // Mobilon a Nap/Hét/Hónap váltó a fejléc csengő melletti ikonjából nyílik (DashboardNav
-  // dispatch-eli) — ugyanaz az esemény, mint a napi nézet nézet-választója.
-  useEffect(() => {
-    const handler = () => setMobileViewOpen(true)
-    window.addEventListener('davelopment:open-bookings-view', handler)
-    return () => window.removeEventListener('davelopment:open-bookings-view', handler)
-  }, [])
+  // Szűrés (a közös fejlécből) — a rács és a lista a szűrt időszakot mutatja; a csík és a számok a teljeset.
+  const [filter, setFilter] = useState<BookingFilter>(EMPTY_FILTER)
+  const reservations = useMemo(() => {
+    const now = new Date()
+    const nowKey = `${ymdLocal(now)} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    return applyBookingFilter(unfiltered, filter, (r) => (r.tables ?? []).map((t) => (typeof t === 'object' && t?.room ? idOf(t.room) : '')), (b) => b.status === 'confirmed' && `${String(b.date).slice(0, 10)} ${b.start_time}` < nowKey)
+  }, [unfiltered, filter])
 
-  const rangeButtons: { mode: BookingsRange; icon: LucideIcon; label: string }[] = [
-    { mode: 'day', icon: CalendarDays, label: 'Nap' },
-    { mode: 'week', icon: CalendarRange, label: 'Hét' },
-    { mode: 'month', icon: CalendarClock, label: 'Hónap' },
-  ]
+
   const pickRange = (v: BookingsRange) => router.push(`/restaurant/bookings?date=${date}&range=${v}`)
 
   useEffect(() => {
@@ -149,33 +113,14 @@ export function RestaurantScheduleView({
     if (hasNoRoom) cols.push({ key: 'none', name: cols.length ? 'Egyéb' : 'Asztalok' })
     return cols
   }, [rooms, active])
+  const tablesIn = (roomKey: string) => tables.filter((t) => (t.room ? idOf(t.room) : 'none') === roomKey)
+  const seatsOf = (ts: Table[]) => ts.reduce((sum, t) => sum + (t.capacity ?? 0), 0)
+  const totalSeats = seatsOf(tables)
+  const stepMonth = (dir: -1 | 1) => { const [y, m] = date.split('-').map(Number); router.push(`/restaurant/bookings?date=${ymdLocal(new Date(y, m - 1 + dir, 1))}&range=month`) }
 
-  // 4-nél több teremnél a rács már nem férne el kényelmesen — ilyenkor (a szalon 6+
-  // szakember-szabályához hasonlóan) a lapos, kinyitható napi lista fut desktopon is.
-  const forceMobile = columns.length > 4
-  const showGrid = columns.length > 0 && !forceMobile
 
-  const perRoomDayBookings = useMemo(
-    () =>
-      columns.map((col) =>
-        days.map((day) => {
-          const rows = active
-            .filter((r) => r.date === day && roomKeyOf(r) === col.key)
-            .sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time))
-          return groupOverlaps(rows)
-        }),
-      ),
-    [columns, active, days],
-  )
 
-  const toggleGridDay = (day: string) =>
-    setExpandedGridDays((prev) => { const n = new Set(prev); n.has(day) ? n.delete(day) : n.add(day); return n })
-  const toggleFlatDay = (day: string) =>
-    setExpandedFlatDays((prev) => { const n = new Set(prev); n.has(day) ? n.delete(day) : n.add(day); return n })
 
-  const openEdit = (r: Reservation) => {
-    if (canManage) setTarget({ reservation: r })
-  }
   const openCreate = () => {
     if (canManage) setTarget({ reservation: null })
   }
@@ -189,314 +134,83 @@ export function RestaurantScheduleView({
     return () => window.removeEventListener('davelopment:open-bookings-create', handler)
   }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const card = 'rounded-[26px] dav-card-glass'
-  const legend = [
-    { c: '#1D1C19', l: 'Megerősített' },
-    { c: '#F1CE45', l: 'Függő' },
-    { c: '#1D9D63', l: 'Leültetve' },
-    { c: 'repeating-linear-gradient(115deg,#f3efe4 0 3px,#e8e4d8 3px 5px)', l: 'Befejezett' },
-    { c: '#C0564A', l: 'Lemondva' },
-  ]
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] lg:text-[42px] font-light tracking-[-0.02em] text-ink leading-none">
-            {title}
-          </h1>
-          <p className="mt-1.5 text-sm font-medium text-ink-soft2">{subtitle}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {dateFilter}
-          <div className="hidden lg:block">{printButton}</div>
-          {canManage && (
-            <HoverButton
-              onClick={openCreate}
-              className="hidden items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0 lg:inline-flex"
-            >
-              <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
-              <span className="hidden sm:inline">Új foglalás</span>
-            </HoverButton>
-          )}
-        </div>
-      </div>
+      <BookingsHead
+        dateNav={dateFilter}
+        range={range}
+        onRange={pickRange}
+        date={date}
+        onDate={(d) => router.push(`/restaurant/bookings?date=${d}&range=day`)}
+        loadEndpoint="/api/restaurant/day-load"
+        filter={filter}
+        onFilter={setFilter}
+        who={rooms.length > 1 ? rooms.map((rm) => ({ id: String(rm.id), label: rm.name })) : undefined}
+        whoLabel="Terem"
+        matchCount={reservations.length}
+        exportButton={printButton}
+        onCreate={canManage ? openCreate : undefined}
+        bar={segments([
+          { label: 'Megerősített', value: unfiltered.filter((r) => r.status === 'confirmed' || r.status === 'seated').length, tone: 'dark' },
+          { label: 'Függő', value: unfiltered.filter((r) => r.status === 'pending').length, tone: 'yellow' },
+          { label: 'Befejezett', value: unfiltered.filter((r) => r.status === 'completed').length, tone: 'white' },
+          { label: 'Lemondva', value: unfiltered.filter((r) => r.status === 'cancelled' || r.status === 'no_show').length, tone: 'outline' },
+        ])}
+        kpis={<>
+          <Kpi icon={CalendarDays} value={String(unfiltered.filter((r) => r.status !== 'cancelled' && r.status !== 'no_show').length)} label="Foglalás" />
+          <Kpi icon={Users} value={String(unfiltered.filter((r) => r.status !== 'cancelled' && r.status !== 'no_show').reduce((sum, r) => sum + (r.pax ?? 0), 0))} label="Vendég (fő)" />
+        </>}
+      />
 
-      {/* Desktop rács — terem-oszlopok, nap-sorok (óránkénti bontás nélkül). */}
-      {showGrid && (
-        <div className={`hidden lg:block ${card} p-[18px] sm:p-[20px_22px_22px]`}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
-            <div className="text-[17px] font-medium text-ink">Időbeosztás</div>
-            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-              {legend.map((x) => (
-                <div key={x.l} className="flex items-center gap-[7px]">
-                  <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
-                  <span className="text-xs font-medium text-ink-soft2">{x.l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="overflow-x-auto">
-            {(() => {
-              const colMin = columns.length <= 4 ? 220 : Math.max(160, Math.round(880 / columns.length))
-              const gridTemplateColumns = `86px repeat(${columns.length}, minmax(${colMin}px, 1fr))`
-              const minWidth = 86 + columns.length * colMin
-              return (
-                <div style={{ minWidth }}>
-                  {/* Fejléc-sor: üres bal sarok + terem-fejlécek — SAJÁT, NEM görgő fa (ugyanaz a
-                      minta, mint a napi Idősáv nézetnél), így havi nézetnél (sok nap-sor) sem
-                      csúszik el a fejléc a függőleges görgetéskor. */}
-                  <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
-                    <div />
-                    {columns.map((col, ci) => (
-                      <div key={col.key} style={{ gridColumn: ci + 2 }} className="flex items-center border-b border-line pb-3">
-                        <span className="block text-sm font-semibold text-ink truncate leading-tight">{col.name}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Tartalom: KÜLÖN, függőlegesen görgő konténer a fejléc alatt — havi nézetnél
-                      (akár 31 nap-sor) ez görgethető belül, nem az egész oldal nő meg, és a fejléc
-                      mindig látszik fölötte. */}
-                  <div className="max-h-[65vh] overflow-y-auto pt-1">
-                  <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
-                  {/* Bal tengely — egy nap-pill naponta, alatta a nyitó "+" gomb, ha bármelyik
-                      teremnél van extra foglalás aznap. A pill maga a napi nézetbe drillel. */}
-                  {days.map((day, i) => {
-                    const isToday = day === today
-                    const isClosed = isClosedDay(day)
-                    const anyThatDay = perRoomDayBookings.some((rows) => rows[i].length > 0)
-                    const extraTotal = perRoomDayBookings.reduce((sum, rows) => sum + Math.max(0, rows[i].length - 1), 0)
-                    const isOpen = expandedGridDays.has(day)
-                    const last = i === days.length - 1
-                    const pillCls = isToday ? 'bg-ink-dark text-white' : isClosed ? 'border border-[rgba(180,60,50,.3)] bg-[rgba(180,60,50,.08)] text-[#b43c32]' : anyThatDay ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
-                    return (
-                      <div key={day} style={{ gridColumn: 1, gridRow: i + 1 }} className="flex flex-col items-center">
-                        <button
-                          type="button"
-                          onClick={() => goToDay(day)}
-                          className={`flex h-9 w-full items-center justify-center gap-1 rounded-full px-1.5 text-[12.5px] font-semibold tabular-nums transition-opacity hover:opacity-90 ${pillCls}`}
-                        >
-                          {HU_WEEKDAYS_SHORT[weekdayIndex(day)]} {Number(day.slice(8, 10))}
-                        </button>
-                        {isClosed && <ClosedBadge />}
-                        {!last ? (
-                          <div className="relative min-h-[16px] flex-1 py-1">
-                            <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 border-l-2 border-dotted border-line-strong" />
-                            {extraTotal > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => toggleGridDay(day)}
-                                aria-label={`még ${extraTotal} foglalás ezen a napon`}
-                                className={`absolute left-1/2 top-1 z-10 flex h-5 w-5 -translate-x-1/2 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                              >
-                                +{extraTotal}
-                              </button>
-                            )}
-                          </div>
-                        ) : (
-                          extraTotal > 0 && (
-                            <button
-                              type="button"
-                              onClick={() => toggleGridDay(day)}
-                              aria-label={`még ${extraTotal} foglalás ezen a napon`}
-                              className={`relative z-10 mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                            >
-                              +{extraTotal}
-                            </button>
-                          )
-                        )}
-                      </div>
-                    )
-                  })}
-
-                  {/* Tartalom-cellák naponként/termenként. */}
-                  {days.flatMap((day, i) => {
-                    const cells: React.ReactNode[] = []
-                    const isOpen = expandedGridDays.has(day)
-                    const maxExtra = Math.max(0, ...columns.map((_, ci) => perRoomDayBookings[ci][i].length - 1))
-                    const dayClosed = isClosedDay(day)
-                    const HatchBand = () =>
-                      dayClosed ? (
-                        <ClosedBand />
-                      ) : (
-                        <div
-                          aria-hidden
-                          className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                          style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                        />
-                      )
-                    let ci = 0
-                    while (ci < columns.length) {
-                      const rows = perRoomDayBookings[ci][i]
-                      if (rows.length > 0) {
-                        const col = columns[ci]
-                        const hatchNeeded = maxExtra - (rows.length - 1)
-                        cells.push(
-                          <div key={`${col.key}-${day}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
-                            {renderCellItem(rows[0], openEdit, tableNamesOf, null)}
-                            <AnimatePresence initial={false}>
-                              {isOpen && maxExtra > 0 && (
-                                <motion.div
-                                  key="extra"
-                                  className="overflow-hidden"
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                                >
-                                  <div className="space-y-2 pt-2">
-                                    {rows.slice(1).map((item) => (
-                                      <div key={cellKey(item)}>{renderCellItem(item, openEdit, tableNamesOf, null)}</div>
-                                    ))}
-                                    {Array.from({ length: hatchNeeded }).map((_, hi) => (
-                                      <div key={`repeat-${hi}`} className="relative">
-                                        <span aria-hidden className="absolute -top-2 left-1/2 h-2 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
-                                        {renderCellItem(rows[0], openEdit, tableNamesOf, null)}
-                                      </div>
-                                    ))}
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>,
-                        )
-                      } else {
-                        const start = ci
-                        while (ci < columns.length && perRoomDayBookings[ci][i].length === 0) ci += 1
-                        const span = ci - start
-                        cells.push(
-                          <div key={`gap-${day}-${start}`} style={{ gridColumn: `${start + 2} / span ${span}`, gridRow: i + 1 }} className="pb-3">
-                            <HatchBand />
-                            <AnimatePresence initial={false}>
-                              {isOpen && maxExtra > 0 && (
-                                <motion.div
-                                  key="extra"
-                                  className="overflow-hidden"
-                                  initial={{ height: 0, opacity: 0 }}
-                                  animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
-                                  exit={{ height: 0, opacity: 0 }}
-                                  transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                                >
-                                  <div className="space-y-2 pt-2">
-                                    {Array.from({ length: maxExtra }).map((_, hi) => (
-                                      <HatchBand key={`hatch-${hi}`} />
-                                    ))}
-                                  </div>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>,
-                        )
-                        continue
-                      }
-                      ci += 1
-                    }
-                    return cells
-                  })}
-                  </div>
-                  </div>
-                </div>
-              )
-            })()}
-          </div>
-        </div>
+      {range === 'week' ? (
+        // Hét (design 6.16): sor = terem, oszlop = nap; a cellában a foglalások és a vendégek száma, az alkalmak; alul a napi vendégszám
+        (() => {
+          const live = active.filter((r) => r.status !== 'cancelled' && r.status !== 'no_show')
+          const inCell = (roomKey: string, day: string) => live.filter((r) => r.date === day && roomKeyOf(r) === roomKey)
+          const paxOf = (list: Reservation[]) => list.reduce((sum, r) => sum + (r.pax ?? 0), 0)
+          const perDay = days.map((d) => paxOf(live.filter((r) => r.date === d)))
+          return (
+            <WeekGrid
+              days={days}
+              today={today}
+              closed={isClosedDay}
+              onDay={goToDay}
+              rooms
+              rows={columns.map((c) => {
+                const ts = tablesIn(c.key)
+                return {
+                  id: c.key,
+                  label: <><span className="block text-ui-body text-ui-text">{c.name}</span>{ts.length > 0 && <span className="block text-ui-label text-ui-muted">{ts.length} asztal · {seatsOf(ts)} hely</span>}</>,
+                  total: paxOf(live.filter((r) => roomKeyOf(r) === c.key)),
+                }
+              })}
+              footer={{ label: 'Vendég / nap', values: perDay, total: perDay.reduce((x, y) => x + y, 0) }}
+              cell={(roomKey, day) => {
+                if (isClosedDay(day)) return null
+                const list = inCell(roomKey, day)
+                const seats = seatsOf(tablesIn(roomKey))
+                return <RoomWeekCell count={list.length} pax={paxOf(list)} pct={seats ? Math.min(100, Math.round((paxOf(list) / seats) * 100)) : null} occasions={list.filter((r) => r.occasion).length} occIcon={<IconCircle tone="white" size="xs" icon={Cake} />} onOpen={() => goToDay(day)} />
+              }}
+            />
+          )
+        })()
+      ) : (
+        // Hónap (design 6.17): a napi vendégszám (fő); a napra kattintva a nap idővonala
+        <MonthGrid
+          month={date}
+          today={today}
+          unit="fő"
+          closed={isClosedDay}
+          onDay={goToDay}
+          onStep={stepMonth}
+          counts={Object.fromEntries(days.map((d) => [d, active.filter((r) => r.date === d && r.status !== 'cancelled' && r.status !== 'no_show').reduce((sum, r) => sum + (r.pax ?? 0), 0)]))}
+          pct={totalSeats ? (d) => {
+            const pax = active.filter((r) => r.date === d && r.status !== 'cancelled' && r.status !== 'no_show').reduce((sum, r) => sum + (r.pax ?? 0), 0)
+            return Math.min(100, Math.round((pax / totalSeats) * 100))
+          } : undefined}
+        />
       )}
-
-      {/* Egy-oszlopos nap-lista — UGYANAZ a mechanika, mint a napi nézet mobil idővonala
-          (MobileTimeline/HourList): nap-pill + szaggatott összekötő + az első kártya mindig
-          látszik, "+N" nyitja ki a többit. Mindig ez fut mobilon (és 4+ teremnél desktopon is,
-          a `showGrid` mellett) — nincs hely egy több-oszlopos rácsnak. */}
-      <div className={showGrid ? 'lg:hidden' : ''}>
-        <div className={`${card} p-4`}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
-            <div className="text-[17px] font-medium text-ink">Időbeosztás</div>
-            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-              {legend.map((x) => (
-                <div key={x.l} className="flex items-center gap-[7px]">
-                  <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
-                  <span className="text-xs font-medium text-ink-soft2">{x.l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            {days.map((day, i) => {
-              const inDay = groupOverlaps(
-                active.filter((r) => r.date === day).sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time)),
-              )
-              const isToday = day === today
-              const isClosed = isClosedDay(day)
-              const isOpen = expandedFlatDays.has(day)
-              const last = i === days.length - 1
-              const pillCls = isToday ? 'bg-ink-dark text-white' : isClosed ? 'border border-[rgba(180,60,50,.3)] bg-[rgba(180,60,50,.08)] text-[#b43c32]' : inDay.length > 0 ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
-              return (
-                <div key={day} className="flex gap-3">
-                  <div className="flex w-[62px] shrink-0 flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={() => goToDay(day)}
-                      className={`flex h-9 w-full items-center justify-center rounded-full px-1 text-[12px] font-semibold tabular-nums transition-opacity hover:opacity-90 ${pillCls}`}
-                    >
-                      {HU_WEEKDAYS_SHORT[weekdayIndex(day)]} {Number(day.slice(8, 10))}
-                    </button>
-                    {isClosed && <ClosedBadge />}
-                    {!last && (
-                      <div className="relative flex min-h-[30px] flex-1 items-center justify-center py-1.5">
-                        <span className="absolute inset-y-0 border-l-2 border-dotted border-line-strong" />
-                        {inDay.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => toggleFlatDay(day)}
-                            aria-label={`még ${inDay.length - 1} foglalás ezen a napon`}
-                            className={`relative z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                          >
-                            +{inDay.length - 1}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1 pb-3">
-                    {inDay.length > 0 ? (
-                      <div>
-                        {renderCellItem(inDay[0], openEdit, tableNamesOf, null)}
-                        <AnimatePresence initial={false}>
-                          {isOpen && inDay.length > 1 && (
-                            <motion.div
-                              key="extra"
-                              className="overflow-hidden"
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                            >
-                              <div className="space-y-2 pt-2">
-                                {inDay.slice(1).map((item) => (
-                                  <div key={cellKey(item)}>{renderCellItem(item, openEdit, tableNamesOf, null)}</div>
-                                ))}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ) : isClosed ? (
-                      <ClosedBand />
-                    ) : (
-                      <div
-                        aria-hidden
-                        className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                        style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                      />
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
 
       <ReservationEditSheet
         open={!!target}
@@ -510,14 +224,6 @@ export function RestaurantScheduleView({
         turnMinutes={turnMinutes}
       />
 
-      <MobileOptionSheet
-        open={mobileViewOpen}
-        onClose={() => setMobileViewOpen(false)}
-        title="Időszak"
-        options={rangeButtons}
-        value={range}
-        onChange={pickRange}
-      />
     </div>
   )
 }

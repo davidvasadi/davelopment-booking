@@ -4,17 +4,19 @@ import MobileBottomNav from './MobileBottomNav'
 import { SubscriptionBanner } from './SubscriptionBanner'
 import { DashboardLockModal } from './DashboardLockModal'
 import { DigestAutoPopup } from './DigestAutoPopup'
+import { AttentionHost } from './AttentionHost'
 import { BroadcastAutoPopup } from './BroadcastAutoPopup'
 import { OnboardingTour } from '@/components/onboarding/OnboardingTour'
-import { BrandLogo } from '@/components/BrandLogo'
 import type { DashboardVariant } from './navConfig'
-import type { SwitcherBusiness } from './StoreSwitcher'
+import type { SwitcherBusiness } from './switcherTypes'
 import type { Capability } from '@/lib/permissions'
 
 type SubInfo = {
   plan: 'trial' | 'paid'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
   trial_ends_at?: string | null
+  /** a próbaidő utáni fizetés be van állítva (van Stripe-előfizetés) */
+  setup_done?: boolean
   current_period_end?: string | null
 } | null
 
@@ -42,6 +44,7 @@ export function AppShell({
   capabilities = [],
   voucherEnabled = false,
   newsletterEnabled = false,
+  isOwner = false,
   children,
 }: {
   variant: DashboardVariant
@@ -64,17 +67,19 @@ export function AppShell({
   /** Ha false, a "Marketing" nav-elem sehol nem jelenik meg — ugyanaz a minta, mint a
    *  voucherEnabled-nél (a hírlevél-csomag "Nincs"-re állítva a Beállítások/Fizetéseknél). */
   newsletterEnabled?: boolean
+  /** Az aktív üzlet tulajdonosa — csak ő látja a Partnerprogramot (ajánló link). */
+  isOwner?: boolean
   children: React.ReactNode
 }) {
   const hiddenHrefs = [
     ...(voucherEnabled ? [] : [variant === 'restaurant' ? '/restaurant/vouchers' : '/dashboard/vouchers']),
     ...(newsletterEnabled ? [] : [variant === 'restaurant' ? '/restaurant/marketing' : '/dashboard/marketing']),
+    ...(isOwner ? [] : [variant === 'restaurant' ? '/restaurant/partnerprogram' : '/dashboard/partnerprogram']),
   ]
   return (
-    <div data-app-variant={variant} className="font-onest min-h-screen bg-paper bg-dav-container lg:bg-none text-ink">
-      {/* Mobil fejléc + ⌘K (a desktop sidebart az új TopNav váltja) */}
+    <div data-app-variant={variant} className="font-onest min-h-screen bg-ui-page text-ui-text">
+      {/* Mobil fejléc (desktopon az AppNavbar) */}
       <DashboardNav
-        mobileOnly
         salonName={businessName}
         salonSlug={businessSlug}
         subscription={subscription}
@@ -89,28 +94,24 @@ export function AppShell({
         hiddenHrefs={hiddenHrefs}
       />
 
-      {/* Desktopon lekerekített, gradientes konténer; mobilon a gradient a teljes oldal-háttér (a kártyák üvegesen ülnek rajta) */}
-      <div className="lg:px-6 lg:py-7">
-        <div className="lg:mx-auto lg:max-w-[1460px]">
-          <div className="lg:rounded-dav-container lg:bg-dav-container lg:p-6 lg:shadow-dav-container">
-            <AppNavbar
-              variant={variant}
-              capabilities={capabilities}
-              businessSlug={businessSlug}
-              subscription={subscription}
-              userName={userName}
-              userEmail={userEmail}
-              userAvatarUrl={userAvatarUrl}
-              businesses={businesses}
-              activeBusinessKey={activeBusinessKey}
-              hiddenHrefs={hiddenHrefs}
-            />
+      {/* A krém háttér a teljes oldal (nincs külön lekerekített konténer); desktopon a tartalom középen, max. 1460px */}
+      <div className="max-lg:pb-24 lg:mx-auto lg:max-w-[1460px] lg:px-6 lg:py-6">
+        <AppNavbar
+          variant={variant}
+          capabilities={capabilities}
+          businessSlug={businessSlug}
+          subscription={subscription}
+          userName={userName}
+          userEmail={userEmail}
+          userAvatarUrl={userAvatarUrl}
+          businesses={businesses}
+          activeBusinessKey={activeBusinessKey}
+          hiddenHrefs={hiddenHrefs}
+        />
 
-            <div className="lg:mt-6">
-              <SubscriptionBanner subscription={subscription ?? null} basePath={basePath} />
-              {children}
-            </div>
-          </div>
+        <div className="lg:mt-6">
+          <SubscriptionBanner subscription={subscription ?? null} basePath={basePath} />
+          {children}
         </div>
       </div>
 
@@ -123,8 +124,10 @@ export function AppShell({
         userAvatarUrl={userAvatarUrl}
         hiddenHrefs={hiddenHrefs}
       />
-      {lockedStatus && <DashboardLockModal status={lockedStatus} />}
-      {variant !== 'backstage' && <OnboardingTour variant={variant} userId={userId} />}
+      {lockedStatus && <DashboardLockModal status={lockedStatus} paid={subscription?.plan === 'paid'} />}
+      {variant !== 'backstage' && <OnboardingTour variant={variant} userId={userId} userName={userName} businessName={businessName} />}
+      {/* „Ami figyelmet kér” (design 6.8.1): jóváhagyásra váró sáv / popup, fizetésre vár sáv */}
+      {variant !== 'backstage' && !lockedStatus && <AttentionHost basePath={basePath} restaurant={variant === 'restaurant'} />}
       {variant !== 'backstage' && <DigestAutoPopup />}
       {variant !== 'backstage' && <BroadcastAutoPopup />}
     </div>

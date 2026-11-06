@@ -148,7 +148,7 @@ function smoothPath(pts: number[][], yMin: number, yMax: number): string {
 
 
 function DeltaText({ pct }: { pct: number }) {
-  const cls = pct > 0 ? 'text-[#1D9D63]' : pct < 0 ? 'text-bad' : 'text-ink-soft'
+  const cls = pct > 0 ? 'text-[#1D9D63]' : pct < 0 ? 'text-ui-bad' : 'text-ui-muted'
   return <span className={`text-xs font-semibold ${cls}`}>{pct > 0 ? '+' : ''}{pct}%</span>
 }
 
@@ -180,7 +180,7 @@ function HeaderArrow({ onClick, label = 'Részletek', dark = false }: { onClick?
       whileHover="hover"
       whileTap="hover"
       className={`shrink-0 flex h-9 w-9 items-center justify-center rounded-full ${
-        dark ? 'bg-[#33322e] text-white' : 'bg-[#f1f0ed] text-ink'
+        dark ? 'bg-[#33322e] text-white' : 'bg-[#f1f0ed] text-ui-text'
       }`}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -196,11 +196,11 @@ function KpiTile({ m }: { m: OverviewMetric }) {
   return (
     <div className="shrink-0">
       <div className="mb-1.5 flex items-center gap-2">
-        <Icon className="h-4 w-4 text-ink-soft" strokeWidth={1.8} />
+        <Icon className="h-4 w-4 text-ui-muted" strokeWidth={1.8} />
         {m.deltaPct !== undefined && <DeltaText pct={m.deltaPct} />}
       </div>
-      <p className="text-3xl lg:text-[42px] font-light leading-none tracking-[-0.02em] text-ink">{m.value}</p>
-      <p className="mt-1.5 text-sm text-ink-soft">{m.label}</p>
+      <p className="text-3xl lg:text-[42px] font-light leading-none tracking-[-0.02em] text-ui-text">{m.value}</p>
+      <p className="mt-1.5 text-sm text-ui-muted">{m.label}</p>
     </div>
   )
 }
@@ -226,7 +226,7 @@ function LineTip({ active, payload, label, unit }: TipProps & { unit?: string })
   const cur = payload.find((p) => p.dataKey === 'cur')
   const prev = payload.find((p) => p.dataKey === 'prev')
   return (
-    <div className="rounded-[12px] bg-[#1D1C19] px-3 py-2 text-xs text-white shadow-dav-card">
+    <div className="rounded-[12px] bg-[#1D1C19] px-3 py-2 text-xs text-white">
       <p className="mb-1 text-white/55">{label}</p>
       {cur?.value !== undefined && (
         <p className="flex items-center gap-1.5 font-semibold">
@@ -254,7 +254,7 @@ function HiringChart({
   unit, series, prevSeries,
 }: { unit: string; series: OverviewSeriesPoint[]; prevSeries?: OverviewSeriesPoint[]; deltaPct?: number }) {
   if (series.length < 2) {
-    return <div className="h-full flex items-center justify-center text-sm text-ink-soft">Nincs elég adat a diagramhoz ezen az időszakon.</div>
+    return <div className="h-full flex items-center justify-center text-sm text-ui-muted">Nincs elég adat a diagramhoz ezen az időszakon.</div>
   }
   // Az „Előző” görbe CSAK valódi adatból (az előző, azonos hosszúságú időszak napi sora). Korábban
   // az aktuális görbe leskálázott másolata volt — ugyanolyan alakú, félrevezető.
@@ -314,7 +314,7 @@ function BarTip({ active, payload, label, unit }: TipProps & { unit?: string }) 
   if (!active || !payload?.length) return null
   const suffix = unit === '%' ? '%' : ''
   return (
-    <div className="rounded-[12px] bg-[#1D1C19] px-3 py-2 text-xs text-white shadow-dav-card">
+    <div className="rounded-[12px] bg-[#1D1C19] px-3 py-2 text-xs text-white">
       <p className="mb-1 text-white/55">{label}</p>
       <p className="flex items-center gap-1.5 font-semibold">
         <span className="h-2 w-2 rounded-full" style={{ background: C.accent }} />
@@ -331,7 +331,7 @@ function BarTip({ active, payload, label, unit }: TipProps & { unit?: string }) 
  */
 function MiniBarChart({ unit, series }: { unit: string; series: OverviewSeriesPoint[] }) {
   if (series.length < 2) {
-    return <div className="h-full flex items-center justify-center text-sm text-ink-soft">Nincs elég adat a diagramhoz ezen az időszakon.</div>
+    return <div className="h-full flex items-center justify-center text-sm text-ui-muted">Nincs elég adat a diagramhoz ezen az időszakon.</div>
   }
   const data = bucketSeries(series, 20)
   const max = Math.max(...data.map((d) => d.value))
@@ -367,11 +367,11 @@ function MiniBarChart({ unit, series }: { unit: string; series: OverviewSeriesPo
 function ChartLegend({ showPrev }: { showPrev: boolean }) {
   return (
     <div className="flex items-center gap-3.5">
-      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-soft2">
+      <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ui-muted">
         <span className="h-2 w-2 rounded-full" style={{ background: C.accent }} />Aktuális
       </span>
       {showPrev && (
-        <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ink-soft2">
+        <span className="inline-flex items-center gap-1.5 text-[12px] font-medium text-ui-muted">
           <span className="h-2 w-2 rounded-full" style={{ background: C.ink }} />Előző
         </span>
       )}
@@ -407,7 +407,7 @@ function CompositionDonut({ metric, onOpen }: { metric: OverviewMetric; onOpen?:
   return (
     <div className="rounded-[26px] dav-card-glass p-5 lg:p-6 flex flex-col h-full">
       <div className="flex items-start justify-between mb-1">
-        <div className="text-[19px] font-medium text-ink">{metric.label} · összetétel</div>
+        <div className="text-[19px] font-medium text-ui-text">{metric.label} · összetétel</div>
         <HeaderArrow label="Összetétel" onClick={onOpen} />
       </div>
       <div className="flex-1 flex flex-col items-center justify-center">
@@ -426,18 +426,18 @@ function CompositionDonut({ metric, onOpen }: { metric: OverviewMetric; onOpen?:
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
-            <div className="text-[32px] font-light tracking-[-0.02em] leading-none text-ink truncate max-w-[110px]">{metric.value}</div>
-            <div className="text-xs font-medium text-ink-soft mt-1">{metric.label}</div>
+            <div className="text-[32px] font-light tracking-[-0.02em] leading-none text-ui-text truncate max-w-[110px]">{metric.value}</div>
+            <div className="text-xs font-medium text-ui-muted mt-1">{metric.label}</div>
           </div>
         </div>
         <div className="flex items-center gap-6 mt-2">
-          <span className="inline-flex items-center gap-2 text-[15px] font-semibold text-ink">
+          <span className="inline-flex items-center gap-2 text-[15px] font-semibold text-ui-text">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: C.accent }} />{pct}%
-            <span className="text-xs font-medium text-ink-soft">teljesült</span>
+            <span className="text-xs font-medium text-ui-muted">teljesült</span>
           </span>
-          <span className="inline-flex items-center gap-2 text-[15px] font-semibold text-ink">
+          <span className="inline-flex items-center gap-2 text-[15px] font-semibold text-ui-text">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: TRACK }} />{rest}%
-            <span className="text-xs font-medium text-ink-soft">hátralévő</span>
+            <span className="text-xs font-medium text-ui-muted">hátralévő</span>
           </span>
         </div>
       </div>
@@ -453,7 +453,7 @@ function DonutTip({ active, payload }: TipProps) {
   const color = pp?.color ?? C.accent
   const extra = pp?.value
   return (
-    <div className="rounded-[12px] bg-[#1D1C19] px-3 py-2 text-xs text-white shadow-dav-card ring-1 ring-white/15">
+    <div className="rounded-[12px] bg-[#1D1C19] px-3 py-2 text-xs text-white ring-1 ring-white/15">
       <p className="flex items-center gap-1.5 font-semibold">
         <span className="h-2 w-2 rounded-full" style={{ background: color }} />
         {p.name}{extra ? ` · ${extra}` : ''}
@@ -515,7 +515,7 @@ function HeatmapCard({ metric, heatmap, onOpen }: { metric: OverviewMetric; heat
   const peakHourStr = hm.peakHour !== undefined ? `${String(hm.peakHour).padStart(2, '0')}h` : null
 
   return (
-    <div className="rounded-[26px] bg-ink-dark p-5 lg:p-6 flex flex-col">
+    <div className="rounded-[26px] bg-ui-dark p-5 lg:p-6 flex flex-col">
       <div className="flex items-start justify-between mb-4">
         <span
           className="flex items-center gap-1.5 text-[15px] font-medium text-white cursor-help"
@@ -569,7 +569,7 @@ function HeatmapCard({ metric, heatmap, onOpen }: { metric: OverviewMetric; heat
 
       {/* Lábléc: csúcs + legenda */}
       <div className="mt-5 flex items-center justify-between gap-2">
-        <span className="text-[11px] font-medium text-gold truncate">
+        <span className="text-[11px] font-medium text-ui-yellow truncate">
           {peakDay && peakHourStr ? `Csúcs · ${peakDay} ${peakHourStr}` : 'Csúcsidő'}
         </span>
         <span className="flex items-center gap-1.5 text-[10px] font-medium text-white/40">
@@ -591,9 +591,9 @@ function ChartCard({ title, children, onOpen }: { title: string; children: React
   return (
     <div
       onClick={onOpen}
-      className="rounded-[26px] dav-card-glass p-4 lg:p-5 flex flex-col min-w-0 min-h-[212px] cursor-pointer transition-colors hover:border-line-strong">
+      className="rounded-[26px] dav-card-glass p-4 lg:p-5 flex flex-col min-w-0 min-h-[212px] cursor-pointer transition-colors hover:border-ui-divider">
       <div className="flex items-start justify-between mb-2">
-        <span className="text-[17px] font-medium text-ink truncate">{title}</span>
+        <span className="text-[17px] font-medium text-ui-text truncate">{title}</span>
         <HeaderArrow label={title} onClick={onOpen} />
       </div>
       <div className="flex-1 w-full min-w-0 min-h-[160px]">{children}</div>
@@ -607,19 +607,19 @@ function SourceStripCard({ title = 'Foglalási források', segments }: { title?:
   return (
     <div className="rounded-[26px] dav-card-glass p-4 lg:p-5 flex flex-col">
       <div className="flex items-start justify-between mb-3">
-        <span className="text-[17px] font-medium text-ink truncate">{title}</span>
+        <span className="text-[17px] font-medium text-ui-text truncate">{title}</span>
         <HeaderArrow label={title} />
       </div>
       <div className="flex-1 flex items-end gap-2">
         {segments.map((s, i) => {
           const cls =
-            s.variant === 'ink' ? 'bg-ink-dark text-white'
-            : s.variant === 'gold' ? 'bg-gold text-ink-dark'
-            : s.variant === 'striped' ? 'border border-line-strong text-ink-soft2'
-            : 'border border-line-strong text-ink-soft2'
+            s.variant === 'ink' ? 'bg-ui-dark text-white'
+            : s.variant === 'gold' ? 'bg-ui-yellow text-ui-dark'
+            : s.variant === 'striped' ? 'border border-ui-divider text-ui-muted'
+            : 'border border-ui-divider text-ui-muted'
           return (
             <div key={i} className="min-w-0" style={{ flex: `${Math.max(6, s.pct)} 1 0%` }}>
-              <p className="mb-2 truncate text-xs font-medium text-ink-soft">{s.label}</p>
+              <p className="mb-2 truncate text-xs font-medium text-ui-muted">{s.label}</p>
               <div
                 className={`flex h-11 items-center justify-center rounded-[21px] px-2 text-sm font-semibold ${cls}`}
                 style={s.variant === 'striped' ? { background: stripe } : undefined}
@@ -752,7 +752,7 @@ export function AnalyticsOverview({
             initial="rest"
             whileHover="hover"
             whileTap="hover"
-            className="flex items-center gap-1.5 h-11 lg:h-9 px-3.5 rounded-dav-pill border border-line bg-[var(--dav-glass-strong)] text-sm font-semibold text-ink-soft2 hover:text-ink transition-colors"
+            className="flex items-center gap-1.5 h-11 lg:h-9 px-3.5 rounded-full border border-ui-divider bg-white/70 text-sm font-semibold text-ui-muted hover:text-ui-text transition-colors"
           >
             <Download className="h-4 w-4" /> CSV
           </motion.a>
@@ -769,7 +769,7 @@ export function AnalyticsOverview({
             (donut felül, accordion legalul); desktopon flex-oszlop 2 sor magas. */}
         <div className="contents lg:flex lg:flex-col lg:gap-[5px] lg:row-span-2">
           {/* NAGY sötét kártya: foglalási arány (online/telefon/beeső) — donut + legenda */}
-          <div className="order-1 lg:order-none flex flex-col rounded-[26px] bg-ink-dark p-6 text-white shadow-dav-card">
+          <div className="order-1 lg:order-none flex flex-col rounded-[26px] bg-ui-dark p-6 text-white">
             <div className="flex items-start justify-between gap-2">
               <div className="text-xs font-medium text-white/55">Foglalási arány</div>
               <HeaderArrow dark label="Foglalási arány" onClick={() => openSheet(metrics.find((m) => m.id === 'source')?.id ?? primary.id)} />
@@ -837,7 +837,7 @@ export function AnalyticsOverview({
                     >
                       <span className="min-w-0 truncate text-[15px] font-medium text-[#3a352a]">{m.label}</span>
                       <span className="flex shrink-0 items-center gap-3">
-                        <span className="text-sm font-medium text-ink-soft tabular-nums">{m.value}</span>
+                        <span className="text-sm font-medium text-ui-muted tabular-nums">{m.value}</span>
                         <ChevronDown className={`h-[18px] w-[18px] text-[#6a6354] transition-transform ${open ? 'rotate-180' : ''}`} />
                       </span>
                     </motion.button>
@@ -860,14 +860,14 @@ export function AnalyticsOverview({
                                 initial="rest"
                                 whileHover="hover"
                                 whileTap="hover"
-                                className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-2 text-left text-[14px] text-ink-soft transition-colors hover:bg-[var(--dav-glass)] hover:text-ink"
+                                className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-2 text-left text-[14px] text-ui-muted transition-colors hover:bg-white/60 hover:text-ui-text"
                               >
                                 <span className="truncate">{v.label}</span>
-                                <ChevronRight className="h-4 w-4 shrink-0 text-ink-soft" />
+                                <ChevronRight className="h-4 w-4 shrink-0 text-ui-muted" />
                               </motion.button>
                             ))}
                             {m.deltaPct !== undefined && (
-                              <div className="px-2.5 py-1.5 text-[13px] text-ink-soft">
+                              <div className="px-2.5 py-1.5 text-[13px] text-ui-muted">
                                 Változás az előző időszakhoz: <DeltaText pct={m.deltaPct} />
                               </div>
                             )}
@@ -904,16 +904,16 @@ export function AnalyticsOverview({
         {/* col2 · sor2 — trend-chart (detail) — mobilon a donut UTÁN: order-2 */}
         <div
           onClick={() => openSheet(selected.id)}
-          className="order-2 lg:order-none min-w-0 flex flex-col rounded-[26px] dav-card-glass p-4 lg:p-5 cursor-pointer transition-colors hover:border-line-strong"
+          className="order-2 lg:order-none min-w-0 flex flex-col rounded-[26px] dav-card-glass p-4 lg:p-5 cursor-pointer transition-colors hover:border-ui-divider"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-                <div className="text-[19px] font-medium text-ink truncate">{selected.label}</div>
+                <div className="text-[19px] font-medium text-ui-text truncate">{selected.label}</div>
                 <ChartLegend showPrev={showPrevLegend} />
               </div>
               <div className="mt-2 flex items-baseline gap-2.5">
-                <p className="text-3xl lg:text-[30px] font-light tracking-[-0.02em] text-ink">{selected.value}</p>
+                <p className="text-3xl lg:text-[30px] font-light tracking-[-0.02em] text-ui-text">{selected.value}</p>
                 {selected.deltaPct !== undefined && <DeltaText pct={selected.deltaPct} />}
               </div>
             </div>
@@ -925,7 +925,7 @@ export function AnalyticsOverview({
                 type="button"
                 onClick={(e) => { e.stopPropagation(); stepSelected(-1) }}
                 aria-label="Előző mutató"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink transition-colors hover:bg-[#e7e3d6]"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ui-text transition-colors hover:bg-[#e7e3d6]"
               >
                 <ChevronLeft className="h-4 w-4" strokeWidth={2} />
               </button>
@@ -933,7 +933,7 @@ export function AnalyticsOverview({
                 type="button"
                 onClick={(e) => { e.stopPropagation(); stepSelected(1) }}
                 aria-label="Következő mutató"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ink transition-colors hover:bg-[#e7e3d6]"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-[#f1f0ed] text-ui-text transition-colors hover:bg-[#e7e3d6]"
               >
                 <ChevronRight className="h-4 w-4" strokeWidth={2} />
               </button>
@@ -965,27 +965,27 @@ export function AnalyticsOverview({
       <Sheet open={!!sheetMetricId} onOpenChange={(v) => { if (!v) { setSheetMetricId(null); setScrollToViewId(null) } }}>
         <SheetContent className="font-onest w-full sm:max-w-lg overflow-y-auto bg-white">
           <SheetHeader className="mb-5 space-y-1.5">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">
               Részletek{periodInfo ? ` · ${periodInfo.label}` : ''}
             </p>
-            <SheetTitle className="text-lg font-medium tracking-tight text-ink">{sheetMetric.label}</SheetTitle>
-            {sheetDescription && <p className="text-[13px] leading-relaxed text-ink-soft">{sheetDescription}</p>}
+            <SheetTitle className="text-lg font-medium tracking-tight text-ui-text">{sheetMetric.label}</SheetTitle>
+            {sheetDescription && <p className="text-[13px] leading-relaxed text-ui-muted">{sheetDescription}</p>}
           </SheetHeader>
 
           {/* Érték + MIHEZ képest: az előző, azonos hosszúságú időszak */}
-          <div className="mb-5 rounded-[18px] p-5 border border-line bg-[var(--dav-glass)]">
+          <div className="mb-5 rounded-[18px] p-5 border border-ui-divider bg-white/60">
             <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft">Az időszakban</p>
-              {periodInfo && <p className="text-[11px] text-ink-soft2">{periodInfo.range}</p>}
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Az időszakban</p>
+              {periodInfo && <p className="text-[11px] text-ui-muted">{periodInfo.range}</p>}
             </div>
             <div className="flex items-baseline gap-2">
-              <p className="text-3xl font-light tracking-[-0.02em] text-ink">{sheetMetric.value}</p>
+              <p className="text-3xl font-light tracking-[-0.02em] text-ui-text">{sheetMetric.value}</p>
               {sheetMetric.deltaPct !== undefined && <DeltaText pct={sheetMetric.deltaPct} />}
             </div>
             {(sheetMetric.prevValue || sheetMetric.deltaPct !== undefined) && periodInfo && (
-              <p className="mt-2 text-xs text-ink-soft">
-                {sheetMetric.prevValue ? <>Előző időszak: <span className="font-medium text-ink">{sheetMetric.prevValue}</span></> : 'Az előző időszakhoz képest'}
-                <span className="text-ink-soft2"> · {periodInfo.prevRange}</span>
+              <p className="mt-2 text-xs text-ui-muted">
+                {sheetMetric.prevValue ? <>Előző időszak: <span className="font-medium text-ui-text">{sheetMetric.prevValue}</span></> : 'Az előző időszakhoz képest'}
+                <span className="text-ui-muted"> · {periodInfo.prevRange}</span>
               </p>
             )}
           </div>
@@ -993,7 +993,7 @@ export function AnalyticsOverview({
           {/* Fő trend a metrikára — MÉRETEZETT konténer, hogy látszódjon */}
           <div className="mb-6">
             <div className="flex items-center justify-between gap-3 mb-2">
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-ink-soft">Napi alakulás</p>
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-ui-muted">Napi alakulás</p>
               <ChartLegend showPrev={sheetHasPrev} />
             </div>
             <div className="h-56 w-full">
@@ -1011,18 +1011,18 @@ export function AnalyticsOverview({
               const ownSeries = v.series && v.series.length >= 2 ? v.series : null
               const Icon = ICONS[v.icon] ?? CalendarDays
               return (
-                <div key={v.id} id={`av-view-${v.id}`} className="scroll-mt-5 rounded-[18px] border border-line p-4">
+                <div key={v.id} id={`av-view-${v.id}`} className="scroll-mt-5 rounded-[18px] border border-ui-divider p-4">
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-ink">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--dav-glass-strong)] border border-line">
-                        <Icon className="h-4 w-4 text-ink" />
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-ui-text">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/70 border border-ui-divider">
+                        <Icon className="h-4 w-4 text-ui-text" />
                       </span>
                       {v.label}
                     </span>
-                    <span className="text-sm font-light text-ink">{headValue}</span>
+                    <span className="text-sm font-light text-ui-text">{headValue}</span>
                   </div>
                   {(v.caption ?? VIEW_CAPTION[v.id]) && (
-                    <p className="-mt-1.5 mb-3 pl-10 text-xs text-ink-soft">{v.caption ?? VIEW_CAPTION[v.id]}</p>
+                    <p className="-mt-1.5 mb-3 pl-10 text-xs text-ui-muted">{v.caption ?? VIEW_CAPTION[v.id]}</p>
                   )}
                   {/* MÉRETEZETT konténer — a ResponsiveContainer alapú grafikonok itt látszódnak */}
                   <div className="h-64 w-full">

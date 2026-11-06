@@ -43,7 +43,7 @@ export function UserAvatar({
       className={cn(
         // Crextio: halvány, semleges monogram-csempe (nem tömör fekete kör) — a világos
         // felületbe simul, sötét betűvel. A finom keret adja a formát, nem a kontraszt.
-        'flex items-center justify-center rounded-full bg-[#F1EEE6] text-ink border border-line font-semibold select-none dark:bg-white/[0.08] dark:text-white dark:border-white/10',
+        'flex items-center justify-center rounded-full bg-[#F1EEE6] text-ui-text border border-ui-divider font-semibold select-none dark:bg-white/[0.08] dark:text-white dark:border-white/10',
         className,
       )}
     >

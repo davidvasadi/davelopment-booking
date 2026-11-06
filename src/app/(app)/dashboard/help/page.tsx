@@ -1,9 +1,9 @@
 import { getOwnedSalon } from '@/lib/salonContext'
-import { TipsContent } from '@/components/onboarding/TipsContent'
+import { HelpView } from '@/components/dashboard/HelpView'
 
 export const metadata = { title: 'Súgó' }
 
 export default async function SalonHelpPage() {
   const { capabilities } = await getOwnedSalon()
-  return <TipsContent variant="salon" capabilities={capabilities} />
+  return <HelpView variant="salon" capabilities={capabilities} />
 }

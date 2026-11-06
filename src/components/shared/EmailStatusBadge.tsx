@@ -8,13 +8,13 @@ type EmailStatus = 'sent' | 'delivered' | 'opened' | 'clicked' | 'bounced' | 'co
 type EmailStatusResponse = { ok: boolean | null; status: EmailStatus; deliveredAt: string | null; openedAt: string | null }
 
 const MAP: Record<string, { icon: typeof Check; label: string; cls: string }> = {
-  sent: { icon: Check, label: 'Elküldve', cls: 'text-ink-soft2' },
-  delivered: { icon: CheckCheck, label: 'Kézbesítve', cls: 'text-ink-soft2' },
-  opened: { icon: MailOpen, label: 'Megnyitva', cls: 'text-emerald-600' },
-  clicked: { icon: MailOpen, label: 'Megnyitva', cls: 'text-emerald-600' },
-  bounced: { icon: AlertTriangle, label: 'Visszapattant', cls: 'text-red-600' },
-  complained: { icon: AlertTriangle, label: 'Spam-panasz', cls: 'text-red-600' },
-  failed: { icon: AlertTriangle, label: 'Küldés sikertelen', cls: 'text-red-600' },
+  sent: { icon: Check, label: 'Elküldve', cls: 'text-ui-muted' },
+  delivered: { icon: CheckCheck, label: 'Kézbesítve', cls: 'text-ui-muted' },
+  opened: { icon: MailOpen, label: 'Megnyitva', cls: 'text-ui-ok' },
+  clicked: { icon: MailOpen, label: 'Megnyitva', cls: 'text-ui-ok' },
+  bounced: { icon: AlertTriangle, label: 'Visszapattant', cls: 'text-ui-bad' },
+  complained: { icon: AlertTriangle, label: 'Spam-panasz', cls: 'text-ui-bad' },
+  failed: { icon: AlertTriangle, label: 'Küldés sikertelen', cls: 'text-ui-bad' },
 }
 const RETRYABLE = new Set<EmailStatus>(['bounced', 'complained', 'failed'])
 
@@ -79,7 +79,7 @@ export function EmailStatusBadge({
 
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={`inline-flex items-center gap-1 text-[11px] font-medium ${entry.cls}`}>
+      <span className={`inline-flex items-center gap-1 text-ui-label ${entry.cls}`}>
         <Icon className="h-3 w-3" /> {entry.label}
       </span>
       {canRetry && (
@@ -87,7 +87,7 @@ export function EmailStatusBadge({
           type="button"
           onClick={handleResend}
           disabled={sending}
-          className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:opacity-50"
+          className="inline-flex items-center gap-1 rounded-full bg-ui-bad-bg px-2 py-0.5 text-ui-label text-ui-bad transition-opacity hover:opacity-80 disabled:opacity-50" /* ui-allow: apró újraküldés-gomb az állapot mellett */
         >
           <RotateCw className={`h-2.5 w-2.5 ${sending ? 'animate-spin' : ''}`} /> Küldés újra
         </button>

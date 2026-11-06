@@ -1,9 +1,9 @@
 import { getOwnedRestaurant } from '@/lib/restaurantContext'
-import { TipsContent } from '@/components/onboarding/TipsContent'
+import { HelpView } from '@/components/dashboard/HelpView'
 
 export const metadata = { title: 'Súgó' }
 
 export default async function RestaurantHelpPage() {
   const { capabilities } = await getOwnedRestaurant()
-  return <TipsContent variant="restaurant" capabilities={capabilities} />
+  return <HelpView variant="restaurant" capabilities={capabilities} />
 }

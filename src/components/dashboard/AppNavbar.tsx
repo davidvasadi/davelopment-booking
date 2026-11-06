@@ -2,15 +2,16 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Settings, ChevronDown, Lock } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Button } from '@/components/ui-kit'
 import { BrandLogo } from '@/components/BrandLogo'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import type { Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
-import type { SwitcherBusiness } from './StoreSwitcher'
+import type { SwitcherBusiness } from './switcherTypes'
 import { buttonHover } from '@/lib/motion'
 
 const MotionLink = motion.create(Link)
@@ -73,7 +74,6 @@ export function AppNavbar({
   const { publicUrlPrefix, settingsHref, subscriptionHref, notificationsHref } = getNavConfig(variant)
   const items = navItemsForCapabilities(variant, capabilities, hiddenHrefs)
   const pathname = usePathname()
-  const searchParams = useSearchParams()
 
   const isActive = (href: string, exact?: boolean) => (exact ? pathname === href : pathname.startsWith(href))
   const isLocked = subscription?.status === 'past_due' || subscription?.status === 'canceled' || subscription?.status === 'paused'
@@ -82,18 +82,22 @@ export function AppNavbar({
     ? Math.max(0, Math.ceil((new Date(subscription.trial_ends_at).getTime() - Date.now()) / 86_400_000))
     : undefined
 
-  // A „Beállítások" a jobb oldali fogaskerékre kerül; a pill-navban a többi elem.
-  // A pill-nav ~6 elemre van tervezve — a többi egy „Több" legördülőbe kerül, hogy ne lógjon ki.
+  // A „Beállítások" a jobb oldali pillre kerül; a pill-navban a design szerinti 5 fő elem (/design 2.1):
+  // Áttekintés · Foglalások · Naptár (étteremnél Asztalok) · Vendégek · Statisztikák — a többi a „Több" alá, csoportosítva.
   const showSettings = variant === 'backstage' || items.some((it) => it.href === settingsHref)
   const allPill = items.filter((it) => it.href !== settingsHref)
-  const PRIMARY_MAX = 4
-  const pillItems = allPill.slice(0, PRIMARY_MAX)
-  const overflowItems = allPill.slice(PRIMARY_MAX)
+  const PRIMARY = variant === 'backstage' ? null : ['', '/bookings', '/schedule', '/guests', '/analytics']
+  const base = variant === 'restaurant' ? '/restaurant' : '/dashboard'
+  const pillItems = PRIMARY ? PRIMARY.map((sfx) => allPill.find((it) => it.href === base + sfx)).filter((x): x is (typeof allPill)[number] => !!x) : allPill.slice(0, 4)
+  const overflowItems = allPill.filter((it) => !pillItems.includes(it))
   const [moreOpen, setMoreOpen] = useState(false)
-  const overflowActive = overflowItems.some((it) => isActive(it.href, it.exact))
+  const overflowActiveItem = overflowItems.find((it) => isActive(it.href, it.exact))
+  const overflowActive = !!overflowActiveItem
+  // a „Több" panel csoportjai (a design szerint); ami nincs benne, az „Egyéb"
+  const GROUPS: [string, string[]][] = [['Üzlet', ['/services', '/staff', '/schedule', '/availability']], ['Bevétel és marketing', ['/vouchers', '/marketing']], ['Segítség', ['/tips', '/help']]]
+  const groupOf = (href: string) => GROUPS.find(([, sfx]) => sfx.some((x) => href === base + x))?.[0] ?? 'Egyéb'
+  const overflowGroups = [...GROUPS.map(([g]) => g), 'Egyéb'].map((g) => [g, overflowItems.filter((it) => groupOf(it.href) === g)] as const).filter(([, list]) => list.length > 0)
 
-  const csvDays = searchParams.get('period') ?? '30'
-  const csvHref = `/api/export-csv?days=${csvDays}&module=${variant}`
   const publicUrl = variant === 'backstage' ? undefined : `/${publicUrlPrefix}${businessSlug}`
   const settingsActive = isActive(settingsHref)
 
@@ -110,75 +114,39 @@ export function AppNavbar({
         aria-label="davelopment booking"
         className="flex items-center shrink-0 px-1"
       >
-        <BrandLogo variant="light" className="h-10" />
+        <BrandLogo variant="light" className="h-8" />
       </Link>
 
-      {/* Közép: pill-nav — üveges háttér (a konténer-gradient átdereng), 40px sugár, soft shadow */}
-      <nav className="flex items-center gap-1.5 rounded-[40px] bg-[var(--dav-glass-strong)] p-[6px] shadow-[0_2px_10px_rgba(0,0,0,.05)] backdrop-blur-lg">
+      {/* Jobb: a menü-pill, a Beállítások, a csengő és az avatar — egymáshoz simulva (a design szerint) */}
+      <div className="flex items-center gap-1.5">
+
+      {/* a menü-pill: fehér 60%, benne a kit gombjai (ghost; az aktív sötét, animált háttérrel) */}
+      <nav className="flex items-center gap-1 rounded-full bg-white/60 p-1">
         {pillItems.map(({ href, label, exact }) => {
           const active = isActive(href, exact)
           // Lejárt/megszűnt/szüneteltetett előfizetésnél a nav-elemek NEM navigálhatók —
           // csak lakat-ikonnal jelzett, inaktív pill marad belőlük (a "Beállítások" gomb és
           // az azon belüli Előfizetés/Fiók-törlés fülek maradnak elérhetők).
           if (isLocked) {
-            return (
-              <span
-                key={href}
-                aria-disabled
-                title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
-                className="relative flex cursor-not-allowed items-center gap-1.5 whitespace-nowrap rounded-[30px] px-[18px] py-[11px] text-sm font-medium text-[#55524a]/40"
-              >
-                <Lock className="h-3.5 w-3.5" strokeWidth={1.8} />
-                {label}
-              </span>
-            )
+            return <Button key={href} variant="ghost" icon={Lock} disabled title="Az előfizetésed lejárt — aktiváld a folytatáshoz">{label}</Button>
           }
           return (
-            <MotionLink
-              key={href}
-              href={href}
-              data-tour={href}
-              variants={buttonHover}
-              initial="rest"
-              whileHover="hover"
-              whileTap="hover"
-              className={cn(
-                'relative rounded-[30px] py-[11px] text-sm transition-colors whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ink/10',
-                active ? 'px-[22px] text-white font-semibold' : 'px-[18px] font-medium text-[#55524a] hover:text-ink',
-              )}
-            >
-              {active && (
-                <motion.span
-                  layoutId="dav-nav-pill"
-                  className="absolute inset-0 -z-0 rounded-[30px] bg-ink-dark"
-                  transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                />
-              )}
+            <Button key={href} href={href} data-tour={href} variant="ghost" className={cn('relative', active ? 'text-white' : 'hover:bg-white/70')}>
+              {/* az aktív háttér rugósan átúszik a kiválasztott menüpontra */}
+              {active && <motion.span layoutId="ui-nav-pill" className="absolute inset-0 -z-0 rounded-full bg-ui-dark" transition={{ type: 'spring', stiffness: 380, damping: 32 }} />}
               <span className="relative z-10">{label}</span>
-            </MotionLink>
+            </Button>
           )
         })}
 
         {/* „Több" legördülő a másodlagos elemekre — így a nav nem lóg ki */}
         {overflowItems.length > 0 && (
           <div className="relative">
-            <motion.button
-              type="button"
-              onClick={() => setMoreOpen((o) => !o)}
-              onBlur={() => setTimeout(() => setMoreOpen(false), 150)}
-              variants={buttonHover}
-              initial="rest"
-              whileHover="hover"
-              whileTap="hover"
-              className={cn(
-                'relative flex items-center gap-1 rounded-[30px] py-[11px] text-sm transition-colors whitespace-nowrap outline-none focus-visible:ring-2 focus-visible:ring-ink/10',
-                overflowActive ? 'px-[22px] text-white font-semibold' : 'px-[18px] font-medium text-[#55524a] hover:text-ink',
-              )}
-            >
-              {overflowActive && <span className="absolute inset-0 -z-0 rounded-[30px] bg-ink-dark" />}
-              <span className="relative z-10">Több</span>
-              <ChevronDown className={cn('relative z-10 h-4 w-4 transition-transform', moreOpen && 'rotate-180')} />
-            </motion.button>
+            <Button variant={overflowActive ? 'dark' : 'ghost'} onClick={() => setMoreOpen((o) => !o)} onBlur={() => setTimeout(() => setMoreOpen(false), 150)} className={overflowActive ? undefined : 'hover:bg-white/70'}>
+              {/* ha a Több alatti oldalon vagy, a helyén az oldal neve áll (sötéten) */}
+              {overflowActiveItem?.label ?? 'Több'}
+              <ChevronDown className={cn('h-3.5 w-3.5 opacity-60 transition-transform', moreOpen && 'rotate-180')} />
+            </Button>
             <AnimatePresence>
               {moreOpen && (
                 <motion.div
@@ -187,9 +155,12 @@ export function AppNavbar({
                   animate="show"
                   exit="exit"
                   style={{ transformOrigin: 'top right' }}
-                  className="absolute right-0 top-[calc(100%+8px)] z-50 min-w-[190px] overflow-hidden rounded-[18px] border border-[#ececec] bg-white p-1.5 shadow-[0_18px_50px_-18px_rgba(0,0,0,.35)]"
+                  className="absolute right-0 top-[calc(100%+8px)] z-50 grid w-[440px] grid-cols-2 gap-1 overflow-hidden rounded-ui-card bg-white p-3 shadow-ui-popup"
                 >
-                  {overflowItems.map(({ href, label, exact, icon: Icon }) => {
+                  {overflowGroups.map(([group, list]) => (
+                  <motion.div key={group} variants={POP_ITEM} className="p-1">
+                  <div className="px-2.5 pb-1 pt-1.5 text-ui-label text-ui-muted">{group}</div>
+                  {list.map(({ href, label, exact, icon: Icon }) => {
                     const active = isActive(href, exact)
                     if (isLocked) {
                       return (
@@ -197,9 +168,9 @@ export function AppNavbar({
                           <span
                             aria-disabled
                             title="Az előfizetésed lejárt — aktiváld a folytatáshoz"
-                            className="flex cursor-not-allowed items-center gap-2.5 rounded-[13px] px-3 py-2.5 text-sm font-medium text-[#3a352a]/35"
+                            className="flex cursor-not-allowed items-center gap-2.5 rounded-ui-control px-3 py-2.5 text-ui-body text-ui-muted/60"
                           >
-                            <Lock className="h-[15px] w-[15px]" strokeWidth={1.8} />
+                            <Lock className="h-4 w-4" strokeWidth={1.8} />
                             {label}
                           </span>
                         </motion.div>
@@ -215,16 +186,18 @@ export function AppNavbar({
                           whileHover="hover"
                           whileTap="hover"
                           className={cn(
-                            'flex items-center gap-2.5 rounded-[13px] px-3 py-2.5 text-sm transition-colors',
-                            active ? 'bg-ink-dark font-semibold text-white' : 'font-medium text-[#3a352a] hover:bg-[#f4f4f5] hover:text-ink',
+                            'flex items-center gap-2.5 rounded-ui-control px-3 py-2.5 text-ui-body transition-colors',
+                            active ? 'bg-ui-dark text-white' : 'text-ui-text hover:bg-ui-cell',
                           )}
                         >
-                          <Icon className={cn('h-[17px] w-[17px]', !active && 'text-[#8a8779]')} />
+                          <Icon className={cn('h-4 w-4', !active && 'text-ui-muted')} strokeWidth={1.8} />
                           {label}
                         </MotionLink>
                       </motion.div>
                     )
                   })}
+                  </motion.div>
+                  ))}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -232,43 +205,26 @@ export function AppNavbar({
         )}
       </nav>
 
-      {/* Jobb: Beállítás (Crextio: fehér pill ikon+felirat) + csengő + avatar */}
-      <div className="flex items-center gap-2.5 shrink-0">
+      <div className="flex items-center gap-1.5 shrink-0">
         {showSettings && (
-          <MotionLink
-            href={settingsHref}
-            data-tour={settingsHref}
-            aria-label="Beállítások"
-            title="Beállítások"
-            variants={buttonHover}
-            initial="rest"
-            whileHover="hover"
-            whileTap="hover"
-            className={cn(
-              'flex h-[52px] shrink-0 items-center gap-2 rounded-[30px] px-[22px] text-sm font-semibold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors backdrop-blur-lg',
-              settingsActive ? 'bg-ink-dark text-white' : 'bg-[var(--dav-glass-strong)] text-ink hover:bg-white/70',
-            )}
-          >
-            <Settings className="h-[16px] w-[16px]" strokeWidth={2} />
-            Beállítások
-          </MotionLink>
+          <Button href={settingsHref} data-tour={settingsHref} variant={settingsActive ? 'dark' : 'glass'} size="lg" icon={Settings} className={settingsActive ? undefined : 'hover:bg-white'}>Beállítások</Button>
         )}
 
         <UserMenu
+          showPartner={variant !== 'backstage' && !hiddenHrefs.some((h) => h.endsWith('/partnerprogram'))}
           name={userName}
           email={userEmail}
           avatarUrl={userAvatarUrl}
-          collapsed
           subscriptionHref={subscriptionHref}
           settingsHref={settingsHref}
           publicUrl={publicUrl}
-          csvHref={variant === 'backstage' ? undefined : csvHref}
           businesses={businesses}
           activeBusinessKey={activeBusinessKey}
           capabilities={variant === 'backstage' ? undefined : capabilities}
           notificationsHref={variant === 'backstage' ? undefined : notificationsHref}
           trialDaysLeft={trialDaysLeft}
         />
+      </div>
       </div>
     </div>
     </>

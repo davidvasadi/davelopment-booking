@@ -7,6 +7,7 @@
 
 import { useEffect, useState } from 'react'
 import { UserRound } from 'lucide-react'
+import { Card, ListRow, Meta } from '@/components/ui-kit'
 
 export type GuestSuggestion = { name: string; email: string | null; phone: string | null; city: string | null; address?: string | null; taxNumber?: string | null }
 export type GuestLookupField = 'name' | 'phone' | 'email'
@@ -50,26 +51,21 @@ export function GuestSuggestList({
   onPick: (g: GuestSuggestion) => void
 }) {
   if (!show || results.length === 0) return null
+  // a design 6.9 vendég-lépése: cella-kártya, felül a magyarázat, soronként egy korábbi vendég (az első kiemelve)
   return (
-    <div className="overflow-hidden rounded-[12px] border border-zinc-200 bg-white shadow-[0_12px_30px_-18px_rgba(40,35,15,.45)]">
-      <div className="bg-zinc-50 px-3.5 py-2 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Korábbi vendég — kattints a kitöltéshez</div>
+    <Card tone="cell" inner pad="xs" className="mt-1.5">
+      <Meta className="px-3 pt-1 text-ui-label">Korábbi vendég — kattints a kitöltéshez</Meta>
       {results.map((g, i) => (
         <button
           key={`${g.email ?? g.phone ?? g.name}-${i}`}
           type="button"
           // mousedown: a mező blur-je előtt fusson le (különben a lista eltűnhetne a kattintás előtt)
           onMouseDown={(e) => { e.preventDefault(); onPick(g) }}
-          className="flex w-full items-center gap-3 border-t border-zinc-100 px-3.5 py-2 text-left transition-colors hover:bg-zinc-50"
+          className="block w-full text-left"
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
-            <UserRound className="h-3.5 w-3.5" strokeWidth={2} />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate text-sm font-medium text-zinc-900">{g.name}</span>
-            <span className="block truncate text-[12px] text-zinc-500">{[g.phone, g.email].filter(Boolean).join(' · ') || 'nincs elérhetőség'}</span>
-          </span>
+          <ListRow filled={i === 0} className={i === 0 ? 'bg-white' : 'hover:bg-white/60'} leading={<UserRound className="h-4 w-4 text-ui-muted" />} title={g.name} meta={[g.phone, g.email].filter(Boolean).join(' · ') || 'nincs elérhetőség'} />
         </button>
       ))}
-    </div>
+    </Card>
   )
 }

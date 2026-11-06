@@ -4,7 +4,7 @@ import { ArrowUpRight, ChevronDown, type LucideIcon } from 'lucide-react'
  *  ugyanezeket használja (davelopment-design, Crextio bento). */
 
 /** Fehér bento-kártya alap-osztály. */
-export const CARD = 'rounded-[26px] bg-[var(--dav-glass-strong)] backdrop-blur-lg shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]'
+export const CARD = 'rounded-[26px] bg-white/70 backdrop-blur-lg shadow-[0_1px_2px_rgba(80,70,30,0.05),0_18px_40px_-28px_rgba(80,70,30,0.2)]'
 
 /** Hero KPI: kis ikon + nagy szám + címke. */
 /** `compact`: sok KPI egy sorban (mobilon) → kisebb, a képernyő szélességéhez igazodó betű. */
@@ -12,10 +12,10 @@ export function HeroKpi({ icon: Icon, value, label, compact = false }: { icon: L
   return (
     <div className="flex min-w-0 flex-col items-start">
       <div className={`flex items-center ${compact ? 'gap-1.5 lg:gap-2.5' : 'gap-2.5'}`}>
-        <Icon className={`shrink-0 text-ink-soft ${compact ? 'h-[18px] w-[18px] lg:h-6 lg:w-6' : 'h-6 w-6'}`} strokeWidth={1.6} />
-        <div className={`whitespace-nowrap font-light leading-none tracking-[-0.02em] text-ink lg:text-[42px] ${compact ? 'text-[clamp(20px,5.6vw,36px)]' : 'text-4xl'}`}>{value}</div>
+        <Icon className={`shrink-0 text-ui-muted ${compact ? 'h-[18px] w-[18px] lg:h-6 lg:w-6' : 'h-6 w-6'}`} strokeWidth={1.6} />
+        <div className={`whitespace-nowrap font-light leading-none tracking-[-0.02em] text-ui-text lg:text-[42px] ${compact ? 'text-[clamp(20px,5.6vw,36px)]' : 'text-4xl'}`}>{value}</div>
       </div>
-      <div className={`mt-1.5 whitespace-nowrap font-medium text-ink-soft ${compact ? 'text-[12px] lg:text-[13px]' : 'text-[13px]'}`}>{label}</div>
+      <div className={`mt-1.5 whitespace-nowrap font-medium text-ui-muted ${compact ? 'text-[12px] lg:text-[13px]' : 'text-[13px]'}`}>{label}</div>
     </div>
   )
 }
@@ -24,7 +24,7 @@ export function HeroKpi({ icon: Icon, value, label, compact = false }: { icon: L
 export function StatusPill({ label, value, className }: { label: string; value: string; className: string }) {
   return (
     <div className="shrink-0">
-      <p className="mb-2 text-xs font-medium text-ink-soft">{label}</p>
+      <p className="mb-2 text-xs font-medium text-ui-muted">{label}</p>
       <div className={`flex h-11 items-center rounded-[21px] px-5 text-sm font-semibold ${className}`}>{value}</div>
     </div>
   )
@@ -34,7 +34,7 @@ export function StatusPill({ label, value, className }: { label: string; value: 
 export function CardIcon() {
   return (
     <div className="flex h-[38px] w-[38px] items-center justify-center rounded-full bg-white shadow-[0_2px_6px_rgba(80,70,30,.07)]">
-      <ArrowUpRight className="h-[15px] w-[15px] text-ink" strokeWidth={1.8} />
+      <ArrowUpRight className="h-[15px] w-[15px] text-ui-text" strokeWidth={1.8} />
     </div>
   )
 }
@@ -48,8 +48,8 @@ export function Dashed() {
 export function AccRow({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-between py-2.5">
-      <span className="text-[15px] font-medium text-ink">{label}</span>
-      <ChevronDown className="h-4 w-4 text-ink-soft" />
+      <span className="text-[15px] font-medium text-ui-text">{label}</span>
+      <ChevronDown className="h-4 w-4 text-ui-muted" />
     </div>
   )
 }

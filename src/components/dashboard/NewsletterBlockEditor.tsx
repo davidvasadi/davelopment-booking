@@ -11,10 +11,13 @@ import {
   Rows2, Columns2, Columns3, Columns4, Share2, Code2, Braces,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { IconButton, Input } from '@/components/ui-kit'
+import { UploadTile, type UploadState } from '@/components/blocks/upload'
+import { uploadMedia } from '@/lib/uploadMedia'
 import { buttonHover } from '@/lib/motion'
 import { compressImage } from '@/lib/compressImage'
 import { detectPlatform, socialIconDataUri, SOCIAL_LABELS } from '@/lib/socialLinks'
-import { blocksToHtml, emptyTextBlock, nextId, type ComposerBlock, type ColumnCell, type TextAlign } from '@/lib/emailBlocks'
+import { blocksToHtml, emptyTextBlock, nextId, FONT_STACK, type BlockFont, type ComposerBlock, type ColumnCell, type TextAlign } from '@/lib/emailBlocks'
 
 export { blocksToHtml, emptyTextBlock }
 export type { ComposerBlock }
@@ -104,17 +107,21 @@ const TYPE_LABELS: Record<string, string> = {
 }
 const TEXT_TYPE_OPTIONS = ['text', 'title', 'subtitle', 'heading', 'bullet_list', 'numbered_list'] as const
 
-function newBlock(type: InsertableType, opts?: { cols?: number; kind?: 'image' | 'youtube' }): ComposerBlock {
+/** új, üres blokk — a Marketing szerkesztő (blokk-paletta, beszúrás-lap) is ezt használja */
+export function newBlock(type: InsertableType, opts?: { cols?: number; kind?: 'image' | 'youtube'; url?: string }): ComposerBlock {
   const id = nextId()
   switch (type) {
     case 'button': return { id, type: 'button', label: 'Gomb szövege', url: '' }
     case 'divider': return { id, type: 'divider' }
+    case 'button_row': return { id, type: 'button_row', items: [{ label: 'Első gomb', url: opts?.url ?? '' }, { label: 'Második gomb', url: '', bg: '#EEEEEE', color: '#383838' }] }
     case 'image': return { id, type: 'image', url: '', alt: '', link: '', kind: opts?.kind ?? 'image' }
     case 'section': return { id, type: 'section', html: '', bg: '#F7F5F0' }
     case 'columns': return { id, type: 'columns', cols: Array.from({ length: opts?.cols ?? 2 }, (): ColumnCell => ({ type: 'empty' })) }
     case 'social_links': return { id, type: 'social_links', links: [{ url: '' }] }
     case 'html': return { id, type: 'html', code: '' }
     case 'code': return { id, type: 'code', code: '' }
+    case 'offers': return { id, type: 'offers', items: [{ name: '', was: '', now: '' }, { name: '', was: '', now: '' }] }
+    case 'voucher': return { id, type: 'voucher', amount: '20 000 Ft', title: 'Ajándékutalvány', text: 'Online megveszed, e-mailben megy.', label: 'Utalványt veszek', url: opts?.url ?? '' }
     default: return { id, type, html: '' }
   }
 }
@@ -172,7 +179,7 @@ function FormatFlyout({ hasTarget, supportsAlign, supportsBg, supportsColor, sup
       exit="exit"
       style={{ transformOrigin: 'left center' }}
       className={cn(
-        'absolute left-full z-30 ml-2 w-56 rounded-2xl bg-ink-dark p-3 shadow-[0_18px_42px_-16px_rgba(0,0,0,.5)]',
+        'absolute left-full z-30 ml-2 w-56 rounded-2xl bg-ui-dark p-3 shadow-[0_18px_42px_-16px_rgba(0,0,0,.5)]',
         align === 'top' ? 'top-0' : 'bottom-0',
       )}
     >
@@ -281,7 +288,7 @@ function RailFlyout({ items, onPick, align = 'top' }: { items: RailItem[]; onPic
       exit="exit"
       style={{ transformOrigin: 'left center' }}
       className={cn(
-        'absolute left-full z-30 ml-2 max-h-[80vh] w-52 overflow-y-auto rounded-2xl bg-ink-dark p-1.5 shadow-[0_18px_42px_-16px_rgba(0,0,0,.5)]',
+        'absolute left-full z-30 ml-2 max-h-[80vh] w-52 overflow-y-auto rounded-2xl bg-ui-dark p-1.5 shadow-[0_18px_42px_-16px_rgba(0,0,0,.5)]',
         align === 'top' ? 'top-0' : 'bottom-0',
       )}
     >
@@ -308,7 +315,7 @@ function RailFlyout({ items, onPick, align = 'top' }: { items: RailItem[]; onPic
 /** KontentEditable szöveg-blokk — a DOM-ot csak MOUNTKOR töltjük fel (üresen indul minden új
  *  blokk), utána a böngésző saját szerkesztés-állapotát sose írjuk felül React-ből — így a
  *  kurzor sosem ugrik el gépelés közben. Kifelé csak `onInput`-tal jelentünk. */
-function EditableBlock({ type, html, align, bg, color, fontSize, lineHeight, autoFocus, cellIndex, onInput }: { type: string; html: string; align?: TextAlign; bg?: string | null; color?: string | null; fontSize?: number; lineHeight?: number; autoFocus?: boolean; cellIndex?: number; onInput: (html: string) => void }) {
+function EditableBlock({ type, html, align, bg, color, fontSize, lineHeight, font, autoFocus, cellIndex, onInput }: { type: string; html: string; align?: TextAlign; bg?: string | null; color?: string | null; fontSize?: number; lineHeight?: number; font?: BlockFont; autoFocus?: boolean; cellIndex?: number; onInput: (html: string) => void }) {
   const ref = useRef<HTMLDivElement>(null)
   const seeded = useRef(false)
   useEffect(() => {
@@ -321,13 +328,13 @@ function EditableBlock({ type, html, align, bg, color, fontSize, lineHeight, aut
   }, [type, html])
 
   const cls = cn(
-    'w-full min-w-0 break-words bg-transparent outline-none [&:empty]:before:text-ink-soft2 [&:empty]:before:content-[attr(data-placeholder)]',
-    type === 'title' && 'text-[22px] font-bold text-ink',
-    type === 'subtitle' && 'text-[17px] font-semibold text-ink',
-    type === 'heading' && 'text-[15px] font-semibold text-ink',
-    type === 'text' && 'text-[14px] text-ink',
-    (type === 'bullet_list') && 'list-disc pl-5 text-[14px] text-ink [&:empty]:before:content-none',
-    (type === 'numbered_list') && 'list-decimal pl-5 text-[14px] text-ink [&:empty]:before:content-none',
+    'w-full min-w-0 break-words bg-transparent outline-none [&:empty]:before:text-ui-muted [&:empty]:before:content-[attr(data-placeholder)]',
+    type === 'title' && 'text-[22px] font-bold text-ui-text',
+    type === 'subtitle' && 'text-[17px] font-semibold text-ui-text',
+    type === 'heading' && 'text-[15px] font-semibold text-ui-text',
+    type === 'text' && 'text-[14px] text-ui-text',
+    (type === 'bullet_list') && 'list-disc pl-5 text-[14px] text-ui-text [&:empty]:before:content-none',
+    (type === 'numbered_list') && 'list-decimal pl-5 text-[14px] text-ui-text [&:empty]:before:content-none',
   )
 
   const Tag = type === 'bullet_list' ? 'ul' : type === 'numbered_list' ? 'ol' : 'div'
@@ -348,6 +355,7 @@ function EditableBlock({ type, html, align, bg, color, fontSize, lineHeight, aut
         color: color ?? undefined,
         fontSize: fontSize ? `${fontSize}px` : undefined,
         lineHeight: lineHeight ?? undefined,
+        fontFamily: font ? FONT_STACK[font] ?? undefined : undefined,
       }}
     />
   )
@@ -358,6 +366,42 @@ type ImageBlock = Extract<ComposerBlock, { type: 'image' }>
 /** Kép-blokk szerkesztő — ugyanaz a feltöltés-minta, mint a szalon/étterem logó/borítókép
  *  feltöltésénél (`SalonSettingsForm.tsx`): kliens-oldali tömörítés (`compressImage`) + FormData
  *  POST a Payload `/api/media` végpontjára. */
+/** A Marketing szerkesztőben (design 13.4) a kép-blokk a kit feltöltőjével: szaggatott csempe, feltöltés közben a
+ *  közös UploadTile százalékkal (`uploadMedia`, ugyanaz, mint a foglalóoldal képeinél); az igazítás a Blokk stílusában. */
+function KitImageBlock({ block, onChange }: { block: ImageBlock; onChange: (patch: Partial<ImageBlock>) => void }) {
+  const [up, setUp] = useState<UploadState | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const upload = async (file: File) => {
+    try { const r = await uploadMedia(file, setUp); onChange({ url: r.url }); setUp(null) }
+    catch (e) { setUp((u) => (u ? { ...u, error: e instanceof Error ? e.message : 'Hiba' } : null)); toast.error(e instanceof Error ? e.message : 'Kép feltöltése sikertelen') }
+  }
+  const justify = block.align === 'center' ? 'justify-center' : block.align === 'right' ? 'justify-end' : 'justify-start'
+  return (
+    <div className="space-y-1.5 py-1.5">
+      {up ? (
+        <UploadTile src={up.src} pct={up.pct} proc={up.proc} error={!!up.error} onRetry={() => { setUp(null); inputRef.current?.click() }} className="aspect-[16/9] w-full rounded-ui-control" />
+      ) : block.url ? (
+        <div className={cn('flex', justify)}>
+          <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={block.url} alt={block.alt} className="max-h-60 rounded-ui-control" />
+            <IconButton icon={Trash2} label="Kép törlése" size="sm" variant="cell" className="absolute right-2 top-2" onClick={() => onChange({ url: '' })} />
+          </div>
+        </div>
+      ) : (
+        <button type="button" onClick={() => inputRef.current?.click()} className="ui-press flex aspect-[16/9] w-full flex-col items-center justify-center gap-1.5 rounded-ui-control border border-dashed border-ui-divider bg-ui-cell text-ui-label text-ui-muted outline-none hover:text-ui-text focus-visible:ring-2 focus-visible:ring-ui-dark/20">
+          <ImageIcon className="h-5 w-5" strokeWidth={1.8} />Kép feltöltése
+        </button>
+      )}
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }} />
+      <div className="grid gap-1.5 sm:grid-cols-2">
+        <Input size="sm" value={block.alt} onChange={(e) => onChange({ alt: e.target.value })} placeholder="Mi látható a képen (alt)" />
+        <Input size="sm" value={block.link ?? ''} onChange={(e) => onChange({ link: e.target.value })} placeholder="Link kattintásra (nem kötelező)" />
+      </div>
+    </div>
+  )
+}
+
 function ImageBlockEditor({ block, onChange }: { block: ImageBlock; onChange: (patch: Partial<ImageBlock>) => void }) {
   const [uploading, setUploading] = useState(false)
   const [ytInput, setYtInput] = useState('')
@@ -401,7 +445,7 @@ function ImageBlockEditor({ block, onChange }: { block: ImageBlock; onChange: (p
           whileHover="hover"
           whileTap="hover"
           onClick={() => onChange({ align: a })}
-          className={cn('flex h-6 w-6 items-center justify-center rounded text-ink-soft transition-colors hover:bg-paper hover:text-ink', (block.align ?? 'left') === a && 'bg-paper text-ink')}
+          className={cn('flex h-6 w-6 items-center justify-center rounded text-ui-muted transition-colors hover:bg-ui-cell hover:text-ui-text', (block.align ?? 'left') === a && 'bg-ui-cell text-ui-text')}
           title={a === 'left' ? 'Balra' : a === 'center' ? 'Középre' : 'Jobbra'}
         >
           {a === 'left' ? <AlignLeft className="h-3 w-3" /> : a === 'center' ? <AlignCenter className="h-3 w-3" /> : <AlignRight className="h-3 w-3" />}
@@ -417,13 +461,13 @@ function ImageBlockEditor({ block, onChange }: { block: ImageBlock; onChange: (p
         {block.url ? (
           <div className="relative w-fit">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={block.url} alt={block.alt} className="max-h-48 rounded-[10px] border border-line" />
+            <img src={block.url} alt={block.alt} className="max-h-48 rounded-[10px] border border-ui-divider" />
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/55">
                 <Play className="h-5 w-5 fill-white text-white" />
               </div>
             </div>
-            <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onClick={() => onChange({ url: '', link: '' })} title="Videó eltávolítása" className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-ink-soft shadow-sm transition-colors hover:text-[#C0392B]">
+            <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onClick={() => onChange({ url: '', link: '' })} title="Videó eltávolítása" className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-ui-muted shadow-sm transition-colors hover:text-[#C0392B]">
               <Trash2 className="h-3.5 w-3.5" />
             </motion.button>
           </div>
@@ -437,14 +481,14 @@ function ImageBlockEditor({ block, onChange }: { block: ImageBlock; onChange: (p
             }}
             placeholder="YouTube videó linkje…"
             autoFocus
-            className="block h-9 w-full max-w-[320px] rounded-[10px] border border-line-strong bg-white px-3 text-[13px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+        className="block h-9 w-full max-w-[320px] rounded-[10px] border border-ui-divider bg-white px-3 text-[13px] text-ui-text outline-none focus-visible:ring-2"
           />
         )}
         <input
           value={block.alt}
           onChange={(e) => onChange({ alt: e.target.value })}
           placeholder="Alternatív szöveg (alt)"
-          className="block h-9 w-full max-w-[320px] rounded-[10px] border border-line-strong bg-white px-3 text-[13px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+        className="block h-9 w-full max-w-[320px] rounded-[10px] border border-ui-divider bg-white px-3 text-[13px] text-ui-text outline-none focus-visible:ring-2"
         />
       </div>
     )
@@ -456,8 +500,8 @@ function ImageBlockEditor({ block, onChange }: { block: ImageBlock; onChange: (p
       {block.url ? (
         <div className="relative w-fit">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={block.url} alt={block.alt} className="max-h-48 rounded-[10px] border border-line" />
-          <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onClick={() => onChange({ url: '' })} title="Kép törlése" className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-ink-soft shadow-sm transition-colors hover:text-[#C0392B]">
+          <img src={block.url} alt={block.alt} className="max-h-48 rounded-[10px] border border-ui-divider" />
+          <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onClick={() => onChange({ url: '' })} title="Kép törlése" className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-ui-muted shadow-sm transition-colors hover:text-[#C0392B]">
             <Trash2 className="h-3.5 w-3.5" />
           </motion.button>
         </div>
@@ -470,7 +514,7 @@ function ImageBlockEditor({ block, onChange }: { block: ImageBlock; onChange: (p
           whileTap="hover"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="flex h-24 w-full max-w-[320px] items-center justify-center rounded-[10px] border border-dashed border-line-strong text-[13px] font-medium text-ink-soft2 hover:border-gold/60 hover:text-ink disabled:opacity-60"
+          className="flex h-24 w-full max-w-[320px] items-center justify-center rounded-[10px] border border-dashed border-ui-divider text-[13px] font-medium text-ui-muted hover:text-ui-text disabled:opacity-60"
         >
           {uploading ? 'Feltöltés…' : 'Kép feltöltése'}
         </motion.button>
@@ -480,13 +524,13 @@ function ImageBlockEditor({ block, onChange }: { block: ImageBlock; onChange: (p
         value={block.alt}
         onChange={(e) => onChange({ alt: e.target.value })}
         placeholder="Alternatív szöveg (alt)"
-        className="block h-9 w-full max-w-[320px] rounded-[10px] border border-line-strong bg-white px-3 text-[13px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+        className="block h-9 w-full max-w-[320px] rounded-[10px] border border-ui-divider bg-white px-3 text-[13px] text-ui-text outline-none focus-visible:ring-2"
       />
       <input
         value={block.link ?? ''}
         onChange={(e) => onChange({ link: e.target.value })}
         placeholder="Link a képre kattintva (opcionális)"
-        className="block h-9 w-full max-w-[320px] rounded-[10px] border border-line-strong bg-white px-3 text-[13px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+        className="block h-9 w-full max-w-[320px] rounded-[10px] border border-ui-divider bg-white px-3 text-[13px] text-ui-text outline-none focus-visible:ring-2"
       />
     </div>
   )
@@ -530,7 +574,7 @@ function ColumnCellEditor({ cell, cellIndex, onChange, onFocus }: { cell: Column
           whileHover="hover"
           whileTap="hover"
           onClick={() => onChange({ type: 'text', html: '' })}
-          className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ink-soft2 transition-colors hover:bg-paper hover:text-ink"
+          className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ui-muted transition-colors hover:bg-ui-cell hover:text-ui-text"
           title="Szöveg"
         >
           <Pilcrow className="h-3.5 w-3.5" />
@@ -543,7 +587,7 @@ function ColumnCellEditor({ cell, cellIndex, onChange, onFocus }: { cell: Column
           whileTap="hover"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ink-soft2 transition-colors hover:bg-paper hover:text-ink disabled:opacity-60"
+          className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ui-muted transition-colors hover:bg-ui-cell hover:text-ui-text disabled:opacity-60"
           title="Kép"
         >
           <ImageIcon className="h-3.5 w-3.5" />
@@ -556,7 +600,7 @@ function ColumnCellEditor({ cell, cellIndex, onChange, onFocus }: { cell: Column
           whileHover="hover"
           whileTap="hover"
           onClick={() => onChange({ type: 'button', label: 'Gomb', url: '' })}
-          className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ink-soft2 transition-colors hover:bg-paper hover:text-ink"
+          className="flex h-8 w-8 items-center justify-center rounded-[8px] text-ui-muted transition-colors hover:bg-ui-cell hover:text-ui-text"
           title="Gomb"
         >
           <RectangleHorizontal className="h-3.5 w-3.5" />
@@ -568,7 +612,7 @@ function ColumnCellEditor({ cell, cellIndex, onChange, onFocus }: { cell: Column
   return (
     <div className="space-y-1.5" onClick={onFocus}>
       <div className="flex justify-end">
-        <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onClick={(e) => { e.stopPropagation(); onChange({ type: 'empty' }) }} className="text-ink-soft2 transition-colors hover:text-[#C0392B]" title="Cella ürítése">
+        <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onClick={(e) => { e.stopPropagation(); onChange({ type: 'empty' }) }} className="text-ui-muted transition-colors hover:text-[#C0392B]" title="Cella ürítése">
           <Trash2 className="h-3.5 w-3.5" />
         </motion.button>
       </div>
@@ -581,7 +625,7 @@ function ColumnCellEditor({ cell, cellIndex, onChange, onFocus }: { cell: Column
           <img src={cell.url} alt={cell.alt} className="w-full rounded-[8px]" />
         ) : (
           <>
-            <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onClick={() => inputRef.current?.click()} disabled={uploading} className="flex h-16 w-full items-center justify-center rounded-[8px] border border-dashed border-line-strong text-[12px] text-ink-soft2 hover:border-gold/60 hover:text-ink disabled:opacity-60">
+            <motion.button type="button" variants={buttonHover} initial="rest" whileHover="hover" whileTap="hover" onClick={() => inputRef.current?.click()} disabled={uploading} className="flex h-16 w-full items-center justify-center rounded-[8px] border border-dashed border-ui-divider text-[12px] text-ui-muted hover:text-ui-text disabled:opacity-60">
               {uploading ? 'Feltöltés…' : 'Kép feltöltése'}
             </motion.button>
             <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = '' }} />
@@ -590,8 +634,8 @@ function ColumnCellEditor({ cell, cellIndex, onChange, onFocus }: { cell: Column
       )}
       {cell.type === 'button' && (
         <div className="space-y-1.5">
-          <input value={cell.label} onChange={(e) => onChange({ ...cell, label: e.target.value })} placeholder="Gomb szövege" className="block h-8 w-full rounded-[8px] border border-line-strong bg-white px-2 text-[12px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60" />
-          <input value={cell.url} onChange={(e) => onChange({ ...cell, url: e.target.value })} placeholder="https://…" className="block h-8 w-full rounded-[8px] border border-line-strong bg-white px-2 text-[12px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60" />
+          <input value={cell.label} onChange={(e) => onChange({ ...cell, label: e.target.value })} placeholder="Gomb szövege" className="block h-8 w-full rounded-[8px] border border-ui-divider bg-white px-2 text-[12px] text-ui-text outline-none focus-visible:ring-2" />
+          <input value={cell.url} onChange={(e) => onChange({ ...cell, url: e.target.value })} placeholder="https://…" className="block h-8 w-full rounded-[8px] border border-ui-divider bg-white px-2 text-[12px] text-ui-text outline-none focus-visible:ring-2" />
         </div>
       )}
     </div>
@@ -611,9 +655,12 @@ function BlockRow({
   patch,
   updateHtml,
   updateButton,
+  marked = false,
 }: {
   block: ComposerBlock
   isFocused: boolean
+  /** a Marketing szerkesztőben (design 13.4): a kijelölt blokk sárga szaggatott kerettel */
+  marked?: boolean
   focusedCellIndex: number | null
   onFocusBlock: () => void
   onFocusCell: (index: number) => void
@@ -633,32 +680,63 @@ function BlockRow({
       data-block-id={b.id}
       onFocusCapture={onFocusBlock}
       onClick={onFocusBlock}
-      className={cn('group relative rounded-[10px] px-2 py-1.5 transition-colors hover:bg-paper/70', isFocused && 'bg-paper/50')}
+      className={cn('group relative rounded-[10px] px-2 py-1.5 transition-colors', marked ? cn('outline-2 outline-offset-0 outline-dashed', isFocused ? 'outline-ui-yellow' : 'outline-transparent hover:outline-ui-divider') : cn('', isFocused && ''))}
     >
       {/* Húzó fogópont a bal szélen, függőlegesen középen — csak a pöttyök, nincs kör/keret
           körülötte (mindig látható, nem hoverre jelenik meg). */}
       <div
         onPointerDown={(e) => dragControls.start(e)}
-        className="absolute left-1 top-1/2 z-10 flex h-6 w-4 -translate-y-1/2 cursor-grab items-center justify-center text-ink-soft2 active:cursor-grabbing"
+        className="absolute left-1 top-1/2 z-10 flex h-6 w-4 -translate-y-1/2 cursor-grab items-center justify-center text-ui-muted active:cursor-grabbing"
         title="Húzd az átrendezéshez"
       >
         <GripVertical className="h-4 w-4" />
       </div>
+      {marked ? (
+        <IconButton icon={Trash2} label="Blokk törlése" size="sm" variant="cell" onClick={() => remove(b.id)} className={cn('absolute right-1 top-1 z-10 transition-opacity', isFocused ? 'opacity-100' : 'opacity-0 group-hover:opacity-100')} />
+      ) : (
       <motion.button
-        type="button"
-        variants={buttonHover}
-        initial="rest"
-        whileHover="hover"
-        whileTap="hover"
-        onClick={() => remove(b.id)}
-        className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-line-strong bg-white text-ink-soft shadow-[0_1px_4px_rgba(0,0,0,.12)] hover:text-[#C0392B]"
-        title="Blokk törlése"
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </motion.button>
+          type="button"
+          variants={buttonHover}
+          initial="rest"
+          whileHover="hover"
+          whileTap="hover"
+          onClick={() => remove(b.id)}
+          className="absolute right-1 top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full border border-ui-divider bg-white text-ui-muted shadow-[0_1px_4px_rgba(0,0,0,.12)] hover:text-[#C0392B]"
+          title="Blokk törlése"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </motion.button>
+      )}
 
       {b.type === 'divider' ? (
-        <hr className="my-3 border-t border-line" />
+        <hr className="my-3 border-t border-ui-divider" />
+      ) : b.type === 'offers' ? (
+        <div className="grid gap-2 py-1.5 pl-6 sm:grid-cols-2">
+          {b.items.map((o, i) => {
+            const set = (k: 'name' | 'was' | 'now', v: string) => patch(b.id, (x) => (x.type === 'offers' ? { ...x, items: x.items.map((it, j) => (j === i ? { ...it, [k]: v } : it)) } : x))
+            return (
+              <div key={i} className="rounded-ui-control bg-ui-cell p-3">
+                <input value={o.name} onChange={(e) => set('name', e.target.value)} placeholder="Ajánlat neve" className="w-full bg-transparent text-ui-meta text-ui-text outline-none placeholder:text-ui-muted" />
+                <div className="mt-1 flex items-baseline gap-1.5">
+                  <input value={o.now} onChange={(e) => set('now', e.target.value)} placeholder="Új ár" className="w-1/2 min-w-0 bg-transparent text-ui-title font-light text-ui-text outline-none placeholder:text-ui-muted" />
+                  <input value={o.was} onChange={(e) => set('was', e.target.value)} placeholder="Régi ár" className="w-1/2 min-w-0 bg-transparent text-ui-label text-ui-muted line-through outline-none placeholder:no-underline" />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : b.type === 'voucher' ? (
+        <div className="flex flex-wrap items-center gap-3 py-1.5 pl-6">
+          <div className="w-[150px] shrink-0 rounded-ui-inner bg-ui-yellow p-3.5 text-ui-text">
+            <div className="text-ui-label">Ajándékutalvány</div>
+            <input value={b.amount} onChange={(e) => patch(b.id, (x) => (x.type === 'voucher' ? { ...x, amount: e.target.value } : x))} className="mt-2.5 w-full bg-transparent text-ui-title font-light outline-none" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <input value={b.title} onChange={(e) => patch(b.id, (x) => (x.type === 'voucher' ? { ...x, title: e.target.value } : x))} placeholder="Cím" className="w-full bg-transparent text-ui-body text-ui-text outline-none" />
+            <input value={b.text} onChange={(e) => patch(b.id, (x) => (x.type === 'voucher' ? { ...x, text: e.target.value } : x))} placeholder="Rövid szöveg" className="w-full bg-transparent text-ui-label text-ui-muted outline-none" />
+            <input value={b.label} onChange={(e) => patch(b.id, (x) => (x.type === 'voucher' ? { ...x, label: e.target.value } : x))} placeholder="Gomb szövege" className="inline-flex h-8 items-center rounded-full bg-ui-cell px-4 text-ui-label font-semibold text-ui-text outline-none" />
+          </div>
+        </div>
       ) : b.type === 'button' ? (
         <div className="space-y-2 py-1.5 pl-6">
           <div className="mb-1 flex items-center gap-1">
@@ -671,7 +749,7 @@ function BlockRow({
                 whileHover="hover"
                 whileTap="hover"
                 onClick={() => patch(b.id, (x) => (x.type === 'button' ? { ...x, align: a } : x))}
-                className={cn('flex h-6 w-6 items-center justify-center rounded text-ink-soft transition-colors hover:bg-paper hover:text-ink', (b.align ?? 'left') === a && 'bg-paper text-ink')}
+                className={cn('flex h-6 w-6 items-center justify-center rounded text-ui-muted transition-colors hover:bg-ui-cell hover:text-ui-text', (b.align ?? 'left') === a && 'bg-ui-cell text-ui-text')}
                 title={a === 'left' ? 'Balra' : a === 'center' ? 'Középre' : 'Jobbra'}
               >
                 {a === 'left' ? <AlignLeft className="h-3 w-3" /> : a === 'center' ? <AlignCenter className="h-3 w-3" /> : <AlignRight className="h-3 w-3" />}
@@ -682,22 +760,22 @@ function BlockRow({
             value={b.label}
             onChange={(e) => updateButton(b.id, 'label', e.target.value)}
             placeholder="Gomb szövege"
-            className="inline-flex h-9 items-center rounded-full bg-ink-dark px-4 text-[13px] font-semibold text-white outline-none placeholder:text-white/50"
+            className="inline-flex h-9 items-center rounded-full bg-ui-dark px-4 text-[13px] font-semibold text-white outline-none placeholder:text-white/50"
           />
           <input
             value={b.url}
             onChange={(e) => updateButton(b.id, 'url', e.target.value)}
             placeholder="https://…"
-            className="block h-9 w-full max-w-[320px] rounded-[10px] border border-line-strong bg-white px-3 text-[13px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+        className="block h-9 w-full max-w-[320px] rounded-[10px] border border-ui-divider bg-white px-3 text-[13px] text-ui-text outline-none focus-visible:ring-2"
           />
         </div>
       ) : b.type === 'image' ? (
         <div className="pl-6">
-          <ImageBlockEditor block={b} onChange={(p) => patch(b.id, (x) => (x.type === 'image' ? { ...x, ...p } : x))} />
+          {marked && b.kind !== 'youtube' ? <KitImageBlock block={b} onChange={(p) => patch(b.id, (x) => (x.type === 'image' ? { ...x, ...p } : x))} /> : <ImageBlockEditor block={b} onChange={(p) => patch(b.id, (x) => (x.type === 'image' ? { ...x, ...p } : x))} />}
         </div>
       ) : b.type === 'section' ? (
         <div className="space-y-1.5 py-1.5 pl-6">
-          <label className="relative flex h-6 w-6 cursor-pointer items-center justify-center rounded text-ink-soft transition-colors hover:bg-paper hover:text-ink" title="Háttérszín">
+          <label className="relative flex h-6 w-6 cursor-pointer items-center justify-center rounded text-ui-muted transition-colors hover:bg-ui-cell hover:text-ui-text" title="Háttérszín">
             <Paintbrush className="h-3 w-3" />
             <input
               type="color"
@@ -728,7 +806,7 @@ function BlockRow({
               transition={{ type: 'spring', stiffness: 400, damping: 36 }}
               className={cn(
                 'flex flex-col justify-center rounded-[10px] border border-dashed p-2 transition-colors',
-                focusedCellIndex === i ? 'border-gold bg-gold/5' : 'border-line-strong',
+                focusedCellIndex === i ? 'border-ui-yellow' : 'border-ui-divider',
               )}
             >
               <ColumnCellEditor
@@ -752,7 +830,7 @@ function BlockRow({
                 whileHover="hover"
                 whileTap="hover"
                 onClick={() => patch(b.id, (x) => (x.type === 'social_links' ? { ...x, align: a } : x))}
-                className={cn('flex h-6 w-6 items-center justify-center rounded text-ink-soft transition-colors hover:bg-paper hover:text-ink', (b.align ?? 'center') === a && 'bg-paper text-ink')}
+                className={cn('flex h-6 w-6 items-center justify-center rounded text-ui-muted transition-colors hover:bg-ui-cell hover:text-ui-text', (b.align ?? 'center') === a && 'bg-ui-cell text-ui-text')}
                 title={a === 'left' ? 'Balra' : a === 'center' ? 'Középre' : 'Jobbra'}
               >
                 {a === 'left' ? <AlignLeft className="h-3 w-3" /> : a === 'center' ? <AlignCenter className="h-3 w-3" /> : <AlignRight className="h-3 w-3" />}
@@ -763,14 +841,14 @@ function BlockRow({
             const platform = detectPlatform(l.url)
             return (
               <div key={i} className="flex items-center gap-1.5">
-                <div className="flex h-10 flex-1 items-center gap-2 rounded-[10px] border border-line-strong bg-white pl-1.5 pr-3 focus-within:ring-2 focus-within:ring-gold/60">
+                <div className="flex h-10 flex-1 items-center gap-2 rounded-[10px] border border-ui-divider bg-white pl-1.5 pr-3 focus-within:ring-2">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={socialIconDataUri(platform)} alt={SOCIAL_LABELS[platform]} className="h-7 w-7 shrink-0 rounded-full" />
                   <input
                     value={l.url}
                     onChange={(e) => patch(b.id, (x) => (x.type === 'social_links' ? { ...x, links: x.links.map((ll, li) => (li === i ? { ...ll, url: e.target.value } : ll)) } : x))}
                     placeholder="https://instagram.com/felhasznalonev"
-                    className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-ink outline-none"
+                    className="h-full min-w-0 flex-1 bg-transparent text-[13px] text-ui-text outline-none"
                   />
                 </div>
                 <motion.button
@@ -780,7 +858,7 @@ function BlockRow({
                   whileHover="hover"
                   whileTap="hover"
                   onClick={() => patch(b.id, (x) => (x.type === 'social_links' ? { ...x, links: x.links.filter((_, li) => li !== i) } : x))}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ink-soft2 transition-colors hover:text-[#C0392B]"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-ui-muted transition-colors hover:text-[#C0392B]"
                   title="Link törlése"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
@@ -791,7 +869,7 @@ function BlockRow({
           <button
             type="button"
             onClick={() => patch(b.id, (x) => (x.type === 'social_links' ? { ...x, links: [...x.links, { url: '' }] } : x))}
-            className="text-[12px] font-semibold text-ink-soft hover:text-ink"
+            className="text-[12px] font-semibold text-ui-muted hover:text-ui-text"
           >
             + Link hozzáadása
           </button>
@@ -802,18 +880,18 @@ function BlockRow({
           onChange={(e) => patch(b.id, (x) => (x.type === 'html' ? { ...x, code: e.target.value } : x))}
           placeholder="<div>Egyedi HTML…</div>"
           rows={4}
-          className="w-full resize-y rounded-[10px] border border-line-strong bg-white py-2 pl-6 pr-3 font-mono text-[12.5px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+          className="w-full resize-y rounded-[10px] border border-ui-divider bg-white py-2 pl-6 pr-3 font-mono text-[12.5px] text-ui-text outline-none focus-visible:ring-2"
         />
       ) : b.type === 'code' ? (
         <input
           value={b.code}
           onChange={(e) => patch(b.id, (x) => (x.type === 'code' ? { ...x, code: e.target.value } : x))}
           placeholder="pl. KEDVEZMENY20"
-          className="block h-9 w-full max-w-[320px] rounded-[10px] border border-line-strong bg-white py-0 pl-6 pr-3 font-mono text-[13px] text-ink outline-none focus-visible:ring-2 focus-visible:ring-gold/60"
+          className="block h-9 w-full max-w-[320px] rounded-[10px] border border-ui-divider bg-white py-0 pl-6 pr-3 font-mono text-[13px] text-ui-text outline-none focus-visible:ring-2"
         />
-      ) : (
+      ) : b.type === 'booking_details' || b.type === 'button_row' ? null : (
         <div className="pl-6">
-          <EditableBlock type={b.type} html={b.html} align={b.align} bg={b.bg} color={b.color} fontSize={b.fontSize} lineHeight={b.lineHeight} autoFocus={isFocused} onInput={(html) => updateHtml(b.id, html)} />
+          <EditableBlock type={b.type} html={b.html} align={b.align} bg={b.bg} color={b.color} fontSize={b.fontSize} lineHeight={b.lineHeight} font={b.font} autoFocus={isFocused} onInput={(html) => updateHtml(b.id, html)} />
         </div>
       )}
     </Reorder.Item>
@@ -824,16 +902,23 @@ export function NewsletterBlockEditor({
   blocks, onChange,
   minHeight = 520,
   // 'floating' (alap, hírlevél): a sín `lg:`-től `absolute`-ba vált, a legközelebbi `relative`
-  // ősre tapad — ehhez a HÍVÓNAK kell egy tágas, `relative` konténert adnia (ld. NewsletterManager).
+  // ősre tapad — ehhez a HÍVÓNAK kell egy tágas, `relative` konténert adnia (ld. EmailTemplatesEditor).
   // 'flow' (pl. tranzakciós email bevezetője, szűkebb form-mező): a sín MINDIG normál flex-
   // oszlopként ül a tartalom mellett, sosem vált absolute-ba — nincs szükség külön `relative`
   // ősre/paddingre a hívó oldalán, és garantáltan nem lóghat bele a tartalomba.
   railMode = 'floating',
-}: { blocks: ComposerBlock[]; onChange: (b: ComposerBlock[]) => void; minHeight?: number; railMode?: 'flow' | 'floating' }) {
+  // A Marketing szerkesztő (design 13.4) saját blokk-palettát és stílus-oszlopot ad: `rail={false}` elrejti a sínt, a
+  // kijelölést pedig a hívó tartja (`focusedId` / `onFocusChange`) — így a palettából a kijelölt blokk mögé szúr be.
+  rail = true,
+  focusedId: focusedProp,
+  onFocusChange,
+}: { blocks: ComposerBlock[]; onChange: (b: ComposerBlock[]) => void; minHeight?: number; railMode?: 'flow' | 'floating'; rail?: boolean; focusedId?: string | null; onFocusChange?: (id: string | null) => void }) {
   const [openMenu, setOpenMenu] = useState<'text' | 'image' | 'layout' | 'format' | null>(null)
   // Melyik blokkot szerkeszted épp — a bal sínből beszúrt új blokk EMÖGÉ kerül, nem mindig a
   // lista végére (mint egy Notion-szerű szerkesztőben: oda kerül, ahol éppen dolgozol).
-  const [focusedId, setFocusedId] = useState<string | null>(null)
+  const [focusedLocal, setFocusedLocal] = useState<string | null>(null)
+  const focusedId = focusedProp !== undefined ? focusedProp : focusedLocal
+  const setFocusedId = (id: string | null) => { setFocusedLocal(id); onFocusChange?.(id) }
   // Melyik oszlop-CELLA van fókuszban — ha ez be van állítva, a bal sínből választott elem NEM
   // új top-level blokkot szúr be, hanem ebbe a cellába kerül (ez helyettesíti a korábbi,
   // cellánként háromszor ismételt Szöveg/Kép/Gomb választó-gombokat, ami 4 oszlopnál kilátszott
@@ -890,11 +975,11 @@ export function NewsletterBlockEditor({
   const remove = (id: string) => onChange(blocks.filter((b) => b.id !== id))
   const patch = (id: string, fn: (b: ComposerBlock) => ComposerBlock) => onChange(blocks.map((b) => (b.id === id ? fn(b) : b)))
   const updateHtml = (id: string, html: string) =>
-    onChange(blocks.map((b) => (b.id === id && b.type !== 'button' && b.type !== 'divider' && b.type !== 'image' && b.type !== 'columns' && b.type !== 'social_links' && b.type !== 'html' && b.type !== 'code' ? { ...b, html } : b)))
+    onChange(blocks.map((b) => (b.id === id && b.type !== 'button' && b.type !== 'divider' && b.type !== 'image' && b.type !== 'columns' && b.type !== 'social_links' && b.type !== 'html' && b.type !== 'code' && b.type !== 'offers' && b.type !== 'voucher' && b.type !== 'booking_details' && b.type !== 'button_row' ? { ...b, html } : b)))
   const updateButton = (id: string, field: 'label' | 'url', value: string) =>
     onChange(blocks.map((b) => (b.id === id && b.type === 'button' ? { ...b, [field]: value } : b)))
   const updateType = (id: string, type: typeof TEXT_TYPE_OPTIONS[number]) =>
-    onChange(blocks.map((b) => (b.id === id && b.type !== 'button' && b.type !== 'divider' && b.type !== 'image' && b.type !== 'section' && b.type !== 'columns' && b.type !== 'social_links' && b.type !== 'html' && b.type !== 'code' ? { ...b, type } : b)))
+    onChange(blocks.map((b) => (b.id === id && b.type !== 'button' && b.type !== 'divider' && b.type !== 'image' && b.type !== 'section' && b.type !== 'columns' && b.type !== 'social_links' && b.type !== 'html' && b.type !== 'code' && b.type !== 'offers' && b.type !== 'voucher' && b.type !== 'booking_details' && b.type !== 'button_row' ? { ...b, type } : b)))
   // FONTOS: a `'align' in x` / `'bg' in x` futásidejű ellenőrzés HAMIS egy friss blokkon, mert
   // ott a mező szó szerint nincs jelen (csak `align?`/`bg?`, sose lett még beállítva) — emiatt
   // korábban a formázás-gombok némán nem csináltak semmit. A TÍPUS alapján kell eldönteni, nem a
@@ -970,15 +1055,15 @@ export function NewsletterBlockEditor({
       }
 
   return (
-    <div className="flex gap-3" style={{ minHeight }}>
+    <div className={cn('flex', rail && 'gap-3')} style={{ minHeight }}>
       {/* Lebegő fekete ikon-sín — desktopon (`lg:`) `absolute`-ba vált, ami a legközelebbi
-          POZICIONÁLT ősre (a szélesebb kártyára, ld. NewsletterManager `composerRef` `relative`
+          POZICIONÁLT ősre (a szélesebb kártyára — a hívó `relative`
           osztálya) tapad, NEM erre a keskeny tartalom-oszlopra — így pont a kártya saját
           `px-6 sm:px-8` szegélyéhez igazodik. Ehhez ennek a konténernek NEM szabad `relative`-nek
           lennie. (Egy scroll-követő `sticky` verzió próbaként megvolt, de nem sikerült
           megbízhatóan élesíteni — visszaállítva erre, a korábban működő állapotra.) */}
-      <div className={cn(
-        'sticky top-1/2 z-30 flex h-fit shrink-0 -translate-y-1/2 flex-col gap-1 rounded-full bg-ink-dark p-1.5',
+      {rail && <div className={cn(
+        'sticky top-1/2 z-30 flex h-fit shrink-0 -translate-y-1/2 flex-col gap-1 rounded-full bg-ui-dark p-1.5',
         railMode === 'floating' && 'lg:absolute lg:left-8',
       )}>
         {RAIL_GROUPS.map((g) => (
@@ -1017,7 +1102,7 @@ export function NewsletterBlockEditor({
             {openMenu === 'format' && <FormatFlyout {...formatTarget} align="bottom" />}
           </AnimatePresence>
         </div>
-      </div>
+      </div>}
 
       {openMenu && <div className="fixed inset-0 z-20" onClick={() => setOpenMenu(null)} />}
 
@@ -1025,7 +1110,7 @@ export function NewsletterBlockEditor({
           szélén indítja a húzást. */}
       <Reorder.Group as="div" axis="y" values={blocks} onReorder={onChange} ref={containerRef} className="min-w-0 flex-1 space-y-1">
         {blocks.length === 0 && (
-          <p className="py-6 text-center text-[13px] text-ink-soft2">Adj hozzá egy blokkot a bal oldali menüből…</p>
+          <p className="py-6 text-center text-[13px] text-ui-muted">Adj hozzá egy blokkot a bal oldali {rail ? 'menüből' : 'palettából'}…</p>
         )}
         {blocks.map((b) => (
           <BlockRow
@@ -1039,6 +1124,7 @@ export function NewsletterBlockEditor({
             patch={patch}
             updateHtml={updateHtml}
             updateButton={updateButton}
+            marked={!rail}
           />
         ))}
       </Reorder.Group>
@@ -1066,7 +1152,7 @@ export function NewsletterBlockEditor({
         // teljes-képernyős blur-modaloknál (ld. overlay-portál).
         return createPortal(
           <div
-            className="fixed z-40 flex items-center gap-1 rounded-2xl bg-ink-dark p-1.5 shadow-[0_18px_42px_-16px_rgba(0,0,0,.5)]"
+            className="fixed z-40 flex items-center gap-1 rounded-2xl bg-ui-dark p-1.5 shadow-[0_18px_42px_-16px_rgba(0,0,0,.5)]"
             style={{ top: bubble.top, left: bubble.left, transform: 'translate(-50%, calc(-100% - 8px))' }}
           >
             {!isCell && (
@@ -1077,7 +1163,7 @@ export function NewsletterBlockEditor({
                     onChange={(e) => updateType(block.id, e.target.value as typeof TEXT_TYPE_OPTIONS[number])}
                     className="cursor-pointer appearance-none rounded-[10px] bg-white/10 py-1.5 pl-3 pr-7 text-[12.5px] font-medium text-white outline-none"
                   >
-                    {TEXT_TYPE_OPTIONS.map((t) => <option key={t} value={t} className="text-ink">{TYPE_LABELS[t]}</option>)}
+                    {TEXT_TYPE_OPTIONS.map((t) => <option key={t} value={t} className="text-ui-text">{TYPE_LABELS[t]}</option>)}
                   </select>
                 </div>
                 <span className="mx-0.5 h-4 w-px bg-white/20" />

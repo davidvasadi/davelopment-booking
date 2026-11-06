@@ -1,6 +1,6 @@
 import {
-  LayoutDashboard, CalendarDays, CalendarClock, Briefcase, Users, Clock, Settings, BarChart2, Armchair, Lightbulb, HelpCircle, MapPin,
-  Store, TrendingUp, AlertTriangle, Activity, Building2, Gift, Megaphone, Mail, Radio,
+  LayoutDashboard, CalendarDays, CalendarClock, Briefcase, Users, Clock, Settings, BarChart2, Lightbulb, HelpCircle, MapPin,
+  Store, TrendingUp, AlertTriangle, Activity, Building2, Gift, Megaphone, Mail, Radio, Handshake,
   type LucideIcon,
 } from 'lucide-react'
 import { can, type Capability } from '@/lib/permissions'
@@ -34,6 +34,8 @@ const salonNav: NavConfig = {
     { href: '/dashboard/marketing', label: 'Marketing', icon: Megaphone, capability: ['marketing.view', 'marketing.manage'] },
     { href: '/dashboard/tips', label: 'Tippek', icon: Lightbulb, capability: ['tips.view', 'tips.manage'] },
     { href: '/dashboard/help', label: 'Súgó', icon: HelpCircle },
+    // csak a tulajnak: a többieknél az AppShell elrejti (isOwner), az oldal is ellenőrzi
+    { href: '/dashboard/partnerprogram', label: 'Partnerprogram', icon: Handshake },
     { href: '/dashboard/settings', label: 'Beállítások', icon: Settings, capability: ['settings.profile', 'settings.own_profile'] },
   ],
   publicUrlPrefix: '',
@@ -48,7 +50,6 @@ const restaurantNav: NavConfig = {
     { href: '/restaurant/analytics', label: 'Statisztikák', icon: BarChart2, capability: ['analytics.view', 'analytics.view.own'] },
     { href: '/restaurant/bookings', label: 'Foglalások', icon: CalendarDays, capability: 'bookings.view' },
     { href: '/restaurant/guests', label: 'Vendégek', icon: MapPin, capability: 'guests.view' },
-    { href: '/restaurant/tables', label: 'Asztalok', icon: Armchair, capability: ['tables.view', 'tables.manage'] },
     { href: '/restaurant/staff', label: 'Munkatársak', icon: Users, capability: 'staff.view' },
     { href: '/restaurant/schedule', label: 'Naptár', icon: CalendarClock, capability: ['schedule.view.own', 'schedule.manage.own', 'schedule.manage'] },
     { href: '/restaurant/availability', label: 'Nyitvatartás', icon: Clock, capability: ['availability.view', 'availability.manage'] },
@@ -56,6 +57,8 @@ const restaurantNav: NavConfig = {
     { href: '/restaurant/marketing', label: 'Marketing', icon: Megaphone, capability: ['marketing.view', 'marketing.manage'] },
     { href: '/restaurant/tips', label: 'Tippek', icon: Lightbulb, capability: ['tips.view', 'tips.manage'] },
     { href: '/restaurant/help', label: 'Súgó', icon: HelpCircle },
+    // csak a tulajnak: a többieknél az AppShell elrejti (isOwner), az oldal is ellenőrzi
+    { href: '/restaurant/partnerprogram', label: 'Partnerprogram', icon: Handshake },
     { href: '/restaurant/settings', label: 'Beállítások', icon: Settings, capability: ['settings.profile', 'settings.own_profile'] },
   ],
   publicUrlPrefix: '',

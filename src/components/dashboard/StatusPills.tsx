@@ -84,7 +84,7 @@ export function StatusPills({ segments, className = '', eager = false, size = 'm
             minWidth: minSegmentWidth * p,
           }}
         >
-          <p className={`truncate text-xs font-medium text-ink-soft ${size === 'sm' ? 'mb-1' : 'mb-2'}`} style={{ opacity: p }}>{s.label}</p>
+          <p className={`truncate text-xs font-medium text-ui-muted ${size === 'sm' ? 'mb-1' : 'mb-2'}`} style={{ opacity: p }}>{s.label}</p>
           <div
             className={`flex items-center overflow-hidden whitespace-nowrap font-semibold ${size === 'sm' ? 'h-7 rounded-[14px] px-3 text-xs' : 'h-11 rounded-[21px] px-5 text-sm'} ${s.align === 'end' ? 'justify-end' : 'justify-start'}`}
             style={{ background: s.background, color: s.color, border: s.border }}

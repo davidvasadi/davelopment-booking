@@ -1,39 +1,24 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect } from 'react'
 import Link from 'next/link'
-import { motion, AnimatePresence } from 'framer-motion'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
-import { cn } from '@/lib/utils'
 import { BrandLogo } from '@/components/BrandLogo'
-import { ExternalLink, Lock, WifiOff, ChevronsLeft, Search, ChevronLeft, SlidersHorizontal, Tag, LayoutGrid, ScanLine, X, PenLine, CreditCard, BarChart3, Plus, Printer, Download, CalendarDays, Building2, UserRound, Sparkles } from 'lucide-react'
+import { TicketCheck, WifiOff, ChevronLeft, SlidersHorizontal, Pencil, Plus, Download, Building2, UserRound, Sparkles, Search , type LucideIcon } from 'lucide-react'
+import { IconButton, IconCircle } from '@/components/ui-kit'
 import { getNavConfig, navItemsForCapabilities, type DashboardVariant } from './navConfig'
 import { can, type Capability } from '@/lib/permissions'
 import { UserMenu } from './UserMenu'
 import { CommandPalette } from './CommandPalette'
-import { StoreSwitcher, type SwitcherBusiness } from './StoreSwitcher'
+import type { SwitcherBusiness } from './switcherTypes'
 import { useOnline } from '@/lib/useOnline'
-import { useRestaurantUI } from '@/components/restaurant/RestaurantUIContext'
 
-/** Globális offline-jelző a navban — bárhol látszik a dashboardon, ha elment a net. */
-function OfflineIndicator({ compact = false }: { compact?: boolean }) {
+/** Globális offline-jelző a mobil fejlécben — ha elment a net (figyelmeztetés-szín, 48px kör, mint a többi fejléc-gomb). */
+function OfflineIndicator() {
   const online = useOnline()
   if (online) return null
-  if (compact) {
-    return (
-      <span
-        title="Nincs internetkapcsolat"
-        className="inline-flex items-center justify-center h-11 w-11 rounded-full bg-amber-100 text-amber-700 shadow-[0_2px_8px_rgba(0,0,0,.06)] dark:bg-amber-500/15 dark:text-amber-300"
-      >
-        <WifiOff className="h-[18px] w-[18px]" />
-      </span>
-    )
-  }
   return (
-    <div className="mx-3 mb-2 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-      <WifiOff className="h-3.5 w-3.5 shrink-0" />
-      Nincs internet — vázlat módban dolgozol
-    </div>
+    <span title="Nincs internetkapcsolat — vázlat módban dolgozol"><IconCircle icon={WifiOff} tone="warn" size="lg" /></span>
   )
 }
 
@@ -44,27 +29,6 @@ type SubInfo = {
   trial_ends_at?: string | null
   current_period_end?: string | null
 } | null
-
-type SubStatus = NonNullable<SubInfo>['status']
-
-// Egységes belépő-animáció a sidebar összes blokkjához (store-switcher, kereső,
-// nav-elemek): a konténer lépcsőzi a gyermekeket, a gyermekek balról úsznak be.
-const navStagger = { show: { transition: { staggerChildren: 0.035, delayChildren: 0.04 } } }
-const navItemVariants = { hidden: { opacity: 0, x: -8 }, show: { opacity: 1, x: 0 } }
-const navItemSpring = { type: 'spring' as const, stiffness: 500, damping: 34 }
-
-/** A csomag-státusz rövid címkéje a brand alatti pill-hez. */
-function subStatusLabel(status: SubStatus): string {
-  switch (status) {
-    case 'trialing': return 'Próbaidőszak'
-    case 'active': return 'Pro csomag'
-    case 'past_due': return 'Lejárt'
-    case 'paused': return 'Szüneteltetve'
-    case 'canceled': return 'Megszűnt'
-    default: return 'Csomag'
-  }
-}
-
 
 export function DashboardNav({
   salonName,
@@ -78,7 +42,6 @@ export function DashboardNav({
   userAvatarUrl = null,
   businesses = [],
   activeBusinessKey = null,
-  mobileOnly = false,
   hiddenHrefs = [],
 }: {
   salonName: string
@@ -86,8 +49,6 @@ export function DashboardNav({
   subscription?: SubInfo
   variant?: DashboardVariant
   capabilities?: Capability[]
-  /** davelopment-design: csak a mobil fejléc + ⌘K (a desktop sidebart az új TopNav váltja). */
-  mobileOnly?: boolean
   /** Az üzlet logója a fejléc store-switcher blokkjához. */
   brandLogoUrl?: string | null
   /** A bejelentkezett felhasználó adatai a sidebar alján lévő fiók-blokkhoz. */
@@ -101,7 +62,7 @@ export function DashboardNav({
   /** Nav-hrefek, amiket egy kikapcsolt funkció miatt el kell rejteni (pl. utalványok). */
   hiddenHrefs?: string[]
 }) {
-  const { publicUrlPrefix, settingsHref, subscriptionHref, notificationsHref } = getNavConfig(variant)
+  const { settingsHref, subscriptionHref, notificationsHref } = getNavConfig(variant)
   const navItems = navItemsForCapabilities(variant, capabilities, hiddenHrefs)
   const pathname = usePathname()
   const router = useRouter()
@@ -109,628 +70,110 @@ export function DashboardNav({
 
   // Mobilon a body háttere is krém legyen, hogy a notch + bottom safe area ne fehér legyen.
   useEffect(() => {
-    document.body.style.backgroundColor = '#ECECE8'
+    document.body.style.backgroundColor = 'var(--ui-cell)' // ui-allow: a body háttere JS-ből (a notch / alsó biztonsági sáv is krém)
     return () => { document.body.style.backgroundColor = '' }
   }, [])
 
-  // CSV export a header „…" menüjébe — a szűrésnek (URL period) megfelelő exporttal.
-  const csvDays = searchParams.get('period') ?? '30'
-  const csvHref = `/api/export-csv?days=${csvDays}&module=${variant}`
-
   // A vissza-gomb az ELŐZŐ oldalra visz (böngésző-history).
   const goBack = () => router.back()
+  // fő oldalon (a menü egy eleme) balra a logó, mint a designban (/design 2.12); aloldalon a vissza-gomb
+  const isTopLevel = navItems.some((it) => it.href === pathname)
 
   // Backstage (admin): nincs üzlet/előfizetés/nyilvános oldal/store-switcher — ezeket
   // elrejtjük, a fejlécben admin-email + „Backstage" badge van. A nav-elemek, a kereső,
   // a fiók-blokk és a teljes layout viszont UGYANAZ mint a szalon/étterem dashboardon.
   const isBackstage = variant === 'backstage'
 
-  // Összecsukás az étterem ÉS a backstage navban él (a salon nav változatlan).
-  const collapsible = variant === 'restaurant' || variant === 'backstage'
-  const { navCollapsed, toggleNav } = useRestaurantUI()
-  const collapsed = collapsible && navCollapsed
 
-  // Mobil súgó-kereső — csak /help oldalon jelenik meg; animált bővülő mező.
-  const [helpOpen, setHelpOpen] = useState(false)
-  const [helpQuery, setHelpQuery] = useState('')
-  const helpInputRef = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    if (!pathname.endsWith('/help')) { setHelpOpen(false); setHelpQuery(''); return }
-    window.dispatchEvent(new CustomEvent('davelopment:help-search', { detail: helpQuery }))
-  }, [helpQuery, pathname])
-  useEffect(() => {
-    if (helpOpen) { const t = setTimeout(() => helpInputRef.current?.focus(), 60); return () => clearTimeout(t) }
-  }, [helpOpen])
-
-  const isActive = (href: string, exact?: boolean) =>
-    exact ? pathname === href : pathname.startsWith(href)
-
-  const isLocked = subscription?.status === 'past_due' || subscription?.status === 'canceled' || subscription?.status === 'paused'
-  const isAllowedWhenLocked = (href: string) => href === settingsHref
+  // a mobil fejléc oldal-eszközei — ugyanazok az események / linkek, mint eddig, csak egy listában
+  type Tool = { icon: LucideIcon; label: string; onClick?: () => void; href?: string; download?: boolean; dark?: boolean; yellow?: boolean }
+  const fire = (ev: string) => () => window.dispatchEvent(new Event(ev))
+  const pageTools: Tool[] = []
+  const at = (sfx: string) => pathname.endsWith(sfx)
+  if (pathname.startsWith(settingsHref)) pageTools.push({ icon: Search, label: 'Beállítás keresése', onClick: fire('davelopment:open-settings-search') }, { icon: SlidersHorizontal, label: 'Beállítások menü', onClick: fire('davelopment:open-settings-nav') })
+  if (pathname.startsWith(notificationsHref)) pageTools.push({ icon: SlidersHorizontal, label: 'Értesítési beállítások', onClick: fire('davelopment:open-notifications-tabs') })
+  if (at('/tips')) pageTools.push({ icon: SlidersHorizontal, label: 'Kategória szűrő', onClick: fire('davelopment:open-tips-filter') })
+  if (at('/guests')) pageTools.push({ icon: Download, label: 'Export', onClick: fire('davelopment:open-guests-export') })
+  if (at('/schedule')) pageTools.push(
+    { icon: SlidersHorizontal, label: 'Szűrők', onClick: fire('davelopment:open-schedule-filter') },
+    { icon: Pencil, label: 'Szerkesztés', onClick: fire('davelopment:open-schedule-edit') },
+    { icon: Plus, label: 'Beosztás', onClick: fire('davelopment:open-schedule-add'), dark: true },
+  )
+  // Áttekintés: „Új foglalás” — átvisz a Foglalásokra és rögtön megnyitja az új-foglalás panelt (`?new=1`)
+  if (pathname === '/dashboard' || pathname === '/restaurant') pageTools.push({ icon: Plus, label: 'Új foglalás', href: `${pathname}/bookings?new=1`, dark: true })
+  if (at('/help')) pageTools.push({ icon: Sparkles, label: 'Bevezető indítása', onClick: fire('davelopment:open-onboarding'), dark: true, yellow: true })
+  if (at('/bookings')) pageTools.push(
+    { icon: SlidersHorizontal, label: 'Nézet és szűrők', onClick: fire('davelopment:open-bookings-view') },
+    { icon: Download, label: 'Foglalások letöltése (CSV)', onClick: fire('davelopment:export-bookings-day') },
+    { icon: Plus, label: 'Új foglalás', onClick: fire('davelopment:open-bookings-create'), dark: true },
+  )
+  if (at('/analytics')) {
+    // szalonnál, analytics.view joggal: Üzlet ↔ Saját munka váltó
+    if (at('/dashboard/analytics') && can(capabilities, 'analytics.view')) {
+      const scope = searchParams.get('scope') === 'own' ? 'own' : 'business'
+      const from = searchParams.get('from'), to = searchParams.get('to')
+      const rangeQuery = from && to ? `from=${from}&to=${to}` : `period=${searchParams.get('period') ?? '30'}`
+      const nextHref = `${pathname}?${rangeQuery}&scope=${scope === 'business' ? 'own' : 'business'}`
+      pageTools.push({ icon: scope === 'business' ? Building2 : UserRound, label: scope === 'business' ? 'Váltás saját munkára' : 'Váltás üzleti nézetre', onClick: () => router.push(nextHref) })
+    }
+    pageTools.push(
+      // mobil: az időszak (7 nap / 30 nap / Negyedév / Év / Egyedi) a szűrő-ikonról nyíló lapon — mint a többi oldal szűrője
+      { icon: SlidersHorizontal, label: 'Időszak', onClick: fire('davelopment:open-analytics-daterange') },
+      { icon: Download, label: 'CSV export', onClick: fire('davelopment:open-analytics-csv') },
+    )
+  }
+  // Szolgáltatások (design 8.5): a szűrő-ikon a kategória-lapot nyitja, a „+” az új szolgáltatást
+  if (at('/services')) pageTools.push({ icon: SlidersHorizontal, label: 'Szűrés kategóriára', onClick: fire('davelopment:open-services-filter') })
+  // Asztalok (design 9.5): új asztal a fejléc „+” gombjával
+  if (at('/services') && can(capabilities, 'catalog.manage')) pageTools.push({ icon: Plus, label: 'Új szolgáltatás', onClick: fire('davelopment:open-services-add'), dark: true })
+  // Munkatársak (design 10.5): a fejléc „+” gombja a meghívót nyitja
+  if (at('/staff') && can(capabilities, 'staff.manage')) pageTools.push({ icon: Plus, label: 'Munkatárs meghívása', onClick: fire('davelopment:open-staff-add'), dark: true })
+  // Utalványok (design 12.8): a szűrő-ikon az állapot / fizetési mód lapját nyitja, mellette a beváltás (QR), a „+” az új utalvány
+  if (at('/vouchers')) pageTools.push({ icon: SlidersHorizontal, label: 'Szűrés', onClick: fire('davelopment:open-vouchers-filter') })
+  if (at('/vouchers') && can(capabilities, 'vouchers.manage')) pageTools.push(
+    { icon: TicketCheck, label: 'Utalvány beváltása', onClick: fire('davelopment:open-vouchers-redeem') },
+    { icon: Plus, label: 'Új utalvány', onClick: fire('davelopment:open-vouchers-create'), dark: true },
+  )
+  // Marketing (design 13.7): a szűrő-ikon a kampányok szűrő-lapját nyitja, a „+” az új kampányt
+  if (at('/marketing')) pageTools.push({ icon: SlidersHorizontal, label: 'Szűrés', onClick: fire('davelopment:open-marketing-filter') })
+  if (at('/marketing') && can(capabilities, 'marketing.manage')) pageTools.push({ icon: Plus, label: 'Új kampány', onClick: fire('davelopment:open-marketing-composer'), dark: true })
 
   return (
     <>
-      {/* ── DESKTOP SIDEBAR ────────────────────────────────────── */}
-      {!mobileOnly && (
-      <aside
-        className={cn(
-          'hidden lg:flex relative h-screen sticky top-0 z-40 bg-white border-r border-zinc-100 dark:bg-black dark:border-white/[0.06] flex-col shrink-0 transition-[width] duration-200',
-          collapsed ? 'w-16' : 'w-56',
-        )}
-      >
-        {/* Összecsukás-fül a sidebar jobb szélén, a határvonalon lebegve. */}
-        {collapsible && (
-          <motion.button
-            onClick={toggleNav}
-            title={collapsed ? 'Menü kinyitása' : 'Menü összecsukása'}
-            aria-label={collapsed ? 'Menü kinyitása' : 'Menü összecsukása'}
-            initial={false}
-            whileHover={{ scale: 1.15 }}
-            whileTap={{ scale: 0.9 }}
-            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-            className="absolute top-3 -right-3 z-50 flex h-6 w-6 items-center justify-center rounded-full border border-zinc-200 bg-white text-zinc-400 shadow-sm hover:text-zinc-900 dark:border-white/[0.1] dark:bg-zinc-900 dark:text-white/40 dark:hover:text-white"
-          >
-            <motion.span animate={{ rotate: collapsed ? 180 : 0 }} transition={{ type: 'spring', stiffness: 400, damping: 26 }}>
-              <ChevronsLeft className="h-3.5 w-3.5" />
-            </motion.span>
-          </motion.button>
-        )}
-        {/* Egységes stagger-konténer: a fejléc, a kereső és a nav-elemek mind ugyanazzal
-            a belépő-animációval (balról beúszva, lépcsőzve) jelennek meg. */}
-        <motion.div
-          className="flex flex-1 flex-col min-h-0"
-          initial="hidden"
-          animate="show"
-          variants={navStagger}
-        >
-          {/* Fejléc: store-switcher (logó + név + csomag + ⇅). Felül üres sáv (pt-12)
-              a jobb szélen lebegő összecsukás-fülnek. */}
-          <motion.div variants={navItemVariants} transition={navItemSpring} className={cn('pt-12 pb-4', collapsed ? 'px-2' : 'px-3')}>
-            {collapsed ? (
-              <div className="flex flex-col items-center gap-2">
-                {brandLogoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={brandLogoUrl} alt={salonName} className="h-9 w-9 rounded-full bg-zinc-100 object-contain p-1.5 dark:bg-white/[0.06]" />
-                ) : (
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900 text-white text-sm font-bold">
-                    {salonName?.trim()?.[0]?.toUpperCase() ?? '?'}
-                  </span>
-                )}
-              </div>
-            ) : isBackstage ? (
-              // Backstage fejléc: márka-logó + „Backstage" badge + admin email.
-              <div className="flex flex-col gap-2">
-                <Link href="/backstage" aria-label="davelopment booking Backstage" className="block w-fit hover:opacity-80 transition-opacity">
-                  <BrandLogo variant="dark" className="h-6" />
-                </Link>
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center rounded-md bg-zinc-900 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white dark:bg-white dark:text-black">
-                    Backstage
-                  </span>
-                </div>
-                {userEmail && (
-                  <p className="text-xs text-zinc-400 dark:text-white/30 truncate" title={userEmail}>{userEmail}</p>
-                )}
-              </div>
-            ) : (
-              <StoreSwitcher
-                name={salonName}
-                logoUrl={brandLogoUrl}
-                planLabel={subscription ? subStatusLabel(subscription.status) : null}
-                businesses={businesses}
-                activeKey={activeBusinessKey}
-              />
-            )}
-          </motion.div>
-
-          {/* Kereső a menü fölött (⌘K command-palette). */}
-          <motion.div variants={navItemVariants} transition={navItemSpring} className={cn('pb-1', collapsed ? 'px-2' : 'px-3')}>
-            {collapsed ? (
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-command'))}
-                aria-label="Keresés"
-                title="Keresés"
-                className="group flex w-full items-center justify-center rounded-lg px-2 py-2.5 text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors"
-              >
-                <Search className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-command'))}
-                aria-label="Keresés"
-                className="group flex h-9 w-full items-center gap-2.5 rounded-xl border border-zinc-200 dark:border-white/[0.08] px-3 text-sm text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 hover:border-zinc-300 dark:text-white/30 dark:hover:text-white dark:hover:bg-white/[0.06] dark:hover:border-white/[0.16] transition-colors"
-              >
-                <Search className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                <span className="flex-1 text-left">Keresés…</span>
-                <kbd className="inline-flex items-center rounded-md border border-zinc-200 dark:border-white/[0.1] px-1.5 py-0.5 text-[10px] font-medium text-zinc-400">⌘K</kbd>
-              </button>
-            )}
-          </motion.div>
-
-          <motion.div variants={navItemVariants} transition={navItemSpring} className="mt-3 mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
-
-          <nav className={cn('flex-1 py-4 space-y-0.5 overflow-y-auto', collapsed ? 'px-2' : 'px-3')}>
-            {navItems.map(({ href, label, icon: Icon, exact }) => {
-              const dim = isLocked && !isAllowedWhenLocked(href)
-              const active = isActive(href, exact)
-              return (
-                <motion.div
-                  key={href}
-                  variants={navItemVariants}
-                  transition={navItemSpring}
-                >
-                <Link
-                  href={href}
-                  data-tour={href}
-                  title={collapsed ? label : undefined}
-                  className={cn(
-                    'group relative flex items-center gap-3 rounded-lg text-sm transition-colors',
-                    collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
-                    active
-                      ? 'text-white dark:text-black font-semibold'
-                      : dim
-                        ? 'text-zinc-300 dark:text-white/15 hover:text-zinc-400 dark:hover:text-white/25'
-                        : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06]'
-                  )}
-                >
-                  {/* Mozgó aktív-pill: layoutId-vel átcsúszik az új aktív elemre. */}
-                  {active && (
-                    <motion.span
-                      layoutId="nav-active-pill"
-                      className="absolute inset-0 -z-0 rounded-lg bg-zinc-900 dark:bg-white"
-                      transition={{ type: 'spring', stiffness: 380, damping: 32 }}
-                    />
-                  )}
-                  <Icon className="relative z-10 h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                  <AnimatePresence initial={false}>
-                    {!collapsed && (
-                      <motion.span
-                        key="label"
-                        initial={{ opacity: 0, width: 0 }}
-                        animate={{ opacity: 1, width: 'auto' }}
-                        exit={{ opacity: 0, width: 0 }}
-                        transition={{ duration: 0.18 }}
-                        className="relative z-10 flex-1 overflow-hidden whitespace-nowrap"
-                      >
-                        {label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                  {!collapsed && dim && <Lock className="relative z-10 h-3 w-3 shrink-0" />}
-                </Link>
-              </motion.div>
-            )
-          })}
-
-            {/* Nyilvános oldal — a menüpontokkal egy oszlopban. Backstage-en NINCS publikus
-                oldal (admin-eszköz), ezért ott elrejtjük. */}
-            {!isBackstage && (
-            <motion.div variants={navItemVariants} transition={navItemSpring}>
-              <a
-                href={`/${publicUrlPrefix}${salonSlug}`}
-                target="_blank"
-                title={collapsed ? 'Nyilvános oldal' : undefined}
-                className={cn(
-                  'group flex items-center gap-3 rounded-lg text-sm text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 dark:text-white/40 dark:hover:text-white dark:hover:bg-white/[0.06] transition-colors',
-                  collapsed ? 'justify-center px-2 py-2.5' : 'px-3 py-2.5',
-                )}
-              >
-                <ExternalLink className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110" />
-                {!collapsed && <span className="flex-1">Nyilvános oldal</span>}
-              </a>
-            </motion.div>
-            )}
-          </nav>
-        </motion.div>
-
-        <div className="mx-4 h-px bg-zinc-100 dark:bg-white/[0.06]" />
-
-        {!collapsed && (
-          <div className="pt-3">
-            <OfflineIndicator />
-          </div>
-        )}
-
-        {/* Fiók-blokk: avatar + név + harang + „⋯". Az avatarra/„⋯"-ra kattintva nyílik
-            a fiók-popover (profil, profilkép, téma, kijelentkezés). */}
-        <div className={cn('pt-3', collapsed ? 'px-2' : 'px-3')}>
-          <UserMenu
-            name={userName}
-            email={userEmail}
-            avatarUrl={userAvatarUrl}
-            collapsed={collapsed}
-            subscriptionHref={subscriptionHref}
-            settingsHref={settingsHref}
-            capabilities={isBackstage ? undefined : capabilities}
-            notificationsHref={isBackstage ? undefined : notificationsHref}
-          />
-        </div>
-
-        <div className={cn('py-4', collapsed ? 'px-2' : 'px-3')}>
-          {/* Étterem navban: „powered by" felirat, ALATTA a márka + davelopment logók. */}
-          {variant === 'restaurant' && !collapsed && (
-            <div className="mt-3 px-3">
-              <p className="text-[10px] text-zinc-300 dark:text-white/20">powered by</p>
-              <div className="mt-1.5 flex items-center justify-between gap-2">
-                <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
-                  <BrandLogo variant="dark" className="h-5" />
-                </a>
-                <span className="text-zinc-200 dark:text-white/10">·</span>
-                <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="hover:opacity-70 transition-opacity">
-                  {/* FIGYELEM: a fájlnevek félrevezetők — a *_dark.svg* sötét tintás (világos
-                      témára), a *_light.svg* világos (sötét témára). Ezért fordítva kötjük. */}
-                  <img src="/logo_davelopment_dark.svg" alt="davelopment" className="h-[18px] w-auto block dark:hidden" />
-                  <img src="/logo_davelopment_light.svg" alt="davelopment" className="h-[18px] w-auto hidden dark:block" />
-                </a>
-              </div>
-            </div>
-          )}
-        </div>
-      </aside>
-      )}
-
       {/* ── MOBILE TOP BAR — vissza + cím + „…" menü ───────────── */}
       {/* Crextio-stílus: NINCS tömör sáv/határvonal — a fejléc a krém gradiensen ül, a
           gombok lebegő fehér KÖRÖK (üveg + lágy árnyék + blur), mint a referencia „←" ikon.
           A cím középen marad (kompakt sáv-elrendezés). */}
-      {helpOpen && (
-        <div
-          className="lg:hidden fixed inset-0 z-[39]"
-          onClick={() => { setHelpOpen(false); setHelpQuery('') }}
-        />
-      )}
       <header className="lg:hidden relative z-40 px-3 h-16 flex items-center justify-between gap-2 shrink-0">
-        <button
-          type="button"
-          onClick={goBack}
-          aria-label="Vissza"
-          className="flex items-center justify-center h-11 w-11 shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.06)] backdrop-blur-lg outline-none transition-colors hover:bg-white/80 active:scale-95"
-        >
-          <ChevronLeft className="h-5 w-5" strokeWidth={2.25} />
-        </button>
+        {isTopLevel ? (
+          <Link href={navItems[0]?.href ?? '/'} aria-label="davelopment booking" className="flex shrink-0 items-center px-1">
+            <BrandLogo variant="light" className="h-6" />
+          </Link>
+        ) : (
+          <IconButton icon={ChevronLeft} label="Vissza" size="lg" onClick={goBack} />
+        )}
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-2.5 shrink-0">
-          <OfflineIndicator compact />
+        <div className="flex items-center gap-1.5 shrink-0">
+          <OfflineIndicator />
           {/* Al-navigáció portál-célpontja — a Beállítások egyes füleinek saját fejléc-kontrollja
               (Foglalóoldal → nyelv-választó, Vendég e-mailek → sablon-választó, Csapat →
               Tagok/Szerepek váltó + meghívás) ide portálozódik be, egységesen a többi oldal
               felső fejléc-ikonjaival (üres marad minden más fülön, mert csak az adott fül
               komponense rendereli bele, amikor mountolva van). */}
           {pathname.startsWith(settingsHref) && <div id="settings-subnav-slot" className="relative flex shrink-0 items-center gap-2" />}
-          {/* Beállítások nav ikon — csak a settings oldalakon jelenik meg. */}
-          {pathname.startsWith(settingsHref) && (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event('davelopment:open-settings-nav'))}
-              aria-label="Beállítások menü"
-              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-            >
-              <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
-            </button>
-          )}
-          {/* Értesítések nézet-váltó ikon — csak az értesítések oldalon jelenik meg. */}
-          {pathname.startsWith(notificationsHref) && (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event('davelopment:open-notifications-tabs'))}
-              aria-label="Nézet váltása"
-              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-            >
-              <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
-            </button>
-          )}
-          {/* Tippek szűrő ikon — csak a tips oldalon jelenik meg. */}
-          {pathname.endsWith('/tips') && (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event('davelopment:open-tips-filter'))}
-              aria-label="Kategória szűrő"
-              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-            >
-              <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
-            </button>
-          )}
-          {/* Vendégek: „Új vendég" ikonként a fejlécben — mint minden más oldal „+" gombja. */}
-          {pathname.endsWith('/guests') && (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event('davelopment:open-new-guest'))}
-              aria-label="Új vendég"
-              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
-            >
-              <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
-            </button>
-          )}
-          {/* Naptár (schedule) ikonok — statisztika, szűrő, + új műszak; csak a schedule oldalon. */}
-          {pathname.endsWith('/schedule') && (
-            <>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-schedule-stats'))}
-                aria-label="Havi összegző"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <BarChart3 className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-schedule-filter'))}
-                aria-label="Szűrők"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-schedule-add'))}
-                aria-label="Új műszak felvétele"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
-              >
-                <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
-              </button>
-            </>
-          )}
-          {/* Főoldal (Áttekintés): „Új foglalás" ikonként a fejlécben — átvisz a Foglalásokra és
-              rögtön megnyitja az új-foglalás panelt (`?new=1`). Mobilon az oldalon lévő gomb rejtve. */}
-          {(pathname === '/dashboard' || pathname === '/restaurant') && (
-            <Link
-              href={`${pathname}/bookings?new=1`}
-              aria-label="Új foglalás"
-              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
-            >
-              <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
-            </Link>
-          )}
-          {/* Súgó: „Bevezető indítása" ikonként a fejlécben (ugyanaz az esemény, mint a TipsContent gombja). */}
-          {pathname.endsWith('/help') && (
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new Event('davelopment:open-onboarding'))}
-              aria-label="Bevezető indítása"
-              className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-gold shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
-            >
-              <Sparkles className="h-[19px] w-[19px]" strokeWidth={1.8} />
-            </button>
-          )}
-          {/* Súgó kereső — csak /help oldalon; kattintásra animáltan kinyílik. */}
-          {pathname.endsWith('/help') && (
-            <motion.div
-              className="flex items-center overflow-hidden rounded-full bg-[var(--dav-glass-strong)] backdrop-blur-lg shadow-[0_2px_8px_rgba(0,0,0,.05)]"
-              animate={{ width: helpOpen ? 200 : 52 }}
-              transition={{ type: 'spring', stiffness: 420, damping: 32 }}
-              style={{ height: 52 }}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {helpOpen ? (
-                  <motion.div
-                    key="help-open"
-                    className="flex items-center w-full px-3 gap-2"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.1 }}
-                  >
-                    <Search className="shrink-0 h-[18px] w-[18px] text-ink-soft" strokeWidth={2} />
-                    <input
-                      ref={helpInputRef}
-                      type="text"
-                      value={helpQuery}
-                      onChange={(e) => setHelpQuery(e.target.value)}
-                      onBlur={() => { setHelpOpen(false); setHelpQuery('') }}
-                      onKeyDown={(e) => { if (e.key === 'Escape') { setHelpOpen(false); setHelpQuery('') } }}
-                      placeholder="Keresés…"
-                      className="flex-1 min-w-0 bg-transparent text-sm text-ink placeholder:text-ink-soft outline-none"
-                    />
-                    {helpQuery && (
-                      <button
-                        type="button"
-                        onMouseDown={(e) => { e.preventDefault(); setHelpQuery('') }}
-                        className="shrink-0 flex items-center justify-center h-5 w-5 rounded-full text-ink-soft"
-                        aria-label="Keresés törlése"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </motion.div>
-                ) : (
-                  <motion.button
-                    key="help-closed"
-                    type="button"
-                    onClick={() => setHelpOpen(true)}
-                    aria-label="Keresés a súgóban"
-                    className="flex items-center justify-center h-[52px] w-[52px] text-ink outline-none active:scale-95"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ duration: 0.1 }}
-                  >
-                    <Search className="h-[19px] w-[19px]" strokeWidth={2} />
-                  </motion.button>
-                )}
-              </AnimatePresence>
-            </motion.div>
-          )}
-          {/* Foglalások ikonok — nézet-váltó, nap nyomtatása, + új foglalás; a bookings oldalakon
-              (szalon + étterem). */}
-          {pathname.endsWith('/bookings') && (
-            <>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-bookings-view'))}
-                aria-label="Nézet és időszak"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:export-bookings-day'))}
-                aria-label="Foglalások letöltése (CSV)"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <Download className="h-[19px] w-[19px]" strokeWidth={1.8} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-bookings-create'))}
-                aria-label="Új foglalás"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
-              >
-                <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
-              </button>
-            </>
-          )}
-          {/* Munkatársak ikonok — export + új munkatárs; a staff oldalakon (szalon + étterem). */}
-          {/* Statisztikák — nézet-váltó (Üzlet/Saját munka, csak szalonnál és csak
-              analytics.view jogosultsággal), időszak-választó, CSV-export; szalon + étterem. */}
-          {pathname.endsWith('/analytics') && (
-            <>
-              {pathname.endsWith('/dashboard/analytics') && can(capabilities, 'analytics.view') && (() => {
-                const scope = searchParams.get('scope') === 'own' ? 'own' : 'business'
-                const nextScope = scope === 'business' ? 'own' : 'business'
-                const from = searchParams.get('from')
-                const to = searchParams.get('to')
-                const period = searchParams.get('period') ?? '30'
-                const rangeQuery = from && to ? `from=${from}&to=${to}` : `period=${period}`
-                const nextHref = `${pathname}?${rangeQuery}&scope=${nextScope}`
-                return (
-                  <button
-                    type="button"
-                    onClick={() => router.push(nextHref)}
-                    aria-label={scope === 'business' ? 'Váltás saját munkára' : 'Váltás üzleti nézetre'}
-                    title={scope === 'business' ? 'Üzlet — koppints a saját munkára váltáshoz' : 'Saját munka — koppints az üzleti nézetre váltáshoz'}
-                    className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-                  >
-                    {scope === 'business' ? <Building2 className="h-[19px] w-[19px]" strokeWidth={2} /> : <UserRound className="h-[19px] w-[19px]" strokeWidth={2} />}
-                  </button>
-                )
-              })()}
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-analytics-daterange'))}
-                aria-label="Időszak"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <CalendarDays className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-analytics-csv'))}
-                aria-label="CSV export"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <Download className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-            </>
-          )}
-          {/* Szolgáltatások — katalógus-beállítások (csúszka) + "Új szolgáltatás"; csak a
-              services oldalon. */}
-          {pathname.endsWith('/services') && can(capabilities, 'catalog.manage') && (
-            <>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-services-filter'))}
-                aria-label="Katalógus-beállítások"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <SlidersHorizontal className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-services-add'))}
-                aria-label="Új szolgáltatás"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
-              >
-                <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
-              </button>
-            </>
-          )}
-          {pathname.endsWith('/staff') && can(capabilities, 'staff.manage') && (
-            <>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:staff-export'))}
-                aria-label="Munkatársak letöltése (CSV)"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <Download className="h-[19px] w-[19px]" strokeWidth={1.8} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-staff-add'))}
-                aria-label="Új munkatárs"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[#1D1C19] text-white shadow-[0_2px_8px_rgba(0,0,0,.05)] outline-none transition-colors hover:bg-ink active:scale-95"
-              >
-                <Plus className="h-[19px] w-[19px]" strokeWidth={2.2} />
-              </button>
-            </>
-          )}
-          {/* Utalványok — fekete beolvasás/beváltás ikon + „Új utalvány” és „Típusok kezelése”
-              külön ikonként (csak a vouchers oldalakon, szalon + étterem). */}
-          {pathname.endsWith('/vouchers') && can(capabilities, 'vouchers.manage') && (
-            <>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-vouchers-redeem'))}
-                aria-label="Utalvány beváltása"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-ink-dark text-white shadow-[0_2px_8px_rgba(0,0,0,.14)] outline-none transition-colors hover:bg-ink active:scale-95"
-              >
-                <ScanLine className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-vouchers-create'))}
-                aria-label="Új utalvány"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <Plus className="h-[20px] w-[20px]" strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-vouchers-types'))}
-                aria-label="Típusok kezelése"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <Tag className="h-[18px] w-[18px]" strokeWidth={2} />
-              </button>
-            </>
-          )}
-
-          {/* Marketing/Hírlevél — "Hírlevél írása" (fekete) + "Csomag bővítése" (üveg) ikon-gomb,
-              csak a marketing oldalakon (szalon + étterem), a Vouchers mintáját követve. */}
-          {pathname.endsWith('/marketing') && can(capabilities, 'marketing.manage') && (
-            <>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-marketing-composer'))}
-                aria-label="Hírlevél írása"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-ink-dark text-white shadow-[0_2px_8px_rgba(0,0,0,.14)] outline-none transition-colors hover:bg-ink active:scale-95"
-              >
-                <PenLine className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-              <button
-                type="button"
-                onClick={() => window.dispatchEvent(new Event('davelopment:open-marketing-package'))}
-                aria-label="Csomag bővítése"
-                className="flex items-center justify-center h-[52px] w-[52px] shrink-0 rounded-full bg-[var(--dav-glass-strong)] text-ink shadow-[0_2px_8px_rgba(0,0,0,.05)] backdrop-blur-lg outline-none transition-colors hover:bg-white/70 active:scale-95"
-              >
-                <CreditCard className="h-[19px] w-[19px]" strokeWidth={2} />
-              </button>
-            </>
-          )}
-
+          {/* az oldal saját eszközei (a design szerint: 48px kerek gombok; a fő „+” sötét) — oldalanként egy lista */}
+          {pageTools.map((t) => <IconButton key={t.label} icon={t.icon} label={t.label} size="lg" variant={t.dark ? 'dark' : 'glass'} href={t.href} download={t.download} onClick={t.onClick} className={t.yellow ? 'text-ui-yellow' : undefined} />)}
+          {/* a Súgó keresője az oldalon van (design 15.3), nem a fejlécben */}
           {/* Értesítés + fiók — a mobil fejléc JOBB felső sarkában, desktop-szerű popoverrel
               (csengő = értesítések, avatar = fiók-menü → üzletváltó + Saját profil). */}
           {!isBackstage && (
             <UserMenu
+              showPartner={!hiddenHrefs.some((h) => h.endsWith('/partnerprogram'))}
               name={userName}
               email={userEmail}
               avatarUrl={userAvatarUrl}
-              collapsed
               subscriptionHref={subscriptionHref}
               settingsHref={settingsHref}
               publicUrl={`/${salonSlug}`}

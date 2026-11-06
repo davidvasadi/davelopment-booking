@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from 'next'
 import { Inter, Geist, Martian_Mono, Onest } from 'next/font/google'
 import { Toaster } from 'sonner'
 import { SmoothScroll } from '@/components/SmoothScroll'
-import { ThemeProvider } from '@/components/ThemeProvider'
 import { MotionProvider } from '@/components/MotionProvider'
 import { ServiceWorkerRegister } from '@/components/ServiceWorkerRegister'
 import { PlatformAnalytics } from '@/components/PlatformAnalytics'
@@ -45,19 +44,19 @@ export default function RootLayout({
   return (
     <html lang="hu" suppressHydrationWarning data-scroll-behavior="smooth">
       <body suppressHydrationWarning className={`${inter.className} ${geist.variable} ${martianMono.variable} ${onest.variable}`}>
-        <ThemeProvider>
           <MotionProvider>
             <SmoothScroll>{children}</SmoothScroll>
-            {/* Az app-palettához igazított toast (stílus: globals.css → .dav-toast). */}
+            {/* toast a kit szerint (/design 1.11): sötét pill alul középen (stílus: globals.css → .dav-toast) */}
             <Toaster
-              position="top-right"
+              position="bottom-center"
+              // mobilon az alsó menü (≈72px) fölött jelenjen meg
+              mobileOffset={{ bottom: 88 }}
               gap={10}
               toastOptions={{ className: 'dav-toast', duration: 3600 }}
             />
             <ServiceWorkerRegister />
             <PlatformAnalytics />
           </MotionProvider>
-        </ThemeProvider>
       </body>
     </html>
   )

@@ -2,116 +2,93 @@ import { getOwnedSalon } from '@/lib/salonContext'
 import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
+import { num, rawQuery, sql } from '@/lib/fastRead'
 import { fixMediaUrl } from '@/lib/utils'
+import { withAvatarFallback } from '@/lib/staffAvatars'
+import { BUSINESS_TEMPLATES } from '@/lib/businessTemplates'
+import { resolveAvailableLocales } from '@/lib/i18n'
 import type { Service, ServiceCategory, StaffMember, Booking, Media } from '@/payload/payload-types'
-import ServicesManager from '@/components/dashboard/ServicesManager'
+import { ServicesView, type ServiceVM, type CategoryVM } from '@/components/dashboard/ServicesView'
+
+// a havi számok felirata („foglalás Novemberben”) — a dátum-szavak nagybetűvel (Dave kérése)
+const MONTHS_IN = ['Januárban', 'Februárban', 'Márciusban', 'Áprilisban', 'Májusban', 'Júniusban', 'Júliusban', 'Augusztusban', 'Szeptemberben', 'Októberben', 'Novemberben', 'Decemberben']
+const relId = (v: unknown): string | null => (v == null ? null : typeof v === 'object' ? String((v as { id: unknown }).id) : String(v))
+const mediaOf = (m: unknown): { id: number; url: string } | null => (m && typeof m === 'object' && (m as Media).url ? { id: Number((m as Media).id), url: fixMediaUrl((m as Media).url) ?? (m as Media).url! } : null)
 
 export default async function ServicesPage() {
   const { salon, capabilities } = await getOwnedSalon(1)
   requireAnyCapability(capabilities, ['catalog.view', 'catalog.manage'], '/dashboard')
   const payload = await getPayloadClient()
 
-  const yearStart = `${new Date().getFullYear()}-01-01`
-  const logoUrl = salon.logo && typeof salon.logo === 'object' ? fixMediaUrl((salon.logo as Media).url ?? null) : null
+  // a hónap számai (8.1 legnépszerűbb kártya, 8.3 havi számok) és a heti trend (az elmúlt 7 hét)
+  const now = new Date()
+  const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const monthStart = ymd(new Date(now.getFullYear(), now.getMonth(), 1))
+  const weekStart = (() => { const d = new Date(now); d.setDate(d.getDate() - ((d.getDay() + 6) % 7) - 6 * 7); return d })()
+  const since = ymd(weekStart) < monthStart ? ymd(weekStart) : monthStart
 
-  const [servicesResult, staffResult, categoriesResult, bookingsResult] = await Promise.all([
-    payload.find({
-      collection: 'services',
-      where: { salon: { equals: salon.id } },
-      sort: ['sort_order', 'name'],
-      depth: 1,
-      limit: 200,
-    }),
-    payload.find({
-      collection: 'staff',
-      where: { salon: { equals: salon.id } },
-      sort: 'name',
-      // depth:0 mellett a `staff.avatar` nyers ID marad (nem { url }-os objektum), így az
-      // avatar-kép SOSEM jelent meg a szolgáltatás-kártyák szakember-kupacán, még akkor sem,
-      // ha az adott staff-nak ténylegesen volt feltöltött avatarja.
-      depth: 1,
-      limit: 100,
-    }),
-    payload.find({
-      collection: 'service-categories',
-      where: { salon: { equals: salon.id } },
-      sort: 'sort_order',
-      depth: 1,
-      limit: 100,
-    }),
-    // Idei (nem lemondott) foglalások a „Bevétel kategóriánként" csíkhoz — a szolgáltatás
-    // aktuális árát összegezzük kategóriánként (a Booking nem tárol árat).
-    payload.find({
-      collection: 'bookings',
-      where: {
-        and: [
-          { salon: { equals: salon.id } },
-          { date: { greater_than_equal: yearStart } },
-          { status: { not_equals: 'cancelled' } },
-        ],
-      },
-      depth: 1, // service kifejtve (ár + kategória-ID)
-      limit: 5000,
-      overrideAccess: true,
-    }),
+  const [servicesRes, staffRes, categoriesRes, bookingsRes, invitedRes] = await Promise.all([
+    payload.find({ collection: 'services', where: { salon: { equals: salon.id } }, sort: ['sort_order', 'name'], depth: 1, populate: { salons: { name: true } }, limit: 500 }),
+    payload.find({ collection: 'staff', where: { salon: { equals: salon.id } }, sort: 'name', depth: 1, populate: { salons: { name: true } }, limit: 200 }),
+    payload.find({ collection: 'service-categories', where: { salon: { equals: salon.id } }, sort: 'sort_order', depth: 1, populate: { salons: { name: true } }, limit: 200 }),
+    // Sebesség: a foglalások KÖZVETLEN SQL-lel (lib/fastRead, docs/sebesseg) — a Payload itt ~1,5 mp volt, és közben az
+    // oldal többi lekérdezése is rá várt
+    rawQuery<{ service_id: number | null; date: string; price_snapshot: string | null }>(sql`
+      SELECT service_id, date, price_snapshot FROM bookings
+      WHERE salon_id = ${Number(salon.id)} AND date >= ${since} AND status NOT IN ('cancelled', 'no_show')`)
+      .then((rows) => ({ docs: rows.map((r) => ({ service: r.service_id, date: r.date, price_snapshot: num(r.price_snapshot) })) })),
+    // meghívóra váró tagok — amíg nem fogadják el, nem rendelhetők szolgáltatáshoz
+    payload.find({ collection: 'memberships', where: { and: [{ salon: { equals: salon.id } }, { status: { equals: 'invited' } }] }, depth: 0, limit: 500, overrideAccess: true }),
   ])
+  const staff = await withAvatarFallback(payload, staffRes.docs as StaffMember[])
+  const invited = new Set((invitedRes.docs as { email?: string | null }[]).map((m) => (m.email ?? '').toLowerCase()).filter(Boolean))
 
-  // Fallback-avatar EMAIL alapján (lásd `dashboard/schedule/page.tsx` azonos komment) — ha a
-  // staff-rekordnak nincs külön avatarja, de a személy a SAJÁT profiljában feltöltött egyet.
-  const staffEmails = (staffResult.docs as StaffMember[]).map((s) => s.email).filter((e): e is string => !!e)
-  const avatarUrlByEmail: Record<string, string> = {}
-  if (staffEmails.length > 0) {
-    const usersRes = await payload.find({
-      collection: 'users',
-      where: { email: { in: staffEmails } },
-      depth: 0, limit: 500, overrideAccess: true,
-    })
-    for (const u of usersRes.docs as { email?: string | null; avatar_url?: string | null }[]) {
-      const fixed = fixMediaUrl(u.avatar_url)
-      if (u.email && fixed) avatarUrlByEmail[u.email.toLowerCase()] = fixed
+  const services = servicesRes.docs as Service[]
+  const priceById = new Map(services.map((s) => [String(s.id), s.price ?? 0]))
+  const stats = new Map<string, { count: number; revenue: number; weeks: number[] }>()
+  for (const b of bookingsRes.docs as unknown as Booking[]) {
+    const id = relId(b.service)
+    if (!id) continue
+    const st = stats.get(id) ?? { count: 0, revenue: 0, weeks: [0, 0, 0, 0, 0, 0, 0] }
+    const d = String(b.date ?? '').slice(0, 10)
+    if (d >= monthStart) { st.count++; st.revenue += typeof b.price_snapshot === 'number' ? b.price_snapshot : priceById.get(id) ?? 0 }
+    const w = Math.floor((new Date(`${d}T12:00:00`).getTime() - weekStart.getTime()) / (7 * 86_400_000))
+    if (w >= 0 && w < 7) st.weeks[w]++
+    stats.set(id, st)
+  }
+
+  const serviceVMs: ServiceVM[] = services.map((s) => {
+    const st = stats.get(String(s.id))
+    return {
+      id: String(s.id), name: s.name ?? '', description: s.description ?? '', categoryId: relId(s.category), subcategoryId: relId(s.subcategory),
+      image: mediaOf(s.image), staffIds: (s.staff ?? []).map((x) => relId(x)!).filter(Boolean), duration: s.duration_minutes ?? 60, price: s.price ?? 0,
+      currency: s.currency === 'EUR' ? 'EUR' : 'HUF', active: s.is_active !== false, monthCount: st?.count ?? 0, monthRevenue: st?.revenue ?? 0, weeks: st?.weeks ?? [0, 0, 0, 0, 0, 0, 0],
     }
-  }
-
-  // Meghívóra váró (még nem elfogadott) tagok — amíg nem fogadják el, nem rendelhetők
-  // szolgáltatáshoz sem (lakat + UX infó a szakember-választón).
-  const invitedRes = await payload.find({
-    collection: 'memberships',
-    where: { and: [{ salon: { equals: salon.id } }, { status: { equals: 'invited' } }] },
-    depth: 0, limit: 500, overrideAccess: true,
   })
-  const invitedEmails = new Set((invitedRes.docs as { email?: string | null }[]).map((m) => (m.email ?? '').toLowerCase()).filter(Boolean))
+  const categoryVMs: CategoryVM[] = (categoriesRes.docs as ServiceCategory[]).map((c) => ({
+    id: String(c.id), name: c.name ?? '', durationLabel: c.duration_label ?? '', description: c.description ?? '', image: mediaOf(c.image),
+  }))
 
-  // Bevétel kategóriánként (kategória-ID → Ft; besorolatlan → '__none__'). A `price_snapshot`-ot
-  // (foglaláskori ár) részesítjük előnyben a szolgáltatás mindenkori aktuális árával szemben —
-  // így egy utólagos ár-módosítás nem írja át visszamenőleg a korábbi bevételt.
-  const revenueByCategory: Record<string, number> = {}
-  for (const b of bookingsResult.docs as Booking[]) {
-    const svc = b.service
-    if (!svc || typeof svc !== 'object') continue
-    const price = typeof b.price_snapshot === 'number' ? b.price_snapshot : (svc as Service).price || 0
-    const cat = (svc as Service).category
-    const catId = cat == null ? '__none__' : typeof cat === 'object' ? String(cat.id) : String(cat)
-    revenueByCategory[catId] = (revenueByCategory[catId] ?? 0) + price
-  }
+  // előleg (8.1 / 8.3): csak ha be van kapcsolva és a fizetés (Stripe) be van kötve
+  const dep = salon.deposit_settings
+  const deposit = dep?.enabled && salon.stripe_connect_onboarded
+    ? (dep.type === 'percent' ? { type: 'percent' as const, value: dep.percent_value ?? 0 } : { type: 'fixed' as const, value: dep.fixed_amount_huf ?? 0 })
+    : null
 
   return (
-    <div className="space-y-6 p-5 lg:p-0">
-      <ServicesManager
-        salonId={salon.id}
-        initialServices={servicesResult.docs as Service[]}
-        staffList={staffResult.docs as StaffMember[]}
-        initialCategories={categoriesResult.docs as ServiceCategory[]}
-        supportedLocales={salon.supported_locales ?? null}
-        revenueByCategory={revenueByCategory}
-        avatarUrlByEmail={avatarUrlByEmail}
-        invitedEmails={invitedEmails}
-        canManage={can(capabilities, 'catalog.manage')}
-        logoUrl={logoUrl}
-        uncategorizedSortOrder={salon.services_uncategorized_sort_order ?? null}
-        servicesExpandedOnMain={salon.booking_rules?.services_expanded_on_main ?? false}
-        showCatalogCountsOnPublic={(salon.booking_rules?.show_service_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public ?? true)
-          || (salon.booking_rules?.show_staff_count_on_public ?? salon.booking_rules?.show_catalog_counts_on_public ?? true)}
-      />
-    </div>
+    <ServicesView
+      salonId={String(salon.id)}
+      services={serviceVMs}
+      categories={categoryVMs}
+      staff={staff.map((m) => ({
+        id: String(m.id), name: m.name ?? '', img: m.avatar && typeof m.avatar === 'object' ? fixMediaUrl((m.avatar as Media).url) ?? null : null,
+        ...(m.email && invited.has(m.email.toLowerCase()) ? { disabled: true, title: 'Még nem fogadta el a meghívást' } : {}),
+      }))}
+      deposit={deposit}
+      month={MONTHS_IN[now.getMonth()]}
+      templates={BUSINESS_TEMPLATES.map((t) => [t.type, t.label] as [string, string])}
+      canManage={can(capabilities, 'catalog.manage')}
+      locales={resolveAvailableLocales(salon.supported_locales ?? null)}
+    />
   )
 }

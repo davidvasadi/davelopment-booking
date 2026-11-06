@@ -1,26 +1,15 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { toast } from 'sonner'
-import { CheckCircle, Loader2 } from 'lucide-react'
-import { Switch } from '@/components/ui/toggle-switch'
+import { ConsentDone, ConsentKiosk } from '@/components/blocks/importer'
 
 /**
- * Helyszíni check-in felület a digitális beleegyező nyilatkozathoz — a személyzet a saját
- * bejelentkezésével nyitja meg (tableten), a vendég ott olvassa el és fogadja el. Közös
- * shell a szalon és étterem oldalnak, csak a submit-URL/id-mező/vissza-link különbözik.
+ * Helyszíni nyilatkozat (design 23.6) — a személyzet a saját belépésével nyitja meg a foglalásból (tableten), a vendég
+ * ott olvassa el és fogadja el; utána a köszönő képernyő, és vissza a foglaláshoz. Közös a szalonnak és az étteremnek,
+ * csak a submit-URL / az id-mező / a vissza-link különbözik.
  */
-export function ConsentCheckIn({
-  id,
-  customerName,
-  alreadyAccepted,
-  title,
-  templateText,
-  submitUrl,
-  idField,
-  backHref,
-}: {
+export function ConsentCheckIn({ id, customerName, alreadyAccepted, title, templateText, submitUrl, idField, backHref, business, when, what }: {
   id: string | number
   customerName: string
   alreadyAccepted: boolean
@@ -29,10 +18,14 @@ export function ConsentCheckIn({
   submitUrl: string
   idField: 'bookingId' | 'reservationId'
   backHref: string
+  /** a fejléchez: az üzlet neve, az időpont („Csütörtök, Nov. 6. · 10:30”), mire jött („Festés · Viktória” / „4 fő”) */
+  business: string
+  when: string
+  what: string
 }) {
   const [given, setGiven] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  const [done, setDone] = useState(alreadyAccepted)
+  const [doneAt, setDoneAt] = useState<string | null>(alreadyAccepted ? '' : null)
 
   const submit = async () => {
     if (!given || submitting) return
@@ -46,8 +39,7 @@ export function ConsentCheckIn({
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json?.error ?? 'Hiba történt')
-      setDone(true)
-      toast.success('Nyilatkozat elfogadva')
+      setDoneAt(new Date().toLocaleTimeString('hu-HU', { hour: '2-digit', minute: '2-digit' }))
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Hiba történt')
     } finally {
@@ -55,51 +47,12 @@ export function ConsentCheckIn({
     }
   }
 
-  if (done) {
-    return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-paper p-6 text-center">
-        <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[#DCF3E2]">
-          <CheckCircle className="h-10 w-10 text-[#1D7A3C]" />
-        </div>
-        <h1 className="mb-2 text-2xl font-light tracking-[-0.01em] text-ink">Elfogadva</h1>
-        <p className="mb-8 text-sm text-ink-soft">A nyilatkozat elfogadása rögzítve.</p>
-        <Link
-          href={backHref}
-          className="flex h-12 items-center justify-center rounded-full bg-ink-dark px-6 text-[14px] font-semibold text-white transition-opacity hover:opacity-90"
-        >
-          Vissza a foglaláshoz
-        </Link>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex min-h-screen items-center justify-center bg-paper p-6">
-      <div className="w-full max-w-lg space-y-6">
-        <div>
-          <h1 className="text-[26px] font-light tracking-[-0.01em] text-ink">{title?.trim() || 'Beleegyező nyilatkozat'}</h1>
-          <p className="mt-1 text-sm text-ink-soft">{customerName}</p>
-        </div>
-        <div className="max-h-[50vh] overflow-y-auto whitespace-pre-wrap rounded-[20px] border border-line-strong bg-white p-5 text-[15px] leading-relaxed text-ink">
-          {templateText || 'A szolgáltató még nem adta meg a nyilatkozat szövegét.'}
-        </div>
-        <div className="flex items-center justify-between gap-4 rounded-[16px] border border-line-strong bg-white px-5 py-4">
-          <span className="text-[15px] font-medium text-ink">Elolvastam és elfogadom a fenti nyilatkozatot</span>
-          <Switch checked={given} onChange={setGiven} ariaLabel="Nyilatkozat elfogadása" />
-        </div>
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!given || submitting}
-          className="flex h-16 w-full items-center justify-center gap-2 rounded-full bg-ink-dark text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-        >
-          {submitting && <Loader2 className="h-5 w-5 animate-spin" />}
-          Elfogadom és aláírom
-        </button>
-        <Link href={backHref} className="block text-center text-[13px] font-medium text-ink-soft hover:text-ink">
-          Mégse
-        </Link>
-      </div>
+    <div className="flex min-h-dvh items-center justify-center bg-ui-page p-6">
+      {doneAt !== null
+        ? <ConsentDone guest={customerName} at={doneAt || undefined} backHref={backHref} />
+        : <ConsentKiosk className="w-full max-w-[640px]" business={business} guest={customerName} when={when} what={what} title={title?.trim() || 'Beleegyező nyilatkozat'}
+            text={templateText} accepted={given} onAccepted={setGiven} onSubmit={() => void submit()} busy={submitting} cancelHref={backHref} />}
     </div>
   )
 }

@@ -17,10 +17,10 @@ export function MobileFilterButton({ onClick, count }: { onClick: () => void; co
     <button
       type="button"
       onClick={onClick}
-      className="relative flex h-9 flex-shrink-0 items-center gap-1.5 rounded-[18px] bg-white px-3.5 text-[13px] font-semibold text-ink shadow-[0_1px_4px_rgba(70,60,20,.06)] lg:hidden"
+      className="relative flex h-9 flex-shrink-0 items-center gap-1.5 rounded-[18px] bg-white px-3.5 text-[13px] font-semibold text-ui-text shadow-[0_1px_4px_rgba(70,60,20,.06)] lg:hidden"
     >
       <SlidersHorizontal className="h-4 w-4" strokeWidth={1.8} /> Szűrők
-      {count > 0 && <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ink-dark px-1 text-[10.5px] font-bold text-gold">{count}</span>}
+      {count > 0 && <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-ui-dark px-1 text-[10.5px] font-bold text-ui-yellow">{count}</span>}
     </button>
   )
 }
@@ -45,14 +45,14 @@ export function MobileFilterSheet({ open, onClose, groups }: { open: boolean; on
             <div className="space-y-5">
               {groups.map((g) => (
                 <div key={g.title}>
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ink-soft">{g.title}</p>
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-ui-muted">{g.title}</p>
                   <div className="flex flex-wrap gap-2">
                     {g.options.map((o) => (
                       <button
                         key={o.value}
                         type="button"
                         onClick={() => g.onChange(o.value)}
-                        className={`h-9 rounded-full border px-3.5 text-[13px] font-semibold transition-colors ${g.value === o.value ? 'border-ink-dark bg-ink-dark text-white' : 'border-line bg-white text-ink'}`}
+                        className={`h-9 rounded-full border px-3.5 text-[13px] font-semibold transition-colors ${g.value === o.value ? 'border-ui-dark bg-ui-dark text-white' : 'border-ui-divider bg-white text-ui-text'}`}
                       >
                         {o.label}
                       </button>
@@ -60,7 +60,7 @@ export function MobileFilterSheet({ open, onClose, groups }: { open: boolean; on
                   </div>
                 </div>
               ))}
-              <button type="button" onClick={onClose} className="h-11 w-full rounded-dav-pill bg-ink-dark text-[14px] font-semibold text-white">Kész</button>
+              <button type="button" onClick={onClose} className="h-11 w-full rounded-full bg-ui-dark text-[14px] font-semibold text-white">Kész</button>
             </div>
           </motion.div>
         </div>

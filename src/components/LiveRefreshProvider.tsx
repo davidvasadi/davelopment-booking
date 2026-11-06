@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useRef } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { wasRecentLocalMutation } from '@/lib/localMutationTracker'
 
 interface Props {
@@ -10,8 +10,24 @@ interface Props {
   businessKey: string
 }
 
+/** Azok az oldalak, amik NEM a foglalásokból élnek — itt egy foglalás-változás nem tölti újra az egész oldalt (a következő
+ *  navigáció úgyis frissen jön). Sebesség, docs/audit/2026-11-05_1921. */
+const NOT_BOOKING_PAGES = ['/settings', '/marketing', '/tips', '/help', '/services', '/subscription', '/partnerprogram']
+
 export function LiveRefreshProvider({ businessKey }: Props) {
   const router = useRouter()
+  const pathname = usePathname()
+  const pathRef = useRef(pathname)
+  pathRef.current = pathname
+  // háttérben lévő fülnél nem frissítünk azonnal — csak jelöljük, és visszatéréskor egyszer frissül
+  const stale = useRef(false)
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible' && stale.current) { stale.current = false; router.refresh() }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [router])
 
   useEffect(() => {
     const es = new EventSource(`/api/events`)
@@ -42,9 +58,12 @@ export function LiveRefreshProvider({ businessKey }: Props) {
           // Egy sorozatnyi gyors SSE-üzenetet egy debounce-olt refresh-be vonunk össze.
           if (debounceTimer) clearTimeout(debounceTimer)
           debounceTimer = setTimeout(() => {
-            router.refresh()
             window.dispatchEvent(new Event('booking-changed'))
-          }, 400)
+            // célzott: csak a foglalásokból élő oldal töltődik újra, és csak ha látszik a fül
+            if (NOT_BOOKING_PAGES.some((p) => pathRef.current?.includes(p))) return
+            if (document.visibilityState !== 'visible') { stale.current = true; return }
+            router.refresh()
+          }, 600)
         } else if (data.type === 'notification') {
           // Új harang-értesítés (pl. új foglalás, kapcsolatfelvétel) — a közös értesítés-tár
           // (useNotifications) erre azonnal újratölt; időzített lekérdezés nincs.

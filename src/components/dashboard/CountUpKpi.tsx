@@ -77,12 +77,12 @@ export function CountUpKpi({
   return (
     <div ref={ref} className="flex flex-col items-start">
       <div className="flex items-center gap-2.5">
-        <Icon className="h-6 w-6 shrink-0 text-ink-soft" strokeWidth={1.6} />
-        <div className="text-4xl lg:text-[42px] font-light leading-none tracking-[-0.02em] text-ink tabular-nums">
+        <Icon className="h-6 w-6 shrink-0 text-ui-muted" strokeWidth={1.6} />
+        <div className="text-4xl lg:text-[42px] font-light leading-none tracking-[-0.02em] text-ui-text tabular-nums">
           {shown}{suffix}
         </div>
       </div>
-      <div className="mt-1.5 text-[13px] font-medium text-ink-soft">{label}</div>
+      <div className="mt-1.5 text-[13px] font-medium text-ui-muted">{label}</div>
     </div>
   )
 }

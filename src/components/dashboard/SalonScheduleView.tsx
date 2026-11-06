@@ -2,86 +2,24 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { AnimatePresence, motion } from 'framer-motion'
-import { CalendarDays, CalendarRange, CalendarClock, Plus, type LucideIcon } from 'lucide-react'
+import { CalendarDays, Wallet } from 'lucide-react'
 import { hhmmToMinutes, ymdLocal } from '@/lib/utils'
 import { BookingEditSheet, type EditTarget } from '@/components/dashboard/BookingEditSheet'
-import { HoverButton } from '@/components/shared/HoverButton'
-import { MobileOptionSheet } from '@/components/ui/MobileOptionSheet'
-import type { BookingsRange } from '@/components/dashboard/DateFilter'
-import {
-  ACTIVE,
-  Ava,
-  avatarUrlOf,
-  cellKey,
-  CLOSED_BORDER,
-  CLOSED_FG,
-  CLOSED_HATCH,
-  draftToBooking,
-  extraStackHeightPx,
-  groupOverlaps,
-  idOf,
-  OFF_TYPE_LABEL,
-  OFF_TYPE_STYLE,
-  renderCellItem,
-} from '@/components/dashboard/SalonDailyView'
+import { BookingsHead, EMPTY_FILTER, applyBookingFilter, type BookingFilter } from '@/components/shared/BookingsHead'
+import { segments, thousands } from '@/components/dashboard/OverviewLayout'
+import { Avatar, Kpi } from '@/components/ui-kit'
+import { MonthGrid, StaffSwitch, WeekChips, WeekGrid, WeekHours, chipTone } from '@/components/shared/RangeGrids'
+import type { BookingsRange } from '@/components/shared/BookingsDateNav'
+import { ACTIVE, SalonBookingDrawer, avatarUrlOf, staffOf, isDraft, draftToBooking, groupOverlaps, idOf, OFF_TYPE_LABEL } from '@/components/dashboard/SalonDailyView'
 import { getDrafts, subscribeDrafts, type SalonBookingDraft } from '@/lib/salonBookingDrafts'
 import type { Booking, Service, StaffMember } from '@/payload/payload-types'
-
-const HU_WEEKDAYS_SHORT = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']
-
-function weekdayIndex(dateStr: string): number {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return (new Date(y, m - 1, d).getDay() + 6) % 7 // hétfő = 0
-}
+import type { OnsiteSettings } from './BookingCheckout'
 
 /** JS natív `getDay()` (0=vasárnap..6=szombat) — ez a `closedWeekdays` kódolása, nem a
  *  hétfő-first `weekdayIndex`. */
 function jsDow(dateStr: string): number {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).getDay()
-}
-
-/** Ugyanaz a "Zárva" jelvény, mint a Naptár hónap-rácsán (ScheduleView.tsx). */
-function ClosedBadge() {
-  return (
-    <span className="mt-1 inline-block rounded-[5px] bg-[rgba(180,60,50,.12)] px-1 text-[7.5px] font-bold uppercase tracking-wide text-[#b43c32] sm:text-[8px]">
-      Zárva
-    </span>
-  )
-}
-
-/** Ugyanaz a "Zárva" sáv, mint a napi nézet üres/beosztatlan óráinál — a hatch-sávok (nem csak a
- *  nap-pill jelvény) is ezt kapják zárva napokon. */
-function ClosedBand() {
-  return (
-    <div
-      aria-hidden
-      className="flex h-[72px] items-center justify-center rounded-[18px] border"
-      style={{ background: CLOSED_HATCH, borderColor: CLOSED_BORDER }}
-    >
-      <span className="text-[10.5px] font-bold uppercase tracking-wide" style={{ color: CLOSED_FG }}>Zárva</span>
-    </div>
-  )
-}
-
-/** Egy távollévő szakember kártyája a mobil/egy-oszlopos nap-listában — ugyanaz a méret/stílus,
- *  mint a napi nézet `OffAndBreakExtras` kártyája, hogy a kibontott verem soraiban a foglalás- és
- *  off-kártyák egyformák legyenek. */
-function OffChip({ staff, off }: { staff: StaffMember; off: 'leave' | 'sick' | 'vacation' }) {
-  const st = OFF_TYPE_STYLE[off]
-  return (
-    <div
-      className="flex h-[72px] w-full items-center gap-2.5 rounded-[18px] border px-4"
-      style={{ background: st.hatch, color: st.fg, borderColor: st.border }}
-    >
-      <Ava url={avatarUrlOf(staff)} className="h-8 w-8 shrink-0 rounded-full overflow-hidden" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-semibold">{staff.name}</div>
-        <div className="mt-0.5 truncate text-xs opacity-80">{OFF_TYPE_LABEL[off]}</div>
-      </div>
-    </div>
-  )
 }
 
 export interface SalonScheduleViewProps {
@@ -94,8 +32,6 @@ export interface SalonScheduleViewProps {
   /** A DateFilter query-paraméterében szereplő aktuális dátum — a Nap/Hét/Hónap váltásnál ez
    *  marad a cél-dátum (ld. DateFilter azonos mintája). */
   date: string
-  title: string
-  subtitle: string
   salonId: string
   /** A `days` tartományra eső foglalások (a page.tsx tartomány-lekérdezéséből). */
   bookings: Booking[]
@@ -117,6 +53,8 @@ export interface SalonScheduleViewProps {
   dateFilter: React.ReactNode
   printButton?: React.ReactNode
   canManage?: boolean
+  /** Fizetés a helyszínen — a megnyitott foglalás „Fizetés” gombjához (design 6.7.1) */
+  onsite?: OnsiteSettings | null
 }
 
 /**
@@ -128,29 +66,21 @@ export interface SalonScheduleViewProps {
  * mobil nézet is.
  */
 export function SalonScheduleView({
-  days, range, date, title, subtitle, salonId, bookings, staff, services, openMin, closeMin, invitedEmails, staffOffType = {}, closedDates = [], closedWeekdays = [], dateFilter, printButton, canManage = false,
+  days, range, date, salonId, bookings: unfiltered, staff, services, openMin, closeMin, invitedEmails, staffOffType = {}, closedDates = [], closedWeekdays = [], dateFilter, printButton, canManage = false, onsite = null,
 }: SalonScheduleViewProps) {
   const router = useRouter()
   const [target, setTarget] = useState<EditTarget | null>(null)
   const [drafts, setDrafts] = useState<SalonBookingDraft[]>([])
-  const [expandedGridDays, setExpandedGridDays] = useState<Set<string>>(() => new Set())
-  const [expandedFlatDays, setExpandedFlatDays] = useState<Set<string>>(() => new Set())
-  const [mobileViewOpen, setMobileViewOpen] = useState(false)
 
-  // Mobilon a Nap/Hét/Hónap váltó a fejléc csengő melletti ikonjából nyílik (DashboardNav
-  // dispatch-eli) — ugyanaz az esemény, mint a napi nézet nézet-választója (ott az Idősáv/Lista
-  // váltóval együtt, itt önmagában, mert ebben a nézetben nincs másik váltandó almód).
-  useEffect(() => {
-    const handler = () => setMobileViewOpen(true)
-    window.addEventListener('davelopment:open-bookings-view', handler)
-    return () => window.removeEventListener('davelopment:open-bookings-view', handler)
-  }, [])
+  // Szűrés (a közös fejlécből) — a rács és a lista a szűrt időszakot mutatja; a csík és a számok a teljeset.
+  const [filter, setFilter] = useState<BookingFilter>(EMPTY_FILTER)
+  const bookings = useMemo(() => {
+    const now = new Date()
+    const nowKey = `${ymdLocal(now)} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    return applyBookingFilter(unfiltered, filter, (b) => [idOf(b.staff)], (b) => b.status === 'confirmed' && `${String(b.date).slice(0, 10)} ${b.start_time}` < nowKey)
+  }, [unfiltered, filter])
 
-  const rangeButtons: { mode: BookingsRange; icon: LucideIcon; label: string }[] = [
-    { mode: 'day', icon: CalendarDays, label: 'Nap' },
-    { mode: 'week', icon: CalendarRange, label: 'Hét' },
-    { mode: 'month', icon: CalendarClock, label: 'Hónap' },
-  ]
+
   const pickRange = (v: BookingsRange) => router.push(`/dashboard/bookings?date=${date}&range=${v}`)
 
   useEffect(() => {
@@ -159,6 +89,7 @@ export function SalonScheduleView({
   }, [salonId])
 
   const today = ymdLocal(new Date())
+  const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes() })()
   // Zárva: egyszeri kivétel BÁRMIKOR, vagy heti visszatérő zárvatartás — de utóbbi csak a mai
   // naptól előre (ugyanaz a szabály, mint a Naptár hónap-rácsán).
   const isClosedDay = (day: string) => closedDates.includes(day) || (day >= today && closedWeekdays.includes(jsDow(day)))
@@ -170,8 +101,6 @@ export function SalonScheduleView({
   }, [bookings, drafts, daySet])
 
   const active = useMemo(() => allBookings.filter((b) => ACTIVE.has(b.status)), [allBookings])
-
-  const forceMobile = staff.length >= 6
 
   // Szakemberenként/naponként előre kiszámolt foglalás-lista — a rács tartalom-cellái ÉS az
   // üres napok is ebből jönnek.
@@ -195,18 +124,17 @@ export function SalonScheduleView({
     [staff, days, staffOffType],
   )
 
-  const toggleGridDay = (day: string) =>
-    setExpandedGridDays((prev) => { const n = new Set(prev); n.has(day) ? n.delete(day) : n.add(day); return n })
-  const toggleFlatDay = (day: string) =>
-    setExpandedFlatDays((prev) => { const n = new Set(prev); n.has(day) ? n.delete(day) : n.add(day); return n })
 
-  const openEdit = (b: Booking) => {
-    if (canManage) setTarget({ booking: b })
-  }
+  // kattintás egy foglalásra: a megnyitott foglalás lapja (design 6.7); a vázlat egyből a szerkesztőben
+  const [opened, setOpened] = useState<Booking | null>(null)
+  const openEdit = (b: Booking) => { if (isDraft(b)) { if (canManage) setTarget({ booking: b }) } else setOpened(b) }
   const openCreate = () => {
     if (canManage) setTarget({ booking: null })
   }
   const goToDay = (day: string) => router.push(`/dashboard/bookings?range=day&date=${day}`)
+  const stepMonth = (dir: -1 | 1) => { const [y, m] = date.split('-').map(Number); router.push(`/dashboard/bookings?date=${ymdLocal(new Date(y, m - 1 + dir, 1))}&range=month`) }
+  // design 6.4 / 6.5: a hét tetején Mind + a munkatársak — egy emberre váltva az ő óránkénti hete
+  const staffSwitch = staff.length > 1 ? <StaffSwitch people={staff.map((s) => ({ id: String(s.id), name: s.name, img: avatarUrlOf(s) }))} active={filter.who.length === 1 ? filter.who[0] : null} onPick={(id) => setFilter({ ...filter, who: id ? [id] : [] })} /> : undefined
 
   // Mobilon az "Új foglalás" a fejléc csengő melletti ikonjából nyílik (DashboardNav
   // dispatch-eli) — ugyanaz az esemény, mint a napi nézetben.
@@ -216,378 +144,103 @@ export function SalonScheduleView({
     return () => window.removeEventListener('davelopment:open-bookings-create', handler)
   }, [canManage])  // eslint-disable-line react-hooks/exhaustive-deps
 
-  const card = 'rounded-[26px] dav-card-glass'
-  const legend = [
-    { c: '#1D1C19', l: 'Megerősített' },
-    { c: '#F1CE45', l: 'Függő' },
-    { c: 'repeating-linear-gradient(115deg,#f3efe4 0 3px,#e8e4d8 3px 5px)', l: 'Befejezett' },
-    { c: '#C0564A', l: 'Lemondva' },
-  ]
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-[32px] lg:text-[42px] font-light tracking-[-0.02em] text-ink leading-none">
-            {title}
-          </h1>
-          <p className="mt-1.5 text-sm font-medium text-ink-soft2">{subtitle}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {dateFilter}
-          <div className="hidden lg:block">{printButton}</div>
-          {canManage && (
-            <HoverButton
-              onClick={openCreate}
-              className="hidden items-center justify-center gap-2 h-[42px] w-[42px] sm:w-auto sm:px-[18px] rounded-dav-pill bg-ink-dark text-white text-sm font-semibold hover:opacity-90 transition-opacity shrink-0 lg:inline-flex"
-            >
-              <Plus className="h-[15px] w-[15px] shrink-0 text-gold" strokeWidth={2.2} />
-              <span className="hidden sm:inline">Új foglalás</span>
-            </HoverButton>
-          )}
-        </div>
-      </div>
+      <BookingsHead
+        dateNav={dateFilter}
+        range={range}
+        onRange={pickRange}
+        date={date}
+        onDate={(d) => router.push(`/dashboard/bookings?date=${d}&range=day`)}
+        loadEndpoint="/api/salon/day-load"
+        filter={filter}
+        onFilter={setFilter}
+        who={staff.map((s) => ({ id: String(s.id), label: s.name, img: avatarUrlOf(s) }))}
+        matchCount={bookings.length}
+        exportButton={printButton}
+        onCreate={canManage ? openCreate : undefined}
+        bar={segments([
+          { label: 'Megerősített', value: unfiltered.filter((b) => b.status === 'confirmed').length, tone: 'dark' },
+          { label: 'Függő', value: unfiltered.filter((b) => b.status === 'pending').length, tone: 'yellow' },
+          { label: 'Befejezett', value: unfiltered.filter((b) => b.status === 'completed').length, tone: 'white' },
+          { label: 'Lemondva', value: unfiltered.filter((b) => b.status === 'cancelled').length, tone: 'outline' },
+        ])}
+        kpis={<>
+          <Kpi icon={CalendarDays} value={String(unfiltered.filter((b) => b.status !== 'cancelled').length)} label="Foglalás" />
+          <Kpi icon={Wallet} value={thousands(unfiltered.filter((b) => b.status !== 'cancelled').reduce((sum, b) => sum + (b.price_snapshot ?? (typeof b.service === 'object' && b.service ? b.service.price : 0) ?? 0), 0))} label="Bevétel (Ft)" />
+        </>}
+      />
 
-      {/* Desktop rács — csak 6-nál kevesebb szakembernél (ugyanaz a küszöb, mint az Idősáv nézetben). */}
-      {!forceMobile && (
-        <div className={`hidden lg:block ${card} p-[18px] sm:p-[20px_22px_22px]`}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
-            <div className="text-[17px] font-medium text-ink">Időbeosztás</div>
-            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-              {legend.map((x) => (
-                <div key={x.l} className="flex items-center gap-[7px]">
-                  <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
-                  <span className="text-xs font-medium text-ink-soft2">{x.l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {staff.length === 0 ? (
-            <div className="py-10 text-center text-[13px] text-ink-soft">Nincs aktív szakember. Vegyél fel szakembert a foglalások idősávjához.</div>
-          ) : (
-            <div className="overflow-x-auto">
-              {(() => {
-                const colMin = staff.length <= 4 ? 220 : Math.max(160, Math.round(880 / staff.length))
-                const gridTemplateColumns = `86px repeat(${staff.length}, minmax(${colMin}px, 1fr))`
-                const minWidth = 86 + staff.length * colMin
-                return (
-                  <div style={{ minWidth }}>
-                    {/* Fejléc-sor: üres bal sarok + szakember-fejlécek — SAJÁT, NEM görgő fa (ugyanaz
-                        a minta, mint a napi Idősáv nézetnél), így havi nézetnél (sok nap-sor) sem
-                        csúszik el a fejléc a függőleges görgetéskor. */}
-                    <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
-                      <div />
-                      {staff.map((s, ci) => (
-                        <div key={String(s.id)} style={{ gridColumn: ci + 2 }} className="flex items-center gap-2.5 border-b border-line pb-3">
-                          <Ava url={avatarUrlOf(s)} className="h-9 w-9 shrink-0 rounded-full overflow-hidden" />
-                          <div className="min-w-0">
-                            <span className="block text-sm font-semibold text-ink truncate leading-tight">{s.name}</span>
-                            {s.role_title && <span className="block text-[11px] text-[#A8A496] truncate leading-tight">{s.role_title}</span>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* Tartalom: KÜLÖN, függőlegesen görgő konténer a fejléc alatt — havi nézetnél
-                        (akár 31 nap-sor) ez görgethető belül, nem az egész oldal nő meg, és a fejléc
-                        mindig látszik fölötte. */}
-                    <div className="max-h-[65vh] overflow-y-auto pt-1">
-                    <div className="grid gap-x-3" style={{ gridTemplateColumns }}>
-                    {/* Bal tengely — egy nap-pill naponta, alatta a nyitó "+" gomb, ha bármelyik
-                        szakembernél van extra foglalás aznap. A pill maga a napi nézetbe drillel. */}
-                    {days.map((day, i) => {
-                      const isToday = day === today
-                      const isClosed = isClosedDay(day)
-                      const anyThatDay = perStaffDayBookings.some((rows) => rows[i].length > 0)
-                      const extraTotal = perStaffDayBookings.reduce((sum, rows) => sum + Math.max(0, rows[i].length - 1), 0)
-                      const isOpen = expandedGridDays.has(day)
-                      const last = i === days.length - 1
-                      const pillCls = isToday ? 'bg-ink-dark text-white' : isClosed ? 'border border-[rgba(180,60,50,.3)] bg-[rgba(180,60,50,.08)] text-[#b43c32]' : anyThatDay ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
-                      return (
-                        <div key={day} style={{ gridColumn: 1, gridRow: i + 1 }} className="flex flex-col items-center">
-                          <button
-                            type="button"
-                            onClick={() => goToDay(day)}
-                            className={`flex h-9 w-full items-center justify-center gap-1 rounded-full px-1.5 text-[12.5px] font-semibold tabular-nums transition-opacity hover:opacity-90 ${pillCls}`}
-                          >
-                            {HU_WEEKDAYS_SHORT[weekdayIndex(day)]} {Number(day.slice(8, 10))}
-                          </button>
-                          {isClosed && <ClosedBadge />}
-                          {!last ? (
-                            <div className="relative min-h-[16px] flex-1 py-1">
-                              <span className="absolute inset-y-0 left-1/2 -translate-x-1/2 border-l-2 border-dotted border-line-strong" />
-                              {extraTotal > 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleGridDay(day)}
-                                  aria-label={`még ${extraTotal} foglalás ezen a napon`}
-                                  className={`absolute left-1/2 top-1 z-10 flex h-5 w-5 -translate-x-1/2 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                                >
-                                  +{extraTotal}
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            extraTotal > 0 && (
-                              <button
-                                type="button"
-                                onClick={() => toggleGridDay(day)}
-                                aria-label={`még ${extraTotal} foglalás ezen a napon`}
-                                className={`relative z-10 mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                              >
-                                +{extraTotal}
-                              </button>
-                            )
-                          )}
-                        </div>
-                      )
-                    })}
-
-                    {/* Tartalom-cellák naponként/szakemberenként. */}
-                    {days.flatMap((day, i) => {
-                      const cells: React.ReactNode[] = []
-                      const isOpen = expandedGridDays.has(day)
-                      const maxExtra = Math.max(0, ...staff.map((_, ci) => perStaffDayBookings[ci][i].length - 1))
-                      const dayClosed = isClosedDay(day)
-                      const HatchBand = () =>
-                        dayClosed ? (
-                          <ClosedBand />
-                        ) : (
-                          <div
-                            aria-hidden
-                            className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                            style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                          />
-                        )
-                      let ci = 0
-                      while (ci < staff.length) {
-                        const off = perStaffDayOff[ci][i]
-                        const rows = perStaffDayBookings[ci][i]
-                        if (off) {
-                          const s = staff[ci]
-                          const st = OFF_TYPE_STYLE[off]
-                          cells.push(
-                            <div key={`${s.id}-${day}-off`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
-                              <div
-                                className="flex h-[72px] items-center justify-center rounded-[18px] border"
-                                style={{ background: st.hatch, color: st.fg, borderColor: st.border }}
-                              >
-                                <span className="text-[13px] font-semibold">{OFF_TYPE_LABEL[off]}</span>
-                              </div>
-                            </div>,
-                          )
-                          ci += 1
-                          continue
-                        }
-                        if (rows.length > 0) {
-                          const s = staff[ci]
-                          const hatchNeeded = maxExtra - (rows.length - 1)
-                          cells.push(
-                            <div key={`${s.id}-${day}`} style={{ gridColumn: ci + 2, gridRow: i + 1 }} className="pb-3">
-                              {renderCellItem(rows[0], openEdit, false, null)}
-                              <AnimatePresence initial={false}>
-                                {isOpen && maxExtra > 0 && (
-                                  <motion.div
-                                    key="extra"
-                                    className="overflow-hidden"
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                                  >
-                                    <div className="space-y-2 pt-2">
-                                      {rows.slice(1).map((item) => (
-                                        <div key={cellKey(item)}>{renderCellItem(item, openEdit, false, null)}</div>
-                                      ))}
-                                      {Array.from({ length: hatchNeeded }).map((_, hi) => (
-                                        <div key={`repeat-${hi}`} className="relative">
-                                          <span aria-hidden className="absolute -top-2 left-1/2 h-2 -translate-x-1/2 border-l-2 border-dotted" style={{ borderColor: 'rgba(120,110,70,.55)' }} />
-                                          {renderCellItem(rows[0], openEdit, false, null)}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </div>,
-                          )
-                        } else {
-                          const start = ci
-                          while (ci < staff.length && perStaffDayBookings[ci][i].length === 0 && !perStaffDayOff[ci][i]) ci += 1
-                          const span = ci - start
-                          cells.push(
-                            <div key={`gap-${day}-${start}`} style={{ gridColumn: `${start + 2} / span ${span}`, gridRow: i + 1 }} className="pb-3">
-                              <HatchBand />
-                              <AnimatePresence initial={false}>
-                                {isOpen && maxExtra > 0 && (
-                                  <motion.div
-                                    key="extra"
-                                    className="overflow-hidden"
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: extraStackHeightPx(maxExtra), opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                                  >
-                                    <div className="space-y-2 pt-2">
-                                      {Array.from({ length: maxExtra }).map((_, hi) => (
-                                        <HatchBand key={`hatch-${hi}`} />
-                                      ))}
-                                    </div>
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </div>,
-                          )
-                          continue
-                        }
-                        ci += 1
-                      }
-                      return cells
-                    })}
-                    </div>
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-          )}
-        </div>
+      {range === 'week' && filter.who.length === 1 ? (
+        // Hét — egy munkatárs (design 6.4): óránként, a hét napjai oszlopban
+        <WeekHours
+          top={staffSwitch}
+          days={days}
+          today={today}
+          closed={(d) => isClosedDay(d) || !!staffOffType[filter.who[0]]?.[d]}
+          openMin={openMin}
+          closeMin={closeMin}
+          nowMin={nowMin}
+          onOpen={(id) => { const b = active.find((x) => String(x.id) === id); if (b) openEdit(b) }}
+          items={active.filter((b) => b.status !== 'cancelled').map((b) => ({ id: String(b.id), day: b.date, start: b.start_time, end: b.end_time, title: b.customer_name, status: b.status, tone: chipTone(b.status), who: staffOf(b) ? { name: staffOf(b)!.name, img: avatarUrlOf(staffOf(b)) } : undefined }))}
+        />
+      ) : range === 'week' ? (
+        // Hét — egész csapat (design 6.5): sor = munkatárs, oszlop = nap, a cellában chipek; a névre kattintva az ő hete
+        <WeekGrid
+          top={staffSwitch}
+          days={days}
+          today={today}
+          closed={isClosedDay}
+          onDay={goToDay}
+          rows={staff.map((s, ci) => ({
+            id: String(s.id),
+            label: (
+              <button type="button" onClick={() => setFilter({ ...filter, who: [String(s.id)] })} className="flex items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20" title="Az ő hete óránként">
+                <Avatar size="sm" src={avatarUrlOf(s)} name={s.name} /><span className="min-w-0 truncate text-ui-body text-ui-text">{s.name}</span>
+              </button>
+            ),
+            total: perStaffDayBookings[ci].reduce((sum, cell) => sum + cell.flat().filter((b) => b.status !== 'cancelled').length, 0),
+          }))}
+          cell={(staffId, day) => {
+            const ci = staff.findIndex((s) => String(s.id) === staffId)
+            const di = days.indexOf(day)
+            const off = perStaffDayOff[ci]?.[di]
+            if (isClosedDay(day)) return null
+            const list = perStaffDayBookings[ci][di].flat().filter((b) => b.status !== 'cancelled')
+            if (off && list.length === 0) return <span className="text-ui-label text-ui-muted">{OFF_TYPE_LABEL[off]}</span>
+            return <WeekChips onOpen={(id) => { const b = list.find((x) => String(x.id) === id); if (b) openEdit(b) }} onMore={() => goToDay(day)} chips={list.map((b) => ({ id: String(b.id), time: b.start_time, name: b.customer_name, tone: chipTone(b.status) }))} />
+          }}
+        />
+      ) : (
+        // Hónap (design 6.6): napi foglalásszám és telítettség; a napra kattintva a nap idővonala
+        <MonthGrid
+          month={date}
+          today={today}
+          unit="foglalás"
+          closed={isClosedDay}
+          onDay={goToDay}
+          onStep={stepMonth}
+          counts={Object.fromEntries(days.map((d) => [d, active.filter((b) => b.date === d && b.status !== 'cancelled').length]))}
+          pct={(d) => {
+            const cap = Math.max(0, closeMin - openMin) * Math.max(1, staff.length)
+            const booked = active.filter((b) => b.date === d && b.status !== 'cancelled').reduce((sum, b) => sum + Math.max(0, hhmmToMinutes(b.end_time) - hhmmToMinutes(b.start_time)), 0)
+            return cap ? Math.min(100, Math.round((booked / cap) * 100)) : null
+          }}
+        />
       )}
 
-      {/* Egy-oszlopos nap-lista — UGYANAZ a mechanika, mint a napi nézet mobil idővonala
-          (MobileTimeline/HourList): nap-pill + szaggatott összekötő + az első kártya mindig
-          látszik, "+N" nyitja ki a többit. 6+ szakembernél MINDIG ez fut, egyébként csak
-          mobilon (a rács `lg:block`-ja mellett). */}
-      <div className={forceMobile ? '' : 'lg:hidden'}>
-        <div className={`${card} p-4`}>
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2.5">
-            <div className="text-[17px] font-medium text-ink">Időbeosztás</div>
-            <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1.5">
-              {legend.map((x) => (
-                <div key={x.l} className="flex items-center gap-[7px]">
-                  <span className="h-[11px] w-[11px] rounded-[3px] border border-line" style={{ background: x.c }} />
-                  <span className="text-xs font-medium text-ink-soft2">{x.l}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            {days.map((day, i) => {
-              const inDay = groupOverlaps(
-                active.filter((b) => b.date === day).sort((a, b) => hhmmToMinutes(a.start_time) - hhmmToMinutes(b.start_time)),
-              )
-              const dayOff = staff
-                .map((s, si) => ({ s, off: perStaffDayOff[si][i] }))
-                .filter((x): x is { s: StaffMember; off: 'leave' | 'sick' | 'vacation' } => !!x.off)
-              // Ugyanaz az egységes "+N" mechanika, mint a napi nézet mobil idővonalán — a
-              // szabadnapos/szabadságos/beteg szakemberek NEM elöl, hanem az extra-veremben
-              // jelennek meg, együtt az extra foglalásokkal (nem külön, mindig-látható blokk).
-              const extraTotal = Math.max(0, inDay.length - 1) + dayOff.length
-              const isToday = day === today
-              const isClosed = isClosedDay(day)
-              const isOpen = expandedFlatDays.has(day)
-              const last = i === days.length - 1
-              const pillCls = isToday ? 'bg-ink-dark text-white' : isClosed ? 'border border-[rgba(180,60,50,.3)] bg-[rgba(180,60,50,.08)] text-[#b43c32]' : inDay.length > 0 ? 'bg-gold text-ink-dark' : 'border border-line bg-white text-ink-soft'
-              return (
-                <div key={day} className="flex gap-3">
-                  <div className="flex w-[62px] shrink-0 flex-col items-center">
-                    <button
-                      type="button"
-                      onClick={() => goToDay(day)}
-                      className={`flex h-9 w-full items-center justify-center rounded-full px-1 text-[12px] font-semibold tabular-nums transition-opacity hover:opacity-90 ${pillCls}`}
-                    >
-                      {HU_WEEKDAYS_SHORT[weekdayIndex(day)]} {Number(day.slice(8, 10))}
-                    </button>
-                    {isClosed && <ClosedBadge />}
-                    {!last && (
-                      <div className="relative flex min-h-[30px] flex-1 items-center justify-center py-1.5">
-                        <span className="absolute inset-y-0 border-l-2 border-dotted border-line-strong" />
-                        {extraTotal > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => toggleFlatDay(day)}
-                            aria-label={`még ${extraTotal} tétel ezen a napon`}
-                            className={`relative z-10 flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-[11px] font-bold tabular-nums shadow-sm transition-colors ${isOpen ? 'bg-ink-dark text-white' : 'bg-gold text-ink-dark'}`}
-                          >
-                            +{extraTotal}
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1 pb-3">
-                    {inDay.length > 0 ? (
-                      <div>
-                        {renderCellItem(inDay[0], openEdit, true, null)}
-                        <AnimatePresence initial={false}>
-                          {isOpen && extraTotal > 0 && (
-                            <motion.div
-                              key="extra"
-                              className="overflow-hidden"
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                            >
-                              <div className="space-y-2 pt-2">
-                                {inDay.slice(1).map((item) => (
-                                  <div key={cellKey(item)}>{renderCellItem(item, openEdit, true, null)}</div>
-                                ))}
-                                {dayOff.map(({ s, off }) => (
-                                  <OffChip key={`${s.id}-off`} staff={s} off={off} />
-                                ))}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ) : extraTotal > 0 ? (
-                      <div>
-                        {isClosed ? (
-                          <ClosedBand />
-                        ) : (
-                          <div
-                            aria-hidden
-                            className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                            style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                          />
-                        )}
-                        <AnimatePresence initial={false}>
-                          {isOpen && (
-                            <motion.div
-                              key="extra"
-                              className="overflow-hidden"
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: 'auto', opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }}
-                            >
-                              <div className="space-y-2 pt-2">
-                                {dayOff.map(({ s, off }) => (
-                                  <OffChip key={`${s.id}-off`} staff={s} off={off} />
-                                ))}
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    ) : isClosed ? (
-                      <ClosedBand />
-                    ) : (
-                      <div
-                        aria-hidden
-                        className="h-[72px] rounded-[18px] border border-[rgba(120,110,70,.10)]"
-                        style={{ background: 'repeating-linear-gradient(115deg,#f3efe4 0 7px,#e8e4d8 7px 9px)' }}
-                      />
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
+      {opened && (
+        <SalonBookingDrawer
+          key={String(opened.id)}
+          b={opened}
+          date={String(opened.date).slice(0, 10)}
+          canManage={canManage}
+          onsite={onsite}
+          onClose={() => setOpened(null)}
+          onEdit={() => { const b = opened; setOpened(null); setTarget({ booking: b }) }}
+        />
+      )}
 
       <BookingEditSheet
         open={!!target}
@@ -602,14 +255,6 @@ export function SalonScheduleView({
         invitedEmails={invitedEmails}
       />
 
-      <MobileOptionSheet
-        open={mobileViewOpen}
-        onClose={() => setMobileViewOpen(false)}
-        title="Időszak"
-        options={rangeButtons}
-        value={range}
-        onChange={pickRange}
-      />
     </div>
   )
 }

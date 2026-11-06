@@ -28,6 +28,10 @@ export default async function RestaurantLayout({ children }: { children: React.R
   const restaurant = (await payload.findByID({
     collection: 'restaurants',
     id: active.id,
+    // a keretnek csak ennyi kell (név, slug, logó, tulaj, utalvány / hírlevél be-ki) — a teljes adatlap 14–20 al-táblát
+    // töltene minden oldalbetöltésnél (sebesség, docs/audit/2026-11-05_1921)
+    depth: 1,
+    select: { name: true, slug: true, logo: true, owner: true, voucher_settings: true, newsletter_settings: true },
     overrideAccess: true,
   })) as Restaurant
 
@@ -38,7 +42,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
   subscription = await expireOneTrial(subscription)
 
   const sub = subscription
-    ? { plan: subscription.plan, status: subscription.status, trial_ends_at: subscription.trial_ends_at, current_period_end: subscription.current_period_end }
+    ? { plan: subscription.plan, status: subscription.status, trial_ends_at: subscription.trial_ends_at, current_period_end: subscription.current_period_end, setup_done: !!subscription.stripe_subscription_id }
     : null
 
   const lockedStatus: 'past_due' | 'canceled' | 'paused' | null =
@@ -66,6 +70,7 @@ export default async function RestaurantLayout({ children }: { children: React.R
         businesses={businesses}
         activeBusinessKey={`${active.type}:${active.id}`}
         capabilities={active.capabilities}
+      isOwner={active.role === 'owner'}
         voucherEnabled={!!restaurant.voucher_settings?.enabled}
         newsletterEnabled={restaurant.newsletter_settings?.package !== 'none'}
       >

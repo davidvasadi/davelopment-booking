@@ -1,13 +1,16 @@
 'use client'
 
-import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { AlertTriangle, XCircle } from 'lucide-react'
+import { AttentionBar } from '@/components/blocks/booking'
+import { AlertTriangle, ArrowRight, XCircle } from 'lucide-react'
+import { Button } from '@/components/ui-kit'
 
 type SubInfo = {
   plan: 'trial' | 'paid'
   status: 'trialing' | 'active' | 'past_due' | 'canceled' | 'paused'
   trial_ends_at?: string | null
+  setup_done?: boolean
   current_period_end?: string | null
 } | null
 
@@ -26,6 +29,9 @@ export function SubscriptionBanner({
   basePath?: string
 }) {
   const pathname = usePathname()
+  // a próbaidő-sáv elrejtése (X) — csak erre a munkamenetre, a következő belépéskor újra szól
+  const [hidden, setHidden] = useState(false)
+  useEffect(() => { try { setHidden(sessionStorage.getItem('trial-bar-hidden') === '1') } catch { /* privát mód */ } }, [])
   if (!subscription) return null
 
   const subscriptionHref = `${basePath}/subscription`
@@ -44,6 +50,18 @@ export function SubscriptionBanner({
 
   if (!showBanner) return null
 
+  // próbaidő, az utolsó 3 nap (design 16.5.1 / 6.8.1): az alsó sáv — csak ha a fizetés még nincs beállítva
+  if (subscription.status === 'trialing') {
+    if (subscription.setup_done || hidden) return null
+    return (
+      <div className="pointer-events-none fixed inset-x-0 bottom-[calc(88px+env(safe-area-inset-bottom))] z-40 flex justify-center px-4 lg:bottom-6">
+        <AttentionBar kind="trial" count={days ?? 0} when={days === 0 ? 'ma jár le — add meg a számlázási adatokat és a kártyát' : 'add meg a számlázási adatokat és a kártyát'}
+          href={`${basePath}/settings?tab=billing`} className="pointer-events-auto"
+          onDismiss={() => { setHidden(true); try { sessionStorage.setItem('trial-bar-hidden', '1') } catch { /* privát mód */ } }} />
+      </div>
+    )
+  }
+
   const isError = subscription.status === 'past_due' || subscription.status === 'canceled'
 
   let message = ''
@@ -54,20 +72,10 @@ export function SubscriptionBanner({
   else message = `A próbaidőszakod ${days} nap múlva lejár.`
 
   return (
-    <div className={`flex items-center gap-3 px-5 py-3 text-sm ${isError ? 'bg-red-50 border-b border-red-100 dark:bg-red-950/40 dark:border-red-900/40' : 'bg-amber-50 border-b border-amber-100 dark:bg-amber-950/40 dark:border-amber-900/40'}`}>
-      {isError
-        ? <XCircle className={`h-4 w-4 shrink-0 ${isError ? 'text-red-500' : 'text-amber-500'}`} />
-        : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-500" />
-      }
-      <span className={isError ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}>
-        {message}
-      </span>
-      <Link
-        href={subscriptionHref}
-        className={`ml-auto shrink-0 font-semibold hover:opacity-70 transition-opacity ${isError ? 'text-red-700 dark:text-red-300' : 'text-amber-700 dark:text-amber-300'}`}
-      >
-        Részletek →
-      </Link>
+    <div className={`mb-4 flex items-center gap-3 rounded-ui-card px-4 py-3 text-ui-body max-lg:mx-4 ${isError ? 'bg-ui-bad-bg text-ui-bad' : 'bg-ui-warn-bg text-ui-warn'}`}>
+      {isError ? <XCircle className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+      <span className="min-w-0 flex-1">{message}</span>
+      <Button href={subscriptionHref} variant="glass" size="sm" icon={ArrowRight}>Részletek</Button>
     </div>
   )
 }
