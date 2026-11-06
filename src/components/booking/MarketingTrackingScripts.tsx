@@ -2,47 +2,74 @@
 
 import { useEffect, useState } from 'react'
 import Script from 'next/script'
-import Link from 'next/link'
 import { AnimatePresence, motion } from 'framer-motion'
 import { EASE } from '@/lib/motion'
+import { Button } from '@/components/ui-kit'
+import { PopupModal } from '@/components/ui/popup-modal'
+import { CookieBar, CookieChoices } from '@/components/blocks/consent'
 
 const STORAGE_KEY = 'davelopment-cookie-consent'
+/** A lábléc „Süti-beállítások” linkje ezzel nyitja a popupot (CookieFooterLink → `openCookieSettings`). */
+export const COOKIE_SETTINGS_EVENT = 'davelopment:cookie-settings'
+export const openCookieSettings = () => window.dispatchEvent(new Event(COOKIE_SETTINGS_EVENT))
+
+/** A vállalkozók saját mérésére adott döntések, üzletenként (más adatkezelő → külön hozzájárulás): { 'salon:12': 'accepted' } */
+const BIZ_KEY = 'davelopment-cookie-biz'
+type Choice = 'accepted' | 'rejected' | 'unset'
+const read = (): Choice => {
+  try { const v = localStorage.getItem(STORAGE_KEY); return v === 'accepted' || v === 'rejected' ? v : 'unset' } catch { return 'unset' }
+}
+const readBiz = (key: string): Choice => {
+  try { const v = (JSON.parse(localStorage.getItem(BIZ_KEY) ?? '{}') as Record<string, string>)[key]; return v === 'accepted' || v === 'rejected' ? v : 'unset' } catch { return 'unset' }
+}
+const writeBiz = (key: string, v: Choice) => {
+  try { const m = JSON.parse(localStorage.getItem(BIZ_KEY) ?? '{}') as Record<string, string>; m[key] = v; localStorage.setItem(BIZ_KEY, JSON.stringify(m)) } catch { /* privát mód */ }
+}
 
 /**
- * Google Analytics 4 + Facebook (Meta) Pixel betöltése a publikus foglaló oldalon — csak akkor,
- * ha az adott azonosító be van állítva (Beállítások → Integrációk → Marketing-követés) ÉS a
- * vendég elfogadta a sütiket. Amíg nincs döntés, egy diszkrét sáv kéri a hozzájárulást — a
- * szkriptek addig NEM töltődnek be. Ugyanazt a localStorage-kulcsot használja, mint a landing
- * oldal `CookieBanner`-je, mivel ugyanarról a domainről, ugyanarról a döntésről van szó.
- * Szándékosan NEM teljes Google Tag Manager (ld. FUTURE-FEATURES.md 6. pont) — a
- * `next.config.ts` CSP-je ezt a két konkrét domaint engedi, nem tetszőleges harmadik felet.
+ * Sütik a foglalóoldalon (design 21.14, élőben bővítve), két rétegben:
+ *  1. a sáv: a landingével azonos általános szöveg, a süti-tájékoztató linkje, „Beállítások”, két egyforma gomb;
+ *  2. a beállítások (popup, a lábléc „Süti-beállítások” linkje is ezt nyitja): kategóriánként, név szerint, külön
+ *     kapcsolóval — a mi mérésünk (davelopment booking, Google Analytics — PlatformAnalytics, Consent Mode) és, ha
+ *     beállította (Beállítások › Integrációk), a vállalkozóé (Google Analytics / Meta Pixel; adatkezelő a vállalkozó).
+ * A sáv addig látszik, amíg bármelyikről nincs döntés (a landingen elfogadott mérés nem jelenti a vállalkozóét).
+ * A vállalkozó szkriptjei csak az ő mérésének elfogadása után töltődnek be.
+ * A `next.config.ts` CSP-je csak ezt a két konkrét domaint engedi, nem tetszőleges harmadik felet.
  */
-export function MarketingTrackingScripts({
-  ga4Id,
-  facebookPixelId,
-}: {
-  ga4Id?: string | null
-  facebookPixelId?: string | null
-}) {
-  const hasTracking = !!(ga4Id || facebookPixelId)
-  const [consent, setConsent] = useState<'accepted' | 'rejected' | 'unset' | 'checking'>('checking')
+export function MarketingTrackingScripts({ business, bizKey, ga4Id, facebookPixelId, privacyHref }: { business: string; bizKey: string; ga4Id?: string | null; facebookPixelId?: string | null; privacyHref?: string | null }) {
+  const tools = [...(ga4Id ? ['ga4'] : []), ...(facebookPixelId ? ['pixel'] : [])]
+  const hasBiz = tools.length > 0
+  const [stats, setStats] = useState<Choice | 'checking'>('checking')
+  const [biz, setBiz] = useState<Choice>('unset')
+  const [open, setOpen] = useState(false)
+  // a popup kapcsolói (mentésig csak itt)
+  const [dStats, setDStats] = useState(false)
+  const [dBiz, setDBiz] = useState(false)
 
   useEffect(() => {
-    if (!hasTracking) return
-    const stored = localStorage.getItem(STORAGE_KEY)
-    setConsent(stored === 'accepted' || stored === 'rejected' ? stored : 'unset')
-  }, [hasTracking])
+    setStats(read()); setBiz(readBiz(bizKey))
+  }, [bizKey])
+  const openSettings = () => { setDStats(read() === 'accepted'); setDBiz(readBiz(bizKey) === 'accepted'); setOpen(true) }
+  useEffect(() => {
+    window.addEventListener(COOKIE_SETTINGS_EVENT, openSettings)
+    return () => window.removeEventListener(COOKIE_SETTINGS_EVENT, openSettings)
+  }) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function decide(value: 'accepted' | 'rejected') {
-    localStorage.setItem(STORAGE_KEY, value)
-    setConsent(value)
+  /** A döntés mentése: a mi mérésünk (közös kulcs — a PlatformAnalytics és a landing is ezt nézi) és a vállalkozóé (üzletenként). */
+  function save(s: boolean, b: boolean) {
+    const wasBiz = readBiz(bizKey)
+    try { localStorage.setItem(STORAGE_KEY, s ? 'accepted' : 'rejected') } catch { /* privát mód — csak erre a látogatásra */ }
+    setStats(s ? 'accepted' : 'rejected')
+    if (hasBiz) { writeBiz(bizKey, b ? 'accepted' : 'rejected'); setBiz(b ? 'accepted' : 'rejected') }
+    setOpen(false)
+    // a vállalkozó már betöltött mérőkódjai visszavonáskor csak újratöltéssel tűnnek el (a miénket a Consent Mode kapcsolja)
+    if (hasBiz && wasBiz === 'accepted' && !b) window.location.reload()
   }
-
-  if (!hasTracking) return null
+  const pending = stats === 'unset' || (hasBiz && biz === 'unset')
 
   return (
     <>
-      {consent === 'accepted' && (
+      {hasBiz && biz === 'accepted' && (
         <>
           {ga4Id && (
             <>
@@ -69,47 +96,26 @@ export function MarketingTrackingScripts({
         </>
       )}
 
+      {/* alul lebegő sötét sáv (design 21.14) — a két gomb egyforma */}
       <AnimatePresence>
-        {consent === 'unset' && (
+        {stats !== 'checking' && pending && !open && (
           <motion.div
-            initial={{ y: -60, opacity: 0 }}
+            initial={{ y: 40, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            exit={{ y: -60, opacity: 0 }}
+            exit={{ y: 40, opacity: 0 }}
             transition={{ duration: 0.5, ease: EASE }}
-            className="fixed inset-x-0 top-0 z-[65]"
-            style={{ paddingTop: 'env(safe-area-inset-top)' }}
+            className="fixed inset-x-0 bottom-0 z-[65] px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
           >
-            <div
-              className="flex flex-col items-center gap-3 px-4 py-3 sm:flex-row sm:justify-center"
-              style={{ background: 'rgba(22,22,26,0.94)', backdropFilter: 'blur(20px) saturate(1.4)', WebkitBackdropFilter: 'blur(20px) saturate(1.4)', borderBottom: '1px solid rgba(255,255,255,0.10)' }}
-            >
-              <p className="text-center text-[12.5px] leading-relaxed text-white/70 sm:text-left">
-                Sütiket használunk a látogatottság méréséhez.{' '}
-                <Link href="/cookies" className="font-semibold text-white underline underline-offset-2 hover:text-gold transition-colors">
-                  Süti-tájékoztató
-                </Link>
-              </p>
-              <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => decide('rejected')}
-                  className="h-9 px-3.5 rounded-full text-[12.5px] font-semibold text-white/55 hover:text-white hover:bg-white/[0.08] transition-colors"
-                >
-                  Elutasítom
-                </button>
-                <button
-                  type="button"
-                  onClick={() => decide('accepted')}
-                  className="h-9 px-4 rounded-full text-[12.5px] font-semibold text-ink-dark transition hover:brightness-105"
-                  style={{ background: '#FFD85F' }}
-                >
-                  Elfogadom
-                </button>
-              </div>
-            </div>
+            <CookieBar className="mx-auto max-w-[760px]" business={business} tools={tools} platform
+              onAccept={() => save(true, true)} onReject={() => save(false, false)} onDetails={openSettings} />
           </motion.div>
         )}
       </AnimatePresence>
+
+      <PopupModal open={open} onClose={() => setOpen(false)} title="Süti-beállítások" subtitle={`${business} foglalóoldala`} maxWidth="sm:max-w-[440px]"
+        footer={<div className="flex w-full gap-1.5"><Button variant="cell" className="flex-1" onClick={() => save(dStats, dBiz)}>Kiválasztottak mentése</Button><Button variant="yellow" className="flex-1" onClick={() => save(true, true)}>Mindet elfogadom</Button></div>}>
+        <CookieChoices business={business} tools={tools} stats={dStats} onStats={setDStats} biz={dBiz} onBiz={setDBiz} bizPrivacyHref={privacyHref ?? undefined} />
+      </PopupModal>
     </>
   )
 }

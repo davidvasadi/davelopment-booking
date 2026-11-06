@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { ChevronLeft } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
+import { Button } from '@/components/ui-kit'
+import { GuestShell } from '@/components/blocks/guest-pages'
 import { getPayloadClient } from '@/lib/payload'
-import type { Salon, Restaurant } from '@/payload/payload-types'
+import type { Media, Salon, Restaurant } from '@/payload/payload-types'
 import { TermsContent, buildTermsItems, type CompanyInfo } from '@/components/booking/TermsContent'
 import { getLocale } from '@/lib/i18n/server'
 import { t, resolveAvailableLocales } from '@/lib/i18n'
@@ -65,27 +66,12 @@ export default async function TermsPage({ params }: { params: Promise<{ slug: st
   const items = buildTermsItems(sections, company, locale)
   if (items.length === 0) notFound()
 
+  const logo = biz.logo && typeof biz.logo === 'object' ? (biz.logo as Media).url ?? null : null
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 py-10 px-4">
-      <div className="mx-auto max-w-2xl">
-        <Link
-          href={`/${slug}`}
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-500 hover:text-zinc-800 dark:text-white/50 dark:hover:text-white transition-colors mb-6"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          {t(locale, 'public.back')}
-        </Link>
-
-        <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/[0.08] shadow-sm overflow-hidden">
-          <div className="px-6 sm:px-8 py-5 border-b border-zinc-100 dark:border-white/[0.06]">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-white/40">{name}</p>
-            <h1 className="mt-1 text-xl font-black tracking-tight text-zinc-900 dark:text-white">{t(locale, 'public.terms.title')}</h1>
-          </div>
-          <div className="px-6 sm:px-8 py-6">
-            <TermsContent items={items} />
-          </div>
-        </div>
-      </div>
-    </div>
+    <GuestShell wide biz={{ name, logo }}>
+      <div className="text-ui-sub font-light text-ui-text">{t(locale, 'public.terms.title')}</div>
+      <div className="mt-5"><TermsContent light items={items} /></div>
+      <Button variant="cell" href={`/${slug}`} icon={ArrowLeft} className="mt-6">{t(locale, 'public.back')}</Button>
+    </GuestShell>
   )
 }
