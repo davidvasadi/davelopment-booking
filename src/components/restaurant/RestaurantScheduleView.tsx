@@ -204,6 +204,11 @@ export function RestaurantScheduleView({
           closed={isClosedDay}
           onDay={goToDay}
           onStep={stepMonth}
+          // mobil nap-kártya: első / utolsó érkezés és a foglalások száma (a cella a vendégeket mutatja)
+          dayInfo={(d) => {
+            const list = active.filter((r) => r.date === d && r.status !== 'cancelled' && r.status !== 'no_show').sort((a, b) => a.start_time.localeCompare(b.start_time))
+            return { first: list[0]?.start_time ?? null, last: list.at(-1)?.start_time ?? null, extra: list.length ? `${list.length} foglalás` : null }
+          }}
           counts={Object.fromEntries(days.map((d) => [d, active.filter((r) => r.date === d && r.status !== 'cancelled' && r.status !== 'no_show').reduce((sum, r) => sum + (r.pax ?? 0), 0)]))}
           pct={totalSeats ? (d) => {
             const pax = active.filter((r) => r.date === d && r.status !== 'cancelled' && r.status !== 'no_show').reduce((sum, r) => sum + (r.pax ?? 0), 0)

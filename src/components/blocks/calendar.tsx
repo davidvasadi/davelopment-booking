@@ -1,6 +1,7 @@
 import { Fragment } from 'react'
+import { TodayScroller } from './TodayScroller'
 import { ArrowLeft, ArrowRight, ArrowUpRight, Check, ChevronDown, Download, FileText, Pencil, Phone, Trash2, Undo2, Upload, UserRound, X } from 'lucide-react'
-import { Avatar, Button, Card, IconButton, IconCircle, Input, Meta, Pagination, Panel, Pill, SegmentBar, FieldRow, ListRow, Note, Segmented, Textarea } from '@/components/ui-kit'
+import { Avatar, Button, Card, IconButton, IconCircle, Input, Marquee, MarqueeText, Meta, Pagination, Panel, Pill, SegmentBar, FieldRow, ListRow, Note, Segmented, Textarea } from '@/components/ui-kit'
 import { Switch } from '@/components/ui/toggle-switch'
 import { MockSwitch } from './MockSwitch'
 import { Legend, MiniBar } from './charts'
@@ -32,7 +33,7 @@ export function StaffHoursList({ selected = 'viktoria', stylist = false, people,
           <>
             <div className="flex items-center gap-2.5">
               <Avatar size="sm" src={p.img ?? null} name={p.name} />
-              <span className="min-w-0"><span className="block truncate text-ui-body text-ui-text">{p.name}</span><span className="block truncate text-ui-label text-ui-muted">{p.role}</span></span>
+              <span className="min-w-0 flex-1"><MarqueeText className="text-ui-body text-ui-text">{p.name}</MarqueeText><MarqueeText className="text-ui-label text-ui-muted">{p.role}</MarqueeText></span>
             </div>
             <MiniBar className="mt-2.5" parts={[{ pct: p.a, tone: 'yellow' }, { pct: p.b, tone: 'dark' }]} />
           </>
@@ -48,7 +49,7 @@ export function StaffHoursList({ selected = 'viktoria', stylist = false, people,
 
 /** Több napos esemény a havi naptárban: a típus színével (műszak sárga, beteg sötét, szabadság szürke), csapat-nézetben
  *  elöl a munkatárs avatarja. `from` / `span`: a hét hányadik napjától hány napon át. */
-export type MonthBar = { key?: string; from: number; span: number; tone: 'yellow' | 'dark' | 'grey'; label: string; range: string; on?: boolean; who?: { src?: string | null; name: string } }
+export type MonthBar = { key?: string; from: number; span: number; tone: 'yellow' | 'dark' | 'grey' | 'white'; label: string; range: string; on?: boolean; who?: { src?: string | null; name: string } }
 /** Egy nap a havi naptárban. `closed`: zárt nap felirata (ünnepnap, a nyitvatartásból) — csíkos, piros; `out`: hónapon
  *  kívüli; `weekend`: hétvége (alsó fele csíkos); `count`: csapat-nézetben hány fő dolgozik. */
 export type MonthCell = { key?: string; n: number; out?: boolean; closed?: string; weekend?: boolean; today?: boolean; count?: number; /** a kiválasztott nap (fehér) */ selected?: boolean }
@@ -59,11 +60,11 @@ const SAMPLE_WEEKS: SampleWeek[] = [
   { days: [27, 28, 29, 30, 31, 1, 2], out: [0, 1, 2, 3, 4], bar: null, single: { i: 5, label: 'Zárva · Mindenszentek' } },
   { days: [3, 4, 5, 6, 7, 8, 9], out: [], bar: { from: 0, span: 5, tone: 'yellow', label: 'Műszak · 9–17', range: 'Nov. 3–7.' } },
   { days: [10, 11, 12, 13, 14, 15, 16], out: [], bar: { from: 1, span: 2, tone: 'dark', label: 'Beteg', range: 'Nov. 11–12.', on: true } },
-  { days: [17, 18, 19, 20, 21, 22, 23], out: [], bar: { from: 0, span: 3, tone: 'grey', label: 'Szabadság', range: 'Nov. 17–19.' } },
+  { days: [17, 18, 19, 20, 21, 22, 23], out: [], bar: { from: 0, span: 3, tone: 'white', label: 'Szabadság', range: 'Nov. 17–19.' } },
   { days: [24, 25, 26, 27, 28, 29, 30], out: [], bar: { from: 1, span: 3, tone: 'yellow', label: 'Műszak · 12–20', range: 'Nov. 25–27.' } },
 ]
 const av = (n: string, img: string) => ({ name: n, src: `/landing/funkciok/csapat/avatar/${img}.webp` })
-const SAMPLE_TEAM_BARS: (MonthBar | null)[] = [null, { from: 1, span: 2, tone: 'dark', label: 'Csaba · beteg', range: 'Nov. 4–5.', who: av('Csaba', 'csaba') }, { from: 1, span: 2, tone: 'dark', label: 'Viktória · beteg', range: 'Nov. 11–12.', who: av('Viktória', 'viktoria') }, { from: 0, span: 3, tone: 'grey', label: 'Viktória · szabadság', range: 'Nov. 17–19.', who: av('Viktória', 'viktoria') }, { from: 2, span: 3, tone: 'grey', label: 'Dávid · szabadság', range: 'Nov. 26–28.', who: av('Dávid', 'dave') }]
+const SAMPLE_TEAM_BARS: (MonthBar | null)[] = [null, { from: 1, span: 2, tone: 'dark', label: 'Csaba · beteg', range: 'Nov. 4–5.', who: av('Csaba', 'csaba') }, { from: 1, span: 2, tone: 'dark', label: 'Viktória · beteg', range: 'Nov. 11–12.', who: av('Viktória', 'viktoria') }, { from: 0, span: 3, tone: 'white', label: 'Viktória · szabadság', range: 'Nov. 17–19.', who: av('Viktória', 'viktoria') }, { from: 2, span: 3, tone: 'white', label: 'Dávid · szabadság', range: 'Nov. 26–28.', who: av('Dávid', 'dave') }]
 /** A minta hónap (2026. November) sorai — a design oldal és a landing props nélkül ezt mutatja. */
 function sampleRows(compact: boolean, team: boolean): MonthRow[] {
   return SAMPLE_WEEKS.map((w, wi) => {
@@ -81,7 +82,8 @@ function sampleRows(compact: boolean, team: boolean): MonthRow[] {
   })
 }
 
-const BAR_DOT = { yellow: 'bg-ui-yellow', dark: 'bg-ui-dark', grey: 'bg-ui-grey' } as const
+/** mobil (compact) esemény-kártya: ugyanaz a színkód, mint a desktop sávjain (műszak sárga, beteg sötét, szabadság szürke) */
+const BAR_CARD = { yellow: ['bg-ui-yellow text-ui-dark', 'text-ui-dark/60'], dark: ['bg-ui-dark text-white', 'text-white/60'], grey: ['bg-ui-grey text-ui-dark', 'text-ui-dark/60'], white: ['bg-white text-ui-dark', 'text-ui-dark/60'] } as const
 /** A hét eseményei sávokba: ami nem ütközik (más napokra esik), egy sorban marad; ütközésnél a második sor (legfeljebb 2). */
 function laned(bars: MonthBar[]) {
   const ends: number[] = []
@@ -92,6 +94,9 @@ function laned(bars: MonthBar[]) {
     return lane < 2 ? [{ bar, lane }] : []
   })
 }
+/** A típus pöttye a pill elején: műszak sötét, beteg piros, szabadság a mi zöldünk (csapat-nézetben az avatar áll helyette). */
+const BAR_DOT = { yellow: 'bg-ui-dark', dark: 'bg-ui-bad-dot', grey: 'bg-ui-dark', white: 'bg-ui-ok-dot' } as const
+
 /** Esemény-pill a havi naptárban — a típus színével, mint a csík és a jelmagyarázat; csapat-nézetben elöl a munkatárs
  *  avatarja; középen rövid csíkos sáv, végén az időszak. */
 function MonthBarPill({ bar }: { bar: MonthBar }) {
@@ -99,8 +104,10 @@ function MonthBarPill({ bar }: { bar: MonthBar }) {
   const one = bar.span === 1
   return (
     <Pill tone={bar.tone} size="sm" className={`w-full shadow-ui-float ${bar.who ? 'pl-1' : ''}`}>
-      {bar.who && <Avatar size="xs" src={bar.who.src ?? null} name={bar.who.name} className="h-5 w-5" />}
-      <span className={one ? 'min-w-0 truncate' : 'shrink-0'}>{bar.label}</span>
+      {bar.who ? <Avatar size="xs" src={bar.who.src ?? null} name={bar.who.name} className="h-5 w-5" /> : <span className={`h-2 w-2 shrink-0 rounded-full ${BAR_DOT[bar.tone]}`} />}
+      {/* ha nem fér ki, a felirat elúszik (szalagcím, mint mindenhol) — a láthatatlan példány adja a természetes szélességét,
+          így a rugalmas sorban csak akkor megy össze, ha kell; a dátum mindig látszik */}
+      <MarqueeText className={one ? 'flex-1' : 'flex-initial'}>{bar.label}</MarqueeText>
       {!one && <span className="mx-2 h-2.5 min-w-2 flex-1 rounded-full opacity-60 ui-hatch" />}
       {!one && <span className="shrink-0 whitespace-nowrap">{bar.range}</span>}
     </Pill>
@@ -111,7 +118,8 @@ function MonthBarPill({ bar }: { bar: MonthBar }) {
  *  egész hónap cellákban. A több napos esemény a cellák alján pill (a dátum fölötte szabad), a zárt nap (ünnepnap,
  *  a nyitvatartásból) csíkos cella piros dátummal és felirattal; a hétvége alja és a hónapon kívüli nap csíkos.
  *  `team` (Mind szűrő, nincs kiválasztott ember): az egész csapat összesen, a pillen a munkatárs avatarja, csak a távollétek.
- *  `compact` (mobil): egyforma magas cellák, a több napos esemény a napjai helyén egy kártya — a kiválasztott fehér.
+ *  `compact` (mobil): egyforma magas cellák, a több napos esemény a napjai helyén egy kártya, a desktop sávjainak színével
+ *  (műszak sárga, beteg sötét, szabadság szürke); a kiválasztott kártya és nap kerettel, a mai nap csak a sötét körrel.
  *  Élőben: `head` (ki), `total`, `month` (a hónap-választó), `segments`, `rows`, `onDay`, `onBar`. */
 export function MonthHours({ compact = false, team = false, head, total, month, segments, rows, onDay, onBar, drawKey, className = '' }: {
   compact?: boolean
@@ -129,8 +137,8 @@ export function MonthHours({ compact = false, team = false, head, total, month, 
 }) {
   const weeks = rows ?? sampleRows(compact, team)
   const segs = segments ?? (team
-    ? [{ label: 'Munkanap', value: '546 ó', weight: 78, tone: 'yellow' as const }, { label: 'Beteg', value: '32 ó', weight: 9, tone: 'dark' as const }, { label: 'Szabadság', value: '48 ó', weight: 13, tone: 'grey' as const }]
-    : [{ label: 'Munkanap', value: '142 ó', weight: 64, tone: 'yellow' as const }, { label: 'Beteg', value: '16 ó', weight: 12, tone: 'dark' as const }, { label: 'Szabadság', value: '24 ó', weight: 24, tone: 'grey' as const }])
+    ? [{ label: 'Munkanap', value: '546 ó', weight: 78, tone: 'yellow' as const }, { label: 'Beteg', value: '32 ó', weight: 9, tone: 'dark' as const }, { label: 'Szabadság', value: '48 ó', weight: 13, tone: 'white' as const }]
+    : [{ label: 'Munkanap', value: '142 ó', weight: 64, tone: 'yellow' as const }, { label: 'Beteg', value: '16 ó', weight: 12, tone: 'dark' as const }, { label: 'Szabadság', value: '24 ó', weight: 24, tone: 'white' as const }])
   const cellBtn = (key: string | undefined, cls: string, body: React.ReactNode, style?: React.CSSProperties, i?: number) => onDay && key
     ? <button key={key} type="button" onClick={() => onDay(key)} className={`${cls} text-left outline-none transition-[filter] hover:brightness-[.97] focus-visible:ring-2 focus-visible:ring-ui-dark/20`} style={style}>{body}</button>
     : <div key={key ?? i} className={cls} style={style}>{body}</div>
@@ -149,30 +157,38 @@ export function MonthHours({ compact = false, team = false, head, total, month, 
       </div>
       <div className="mt-1.5 space-y-1">
         {weeks.map((w, wi) => {
-          const cbar = compact ? w.bars[0] : undefined
+          // mobil: a hét MINDEN szakasza a saját napjain (eddig csak az első jelent meg — a többi, pl. egy beteg nap, eltűnt)
+          const barAt = (i: number) => (compact ? w.bars.find((b) => i >= b.from && i < b.from + b.span) : undefined)
           return (
             <div key={wi} className="relative grid grid-cols-7 gap-1">
               {w.cells.map((c, i) => {
                 // mobil: az esemény napjai helyén egy kártya
-                if (cbar && i >= cbar.from && i < cbar.from + cbar.span) {
+                const cbar = barAt(i)
+                if (cbar) {
                   if (i !== cbar.from) return null
+                  const [tone, sub] = BAR_CARD[cbar.tone]
                   const body = <>
-                    <span className={`absolute right-2 top-2 h-1.5 w-1.5 rounded-full ${BAR_DOT[cbar.tone]}`} />
-                    <span className="truncate text-ui-meta text-ui-text">{cbar.label}</span>
-                    <span className="truncate text-ui-label text-ui-muted">{cbar.range}</span>
+                    {/* ha nem fér ki (keskeny kártya), a felirat elúszik */}
+                    {/* a típus pöttye a jobb felső sarokban — mint a Foglalások blokkjain; csapat-nézetben is */}
+                    <span className={`absolute right-2 top-2 h-2 w-2 rounded-full ${BAR_DOT[cbar.tone]}`} />
+                    <MarqueeText className="pr-3 text-ui-meta">{cbar.label}</MarqueeText>
+                    <Marquee className={`text-ui-label ${sub}`}>{cbar.range}</Marquee>
                   </>
-                  const cls = `relative flex flex-col justify-end overflow-hidden rounded-ui-control p-1.5 ${cbar.on ? 'bg-white' : 'bg-ui-cell'}`
+                  // a kiválasztott kártya kerettel (a színe a típusé marad)
+                  const cls = `relative flex flex-col justify-end overflow-hidden rounded-ui-control p-1.5 ${tone} ${cbar.on ? 'ring-2 ring-inset ring-ui-dark' : ''}`
                   return onBar && cbar.key
                     ? <button key={i} type="button" onClick={() => onBar(cbar.key!)} className={`${cls} text-left outline-none`} style={{ gridColumn: `span ${cbar.span}` }}>{body}</button>
                     : <div key={i} className={cls} style={{ gridColumn: `span ${cbar.span}` }}>{body}</div>
                 }
-                const cls = `relative overflow-hidden rounded-ui-control text-ui-meta ${compact ? 'h-[52px] p-1.5' : 'aspect-square p-2'} ${c.closed ? 'ui-hatch-cell text-ui-bad-dot' : c.out ? 'ui-hatch-cell text-ui-muted' : c.selected ? 'bg-white text-ui-dark' : 'bg-ui-cell text-ui-dark'} ${c.today ? 'ring-2 ring-ui-dark' : ''}`
+                const cls = `relative overflow-hidden rounded-ui-control text-ui-meta ${compact ? 'h-[52px] p-1.5' : 'aspect-square p-2'} ${c.closed ? 'ui-hatch-cell-dense text-ui-bad-dot' : c.out ? 'ui-hatch-lines-dense text-ui-muted' : c.selected ? 'bg-white text-ui-dark' : 'bg-ui-cell text-ui-dark'} ${c.today && !compact ? 'ring-2 ring-ui-dark' : ''} ${compact && c.selected ? 'ring-2 ring-inset ring-ui-dark' : ''}`
                 return cellBtn(c.key, cls, <>
                   {c.today ? <IconCircle size="xs">{c.n}</IconCircle> : c.n}
                   {/* csapat-nézet: munkanapon hány fő dolgozik — sárga, mint mindenhol a munka */}
                   {c.count != null && !compact && <Pill tone="yellow" size="sm" className="absolute right-1.5 top-1.5">{c.count} fő</Pill>}
+                  {/* mobil (csapat): a napi létszám kicsiben — sárga számláló a jobb alsó sarokban, a dátumot nem takarja */}
+                  {c.count != null && compact && <span className="absolute bottom-1 right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-ui-yellow px-1 text-ui-label leading-none text-ui-dark">{c.count}</span>}
                   {c.closed && !compact && <span className="absolute inset-x-2 bottom-1.5 line-clamp-2 text-ui-label leading-tight">{c.closed}</span>}
-                  {c.weekend && !c.out && !c.closed && <span className="absolute inset-x-0 bottom-0 h-1/2 opacity-60 ui-hatch-cell" />}
+                  {c.weekend && !c.out && !c.closed && <span className="absolute inset-x-0 bottom-0 h-1/2 opacity-60 ui-hatch-cell-dense" />}
                 </>, undefined, i)
               })}
               {!compact && laned(w.bars).map(({ bar, lane }, bi) => (
@@ -189,10 +205,10 @@ export function MonthHours({ compact = false, team = false, head, total, month, 
       </div>
       {!compact && (
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-dashed border-ui-divider pt-3 text-ui-label text-ui-muted">
-          <Legend items={team ? [['bg-ui-yellow', 'Dolgozik (fő)'], ['bg-ui-dark', 'Beteg'], ['bg-ui-grey', 'Szabadság']] : [['bg-ui-yellow', 'Műszak'], ['bg-ui-dark', 'Beteg'], ['bg-ui-grey', 'Szabadság']]} />
-          <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control ui-hatch-cell" />Szabadnap / hétvége</span>
+          <Legend items={team ? [['bg-ui-yellow', 'Dolgozik (fő)'], ['bg-ui-dark', 'Beteg'], ['bg-white', 'Szabadság']] : [['bg-ui-yellow', 'Műszak'], ['bg-ui-dark', 'Beteg'], ['bg-white', 'Szabadság']]} />
+          <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control ui-hatch-cell-dense" />Szabadnap / hétvége</span>
           <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control bg-ui-cell" />Munkanap</span>
-          <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control ui-hatch-cell" /><span className="text-ui-bad-dot">1</span>Zárva (ünnepnap)</span>
+          <span className="flex items-center gap-1.5"><span className="h-3 w-5 rounded-ui-control ui-hatch-cell-dense" /><span className="text-ui-bad-dot">1</span>Zárva (ünnepnap)</span>
           <span className="flex items-center gap-1.5"><IconCircle tone="dark" size="xs">{weeks.flatMap((w) => w.cells).find((c) => c.today)?.n ?? 5}</IconCircle>Ma</span>
         </div>
       )}
@@ -224,16 +240,22 @@ export function TeamAbsences({ month = 'November', rows = SAMPLE_ABSENCES, holid
 
 /** Mobil Hónap: a kiválasztott esemény részletei sötét kártyán (a havi naptár alatt) — típus, időszak, megjegyzés,
  *  mennyi órát érint, és betegségnél a feltöltött táppénzes papír. Élőben: `title`, `note`, `hours`, `meta`, `file`. */
-export function ShiftDetailCard({ title = 'Beteg', note = 'Influenza — orvosnál volt, két nap pihenés. A 4 foglalását Dávid vette át.', hours = '16 ó', meta = ['betegszabadság · fizetett', 'Nov. 11–12.'], file = <SickNoteFile onDark />, className = '' }: { title?: string; note?: string | null; hours?: string; meta?: string[]; file?: React.ReactNode; className?: string }) {
+export function ShiftDetailCard({ title = 'Beteg', note = 'Influenza — orvosnál volt, két nap pihenés. A 4 foglalását Dávid vette át.', hours = '16 ó', meta = ['betegszabadság · fizetett', 'Nov. 11–12.'], file = <SickNoteFile onDark />, tone = 'dark', onEdit, className = '' }: {
+  /** a típus pöttye (műszak sárga, beteg piros, szabadság zöld — mint a naptár pilljein) */
+  tone?: 'yellow' | 'dark' | 'grey'
+  /** élőben: a kiválasztott szakasz szerkesztése (gomb a kártya alján) */
+  onEdit?: () => void
+  title?: string; note?: string | null; hours?: string; meta?: string[]; file?: React.ReactNode; className?: string }) {
   return (
     <Card tone="dark" className={className}>
-      <div className="flex items-center gap-2 text-ui-title"><span className="h-2 w-2 rounded-full bg-white" />{title}</div>
+      <div className="flex items-center gap-2 text-ui-title"><span className={`h-2 w-2 rounded-full ${tone === 'yellow' ? 'bg-ui-yellow' : tone === 'grey' ? 'bg-ui-ok-dot' : 'bg-ui-bad-dot'}`} />{title}</div>
       {note && <div className="mt-2 text-ui-meta leading-snug text-white/55">{note}</div>}
       <div className="mt-4 flex items-end justify-between gap-3 border-t border-dotted border-white/25 pt-4">
         <span className="text-ui-num font-light leading-none">{hours}</span>
         <span className="text-right text-ui-label text-white/55">{meta.map((x) => <span key={x} className="block">{x}</span>)}</span>
       </div>
       {file && <div className="mt-4">{file}</div>}
+      {onEdit && <Button variant="yellow" icon={Pencil} className="mt-4 w-full" onClick={onEdit}>Szerkesztés</Button>}
     </Card>
   )
 }
@@ -295,8 +317,10 @@ const SAMPLE_WEEK_DAYS = ([['H', 3], ['K', 4], ['Sze', 5], ['Cs', 6], ['P', 7], 
 /** 11.2: heti beosztás — munkatárs × nap, műszak sárga, beteg sötét, szabadság szürke, szabadnap csíkos; a mai oszlop
  *  kiemelve, a sor végén a heti óra / szerződött óra. `compact`: csak H–P (keskeny helyre, pl. landing). Élőben:
  *  `range` (a hét), `onStep`, `total`, `days`, `rows`, `onCell(rowId, dayIndex)`. */
-export function WeekSchedule({ compact = false, range = 'Nov. 3–9.', onStep, total = '142 ó', days = SAMPLE_WEEK_DAYS, rows = SAMPLE_WEEK_ROWS, onCell, action, className = '' }: {
+export function WeekSchedule({ compact = false, range = 'Nov. 3–9.', onStep, total = '142 ó', days = SAMPLE_WEEK_DAYS, rows = SAMPLE_WEEK_ROWS, onCell, action, slideDir = 0, className = '' }: {
   compact?: boolean
+  /** hét-váltáskor a rács becsúszik (mint a többi lapozásnál): 1 előre, -1 vissza, 0 nincs */
+  slideDir?: number
   range?: string
   onStep?: (dir: -1 | 1) => void
   total?: string
@@ -309,40 +333,51 @@ export function WeekSchedule({ compact = false, range = 'Nov. 3–9.', onStep, t
 }) {
   const n = compact ? 5 : 7
   const todayIdx = days.findIndex((x) => x.today)
+  // hét-váltáskor csak a napok (dátumsor + cellák) csúsznak be — a nevek és az óra-oszlop állnak
+  const slide = slideDir ? { cls: 'ui-slide-in', style: { ['--dx' as string]: `${slideDir * 56}px` } } : { cls: '', style: undefined }
   return (
-    <Card className={`overflow-x-auto ${className}`}>
-      <div className="mb-3 flex items-center justify-between">
+    // mobilon (sm alatt) mint a Foglalások hete: a lap fehér, a rács saját dobozban görgethető (dátumsor fent, nevek bal
+    // oldalt ragadósak, a név-oszlopban csak az avatar), és a mai napra görget
+    <Card className={`max-sm:bg-white ${className}`}>
+      {/* mobilon a hét-váltó egy sorban, tördelés nélkül (hónapközi hétnél is: „Okt. 26. – Nov. 1.”), a heti összes alatta */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="flex items-center gap-2">
           <IconButton icon={ArrowLeft} label="Előző" size="sm" onClick={onStep && (() => onStep(-1))} />
-          <span className="text-ui-title text-ui-text">{range}</span>
+          <span className="whitespace-nowrap text-ui-title text-ui-text">{range}</span>
           <IconButton icon={ArrowRight} label="Következő" size="sm" onClick={onStep && (() => onStep(1))} />
         </span>
-        <span className="flex items-center gap-3"><span className="text-ui-meta text-ui-muted">Heti összes: <span className="text-ui-text">{total}</span></span>{action}</span>
+        <span className="flex items-center gap-3"><span className="whitespace-nowrap text-ui-meta text-ui-muted">Heti összes: <span className="text-ui-text">{total}</span></span>{action}</span>
       </div>
-      <div className={`grid gap-1.5 text-ui-meta ${compact ? 'grid-cols-[110px_repeat(5,minmax(0,1fr))_64px]' : 'min-w-[760px] grid-cols-[150px_repeat(7,minmax(0,1fr))_80px]'}`}>
-        <span />
-        {days.slice(0, n).map((x) => <DayHead key={x.n} d={x.d} n={x.n} today={x.today} closed={x.closed} />)}
-        <span className="self-end text-right text-ui-muted">Óra</span>
+      <TodayScroller k={`${range}|${todayIdx}`} className="overflow-x-auto max-sm:max-h-[70dvh] max-sm:overflow-y-auto">
+      <div className={`relative grid gap-1.5 text-ui-meta ${compact ? 'grid-cols-[110px_repeat(5,minmax(0,1fr))_64px]' : 'min-w-[760px] grid-cols-[150px_repeat(7,minmax(0,1fr))_80px] max-sm:min-w-[560px] max-sm:grid-cols-[44px_repeat(7,minmax(0,1fr))_56px]'}`}>
+        <span data-first-col className={`${WK_STICKY} ${WK_TOP} max-sm:z-30`} />
+        {days.slice(0, n).map((x) => <span key={`${range}|${x.n}`} data-today={x.today || undefined} className={WK_TOP}><span className={`block ${slide.cls}`} style={slide.style}><DayHead d={x.d} n={x.n} today={x.today} closed={x.closed} /></span></span>)}
+        <span className={`self-end text-right text-ui-muted ${WK_TOP}`}>Óra</span>
         {rows.map((r) => (
           <Fragment key={r.id}>
-            <span className="flex items-center gap-2 py-1">
+            <span className={`flex items-center gap-2 py-1 ${WK_STICKY}`} title={r.name}>
               <Avatar size="sm" src={r.img ?? null} name={r.name} />
-              <span className="truncate text-ui-body text-ui-text">{r.name}</span>
+              <MarqueeText className="text-ui-body text-ui-text max-sm:hidden">{r.name}</MarqueeText>
             </span>
             {r.d.slice(0, n).map((c, i) => {
-              const cls = `flex h-11 items-center justify-center rounded-ui-control text-ui-meta ${c === 'X' ? 'ui-hatch-cell' : c === 'B' ? 'bg-ui-dark text-white' : c === 'S' ? 'bg-ui-grey text-ui-dark' : 'bg-ui-yellow text-ui-dark'} ${i === todayIdx ? 'ring-1 ring-ui-dark/30' : ''}`
+              const cls = `flex h-11 items-center justify-center overflow-hidden rounded-ui-control text-ui-meta ${c === 'B' || c === 'S' ? 'max-sm:text-ui-label' : ''} ${c === 'X' ? 'ui-hatch-cell-dense' : c === 'B' ? 'bg-ui-dark text-white' : c === 'S' ? 'bg-white text-ui-dark ring-1 ring-inset ring-ui-divider' : 'bg-ui-yellow text-ui-dark'} ${i === todayIdx ? 'ring-1 ring-ui-dark/30' : ''}`
               const body = c === 'X' ? '' : c === 'B' ? 'Beteg' : c === 'S' ? 'Szabadság' : c
               return onCell
-                ? <button key={i} type="button" onClick={() => onCell(r.id, i)} className={`${cls} outline-none transition-[filter] hover:brightness-95 focus-visible:ring-2 focus-visible:ring-ui-dark/20`}>{body}</button>
-                : <span key={i} className={cls}>{body}</span>
+                ? <button key={`${range}|${i}`} type="button" onClick={() => onCell(r.id, i)} style={slide.style} className={`${cls} ${slide.cls} outline-none transition-[filter] hover:brightness-95 focus-visible:ring-2 focus-visible:ring-ui-dark/20`}>{body}</button>
+                : <span key={`${range}|${i}`} style={slide.style} className={`${cls} ${slide.cls}`}>{body}</span>
             })}
             <span className="flex items-center justify-end text-ui-body text-ui-text">{r.h}</span>
           </Fragment>
         ))}
       </div>
+      </TodayScroller>
     </Card>
   )
 }
+
+/** A heti beosztás mobilon: a név-oszlop bal oldalt, a dátumsor fent ragadós (a görgető dobozban), fehér alappal. */
+const WK_STICKY = 'max-sm:sticky max-sm:left-0 max-sm:z-10 max-sm:bg-white'
+const WK_TOP = 'max-sm:sticky max-sm:top-0 max-sm:z-20 max-sm:bg-white'
 
 /** Feltöltött táppénzes papír (orvosi igazolás): fájl-ikon, név, méret, letöltés és törlés. A nap-szerkesztő Beteg
  *  típusa (11.5) és a mobil részlet-kártya (11.7, `onDark`) is ezt mutatja. Élőben: `name`, `meta`, `href` (letöltés),
@@ -510,7 +545,7 @@ export function Payroll({ month = 'November', total = '1 284 000 Ft', segments =
           <Fragment key={r.id}>
             <span className="flex min-w-0 items-center gap-2 border-t border-dashed border-ui-divider px-1 py-2.5">
               <Avatar size="xs" src={r.img ?? null} name={r.name} />
-              <span className="truncate text-ui-body text-ui-text">{r.name}</span>
+              <MarqueeText className="text-ui-body text-ui-text">{r.name}</MarqueeText>
             </span>
             <span className="flex items-center justify-end border-t border-dashed border-ui-divider text-ui-muted">{r.h}</span>
             <span className="flex items-center justify-end border-t border-dashed border-ui-divider text-ui-text">{r.t}</span>
@@ -542,12 +577,12 @@ export function TipSplit({ day = 'Péntek, Nov. 7.', total = '36 000 Ft', rows =
       {rows.map((r) => r.amount != null ? (
         <div key={r.id} className="mt-3 flex items-center gap-2.5 border-t border-white/10 pt-3 text-ui-body">
           <Avatar size="xs" src={r.img ?? null} name={r.name} />
-          <span className="flex-1 truncate">{r.name}</span><span>{r.amount} Ft</span>
+          <MarqueeText className="flex-1">{r.name}</MarqueeText><span>{r.amount} Ft</span>
         </div>
       ) : (
         <div key={r.id} className="mt-3 flex items-center gap-2.5 border-t border-white/10 pt-3 text-ui-body text-white/40">
           <Avatar size="xs" src={r.img ?? null} name={r.name} className="opacity-50 grayscale" />
-          <span className="flex-1 truncate">{r.name}</span>
+          <MarqueeText className="flex-1">{r.name}</MarqueeText>
           <Pill tone="onDark" size="sm">Nem jogosult</Pill>
         </div>
       ))}
@@ -800,7 +835,7 @@ export function NewShiftForm({ title = 'Új beosztás', stacked = false, framed 
                 <Avatar size="xs" src={r.img ?? null} name={r.name} />
                 {r.d.map((c, i) => {
                   // a közös színek: műszak sárga, beteg sötét, szabadság szürke, nem dolgozik csíkos
-                  const cls = `h-6 rounded-ui-control ${c === 'X' ? 'ui-hatch-cell' : c === 'B' ? 'bg-ui-dark' : c === 'S' ? 'bg-ui-grey' : 'bg-ui-yellow'}`
+                  const cls = `h-6 rounded-ui-control ${c === 'X' ? 'ui-hatch-cell-dense' : c === 'B' ? 'bg-ui-dark' : c === 'S' ? 'bg-ui-grey' : 'bg-ui-yellow'}`
                   const title = r.t?.[i]
                   const shaking = shake && shake.row === r.id && (c === 'S' || c === 'B')
                   return onPreviewCell && (r.existing || (c !== 'S' && c !== 'B'))
@@ -809,7 +844,7 @@ export function NewShiftForm({ title = 'Új beosztás', stacked = false, framed 
                 })}
               </div>
             ))}
-            {preview.length > 0 && <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1"><Legend items={[['bg-ui-yellow', 'Műszak'], ['bg-ui-dark', 'Beteg'], ['bg-ui-grey', 'Szabadság']]} /><span className="flex items-center gap-1.5 text-ui-label text-ui-muted"><span className="h-2 w-3 rounded-ui-control ui-hatch-cell" />Nem dolgozik</span></div>}
+            {preview.length > 0 && <div className="mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1"><Legend items={[['bg-ui-yellow', 'Műszak'], ['bg-ui-dark', 'Beteg'], ['bg-white', 'Szabadság']]} /><span className="flex items-center gap-1.5 text-ui-label text-ui-muted"><span className="h-2 w-3 rounded-ui-control ui-hatch-cell-dense" />Nem dolgozik</span></div>}
             {previewPage && previewPage.pages > 1 && <Pagination full page={previewPage.page} pages={previewPage.pages} onPage={previewPage.onPage} className="mt-2.5" />}
             {warn && <Note warn className="mt-2.5">{warn}</Note>}
           </div>

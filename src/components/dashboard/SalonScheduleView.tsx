@@ -134,7 +134,8 @@ export function SalonScheduleView({
   const goToDay = (day: string) => router.push(`/dashboard/bookings?range=day&date=${day}`)
   const stepMonth = (dir: -1 | 1) => { const [y, m] = date.split('-').map(Number); router.push(`/dashboard/bookings?date=${ymdLocal(new Date(y, m - 1 + dir, 1))}&range=month`) }
   // design 6.4 / 6.5: a hét tetején Mind + a munkatársak — egy emberre váltva az ő óránkénti hete
-  const staffSwitch = staff.length > 1 ? <StaffSwitch people={staff.map((s) => ({ id: String(s.id), name: s.name, img: avatarUrlOf(s) }))} active={filter.who.length === 1 ? filter.who[0] : null} onPick={(id) => setFilter({ ...filter, who: id ? [id] : [] })} /> : undefined
+  // mobilon a munkatárs a „Nézet és szűrők” lapon választható — itt nem kell
+  const staffSwitch = staff.length > 1 ? <div className="max-lg:hidden"><StaffSwitch people={staff.map((s) => ({ id: String(s.id), name: s.name, img: avatarUrlOf(s) }))} active={filter.who.length === 1 ? filter.who[0] : null} onPick={(id) => setFilter({ ...filter, who: id ? [id] : [] })} /></div> : undefined
 
   // Mobilon az "Új foglalás" a fejléc csengő melletti ikonjából nyílik (DashboardNav
   // dispatch-eli) — ugyanaz az esemény, mint a napi nézetben.
@@ -197,7 +198,7 @@ export function SalonScheduleView({
             id: String(s.id),
             label: (
               <button type="button" onClick={() => setFilter({ ...filter, who: [String(s.id)] })} className="flex items-center gap-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ui-dark/20" title="Az ő hete óránként">
-                <Avatar size="sm" src={avatarUrlOf(s)} name={s.name} /><span className="min-w-0 truncate text-ui-body text-ui-text">{s.name}</span>
+                <Avatar size="sm" src={avatarUrlOf(s)} name={s.name} /><span className="min-w-0 truncate text-ui-body text-ui-text max-sm:hidden">{s.name}</span>
               </button>
             ),
             total: perStaffDayBookings[ci].reduce((sum, cell) => sum + cell.flat().filter((b) => b.status !== 'cancelled').length, 0),
@@ -208,7 +209,8 @@ export function SalonScheduleView({
             const off = perStaffDayOff[ci]?.[di]
             if (isClosedDay(day)) return null
             const list = perStaffDayBookings[ci][di].flat().filter((b) => b.status !== 'cancelled')
-            if (off && list.length === 0) return <span className="text-ui-label text-ui-muted">{OFF_TYPE_LABEL[off]}</span>
+            // távollét (szabadnap / szabadság / beteg) foglalás nélkül: csíkos cella a felirattal, mint a zárt nap — első ránézésre látszik
+            if (off && list.length === 0) return <span className="ui-hatch-cell absolute inset-0 flex items-start rounded-ui-control p-1.5 text-ui-label text-ui-muted">{OFF_TYPE_LABEL[off]}</span>
             return <WeekChips onOpen={(id) => { const b = list.find((x) => String(x.id) === id); if (b) openEdit(b) }} onMore={() => goToDay(day)} chips={list.map((b) => ({ id: String(b.id), time: b.start_time, name: b.customer_name, tone: chipTone(b.status) }))} />
           }}
         />
@@ -221,6 +223,12 @@ export function SalonScheduleView({
           closed={isClosedDay}
           onDay={goToDay}
           onStep={stepMonth}
+          // mobil nap-kártya: első / utolsó időpont és kik dolgoznak aznap (akiknek van foglalásuk)
+          dayInfo={(d) => {
+            const list = active.filter((b) => b.date === d && b.status !== 'cancelled').sort((a, b) => a.start_time.localeCompare(b.start_time))
+            const ids = [...new Set(list.map((b) => String(typeof b.staff === 'object' && b.staff ? b.staff.id : b.staff)))]
+            return { first: list[0]?.start_time ?? null, last: list.at(-1)?.start_time ?? null, who: staff.filter((s) => ids.includes(String(s.id))).map((s) => ({ name: s.name, img: avatarUrlOf(s) })) }
+          }}
           counts={Object.fromEntries(days.map((d) => [d, active.filter((b) => b.date === d && b.status !== 'cancelled').length]))}
           pct={(d) => {
             const cap = Math.max(0, closeMin - openMin) * Math.max(1, staff.length)

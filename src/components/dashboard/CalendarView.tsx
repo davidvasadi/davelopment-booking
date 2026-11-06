@@ -8,10 +8,12 @@
  * A mentés / törlés a `/api/shifts` végpontokon (a nap-szerkesztő, átmenetileg a régi — a design 11.5 váltja).
  */
 
+import { toast } from 'sonner'
+import { readSavedView, writeSavedView } from '@/lib/savedView'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, CalendarDays, ChevronDown, Download, Pencil, Plus, Undo2 } from 'lucide-react'
-import { Avatar, Button, EmptyState, IconButton, Meta, Menu, MenuItem, PageHead, Pill, Segmented, SlideSwap } from '@/components/ui-kit'
+import { ArrowLeft, ArrowRight, CalendarDays, ChevronDown, Download, Pencil, Plus, Undo2, X } from 'lucide-react'
+import { Avatar, Button, EmptyState, IconButton, Meta, Menu, MenuItem, PageHead, Pill, SearchField, Segmented, SlideSwap } from '@/components/ui-kit'
 import { PopupModal } from '@/components/ui/popup-modal'
 import { DayShiftList, DayStaffCard, MonthHours, Payroll, ShiftDetailCard, SickNoteFile, StaffHoursList, StaffProfile, TeamAbsences, TipSplit, WeekSchedule, type AbsenceRow, type HoursPerson, type MonthBar, type MonthRow } from '@/components/blocks/calendar'
 import { ChipToolbar } from '@/components/blocks/toolbar'
@@ -65,7 +67,14 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
 
   const [view, setView] = useState<View>('month')
   // telefonon alapból egy nap (design 11.7) — a heti / havi rács ott nem fér el
-  useEffect(() => { if (window.matchMedia('(max-width: 1023px)').matches) setView('day') }, [])
+  // ha ezen az eszközön van mentett nézet (a „Nézet és szűrők” lap „Mentés” gombja), azzal indul
+  useEffect(() => {
+    const saved = readSavedView<{ view?: View; selected?: string | null; type?: 'all' | ShiftType }>('calendar')
+    if (saved?.view) setView(saved.view)
+    else if (window.matchMedia('(max-width: 1023px)').matches) setView('day')
+    if (saved && canManage && saved.selected !== undefined && (saved.selected === null || staff.some((s) => s.id === saved.selected))) setSelected(saved.selected)
+    if (saved?.type) setTypeFilter(saved.type)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const [detail, setDetail] = useState<string | null>(null)
   // csapat-nézetben a kiválasztott nap (a jobb oszlop teteje az ő munkatársaival)
   const [selDay, setSelDay] = useState<string | null>(null)
@@ -75,6 +84,8 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
   // havi nézet: munkatárs- vagy hónapváltáskor a jobb oszlop oldalra csúszik (SlideSwap, mint a jóváhagyó popup lapozása) —
   // lejjebb lévő munkatárs / későbbi hónap jobbról, feljebb / korábbi balról; középen a pillek és a sávok újra kirajzolódnak
   const slide = useRef<{ key: string; dir: number }>({ key: '', dir: 0 })
+  // a heti nézet lapozásának iránya (a rács becsúszik)
+  const weekDir = useRef(0)
   const [query, setQuery] = useState('')
   const [pos, setPos] = useState(0)
   const [typeFilter, setTypeFilter] = useState<'all' | ShiftType>('all')
@@ -103,15 +114,23 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
   // a mobil fejléc ikonjai (DashboardNav): „+” a nap-szerkesztő, a szűrő a szűrők lapja, a ceruza az épp nézett nap
   // szerkesztése (a nézet a renderben állítja be `editDayRef`-et)
   const [mobileFilters, setMobileFilters] = useState(false)
+  // mobil: a fejléc kereső-ikonja nyitja a munkatárs-keresőt
+  const [mobileSearch, setMobileSearch] = useState(false)
   const editDayRef = useRef<{ day: string; staffId: string | null } | null>(null)
+  // a mobil havi nézet saját szerkesztés-művelete (a kiválasztott szakasz vagy nap) — ha be van állítva, a ceruza ezt futtatja
+  const editActionRef = useRef<(() => void) | null>(null)
   useEffect(() => {
     const onAdd = () => setNewShift(true)
     const onFilter = () => setMobileFilters(true)
-    const onEdit = () => { const t = editDayRef.current; if (!t) return; if (t.staffId) setEditor({ date: t.day, staffId: t.staffId }); else setNewShift(t.day) }
+    const onEdit = () => { if (editActionRef.current) { editActionRef.current(); return } const t = editDayRef.current; if (!t) return; if (t.staffId) setEditor({ date: t.day, staffId: t.staffId }); else setNewShift(t.day) }
     window.addEventListener('davelopment:open-schedule-add', onAdd)
     window.addEventListener('davelopment:open-schedule-filter', onFilter)
     window.addEventListener('davelopment:open-schedule-edit', onEdit)
-    return () => { window.removeEventListener('davelopment:open-schedule-add', onAdd); window.removeEventListener('davelopment:open-schedule-filter', onFilter); window.removeEventListener('davelopment:open-schedule-edit', onEdit) }
+    const onSearch = () => setMobileSearch(true)
+    const onExport = () => exportRef.current()
+    window.addEventListener('davelopment:export-schedule', onExport)
+    window.addEventListener('davelopment:open-schedule-search', onSearch)
+    return () => { window.removeEventListener('davelopment:open-schedule-add', onAdd); window.removeEventListener('davelopment:open-schedule-filter', onFilter); window.removeEventListener('davelopment:open-schedule-edit', onEdit); window.removeEventListener('davelopment:open-schedule-search', onSearch); window.removeEventListener('davelopment:export-schedule', onExport) }
   }, [date])
 
   const staffById = useMemo(() => new Map(staff.map((s) => [s.id, s])), [staff])
@@ -267,6 +286,9 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
   const openDay = (day: string, staffId: string | null = null) => { if (canManage) setEditor({ date: day, staffId }) }
 
   // ── Export: a megjelenített hónap beosztása CSV-ben ──
+  // a mobil fejléc export-ikonja (esemény) mindig a friss függvényt hívja
+  const exportRef = useRef<() => void>(() => {})
+  exportRef.current = () => exportMonth()
   function exportMonth() {
     const rows = shifts.filter((s) => s.date.startsWith(monthPrefix)).sort((a, b) => a.date.localeCompare(b.date))
     const csv = toCsv(['Dátum', 'Munkatárs', 'Típus', 'Kezdés', 'Vége', 'Óra', 'Megjegyzés'], rows.map((s) => [s.date, staffById.get(s.staffId)?.name ?? '', TYPE_LABEL[s.type], s.start_time, s.end_time, Math.round(shiftHours(s) * 10) / 10, s.note === '__auto__' ? '' : s.note]))
@@ -328,8 +350,8 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
         </>
       )}
       {typeChips}
-      <Button variant="glass" icon={Download} className="mt-5 w-full" onClick={exportMonth}>Export (a hónap, CSV)</Button>
-      <Button className="mt-2 w-full" onClick={() => setMobileFilters(false)}>Mutasd</Button>
+      {/* „Mentés”: az időszak, a munkatárs és a típus ezen az eszközön megmarad — legközelebb ezzel nyílik */}
+      <Button className="mt-2 w-full" onClick={() => { writeSavedView('calendar', { view, selected: canManage ? selected : undefined, type: typeFilter }); toast.success('Nézet elmentve ezen az eszközön'); setMobileFilters(false) }}>Mentés</Button>
     </PopupModal>
   )
 
@@ -337,6 +359,7 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
   // desktopon felirattal, mobilon a fejléc ceruzája
   const editTarget = (day: string, staffId: string | null = null) => {
     editDayRef.current = canManage ? { day, staffId } : null
+    editActionRef.current = null
     return canManage ? () => (staffId ? openDay(day, staffId) : setNewShift(day)) : undefined
   }
   const editBtn = (day: string, staffId: string | null = null) => {
@@ -351,6 +374,9 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
     const dayKey = selDay && selDay.startsWith(monthPrefix) ? selDay : today.startsWith(monthPrefix) ? today : `${monthPrefix}-01`
     const list = team ? monthShifts.filter((s) => visibleStaff.some((st) => st.id === s.staffId)) : monthShifts.filter((s) => s.staffId === sel.id)
     const work = hoursOf(list, 'shift'), sick = hoursOf(list, 'sick'), leave = hoursOf(list, 'leave')
+    // a naptár csíkos szabadnapjai a hónapban: zárt nap, és egy munkatársnál a „szabadnap” bejegyzései (a felső sávban csíkozva)
+    const monthDays = Array.from({ length: 31 }, (_, i) => `${monthPrefix}-${String(i + 1).padStart(2, '0')}`).filter((d) => !Number.isNaN(toDate(d).getTime()) && toDate(d).getMonth() === toDate(`${monthPrefix}-01`).getMonth())
+    const freeDays = monthDays.filter((d) => isClosed(d) || (!!sel && list.some((x) => x.date === d && x.type === 'vacation'))).length
     // bérköltség (design 11.3): havi bér, vagy napidíj × műszaknap, vagy órabér × műszakóra; túlóra = a havi keret
     // (heti óra × 4,33) feletti óra ugyanazzal az órabérrel (havi bérnél bér / keret); étteremnél a napi borravaló
     // egyenlően a jogosult, aznap dolgozók közt
@@ -391,20 +417,22 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
         const out = !d.startsWith(monthPrefix)
         const closed = !out && isClosed(d) ? 'Zárva' : undefined
         const count = team && !out && !closed ? new Set(list.filter((s) => s.date === d && s.type === 'shift').map((s) => s.staffId)).size : undefined
-        return { key: d, n: toDate(d).getDate(), out, closed, weekend: i > 4, today: d === today, count: count || undefined, selected: team && d === dayKey }
+        return { key: d, n: toDate(d).getDate(), out, closed, weekend: i > 4, today: d === today, count: count || undefined, selected: team ? d === dayKey : !!selDay && d === selDay }
       })
       // több napos események: az egymást követő, azonos bejegyzések egy pillbe
       const bars: MonthBar[] = []
       const people = team ? visibleStaff : [sel]
       for (const st of people) {
-        let run: { from: number; to: number; s: ShiftVM; label: string } | null = null
+        // az egymást követő, AZONOS TÍPUSÚ napok egy szakaszba (a műszakidő eltérhet); a felirat a műszakidővel, ha végig ugyanaz
+        let run: { from: number; to: number; s: ShiftVM; label: string; mixed: boolean } | null = null
         const flush = () => {
           if (!run) return
-          const { from, to, s, label } = run
+          const { from, to, s } = run
+          const label = run.mixed ? TYPE_LABEL[s.type] : run.label
           barRange.set(s.id, { staffId: st.id, from: days[from], to: days[to], type: s.type })
           bars.push({
             key: s.id, from, span: to - from + 1,
-            tone: s.type === 'shift' ? 'yellow' : s.type === 'sick' ? 'dark' : 'grey',
+            tone: s.type === 'shift' ? 'yellow' : s.type === 'sick' ? 'dark' : 'white',
             label: team ? `${st.name} · ${TYPE_LABEL[s.type].toLowerCase()}` : label,
             range: rangeLabel(days[from], days[to]),
             on: !team && s.type === 'sick',
@@ -417,9 +445,9 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
           // csapat-nézetben csak a távollétek; egy embernél a műszak is (a szabadnap nem esemény)
           const show = s && s.type !== 'vacation' && (!team || s.type === 'sick' || s.type === 'leave')
           const label = s ? (s.type === 'shift' ? `Műszak · ${shiftLabel(s)}` : TYPE_LABEL[s.type]) : ''
-          if (show && run && run.label === label && run.to === i - 1) { run.to = i; return }
+          if (show && run && run.s.type === s!.type && run.to === i - 1) { run.to = i; if (run.label !== label) run.mixed = true; return }
           flush()
-          if (show) run = { from: i, to: i, s: s!, label }
+          if (show) run = { from: i, to: i, s: s!, label, mixed: false }
         })
         flush()
       }
@@ -444,7 +472,7 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
       return { id: st.id, name: st.name, role: st.role, img: st.avatarUrl, a: Math.min(100, (hoursOf(own, 'shift') / target) * 100), b: Math.min(100, ((hoursOf(own, 'sick') + hoursOf(own, 'leave')) / target) * 100) }
     })
     const monthMenu = <MonthMenu y={y} m={m} onPick={(yy, mm) => setDate(ymd(yy, mm, 1))} />
-    const segs = [{ label: 'Munkanap', value: fmtH(work), weight: (work / sum) * 100, tone: 'yellow' as const }, { label: 'Beteg', value: fmtH(sick), weight: (sick / sum) * 100, tone: 'dark' as const }, { label: 'Szabadság', value: fmtH(leave), weight: (leave / sum) * 100, tone: 'grey' as const }]
+    const segs = [{ label: 'Munkanap', value: fmtH(work), weight: (work / sum) * 100, tone: 'yellow' as const }, { label: 'Beteg', value: fmtH(sick), weight: (sick / sum) * 100, tone: 'dark' as const }, { label: 'Szabadság', value: fmtH(leave), weight: (leave / sum) * 100, tone: 'white' as const }, ...(freeDays > 0 ? [{ label: 'Szabadnap', value: `${freeDays} nap`, weight: ((freeDays * 8) / (sum + freeDays * 8)) * 100, tone: 'hatch' as const }] : [])]
     // a kiválasztott nap munkatársai (desktopon a jobb oszlop, mobilon a hónap alatt)
     const dayCard = (() => {
       const dk = toDate(dayKey)
@@ -494,18 +522,28 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
     const ds = detail ? shifts.find((x) => x.id === detail) : null
     const dsBar = ds ? rows.flatMap((r) => r.bars).find((b) => b.key === ds.id) : null
     const dsDays = dsBar ? dsBar.span : 1
+    // mobil: koppintás = kiválasztás (nap vagy szakasz, kerettel); a fejléc ceruzája a kiválasztottat szerkeszti — a
+    // szakaszt teljes egészében (mettől meddig), a napot a nap-szerkesztőben
+    const editBar = (id: string) => { const b = barRange.get(id); if (!b) return; if (b.type === 'shift') setNewShift({ staffId: b.staffId, from: b.from, to: b.to }); else openDay(b.from, b.staffId) }
+    if (canManage) editActionRef.current = detail ? () => editBar(detail) : () => (sel ? openDay(dayKey, sel.id) : setNewShift(dayKey))
     const mobile = (
       <div className="lg:hidden">
         <MonthHours compact team={team} total={<><span className="block">{thousands(work + sick + leave)} ó</span><span className="mt-1 block">{thousands(money)} Ft</span></>} month={monthMenu} segments={segs}
-          rows={rows.map((r) => ({ ...r, bars: r.bars.map((b) => ({ ...b, on: b.key === detail })) }))}
-          onDay={team ? (d) => { setSelDay(d); setDetail(null) } : canManage ? (d) => openDay(d, sel?.id ?? null) : undefined} onBar={(id) => setDetail((cur) => (cur === id ? null : id))} />
+          rows={rows.map((r) => ({ ...r, cells: detail ? r.cells.map((c) => ({ ...c, selected: false })) : r.cells, bars: r.bars.map((b) => ({ ...b, on: b.key === detail })) }))}
+          // csapat-nézetben a távollét-kártya a napjait takarja: rákoppintva a kártya kezdőnapja is kiválasztódik, és
+          // alatta ugyanúgy látszik, ki dolgozik aznap
+          onDay={(d) => { setSelDay(d); setDetail(null) }} onBar={(id) => { setDetail((cur) => (cur === id ? null : id)); if (team) { const b = barRange.get(id); if (b) setSelDay(b.from) } }} />
         {ds && dsBar && (
-          <ShiftDetailCard className="mt-3" title={team ? `${staffById.get(ds.staffId)?.name ?? ''} · ${TYPE_LABEL[ds.type].toLowerCase()}` : TYPE_LABEL[ds.type]} note={ds.note && ds.note !== '__auto__' ? ds.note : null}
+          <ShiftDetailCard className="mt-3" tone={ds.type === 'shift' ? 'yellow' : ds.type === 'sick' ? 'dark' : 'grey'} onEdit={canManage ? () => editBar(ds.id) : undefined} title={team ? `${staffById.get(ds.staffId)?.name ?? ''} · ${TYPE_LABEL[ds.type].toLowerCase()}` : TYPE_LABEL[ds.type]} note={ds.note && ds.note !== '__auto__' ? ds.note : null}
             hours={fmtH(ds.type === 'shift' ? shiftHours(ds) * dsDays : 8 * dsDays)}
             meta={[ds.type === 'shift' ? 'beosztás' : `${ds.type === 'sick' ? 'betegszabadság' : TYPE_LABEL[ds.type].toLowerCase()}${ds.paid ? ' · fizetett' : ''}`, dsBar.range]}
             file={ds.type === 'sick' && ds.sickNote ? <SickNoteFile onDark name={ds.sickNote.filename} meta={`Orvosi igazolás${ds.sickNote.filesize ? ` · ${Math.max(1, Math.round(ds.sickNote.filesize / 1024))} KB` : ''}`} href={`/api/shifts/${ds.id}/sick-note`} /> : null} />
         )}
-        {team && !ds && <div className="mt-3">{dayCard}</div>}
+        {/* csapat-nézet: a rács alatt a kiválasztott nap és a hónap távollétei (desktopon a jobb oszlop) */}
+        {team && <div className={ds ? 'mt-[5px]' : 'mt-3'}>{dayCard}</div>}
+        {team && (
+          <TeamAbsences className="mt-[5px]" month={MONTHS[m]} rows={absences} holidays={holidays.length ? `Zárva: ${holidays.map((d) => `${MONTHS_SHORT[m]} ${toDate(d).getDate()}.`).join(', ')} (a nyitvatartásból)` : null} onPick={canManage ? (k) => { const [sid, d] = k.split('|'); openDay(d, sid) } : undefined} />
+        )}
       </div>
     )
     return (
@@ -587,7 +625,8 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
     return (
       <WeekSchedule
         range={rangeLabel(days[0], days[6])}
-        onStep={(dir) => setDate(addDays(date, dir * 7))}
+        onStep={(dir) => { weekDir.current = dir; setDate(addDays(date, dir * 7)) }}
+        slideDir={weekDir.current}
         total={fmtH(total)}
         days={days.map((d, i) => ({ d: DAYS[i], n: toDate(d).getDate(), today: d === today, closed: isClosed(d) }))}
         rows={rows}
@@ -643,6 +682,13 @@ export function CalendarView({ variant = 'salon', salonId, restaurantId, staff, 
     <div className="p-4 lg:p-0">
       {head}
       <div className="max-lg:hidden">{toolbar}</div>
+      {/* mobil: a fejléc kereső-ikonja nyitja (munkatárs neve), X-szel bezárható */}
+      {mobileSearch && (
+        <div className="mb-3 flex items-center gap-1.5 lg:hidden">
+          <SearchField autoFocus className="min-w-0 flex-1" value={query} onChange={setQuery}>Munkatárs keresése…</SearchField>
+          <IconButton icon={X} label="Keresés bezárása" variant="glass" onClick={() => { setQuery(''); setMobileSearch(false) }} />
+        </div>
+      )}
       {mobileSheet}
       {view === 'month' ? monthView() : view === 'week' ? weekView() : dayView()}
 

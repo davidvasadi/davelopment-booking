@@ -157,6 +157,14 @@ html {
   .ui-hatch-cell {
     background: repeating-linear-gradient(120deg, var(--ui-cell) 0 7px, rgba(130,130,130,.35) 7px 8px);
   }
+  /* Ugyanez sűrűbben — a Naptár (beosztás) celláin, ahol a cellák kisebbek és több a csíkos nap. */
+  .ui-hatch-cell-dense {
+    background: repeating-linear-gradient(120deg, var(--ui-cell) 0 4px, rgba(130,130,130,.35) 4px 5px);
+  }
+  /* Ugyanezek a vonalak cella-háttér nélkül (a Naptár hónapon kívüli napjai) */
+  .ui-hatch-lines-dense {
+    background: repeating-linear-gradient(120deg, transparent 0 4px, rgba(130,130,130,.35) 4px 5px);
+  }
   /* Csík ráterítve (idővonal, zárás utáni sáv): átlátszó, így az alatta lévő foglalás látszik, csak csíkozva. */
   .ui-hatch-over {
     background: repeating-linear-gradient(120deg, transparent 0 10px, rgba(255,255,255,.45) 10px 12.5px);
@@ -201,7 +209,11 @@ html {
   /* sáv kirajzolása balról jobbra (pl. a havi naptár műszak-pilljei) — a pillekkel egy ütemben, torzítás nélkül (clip-path) */
   @keyframes ui-draw-x { from { clip-path: inset(0 100% 0 0 round 9999px); } to { clip-path: inset(0 0 0 0 round 9999px); } }
   .ui-draw-x { animation: ui-draw-x .85s cubic-bezier(.33, 1, .68, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
-  @media (prefers-reduced-motion: reduce) { .ui-grow-y, .ui-ring-draw, .ui-draw-x { animation: none; } }
+  /* Lapozáskor egy-egy elem becsúszása (a SlideSwap rugós mozgása CSS-ben): `--dx` = honnan (pl. 56px jobbról, -56px balról).
+     Ott kell, ahol nem az egész doboz csúszik, csak egyes részei (pl. a heti beosztásban a napok, a nevek nem). */
+  @keyframes ui-slide-in { from { transform: translateX(var(--dx, 0)); opacity: 0; } to { transform: none; opacity: 1; } }
+  .ui-slide-in { animation: ui-slide-in .5s cubic-bezier(.34, 1.4, .64, 1) both; }
+  @media (prefers-reduced-motion: reduce) { .ui-grow-y, .ui-ring-draw, .ui-draw-x, .ui-slide-in { animation: none; } }
   @keyframes ui-pop-item { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .ui-stagger [data-stagger] > * { animation: ui-pop-item .38s cubic-bezier(.2,.9,.3,1.15) both; }
   .ui-stagger [data-stagger] > *:nth-child(1) { animation-delay: 60ms; }
@@ -318,8 +330,8 @@ html {
    ez a szaggatás fő oka. Mobilon csak sötétítés marad; asztalon az elmosás változatlan.
    (Minden ilyen háttér `fixed|absolute inset-0 … backdrop-blur-*` — erre illesztünk.) */
 @media (max-width: 1023px) {
-  .fixed[class*='inset-0'][class*='backdrop-blur'],
-  .absolute[class*='inset-0'][class*='backdrop-blur'] {
+  .fixed[class*='inset-0'][class*='backdrop-blur']:not(.ui-blur-only),
+  .absolute[class*='inset-0'][class*='backdrop-blur']:not(.ui-blur-only) {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
     /* elmosás nélkül a halvány (6%-os) dim szinte láthatatlan → egységes, kicsit erősebb sötétítés */

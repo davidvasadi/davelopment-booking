@@ -20,10 +20,12 @@ export async function GET(req: NextRequest) {
   if (!salonId) return NextResponse.json({ count: 0 })
   const denied = await assertCapability(user.id, 'salon', salonId, 'schedule.manage')
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
-  const res = await payload.count({
+  // a legelső érintett foglalás is (a „Foglalások áthelyezése” link azt nyitja meg)
+  const res = await payload.find({
     collection: 'bookings',
     where: { and: [{ staff: { equals: staff } }, { date: { greater_than_equal: from } }, { date: { less_than_equal: to } }, { status: { not_in: ['cancelled', 'no_show'] } }] },
-    overrideAccess: true,
+    sort: ['date', 'start_time'], limit: 1, depth: 0, overrideAccess: true,
   })
-  return NextResponse.json({ count: res.totalDocs })
+  const f = res.docs[0] as { id: number | string; date?: string | null } | undefined
+  return NextResponse.json({ count: res.totalDocs, first: f ? { id: String(f.id), date: String(f.date ?? '').slice(0, 10) } : null })
 }

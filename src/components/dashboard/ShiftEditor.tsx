@@ -127,14 +127,16 @@ export function ShiftEditor({ date, staffId: initialStaff, staff, shifts, isRest
 
   // a munkatárs foglalásai az érintett napokon (szalon) — „ezen a napon 3 foglalása van”
   const [bookings, setBookings] = useState<number | null>(null)
+  const [firstBooking, setFirstBooking] = useState<{ id: string; date: string } | null>(null)
   const from = v.type === 0 ? date : v.from || date
   const to = v.type === 0 ? date : v.to || from
   useEffect(() => {
     setBookings(null)
+    setFirstBooking(null)
     if (isRestaurant || !staffId || to < from) return
     const ctrl = new AbortController()
     fetch(`/api/shifts/bookings-count?staff=${staffId}&from=${from}&to=${to}`, { credentials: 'include', signal: ctrl.signal })
-      .then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && typeof j.count === 'number') setBookings(j.count) }).catch(() => {})
+      .then((r) => (r.ok ? r.json() : null)).then((j) => { if (j && typeof j.count === 'number') { setBookings(j.count); setFirstBooking(j.first ?? null) } }).catch(() => {})
     return () => ctrl.abort()
   }, [isRestaurant, staffId, from, to])
 
@@ -147,7 +149,10 @@ export function ShiftEditor({ date, staffId: initialStaff, staff, shifts, isRest
   const usedLeave = staffId ? shifts.filter((s) => s.staffId === staffId && s.type === 'leave' && s.date.startsWith(year) && !(s.date >= from && s.date <= to)).length : 0
   const keret = person?.annual_leave_days
   const leaveHint = keret != null ? `Éves keret: ${keret} nap · ezzel ${Math.max(0, keret - usedLeave - (v.type === 1 ? nDays : 0))} marad` : undefined
-  const bookingsLink = `${isRestaurant ? '/restaurant' : '/dashboard'}/bookings?date=${from}&range=${nDays > 1 ? 'week' : 'day'}`
+  // az érintett (legelső) foglalás nyílik meg a napján; ha még nem tudjuk, a nap / hét
+  const bookingsLink = firstBooking
+    ? `${isRestaurant ? '/restaurant' : '/dashboard'}/bookings?date=${firstBooking.date}&range=day&booking=${firstBooking.id}`
+    : `${isRestaurant ? '/restaurant' : '/dashboard'}/bookings?date=${from}&range=${nDays > 1 ? 'week' : 'day'}`
   const warn = closed && type === 'shift' ? <Note warn className="mt-2">Ezen a napon zárva vagytok (a nyitvatartás szerint) — műszak nem adható.{existing?.type === 'shift' ? ' A meglévő műszakot töröld vagy állítsd át.' : ''}</Note> : bookings ? <Note warn className="mt-2">{nDays} nap · erre az időre {bookings} foglalása van — áthelyezed őket? <a href={bookingsLink} className="whitespace-nowrap underline underline-offset-4">Foglalások áthelyezése</a></Note> : null
 
   const input = (): ShiftInput => ({
