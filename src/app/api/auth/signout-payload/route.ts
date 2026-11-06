@@ -9,8 +9,13 @@
  */
 
 import { NextResponse } from 'next/server'
+import { currentSessionId, getCurrentUser } from '@/lib/auth'
+import { revokeSession } from '@/lib/authSessions'
 
 export async function POST() {
+  // a bejelentkezés (eszköz) is lezárul — a token máshonnan (pl. ellopva) sem használható tovább
+  const [sid, user] = await Promise.all([currentSessionId(), getCurrentUser()])
+  if (sid && user) await revokeSession(user.id, sid).catch(() => {})
   const res = NextResponse.json({ ok: true })
   // payload-token: a mi saját, jose-aláírt JWT-nk
   res.cookies.set('payload-token', '', {

@@ -19,7 +19,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/auth'
-import { issuePayloadToken, PAYLOAD_COOKIE, TOKEN_TTL_SECONDS } from '@/auth'
+import { startSession } from '@/lib/authLogin'
 import { getPayloadClient } from '@/lib/payload'
 
 export async function GET(req: NextRequest) {
@@ -67,12 +67,11 @@ export async function GET(req: NextRequest) {
       overrideAccess: true,
     })
     role = (user as { role?: string } | null)?.role
+    // utolsó belépés (Beállítások › Csapat) — hiba esetén a belépés ettől még megy
+    await payload.update({ collection: 'users', id: sessionToken.payloadId!, data: { last_login_at: new Date().toISOString() }, overrideAccess: true }).catch(() => null)
   } catch {
     // ha nem kérdezhető le, marad undefined → default 'salon_owner'
   }
-
-  // 2. Payload-token kiállítás (role-lal együtt, mert a séma saveToJWT: true).
-  const token = await issuePayloadToken(sessionToken.payloadId!, sessionToken.payloadEmail!, role)
 
   // 3. Cél meghatározása: next query-param vagy role szerinti dashboard
   let dest = req.nextUrl.searchParams.get('next')
@@ -86,13 +85,8 @@ export async function GET(req: NextRequest) {
   if (!dest.startsWith('/')) dest = '/dashboard'
 
   // 3. Redirect + cookie beállítás (a NextResponse.cookies.set garantáltan a Set-Cookie headerre megy)
+  // a token a bejelentkezéshez (eszközhöz) kötve — Saját profil › Eszközök-ből kijelentkeztethető
   const res = NextResponse.redirect(new URL(dest, baseUrl))
-  res.cookies.set(PAYLOAD_COOKIE, token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: TOKEN_TTL_SECONDS,
-  })
+  await startSession(req, res, { id: sessionToken.payloadId!, email: sessionToken.payloadEmail!, role })
   return res
 }

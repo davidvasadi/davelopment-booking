@@ -23,6 +23,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { getPayloadClient } from '@/lib/payload'
 import { readPendingRegistration, clearPendingRegistration } from '@/lib/pendingRegistration'
 import { ACTIVE_BUSINESS_COOKIE } from '@/lib/activeBusiness'
+import { emailWasKnown, recordReferral, REF_COOKIE } from '@/lib/referrals'
 
 export async function GET(_req: NextRequest) {
   // Publikus origin a redirectekhez (nginx-proxy mögött a _req.url localhost lenne).
@@ -42,6 +43,7 @@ export async function GET(_req: NextRequest) {
   // hogy egy vegyes fiók (aki máshol alkalmazott) a saját friss üzletén kössön ki, ne a régi
   // munkahelyén (a /dashboard|/restaurant redirect különben az aktív membership-üzletre vinne).
   let activeKey: string | null = null
+  let referral: { code: string | null; wasKnown: boolean } | null = null
 
   try {
     // 1. User adatok frissítése (role + név), CSAK ha a user még nem rendelkezik place-szel.
@@ -51,6 +53,9 @@ export async function GET(_req: NextRequest) {
       (user.role === 'restaurant_owner' && user.restaurant)
 
     if (!alreadyHasPlace) {
+      // ajánló: csak friss (most, a Google-belépéskor létrejött) fióknál, és ha az e-mail még nem járt nálunk
+      const fresh = Date.now() - new Date(String((user as { createdAt?: string }).createdAt ?? 0)).getTime() < 60 * 60_000
+      if (fresh) referral = { code: _req.cookies.get(REF_COOKIE)?.value ?? null, wasKnown: await emailWasKnown(payload, user.email) }
       // 2. Place létrehozása + userhez kapcsolás
       if (pending.role === 'salon_owner') {
         const salon = await payload.create({
@@ -94,6 +99,7 @@ export async function GET(_req: NextRequest) {
         })
       }
     }
+    if (referral?.code) await recordReferral(payload, { code: referral.code, referredUserId: user.id, referredName: pending.placeName, wasKnown: referral.wasKnown })
   } catch (e) {
     console.error('[complete-registration] hiba:', e)
     // Nem dobunk hibát a usernek — a user már be van jelentkezve, csak a cégadatokat
@@ -114,5 +120,6 @@ export async function GET(_req: NextRequest) {
       maxAge: 60 * 60 * 24 * 365,
     })
   }
+  if (referral) res.cookies.delete(REF_COOKIE)
   return res
 }

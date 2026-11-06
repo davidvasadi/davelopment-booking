@@ -49,11 +49,11 @@ export function BackstageLoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-ink-dark flex items-center justify-center px-6">
+    <div className="min-h-screen bg-ui-dark flex items-center justify-center px-6">
       <div className="w-full max-w-sm">
         <div className="mb-10">
           <BrandLogo variant="dark" className="h-8" />
-          <p className="text-[11px] text-gold font-semibold uppercase tracking-widest mt-2">Backstage</p>
+          <p className="text-[11px] text-ui-yellow font-semibold uppercase tracking-widest mt-2">Backstage</p>
         </div>
 
         <h1 className="text-white font-light text-3xl tracking-[-0.02em] mb-1">Belépés</h1>
@@ -65,7 +65,7 @@ export function BackstageLoginForm() {
             <input
               type="email"
               placeholder="admin@pelda.hu"
-              className={`w-full h-11 rounded-[14px] bg-white/[0.05] border text-white placeholder:text-white/30 px-4 text-sm focus:outline-none transition-colors ${errors.email ? 'border-red-500' : 'border-white/10 focus:border-gold/60'}`}
+              className={`w-full h-11 rounded-[14px] bg-white/[0.05] border text-white placeholder:text-white/30 px-4 text-sm focus:outline-none transition-colors ${errors.email ? 'border-red-500' : 'border-white/10'}`}
               {...register('email')}
             />
             {errors.email && <p className="text-xs text-red-400">Érvényes email szükséges</p>}
@@ -77,7 +77,7 @@ export function BackstageLoginForm() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
-                className={`w-full h-11 rounded-[14px] bg-white/[0.05] border text-white placeholder:text-white/30 px-4 pr-11 text-sm focus:outline-none transition-colors ${errors.password ? 'border-red-500' : 'border-white/10 focus:border-gold/60'}`}
+                className={`w-full h-11 rounded-[14px] bg-white/[0.05] border text-white placeholder:text-white/30 px-4 pr-11 text-sm focus:outline-none transition-colors ${errors.password ? 'border-red-500' : 'border-white/10'}`}
                 {...register('password')}
               />
               <button
@@ -94,7 +94,7 @@ export function BackstageLoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-12 rounded-full bg-gold text-ink-dark font-semibold text-sm flex items-center justify-center gap-2 mt-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+            className="w-full h-12 rounded-full bg-ui-yellow text-ui-dark font-semibold text-sm flex items-center justify-center gap-2 mt-2 hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             {loading
               ? <Loader2 className="h-4 w-4 animate-spin" />

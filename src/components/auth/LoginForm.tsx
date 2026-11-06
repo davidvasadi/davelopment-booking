@@ -1,325 +1,97 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
+import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
-import Link from 'next/link'
-import { ArrowRight, Loader2, Eye, EyeOff } from 'lucide-react'
-import { motion, MotionConfig } from 'framer-motion'
-import { listStagger } from '@/lib/motion'
-import { BrandLogo } from '@/components/BrandLogo'
+import { AuthMobile, AuthScreen, AuthSplash, LoginCodeForm, LoginEmailForm } from '@/components/blocks/auth'
 import { GoogleSignInButton } from '@/components/auth/GoogleSignInButton'
-import { authInputBase, authLabelBase, authInputDark, authLabelDark, authPillBtnLight, authGhostBtnDark, authDividerDark, authErrorText, authErrorTextDark, authDivider, BRAND_COPYRIGHT } from '@/components/auth/authStyles'
 import { AuthVideoBg } from '@/components/auth/AuthVideoBg'
-import { AuthPillButton } from '@/components/auth/AuthPillButton'
 
-const schema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-})
-type FormData = z.infer<typeof schema>
+/**
+ * Belépés (design 3.1–3.5): e-mail → 6 jegyű kód e-mailben → belépés, 7 napig ezen az eszközön; vagy Google. Jelszó
+ * nincs. Desktopon a kétoszlopos képernyő (bal a videó), mobilon teljes képernyős sötét a videón: kezdőképernyő →
+ * e-mail → kód. A kód-kérés és -ellenőrzés: /api/auth/code/request, /api/auth/code/verify.
+ */
+const RESEND_SECONDS = 30
+const ERR: Record<string, string> = {
+  expired: 'Lejárt a kód — kérj újat.',
+  locked: 'Túl sok hibás próbálkozás — kérj új kódot.',
+  rate_limited: 'Túl sok kérés — próbáld újra pár perc múlva.',
+  send_failed: 'Nem sikerült elküldeni a kódot — próbáld újra.',
+  invalid: 'Érvényes e-mail címet adj meg.',
+}
 
 export function LoginForm() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const from = searchParams.get('from') ?? '/dashboard'
-  const [loading, setLoading] = useState(false)
-  const [showForm, setShowForm] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  // Szerver-oldali bejelentkezési hiba (hibás email/jelszó, meg nem erősített fiók stb.) —
-  // NEM toast, hanem a mezők alatti inline szöveg + rezzenés, mint a többi form-hibánál.
-  const [serverError, setServerError] = useState<string | null>(null)
-  const [shakeKey, setShakeKey] = useState(0)
-  // Csak az aktív eszköz form-ját rendereljük (mobil VAGY desktop), különben két azonos
-  // name-ű input kerülne a DOM-ba, és a react-hook-form a rossz (rejtett) mezőt olvasná
-  // → üres adat → néma "hibás adatok" visszadobás. mounted: SSR-hidratációs eltérés ellen.
+  const params = useSearchParams()
   const [mounted, setMounted] = useState(false)
-  const [isDesktop, setIsDesktop] = useState(false)
+  const [desktop, setDesktop] = useState(false)
+  const [step, setStep] = useState<'splash' | 'email' | 'code'>('splash')
+  const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(params.get('error') ? 'A Google-belépés nem sikerült — próbáld újra, vagy lépj be kóddal.' : null)
+  const [resendIn, setResendIn] = useState(0)
+
   useEffect(() => {
     setMounted(true)
     const mq = window.matchMedia('(min-width: 1024px)')
-    const update = () => setIsDesktop(mq.matches)
-    update()
-    mq.addEventListener('change', update)
-    return () => mq.removeEventListener('change', update)
+    const up = () => setDesktop(mq.matches)
+    up(); mq.addEventListener('change', up)
+    return () => mq.removeEventListener('change', up)
   }, [])
+  useEffect(() => {
+    if (resendIn <= 0) return
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000)
+    return () => clearTimeout(t)
+  }, [resendIn])
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  })
-
-  // Kliens-oldali (zod) validációs hiba is rezzenjen, ugyanúgy mint a szerver-oldali.
-  const onInvalid = () => setShakeKey((k) => k + 1)
-
-  const onSubmit = async (data: FormData) => {
-    setLoading(true)
-    setServerError(null)
+  const requestCode = async () => {
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) { setError(ERR.invalid); return }
+    setBusy(true); setError(null)
     try {
-      const res = await fetch('/api/users/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-        credentials: 'include',
-      })
-      if (!res.ok) {
-        const errBody = await res.json().catch(() => ({}))
-        const rawMsg: string = errBody?.message ?? errBody?.errors?.[0]?.message ?? ''
-        const lowerMsg = rawMsg.toLowerCase()
-        // A Payload angol hibaüzeneteket ad vissza (verzió-függő pontos szöveggel) — ezeket
-        // ismerjük fel kulcsszó alapján és fordítjuk magyarra. Direkt NEM áruljuk el, hogy az
-        // email vagy a jelszó a rossz (account enumeration ellen), ezért minden fel nem ismert/
-        // "hibás belépés" jellegű hiba is az általános üzenetre esik vissza — a nyers angol
-        // szöveg SOSE jusson ki a felhasználóhoz.
-        if (lowerMsg.includes('verif')) {
-          throw new Error('Erősítsd meg az email-címed a regisztrációkor kapott linkkel, mielőtt bejelentkezel.')
-        }
-        if (lowerMsg.includes('locked')) {
-          throw new Error('Túl sok sikertelen próbálkozás — a fiók átmenetileg zárolva, próbáld újra néhány perc múlva.')
-        }
-        throw new Error('Hibás email cím vagy jelszó')
-      }
-      const json = await res.json()
-      const role = json?.user?.role
-      if (role === 'admin') {
-        await fetch('/api/auth/signout-payload', { method: 'POST', credentials: 'include' })
-        throw new Error('Admin fiókok a Backstage-en keresztül léphetnek be')
-      }
-      const home = role === 'restaurant_owner' ? '/restaurant' : '/dashboard'
-      const hasFrom = searchParams.get('from')
-      const safeTo = hasFrom && from.startsWith('/') && !from.startsWith('//') ? from : home
-      router.push(safeTo)
-    } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Bejelentkezés sikertelen')
-      setShakeKey((k) => k + 1)
-    } finally {
-      setLoading(false)
-    }
+      const r = await fetch('/api/auth/code/request', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email.trim(), purpose: 'login' }) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) { setError(ERR[j.error] ?? 'Nem sikerült — próbáld újra.'); return }
+      setCode(''); setStep('code'); setResendIn(RESEND_SECONDS)
+    } finally { setBusy(false) }
   }
 
-  // Mount előtt egy semleges sötét hátteret adunk (megegyezik mindkét layout alap-bg-jével),
-  // hogy ne legyen villanás és ne renderelődjön egyik form sem a kliens-detektálás előtt.
-  if (!mounted) {
-    return <div className="min-h-dvh bg-ink-dark" />
+  const verify = async (value = code) => {
+    if (value.length < 6 || busy) return
+    setBusy(true); setError(null)
+    try {
+      const r = await fetch('/api/auth/code/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include', body: JSON.stringify({ email: email.trim(), code: value }) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) {
+        setError(j.error === 'wrong' ? `Hibás kód — még ${j.left} próbálkozás.` : ERR[j.error] ?? 'Nem sikerült — próbáld újra.')
+        if (j.error !== 'wrong') setResendIn(0)
+        setCode('')
+        return
+      }
+      const from = params.get('from')
+      router.push(from && from.startsWith('/') && !from.startsWith('//') ? from : j.redirect ?? '/dashboard')
+      router.refresh()
+    } finally { setBusy(false) }
   }
 
+  if (!mounted) return <div className="min-h-dvh bg-ui-dark" />
+
+  const google = (dark: boolean) => <GoogleSignInButton variant={dark ? 'dark' : 'light'} spread={!dark} callbackUrl="/" label="Folytatás Google-lel" />
+  const emailForm = (dark: boolean) => <LoginEmailForm dark={dark} email={email} onEmail={(v) => { setEmail(v); setError(null) }} onSubmit={() => void requestCode()} busy={busy} error={error} google={google(dark)} registerHref="/register" />
+  const codeForm = (dark: boolean) => (
+    <LoginCodeForm dark={dark} email={email.trim()} code={code} onCode={(v) => { setCode(v); setError(null) }} onSubmit={(v) => void verify(v)} busy={busy} error={error}
+      onOtherEmail={() => { setStep('email'); setCode(''); setError(null) }} onResend={() => void requestCode()} resendIn={resendIn} />
+  )
+
+  if (desktop) {
+    return step === 'code'
+      ? <AuthScreen full media={<AuthVideoBg />} logoHref="/" title={<>Egy kód,<br />és bent<br />vagy.</>} sub="Nincs megjegyzendő jelszó — minden belépésnél friss kódot küldünk.">{codeForm(false)}</AuthScreen>
+      : <AuthScreen full media={<AuthVideoBg />} logoHref="/">{emailForm(false)}</AuthScreen>
+  }
   return (
-    <MotionConfig reducedMotion="user">
-      {/* ── MOBILE ─────────────────────────────────────────────────── */}
-      {!isDesktop && (
-      <div className="relative min-h-dvh bg-ink-dark font-onest flex flex-col">
-        <AuthVideoBg fullScreen />
-        {!showForm ? (
-          /* Splash screen */
-          <div className="relative z-10 flex flex-col justify-between flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
-            <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-              <BrandLogo variant="dark" className="h-8" />
-            </Link>
-            <h1 className="text-white font-light text-[3.25rem] uppercase leading-[1.0] tracking-[-0.02em]">
-              KEZELD <br />OKOSAN<br />A SZALONOD.
-            </h1>
-            <div className="space-y-4">
-              <button
-                onClick={() => setShowForm(true)}
-                className={authPillBtnLight}
-              >
-                Bejelentkezés
-              </button>
-              <Link href="/register" className={authGhostBtnDark}>
-                Regisztráció
-              </Link>
-              {/* VAGY elválasztó + Google ikon a splash-en is, hogy egy érintéssel beléphessen. */}
-              <div className={`${authDividerDark} pt-1`}>
-                <span className="h-px flex-1 bg-white/10" />vagy<span className="h-px flex-1 bg-white/10" />
-              </div>
-              <GoogleSignInButton variant="dark" callbackUrl="/" label="Bejelentkezés Google-lel" />
-              <p className="text-white/40 text-xs text-center pt-1">
-                A folytatással elfogadod az{' '}
-                <Link href="/terms" className="text-white/55 underline hover:text-white/80 transition-colors">ÁSZF</Link>-et
-              </p>
-            </div>
-          </div>
-        ) : (
-          /* Login form on dark bg */
-          <div className="relative z-10 flex flex-col justify-between flex-1 px-7 pb-10" style={{ paddingTop: 'calc(3rem + env(safe-area-inset-top))' }}>
-            <button
-              onClick={() => setShowForm(false)}
-              aria-label="Vissza"
-              className="text-white/50 text-sm text-left w-fit hover:text-white/80 transition-colors"
-            >
-              ← Vissza
-            </button>
-            <motion.div variants={listStagger.container} initial="hidden" animate="show">
-              <motion.h2 variants={listStagger.item} className="text-white font-light text-[2.25rem] uppercase tracking-[-0.02em] leading-[1.05] mb-8">
-                ÜDVÖZLÜNK<br />VISSZA.
-              </motion.h2>
-              <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-3" noValidate>
-                <div key={`m-email-${shakeKey}`} className={cn('space-y-1.5', (errors.email || serverError) && 'animate-shake')}>
-                  <Label htmlFor="login-m-email" className={authLabelDark}>Email</Label>
-                  <input
-                    id="login-m-email"
-                    type="email"
-                    autoComplete="email"
-                    inputMode="email"
-                    placeholder="te@pelda.hu"
-                    aria-invalid={!!errors.email || !!serverError}
-                    aria-describedby={errors.email ? 'login-m-email-err' : undefined}
-                    className={cn(authInputDark, (errors.email || serverError) && 'ring-2 ring-red-400 border-red-400')}
-                    {...register('email', { onChange: () => setServerError(null) })}
-                  />
-                  {errors.email && <p id="login-m-email-err" role="alert" className={authErrorTextDark}>Érvényes email szükséges</p>}
-                </div>
-                <div key={`m-pw-${shakeKey}`} className={cn('space-y-1.5', (errors.password || serverError) && 'animate-shake')}>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="login-m-pw" className={authLabelDark}>Jelszó</Label>
-                    <Link href="/forgot-password" className="text-xs text-white/50 no-underline hover:text-white/80 transition-colors">
-                      Elfelejtetted?
-                    </Link>
-                  </div>
-                  <div className="relative">
-                    <input
-                      id="login-m-pw"
-                      type={showPassword ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      aria-invalid={!!errors.password || !!serverError}
-                      aria-describedby={errors.password ? 'login-m-pw-err' : serverError ? 'login-m-server-err' : undefined}
-                      className={cn(authInputDark, 'pr-11', (errors.password || serverError) && 'ring-2 ring-red-400 border-red-400')}
-                      {...register('password', { onChange: () => setServerError(null) })}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(p => !p)}
-                      aria-label={showPassword ? 'Jelszó elrejtése' : 'Jelszó megjelenítése'}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/50 hover:text-white/80 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                  {errors.password && <p id="login-m-pw-err" role="alert" className={authErrorTextDark}>Minimum 6 karakter</p>}
-                  {!errors.password && serverError && <p id="login-m-server-err" role="alert" className={authErrorTextDark}>{serverError}</p>}
-                </div>
-                <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className={authPillBtnLight}
-                  >
-                    {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <>Bejelentkezés <ArrowRight className="h-4 w-4" /></>}
-                  </button>
-                </div>
-              </motion.form>
-              <motion.div variants={listStagger.item} className={`${authDividerDark} mt-6`}>
-                <span className="h-px flex-1 bg-white/10" />vagy<span className="h-px flex-1 bg-white/10" />
-              </motion.div>
-              <motion.div variants={listStagger.item} className="mt-3">
-                <GoogleSignInButton variant="dark" callbackUrl="/" label="Bejelentkezés Google-lel" />
-              </motion.div>
-            </motion.div>
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* ── DESKTOP ────────────────────────────────────────────────── */}
-      {isDesktop && (
-      <div className="min-h-dvh bg-[#f7f7f7] p-5 font-onest">
-        <div className="flex h-[calc(100dvh-40px)] gap-5">
-          {/* Left panel */}
-          <div className="relative w-[45%] overflow-hidden rounded-[30px] bg-ink-dark flex flex-col p-14 select-none">
-            <AuthVideoBg />
-            <div className="relative z-10 flex flex-col justify-between flex-1">
-              <Link href="/" aria-label="davelopment booking" className="w-fit hover:opacity-80 transition-opacity">
-                <BrandLogo variant="dark" className="h-8" />
-              </Link>
-              <div>
-                <h1 className="text-white font-light text-[3.5rem] uppercase leading-[1.05] tracking-[-0.02em]">
-                  KEZELD<br />OKOSAN <br />A SZALONOD.
-                </h1>
-                <p className="text-white/45 mt-5 text-sm leading-relaxed max-w-xs">
-                  Modern időpontfoglaló kis vállalkozásoknak. Egyszerű beállítás, azonnali eredmény.
-                </p>
-              </div>
-              <a href="https://davelopment.hu" target="_blank" rel="noopener noreferrer" className="text-white/30 text-xs hover:text-white/50 transition-colors">{BRAND_COPYRIGHT}</a>
-            </div>
-          </div>
-
-          {/* Right form panel */}
-          <div className="flex-1 flex items-center justify-center overflow-y-auto rounded-[30px] bg-white px-6 py-16 [color-scheme:light]">
-            <motion.div variants={listStagger.container} initial="hidden" animate="show" className="w-full max-w-md">
-            <motion.div variants={listStagger.item} className="mb-8">
-              <h2 className="text-[44px] font-light leading-[1.1] tracking-[-0.02em] text-ink">Üdv újra!</h2>
-              <p className="text-ink-soft text-base mt-2">Jelentkezz be a fiókodba.</p>
-            </motion.div>
-            <motion.form variants={listStagger.item} onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-4" noValidate>
-              <div key={`d-email-${shakeKey}`} className={cn('space-y-1.5', (errors.email || serverError) && 'animate-shake')}>
-                <Label htmlFor="login-d-email" className={authLabelBase}>Email</Label>
-                <input
-                  id="login-d-email"
-                  type="email"
-                  autoComplete="email"
-                  inputMode="email"
-                  placeholder="te@pelda.hu"
-                  aria-invalid={!!errors.email || !!serverError}
-                  aria-describedby={errors.email ? 'login-d-email-err' : undefined}
-                  className={cn(authInputBase, (errors.email || serverError) && 'ring-2 ring-bad/40 border-bad/60')}
-                  {...register('email', { onChange: () => setServerError(null) })}
-                />
-                {errors.email && <p id="login-d-email-err" role="alert" className={authErrorText}>Érvényes email szükséges</p>}
-              </div>
-              <div key={`d-pw-${shakeKey}`} className={cn('space-y-1.5', (errors.password || serverError) && 'animate-shake')}>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="login-d-pw" className={authLabelBase}>Jelszó</Label>
-                  <Link href="/forgot-password" className="text-xs text-ink-soft hover:text-ink no-underline transition-colors">
-                    Elfelejtetted?
-                  </Link>
-                </div>
-                <div className="relative">
-                  <input
-                    id="login-d-pw"
-                    type={showPassword ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    aria-invalid={!!errors.password || !!serverError}
-                    aria-describedby={errors.password ? 'login-d-pw-err' : serverError ? 'login-d-server-err' : undefined}
-                    className={cn(authInputBase, 'pr-11', (errors.password || serverError) && 'ring-2 ring-bad/40 border-bad/60')}
-                    {...register('password', { onChange: () => setServerError(null) })}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(p => !p)}
-                    aria-label={showPassword ? 'Jelszó elrejtése' : 'Jelszó megjelenítése'}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-soft hover:text-ink transition-colors"
-                  >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
-                {errors.password && <p id="login-d-pw-err" role="alert" className={authErrorText}>Minimum 6 karakter</p>}
-                {!errors.password && serverError && <p id="login-d-server-err" role="alert" className={authErrorText}>{serverError}</p>}
-              </div>
-              <AuthPillButton type="submit" loading={loading} className="mt-2">
-                Bejelentkezés
-              </AuthPillButton>
-            </motion.form>
-            {/* Google-bejelentkezés a form ALATT — VAGY elválasztó + széles social-pill. */}
-            <motion.div variants={listStagger.item} className={`${authDivider} mt-6`}>
-              <span className="h-px flex-1 bg-line" />vagy<span className="h-px flex-1 bg-line" />
-            </motion.div>
-            <motion.div variants={listStagger.item} className="mt-3">
-              <GoogleSignInButton variant="light" spread callbackUrl="/" label="Bejelentkezés Google-lel" />
-            </motion.div>
-            <motion.p variants={listStagger.item} className="mt-8 text-center text-sm text-ink-soft">
-              Nincs még fiókod?{' '}
-              <Link href="/register" className="font-semibold text-ink hover:underline no-underline">
-                Regisztráció
-              </Link>
-            </motion.p>
-            </motion.div>
-          </div>
-        </div>
-      </div>
-      )}
-    </MotionConfig>
+    <AuthMobile full media={<AuthVideoBg fullScreen />} logoHref="/" onBack={step === 'splash' ? undefined : () => { setStep(step === 'code' ? 'email' : 'splash'); setError(null) }}>
+      {step === 'splash' ? <AuthSplash onLogin={() => setStep('email')} registerHref="/register" google={google(true)} termsHref="/terms" />
+        : step === 'email' ? emailForm(true) : codeForm(true)}
+    </AuthMobile>
   )
 }

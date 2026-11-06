@@ -31,7 +31,8 @@ const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7 // 7 nap
  *   (különben a Payload `JWTAuthentication` strategy nem ismeri be).
  * A PAYLOAD_SECRET-tel aláírva (HS256), ugyanaz a kulcs amit a Payload natív login is használ.
  */
-async function issuePayloadToken(userId: number | string, email: string, role?: string): Promise<string> {
+/** `sid`: a bejelentkezés azonosítója (lib/authSessions) — az eszköz innen kijelentkeztethető. */
+async function issuePayloadToken(userId: number | string, email: string, role?: string, sid?: string): Promise<string> {
   const secret = process.env.PAYLOAD_SECRET
   if (!secret) throw new Error('PAYLOAD_SECRET hiányzik a környezetből')
   // A Payload 3 a JWT-kulcsot a PAYLOAD_SECRET SHA-256 hash-ének első 32 hex-karakteréből
@@ -40,7 +41,7 @@ async function issuePayloadToken(userId: number | string, email: string, role?: 
   const derived = crypto.createHash('sha256').update(secret).digest('hex').slice(0, 32)
   const key = new TextEncoder().encode(derived)
   const now = Math.floor(Date.now() / 1000)
-  return new SignJWT({ id: userId, email, collection: 'users', role: role ?? 'salon_owner' })
+  return new SignJWT({ id: userId, email, collection: 'users', role: role ?? 'salon_owner', ...(sid ? { sid } : {}) })
     .setProtectedHeader({ alg: 'HS256', typ: 'JWT' })
     .setIssuedAt(now)
     .setExpirationTime(now + TOKEN_TTL_SECONDS)

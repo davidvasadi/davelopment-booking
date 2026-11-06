@@ -63,16 +63,16 @@ export function GoogleSignInButton({
 }) {
   const [loading, setLoading] = useState(false)
   const base = spread
-    ? 'w-full inline-flex items-center justify-between gap-3 rounded-dav-pill p-[10px] pl-5 font-medium text-base transition-colors disabled:opacity-60'
+    ? 'w-full inline-flex items-center justify-between gap-3 rounded-full p-[10px] pl-5 font-medium text-base transition-colors disabled:opacity-60'
     // Klasszikus social-pill: teljes szélességű, ikon balra, szöveg középen-balra. Crextio pill.
-    : 'w-full inline-flex h-12 items-center justify-center gap-3 rounded-dav-pill font-semibold text-sm transition-colors disabled:opacity-60'
+    : 'w-full inline-flex h-12 items-center justify-center gap-3 rounded-full font-semibold text-sm transition-colors disabled:opacity-60'
   const styles = spread
-    ? 'bg-[#f7f7f7] text-ink hover:bg-[#efefef]'
+    ? 'bg-[#f7f7f7] text-ui-text hover:bg-[#efefef]'
     : variant === 'dark'
       // Sötét (ink-dark) panelen: világos szegély, fehér szöveg
       ? 'border border-white/15 bg-transparent text-white hover:bg-white/5 backdrop-blur-[10px]'
       // Világos hátteren: fehér háttér, meleg szegély, ink szöveg (Crextio social-pill)
-      : 'border border-line-strong bg-white text-ink hover:bg-paper shadow-dav-card'
+      : 'border border-ui-divider bg-white text-ui-text hover:bg-ui-cell'
   const Comp = spread ? motion.button : 'button'
   const hoverProps = spread ? { variants: buttonHover, initial: 'rest', whileHover: loading ? undefined : 'hover' } : {}
   return (

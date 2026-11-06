@@ -11,12 +11,12 @@ import { authPillBtn } from '@/components/auth/authStyles'
 // megjegyzését (render-en belüli definíció újramountolná a fát minden rendernél).
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-paper flex flex-col items-center justify-center px-5 py-10 font-onest [color-scheme:light]">
+    <div className="min-h-screen bg-ui-cell flex flex-col items-center justify-center px-5 py-10 font-onest [color-scheme:light]">
       <div className="w-full max-w-md">
         <Link href="/" aria-label="davelopment booking" className="mx-auto mb-8 block w-fit hover:opacity-80 transition-opacity">
           <BrandLogo variant="light" className="h-8" />
         </Link>
-        <div className="bg-white border border-line rounded-[24px] shadow-dav-card px-6 py-8 sm:px-8 sm:py-9">
+        <div className="bg-white border border-ui-divider rounded-[24px] px-6 py-8 sm:px-8 sm:py-9">
           {children}
         </div>
       </div>
@@ -43,32 +43,32 @@ function VerifyContent() {
       <div className="flex flex-col items-center text-center space-y-4">
         {status === 'loading' && (
           <>
-            <div className="h-14 w-14 rounded-2xl bg-gold/15 flex items-center justify-center">
-              <Loader2 className="h-6 w-6 text-ink animate-spin" />
+            <div className="h-14 w-14 rounded-2xl flex items-center justify-center">
+              <Loader2 className="h-6 w-6 text-ui-text animate-spin" />
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-ink">Ellenőrzés...</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-ui-text">Ellenőrzés...</h1>
           </>
         )}
         {status === 'success' && (
           <>
-            <div className="h-14 w-14 rounded-2xl bg-gold/15 flex items-center justify-center">
-              <Check className="h-7 w-7 text-ink" />
+            <div className="h-14 w-14 rounded-2xl flex items-center justify-center">
+              <Check className="h-7 w-7 text-ui-text" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-ink">Email megerősítve!</h1>
-              <p className="text-ink-soft text-sm mt-1.5">A fiókod aktív — jelentkezz be a folytatáshoz.</p>
+              <h1 className="text-2xl font-bold tracking-tight text-ui-text">Email megerősítve!</h1>
+              <p className="text-ui-muted text-sm mt-1.5">A fiókod aktív — jelentkezz be a folytatáshoz.</p>
             </div>
             <Link href="/login" className={`${authPillBtn} mt-2`}>Bejelentkezés</Link>
           </>
         )}
         {status === 'error' && (
           <>
-            <div className="h-14 w-14 rounded-2xl bg-bad/15 flex items-center justify-center">
-              <X className="h-7 w-7 text-bad" />
+            <div className="h-14 w-14 rounded-2xl flex items-center justify-center">
+              <X className="h-7 w-7 text-ui-bad" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-ink">Érvénytelen vagy lejárt link</h1>
-              <p className="text-ink-soft text-sm mt-1.5">Regisztrálj újra, vagy jelentkezz be, ha már megerősítetted korábban.</p>
+              <h1 className="text-2xl font-bold tracking-tight text-ui-text">Érvénytelen vagy lejárt link</h1>
+              <p className="text-ui-muted text-sm mt-1.5">Regisztrálj újra, vagy jelentkezz be, ha már megerősítetted korábban.</p>
             </div>
             <Link href="/register" className={`${authPillBtn} mt-2`}>Vissza a regisztrációhoz</Link>
           </>
@@ -80,7 +80,7 @@ function VerifyContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-paper" />}>
+    <Suspense fallback={<div className="min-h-screen bg-ui-cell" />}>
       <VerifyContent />
     </Suspense>
   )
