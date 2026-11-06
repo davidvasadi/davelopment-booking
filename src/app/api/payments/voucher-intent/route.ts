@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { getPayloadClient } from '@/lib/payload'
 import { getStripe, hufToStripeMinor } from '@/lib/stripe'
 import type { Salon, Restaurant, GiftVoucherType } from '@/payload/payload-types'
+import { isBusinessLocked, LOCKED_ERROR } from '@/lib/businessLock'
 
 const schema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('salon'), salonId: z.coerce.string(), voucherTypeId: z.coerce.string(), email: z.string().email().optional() }),
@@ -42,6 +43,7 @@ export async function POST(request: NextRequest) {
         ? ((await payload.findByID({ collection: 'salons', id: data.salonId, overrideAccess: true }).catch(() => null)) as Salon | null)
         : ((await payload.findByID({ collection: 'restaurants', id: data.restaurantId, overrideAccess: true }).catch(() => null)) as Restaurant | null)
     if (!business) return NextResponse.json({ error: 'Üzlet nem található' }, { status: 404 })
+    if (await isBusinessLocked(payload, business.owner)) return NextResponse.json({ error: LOCKED_ERROR, locked: true }, { status: 423 })
 
     // Sose bízzunk kliens-oldali "az ajándékutalvány be van kapcsolva" jelzésben — a szerver
     // mindig maga ellenőrzi, hogy tényleg elérhető-e ennél az üzletnél.

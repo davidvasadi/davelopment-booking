@@ -8,7 +8,7 @@ import { computeSalonDepositHuf, computeRestaurantDepositHuf } from './depositCa
  * Stripe-onboarding kész), különben null.
  */
 export type DepositInfo = {
-  settings: { enabled: true; type: string | null; fixed_amount_huf: number | null; percent_value: number | null; per_pax_amount_huf: number | null }
+  settings: { enabled: true; type: string | null; fixed_amount_huf: number | null; percent_value: number | null; per_pax_amount_huf: number | null; apply_when: string | null; min_price_huf: number | null; min_pax: number | null; special_days: { weekdays?: number[] | null; dates?: string[] | null } | null }
   refundHours: number
 }
 
@@ -20,6 +20,10 @@ type DepositDoc = {
     fixed_amount_huf?: number | null
     percent_value?: number | null
     per_pax_amount_huf?: number | null
+    apply_when?: string | null
+    min_price_huf?: number | null
+    min_pax?: number | null
+    special_days?: { weekdays?: number[] | null; dates?: string[] | null } | null
     refund_hours_before?: number | null
   } | null
 }
@@ -34,6 +38,10 @@ export function depositSummary(doc: DepositDoc): DepositInfo | null {
       fixed_amount_huf: d.fixed_amount_huf ?? null,
       percent_value: d.percent_value ?? null,
       per_pax_amount_huf: d.per_pax_amount_huf ?? null,
+      apply_when: d.apply_when ?? null,
+      min_price_huf: d.min_price_huf ?? null,
+      min_pax: d.min_pax ?? null,
+      special_days: d.special_days ?? null,
     },
     refundHours: d.refund_hours_before ?? 24,
   }

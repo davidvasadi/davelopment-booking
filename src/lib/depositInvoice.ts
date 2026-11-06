@@ -1,6 +1,7 @@
 import { getPayloadClient } from './payload'
 import { decrypt } from './encryption'
 import { createInvoice as createSzamlazzInvoice, type InvoicePaymentMethod } from './szamlazz'
+import { vatFromTaxNumber } from './vatFromTaxNumber'
 import { createInvoice as createBillingoInvoice } from './billingo'
 
 type InvoiceSettings = {
@@ -25,8 +26,10 @@ export async function issueDepositInvoiceBestEffort({
   buyer,
   label,
   grossHuf,
+  lines: linesIn,
   orderRef,
   paymentMethod,
+  sellerTaxNumber,
 }: {
   collection: 'bookings' | 'reservations' | 'gift-vouchers'
   id: string | number
@@ -37,22 +40,28 @@ export async function issueDepositInvoiceBestEffort({
   buyer: { name: string; email: string; city?: string | null; address?: string | null; zip?: string | null; taxNumber?: string | null }
   label: string
   grossHuf: number
+  /** több tétel (a helyszíni lezárás: szolgáltatás + termék) — ha megadva, a `label`/`grossHuf` helyett */
+  lines?: { label: string; grossHuf: number }[]
   orderRef: string
   /** számlán szereplő fizetési mód — alapból bankkártya (Stripe) */
   paymentMethod?: InvoicePaymentMethod
+  /** a kiállító (üzlet / szakember) adószáma — ebből az ÁFA (9. jegy: 1 = AAM, 2/4/5 = 27%); nélküle AAM */
+  sellerTaxNumber?: string | null
 }): Promise<void> {
   if (!invoiceSettings?.invoice_provider || invoiceSettings.invoice_provider === 'none') return
 
   const payload = await getPayloadClient()
+  const vat = vatFromTaxNumber(sellerTaxNumber)?.code ?? 'AAM'
+  const lines = linesIn?.length ? linesIn : [{ label, grossHuf }]
   try {
     let result: Awaited<ReturnType<typeof createSzamlazzInvoice>> | null = null
 
     if (invoiceSettings.invoice_provider === 'szamlazz' && invoiceSettings.szamlazz_agent_key_enc) {
       const agentKeyOverride = decrypt(invoiceSettings.szamlazz_agent_key_enc)
-      result = await createSzamlazzInvoice({ buyer, lines: [{ label, grossHuf }], orderRef, paid: true, agentKeyOverride, paymentMethod })
+      result = await createSzamlazzInvoice({ buyer, lines, orderRef, paid: true, agentKeyOverride, paymentMethod, vat })
     } else if (invoiceSettings.invoice_provider === 'billingo' && invoiceSettings.billingo_api_key_enc) {
       const apiKey = decrypt(invoiceSettings.billingo_api_key_enc)
-      result = await createBillingoInvoice({ apiKey, buyer, lines: [{ label, grossHuf }], orderRef, paid: true, paymentMethod })
+      result = await createBillingoInvoice({ apiKey, buyer, lines, orderRef, paid: true, paymentMethod, vat })
     } else {
       return // provider kiválasztva, de nincs elmentett kulcs — nincs mit hívni
     }

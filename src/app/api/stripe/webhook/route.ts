@@ -5,6 +5,7 @@ import { getStripe, mapStripeStatus } from '@/lib/stripe'
 import { getPayloadClient } from '@/lib/payload'
 import { applyCheckoutCompleted, ensureInvoiceForStripeInvoice, periodEndISO } from '@/lib/stripeCheckoutSync'
 import { sendPushToUsers } from '@/lib/webPush'
+import { rewardReferralsOnCheckout } from '@/lib/referrals'
 import type { Subscription } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
@@ -64,6 +65,8 @@ export async function POST(req: Request) {
         if (ourSubId && subId) {
           const stripeSub = await stripe.subscriptions.retrieve(subId)
           await applyCheckoutCompleted(payload, { ourSubId, stripeSub, custId, cycle })
+          // ajánló program: a meghívott első előfizetésekor az AJÁNLÓ kap 1 hónapot (és a függő jóváírásai most mennek rá)
+          await rewardReferralsOnCheckout(payload, ourSubId)
         }
         break
       }

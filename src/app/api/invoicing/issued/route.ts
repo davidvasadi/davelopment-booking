@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic'
 
 export type IssuedInvoice = {
   id: string
-  type: 'deposit' | 'voucher'
+  type: 'deposit' | 'voucher' | 'service'
   /** pontosítás: előleg / utalvány – foglalóoldal, fizetési link, helyszíni */
   source: string
   customer: string
@@ -15,9 +15,18 @@ export type IssuedInvoice = {
   amountHuf: number
   date: string
   number: string | null
-  status: 'issued' | 'failed' | 'skipped'
+  status: 'issued' | 'failed' | 'skipped' | 'storno' | 'register' | 'manual'
+  /** hogyan fizettek (helyszíni fizetésnél) */
+  pay?: string | null
   pdf: string | null
+  /** sztornózott számlánál a sztornó számla száma */
+  storno: string | null
+  /** ki állította ki — szakemberenkénti számlázásnál a foglalás szakembere, az utalványnál az üzlet; különben null */
+  issuer?: string | null
 }
+
+const PAY: Record<string, string> = { cash: 'Készpénz · helyszínen', card: 'Bankkártya · helyszínen', transfer: 'Átutalás', link: 'Fizetési link' }
+const firstLine = (v: unknown) => (Array.isArray(v) && v[0] && typeof (v[0] as { name?: unknown }).name === 'string' ? String((v[0] as { name: string }).name) : 'helyszíni fizetés')
 
 const VOUCHER_SOURCE: Record<string, string> = {
   online: 'Utalvány · foglalóoldal',
@@ -43,21 +52,39 @@ export async function GET(req: NextRequest) {
   if (denied) return NextResponse.json({ error: denied.error }, { status: denied.status })
 
   const payload = await getPayloadClient()
-  const [vouchers, deposits] = await Promise.all([
+  const [vouchers, deposits, onsite] = await Promise.all([
     payload.find({
       collection: 'gift-vouchers',
-      where: { and: [{ [kind]: { equals: id } }, { invoice_status: { in: ['issued', 'failed', 'skipped'] } }] } as never,
+      where: { and: [{ [kind]: { equals: id } }, { invoice_status: { in: ['issued', 'failed', 'skipped', 'storno'] } }] } as never,
       sort: '-createdAt', limit: 300, depth: 0, overrideAccess: true,
     }),
     payload.find({
       collection: kind === 'salon' ? 'bookings' : 'reservations',
-      where: { and: [{ [kind]: { equals: id } }, { invoice_status: { in: ['issued', 'failed'] } }] } as never,
+      where: { and: [{ [kind]: { equals: id } }, { invoice_status: { in: ['issued', 'failed', 'storno'] } }] } as never,
       sort: '-createdAt', limit: 300, depth: 0, overrideAccess: true,
     }),
+    // helyszíni fizetések számla nélkül (pénztárgép / nem kért / végszámla kézzel) — a számlázottak fent, az invoice_status-szal jönnek
+    kind === 'salon' ? payload.find({
+      collection: 'bookings',
+      where: { and: [{ salon: { equals: id } }, { paid_at: { exists: true } }, { pay_receipt: { in: ['register', 'none', 'manual'] } }] } as never,
+      sort: '-paid_at', limit: 300, depth: 0, overrideAccess: true,
+    }) : Promise.resolve({ docs: [] as unknown[] }),
   ])
 
-  type V = { id: string | number; code: string; amount_huf: number; purchaser_name: string; purchaser_email: string; payment_method?: string | null; invoice_status: 'issued' | 'failed' | 'skipped'; invoice_number?: string | null; invoice_pdf_url?: string | null; createdAt: string }
-  type B = { id: string | number; customer_name: string; customer_email?: string | null; deposit_amount_huf?: number | null; date?: string; invoice_status: 'issued' | 'failed'; invoice_number?: string | null; invoice_pdf_url?: string | null; createdAt: string }
+  type V = { id: string | number; code: string; amount_huf: number; purchaser_name: string; purchaser_email: string; payment_method?: string | null; invoice_status: 'issued' | 'failed' | 'skipped' | 'storno'; invoice_number?: string | null; invoice_pdf_url?: string | null; invoice_storno_number?: string | null; createdAt: string }
+  type B = { id: string | number; staff?: unknown; paid_at?: string | null; paid_amount_huf?: number | null; pay_method?: string | null; pay_receipt?: string | null; paid_lines?: unknown; customer_name: string; customer_email?: string | null; deposit_amount_huf?: number | null; date?: string; invoice_status: 'issued' | 'failed' | 'storno'; invoice_number?: string | null; invoice_pdf_url?: string | null; invoice_storno_number?: string | null; createdAt: string }
+
+  // szakemberenkénti számlázásnál a „Kiállító” oszlop: a foglalás szakembere (az utalvány az üzleté)
+  let staffNames: Record<string, string> | null = null
+  if (kind === 'salon') {
+    const sal = (await payload.findByID({ collection: 'salons', id, depth: 0, overrideAccess: true }).catch(() => null)) as { name?: string; invoice_settings?: { issuer?: string | null } | null } | null
+    if (sal?.invoice_settings?.issuer === 'staff') {
+      const st = await payload.find({ collection: 'staff', where: { salon: { equals: id } }, limit: 500, depth: 0, overrideAccess: true })
+      staffNames = Object.fromEntries((st.docs as { id: string | number; name: string }[]).map((m) => [String(m.id), m.name]))
+      staffNames.__biz = sal.name ?? 'Az üzlet'
+    }
+  }
+  const staffName = (v: unknown) => (staffNames && v != null ? staffNames[String(typeof v === 'object' ? (v as { id: unknown }).id : v)] ?? null : null)
 
   const rows: IssuedInvoice[] = [
     ...(vouchers.docs as unknown as V[]).map((v) => ({
@@ -71,18 +98,41 @@ export async function GET(req: NextRequest) {
       number: v.invoice_number ?? null,
       status: v.invoice_status,
       pdf: v.invoice_pdf_url ?? null,
+      storno: v.invoice_storno_number ?? null,
+      issuer: staffNames ? staffNames.__biz : null,
     })),
-    ...(deposits.docs as unknown as B[]).map((b) => ({
+    ...(deposits.docs as unknown as B[]).map((b) => {
+      // előleg nélküli, helyben fizetett foglalás számlája: szolgáltatás (a helyben fizetett összeg)
+      const service = !!b.paid_at && !(b.deposit_amount_huf ?? 0)
+      return {
       id: `b-${b.id}`,
-      type: 'deposit' as const,
-      source: `Előleg · ${kind === 'salon' ? 'foglalás' : 'asztalfoglalás'}${b.date ? ` ${new Date(b.date).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })}` : ''}`,
+      type: service ? 'service' as const : 'deposit' as const,
+      source: service ? `Szolgáltatás · ${firstLine(b.paid_lines)}` : `Előleg · ${kind === 'salon' ? 'foglalás' : 'asztalfoglalás'}${b.date ? ` ${new Date(b.date).toLocaleDateString('hu-HU', { month: 'short', day: 'numeric' })}` : ''}`,
       customer: b.customer_name,
       email: b.customer_email ?? null,
-      amountHuf: b.deposit_amount_huf ?? 0,
+      amountHuf: service ? Number(b.paid_amount_huf ?? 0) : b.deposit_amount_huf ?? 0,
+      pay: service ? PAY[b.pay_method ?? ''] ?? null : 'Online kártya',
       date: b.createdAt,
       number: b.invoice_number ?? null,
       status: b.invoice_status,
       pdf: b.invoice_pdf_url ?? null,
+      storno: b.invoice_storno_number ?? null,
+      issuer: staffName(b.staff),
+    }}),
+    ...(onsite.docs as unknown as B[]).map((b) => ({
+      id: `p-${b.id}`,
+      type: 'service' as const,
+      source: `Szolgáltatás · ${firstLine(b.paid_lines)}`,
+      customer: b.customer_name,
+      email: b.customer_email ?? null,
+      amountHuf: Number(b.paid_amount_huf ?? 0),
+      date: b.paid_at ?? b.createdAt,
+      number: null,
+      status: (b.pay_receipt === 'register' ? 'register' : b.pay_receipt === 'manual' ? 'manual' : 'skipped') as IssuedInvoice['status'],
+      pay: PAY[b.pay_method ?? ''] ?? null,
+      pdf: null,
+      storno: null,
+      issuer: staffName(b.staff),
     })),
   ].sort((a, b) => b.date.localeCompare(a.date))
 

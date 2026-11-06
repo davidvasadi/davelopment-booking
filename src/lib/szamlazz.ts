@@ -52,9 +52,20 @@ export interface CreateInvoiceParams {
   /** A számlán szereplő fizetési mód (helyszíni utalvány-kiállításnál készpénz/átutalás is
    *  lehet). Alapértelmezés: bankkártya — a Stripe-os fizetések így maradnak. */
   paymentMethod?: InvoicePaymentMethod
+  /** ÁFA-kulcs — alapból AAM (a platform saját előfizetés-számlái így mennek) */
+  vat?: InvoiceVat
 }
 
 export type InvoicePaymentMethod = 'card' | 'cash' | 'transfer'
+/** A számla ÁFA-kulcsa — a kiállító adószámából (lib/vatFromTaxNumber): alanyi adómentes vagy 27%. */
+export type InvoiceVat = 'AAM' | '27'
+/** bruttóból nettó + ÁFA (27%-nál a bruttó marad pontosan az, amit a vendég fizetett) */
+export function splitGross(grossHuf: number, vat: InvoiceVat = 'AAM'): { net: number; vatHuf: number; gross: number } {
+  const gross = Math.round(grossHuf)
+  if (vat !== '27') return { net: gross, vatHuf: 0, gross }
+  const net = Math.round(gross / 1.27)
+  return { net, vatHuf: gross - net, gross }
+}
 const FIZMOD: Record<InvoicePaymentMethod, string> = { card: 'bankkártya', cash: 'készpénz', transfer: 'átutalás' }
 /** A számla megjegyzése: Stripe-azonosító csak valódi Stripe-fizetésnél (a helyszíni
  *  kiállítás belső `manual-…` azonosítója nem Stripe). */
@@ -106,16 +117,16 @@ function buildXml(params: CreateInvoiceParams, now: Date): string {
 
   const tetelek = params.lines
     .map((l) => {
-      const net = Math.round(l.grossHuf) // AAM: nettó = bruttó
+      const { net, vatHuf, gross } = splitGross(l.grossHuf, params.vat) // AAM: nettó = bruttó; 27%: a bruttóból visszafelé
       return `    <tetel>
       <megnevezes>${xe(l.label)}</megnevezes>
       <mennyiseg>1</mennyiseg>
       <mennyisegiEgyseg>db</mennyisegiEgyseg>
       <nettoEgysegar>${net}</nettoEgysegar>
-      <afakulcs>AAM</afakulcs>
+      <afakulcs>${params.vat === '27' ? '27' : 'AAM'}</afakulcs>
       <nettoErtek>${net}</nettoErtek>
-      <afaErtek>0</afaErtek>
-      <bruttoErtek>${net}</bruttoErtek>
+      <afaErtek>${vatHuf}</afaErtek>
+      <bruttoErtek>${gross}</bruttoErtek>
     </tetel>`
     })
     .join('\n')
@@ -239,4 +250,46 @@ export async function fetchInvoicePdf(agentKey: string, invoiceNumber: string): 
   if (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46) return { ok: true, pdf: buf }
   const m = buf.toString('utf8').match(/<hibauzenet>(.*?)<\/hibauzenet>/s)
   return { ok: false, error: m ? m[1] : 'A Számlázz.hu nem küldött PDF-et' }
+}
+
+/**
+ * Egy kiállított számla sztornózása (Számla Agent, `action-szamla_agent_st`): ellenszámla a számlaszámra, a mai
+ * dátummal. A vendég e-mailben megkapja, ha megadjuk a címét. Visszaadja a sztornó számla számát.
+ */
+export async function stornoInvoice(agentKey: string, invoiceNumber: string, buyerEmail?: string | null, now: Date = new Date()): Promise<{ ok: true; number: string } | { ok: false; error: string }> {
+  const date = todayYmd(now)
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<xmlszamlast xmlns="http://www.szamlazz.hu/xmlszamlast" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.szamlazz.hu/xmlszamlast https://www.szamlazz.hu/szamla/docs/xsds/agentst/xmlszamlast.xsd">
+  <beallitasok>
+    <szamlaagentkulcs>${xe(agentKey)}</szamlaagentkulcs>
+    <eszamla>true</eszamla>
+    <szamlaLetoltes>false</szamlaLetoltes>
+  </beallitasok>
+  <fejlec>
+    <szamlaszam>${xe(invoiceNumber)}</szamlaszam>
+    <keltDatum>${date}</keltDatum>
+    <teljesitesDatum>${date}</teljesitesDatum>
+    <tipus>SS</tipus>
+  </fejlec>
+  <elado></elado>
+  <vevo>${buyerEmail ? `\n    <email>${xe(buyerEmail)}</email>\n  ` : ''}</vevo>
+</xmlszamlast>`
+  const form = new FormData()
+  form.append('action-szamla_agent_st', new Blob([xml], { type: 'text/xml' }), 'storno.xml')
+  let res: Response
+  try {
+    res = await fetch(AGENT_URL, { method: 'POST', body: form, signal: AbortSignal.timeout(20000) })
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Hálózati hiba a Számlázz.hu felé' }
+  }
+  const errorCode = res.headers.get('szlahu_error_code') || res.headers.get('x-szlahu-error-code')
+  const errorMsg = res.headers.get('szlahu_error') || res.headers.get('x-szlahu-error-message')
+  if (errorCode && errorCode !== '0') return { ok: false, error: errorMsg ? decodeURIComponent(errorMsg) : `Számlázz.hu hiba (${errorCode})` }
+  const number = res.headers.get('szlahu_szamlaszam') || res.headers.get('x-szlahu-szamlaszam') || ''
+  if (!number) {
+    const body = await res.text().catch(() => '')
+    const m = body.match(/<hibauzenet>(.*?)<\/hibauzenet>/s)
+    return { ok: false, error: m ? m[1] : 'Ismeretlen Számlázz.hu válasz (nincs sztornó számlaszám)' }
+  }
+  return { ok: true, number }
 }

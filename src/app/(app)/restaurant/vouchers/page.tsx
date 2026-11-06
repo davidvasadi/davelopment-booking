@@ -3,77 +3,28 @@ import { getOwnedRestaurant } from '@/lib/restaurantContext'
 import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
 import { getPayloadClient } from '@/lib/payload'
-import { VouchersManager, type VoucherRow } from '@/components/dashboard/VouchersManager'
-import type { GiftVoucher, GiftVoucherType } from '@/payload/payload-types'
+import { fixMediaUrl } from '@/lib/utils'
+import { resolveAvailableLocales } from '@/lib/i18n'
+import { getVouchersVM } from '@/lib/vouchersView'
+import { VouchersView } from '@/components/dashboard/VouchersView'
+import type { Media, Restaurant } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
+/** Utalványok — étterem (design 12.9: ugyanaz az oldal, az étterem adataival). */
 export default async function RestaurantVouchersPage() {
-  const { restaurant, capabilities } = await getOwnedRestaurant()
+  const { restaurant: r0, capabilities } = await getOwnedRestaurant()
   requireAnyCapability(capabilities, ['vouchers.view', 'vouchers.manage'], '/restaurant')
-  if (!restaurant.voucher_settings?.enabled) redirect('/restaurant/settings')
+  if (!r0.voucher_settings?.enabled) redirect('/restaurant/settings')
+  // a logó a kártyához (depth 1)
   const payload = await getPayloadClient()
-
-  const [res, typesRes] = await Promise.all([
-    payload.find({
-      collection: 'gift-vouchers',
-      where: { restaurant: { equals: restaurant.id } },
-      sort: '-createdAt',
-      limit: 200,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'gift-voucher-types',
-      where: { restaurant: { equals: restaurant.id } },
-      sort: 'amount_huf',
-      limit: 100,
-      overrideAccess: true,
-    }),
-  ])
-
-  // Ki állította ki (dashboard-felhasználó) — egy lekérdezéssel a nevekért
-  const issuerIds = Array.from(new Set((res.docs as GiftVoucher[]).map((v) => (v.issued_by && typeof v.issued_by === 'object' ? v.issued_by.id : v.issued_by)).filter((x): x is string => x != null)))
-  const issuers = issuerIds.length
-    ? await payload.find({ collection: 'users', where: { id: { in: issuerIds } }, limit: issuerIds.length, depth: 0, overrideAccess: true })
-    : { docs: [] }
-  const issuerName = new Map((issuers.docs as { id: string | number; name?: string | null; email?: string | null }[]).map((u) => [String(u.id), u.name || u.email || null]))
-
-  const vouchers: VoucherRow[] = (res.docs as GiftVoucher[]).map((v) => ({
-    id: String(v.id),
-    code: v.code,
-    amount_huf: v.amount_huf,
-    type_name: v.type_name,
-    purchaser_name: v.purchaser_name,
-    payment_method: v.payment_method ?? null,
-    status: v.status,
-    expires_at: v.expires_at,
-    redeemed_at: v.redeemed_at,
-    createdAt: v.createdAt,
-    issued_by_name: v.issued_by ? issuerName.get(String(typeof v.issued_by === 'object' ? v.issued_by.id : v.issued_by)) ?? null : null,
-  }))
-
-  const voucherTypes = (typesRes.docs as GiftVoucherType[]).map((t) => ({
-    id: String(t.id),
-    name: t.name,
-    amount_huf: t.amount_huf,
-    description: t.description,
-    active: t.active,
-    image: typeof t.image === 'object' && t.image ? { id: String(t.image.id), url: t.image.url } : null,
-  }))
-
+  const restaurant = (await payload.findByID({ collection: 'restaurants', id: r0.id, depth: 1, overrideAccess: true })) as Restaurant
+  const { vouchers, types } = await getVouchersVM('restaurant', restaurant.id)
   return (
-    <div className="p-5 lg:p-0">
-      <VouchersManager
-        variant="restaurant"
-        businessId={String(restaurant.id)}
-        initialVouchers={vouchers}
-        voucherTypes={voucherTypes}
-        minAmountHuf={restaurant.voucher_settings?.min_amount_huf ?? 2000}
-        maxAmountHuf={restaurant.voucher_settings?.max_amount_huf ?? 100000}
-        supportedLocales={restaurant.supported_locales}
-        canManage={can(capabilities, 'vouchers.manage')}
-      />
-    </div>
+    <VouchersView restaurant businessId={String(restaurant.id)} vouchers={vouchers} types={types} base="/restaurant"
+      biz={{ name: restaurant.name, logo: restaurant.logo && typeof restaurant.logo === 'object' ? fixMediaUrl((restaurant.logo as Media).url) : null, addr: [[restaurant.city, restaurant.address].filter(Boolean).join(', '), restaurant.phone].filter(Boolean).join(' · ') || null }}
+      stripe={!!(restaurant as { stripe_connect_onboarded?: boolean | null }).stripe_connect_onboarded} locales={resolveAvailableLocales(restaurant.supported_locales ?? null)}
+      minAmount={restaurant.voucher_settings?.min_amount_huf ?? 2000} maxAmount={restaurant.voucher_settings?.max_amount_huf ?? 100000}
+      canManage={can(capabilities, 'vouchers.manage')} />
   )
 }

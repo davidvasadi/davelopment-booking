@@ -5,6 +5,8 @@ import { getStripe } from '@/lib/stripe'
 import { getPayloadClient } from '@/lib/payload'
 import { isAccountFullyOnboarded } from '@/lib/stripeConnect'
 import { ensureVoucherFromPaymentIntent } from '@/lib/voucherFromIntent'
+import { closeBookingWithPayment, type CheckoutInput } from '@/lib/bookingCheckout'
+import type { Booking, Salon } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,6 +75,11 @@ export async function POST(req: Request) {
             data: { stripe_connect_onboarded: isAccountFullyOnboarded(account) },
           })
         }
+        // szakemberenkénti számlázás: a munkatárs saját fiókja (lib/payee)
+        const staffRes = await payload.find({ collection: 'staff', where: { stripe_connect_account_id: { equals: account.id } }, limit: 1, depth: 0, overrideAccess: true })
+        if (staffRes.docs[0]) {
+          await payload.update({ collection: 'staff', id: staffRes.docs[0].id, overrideAccess: true, data: { stripe_connect_onboarded: isAccountFullyOnboarded(account) } })
+        }
         break
       }
 
@@ -89,6 +96,18 @@ export async function POST(req: Request) {
         // a kliens `/api/vouchers` hívása ELŐTT név/e-mail nélkül hozná létre az utalványt.
         if (intent.metadata?.kind === 'gift-voucher' && intent.metadata?.purchaserEmail) {
           await ensureVoucherFromPaymentIntent(payload, intent)
+          break
+        }
+
+        // Fizetési link a foglalás lezárásához (design 6.7.1 — /api/salon/booking-paylink): a kifizetés zárja le a
+        // foglalást a link létrehozásakor eltett adatokkal (tételek, számla, vevő). Idempotens: a lezárt foglalást kihagyja.
+        if (intent.metadata?.kind === 'booking-checkout' && intent.metadata?.bookingId) {
+          const bk = (await payload.findByID({ collection: 'bookings', id: intent.metadata.bookingId, depth: 0, overrideAccess: true }).catch(() => null)) as Booking | null
+          if (bk && !bk.paid_at) {
+            const sal = (await payload.findByID({ collection: 'salons', id: typeof bk.salon === 'object' ? bk.salon.id : bk.salon, depth: 0, overrideAccess: true })) as Salon
+            const pend = (bk.pay_pending ?? {}) as { lines?: { name: string; amount: number }[]; invoice?: boolean; buyer?: CheckoutInput['buyer'] | null }
+            await closeBookingWithPayment(payload, bk, sal, { lines: pend.lines ?? [], method: 'link', invoice: !!pend.invoice, buyer: pend.buyer ?? undefined })
+          }
           break
         }
 

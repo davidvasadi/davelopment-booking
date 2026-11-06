@@ -6,6 +6,7 @@ import { computeAccountFee, getOrCreateAccountSubscription } from '@/lib/account
 import { applyCycle } from '@/lib/tier'
 import { getPricing } from '@/lib/pricing'
 import { BRAND_NAME } from '@/lib/brand'
+import { getActiveBusiness } from '@/lib/activeBusiness'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,17 @@ export async function POST(req: Request) {
 
   const payload = await getPayloadClient()
   const ctx = { payload }
+
+  // A számlázási adatok kötelezők a fizetés előtt (a felület is kéri, de ez a kapu nem kerülhető meg): nélkülük nem
+  // tudunk szabályos számlát kiállítani. Az aktív üzlet adatai — ugyanazok, amiket az Előfizetés lap szerkeszt.
+  const { active } = await getActiveBusiness(user)
+  if (active) {
+    const biz = (await payload.findByID({ collection: active.type === 'salon' ? 'salons' : 'restaurants', id: active.id, depth: 0, overrideAccess: true }).catch(() => null)) as Record<string, unknown> | null
+    const missing = (['legal_name', 'billing_email', 'billing_postal_code', 'billing_city', 'billing_street'] as const).filter((k) => !String(biz?.[k] ?? '').trim())
+    if (!biz || missing.length) {
+      return NextResponse.json({ error: 'Töltsd ki a számlázási adatokat a fizetés előtt.', missingBilling: missing }, { status: 400 })
+    }
+  }
   const [sub, fee, pricing] = await Promise.all([
     getOrCreateAccountSubscription(ctx, user.id),
     computeAccountFee(ctx, user.id),

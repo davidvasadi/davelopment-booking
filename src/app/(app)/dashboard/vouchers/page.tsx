@@ -2,78 +2,26 @@ import { redirect } from 'next/navigation'
 import { getOwnedSalon } from '@/lib/salonContext'
 import { requireAnyCapability } from '@/lib/requireCapability'
 import { can } from '@/lib/permissions'
-import { getPayloadClient } from '@/lib/payload'
-import { VouchersManager, type VoucherRow } from '@/components/dashboard/VouchersManager'
-import type { GiftVoucher, GiftVoucherType } from '@/payload/payload-types'
+import { fixMediaUrl } from '@/lib/utils'
+import { resolveAvailableLocales } from '@/lib/i18n'
+import { getVouchersVM } from '@/lib/vouchersView'
+import { VouchersView } from '@/components/dashboard/VouchersView'
+import type { Media } from '@/payload/payload-types'
 
 export const dynamic = 'force-dynamic'
 
+/** Utalványok — szalon (design 12.1–12.8). */
 export default async function VouchersPage() {
-  const { salon, capabilities } = await getOwnedSalon()
+  const { salon, capabilities } = await getOwnedSalon(1)
   requireAnyCapability(capabilities, ['vouchers.view', 'vouchers.manage'], '/dashboard')
   if (!salon.voucher_settings?.enabled) redirect('/dashboard/settings')
-  const payload = await getPayloadClient()
-
-  const [res, typesRes] = await Promise.all([
-    payload.find({
-      collection: 'gift-vouchers',
-      where: { salon: { equals: salon.id } },
-      sort: '-createdAt',
-      limit: 200,
-      depth: 0,
-      overrideAccess: true,
-    }),
-    payload.find({
-      collection: 'gift-voucher-types',
-      where: { salon: { equals: salon.id } },
-      sort: 'amount_huf',
-      limit: 100,
-      overrideAccess: true,
-    }),
-  ])
-
-  // Ki állította ki (dashboard-felhasználó) — egy lekérdezéssel a nevekért
-  const issuerIds = Array.from(new Set((res.docs as GiftVoucher[]).map((v) => (v.issued_by && typeof v.issued_by === 'object' ? v.issued_by.id : v.issued_by)).filter((x): x is string => x != null)))
-  const issuers = issuerIds.length
-    ? await payload.find({ collection: 'users', where: { id: { in: issuerIds } }, limit: issuerIds.length, depth: 0, overrideAccess: true })
-    : { docs: [] }
-  const issuerName = new Map((issuers.docs as { id: string | number; name?: string | null; email?: string | null }[]).map((u) => [String(u.id), u.name || u.email || null]))
-
-  const vouchers: VoucherRow[] = (res.docs as GiftVoucher[]).map((v) => ({
-    id: String(v.id),
-    code: v.code,
-    amount_huf: v.amount_huf,
-    type_name: v.type_name,
-    purchaser_name: v.purchaser_name,
-    payment_method: v.payment_method ?? null,
-    status: v.status,
-    expires_at: v.expires_at,
-    redeemed_at: v.redeemed_at,
-    createdAt: v.createdAt,
-    issued_by_name: v.issued_by ? issuerName.get(String(typeof v.issued_by === 'object' ? v.issued_by.id : v.issued_by)) ?? null : null,
-  }))
-
-  const voucherTypes = (typesRes.docs as GiftVoucherType[]).map((t) => ({
-    id: String(t.id),
-    name: t.name,
-    amount_huf: t.amount_huf,
-    description: t.description,
-    active: t.active,
-    image: typeof t.image === 'object' && t.image ? { id: String(t.image.id), url: t.image.url } : null,
-  }))
-
+  const { vouchers, types } = await getVouchersVM('salon', salon.id)
+  const phone = (salon as { phone?: string | null }).phone
   return (
-    <div className="p-5 lg:p-0">
-      <VouchersManager
-        variant="salon"
-        businessId={String(salon.id)}
-        initialVouchers={vouchers}
-        voucherTypes={voucherTypes}
-        minAmountHuf={salon.voucher_settings?.min_amount_huf ?? 2000}
-        maxAmountHuf={salon.voucher_settings?.max_amount_huf ?? 100000}
-        supportedLocales={salon.supported_locales}
-        canManage={can(capabilities, 'vouchers.manage')}
-      />
-    </div>
+    <VouchersView businessId={String(salon.id)} vouchers={vouchers} types={types} base="/dashboard"
+      biz={{ name: salon.name, logo: salon.logo && typeof salon.logo === 'object' ? fixMediaUrl((salon.logo as Media).url) : null, addr: [[salon.city, salon.address].filter(Boolean).join(', '), phone].filter(Boolean).join(' · ') || null }}
+      stripe={!!salon.stripe_connect_onboarded} locales={resolveAvailableLocales(salon.supported_locales ?? null)}
+      minAmount={salon.voucher_settings?.min_amount_huf ?? 2000} maxAmount={salon.voucher_settings?.max_amount_huf ?? 100000}
+      canManage={can(capabilities, 'vouchers.manage')} />
   )
 }

@@ -17,7 +17,7 @@
  * szolgáltatót.
  */
 
-import { invoiceComment, type InvoiceBuyer, type InvoiceLine, type CreateInvoiceResult, type InvoicePaymentMethod } from './szamlazz'
+import { invoiceComment, type InvoiceBuyer, type InvoiceLine, type CreateInvoiceResult, type InvoicePaymentMethod, type InvoiceVat } from './szamlazz'
 
 const API_BASE = 'https://api.billingo.hu/v3'
 
@@ -28,6 +28,8 @@ export interface BillingoCreateInvoiceParams {
   orderRef?: string
   paid?: boolean
   paymentMethod?: InvoicePaymentMethod
+  /** ÁFA-kulcs (a kiállító adószámából) — alapból AAM */
+  vat?: InvoiceVat
 }
 
 const BILLINGO_PAYMENT: Record<InvoicePaymentMethod, string> = { card: 'bankcard', cash: 'cash', transfer: 'wire_transfer' }
@@ -69,8 +71,10 @@ export async function createInvoice(params: BillingoCreateInvoiceParams, now: Da
       name: l.label,
       quantity: 1,
       unit: 'db',
-      net_unit_price: Math.round(l.grossHuf), // AAM-ekvivalens: nettó = bruttó, 0% ÁFA a legtöbb kisvállalkozásnál
-      vat: 'AAM',
+      // AAM: nettó = bruttó (változatlan); 27%: a bruttó egységárat adjuk meg, a nettót a Billingo számolja
+      ...(params.vat === '27'
+        ? { unit_price: Math.round(l.grossHuf), unit_price_type: 'gross', vat: '27%' }
+        : { net_unit_price: Math.round(l.grossHuf), vat: 'AAM' }),
     })),
   }
 
@@ -96,4 +100,28 @@ export async function createInvoice(params: BillingoCreateInvoiceParams, now: Da
   }
 
   return { ok: true, invoiceNumber: data.invoice_number, invoiceUrl: data.public_url ?? null, pdfBase64: null, test: false }
+}
+
+/**
+ * Egy kiállított számla sztornózása (Billingo v3: a bizonylatot a számlaszáma alapján megkeressük, majd
+ * `POST /documents/{id}/cancel`). Visszaadja a sztornó bizonylat számát (és a nyilvános linkjét, ha van).
+ */
+export async function cancelInvoice(apiKey: string, invoiceNumber: string): Promise<{ ok: true; number: string; url: string | null } | { ok: false; error: string }> {
+  const headers = { 'Content-Type': 'application/json', 'X-API-KEY': apiKey }
+  try {
+    const found = await fetch(`${API_BASE}/documents?query=${encodeURIComponent(invoiceNumber)}&per_page=25`, { headers, signal: AbortSignal.timeout(15000) })
+    if (!found.ok) return { ok: false, error: `Billingo hiba (${found.status})` }
+    const list = (await found.json().catch(() => null)) as { data?: { id: number; invoice_number?: string }[] } | null
+    const doc = list?.data?.find((d) => d.invoice_number === invoiceNumber)
+    if (!doc) return { ok: false, error: 'A számla nem található a Billingo-fiókban.' }
+    const res = await fetch(`${API_BASE}/documents/${doc.id}/cancel`, { method: 'POST', headers, signal: AbortSignal.timeout(20000) })
+    if (!res.ok) {
+      const err = (await res.json().catch(() => null)) as { message?: string } | null
+      return { ok: false, error: err?.message ?? `Billingo hiba (${res.status})` }
+    }
+    const data = (await res.json().catch(() => null)) as { invoice_number?: string; public_url?: string } | null
+    return { ok: true, number: data?.invoice_number ?? '', url: data?.public_url ?? null }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : 'Hálózati hiba a Billingo felé' }
+  }
 }
