@@ -30,6 +30,22 @@ const config: Config = {
           dark: 'var(--dav-ink)',           // sötét kártya/pill háttér
         },
         gold: 'var(--dav-accent)',
+        // ===== UI-alap (2026-10-31) — a /backstage/design mintaoldal palettája. Közvetlen hex (nem
+        // CSS-változó), hogy az áttetszőség-módosító (`bg-ui-dark/40`) is működjön. Új / átállított
+        // kód CSAK ezeket használja; kézzel írt szín nem kerülhet komponensbe.
+        ui: {
+          dark: '#383838',
+          yellow: '#FFD85F',
+          grey: '#B6B6B6',
+          text: '#383838',
+          muted: '#828282',
+          cell: '#EEEEEE',
+          divider: 'rgba(120,110,70,.22)',
+          ok: { DEFAULT: '#4F7F12', bg: '#E4F0D6', dot: '#74AA19' },
+          warn: { DEFAULT: '#9A5A16', bg: '#FBE7D3', dot: '#E2872E' },
+          bad: { DEFAULT: '#B0453F', bg: '#FDE2DD', dot: '#C0564A' },
+          neutral: { DEFAULT: '#5E5E5E', bg: '#ECECEC' },
+        },
         paper: 'var(--dav-paper)',
         line: {
           DEFAULT: 'var(--dav-line)',
@@ -74,6 +90,15 @@ const config: Config = {
         },
       },
       fontSize: {
+        // UI-alap betű-skála (8 lépés) — a mintaoldal szerint.
+        'ui-label': ['11px', { lineHeight: '1.4' }],
+        'ui-meta': ['12px', { lineHeight: '1.45' }],
+        'ui-body': ['13px', { lineHeight: '1.5' }],
+        'ui-row': ['15px', { lineHeight: '1.4' }],
+        'ui-title': ['19px', { lineHeight: '1.3' }],
+        'ui-sub': ['26px', { lineHeight: '1.15', letterSpacing: '-0.02em' }],
+        'ui-num': ['34px', { lineHeight: '1', letterSpacing: '-0.02em' }],
+        'ui-page': ['42px', { lineHeight: '1', letterSpacing: '-0.03em' }],
         // davelopment-design betűméret-skála — lásd globals.css komment (audit-alapú, 11 lépés).
         'dav-2xs': ['var(--dav-fs-2xs)', { lineHeight: '1.4' }],
         'dav-xs': ['var(--dav-fs-xs)', { lineHeight: '1.4' }],
@@ -88,6 +113,11 @@ const config: Config = {
         'dav-display-lg': ['var(--dav-fs-display-lg)', { lineHeight: '1', letterSpacing: '-0.02em' }],
       },
       borderRadius: {
+        // UI-alap lekerekítések: konténer / kártya / kártyán belüli elem / vezérlő (+ rounded-full = pill).
+        'ui-container': '34px',
+        'ui-card': '26px',
+        'ui-inner': '18px',
+        'ui-control': '14px',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
@@ -100,10 +130,14 @@ const config: Config = {
         'dav-pill': 'var(--dav-r-pill)',           // 30px pill/chip
       },
       boxShadow: {
+        // UI-alap árnyékok: kártya / lebegő (eszköztár, mentés-sáv) / popup.
+        'ui-float': '0 18px 40px -16px rgba(0,0,0,.5)',
+        'ui-popup': '0 40px 90px -30px rgba(0,0,0,.45)',
         'dav-card': 'var(--dav-shadow-card)',
         'dav-container': 'var(--dav-shadow-container)',
       },
       backgroundImage: {
+        'ui-page': 'var(--ui-page-bg)',
         'dav-container': 'var(--dav-container-gradient)',
       },
       keyframes: {
@@ -143,6 +177,18 @@ const config: Config = {
           from: { opacity: '0' },
           to: { opacity: '1' },
         },
+        // Szalag: a ki nem férő egysoros szöveg oda-vissza végiggördül (kit Marquee). A cél a doboz (100cqw) és a szöveg
+        // (100%) különbsége — ha elfér, 0, vagyis nem mozdul.
+        // Rezgés: ütköző nap jelzése (pl. „+ Beosztás” előnézet — beteg / szabadság, ahová nem kerül műszak)
+        'ui-shake': {
+          '0%, 100%': { transform: 'translateX(0)' },
+          '15%, 55%': { transform: 'translateX(-3px)' },
+          '35%, 75%': { transform: 'translateX(3px)' },
+        },
+        'ui-marquee': {
+          '0%, 20%': { transform: 'translateX(0)' },
+          '80%, 100%': { transform: 'translateX(min(0px, calc(100cqw - 100%)))' },
+        },
       },
       animation: {
         grain: 'grain 0.5s steps(1) infinite',
@@ -151,6 +197,8 @@ const config: Config = {
         'soft-pulse': 'soft-pulse 1.6s ease-in-out infinite',
         reveal: 'reveal 0.5s cubic-bezier(0.16, 1, 0.3, 1) both',
         'reveal-fade': 'reveal-fade 0.5s ease-out both',
+        'ui-marquee': 'ui-marquee 7s ease-in-out infinite alternate',
+        'ui-shake': 'ui-shake 0.45s ease-in-out 2',
       },
       fontFamily: {
         sans: ['var(--font-sans)', ...defaultTheme.fontFamily.sans],

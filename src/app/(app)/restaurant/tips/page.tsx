@@ -4,7 +4,7 @@ import { can } from '@/lib/permissions'
 import { getRestaurantStats } from '@/lib/restaurantStats'
 import { getPayloadClient } from '@/lib/payload'
 import { buildRestaurantAdvisor, type SetupFlags } from '@/lib/tipsAdvisor'
-import { TipsAdvisorView } from '@/components/dashboard/TipsAdvisorView'
+import { TipsView } from '@/components/dashboard/TipsView'
 import type { Restaurant } from '@/payload/payload-types'
 
 export const metadata = { title: 'Tippek' }
@@ -72,5 +72,5 @@ export default async function RestaurantTipsPage() {
 
   const data = buildRestaurantAdvisor(r, setup, stats, capabilities)
 
-  return <TipsAdvisorView variant="restaurant" data={data} apiBase={`/api/restaurants/${r.id}`} canManage={can(capabilities, 'tips.manage')} />
+  return <TipsView data={data} apiBase={`/api/restaurants/${r.id}`} canManage={can(capabilities, 'tips.manage')} />
 }

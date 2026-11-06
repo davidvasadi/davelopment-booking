@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { Button } from '@/components/ui-kit'
 import { cn } from '@/lib/utils'
 
 const ITEM_H = 40
@@ -41,8 +42,8 @@ function WheelColumn({ values, value, onChange }: { values: string[]; value: str
         <div
           key={v}
           className={cn(
-            'flex h-10 snap-center items-center justify-center text-xl tabular-nums transition-colors',
-            v === value ? 'font-semibold text-ink' : 'text-ink-soft2'
+            'flex h-10 snap-center items-center justify-center text-ui-title tabular-nums transition-colors',
+            v === value ? 'font-medium text-ui-text' : 'text-ui-muted'
           )}
         >
           {v}
@@ -75,21 +76,21 @@ export function WheelTimePicker({
 
   return (
     <Sheet open={open} onOpenChange={(o) => { if (!o) onClose() }}>
-      <SheetContent side="bottom" className="rounded-t-[26px] border-t border-line bg-white font-onest">
+      <SheetContent side="bottom" className="font-onest">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="min-w-0">
-            <p className="font-semibold text-ink truncate">{title}</p>
-            {subtitle && <p className="text-xs text-ink-soft truncate">{subtitle}</p>}
+            <p className="truncate text-ui-title text-ui-text">{title}</p>
+            {subtitle && <p className="truncate text-ui-meta text-ui-muted">{subtitle}</p>}
           </div>
-          <button type="button" onClick={onClose} className="h-9 shrink-0 rounded-dav-pill bg-ink-dark px-5 text-sm font-semibold text-white">Kész</button>
+          <Button size="sm" onClick={onClose}>Kész</Button>
         </div>
 
         <div className="relative">
           {/* középső kijelölő-sáv */}
-          <div className="pointer-events-none absolute left-1/2 top-1/2 h-10 w-44 -translate-x-1/2 -translate-y-1/2 rounded-xl bg-ink-dark/[0.06]" />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-10 w-44 -translate-x-1/2 -translate-y-1/2 rounded-ui-control bg-ui-cell" />
           <div className="flex items-center justify-center gap-1">
             <WheelColumn values={HOURS} value={h} onChange={(nh) => onChange(`${nh}:${mm}`)} />
-            <span className="text-xl font-semibold text-ink-soft2/50">:</span>
+            <span className="text-ui-title">:</span>
             <WheelColumn values={MINUTES} value={mm} onChange={(nm) => onChange(`${h}:${nm}`)} />
           </div>
         </div>
@@ -102,8 +103,8 @@ export function WheelTimePicker({
                 type="button"
                 onClick={() => onChange(s)}
                 className={cn(
-                  'h-9 rounded-xl px-3 text-xs font-semibold tabular-nums transition-colors',
-                  s === value ? 'bg-ink-dark text-white' : 'bg-[var(--dav-glass)] text-ink-soft border border-line'
+                  'h-9 rounded-full px-3.5 text-ui-meta tabular-nums transition-colors',
+                  s === value ? 'bg-ui-dark text-white' : 'bg-ui-cell text-ui-text'
                 )}
               >
                 {s}

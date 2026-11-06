@@ -5,17 +5,11 @@ interface DashboardCardProps extends HTMLAttributes<HTMLDivElement> {
   noPadding?: boolean
 }
 
-/** Egységes kártya a dashboard-oldalakon (davelopment-design: fehér, lekerekített, finom árnyék). */
+/** Régi név, új kinézet: a kit krém-üveg kártyája (Card tone="glass": fehér 60% + elmosás, 26px, árnyék nélkül, p-5).
+ *  Az oldalak átépítésekor a hívók a kit Card-ját kapják, és ez a fájl törlődik. */
 export function DashboardCard({ noPadding, className, children, ...props }: DashboardCardProps) {
   return (
-    <div
-      className={cn(
-        'dav-card-glass rounded-[22px]',
-        !noPadding && 'px-5 py-4',
-        className,
-      )}
-      {...props}
-    >
+    <div className={cn('rounded-ui-card bg-white/60 backdrop-blur-lg', !noPadding && 'p-5', className)} {...props}>
       {children}
     </div>
   )

@@ -86,7 +86,8 @@ function fullFeatures(fm: FeatureModules | null | undefined): FeatureBooleans {
 
 function enableFeatureBody(fm: FeatureModules | null | undefined, changes: Partial<FeatureBooleans>): Record<string, unknown> {
   return {
-    feature_modules: { ...fullFeatures(fm), google_review_url: fm?.google_review_url ?? null, ...changes },
+    // a teljes csoport megy vissza (a többi beállítás — 2 napos emlékeztető, értékelés célja, „Foglalj” gomb — ne vesszen el)
+    feature_modules: { ...(fm ?? {}), ...fullFeatures(fm), google_review_url: fm?.google_review_url ?? null, ...changes },
   }
 }
 
@@ -164,7 +165,8 @@ function buildConfigChecks(
 ): { checks: Weighted[]; cards: TipCard[] } {
   const base = variant === 'salon' ? '/dashboard' : '/restaurant'
   const settings = `${base}/settings`
-  const profileSettings = `${settings}?tab=profile`
+  // a profil (borító, logó, bemutatkozás, elérhetőség, „Jó tudni”, nyelvek) a Foglalóoldal-szerkesztőben van
+  const profileSettings = `${settings}?tab=site`
   const catalogHref = variant === 'salon' ? `${base}/services` : `${base}/tables`
   const catalogWord = variant === 'salon' ? 'szolgáltatás' : 'asztal'
   const locales = b.supported_locales ?? []
@@ -224,7 +226,7 @@ function buildConfigChecks(
     },
     {
       id: 'languages', label: 'Többnyelvű oldal bekapcsolva', category: 'marketing',
-      done: multilingual, href: `${settings}?tab=languages`, weight: 1,
+      done: multilingual, href: `${settings}?tab=site`, weight: 1,
       requiredCap: 'settings.profile',
       card: { title: 'Kapcsold be a többnyelvű oldalt', desc: 'Angol és német nyelvvel a külföldi vendégeket is eléred.' },
     },
@@ -264,6 +266,8 @@ function buildFeatureCards(b: Salon | Restaurant, variant: 'salon' | 'restaurant
   const defs: {
     id: string; on: boolean; changes: Partial<FeatureBooleans>; category: TipCategory
     title: string; desc: string; impact?: string; toast: string
+    /** bekapcsolva: hova visz a kártya (ahol a funkció állítható / látszik) */
+    href: string
   }[] = [
     {
       id: 'reminders', on: full.reminders_on,
@@ -271,7 +275,7 @@ function buildFeatureCards(b: Salon | Restaurant, variant: 'salon' | 'restaurant
       category: 'vendegelmeny',
       title: 'Állíts be emlékeztetőt',
       desc: 'Automatikus emlékeztető 24 órával a foglalás előtt, e-mailben.',
-      impact: 'kevesebb elmaradás', toast: 'Emlékeztetők bekapcsolva',
+      impact: 'kevesebb elmaradás', toast: 'Emlékeztetők bekapcsolva', href: `${settingsBase}/settings?tab=email`,
     },
     {
       id: 'reviews', on: full.reviews_on,
@@ -279,7 +283,7 @@ function buildFeatureCards(b: Salon | Restaurant, variant: 'salon' | 'restaurant
       category: 'vendegelmeny',
       title: 'Kérj értékelést',
       desc: `Automatikus értékelés-kérő a ${visitWord} után — több visszajelzés, jobb hírnév.`,
-      impact: 'jobb hírnév', toast: 'Értékeléskérés bekapcsolva',
+      impact: 'jobb hírnév', toast: 'Értékeléskérés bekapcsolva', href: `${settingsBase}/settings?tab=reviews`,
     },
     {
       id: 'waitlist', on: full.waitlist_on,
@@ -287,7 +291,7 @@ function buildFeatureCards(b: Salon | Restaurant, variant: 'salon' | 'restaurant
       category: 'foglalas',
       title: 'Kapcsold be a várólistát',
       desc: 'Telt házkor automatikus sorba állítás — ne veszíts el egy vendéget se.',
-      impact: 'nulla elveszett vendég', toast: 'Várólista bekapcsolva',
+      impact: 'nulla elveszett vendég', toast: 'Várólista bekapcsolva', href: `${settingsBase}/bookings`,
     },
   ]
 
@@ -299,7 +303,7 @@ function buildFeatureCards(b: Salon | Restaurant, variant: 'salon' | 'restaurant
     impact: d.impact,
     state: d.on ? ('enabled' as const) : ('apply' as const),
     action: d.on
-      ? ({ kind: 'nav', href: `${settingsBase}/settings?tab=booking` } as TipAction)
+      ? ({ kind: 'nav', href: d.href } as TipAction)
       : ({ kind: 'patch', body: enableFeatureBody(b.feature_modules, d.changes), toast: d.toast } as TipAction),
   }))
 }
@@ -482,7 +486,7 @@ function buildGrowthCards(
         : 'A vendégeid ajándékba is vehetnek nálad időpontot/asztalt — extra bevétel szezonon kívül is.',
       impact: 'extra bevételi csatorna',
       state: 'apply',
-      action: { kind: 'nav', href: `${base}/settings?tab=booking` },
+      action: { kind: 'nav', href: `${base}/settings?tab=vouchers` },
     })
 
     // Nincs tárolt jel arra, hogy a tulaj tényleg kitette-e a widgetet a saját oldalára, ezért ez
@@ -517,6 +521,45 @@ function buildGrowthCards(
       desc: 'Egy előre bekért, akár csak jelképes előleg drasztikusan csökkenti a meg nem jelenést — és biztos bevétel, még lemondás esetén is.',
       impact: 'kevesebb no-show',
       state: depositOn ? 'enabled' : 'apply',
+      action: { kind: 'nav', href: `${base}/settings?tab=deposit` },
+    })
+
+    // galéria a foglalóoldalon (Beállítások › Foglalóoldal)
+    const galleryOn = ((b as { gallery?: unknown[] | null }).gallery ?? []).length > 0
+    cards.push({
+      id: 'growth-gallery',
+      category: 'profil',
+      title: galleryOn ? 'Frissítsd a galériát' : 'Tölts fel képeket a galériába',
+      desc: galleryOn
+        ? 'Új szolgáltatás, felújítás, szezonális kínálat? Pár friss kép a foglalóoldalon többet mond minden leírásnál.'
+        : 'A foglalóoldalon a vendég látja, milyen nálad — a belső tér, a munkáid vagy az ételeid képei bizalmat adnak.',
+      impact: 'több foglalás',
+      state: 'apply',
+      action: { kind: 'nav', href: `${base}/settings?tab=site` },
+    })
+
+    // vendég-levél sablon: a visszaigazolás még az alap szöveggel megy
+    const ownLetter = Array.isArray((b as { booking_email_intro?: unknown }).booking_email_intro) && ((b as { booking_email_intro?: unknown[] }).booking_email_intro ?? []).length > 0
+    cards.push({
+      id: 'growth-guest-email',
+      category: 'vendegelmeny',
+      title: 'Szabd a magadra a vendég-leveleket',
+      desc: 'A visszaigazolás és az emlékeztető most az alap szöveggel megy. Egy kattintással betöltheted a sablont — naptár, útvonalterv, a saját hangodon.',
+      impact: 'személyesebb élmény',
+      state: ownLetter ? 'enabled' : 'apply',
+      action: { kind: 'nav', href: `${base}/settings?tab=email` },
+    })
+
+    // online fizetés van (előleg / utalvány), de számla nem készül magától
+    const sellsOnline = depositOn || b.voucher_settings?.enabled === true
+    const invoicingOn = !!(b as { invoice_provider?: string | null }).invoice_provider && (b as { invoice_provider?: string | null }).invoice_provider !== 'none'
+    if (sellsOnline) cards.push({
+      id: 'growth-invoicing',
+      category: 'profil',
+      title: 'Kapcsold be az automatikus számlát',
+      desc: 'Előleget vagy utalványt fizetnek online — a Számlázz.hu vagy a Billingo fiókodból a számla magától elkészül, és a vendég e-mailben kapja.',
+      impact: 'nincs kézi számlázás',
+      state: invoicingOn ? 'enabled' : 'apply',
       action: { kind: 'nav', href: `${base}/settings?tab=payments` },
     })
   }
@@ -661,7 +704,7 @@ export function buildSalonAdvisor(salon: Salon, setup: SetupFlags, stats: Dashbo
       actionLabel: off ? 'Emlékeztető bekapcsolása' : 'Beállítások',
       action: off
         ? { kind: 'patch', body: enableFeatureBody(salon.feature_modules, { reminders_on: true, reminder_ch_email: true, reminder_t_24h: true }), toast: 'Emlékeztetők bekapcsolva' }
-        : { kind: 'nav', href: `${base}/settings?tab=booking` },
+        : { kind: 'nav', href: `${base}/settings?tab=email` },
       priority: 60 + (80 - stats.completionRate),
       requiredCap: 'settings.profile',
       actionable: true,
@@ -814,8 +857,8 @@ export function buildRestaurantAdvisor(
         title: 'Terelj több foglalást online',
         body: `A vendégeidnek csak ${onlineShare}%-a foglal online — a többi telefon/beeső. Oszd meg a foglaló linkedet a közösségi oldalakon és a Google-profilodon.`,
         metric: `${onlineShare}% online`,
-        actionLabel: 'Foglaló oldal',
-        action: { kind: 'nav', href: `${base}/settings?tab=profile#booking-url` },
+        actionLabel: 'Megosztás',
+        action: { kind: 'nav', href: `${base}/settings?tab=integrations` },
         priority: 35 + (50 - onlineShare),
         requiredCap: 'settings.profile',
       })

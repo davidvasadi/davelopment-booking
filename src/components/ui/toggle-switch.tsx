@@ -1,17 +1,16 @@
 'use client'
 
 /**
- * Közös kapcsoló-vizuál — a szín EGY helyen, hogy app-szerte egységesen módosítható legyen
- * (ne kelljen sok fájlt átírni). SZÁNDÉKOSAN NINCS gold/sárga az aktív állapotban: aktív =
- * ink-dark sín + FEHÉR gomb, inaktív = halvány sín + fehér gomb.
+ * Közös kapcsoló (a kit Switch-e, /design 1.7) — a szín EGY helyen: bekapcsolva sötét sín
+ * (ui-dark), kikapcsolva szürke (ui-grey), a gomb mindig fehér. Nincs sárga az aktív állapotban.
  *
  * - `Switch`: csupasz kapcsoló (csak sín + gomb), kompakt lista-sorokhoz.
  * - `ToggleSwitch`: címke + leírás + kapcsoló egy sorban (beállítás-blokkokhoz).
  */
 
 // A kapcsoló-paletta — ITT módosítsd, és minden Switch/ToggleSwitch együtt változik.
-const TRACK_ON = 'bg-ink-dark'
-const TRACK_OFF = 'bg-line-strong'
+const TRACK_ON = 'bg-ui-dark'
+const TRACK_OFF = 'bg-ui-grey'
 const KNOB = 'bg-white'
 
 type SwitchProps = {
@@ -36,7 +35,7 @@ export function Switch({ checked, onChange, disabled, size = 'md', ariaLabel }: 
       onClick={(e) => { e.stopPropagation(); onChange(!checked) }}
       className={`relative shrink-0 rounded-full transition-colors disabled:opacity-50 ${d.track} ${checked ? TRACK_ON : TRACK_OFF}`}
     >
-      <span className={`absolute ${d.top} ${d.knob} rounded-full ${KNOB} shadow-sm transition-all ${checked ? d.on : d.off}`} />
+      <span className={`absolute ${d.top} ${d.knob} rounded-full ${KNOB} shadow-sm transition-all /* ui-allow: a kapcsoló gombjának árnyéka (a kit Switch része) */ ${checked ? d.on : d.off}`} />
     </button>
   )
 }
@@ -53,8 +52,8 @@ export function ToggleSwitch({ checked, onChange, label, description, disabled }
   return (
     <div className="flex w-full items-center justify-between gap-4 text-left">
       <span className="flex-1">
-        <span className="block text-sm font-medium text-ink">{label}</span>
-        {description && <span className="mt-0.5 block text-xs text-ink-soft">{description}</span>}
+        <span className="block text-ui-body text-ui-text">{label}</span>
+        {description && <span className="mt-0.5 block text-ui-label text-ui-muted">{description}</span>}
       </span>
       <Switch checked={checked} onChange={onChange} disabled={disabled} ariaLabel={label} />
     </div>

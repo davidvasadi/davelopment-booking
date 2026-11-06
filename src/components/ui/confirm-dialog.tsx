@@ -1,16 +1,14 @@
 'use client'
 
-import { AlertTriangle } from 'lucide-react'
+import { TriangleAlert, type LucideIcon } from 'lucide-react'
 import { createPortal } from 'react-dom'
+import { Button, IconCircle, Panel, SheetHandle } from '@/components/ui-kit'
 
 /**
- * Megerősítő párbeszéd a böngésző natív `confirm()` helyett — a projekt
- * glass/blur stílusában (lásd CancelSubscriptionButton). Kontrollált: az `open`
- * vezérli, a gombok az `onConfirm` / `onCancel`-t hívják.
- *
- * createPortal-lal a body-ra renderelünk, hogy a Framer Motion transform-context
- * (pl. <Reveal>) ne törje a fixed pozícionálást (viewport helyett az ancestor-hoz
- * pozícionálna, ami fehér sávot/eltolódást okoz desktopon és mobilon egyaránt).
+ * Megerősítő ablak (a /design 6.10): felül nagy jelző-kör, alatta a kérdés, egy sor arról, mire vonatkozik,
+ * opcionálisan adatsorok (`children` — pl. ki kap értesítést, mi lesz az előleggel, régi → új időpont), lent jobbra
+ * Mégse és a fő gomb (visszafordíthatatlan lépésnél piros). Mobilon alulról nyíló lap fogantyúval.
+ * Kontrollált: az `open` vezérli. createPortal-lal a body-ra kerül, hogy egy transform-os ős ne törje a fixed pozíciót.
  */
 export function ConfirmDialog({
   open,
@@ -25,73 +23,45 @@ export function ConfirmDialog({
   onCancel,
   onTertiary,
   zIndexClass = 'z-[60]',
+  icon,
+  children,
 }: {
   open: boolean
   title: string
-  description?: string
+  description?: React.ReactNode
   confirmLabel?: string
   cancelLabel?: string
-  /** Opcionális harmadik gomb (pl. „Elvetés") — a confirm és a cancel között. */
+  /** Opcionális harmadik gomb (pl. „Elvetés") — a Mégse és a fő gomb között. */
   tertiaryLabel?: string
-  /** Igaz esetén a megerősítő gomb piros (törlés-jellegű művelet). */
   destructive?: boolean
   busy?: boolean
   onConfirm: () => void
   onCancel: () => void
   onTertiary?: () => void
-  /** Egy másik, magasabb z-index-ű modalba ágyazva felülírható, hogy a dialógus fölé kerüljön. */
   zIndexClass?: string
+  /** a jelző-kör ikonja (alapból figyelmeztető háromszög) */
+  icon?: LucideIcon
+  /** adatsorok a kérdés alatt (kit FieldRow boxed, régi → új időpont stb.) */
+  children?: React.ReactNode
 }) {
   if (!open || typeof document === 'undefined') return null
 
   return createPortal(
-    <div
-      className={`fixed inset-0 ${zIndexClass} flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm`}
-      onClick={onCancel}
-    >
-      <div
-        className="w-full max-w-md rounded-2xl bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-white/[0.08] p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-        role="alertdialog"
-        aria-modal="true"
-      >
-        <div className="flex items-start gap-3 mb-5">
-          <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${destructive ? 'bg-red-500/15' : 'bg-amber-500/15'}`}>
-            <AlertTriangle className={`h-5 w-5 ${destructive ? 'text-red-600 dark:text-red-400' : 'text-amber-600 dark:text-amber-400'}`} />
+    <div className={`fixed inset-0 ${zIndexClass} flex items-end justify-center sm:items-center sm:p-4`}>
+      <div className="absolute inset-0 bg-ui-dark/25 backdrop-blur-sm" onClick={onCancel} aria-hidden />
+      <div role="alertdialog" aria-modal="true" className="relative w-full sm:max-w-[440px]">
+        <Panel pad="lg" className="max-sm:rounded-b-none max-sm:pt-3">
+          <SheetHandle className="pb-3 sm:hidden" />
+          <IconCircle icon={icon ?? TriangleAlert} tone={destructive ? 'bad' : 'yellow'} size="lg" />
+          <h3 className="mt-4 text-ui-sub font-light text-ui-text">{title}</h3>
+          {description && <div className="mt-1 text-ui-body text-ui-muted">{description}</div>}
+          {children && <div className="mt-4">{children}</div>}
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <Button variant="cell" onClick={onCancel} disabled={busy}>{cancelLabel}</Button>
+            {tertiaryLabel && onTertiary && <Button variant="glass" onClick={onTertiary} disabled={busy}>{tertiaryLabel}</Button>}
+            <Button variant={destructive ? 'danger' : 'dark'} onClick={onConfirm} disabled={busy}>{busy ? '…' : confirmLabel}</Button>
           </div>
-          <div className="flex-1">
-            <h3 className="font-bold text-zinc-900 dark:text-white mb-1">{title}</h3>
-            {description && <p className="text-sm text-zinc-500 dark:text-white/50">{description}</p>}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            className="flex-1 h-11 rounded-full bg-zinc-100 dark:bg-white/[0.06] text-zinc-700 dark:text-white/80 text-sm font-semibold hover:opacity-80 transition-opacity disabled:opacity-50"
-          >
-            {cancelLabel}
-          </button>
-          {tertiaryLabel && onTertiary && (
-            <button
-              type="button"
-              onClick={onTertiary}
-              disabled={busy}
-              className="flex-1 h-11 rounded-full border border-zinc-200 dark:border-white/[0.12] text-zinc-600 dark:text-white/70 text-sm font-semibold hover:bg-zinc-50 dark:hover:bg-white/[0.04] transition-colors disabled:opacity-50"
-            >
-              {tertiaryLabel}
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={busy}
-            className={`flex-1 h-11 rounded-full text-white text-sm font-semibold transition-colors disabled:opacity-50 ${destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-zinc-900 dark:bg-white dark:text-black hover:opacity-90'}`}
-          >
-            {busy ? '…' : confirmLabel}
-          </button>
-        </div>
+        </Panel>
       </div>
     </div>,
     document.body

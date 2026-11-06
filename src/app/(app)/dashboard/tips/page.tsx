@@ -4,7 +4,7 @@ import { can } from '@/lib/permissions'
 import { getDashboardStats } from '@/lib/dashboardStats'
 import { getPayloadClient } from '@/lib/payload'
 import { buildSalonAdvisor, type SetupFlags } from '@/lib/tipsAdvisor'
-import { TipsAdvisorView } from '@/components/dashboard/TipsAdvisorView'
+import { TipsView } from '@/components/dashboard/TipsView'
 
 export const metadata = { title: 'Tippek' }
 
@@ -70,5 +70,5 @@ export default async function SalonTipsPage() {
 
   const data = buildSalonAdvisor(salon, setup, stats, capabilities)
 
-  return <TipsAdvisorView variant="salon" data={data} apiBase={`/api/salons/${salon.id}`} canManage={can(capabilities, 'tips.manage')} />
+  return <TipsView data={data} apiBase={`/api/salons/${salon.id}`} canManage={can(capabilities, 'tips.manage')} />
 }

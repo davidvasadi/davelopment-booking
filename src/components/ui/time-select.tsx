@@ -48,7 +48,7 @@ function Wheel({
   return (
     <div className="relative h-[180px] flex-1">
       {/* középső kiemelő sáv */}
-      <div className="pointer-events-none absolute inset-x-1 top-1/2 z-0 h-9 -translate-y-1/2 rounded-lg bg-paper" />
+      <div className="pointer-events-none absolute inset-x-1 top-1/2 z-0 h-9 -translate-y-1/2 rounded-ui-control bg-ui-cell" />
       <div
         ref={ref}
         onScroll={handleScroll}
@@ -64,8 +64,8 @@ function Wheel({
             onClick={() => onChange(it)}
             style={{ height: ITEM_H }}
             className={cn(
-              'flex w-full snap-center items-center justify-center text-base tabular-nums transition-colors',
-              it === value ? 'font-bold text-ink' : 'text-ink-soft2'
+              'flex w-full snap-center items-center justify-center text-ui-row tabular-nums transition-colors',
+              it === value ? 'font-medium text-ui-text' : 'text-ui-muted'
             )}
           >
             {it}
@@ -194,23 +194,24 @@ export function TimeSelect({
         disabled={disabled}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex h-9 w-full items-center justify-between gap-2 rounded-lg border border-line-strong bg-white px-3 text-sm tabular-nums text-ink transition-colors hover:border-ink-soft2',
+          'flex h-9 w-full items-center justify-between gap-2 rounded-ui-control text-ui-body tabular-nums text-ui-text transition-colors',
+          'bg-ui-cell px-3.5 hover:bg-ui-grey/40',
           disabled && 'cursor-not-allowed opacity-50'
         )}
       >
         {display}
-        <ChevronDown className={cn('h-4 w-4 opacity-50 transition-transform', open && 'rotate-180')} />
+        <ChevronDown className={cn('h-4 w-4 text-ui-muted transition-transform', open && 'rotate-180')} strokeWidth={1.8} />
       </button>
 
       {open && pos && target && createPortal(
         <div
           ref={panelRef}
           style={{ position: 'fixed', top: pos.top, left: pos.left }}
-          className="z-[100] w-[140px] overflow-hidden rounded-xl border border-line bg-white shadow-dav-container"
+          className="z-[100] w-[140px] overflow-hidden rounded-ui-inner bg-white shadow-ui-popup"
         >
           <div className="flex">
             <Wheel items={hours.length ? hours : HOURS} value={h} onChange={(nh) => onChange(`${nh}:${m}`)} />
-            <div className="flex items-center text-base font-bold text-ink-soft2/40">:</div>
+            <div className="flex items-center text-ui-row text-ui-muted/50">:</div>
             <Wheel items={minutesFor.length ? minutesFor : MINUTES} value={m} onChange={(nm) => onChange(`${h}:${nm}`)} />
           </div>
         </div>,

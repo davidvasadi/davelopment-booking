@@ -4,121 +4,76 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 5%;
+    /* shadcn-alap tokenek (components/ui) — az új paletta HSL-ben (/design 1.2):
+       sötét #383838, halvány #828282, cella #EEEEEE, piros #B0453F; lekerekítés: vezérlő 14px */
+    --background: 0 0% 93%;
+    --foreground: 0 0% 22%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 5%;
+    --card-foreground: 0 0% 22%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 5%;
-    --primary: 0 0% 5%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96%;
-    --secondary-foreground: 0 0% 5%;
-    --muted: 0 0% 96%;
-    --muted-foreground: 0 0% 45%;
-    --accent: 0 0% 94%;
-    --accent-foreground: 0 0% 5%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
+    --popover-foreground: 0 0% 22%;
+    --primary: 0 0% 22%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 0 0% 93%;
+    --secondary-foreground: 0 0% 22%;
+    --muted: 0 0% 93%;
+    --muted-foreground: 0 0% 51%;
+    --accent: 0 0% 93%;
+    --accent-foreground: 0 0% 22%;
+    --destructive: 3 47% 47%;
+    --destructive-foreground: 0 0% 100%;
     --border: 0 0% 90%;
-    --input: 0 0% 90%;
-    --ring: 0 0% 5%;
-    --radius: 0.625rem;
+    --input: 0 0% 93%;
+    --ring: 0 0% 22%;
+    --radius: 0.875rem;
 
-    /* ===== davelopment-design tokenek =====
-       A handoff (docs/design_handoff_davelopment) alapján. Additív: a régi
-       stílust nem érinti, az új komponensek ezeket használják. */
-    --dav-ink: #1D1C19;            /* sötét kártya / pill */
-    --dav-accent: #F1CE45;         /* sárga CTA / kiemelés */
-    --dav-paper: #E4E4E2;          /* oldal háttér (konténeren kívül) */
-    --dav-text: #211F1A;           /* fő szöveg */
-    --dav-text-muted: #86826F;     /* halvány szöveg */
-    --dav-text-muted2: #6F6B5F;    /* halvány szöveg, sötétebb */
-    --dav-line: rgba(120,110,70,.14);   /* vonal/border */
-    --dav-line-strong: rgba(120,110,70,.22);
-    --dav-glass: rgba(255,255,255,.55); /* üveges fehér kártya */
-    --dav-glass-strong: rgba(255,255,255,.62);
+    /* ===== Régi davelopment-design tokenek (--dav-*) — ÁTMENETI ALIASOK =====
+       Mind az új UI-alap (lent, --ui-*) értékeire mutat, így a még át nem állított oldalak is az új
+       palettát kapják. Új kód NEM használja őket; ahogy egy oldal átáll a ui-* osztályokra, a
+       hivatkozások eltűnnek, és a végén ez a blokk törlődik. */
+    --dav-ink: var(--ui-dark);
+    --dav-accent: var(--ui-yellow);
+    --dav-paper: var(--ui-cell);
+    --dav-text: var(--ui-text);
+    --dav-text-muted: var(--ui-muted);
+    --dav-text-muted2: var(--ui-muted);
+    --dav-line: var(--ui-divider);
+    --dav-line-strong: var(--ui-divider);
+    --dav-glass: var(--ui-card);
+    --dav-glass-strong: rgba(255,255,255,.7);
+    --dav-container-gradient: var(--ui-page-bg);
+    --dav-ok: var(--ui-ok);   --dav-ok-bg: var(--ui-ok-bg);   --dav-ok-fill: var(--ui-ok-dot);
+    --dav-warn: var(--ui-warn); --dav-warn-bg: var(--ui-warn-bg);
+    --dav-bad: var(--ui-bad);   --dav-bad-bg: var(--ui-bad-bg);
+    --dav-track-off: var(--ui-grey);
+    /* betűméret → a ui 8 lépéses skálája (11 · 12 · 13 · 15 · 19 · 26 · 34 · 42) */
+    --dav-fs-2xs: 11px; --dav-fs-xs: 11px; --dav-fs-sm: 12px; --dav-fs-base: 13px; --dav-fs-md: 13px;
+    --dav-fs-lg: 15px; --dav-fs-xl: 19px; --dav-fs-2xl: 19px; --dav-fs-display-sm: 26px; --dav-fs-display: 34px; --dav-fs-display-lg: 42px;
+    /* lekerekítés → konténer 34 · kártya 26 · belső 18 · vezérlő 14 · pill */
+    --dav-r-container: 34px; --dav-r-lg: 26px; --dav-r-md: 18px; --dav-r-chip: 14px; --dav-r-sm: 14px; --dav-r-pill: 9999px;
+    /* árnyék: kártyán nincs (csak a lebegő elemen és a popupon — ui-float / ui-popup) */
+    --dav-shadow-card: 0 0 #0000;
+    --dav-shadow-container: 0 0 #0000;
 
-    /* Konténer-gradient (a dashboard ebben ül; a gradient a konténeren BELÜL) */
-    --dav-container-gradient:
-      radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%),
-      linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
-
-    /* Státusz */
-    /* „OK” zöld (2026-10-28, Dave): a kitöltés (pötty, gomb, kör) #74AA19 — az árazás-kártyák
-       zöldje —, a SZÖVEG ugyanennek a sötétebb árnyalata (világos háttéren is olvasható). */
-    --dav-ok: #4F7F12;      --dav-ok-bg: #EAF3DA;   --dav-ok-fill: #74AA19;
-    --dav-warn: #8A6D12;    --dav-warn-bg: #FDF3CF;
-    --dav-bad: #C0564A;     --dav-bad-bg: #FDE2DD;
-
-    /* Inaktív vezérlő-sín (toggle/chip OFF állapot háttere) — korábban ~6 fájlban nyers
-       #DAD5C6-ként volt lehorgonyozva, egyenként. */
-    --dav-track-off: #DAD5C6;
-
-    /* Betűméret-skála — AUDIT alapján (2026-10-13): a kódban eddig text-[11px]..text-[13.5px]
-       közt kb. 6 szinte-azonos arbitrary érték futott vegyesen (ugyanaz a hiba, mint a
-       lekerekítésnél) — ez a 11 lépéses, VALÓS használatból tömörített skála az egységes
-       alap. ÚJ komponens ezeket használja (`text-dav-*`), a meglévő oldalakat NEM migráljuk
-       vele egy menetben (külön, opcionális kör), csak amit úgyis érintünk. */
-    --dav-fs-2xs: 10px;      /* számláló-badge, legapróbb felirat */
-    --dav-fs-xs: 11px;       /* nagybetűs label, meta-infó, badge-szöveg */
-    --dav-fs-sm: 12px;       /* másodlagos szöveg, hint, sor-alcím */
-    --dav-fs-base: 13px;     /* alap UI-szöveg — gomb-felirat, mező-címke, lista-sor */
-    --dav-fs-md: 14px;       /* kiemeltebb törzsszöveg, input-érték */
-    --dav-fs-lg: 15px;       /* kártya-cím, lista-sor elsődleges szöveg */
-    --dav-fs-xl: 17px;       /* kártyán belüli szakasz-cím */
-    --dav-fs-2xl: 20px;      /* al-oldal cím */
-    --dav-fs-display-sm: 26px; /* kompakt oldal-cím (mobil, szűk helyen) */
-    --dav-fs-display: 34px;    /* oldal H1 — MOBIL méret (a desktop párja: display-lg) */
-    --dav-fs-display-lg: 42px; /* oldal H1 — DESKTOP méret (lg: a display-hez párosítva) */
-
-    /* Lekerekítés */
-    --dav-r-container: 34px;
-    --dav-r-lg: 26px;
-    --dav-r-md: 18px;
-    --dav-r-chip: 14px;   /* kis vezérlők (chip, mező, kis gomb) — ez hiányzott, ezért találta ki mindenki a sajátját 10-16px közt */
-    --dav-r-sm: 12px;     /* legkisebb kerekítés (ikon-doboz, badge) */
-    --dav-r-pill: 30px;
-
-    /* Árnyék */
-    --dav-shadow-card: 0 2px 8px rgba(0,0,0,.04);
-    --dav-shadow-container: 0 34px 70px -34px rgba(80,70,30,.20), 0 0 0 1px rgba(120,110,70,.06);
+    /* ===== UI-alap (2026-10-31, a /design mintaoldal szerint, Crextio-referencia) =====
+       Beszédes nevek, egy helyen. Új / átállított kód EZEKET használja (`bg-ui-dark`,
+       `text-ui-muted`, `.ui-card`, `.ui-hatch`…); a régi `--dav-*` nevek az átállás végéig élnek. */
+    --ui-dark: #383838;          /* sötét kártya, elsődleges gomb, megerősített, aktív */
+    --ui-yellow: #FFD85F;        /* kiemelés, függő, csúcsérték */
+    --ui-grey: #B6B6B6;          /* befejezett, inaktív szegmens */
+    --ui-text: #383838;          /* fő szöveg */
+    --ui-muted: #828282;         /* másodlagos szöveg, címke */
+    --ui-cell: #EEEEEE;          /* naptár-cella, mező-alap, popover-kijelölés */
+    --ui-card: rgba(255,255,255,.6); /* krém-üveg kártya */
+    --ui-divider: rgba(120,110,70,.22); /* szaggatott elválasztó */
+    --ui-page-bg: linear-gradient(160deg, #E3E5E6 0%, #E9E8E4 45%, #F6EFD9 80%, #FCF8ED 100%); /* oldal-háttér (hideg szürke → krém) */
+    /* riasztás-pill (2. szint): halvány háttér + szöveg + pötty */
+    --ui-ok-bg: #E4F0D6;   --ui-ok: #4F7F12;   --ui-ok-dot: #74AA19;
+    --ui-warn-bg: #FBE7D3; --ui-warn: #9A5A16; --ui-warn-dot: #E2872E;
+    --ui-bad-bg: #FDE2DD;  --ui-bad: #B0453F;  --ui-bad-dot: #C0564A;
+    --ui-neutral-bg: #ECECEC; --ui-neutral: #5E5E5E;
   }
 
-  /* Backstage admin-akcentus: a user 3 márkaszíne (davelopment ink/gold/fehér) itt
-     felülírja az alap (krémes) tokeneket — a teljes dav-card-glass/BackstageUi
-     rendszer VÁLTOZATLAN marad, csak a mögöttes színek térnek el, hogy a backstage
-     vizuálisan megkülönböztethető admin-felületnek hasson a user-dashboardtól. */
-  [data-app-variant="backstage"] {
-    --dav-ink: #3B3B3B;
-    --dav-accent: #FFD85F;
-    --dav-paper: #ffffff;
-    --dav-container-gradient:
-      radial-gradient(125% 80% at 100% -8%, rgba(255,216,95,.22) 0%, rgba(255,216,95,0) 42%),
-      linear-gradient(116deg, #ffffff 0%, #fbfbfb 50%, #f5f5f5 100%);
-  }
-
-  .dark {
-    --background: 0 0% 5%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 7%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 7%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 5%;
-    --secondary: 0 0% 12%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 12%;
-    --muted-foreground: 0 0% 60%;
-    --accent: 0 0% 12%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14%;
-    --input: 0 0% 14%;
-    --ring: 0 0% 98%;
-  }
 }
 
 @layer base {
@@ -132,18 +87,9 @@
 
 html {
   scroll-behavior: smooth;
-  background-color: #ECECE8;
+  background-color: var(--ui-cell);
 }
 
-/* Mobilon az arany radial-glow a viewport teteje fölé (−8%) esett → státuszsáv alatt látszott.
-   1024px alatt lentebb toljuk, hogy a header alá kerüljön. */
-@media (max-width: 1023px) {
-  :root {
-    --dav-container-gradient:
-      radial-gradient(125% 80% at 100% 30%, rgba(241,206,69,.26) 0%, rgba(241,206,69,0) 42%),
-      linear-gradient(180deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
-  }
-}
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;
@@ -200,148 +146,72 @@ html {
   to { transform: translateX(-33.333%); }
 }
 
-/* ── Munkavállaló-kártya (.hv-panel) SAJÁT, kicsit halványabb arany-glow-ja ──
-   Csak ez a felugró panel kapja — a globális --dav-container-gradient token (a dashboard
-   TÖBBI felülete) változatlan marad. Unlayered szabály, ezért felülírja a bg-dav-container
-   Tailwind-utility-t (ami @layer utilities-ben van) anélkül, hogy a JSX-ből ki kéne szedni. */
-.hv-panel {
-  background-image:
-    radial-gradient(125% 80% at 100% -8%, rgba(241,206,69,.20) 0%, rgba(241,206,69,0) 42%),
-    linear-gradient(116deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
-}
-@media (max-width: 1023px) {
-  .hv-panel {
-    background-image:
-      radial-gradient(125% 80% at 100% 30%, rgba(241,206,69,.20) 0%, rgba(241,206,69,0) 42%),
-      linear-gradient(180deg, #ECECE8 0%, #E8E8E6 50%, #E4E4E2 100%);
-  }
-}
-
-/* ── HiringView detail panel reszponzív layout ──
-   A Tailwind JIT nem mindig generálja az arbitrary-value lg:w-[Xpx] osztályokat
-   dinamikus template literálban — ezért CSS-ben definiáljuk a reszponzív szélességet. */
-.hv-left-col { flex-shrink: 0; width: 100%; }
-.hv-right-col { flex: 1; min-width: 0; }
-@media (min-width: 1024px) {
-  .hv-left-col { width: 280px; }
-  .hv-left-col[data-wide="true"] { width: 420px; }
-}
-
-/* ── RadialGauge: abszolút jobb felső sarok a profil-kártyán — MINDEN nézetben (a gauge
-   korábban mobilon el volt rejtve, ezt kérte a user visszaállítani "a sarokba, ahol volt").
-   A .hv-profile-block position:relative (a gauge ehhez képest van abszolút pozicionálva),
-   de a padding-right csak a .hv-profile-head-en (fotó + név/gombsor) van — ez a gauge tényleges
-   magassága melletti egyetlen sor, a tag/kontakt/statisztika sorok ALATTA már nem érintkeznek
-   a gauge-dzsel, ezért azok teljes szélességet kaphatnak (korábban a padding a TELJES
-   .hv-profile-block-re volt téve, feleslegesen összeszorítva minden alatta lévő sort is mobilon).
-   Mobilon a gauge kisebb (RadialGauge saját reszponzív mérete: 85px < 640px), ezért a fenntartott
-   hely is kisebb. Ha a naptárszerkesztő nyitva van (data-wide="true"): gauge elrejt + padding
-   törlés, hogy a fejléc-gomboknak teljes szélesség maradjon. */
-.hv-right-col .hv-profile-block { position: relative; }
-.hv-right-col .hv-profile-head { padding-right: 100px; }
-@media (min-width: 640px) {
-  .hv-right-col .hv-profile-head { padding-right: 170px; }
-}
-.hv-right-col .hv-profile-gauge { position: absolute; right: 0; top: 0; }
-.hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-head { padding-right: 0; }
-.hv-left-col[data-wide="true"] ~ .hv-right-col .hv-profile-gauge { display: none; }
-
-/* ── Nyomtatás ──
-   A `print:hidden` (Tailwind) mindenhonnan kiszedi a keresőt/szűrőt/akció-gombokat.
-   A `printing-profile` body-osztály (a profil Nyomtatás gombja teszi fel): a mögöttes app +
-   overlay-háttér eltűnik, az overlay konténereit „kioldjuk" → a profil NORMÁL folyásban
-   nyomtatódik (nem esik össze), csak a profil-oszlop (a lista/fejléc print:hidden). */
-@media print {
-  /* A4 ÁLLÓ, ésszerű margóval. */
-  @page { size: A4 portrait; margin: 12mm; }
-
-  /* A háttérszínek / gradiensek / pillok / diagram-színek NYOMTATÓDJANAK (a böngésző alapból elhagyná). */
-  body.printing-profile,
-  body.printing-profile .hv-panel,
-  body.printing-profile .hv-panel * {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  body.printing-profile > *:not(.hv-print) { display: none !important; }
-  body.printing-profile .hv-backdrop { display: none !important; }
-  body.printing-profile .hv-scroll {
-    position: static !important;
-    overflow: visible !important;
-    display: block !important;
-    padding: 0 !important;
-  }
-  body.printing-profile .hv-panel {
-    position: static !important;
-    max-width: 100% !important;
-    width: 100% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    box-shadow: none !important;
-    background: #fff !important;
-  }
-
-  /* Nyomtatáskor flex-row kényszerítés + bal oszlop fix szélesség (a CSS media query nem fut
-     print-nél, ezért itt explicit). */
-  body.printing-profile .hv-detail-grid {
-    display: flex !important;
-    flex-direction: row !important;
-    gap: 1.4rem !important;
-    /* pontosan az asztali profilablak: a két oszlop egy vonalban végződik, a chart kitölti */
-    align-items: stretch !important;
-  }
-  /* Nyomtatásban az ASZTALI elrendezés (a print nem lg-szélességű, magától a mobilt kapná):
-     BAL = nagy fotó + naptár + órák kártya, JOBB = adatlap + Havi munkaidő. */
-  body.printing-profile .hv-left-col {
-    order: 1 !important;
-    width: 240px !important;
-    flex-shrink: 0 !important;
-  }
-  body.printing-profile .hv-right-col {
-    order: 2 !important;
-    flex: 1 !important;
-    min-width: 0 !important;
-  }
-  /* A jelenlét-kör papíron nem kell (animált, képernyős kiemelés) — a fejléc kapja meg a helyét. */
-  body.printing-profile .hv-profile-head { padding-right: 0 !important; }
-  body.printing-profile .hv-profile-gauge { display: none !important; }
-
-  /* ── Egy A4-re sűrítés (a GRAFIKONOK maradnak, csak kompaktabbak) ──
-     A profil képernyőn magasabb, mint egy A4; nyomtatásban visszafogjuk a méreteket, hogy
-     minden (naptár + adatok + mindkét diagram) egy oldalra férjen, csúszás nélkül. */
-  /* A profil-kártya függőlegesen (és vízszintesen) középre a lapon: a panel kitölti a lap
-     magasságát (print-nél a vh = a nyomtatható lap), és flexszel középre teszi a tartalmát.
-     99vh, hogy kerekítés miatt ne csússzon át egy üres második oldalra. */
-  body.printing-profile .hv-panel {
-    min-height: 99vh !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: center !important;
-  }
-  body.printing-profile [data-print-root] { padding: 1rem !important; margin-left: auto !important; margin-right: auto !important; }
-  /* A nagy „Havi munkaidő" chart magassága (y-tengely + rajzterület + svg) — a %-os csúcs-overlay
-     arányosan követi, így nem csúszik el. */
-  body.printing-profile .hv-chart-h { min-height: 120px !important; }
-  body.printing-profile .hv-chart-wrap { min-height: 146px !important; }
-  /* A jobb oszlop szekció-térközei szűkebbek — a fejléc/adat-blokk (címkék, megjegyzés, kontakt,
-     belépés-sor, pozíció-előzmény, bér-kártya) a legterjedelmesebb rész, ezt is sűrítjük, hogy egy
-     adat-gazdag profil is EGY A4-re férjen. */
-  body.printing-profile .hv-detail-grid .mt-8 { margin-top: 0.85rem !important; }
-  body.printing-profile .hv-detail-grid .mt-5 { margin-top: 0.7rem !important; }
-  body.printing-profile .hv-detail-grid .mt-4 { margin-top: 0.6rem !important; }
-  body.printing-profile .hv-detail-grid .mt-3 { margin-top: 0.5rem !important; }
-
-  /* Kép / diagram / kártya ne törjön szét oldalhatáron. */
-  body.printing-profile img,
-  body.printing-profile svg,
-  body.printing-profile [data-print-card] {
-    break-inside: avoid;
-    page-break-inside: avoid;
-  }
-}
-
 @layer components {
+  /* ===== UI-alap felületek (lásd :root --ui-*) ===== */
+  /* Csík — üres / szabad: vékony fehér vonalak az átlátszó felületen, 1px kontúrral. */
+  .ui-hatch {
+    /* fehér vonalak halvány szürke alapon — krémes ÉS fehér felületen is látszik (egy stílus mindenhol) */
+    background: repeating-linear-gradient(120deg, transparent 0 10px, rgba(255,255,255,.95) 10px 12.5px), rgba(130,130,130,.10);
+  }
+  /* Csík — naptár-cella (hónapon kívüli nap, hétvége alja): vékony szürke vonalak. */
+  .ui-hatch-cell {
+    background: repeating-linear-gradient(120deg, var(--ui-cell) 0 7px, rgba(130,130,130,.35) 7px 8px);
+  }
+  /* Csík ráterítve (idővonal, zárás utáni sáv): átlátszó, így az alatta lévő foglalás látszik, csak csíkozva. */
+  .ui-hatch-over {
+    background: repeating-linear-gradient(120deg, transparent 0 10px, rgba(255,255,255,.45) 10px 12.5px);
+  }
+  /* Fotó-kártya alsó üvegsávja: elmosott, felfelé elhalványuló réteg a kép alján + olvasható fehér szöveg. */
+  .ui-photo-veil {
+    background: rgba(255,255,255,.14);
+    -webkit-backdrop-filter: blur(28px);
+    backdrop-filter: blur(28px);
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 56px);
+    mask-image: linear-gradient(to bottom, transparent 0, black 56px);
+  }
+  .ui-photo-text { text-shadow: 0 1px 4px rgba(0,0,0,.4); }
+  /* Vendég-oldal (foglalóoldal): az üzlet saját márkaszíne. A szülőn `--biz-accent` / `--biz-accent-fg` (nem `--accent`: az a shadcn saját változója) (alap: a mi sárgánk);
+     a kiemelt elem (fő gomb, kiválasztott sor, választott időpont) ezt kapja — a belső szövegek is a hozzá illő színt.
+     !important: a kit-elemek saját háttér- és szövegszínét írja felül (a márkaszín az üzleté, nem a kité). */
+  .ui-accent { background: var(--biz-accent, #FFD85F) !important; color: var(--biz-accent-fg, #383838) !important; }
+  .ui-accent * { color: inherit !important; }
+  .ui-accent .text-ui-muted { opacity: .7; }
+  /* Csíkos felületen a szöveg: halvány fehér „glóriát” kap, hogy a fehér csíkok ne vágják el a betűket. */
+  .ui-hatch-text { text-shadow: 0 0 6px rgba(255,255,255,.95), 0 0 2px rgba(255,255,255,.95); }
+  /* Sorok egymás utáni beúszása (a Fiók menü „staggered” belépője) — a .ui-stagger alatti TaskRow-k / sorok. */
+  /* Gomb-nyomás rugós visszaugrással (Dave: „minden gombra bounce”) — a kit minden gombja ezt kapja. A külön `scale`
+     tulajdonság nem ütközik a gombon lévő translate / transform osztályokkal. */
+  /* csak a lenyomás-rugó animál: a háttér / szín / átlátszóság azonnal vált — különben egy kijelölés-váltásnál (lapozó,
+     váltó, chip) a régi és az új elem egyszerre félúton látszik („vibrál”), a letiltott nyíl pedig elhalványulva villan */
+  .ui-press { transition: scale .5s cubic-bezier(.34, 1.9, .5, 1); }
+  .ui-press:active:not(:disabled) { scale: .9; transition-duration: .08s; }
+  /* Lenyíló menü (⋯, Továbbiak): az ablakok rugós („genie”) nyitásának kicsiben */
+  @keyframes ui-pop-in { 0% { opacity: 0; scale: .78; } 55% { opacity: 1; scale: 1.04; } 100% { opacity: 1; scale: 1; } }
+  .ui-pop-in { animation: ui-pop-in .42s cubic-bezier(.34, 1.4, .64, 1) both; transform-origin: top right; }
+  /* Tömeges-művelet sáv (kijelöléskor alulról): ugyanaz a rugós „genie”, mint az ablakoknál */
+  @keyframes ui-dock-in { 0% { opacity: 0; translate: 0 18px; scale: .82; } 60% { opacity: 1; translate: 0 -3px; scale: 1.04; } 100% { opacity: 1; translate: 0 0; scale: 1; } }
+  .ui-dock-in { animation: ui-dock-in .46s cubic-bezier(.34, 1.4, .64, 1) both; transform-origin: bottom center; }
+  @media (prefers-reduced-motion: reduce) { .ui-press, .ui-press:active { transition: none; scale: none; } .ui-pop-in, .ui-dock-in { animation: none; } }
+  /* Betöltési animáció (design 2.11.2, LoadAnim): az oszlopok alulról felnőnek, a gyűrű körberajzolódik — ugyanabban az
+     ütemben (850 ms, lassuló), mint a pillek és a felszámoló számok. A késleltetést oszloponként a --i adja. */
+  @keyframes ui-grow-y { from { scale: 1 0; } to { scale: 1 1; } }
+  .ui-grow-y { transform-origin: bottom; animation: ui-grow-y .85s cubic-bezier(.33, 1, .68, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+  @keyframes ui-ring-draw { from { stroke-dasharray: 0 400; } }
+  .ui-ring-draw { animation: ui-ring-draw .85s cubic-bezier(.33, 1, .68, 1) both; }
+  /* sáv kirajzolása balról jobbra (pl. a havi naptár műszak-pilljei) — a pillekkel egy ütemben, torzítás nélkül (clip-path) */
+  @keyframes ui-draw-x { from { clip-path: inset(0 100% 0 0 round 9999px); } to { clip-path: inset(0 0 0 0 round 9999px); } }
+  .ui-draw-x { animation: ui-draw-x .85s cubic-bezier(.33, 1, .68, 1) both; animation-delay: calc(var(--i, 0) * 45ms); }
+  @media (prefers-reduced-motion: reduce) { .ui-grow-y, .ui-ring-draw, .ui-draw-x { animation: none; } }
+  @keyframes ui-pop-item { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .ui-stagger [data-stagger] > * { animation: ui-pop-item .38s cubic-bezier(.2,.9,.3,1.15) both; }
+  .ui-stagger [data-stagger] > *:nth-child(1) { animation-delay: 60ms; }
+  .ui-stagger [data-stagger] > *:nth-child(2) { animation-delay: 95ms; }
+  .ui-stagger [data-stagger] > *:nth-child(3) { animation-delay: 130ms; }
+  .ui-stagger [data-stagger] > *:nth-child(4) { animation-delay: 165ms; }
+  .ui-stagger [data-stagger] > *:nth-child(5) { animation-delay: 200ms; }
+  .ui-stagger [data-stagger] > *:nth-child(6) { animation-delay: 235ms; }
+  .ui-stagger [data-stagger] > *:nth-child(n+7) { animation-delay: 270ms; }
+
   /* ===== Üveges „view" kártya-felület =====
      A davelopment-design etalon a fő tartalom-panelekhez (a régi tömör fehér
      `bg-white border border-line shadow-dav-card` helyett). Áttetsző üveg: az
@@ -349,9 +219,7 @@ html {
      paddinget a hívó adja hozzá (pl. `rounded-[26px] p-6 dav-card-glass`).
      FONTOS: csak fő panelekre — a popover/modal/legördülő maradjon tömör fehér. */
   .dav-card-glass {
-    background: var(--dav-glass-strong);
-    border: 1px solid var(--dav-line);
-    box-shadow: var(--dav-shadow-card);
+    background: var(--ui-card);
     -webkit-backdrop-filter: blur(18px) saturate(1.08);
     backdrop-filter: blur(18px) saturate(1.08);
   }
@@ -401,57 +269,23 @@ html {
    osztály a <Toaster toastOptions.className>-ből jön; a réteg-en kívüli szabály felülírja a sonner-alapokat. */
 [data-sonner-toaster] { --width: 360px; }
 [data-sonner-toast].dav-toast {
-  border-radius: 18px;
-  border: 1px solid var(--dav-line-strong);
-  background: #fff;
-  color: #2B2A28;
-  box-shadow: 0 16px 44px -18px rgba(70, 60, 20, 0.30);
+  border-radius: 9999px;
+  border: 0;
+  background: var(--ui-dark);
+  color: #fff;
+  box-shadow: 0 18px 40px -16px rgba(0, 0, 0, 0.5);
   font-family: inherit;
-  font-size: 13.5px;
-  padding: 14px 16px;
-  gap: 11px;
+  font-size: 13px;
+  padding: 10px 18px 10px 12px;
+  gap: 10px;
 }
-[data-sonner-toast].dav-toast [data-title] {
-  font-weight: 600;
-  color: #2B2A28;
-  letter-spacing: -0.01em;
-}
-[data-sonner-toast].dav-toast [data-description] {
-  color: #8A8779;
-  font-size: 12.5px;
-}
-[data-sonner-toast].dav-toast[data-type="success"] [data-icon] { color: #4F9E6A; }
-[data-sonner-toast].dav-toast[data-type="error"] [data-icon] { color: #D0574B; }
-[data-sonner-toast].dav-toast[data-type="warning"] [data-icon] { color: #C9A227; }
-[data-sonner-toast].dav-toast[data-type="info"] [data-icon] { color: #1D1C19; }
-[data-sonner-toast].dav-toast [data-close-button] {
-  background: #fff;
-  border: 1px solid var(--dav-line);
-  color: #8A8779;
-}
-
-/* ===== Áttekintés bento (szalon + étterem) — mobilon avatar → charts → tasks → accordion
-   sorrendben egymás alatt, lg-től a klasszikus 3-oszlopos elrendezés (avatar+accordion a bal
-   300px oszlopban egymás alatt, charts/tasks teljes magasságban átfogja mindkét sort).
-   SZÁNDÉKOSAN sima CSS, nem Tailwind arbitrary-property osztály: a Tailwind escape-elt
-   `[grid-template-areas:'a'_'b']` szelektor Safariban (asztali + mobil) törve/egymásra
-   csúszva renderelt, Chrome-ban viszont jó volt — ez egy WebKit-specifikus parse-hiba a
-   backslash-escape-elt arbitrary-value szelektorral, sima class-szal nem jelentkezik. */
-.dav-overview-bento {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 5px;
-  grid-template-areas: "avatar" "charts" "tasks" "accordion";
-}
-@media (min-width: 1024px) {
-  .dav-overview-bento {
-    grid-template-columns: 300px minmax(0, 1.6fr) minmax(300px, 0.95fr);
-    grid-template-rows: auto minmax(0, 1fr);
-    grid-template-areas:
-      "avatar charts tasks"
-      "accordion charts tasks";
-  }
-}
+[data-sonner-toast].dav-toast [data-title] { font-weight: 500; color: #fff; }
+[data-sonner-toast].dav-toast [data-description] { color: rgba(255, 255, 255, 0.55); font-size: 12px; }
+[data-sonner-toast].dav-toast[data-type="success"] [data-icon] { color: var(--ui-yellow); }
+[data-sonner-toast].dav-toast[data-type="error"] [data-icon] { color: var(--ui-bad-dot); }
+[data-sonner-toast].dav-toast[data-type="warning"] [data-icon] { color: var(--ui-warn-dot); }
+[data-sonner-toast].dav-toast[data-type="info"] [data-icon] { color: #fff; }
+[data-sonner-toast].dav-toast [data-close-button] { background: var(--ui-dark); border: 0; color: rgba(255, 255, 255, 0.6); }
 
 /* ===== Auth mezők — Chrome mentett jelszó/email javaslatnál kék/lila autofill-hátteret
    kényszerít a user-agent stílusból, ami felülírja a bg-white-ot. A böngésző csak
